@@ -32,35 +32,52 @@ struct kernel_traits<1>
 };
 } // namespace
 
-template <typename ts_type,
-          ck_tile::index_t block_x,
-          ck_tile::index_t block_y,
-          ck_tile::index_t thread_x,
-          ck_tile::index_t thread_y,
-          bool kPadM,
-          bool kPadN,
-          ck_tile::index_t pipeline_id>
+template <typename InputType_,
+          ck_tile::index_t BlockX_,
+          ck_tile::index_t BlockY_,
+          ck_tile::index_t ThreadX_,
+          ck_tile::index_t ThreadY_,
+          bool PadM_,
+          bool PadN_,
+          ck_tile::index_t PipelineId_>
+struct BatchedTransposeConfig
+{
+    using InputType                               = InputType_;
+    static constexpr ck_tile::index_t kBlockX     = BlockX_;
+    static constexpr ck_tile::index_t kBlockY     = BlockY_;
+    static constexpr ck_tile::index_t kThreadX    = ThreadX_;
+    static constexpr ck_tile::index_t kThreadY    = ThreadY_;
+    static constexpr bool kPadM                   = PadM_;
+    static constexpr bool kPadN                   = PadN_;
+    static constexpr ck_tile::index_t kPipelineId = PipelineId_;
+};
+
+template <typename Config>
 float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_config& s)
 {
     uint32_t dim_stride = a.height * a.width;
 
     a.dim_stride  = dim_stride;
-    a.dim_block_h = block_y;
-    a.dim_block_w = block_x;
+    a.dim_block_h = Config::kBlockY;
+    a.dim_block_w = Config::kBlockX;
 
-    using block_tile  = ck_tile::sequence<block_x, block_y>;
-    using thread_tile = ck_tile::sequence<thread_x, thread_y>;
+    using block_tile  = ck_tile::sequence<Config::kBlockX, Config::kBlockY>;
+    using thread_tile = ck_tile::sequence<Config::kThreadX, Config::kThreadY>;
 
     // TODO: this is fragile and slow to compile
-    using kernel = ck_tile::BatchedTransposeKernel<typename kernel_traits<
-        pipeline_id>::template Pipeline<ts_type, block_tile, thread_tile, kPadM, kPadN>>;
+    using kernel = ck_tile::BatchedTransposeKernel<
+        typename kernel_traits<Config::kPipelineId>::template Pipeline<typename Config::InputType,
+                                                                       block_tile,
+                                                                       thread_tile,
+                                                                       Config::kPadM,
+                                                                       Config::kPadN>>;
 
     auto kargs = kernel::MakeKargs(a);
 
     const dim3 grids      = kernel::GridSize(a);
     constexpr dim3 blocks = kernel::BlockSize();
 
-    printf("Pipeline: %d\n", pipeline_id);
+    printf("Pipeline: %d\n", Config::kPipelineId);
     printf("Grid: x=%u y=%u z=%u\n", grids.x, grids.y, grids.z);
     printf("Block: x=%u y=%u z=%u\n", blocks.x, blocks.y, blocks.z);
     printf(
@@ -103,12 +120,13 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
     F(bf16, ck_tile::bf16_t, 64, 64, 8, 8, false, false, 1)
 
 // Macro that defines one static function per line
-#define GEN_TRANSPOSE_FN(SHORT_NAME, REAL_TYPE, BX, BY, TX, TY, PADM, PADN, PIPE)             \
-    static float                                                                              \
-        transpose_fn_##SHORT_NAME##_##BX##_##BY##_##TX##_##TY##_##PADM##_##PADN##_v##PIPE(    \
-            batched_transpose_kargs& a, ck_tile::stream_config& s)                            \
-    {                                                                                         \
-        return batched_transpose_dispatch<REAL_TYPE, BX, BY, TX, TY, PADM, PADN, PIPE>(a, s); \
+#define GEN_TRANSPOSE_FN(SHORT_NAME, REAL_TYPE, BX, BY, TX, TY, PADM, PADN, PIPE)          \
+    static float                                                                           \
+        transpose_fn_##SHORT_NAME##_##BX##_##BY##_##TX##_##TY##_##PADM##_##PADN##_v##PIPE( \
+            batched_transpose_kargs& a, ck_tile::stream_config& s)                         \
+    {                                                                                      \
+        return batched_transpose_dispatch<                                                 \
+            BatchedTransposeConfig<REAL_TYPE, BX, BY, TX, TY, PADM, PADN, PIPE>>(a, s);    \
     }
 
 FOREACH_TRANSPOSE_PARAM(GEN_TRANSPOSE_FN)
