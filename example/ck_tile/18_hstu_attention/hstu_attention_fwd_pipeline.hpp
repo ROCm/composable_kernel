@@ -353,24 +353,75 @@ struct HstuAttentionFwdPipelineQRKSVS
         // ensure all q_reg_tiles[] have been loaded from LDS, so the LDS can be reused by k_tile
         __builtin_amdgcn_s_barrier();
 
+        using v_tile_type = decltype(load_tile(v_dram_window));
+
+        v_tile_type v_tile;
+
         do
         {
             static_for<0, k1_loops, 1>{}([&](auto i_k1) {
-                // load v_tile for current unroll
-                auto v_tile = load_tile(v_dram_window);
+                if constexpr(HstuMask::kUseLocal)
+                {
+                    constexpr index_t V_VMEM_LOAD_INST = (kN1 * kK1) / kBlockSize / kAlignmentV;
+                    constexpr index_t K_VMEM_LOAD_INST = (kN0 * kK0) / kBlockSize / kAlignmentV;
+                    constexpr index_t K_LDS_WRITE_INST =
+                        (kN0 * kK0) / kBlockSize / Policy::template GetSmemKPackK<Problem>();
+                    constexpr index_t MFMA_INST       = (kM0 * kSubQKHeaddim) / kBlockSize / 4;
+                    constexpr index_t K_LDS_READ_INST = MFMA_INST / kGemmNumRepM;
 
-                store_tile(k_lds_windows[number<i_k1 % NumKVLdsBuffers>{}],
-                           tile_elementwise_in(k_element_func, k_tile));
+                    // load v_tile for current unroll
+                    v_tile = load_tile(v_dram_window);
 
-                move_tile_window(v_dram_window, {0, kK1});
+                    store_tile(k_lds_windows[number<i_k1 % NumKVLdsBuffers>{}],
+                               tile_elementwise_in(k_element_func, k_tile));
 
-                // for i_k1 = k1_loop-1, the loading is for next iteration
-                k_tile = load_tile(k_dram_window);
-                move_tile_window(k_dram_window, {kK1, 0});
+                    move_tile_window(v_dram_window, {0, kK1});
 
-                block_sync_lds();
-                // execute current unroll of gemm_0
-                gemm_0(sacc_tile, q_tile, k_lds_windows[number<i_k1 % NumKVLdsBuffers>{}]);
+                    // for i_k1 = k1_loop-1, the loading is for next iteration
+                    k_tile = load_tile(k_dram_window);
+                    move_tile_window(k_dram_window, {kK1, 0});
+
+                    block_sync_lds();
+                    // execute current unroll of gemm_0
+                    gemm_0(sacc_tile, q_tile, k_lds_windows[number<i_k1 % NumKVLdsBuffers>{}]);
+
+                    __builtin_amdgcn_sched_group_barrier(0x00000200, K_LDS_WRITE_INST, 0);
+
+                    __builtin_amdgcn_sched_group_barrier(0x00000020, V_VMEM_LOAD_INST, 0);
+
+                    __builtin_amdgcn_sched_group_barrier(0x00000100, K_LDS_READ_INST, 0);
+
+                    __builtin_amdgcn_sched_group_barrier(0x00000020, K_VMEM_LOAD_INST, 0);
+
+                    static_for<0, K_LDS_READ_INST - 1, 1>{}([&](auto i) {
+                        ignore = i;
+                        __builtin_amdgcn_sched_group_barrier(0x00000100, K_LDS_READ_INST, 0);
+                        __builtin_amdgcn_sched_group_barrier(0x00000008, kGemmNumRepM, 0);
+                    });
+
+                    __builtin_amdgcn_sched_group_barrier(0x00000008, kGemmNumRepM, 0);
+
+                    __builtin_amdgcn_sched_barrier(0);
+                }
+                else
+                {
+
+                    // load v_tile for current unroll
+                    v_tile = load_tile(v_dram_window);
+
+                    store_tile(k_lds_windows[number<i_k1 % NumKVLdsBuffers>{}],
+                               tile_elementwise_in(k_element_func, k_tile));
+
+                    move_tile_window(v_dram_window, {0, kK1});
+
+                    // for i_k1 = k1_loop-1, the loading is for next iteration
+                    k_tile = load_tile(k_dram_window);
+                    move_tile_window(k_dram_window, {kK1, 0});
+
+                    block_sync_lds();
+                    // execute current unroll of gemm_0
+                    gemm_0(sacc_tile, q_tile, k_lds_windows[number<i_k1 % NumKVLdsBuffers>{}]);
+                };
 
                 sacc_tile = tile_elementwise_in(s_acc_element_func, sacc_tile);
 
