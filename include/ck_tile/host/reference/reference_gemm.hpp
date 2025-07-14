@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -34,17 +34,93 @@ CK_TILE_HOST void reference_gemm(const HostTensor<ADataType>& a_m_k,
 
         for(std::size_t k = 0; k < K; ++k)
         {
-            ADataType v_a = a_element_op(a_m_k(m, k));
-            BDataType v_b = b_element_op(b_k_n(k, n));
-
-            v_acc +=
-                ck_tile::type_convert<AccDataType>(v_a) * ck_tile::type_convert<AccDataType>(v_b);
+            AccDataType v_a;
+            AccDataType v_b;
+            if constexpr(std::is_same_v<ADataType, pk_int4_t>)
+            {
+                const pk_int4_t pk_val  = a_element_op(a_m_k(m, k));
+                const fp32x2_t fp32_val = pk_int4_t_to_fp32x2_t(pk_val);
+                if(k % 2 == 1)
+                    v_a = fp32_val.hi;
+                else
+                    v_a = fp32_val.lo;
+            }
+            else
+            {
+                v_a = ck_tile::type_convert<AccDataType>(a_element_op(a_m_k(m, k)));
+            }
+            if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+            {
+                const pk_int4_t pk_val  = b_element_op(b_k_n(k, n));
+                const fp32x2_t fp32_val = pk_int4_t_to_fp32x2_t(pk_val);
+                if(k % 2 == 1)
+                    v_b = fp32_val.hi;
+                else
+                    v_b = fp32_val.lo;
+            }
+            else
+            {
+                v_b = ck_tile::type_convert<AccDataType>(b_element_op(b_k_n(k, n)));
+            }
+            v_acc += v_a * v_b;
         }
 
         c_m_n(m, n) = ck_tile::type_convert<CDataType>(acc_element_op(v_acc));
     };
 
     make_ParallelTensorFunctor(f_mn, M, N)(std::thread::hardware_concurrency());
+}
+
+template <typename ADataType,
+          typename BDataType,
+          typename DsDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ACCElementOp,
+          typename DDataType = remove_cvref_t<std::tuple_element_t<0, DsDataType>>>
+CK_TILE_HOST void
+reference_gemm_multiple_d(const HostTensor<ADataType>& a_m_k,
+                          const HostTensor<BDataType>& b_k_n,
+                          const std::array<HostTensor<DDataType>, DsDataType::size()>& ds_m_n,
+                          HostTensor<CDataType>& c_m_n,
+                          const ACCElementOp& acc_element_op = {})
+{
+    const std::size_t M = a_m_k.get_length(0);
+    const std::size_t N = b_k_n.get_length(1);
+    const std::size_t K = a_m_k.get_length(1);
+
+    auto f_mk_kn_mn = [&](auto m, auto n) {
+        AccDataType v_acc = 0;
+        for(std::size_t k = 0; k < K; ++k)
+        {
+            ADataType v_a = a_m_k(m, k);
+            BDataType v_b = b_k_n(k, n);
+            v_acc +=
+                ck_tile::type_convert<AccDataType>(v_a) * ck_tile::type_convert<AccDataType>(v_b);
+        }
+
+        CDataType v_c = 0;
+        if constexpr(DsDataType::size() == 0)
+        {
+            acc_element_op(v_c, ck_tile::type_convert<float>(v_acc));
+        }
+        else if constexpr(DsDataType::size() == 1)
+        {
+            acc_element_op(v_c,
+                           ck_tile::type_convert<float>(v_acc),
+                           ck_tile::type_convert<float>(ds_m_n[0](m, n)));
+        }
+        else if constexpr(DsDataType::size() == 2)
+        {
+            acc_element_op(v_c,
+                           ck_tile::type_convert<float>(v_acc),
+                           ck_tile::type_convert<float>(ds_m_n[0](m, n)),
+                           ck_tile::type_convert<float>(ds_m_n[1](m, n)));
+        }
+        c_m_n(m, n) = ck_tile::type_convert<CDataType>(v_c);
+    };
+
+    make_ParallelTensorFunctor(f_mk_kn_mn, M, N)(std::thread::hardware_concurrency());
 }
 
 template <typename ADataType,
@@ -73,6 +149,8 @@ __global__ void naive_gemm_kernel(ADataType* A,
         AccDataType acc = 0.0;
         for(int k = 0; k < K; ++k)
         {
+            constexpr index_t packed_size_a = ck_tile::numeric_traits<ADataType>::PackedSize;
+            constexpr index_t packed_size_b = ck_tile::numeric_traits<BDataType>::PackedSize;
             // Adjust indexing based on matrix layout
             int a_index = (std::is_same_v<LayoutA, tensor_layout::gemm::RowMajor>)
                               ? row * strideA + k
@@ -80,8 +158,34 @@ __global__ void naive_gemm_kernel(ADataType* A,
             int b_index = (std::is_same_v<LayoutB, tensor_layout::gemm::ColumnMajor>)
                               ? col * strideB + k
                               : k * strideB + col;
-            acc += ck_tile::type_convert<AccDataType>(A[a_index]) *
-                   ck_tile::type_convert<AccDataType>(B[b_index]);
+
+            AccDataType v_a;
+            AccDataType v_b;
+            if constexpr(std::is_same_v<ADataType, pk_int4_t>)
+            {
+                const fp32x2_t fp32_val = pk_int4_t_to_fp32x2_t(A[a_index / packed_size_a]);
+                if(k % 2 == 1)
+                    v_a = fp32_val.hi;
+                else
+                    v_a = fp32_val.lo;
+            }
+            else
+            {
+                v_a = ck_tile::type_convert<AccDataType>(A[a_index]);
+            }
+            if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+            {
+                const fp32x2_t fp32_val = pk_int4_t_to_fp32x2_t(B[b_index / packed_size_b]);
+                if(k % 2 == 1)
+                    v_b = fp32_val.hi;
+                else
+                    v_b = fp32_val.lo;
+            }
+            else
+            {
+                v_b = ck_tile::type_convert<AccDataType>(B[b_index]);
+            }
+            acc += v_a * v_b;
         }
 
         int c_index = (std::is_same_v<LayoutC, tensor_layout::gemm::RowMajor>)

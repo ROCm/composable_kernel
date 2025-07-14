@@ -182,9 +182,16 @@ struct Layernorm2dFwdPipelineTwoPass
         ck_tile::index_t stride_to_right_most_window =
             row_size % Block_N == 0 ? row_size - Block_N : row_size - row_size % Block_N;
 
-        move_tile_window(x_window, {0, -Block_N});
-        move_tile_window(x_residual_window, {0, -Block_N});
-        move_tile_window(x_bias_window, {-Block_N});
+        if constexpr(kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD_STORE)
+        {
+            move_tile_window(y_residual_window, {0, -Block_N});
+        }
+        else
+        {
+            move_tile_window(x_window, {0, -Block_N});
+            move_tile_window(x_residual_window, {0, -Block_N});
+            move_tile_window(x_bias_window, {-Block_N});
+        }
         move_tile_window(gamma_window, {stride_to_right_most_window});
         move_tile_window(beta_window, {stride_to_right_most_window});
         move_tile_window(y_window, {0, stride_to_right_most_window});
@@ -192,28 +199,43 @@ struct Layernorm2dFwdPipelineTwoPass
         // layernorm computation
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
-            auto x            = load_tile(x_window);
-            auto x_resi       = load_tile(x_residual_window);
-            const auto x_bias = load_tile(x_bias_window);
-            auto acc          = cast_tile<ComputeDataType>(x);
+            auto acc = make_static_distributed_tensor<ComputeDataType>(
+                decltype(load_tile(x_window))::get_tile_distribution());
 
-            if constexpr(kXbias == Layernorm2dXBiasEnum::ADD_BIAS)
+            if constexpr(kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD_STORE)
             {
-                sweep_tile(x, [&](auto idx) {
-                    // compute x = bias + x
-                    constexpr auto j_idx = make_tuple(idx[number<1>{}]);
-                    acc(idx)             = type_convert<ComputeDataType>(x_bias[j_idx]) + acc(idx);
-                });
+                acc = cast_tile<ComputeDataType>(load_tile(y_residual_window));
+                move_tile_window(y_residual_window, {0, -Block_N});
+            }
+            else
+            {
+                acc = cast_tile<ComputeDataType>(load_tile(x_window));
+                move_tile_window(x_window, {0, -Block_N});
+
+                if constexpr(kXbias == Layernorm2dXBiasEnum::ADD_BIAS)
+                {
+                    const auto x_bias = load_tile(x_bias_window);
+                    move_tile_window(x_bias_window, {-Block_N});
+
+                    sweep_tile(acc, [&](auto idx) {
+                        // compute x = bias + x
+                        constexpr auto j_idx = make_tuple(idx[number<1>{}]);
+                        acc(idx) = type_convert<ComputeDataType>(x_bias[j_idx]) + acc(idx);
+                    });
+                }
+
+                if constexpr(kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD)
+                {
+                    auto x_resi = load_tile(x_residual_window);
+                    move_tile_window(x_residual_window, {0, -Block_N});
+
+                    sweep_tile(x_resi, [&](auto idx) {
+                        // compute x = x_resi + x
+                        acc(idx) = type_convert<ComputeDataType>(x_resi(idx)) + acc(idx);
+                    });
+                }
             }
 
-            if constexpr(kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD_STORE ||
-                         kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD)
-            {
-                sweep_tile(x_resi, [&](auto idx) {
-                    // compute x = x_resi + x
-                    acc(idx) = type_convert<ComputeDataType>(x_resi(idx)) + acc(idx);
-                });
-            }
             // load gamma/beta (TODO: support no gamma/beta?)
             const auto gamma = load_tile(gamma_window);
             const auto beta  = load_tile(beta_window);
@@ -235,9 +257,6 @@ struct Layernorm2dFwdPipelineTwoPass
             static_assert(kFusedQuant != Layernorm2dFusedQuantEnum::DYNAMIC_QUANT);
             Epilogue{}(y_window, ln);
 
-            move_tile_window(x_window, {0, -Block_N});
-            move_tile_window(x_residual_window, {0, -Block_N});
-            move_tile_window(x_bias_window, {-Block_N});
             move_tile_window(gamma_window, {-Block_N});
             move_tile_window(beta_window, {-Block_N});
             move_tile_window(y_window, {0, -Block_N});

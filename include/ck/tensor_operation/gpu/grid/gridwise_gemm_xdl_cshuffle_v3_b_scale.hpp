@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -13,6 +13,7 @@
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/utility/common_header.hpp"
+#include "ck/utility/env.hpp"
 
 namespace ck {
 
@@ -155,9 +156,24 @@ struct GridwiseGemm_xdl_cshuffle_v3
     static constexpr auto AK1Number = Number<AK1Value>{};
     static constexpr auto BK1Number = Number<BK1Value>{};
 
+    static constexpr auto lcm_AK1_BK1 = math::lcm(AK1Number, BK1Number);
+    static constexpr bool is_single_rate_mfma =
+        (((is_same<ComputeTypeA, half_t>::value || is_same<ComputeTypeA, bhalf_t>::value) &&
+          lcm_AK1_BK1 <= 4) ||
+         (is_same<ComputeTypeA, int8_t>::value && lcm_AK1_BK1 <= 8) ||
+         ((is_same<ComputeTypeA, f8_t>::value || is_same<ComputeTypeA, bf8_t>::value) &&
+          lcm_AK1_BK1 < 32))
+            ? true
+            : false;
+    static constexpr auto is_scale_mfma = false;
     static constexpr index_t KPack =
-        math::max(math::lcm(AK1Number, BK1Number),
-                  MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+        math::max(lcm_AK1_BK1,
+                  MfmaSelector<ComputeTypeA,
+                               MPerXdl,
+                               NPerXdl,
+                               ComputeTypeA,
+                               is_single_rate_mfma,
+                               is_scale_mfma>::selected_mfma.k_per_blk);
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -1424,7 +1440,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
         // b scale
         // static_assert(KPerBlock <= ScaleBlockK);
-        static constexpr auto mfma        = MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl>{};
+        static constexpr auto mfma =
+            MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeA, is_single_rate_mfma>{};
         static constexpr auto KPerXdlops  = mfma.GetKPerXdlops();
         static constexpr auto K1PerXdlops = mfma.GetK1PerXdlops();
         static constexpr auto K0PerXdlops = KPerXdlops / K1PerXdlops;
@@ -1895,7 +1912,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
             KPerBlock);
 
         // B scale
-        static constexpr auto mfma        = MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl>{};
+        static constexpr auto mfma =
+            MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeA, is_single_rate_mfma>{};
         static constexpr auto KPerXdlops  = mfma.GetKPerXdlops();
         static constexpr auto K1PerXdlops = mfma.GetK1PerXdlops();
         static constexpr auto K0PerXdlops = KPerXdlops / K1PerXdlops;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -35,11 +35,13 @@ template <typename XDataType,
           typename ComputeDataType,
           typename YDataType,
           typename InvRmsDataType,
+          typename UnquantYDataType,
           typename Epilogue = reference_rmsnorm2d_default_epilogue>
 void reference_rmsnorm2d_fwd(const HostTensor<XDataType>& x_m_n,
                              const HostTensor<GammaDataType>& gamma_n,
                              HostTensor<YDataType>& y_m_n,
                              HostTensor<InvRmsDataType>& invRms_m,
+                             HostTensor<UnquantYDataType>& unquant_y_m_n,
                              ComputeDataType epsilon,
                              Epilogue epilogue_functor = {})
 {
@@ -69,7 +71,14 @@ void reference_rmsnorm2d_fwd(const HostTensor<XDataType>& x_m_n,
             acc(m, n)             = x * divisor * gamma;
         }
 
-        epilogue_functor(m, y_m_n, acc);
+        if constexpr(!std::is_same_v<UnquantYDataType, ck_tile::null_type>)
+        {
+            epilogue_functor(m, unquant_y_m_n, y_m_n, acc);
+        }
+        else
+        {
+            epilogue_functor(m, y_m_n, acc);
+        }
     };
 
     make_ParallelTensorFunctor(rmsnorm2d_fwd_func, invRms_m.mDesc.get_lengths()[0])(

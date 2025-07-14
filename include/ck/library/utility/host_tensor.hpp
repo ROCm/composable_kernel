@@ -6,7 +6,9 @@
 #include <algorithm>
 #include <cassert>
 #include <iostream>
+#include <fstream>
 #include <numeric>
+#include <random>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -17,6 +19,7 @@
 
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/ranges.hpp"
+#include "ck/library/utility/thread.hpp"
 
 template <typename Range>
 std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)
@@ -50,7 +53,8 @@ std::ostream& LogRangeAsType(std::ostream& os, Range&& range, std::string delim)
         {
             os << ck::type_convert<float>(v);
         }
-        else if constexpr(std::is_same_v<RangeType, ck::pk_i4_t>)
+        else if constexpr(std::is_same_v<RangeType, ck::pk_i4_t> ||
+                          std::is_same_v<RangeType, ck::f4x2_pk_t>)
         {
             const auto packed_floats = ck::type_convert<ck::float2_t>(v);
             const ck::vector_type<float, 2> vector_of_floats{packed_floats};
@@ -163,7 +167,7 @@ struct HostTensorDescriptor
         return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
     }
 
-    std::size_t GetOffsetFromMultiIndex(std::vector<std::size_t> iss) const
+    std::size_t GetOffsetFromMultiIndex(const std::vector<std::size_t>& iss) const
     {
         return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
     }
@@ -251,7 +255,7 @@ struct ParallelTensorFunctor
             std::size_t iw_begin = it * work_per_thread;
             std::size_t iw_end   = std::min((it + 1) * work_per_thread, mN1d);
 
-            auto f = [=] {
+            auto f = [=, *this] {
                 for(std::size_t iw = iw_begin; iw < iw_end; ++iw)
                 {
                     call_f_unpack_args(mF, GetNdIndices(iw));
@@ -322,7 +326,32 @@ struct Tensor
     explicit Tensor(const Tensor<FromT>& other) : Tensor(other.template CopyAsType<T>())
     {
     }
+    void savetxt(std::string file_name, std::string dtype = "float")
+    {
+        std::ofstream file(file_name);
 
+        if(file.is_open())
+        {
+            for(auto& itm : mData)
+            {
+                if(dtype == "float")
+                    file << ck::type_convert<float>(itm) << std::endl;
+                else if(dtype == "int")
+                    file << ck::type_convert<int>(itm) << std::endl;
+                else
+                    // TODO: we didn't implement operator<< for all custom
+                    // data types, here fall back to float in case compile error
+                    file << ck::type_convert<float>(itm) << std::endl;
+            }
+            file.close();
+        }
+        else
+        {
+            // Print an error message to the standard error
+            // stream if the file cannot be opened.
+            throw std::runtime_error(std::string("unable to open file:") + file_name);
+        }
+    }
     decltype(auto) GetLengths() const { return mDesc.GetLengths(); }
 
     decltype(auto) GetStrides() const { return mDesc.GetStrides(); }
@@ -333,9 +362,9 @@ struct Tensor
 
     std::size_t GetElementSpaceSize() const
     {
-        if constexpr(ck::is_same_v<ck::remove_cvref_t<T>, ck::pk_i4_t>)
+        if constexpr(ck::is_packed_type_v<ck::remove_cvref_t<T>>)
         {
-            return (mDesc.GetElementSpaceSize() + 1) / 2;
+            return (mDesc.GetElementSpaceSize() + 1) / ck::packed_size_v<ck::remove_cvref_t<T>>;
         }
         else
         {
@@ -485,67 +514,165 @@ struct Tensor
         }
     }
 
+    // Generate random values with multiple threads. Guaranteed to give the same sequence with any
+    // number of threads provided.
+    template <typename Distribution = std::uniform_real_distribution<float>,
+              typename Mapping      = ck::identity,
+              typename Generator    = std::minstd_rand>
+    void GenerateTensorDistr(Distribution dis       = {0.f, 1.f},
+                             Mapping fn             = {},
+                             const Generator g      = Generator(0), // default seed 0
+                             std::size_t num_thread = -1)
+    {
+        using ck::math::integer_divide_ceil;
+        using ck::math::min;
+        if(num_thread == -1ULL)
+            num_thread = min(ck::get_available_cpu_cores(), 80U); // max 80 threads
+        // At least 2MB per thread
+        num_thread = min(num_thread, integer_divide_ceil(this->GetElementSpaceSize(), 0x200000));
+        constexpr std::size_t BLOCK_BYTES = 64;
+        constexpr std::size_t BLOCK_SIZE  = BLOCK_BYTES / sizeof(T);
+
+        const std::size_t num_blocks = integer_divide_ceil(this->GetElementSpaceSize(), BLOCK_SIZE);
+        const std::size_t blocks_per_thread = integer_divide_ceil(num_blocks, num_thread);
+
+        std::vector<std::thread> threads;
+        threads.reserve(num_thread - 1);
+        const auto dst                = const_cast<T*>(this->mData.data());
+        const auto element_space_size = this->GetElementSpaceSize();
+        for(int it = num_thread - 1; it >= 0; --it)
+        {
+            std::size_t ib_begin = it * blocks_per_thread;
+            std::size_t ib_end   = min(ib_begin + blocks_per_thread, num_blocks);
+
+            auto job = [=]() {
+                auto g_   = g;   // copy
+                auto dis_ = dis; // copy
+                g_.discard(ib_begin * BLOCK_SIZE * ck::packed_size_v<T>);
+                auto t_fn = [&]() {
+                    // As user can pass integer distribution in dis, we must ensure that the correct
+                    // constructor/converter is called at all times. For f4/f6/f8 types, to ensure
+                    // correct results, we convert from float to the target type. In these cases
+                    // integer constructors are interpreted as direct initialization of the internal
+                    // storage with binary values instead of treating integers as subset of floats.
+                    if constexpr(ck::is_same_v<T, ck::f8_t> || ck::is_same_v<T, ck::bf8_t>)
+                        return ck::type_convert<T>(static_cast<float>(fn(dis_(g_))));
+                    else if constexpr(ck::packed_size_v<T> == 1)
+                        return ck::type_convert<T>(fn(dis_(g_)));
+                    else if constexpr(ck::is_same_v<T, ck::f4x2_pk_t>)
+                        return ck::f4x2_pk_t{ck::type_convert<ck::f4x2_t>(
+                            ck::float2_t{ck::type_convert<float>(fn(dis_(g_))),
+                                         ck::type_convert<float>(fn(dis_(g_)))})};
+                    else if constexpr(ck::is_same_v<T, ck::f6x32_pk_t> ||
+                                      ck::is_same_v<T, ck::bf6x32_pk_t>)
+                    {
+                        return ck::type_convert<T>(
+                            ck::float32_t{ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_)))});
+                    }
+                    else if constexpr(ck::is_same_v<T, ck::f6x16_pk_t> ||
+                                      ck::is_same_v<T, ck::bf6x16_pk_t>)
+                    {
+                        return ck::type_convert<T>(
+                            ck::float16_t{ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_)))});
+                    }
+                    else
+                        static_assert(false, "Unsupported packed size for T");
+                };
+
+                std::size_t ib = ib_begin;
+                for(; ib < ib_end - 1; ++ib)
+                    ck::static_for<0, BLOCK_SIZE, 1>{}([&](auto iw_) {
+                        constexpr size_t iw       = iw_.value;
+                        dst[ib * BLOCK_SIZE + iw] = t_fn();
+                    });
+                for(std::size_t iw = 0; iw < BLOCK_SIZE; ++iw)
+                    if(ib * BLOCK_SIZE + iw < element_space_size)
+                        dst[ib * BLOCK_SIZE + iw] = t_fn();
+            };
+
+            if(it > 0)
+                threads.emplace_back(std::move(job));
+            else
+                job(); // last job run in the main thread
+        }
+        for(auto& t : threads)
+            t.join();
+    }
+
     template <typename... Is>
     std::size_t GetOffsetFromMultiIndex(Is... is) const
     {
-        if constexpr(ck::is_same_v<ck::remove_cvref_t<T>, ck::pk_i4_t>)
-        {
-            return mDesc.GetOffsetFromMultiIndex(is...) / 2;
-        }
-        else
-        {
-            return mDesc.GetOffsetFromMultiIndex(is...);
-        }
+        return mDesc.GetOffsetFromMultiIndex(is...) / ck::packed_size_v<ck::remove_cvref_t<T>>;
     }
 
     template <typename... Is>
     T& operator()(Is... is)
     {
-        if constexpr(ck::is_same_v<ck::remove_cvref_t<T>, ck::pk_i4_t>)
-        {
-            return mData[mDesc.GetOffsetFromMultiIndex(is...) / 2];
-        }
-        else
-        {
-            return mData[mDesc.GetOffsetFromMultiIndex(is...)];
-        }
+        return mData[mDesc.GetOffsetFromMultiIndex(is...) /
+                     ck::packed_size_v<ck::remove_cvref_t<T>>];
     }
 
     template <typename... Is>
     const T& operator()(Is... is) const
     {
-        if constexpr(ck::is_same_v<ck::remove_cvref_t<T>, ck::pk_i4_t>)
-        {
-            return mData[mDesc.GetOffsetFromMultiIndex(is...) / 2];
-        }
-        else
-        {
-            return mData[mDesc.GetOffsetFromMultiIndex(is...)];
-        }
+        return mData[mDesc.GetOffsetFromMultiIndex(is...) /
+                     ck::packed_size_v<ck::remove_cvref_t<T>>];
     }
 
-    T& operator()(std::vector<std::size_t> idx)
+    T& operator()(const std::vector<std::size_t>& idx)
     {
-        if constexpr(ck::is_same_v<ck::remove_cvref_t<T>, ck::pk_i4_t>)
-        {
-            return mData[mDesc.GetOffsetFromMultiIndex(idx) / 2];
-        }
-        else
-        {
-            return mData[mDesc.GetOffsetFromMultiIndex(idx)];
-        }
+        return mData[mDesc.GetOffsetFromMultiIndex(idx) / ck::packed_size_v<ck::remove_cvref_t<T>>];
     }
 
-    const T& operator()(std::vector<std::size_t> idx) const
+    const T& operator()(const std::vector<std::size_t>& idx) const
     {
-        if constexpr(ck::is_same_v<ck::remove_cvref_t<T>, ck::pk_i4_t>)
-        {
-            return mData[mDesc.GetOffsetFromMultiIndex(idx) / 2];
-        }
-        else
-        {
-            return mData[mDesc.GetOffsetFromMultiIndex(idx)];
-        }
+        return mData[mDesc.GetOffsetFromMultiIndex(idx) / ck::packed_size_v<ck::remove_cvref_t<T>>];
     }
 
     typename Data::iterator begin() { return mData.begin(); }

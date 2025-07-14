@@ -76,10 +76,12 @@ template <index_t BlockSize,
           index_t MRepeat,
           index_t NRepeat,
           typename ABlockTransferThreadClusterLengths_K0_M_K1,
+          typename ABlockTransferSrcAccessOrder,
           index_t ABlockTransferSrcVectorDim,
           index_t ABlockTransferSrcScalarPerVector,
           bool ABlockLdsExtraM,
           typename BBlockTransferThreadClusterLengths_K0_N_K1,
+          typename BBlockTransferSrcAccessOrder,
           index_t BBlockTransferSrcVectorDim,
           index_t BBlockTransferSrcScalarPerVector,
           bool BBlockLdsExtraN,
@@ -102,9 +104,10 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
     static constexpr auto I7 = Number<7>{};
 
     // K1 should be Number<...>
-    static constexpr auto K1  = Number<K1Value>{};
-    static constexpr auto M01 = 1;
-    static constexpr auto N01 = 1;
+    static constexpr auto K1        = Number<K1Value>{};
+    static constexpr auto KPerBlock = Number<K1Value * K0PerBlock>{};
+    static constexpr auto M01       = 1;
+    static constexpr auto N01       = 1;
 
     static constexpr auto gemm_padder =
         tensor_operation::device::GemmPadder<GemmSpec, index_t, index_t, index_t>{
@@ -613,8 +616,9 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
             }
             else
             {
-                return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1), max_lds_align);
+                return make_naive_tensor_descriptor(
+                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
+                    make_tuple(K1, Number<KPerBlock>{}, I1));
             }
         }();
 
@@ -630,9 +634,10 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
             }
             else
             {
-                return make_naive_tensor_descriptor_aligned(
+                return make_naive_tensor_descriptor(
                     make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
-                    max_lds_align);
+                    make_tuple(
+                        Number<KPerBlock>{} * Number<MPerBlock>{}, K1, Number<KPerBlock>{}, I1));
             }
         }();
         // B matrix in LDS memory, dst of blockwise copy
@@ -645,8 +650,9 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
             }
             else
             {
-                return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1), max_lds_align);
+                return make_naive_tensor_descriptor(
+                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
+                    make_tuple(K1, Number<KPerBlock>{}, I1));
             }
         }();
 
@@ -662,9 +668,10 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
             }
             else
             {
-                return make_naive_tensor_descriptor_aligned(
+                return make_naive_tensor_descriptor(
                     make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
-                    max_lds_align);
+                    make_tuple(
+                        Number<KPerBlock>{} * Number<NPerBlock>{}, K1, Number<KPerBlock>{}, I1));
             }
         }();
 
@@ -672,10 +679,12 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
             ThreadGroupTensorSliceTransfer_DirectLoad<ThisThreadBlock,
                                                       Sequence<1, K0PerBlock, MPerBlock, K1>,
                                                       ABlockTransferThreadClusterLengths_K0_M_K1,
+                                                      ABlockTransferSrcAccessOrder,
                                                       FloatA,
                                                       ComputeType,
                                                       decltype(a_b_k0_m_k1_grid_desc),
                                                       decltype(a_b_k0_m_k1_block_desc),
+                                                      ABlockTransferSrcAccessOrder,
                                                       ABlockTransferSrcVectorDim,
                                                       3,
                                                       ABlockTransferSrcScalarPerVector>(
@@ -688,10 +697,12 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
             ThreadGroupTensorSliceTransfer_DirectLoad<ThisThreadBlock,
                                                       Sequence<1, K0PerBlock, NPerBlock, K1>,
                                                       BBlockTransferThreadClusterLengths_K0_N_K1,
+                                                      BBlockTransferSrcAccessOrder,
                                                       FloatB,
                                                       ComputeType,
                                                       decltype(b_b_k0_n_k1_grid_desc),
                                                       decltype(b_b_k0_n_k1_block_desc),
+                                                      BBlockTransferSrcAccessOrder,
                                                       BBlockTransferSrcVectorDim,
                                                       3,
                                                       BBlockTransferSrcScalarPerVector>(

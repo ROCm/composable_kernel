@@ -71,6 +71,7 @@ args:
   -drop_seed    seed for random number generator (default:1)
 -drop_offset    offset for random number generator (default:0)
  -drop_prefs    seed and offset values are present on GPU; 0 - host, 1 - device/GPU (default:0)
+ -num_splits    number of splits for key/value. 0 to determine actual number by heuristic (default:1)
      -warmup    number of iterations before benchmark the kernel (default:5)
      -repeat    number of iterations to benchmark the kernel (default:20)
 ```
@@ -126,6 +127,6 @@ Note FA use bottom-right by default to express swa case, here we require you exp
 TBD
 
 ## FP8 experimental support
-As described in [this blog](https://blog.hippoml.com/8bit-hippoattention-up-to-3x-faster-compared-to-flashattentionv2-8f9def90b482), we have an experimental support for fp8 fmha kernels, you can evaluate the performance by setting the arg `-prec=fp8` to the `tile_example_fmha_fwd`, on a gfx940/941/942 machine and ROCm 6.0+.
+As described in [this blog](https://blog.hippoml.com/8bit-hippoattention-up-to-3x-faster-compared-to-flashattentionv2-8f9def90b482), we have an experimental support for fp8 fmha kernels, you can evaluate the performance by setting the arg `-prec=fp8` to the `tile_example_fmha_fwd`, on a gfx942 machine and ROCm 6.0+.
 
 Currently we only support `-vlayout=c`( `hdim*seqlen` for V matrix) and `-squant=1`(static quantization) with `hdim=128` for fp8 now. Full feature support will come later.

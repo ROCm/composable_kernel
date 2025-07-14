@@ -7,6 +7,7 @@
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_agmem_bgmem_creg_v1_default_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
+#include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
 
@@ -20,6 +21,13 @@ struct BaseGemmPipelineAgBgCrMem
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
+    static_assert(!std::is_same_v<BDataType, pk_int4_t>, "Not implemented");
+
+    static constexpr index_t APackedSize =
+        ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
+    static constexpr index_t BPackedSize =
+        ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
+
     CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
 
     static constexpr index_t BlockSize = Problem::kBlockSize;
@@ -32,9 +40,11 @@ struct BaseGemmPipelineAgBgCrMem
 
     static constexpr index_t WgpPerCU =
         (4 * get_warp_size() / BlockSize) >= 1 ? 4 * get_warp_size() / BlockSize : 1;
-    static constexpr index_t FullMemBandPrefetchStages = integer_divide_ceil(
-        MinMemInFlyBytes / WgpPerCU,
-        (MPerBlock * sizeof(ADataType) + NPerBlock * sizeof(BDataType)) * KPerBlock);
+    static constexpr index_t FullMemBandPrefetchStages =
+        integer_divide_ceil(MinMemInFlyBytes / WgpPerCU,
+                            (MPerBlock * sizeof(ADataType) / APackedSize +
+                             NPerBlock * sizeof(BDataType) / BPackedSize) *
+                                KPerBlock);
     static constexpr index_t PrefetchStages =
         FullMemBandPrefetchStages >= 2
             ? FullMemBandPrefetchStages <= 8 ? FullMemBandPrefetchStages : 8
@@ -42,13 +52,14 @@ struct BaseGemmPipelineAgBgCrMem
 
     static constexpr index_t LocalPrefillStages = 1;
     static constexpr index_t GlobalBufferNum    = PrefetchStages;
+    static constexpr bool UsePersistentKernel   = Problem::Traits::UsePersistentKernel;
 
-    CK_TILE_HOST static constexpr bool BlockHasHotloop(index_t num_loop)
+    CK_TILE_HOST_DEVICE static constexpr bool BlockHasHotloop(index_t num_loop)
     {
         return num_loop > PrefetchStages;
     }
 
-    CK_TILE_HOST static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
+    CK_TILE_HOST_DEVICE static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
     {
         if(num_loop % PrefetchStages == 1)
         {
@@ -82,6 +93,56 @@ struct BaseGemmPipelineAgBgCrMem
         {
             return TailNumber::Full;
         }
+    }
+
+    template <typename RunFunction>
+    CK_TILE_HOST_DEVICE static auto
+    TailHandler(const RunFunction& run_func, bool has_hot_loop, TailNumber tail_number)
+    {
+        // Wrap the hot_loop dispatch first.
+        auto tail_dispatch = [&](auto tail_num_constant) {
+            if(has_hot_loop)
+            {
+                return run_func(bool_constant<true>{}, tail_num_constant);
+            }
+            else
+            {
+                return run_func(bool_constant<false>{}, tail_num_constant);
+            }
+        };
+
+#define CHECK_TAIL_NUMBER(TAIL_NUMBER, PREFETCH_VALUE)                                      \
+    else if(tail_number == TailNumber::TAIL_NUMBER)                                         \
+    {                                                                                       \
+        if constexpr(PrefetchStages > PREFETCH_VALUE)                                       \
+        {                                                                                   \
+            return tail_dispatch(integral_constant<TailNumber, TailNumber::TAIL_NUMBER>{}); \
+        }                                                                                   \
+    }
+        // Handle all the valid cases.
+        if(tail_number == TailNumber::One)
+        {
+            return tail_dispatch(integral_constant<TailNumber, TailNumber::One>{});
+        }
+        else if(tail_number == TailNumber::Full)
+        {
+            return tail_dispatch(integral_constant<TailNumber, TailNumber::Full>{});
+        }
+        CHECK_TAIL_NUMBER(Two, 2)
+        CHECK_TAIL_NUMBER(Three, 3)
+        CHECK_TAIL_NUMBER(Four, 4)
+        CHECK_TAIL_NUMBER(Five, 5)
+        CHECK_TAIL_NUMBER(Six, 6)
+        CHECK_TAIL_NUMBER(Seven, 7)
+#undef CHECK_TAIL_NUMBER
+
+        // We shouldn't get here unless we have a tail number larger than the prefetch stages.
+#if defined(__HIP_DEVICE_COMPILE__)
+        __builtin_unreachable();
+#else
+        throw std::logic_error("Invalid TailNumber: Only TailNumber::Full and smaller than "
+                               "PrefetchStages are supported.");
+#endif
     }
 };
 
@@ -119,14 +180,31 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
     static constexpr index_t GetVectorSizeB() { return Policy::template GetVectorSizeB<Problem>(); }
     static constexpr index_t GetVectorSizeC() { return Policy::template GetVectorSizeC<Problem>(); }
 
+    static constexpr index_t GetSmemPackA() { return Policy::template GetSmemPackA<Problem>(); }
+    static constexpr index_t GetSmemPackB() { return Policy::template GetSmemPackB<Problem>(); }
+
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
+
+    static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
+    static constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
+    static constexpr index_t Preshuffle    = Problem::Preshuffle;
 
     // Where is the right place for HasHotLoop and TailNum ???
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
     static constexpr auto TailNum    = Problem::TailNum;
     static constexpr auto Scheduler  = Problem::Scheduler;
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
+    {
+        // clang-format off
+        return concat('_', "pipeline_AgBgCrMe",
+                      concat('x', MPerBlock, NPerBlock, KPerBlock),
+                      concat('x', GetVectorSizeA(), GetVectorSizeB(), GetVectorSizeC()),
+                      concat('x', kPadM, kPadN, kPadK));
+        // clang-format on
+    }
 
     using Base::PrefetchStages;
 
@@ -193,10 +271,17 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
             auto& a_lds_block  = ab_lds_blocks.at(I0{});
             auto& b_lds_block  = ab_lds_blocks.at(I1{});
 
+            // Tile distribution for load from lds
+            constexpr auto a_lds_load_tile_distr = decltype(make_static_tile_distribution(
+                BlockGemm::MakeABlockDistributionEncode())){};
+            constexpr auto b_lds_load_tile_distr = decltype(make_static_tile_distribution(
+                BlockGemm::MakeBBlockDistributionEncode())){};
+
             // A DRAM tile window for load
             // A LDS tile window for store
             // A LDS tile for block GEMM
-            auto a_windows           = Base::GetAWindows(a_dram_block_window_tmp, a_lds_block);
+            auto a_windows =
+                Base::GetAWindows(a_dram_block_window_tmp, a_lds_block, a_lds_load_tile_distr);
             auto& a_copy_dram_window = a_windows.at(I0{});
             auto& a_copy_lds_window  = a_windows.at(I1{});
             auto& a_lds_gemm_window  = a_windows.at(I2{});
@@ -204,7 +289,8 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
             // B DRAM tile window for load
             // B LDS tile window for store
             // B LDS tile for block GEMM
-            auto b_windows           = Base::GetBWindows(b_dram_block_window_tmp, b_lds_block);
+            auto b_windows =
+                Base::GetBWindows(b_dram_block_window_tmp, b_lds_block, b_lds_load_tile_distr);
             auto& b_copy_dram_window = b_windows.at(I0{});
             auto& b_copy_lds_window  = b_windows.at(I1{});
             auto& b_lds_gemm_window  = b_windows.at(I2{});
@@ -471,10 +557,17 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
             auto& a_lds_block  = ab_lds_blocks.at(I0{});
             auto& b_lds_block  = ab_lds_blocks.at(I1{});
 
+            // Tile distribution for load from lds
+            constexpr auto a_lds_load_tile_distr = decltype(make_static_tile_distribution(
+                BlockGemm::MakeABlockDistributionEncode())){};
+            constexpr auto b_lds_load_tile_distr = decltype(make_static_tile_distribution(
+                BlockGemm::MakeBBlockDistributionEncode())){};
+
             // A DRAM tile window for load
             // A LDS tile window for store
             // A LDS tile for block GEMM
-            auto a_windows           = Base::GetAWindows(a_dram_block_window_tmp, a_lds_block);
+            auto a_windows =
+                Base::GetAWindows(a_dram_block_window_tmp, a_lds_block, a_lds_load_tile_distr);
             auto& a_copy_dram_window = a_windows.at(I0{});
             auto& a_copy_lds_window  = a_windows.at(I1{});
             auto& a_lds_gemm_window  = a_windows.at(I2{});
@@ -482,7 +575,8 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
             // B DRAM tile window for load
             // B LDS tile window for store
             // B LDS tile for block GEMM
-            auto b_windows           = Base::GetBWindows(b_dram_block_window_tmp, b_lds_block);
+            auto b_windows =
+                Base::GetBWindows(b_dram_block_window_tmp, b_lds_block, b_lds_load_tile_distr);
             auto& b_copy_dram_window = b_windows.at(I0{});
             auto& b_copy_lds_window  = b_windows.at(I1{});
             auto& b_lds_gemm_window  = b_windows.at(I2{});
@@ -706,6 +800,29 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
             b_element_func,
             num_loop,
             p_smem);
+    }
+
+    template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                   index_t num_loop,
+                                   bool has_hot_loop,
+                                   TailNumber tail_number,
+                                   void* p_smem) const
+    {
+        const auto RunPipeline = [&](auto hot_loop_, auto tail_num_) {
+            constexpr bool hot_loop    = hot_loop_.value;
+            constexpr auto tail_num    = tail_num_.value;
+            constexpr auto PassThrough = [](const auto& x) { return x; };
+            return PipelineImpl<Scheduler>{}.template operator()<hot_loop, tail_num>(
+                a_dram_block_window_tmp,
+                PassThrough,
+                b_dram_block_window_tmp,
+                PassThrough,
+                num_loop,
+                p_smem);
+        };
+        return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
     }
 
     template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp>

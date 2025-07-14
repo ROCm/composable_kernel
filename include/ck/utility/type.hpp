@@ -8,7 +8,7 @@
 #include "ck/utility/integral_constant.hpp"
 
 namespace ck {
-#ifdef CK_CODE_GEN_RTC
+#if defined(__HIPCC_RTC__) || defined(CK_CODE_GEN_RTC)
 // NOLINTNEXTLINE
 #define CK_BUILTIN_TYPE_TRAIT1(name)         \
     template <class T>                       \
@@ -287,9 +287,6 @@ inline constexpr bool is_base_of_v = is_base_of<X, Y>::value;
 
 template <typename T>
 inline constexpr bool is_unsigned_v = is_unsigned<T>::value;
-
-template <typename T>
-using remove_reference_t = typename remove_reference<T>::type;
 
 template <typename T>
 using remove_reference_t = typename remove_reference<T>::type;

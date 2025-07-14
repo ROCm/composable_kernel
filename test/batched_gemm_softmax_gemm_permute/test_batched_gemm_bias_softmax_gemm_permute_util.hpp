@@ -9,6 +9,8 @@
 #include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_softmax_gemm_permute_xdl_cshuffle.hpp"
 #include "profiler/profile_batched_gemm_bias_softmax_gemm_permute_impl.hpp"
 
+#include <hip/hip_runtime.h>
+
 using ck::tensor_operation::device::GemmSpecialization;
 using ck::tensor_operation::device::MaskingSpecialization;
 using ck::tensor_operation::device::TensorSpecialization;

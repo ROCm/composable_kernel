@@ -376,14 +376,12 @@ struct numeric<bfloat16_t>
     }
 };
 
-template <typename T>
-struct numeric_traits;
-
 template <>
 struct numeric_traits<bfloat16_t>
 {
-    static constexpr int exp  = 8;
-    static constexpr int mant = 7;
+    static constexpr int exp        = 8;
+    static constexpr int mant       = 7;
+    static constexpr int PackedSize = 1;
 };
 
 #if CK_TILE_USE_CUSTOM_DATA_TYPE

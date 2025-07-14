@@ -207,6 +207,7 @@ struct FusedMoeGemmPipeline_FlatmmUk
                        threadIdx.x % (BlockShape::Block_K0 / kAlignmentA) * kAlignmentA;
             },
             number<row_ids_a.size()>{});
+
         auto a_res =
             make_wave_buffer_resource(reinterpret_cast<const ADataType*>(kargs.a_ptr),
                                       kargs.num_tokens * kargs.stride_token * sizeof(ADataType));
@@ -318,10 +319,10 @@ struct FusedMoeGemmPipeline_FlatmmUk
                                            {0, 0},
                                            dist_);
         }();
+
         auto o_res =
             make_wave_buffer_resource(reinterpret_cast<const ODataType*>(kargs.o_ptr),
                                       kargs.num_tokens * kargs.stride_token * sizeof(ODataType));
-
         auto row_coords_o = GetRowCoords_O(sorted_tile_id * BlockShape::Block_M0);
         auto w_scale      = GetWeightScale(
             row_coords_o, reinterpret_cast<const TopkWeightDataType*>(kargs.sorted_weight_ptr));

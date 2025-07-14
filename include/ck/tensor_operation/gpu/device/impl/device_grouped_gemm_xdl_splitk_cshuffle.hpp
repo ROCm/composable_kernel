@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -7,6 +7,7 @@
 #include <sstream>
 
 #include "ck/ck.hpp"
+#include "ck/utility/env.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
@@ -244,7 +245,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                  std::vector<void*>& p_Es,
                  std::vector<GemmDesc>& gemm_descs,
                  index_t kbatch)
-            : K_BATCH{kbatch}
+            : K_BATCH{kbatch}, gemm_kernel_host_args_{nullptr}
         {
             grid_size_   = 0;
             group_count_ = ck::type_convert<ck::index_t>(gemm_descs.size());
@@ -365,13 +366,17 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         index_t skipped_group_count_;
 
         std::vector<GemmTransKernelArg> gemm_kernel_args_;
+        void* gemm_kernel_host_args_;
         index_t grid_size_;
     };
 
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        float Run(const Argument& arg,
+                  const StreamConfig& stream_config = StreamConfig{},
+                  hipStream_t cpy_stream            = nullptr,
+                  hipEvent_t cpy_event              = nullptr)
         {
             index_t K0                       = arg.gemm_kernel_args_[0].karg_.K0Padded;
             bool all_have_kbatch_gt_one      = arg.gemm_kernel_args_[0].karg_.k_batch > 1;
@@ -419,12 +424,37 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 }
             }
 
-            hip_check_error(
-                hipMemcpyAsync(arg.p_workspace_,
-                               arg.gemm_kernel_args_.data(),
-                               arg.gemm_kernel_args_.size() * sizeof(GemmTransKernelArg),
-                               hipMemcpyHostToDevice,
-                               stream_config.stream_id_));
+            // If the user provides copy stream and copy event, we assume that they're also
+            // responsible for providing allocated host memory (eg. pinned) which
+            // would be used to copy kernel arguments to the device.
+            if(cpy_stream && cpy_event)
+            {
+                if(arg.gemm_kernel_host_args_ == nullptr)
+                {
+                    std::ostringstream err;
+                    err << "No memory has been allocated for gemm kernel host args "
+                        << "when providing the copy stream and copy event! In " << __FILE__ << ":"
+                        << __LINE__ << ", in function: " << __func__;
+                    throw std::runtime_error(err.str());
+                }
+                hip_check_error(hipMemcpyAsync(arg.p_workspace_,
+                                               arg.gemm_kernel_host_args_,
+                                               arg.group_count_ * sizeof(GemmTransKernelArg),
+                                               hipMemcpyHostToDevice,
+                                               cpy_stream));
+                hip_check_error(hipEventRecord(cpy_event, cpy_stream));
+                hip_check_error(hipEventSynchronize(cpy_event));
+            }
+            else // In this case CK owns memory allocated on host.
+            {
+
+                hip_check_error(
+                    hipMemcpyAsync(arg.p_workspace_,
+                                   arg.gemm_kernel_args_.data(),
+                                   arg.gemm_kernel_args_.size() * sizeof(GemmTransKernelArg),
+                                   hipMemcpyHostToDevice,
+                                   stream_config.stream_id_));
+            }
 
             float ave_time = 0;
 
@@ -652,6 +682,8 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         return GetWorkSpaceSize(p_arg);
     }
 
+    size_t GetHostKernelArgSize(const BaseArgument* p_arg) const { return GetWorkSpaceSize(p_arg); }
+
     // TODO: deperecation notice.
     static void SetKBatchSize(Argument& arg, index_t kbatch) { arg.UpdateKBatch(kbatch); }
 
@@ -672,6 +704,29 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
     void SetDeviceKernelArgs(BaseArgument* p_arg, void* p_dev_kernel_args) const override
     {
         return this->SetWorkSpacePointer(p_arg, p_dev_kernel_args);
+    }
+
+    //----------------------------------------------------------------------------------------------
+    /// @brief      Sets the host kernel arguments pointer and copies that data on the host side.
+    ///             This function can be utilised to use pinned memory for the host args and
+    ///             achieve fully async data copy.
+    ///
+    /// @param      p_arg              The pointer to the Argument we're going to update.
+    /// @param[in]  p_host_kernel_args The pointer to the host memory where the kernel
+    ///                                arguments will be copied
+    ///
+    void SetHostKernelArgsPointer(BaseArgument* p_arg, void* p_host_kernel_args) const
+    {
+        Argument* pArg_ = dynamic_cast<Argument*>(p_arg);
+        if(!pArg_)
+        {
+            throw std::runtime_error("Failed to cast argument pointer!");
+        }
+
+        pArg_->gemm_kernel_host_args_ = p_host_kernel_args;
+        std::copy(pArg_->gemm_kernel_args_.begin(),
+                  pArg_->gemm_kernel_args_.end(),
+                  static_cast<GemmTransKernelArg*>(pArg_->gemm_kernel_host_args_));
     }
 };
 

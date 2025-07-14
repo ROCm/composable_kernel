@@ -19,9 +19,7 @@ list(APPEND CMAKE_MODULE_PATH ${CK_ROOT}/cmake)
 include(Embed)
 file(GLOB_RECURSE KERNEL_FILES CONFIGURE_DEPENDS
     ${CK_ROOT}/include/ck/*.hpp)
-# printouts fot debug purposes
-# message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
-# message(STATUS "RELATIVE: ${CK_ROOT}/include")
+
 add_embed_library(ck_headers ${KERNEL_FILES} RELATIVE ${CK_ROOT}/include)
 
 add_compile_options(-std=c++17)
@@ -46,9 +44,9 @@ rocm_install_targets(
     TARGETS ck_host ck_headers
     EXPORT ck_host_targets
     INCLUDE include
-    PRIVATE
 )
 rocm_export_targets(
+    TARGETS ck_host ck_headers
     EXPORT ck_host_targets
     NAMESPACE composable_kernel::
 )

@@ -38,6 +38,7 @@ auto create_args(int argc, char* argv[])
         .insert("yr_stride", "-1", "y residule row_stride, if -1 then equal to n")
         .insert("e", "1e-5", "epsilon")
         .insert("save_rms", "0", "save rms(invrms) or not. set to 1 in training case")
+        .insert("save_unquant", "0", "save result before quant")
         .insert("v", "1", "cpu validation or not")
         .insert("kname", "1", "print kernel name or not")
         .insert("prec_i", "fp16", "input precision")
@@ -61,7 +62,8 @@ template <typename InDataType,
           typename OutDataType,
           typename SmoothScaleDataType,
           typename YScaleDataType,
-          bool SaveRms>
+          bool SaveRms,
+          bool SaveUnquant>
 bool run(const ck_tile::ArgParser& arg_parser)
 {
     ck_tile::index_t m = arg_parser.get_int("m");
@@ -113,6 +115,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
         return false;
     }
 
+    if((fused_quant == 0) && SaveUnquant)
+    {
+        std::cout
+            << "save_unquant should be 0 if quant output is not enabled because it is meaningless. "
+            << "Output Y is what wanted." << std::endl;
+        return false;
+    }
+
     using TypeConfig =
         RmsnormTypeConfig<InDataType, OutDataType, SmoothScaleDataType, YScaleDataType>;
 
@@ -124,6 +134,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     using InvRmsDataType =
         std::conditional_t<SaveRms, typename TypeConfig::InvRmsDataType, ck_tile::null_type>;
+    using UnquantYDataType =
+        std::conditional_t<SaveUnquant, typename TypeConfig::UnquantYDataType, ck_tile::null_type>;
 
     using ComputeDataType = typename TypeConfig::ComputeDataType;
 
@@ -143,6 +155,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::HostTensor<InvRmsDataType> invRms_host_ref({m});
 
+    ck_tile::HostTensor<UnquantYDataType> unquant_y_host_ref({m, n}, {y_stride, 1});
+    ck_tile::HostTensor<UnquantYDataType> unquant_y_host_dev({m, n}, {y_stride, 1});
+    ck_tile::HostTensor<ck_tile::null_type> unquant_y_null({1});
+
     ck_tile::FillUniformDistribution<XDataType>{-.5f, .5f}(x_host);
     ck_tile::FillUniformDistribution<XResidualDataType>{-.5f, .5f}(x_residual_host);
     ck_tile::FillUniformDistribution<SmoothScaleDataType>{-1.f, 1.f}(sm_scale_host);
@@ -155,6 +171,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem sm_scale_buf(sm_scale_host_dev.get_element_space_size_in_bytes());
     ck_tile::DeviceMem x_residual_buf(x_residual_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem y_residual_buf(y_residual_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem unquant_y_buf(unquant_y_host_dev.get_element_space_size_in_bytes());
 
     x_buf.ToDevice(x_host.data());
     gamma_buf.ToDevice(gamma_host.data());
@@ -179,7 +196,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
               << ", xr_stride:" << xr_stride << ", y_stride:" << y_stride
               << ", yr_stride:" << yr_stride << std::flush;
 
-    rmsnorm2d_fwd_traits traits{prec_i, prec_o, prec_sm, prec_sy, SaveRms, fused_add, fused_quant};
+    rmsnorm2d_fwd_traits traits{
+        prec_i, prec_o, prec_sm, prec_sy, SaveRms, SaveUnquant, fused_add, fused_quant};
 
     rmsnorm2d_fwd_args args{x_buf.GetDeviceBuffer(),
                             fused_add != 0 ? x_residual_buf.GetDeviceBuffer() : nullptr,
@@ -189,6 +207,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                             fused_add == 1 ? y_residual_buf.GetDeviceBuffer() : nullptr,
                             fused_quant != 0 ? y_scale_buf.GetDeviceBuffer() : nullptr,
                             nullptr, // p_invRms, unsupported yet
+                            SaveUnquant ? unquant_y_buf.GetDeviceBuffer() : nullptr,
                             epsilon,
                             m,
                             n,
@@ -203,6 +222,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     std::size_t num_byte =
         sizeof(XDataType) * m * n + sizeof(GammaDataType) * n + sizeof(YDataType) * m * n;
     num_byte += SaveRms ? sizeof(InvRmsDataType) * m * n : 0;
+    num_byte += SaveUnquant ? sizeof(UnquantYDataType) * m * n : 0;
     num_byte += fused_add ? sizeof(XResidualDataType) * m * n : 0;
     num_byte += ((fused_quant == 1) || (fused_quant == 2)) ? sizeof(YScaleDataType) * m : 0;
     num_byte += (fused_quant == 1) ? sizeof(SmoothScaleDataType) * n : 0;
@@ -262,21 +282,57 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 }
             };
 
-            ck_tile::reference_rmsnorm2d_fwd<XDataType,
-                                             GammaDataType,
-                                             ComputeDataType,
-                                             YDataType,
-                                             InvRmsDataType>(
-                x_host, gamma_host, y_host_ref, invRms_host_ref, epsilon, dquant_functor);
+            auto default_and_dquant_functor = [&](int m_, auto& o_unquant_, auto& o_, auto& acc_) {
+                const int N = acc_.mDesc.get_lengths()[1];
+                for(int n_ = 0; n_ < N; ++n_)
+                {
+                    o_unquant_(m_, n_) = ck_tile::type_convert<OutDataType>(acc_(m_, n_));
+                }
+
+                dquant_functor(m_, o_, acc_);
+            };
+
+            if constexpr(SaveUnquant)
+            {
+                ck_tile::reference_rmsnorm2d_fwd<XDataType,
+                                                 GammaDataType,
+                                                 ComputeDataType,
+                                                 YDataType,
+                                                 InvRmsDataType,
+                                                 UnquantYDataType>(x_host,
+                                                                   gamma_host,
+                                                                   y_host_ref,
+                                                                   invRms_host_ref,
+                                                                   unquant_y_host_ref,
+                                                                   epsilon,
+                                                                   default_and_dquant_functor);
+            }
+            else
+            {
+                ck_tile::reference_rmsnorm2d_fwd<XDataType,
+                                                 GammaDataType,
+                                                 ComputeDataType,
+                                                 YDataType,
+                                                 InvRmsDataType,
+                                                 UnquantYDataType>(x_host,
+                                                                   gamma_host,
+                                                                   y_host_ref,
+                                                                   invRms_host_ref,
+                                                                   unquant_y_host_ref,
+                                                                   epsilon,
+                                                                   dquant_functor);
+            }
         }
         else
         {
+            assert(SaveUnquant == false);
             ck_tile::reference_rmsnorm2d_fwd<XDataType,
                                              GammaDataType,
                                              ComputeDataType,
                                              YDataType,
-                                             InvRmsDataType>(
-                x_host, gamma_host, y_host_ref, invRms_host_ref, epsilon);
+                                             InvRmsDataType,
+                                             ck_tile::null_type>(
+                x_host, gamma_host, y_host_ref, invRms_host_ref, unquant_y_null, epsilon);
         }
 
         y_buf.FromDevice(y_host_dev.data());
@@ -292,6 +348,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
         {
             pass = ck_tile::check_err(
                 y_host_dev, y_host_ref, std::string("\nOUT Error: Incorrect results!"), rtol, atol);
+
+            if constexpr(SaveUnquant)
+            {
+                pass &= ck_tile::check_err(unquant_y_host_dev,
+                                           unquant_y_host_ref,
+                                           std::string("\n OUT ERROR: Incorrect unquant results!"),
+                                           rtol,
+                                           atol);
+            }
 
             if(fused_add == 1)
             {
@@ -331,6 +396,23 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                rtol,
                                                atol);
                 }
+
+                if constexpr(SaveUnquant)
+                {
+                    std::vector<UnquantYDataType> unquant_y_host_dev_row(
+                        unquant_y_host_dev.begin() + i_r * y_stride,
+                        unquant_y_host_dev.begin() + i_r * y_stride + n);
+                    std::vector<UnquantYDataType> unquant_y_host_ref_row(
+                        unquant_y_host_ref.begin() + i_r * y_stride,
+                        unquant_y_host_ref.begin() + i_r * y_stride + n);
+                    pass &=
+                        ck_tile::check_err(unquant_y_host_dev_row,
+                                           unquant_y_host_ref_row,
+                                           std::string("\nOUT[") + std::to_string(i_r) +
+                                               std::string("] Error: Incorrect unquant y results!"),
+                                           rtol,
+                                           atol);
+                }
             }
         }
 
@@ -349,6 +431,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     return pass;
 }
+
+bool is_quant_data_type(const std::string& prec) { return (prec == "int8") || (prec == "fp8"); }
 
 int main(int argc, char* argv[])
 {
@@ -373,48 +457,79 @@ int main(int argc, char* argv[])
         prec_sy = "fp32";
     }
 
-    int save_rms = arg_parser.get_int("save_rms");
+    int save_rms    = arg_parser.get_int("save_rms");
+    int fused_quant = arg_parser.get_int("fquant");
+    int save_unquant =
+        arg_parser.get_int("save_unquant") && is_quant_data_type(prec_o) && (fused_quant != 0);
 
     if(prec_i == "fp16" && prec_o == "fp16" && prec_sm == "fp32" && prec_sy == "fp32" && save_rms)
     {
-        return run<ck_tile::half_t, ck_tile::half_t, float, float, true>(arg_parser) ? 0 : -2;
+        return run<ck_tile::half_t, ck_tile::half_t, float, float, true, false>(arg_parser) ? 0
+                                                                                            : -2;
     }
     else if(prec_i == "fp16" && prec_o == "fp16" && prec_sm == "fp32" && prec_sy == "fp32" &&
             !save_rms)
     {
-        return run<ck_tile::half_t, ck_tile::half_t, float, float, false>(arg_parser) ? 0 : -2;
+        return run<ck_tile::half_t, ck_tile::half_t, float, float, false, false>(arg_parser) ? 0
+                                                                                             : -2;
     }
     else if(prec_i == "bf16" && prec_o == "bf16" && prec_sm == "fp32" && prec_sy == "fp32" &&
             save_rms)
     {
-        return run<ck_tile::bf16_t, ck_tile::bf16_t, float, float, true>(arg_parser) ? 0 : -2;
+        return run<ck_tile::bf16_t, ck_tile::bf16_t, float, float, true, false>(arg_parser) ? 0
+                                                                                            : -2;
     }
     else if(prec_i == "bf16" && prec_o == "bf16" && prec_sm == "fp32" && prec_sy == "fp32" &&
             !save_rms)
     {
-        return run<ck_tile::bf16_t, ck_tile::bf16_t, float, float, true>(arg_parser) ? 0 : -2;
+        return run<ck_tile::bf16_t, ck_tile::bf16_t, float, float, false, false>(arg_parser) ? 0
+                                                                                             : -2;
     }
 
     // dynamic quant case, only in inference
     else if(prec_i == "fp16" && prec_o == "int8" && prec_sm == "fp32" && prec_sy == "fp32" &&
-            !save_rms)
+            !save_rms && !save_unquant)
     {
-        return run<ck_tile::half_t, ck_tile::int8_t, float, float, true>(arg_parser) ? 0 : -2;
+        return run<ck_tile::half_t, ck_tile::int8_t, float, float, true, false>(arg_parser) ? 0
+                                                                                            : -2;
     }
     else if(prec_i == "bf16" && prec_o == "int8" && prec_sm == "fp32" && prec_sy == "fp32" &&
-            !save_rms)
+            !save_rms && !save_unquant)
     {
-        return run<ck_tile::bf16_t, ck_tile::int8_t, float, float, true>(arg_parser) ? 0 : -2;
+        return run<ck_tile::bf16_t, ck_tile::int8_t, float, float, true, false>(arg_parser) ? 0
+                                                                                            : -2;
     }
     else if(prec_i == "fp16" && prec_o == "fp8" && prec_sm == "fp32" && prec_sy == "fp32" &&
-            !save_rms)
+            !save_rms && !save_unquant)
     {
-        return run<ck_tile::half_t, ck_tile::fp8_t, float, float, false>(arg_parser) ? 0 : -2;
+        return run<ck_tile::half_t, ck_tile::fp8_t, float, float, false, false>(arg_parser) ? 0
+                                                                                            : -2;
     }
     else if(prec_i == "bf16" && prec_o == "fp8" && prec_sm == "fp32" && prec_sy == "fp32" &&
-            !save_rms)
+            !save_rms && !save_unquant)
     {
-        return run<ck_tile::bf16_t, ck_tile::fp8_t, float, float, false>(arg_parser) ? 0 : -2;
+        return run<ck_tile::bf16_t, ck_tile::fp8_t, float, float, false, false>(arg_parser) ? 0
+                                                                                            : -2;
+    }
+    else if(prec_i == "fp16" && prec_o == "int8" && prec_sm == "fp32" && prec_sy == "fp32" &&
+            !save_rms && save_unquant)
+    {
+        return run<ck_tile::half_t, ck_tile::int8_t, float, float, true, true>(arg_parser) ? 0 : -2;
+    }
+    else if(prec_i == "bf16" && prec_o == "int8" && prec_sm == "fp32" && prec_sy == "fp32" &&
+            !save_rms && save_unquant)
+    {
+        return run<ck_tile::bf16_t, ck_tile::int8_t, float, float, true, true>(arg_parser) ? 0 : -2;
+    }
+    else if(prec_i == "fp16" && prec_o == "fp8" && prec_sm == "fp32" && prec_sy == "fp32" &&
+            !save_rms && save_unquant)
+    {
+        return run<ck_tile::half_t, ck_tile::fp8_t, float, float, false, true>(arg_parser) ? 0 : -2;
+    }
+    else if(prec_i == "bf16" && prec_o == "fp8" && prec_sm == "fp32" && prec_sy == "fp32" &&
+            !save_rms && save_unquant)
+    {
+        return run<ck_tile::bf16_t, ck_tile::fp8_t, float, float, false, true>(arg_parser) ? 0 : -2;
     }
 
     return -3;

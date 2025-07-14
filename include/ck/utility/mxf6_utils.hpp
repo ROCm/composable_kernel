@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
+#ifndef CK_CODE_GEN_RTC
 #pragma once
 
-#include "ck/utility/data_type.hpp"
+#include "ck/utility/numeric_limits.hpp"
 #include "ck/utility/mxfp_utils.hpp"
 
 namespace ck::utils {
@@ -138,7 +139,7 @@ template <>
 __host__ __device__ inline float to_float<f6_t>(e8m0_bexp_t const scale, f6_t const data)
 {
     if(is_nan<f6_t>(scale, data))
-        return std::numeric_limits<float>::quiet_NaN();
+        return NumericLimits<float>::QuietNaN();
 
     if(is_zero<f6_t>(scale, data))
         return 0.0f;
@@ -164,7 +165,7 @@ template <>
 __host__ __device__ inline float to_float<bf6_t>(e8m0_bexp_t const scale, bf6_t const data)
 {
     if(is_nan<bf6_t>(scale, data))
-        return std::numeric_limits<float>::quiet_NaN();
+        return NumericLimits<float>::QuietNaN();
 
     if(is_zero<bf6_t>(scale, data))
         return 0.0f;
@@ -200,7 +201,7 @@ __host__ __device__ inline f6_t sat_convert_to_type<f6_t>(float value)
                     : NumericUtils<f6_t>::data_max_positive_normal_mask;
     }
 
-    if(std::abs(value) > NumericLimits<f6_t>::Max()) // covers inf case as well
+    if(std::abs(value) > NumericLimits<f6_t>::DataMaxNorm()) // covers inf case as well
         return sign ? NumericUtils<f6_t>::data_max_negative_normal_mask
                     : NumericUtils<f6_t>::data_max_positive_normal_mask;
 
@@ -238,7 +239,7 @@ __host__ __device__ inline bf6_t sat_convert_to_type<bf6_t>(float value)
                     : NumericUtils<bf6_t>::data_max_positive_normal_mask;
     }
 
-    if(std::abs(value) > NumericLimits<bf6_t>::Max()) // covers inf case as well
+    if(std::abs(value) > NumericLimits<bf6_t>::DataMaxNorm()) // covers inf case as well
         return sign ? NumericUtils<bf6_t>::data_max_negative_normal_mask
                     : NumericUtils<bf6_t>::data_max_positive_normal_mask;
 
@@ -273,7 +274,7 @@ __host__ __device__ inline f6_t sat_convert_to_type_sr<f6_t>(float value, uint32
         return sign ? NumericUtils<f6_t>::data_max_negative_normal_mask
                     : NumericUtils<f6_t>::data_max_positive_normal_mask;
 
-    if(std::abs(value) > NumericLimits<f6_t>::Max()) // covers inf case as well
+    if(std::abs(value) > NumericLimits<f6_t>::DataMaxNorm()) // covers inf case as well
         return sign ? NumericUtils<f6_t>::data_max_negative_normal_mask
                     : NumericUtils<f6_t>::data_max_positive_normal_mask;
 
@@ -307,8 +308,7 @@ __host__ __device__ inline bf6_t sat_convert_to_type_sr<bf6_t>(float value, uint
     if(std::isnan(value))
         return sign ? NumericUtils<bf6_t>::data_max_negative_normal_mask
                     : NumericUtils<bf6_t>::data_max_positive_normal_mask;
-
-    if(std::abs(value) > NumericLimits<bf6_t>::Max()) // covers inf case as well
+    if(std::abs(value) > NumericLimits<bf6_t>::DataMaxNorm()) // covers inf case as well
         return sign ? NumericUtils<bf6_t>::data_max_negative_normal_mask
                     : NumericUtils<bf6_t>::data_max_positive_normal_mask;
 
@@ -321,5 +321,5 @@ __host__ __device__ inline bf6_t sat_convert_to_type_sr<bf6_t>(float value, uint
 
     return res;
 }
-
 } // namespace ck::utils
+#endif

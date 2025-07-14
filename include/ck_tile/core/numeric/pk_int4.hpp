@@ -21,8 +21,8 @@ struct pk_int4_t
 {
     using type = int8_t;
     type data;
-    __host__ __device__ constexpr pk_int4_t() : data{type{}} {}
-    __host__ __device__ constexpr pk_int4_t(type init) : data{init} {}
+    CK_TILE_HOST_DEVICE constexpr pk_int4_t() : data{type{}} {}
+    CK_TILE_HOST_DEVICE constexpr pk_int4_t(type init) : data{init} {}
 };
 
 // limits
@@ -90,6 +90,16 @@ struct numeric<pk_int4_t>
 
     CK_TILE_HOST_DEVICE static constexpr pk_int4_t zero() { return 0; }
 };
+
+template <>
+struct numeric_traits<pk_int4_t>
+{
+    static constexpr int PackedSize = 2;
+};
+
+using fp32x2_t = float __attribute__((ext_vector_type(2)));
+using fp16x2_t = _Float16 __attribute__((ext_vector_type(2)));
+using bf16x2_t = bf16_raw_t __attribute__((ext_vector_type(2)));
 
 CK_TILE_HOST_DEVICE fp32x2_t pk_int4_t_to_fp32x2_t(const pk_int4_t& x)
 {

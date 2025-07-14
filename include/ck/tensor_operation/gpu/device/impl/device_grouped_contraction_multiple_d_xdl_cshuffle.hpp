@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -64,7 +64,7 @@ __global__ void
         group_id = index_t((left + right) / 2);
     }
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(
+    GridwiseGemm::template Run<HasMainKBlockLoop, InMemoryDataOperationEnum::Set>(
         contraction_arg_ptr[group_id].p_a_grid_,
         contraction_arg_ptr[group_id].p_b_grid_,
         contraction_arg_ptr[group_id].p_ds_grid_,
@@ -368,7 +368,6 @@ struct DeviceGroupedContractionMultipleD_Xdl_CShuffle
         AElementwiseOperation,
         BElementwiseOperation,
         CDEElementwiseOperation,
-        InMemoryDataOperationEnum::Set,
         NumGemmKPrefetchStage,
         BlockSize,
         MPerBlock,

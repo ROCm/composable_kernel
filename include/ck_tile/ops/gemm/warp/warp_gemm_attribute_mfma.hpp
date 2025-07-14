@@ -356,7 +356,7 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution
     }
 };
 
-template <typename WarpGemmAttributeMfmaImpl_>
+template <typename WarpGemmAttributeMfmaImpl_, index_t SFactor_ = 2>
 struct WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB
 {
     using Impl = remove_cvref_t<WarpGemmAttributeMfmaImpl_>;
@@ -373,6 +373,7 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB
     static constexpr index_t kN          = Impl::kM;
     static constexpr index_t kK          = Impl::kK;
     static constexpr index_t kKPerThread = Impl::kABKPerLane;
+    static constexpr index_t SFactor     = SFactor_; // group how many CM1 together
 
     CK_TILE_HOST_DEVICE static constexpr auto get_num_of_access() { return 1; }
 
@@ -386,7 +387,7 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB
         tuple<sequence<0, 0>>,
         sequence<2>,
         sequence<1>>;
-
+#if 0
     using BWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
         tuple<sequence<Impl::kAMLane / (Impl::kABKPerLane * Impl::kABKLane * 2),
@@ -407,7 +408,29 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB
         tuple<sequence<1, 0>>,
         sequence<2, 2>,
         sequence<0, 2>>;
+#else
+    // TODO: more test not only 32x32
+    using BWarpDstrEncoding = tile_distribution_encoding<
+        sequence<>,
+        tuple<sequence<Impl::kAMLane / (Impl::kCMLane * SFactor * Impl::kCM1PerLane),
+                       Impl::kCMLane,
+                       SFactor,
+                       Impl::kCM1PerLane>,
+              sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+        tuple<sequence<2, 1, 1, 1, 1>>,
+        tuple<sequence<0, 0, 2, 1, 3>>,
+        sequence<2>,
+        sequence<1>>;
 
+    using CWarpDstrEncoding = tile_distribution_encoding<
+        sequence<>,
+        tuple<sequence<Impl::kCNLane>,
+              sequence<Impl::kCM0PerLane / SFactor, Impl::kCMLane, Impl::kCM1PerLane * SFactor>>,
+        tuple<sequence<2, 1>>,
+        tuple<sequence<1, 0>>,
+        sequence<2, 2>,
+        sequence<0, 2>>;
+#endif
     template <bool post_nop_ = false>
     // c_vec += a_vec * b_vec
     CK_TILE_DEVICE void operator()(CVecType& c_vec,
