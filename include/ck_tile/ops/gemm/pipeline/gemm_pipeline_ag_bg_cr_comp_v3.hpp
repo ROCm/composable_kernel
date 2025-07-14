@@ -112,11 +112,6 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
-    static constexpr index_t APackedSize =
-        ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
-    static constexpr index_t BPackedSize =
-        ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
-
     using ALayout = remove_cvref_t<typename Problem::ALayout>;
     using BLayout = remove_cvref_t<typename Problem::BLayout>;
     using CLayout = remove_cvref_t<typename Problem::CLayout>;
@@ -127,6 +122,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     using I2        = number<2>;
 
     static constexpr index_t BlockSize = Problem::kBlockSize;
+
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
@@ -134,6 +130,11 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     static constexpr index_t GetVectorSizeA() { return Policy::template GetVectorSizeA<Problem>(); }
     static constexpr index_t GetVectorSizeB() { return Policy::template GetVectorSizeB<Problem>(); }
     static constexpr index_t GetVectorSizeC() { return Policy::template GetVectorSizeC<Problem>(); }
+
+    static constexpr index_t APackedSize =
+        ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
+    static constexpr index_t BPackedSize =
+        ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
 
     static constexpr index_t GetSmemPackA() { return Policy::template GetSmemPackA<Problem>(); }
     static constexpr index_t GetSmemPackB() { return Policy::template GetSmemPackB<Problem>(); }
@@ -144,10 +145,13 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
     static constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
+    static constexpr index_t Preshuffle    = Problem::Preshuffle;
 
-    static constexpr bool HasHotLoop = Problem::HasHotLoop;
-    static constexpr auto TailNum    = Problem::TailNum;
-    static constexpr auto Scheduler  = Problem::Scheduler;
+    static constexpr bool HasHotLoop =
+        Problem::HasHotLoop; // Base::BlockHasHotloop(Problem::num_loop);
+    static constexpr auto TailNum =
+        Problem::TailNum; // Base::GetBlockLoopTailNum(Problem::num_loop);
+    static constexpr auto Scheduler = Problem::Scheduler;
 
     using Base::PrefetchStages;
     using Base::UsePersistentKernel;
@@ -155,7 +159,8 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
-        return concat('_', "pipeline_AgBgCrCompV3", BlockSize,
+        return concat('_', "pipeline_AgBgCrCompV3", 
+                      concat('x', MPerBlock, NPerBlock, KPerBlock,  BlockSize),
                       concat('x', GetVectorSizeA(), GetVectorSizeB(),  GetVectorSizeC()),
                       concat('x', kPadM, kPadN, kPadK));
         // clang-format on

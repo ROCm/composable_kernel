@@ -6,6 +6,7 @@
 #include "ck/utility/type_convert.hpp"
 #include "ck/utility/env.hpp"
 #include "ck/utility/scaled_type_convert.hpp"
+#include "ck/library/utility/device_memory.hpp"
 
 using ck::bf6_convert_rne;
 using ck::bf6_convert_sr;
@@ -454,4 +455,58 @@ TEST(BF6, TestAllValues)
             printf(", 0x%02X, Value: %f\n", e3m2BitsOCP[i], e3m2ValuesOCP[i]);
         }
     });
+}
+
+__global__ void test_bf6_convert_rne(float* p_test, uint64_t* p_completed)
+{
+    constexpr int N = 32;
+    if(p_completed == nullptr)
+    {
+        return;
+    }
+
+    uint64_t& i = *p_completed;
+    i           = 0;
+
+    if(p_test == nullptr)
+    {
+        return;
+    }
+
+    ck::float32_t float32_in(1.0f);
+    ck::float32_t float32_out{};
+
+    auto bf6x32_vec = bf6_convert_rne(float32_in);
+    float32_out     = type_convert<ck::float32_t>(bf6x32_vec);
+
+    ck::static_for<0, N, 1>{}([&](auto ii) { p_test[i++] = float32_out[static_cast<int>(ii)]; });
+    i = N;
+}
+
+TEST(MXBF6, DeviceBF6ConvertRNE)
+{
+    constexpr int N = 32;
+    std::vector<float> out(N, -1.0f);
+
+    DeviceMem device_out(N * sizeof(float));
+    DeviceMem device_completed(sizeof(uint64_t));
+
+    device_out.SetValue(-21.0f);
+    device_completed.SetValue(-21.0f);
+
+    test_bf6_convert_rne<<<1, 1>>>(static_cast<float*>(device_out.GetDeviceBuffer()),
+                                   static_cast<uint64_t*>(device_completed.GetDeviceBuffer()));
+
+    uint64_t completed = 0;
+    device_completed.FromDevice(&completed);
+    device_out.FromDevice(out.data());
+
+    EXPECT_EQ(N, completed);
+    ck::static_for<0, N, 1>{}(
+        [&](auto ii) { EXPECT_EQ(out[static_cast<int>(ii)], 1.0f) << "ii: " << ii << std::endl; });
+
+    auto bf6x32_vec_tc    = ck::type_convert<bf6x32_pk_t>(ck::float32_t(1.0f));
+    auto bf6x32_vec_cnstr = bf6x32_pk_t(0x0C);
+
+    EXPECT_EQ(bf6x32_vec_tc, bf6x32_vec_cnstr);
 }
