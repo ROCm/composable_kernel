@@ -21,7 +21,7 @@ struct TileCopyShape
     // One for reading data from global -> LDS, the other is doing reduction
     static constexpr index_t WaveGroups = 2;
     static constexpr index_t MWarps     = BlockWaves::at(number<0>{});
-    static constexpr index_t NWarps     = BlockWaves::at(number<0>{});
+    static constexpr index_t NWarps     = BlockWaves::at(number<1>{});
 
     static constexpr index_t Block_M = BlockTile::at(number<0>{});
     static constexpr index_t Block_N = BlockTile::at(number<1>{});
@@ -102,10 +102,14 @@ struct TileCopy
 
         // LDS Data.
         __shared__ XDataType x_lds[number<S::Block_M>{} * number<S::Block_N>{}];
+        for(int i = 0; i < S::Block_M * S::Block_N; ++i)
+            x_lds[i] = ck_tile::type_convert<XDataType>(-1);
+
         XDataType* __restrict__ p_x_lds = static_cast<XDataType*>(x_lds);
 
         const auto x_lds_desc = make_naive_tensor_descriptor(
-            make_tuple(number<S::Block_M>{}, number<S::Block_N>{}, number<S::Vector_N>{}),
+            make_tuple(
+                number<S::Block_M>{}, number<S::Block_N / S::Vector_N>{}, number<S::Vector_N>{}),
             make_tuple(number<S::Block_N>{}, number<S::Vector_N>{}, 1),
             number<S::Vector_N>{},
             number<1>{});
@@ -114,8 +118,8 @@ struct TileCopy
             x_lds_desc,
             make_tuple(make_pass_through_transform(number<S::Block_M>{}),
                        make_merge_transform(
-                           make_tuple(number<S::Block_N>{} / S::Vector_N, number<S::Vector_N>{}))),
-            make_tuple(sequence<1>{}, sequence<0, 2>{}),
+                           make_tuple(number<S::Block_N / S::Vector_N>{}, number<S::Vector_N>{}))),
+            make_tuple(sequence<0>{}, sequence<1, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
         auto x_lds_view = make_tensor_view<address_space_enum::lds>(p_x_lds, x_lds_block_desc);
@@ -153,15 +157,48 @@ struct TileCopy
         auto DramTileDist   = x_block_window.get_tile_distribution();
         using dram_reg_tile = decltype(make_static_distributed_tensor<XDataType>(DramTileDist));
 
+        [[maybe_unused]] auto print_lds = [&](auto lds_tile_window, const char* name) {
+            const auto num_rows = lds_tile_window.get_window_lengths().at(number<0>{});
+            const auto num_cols = lds_tile_window.get_window_lengths().at(number<1>{});
+
+            auto desc = lds_tile_window.get_bottom_tensor_view().desc_;
+            auto data = lds_tile_window.get_bottom_tensor_view().buf_.p_data_;
+
+            for(int row = 0; row < num_rows; ++row)
+            {
+                int offset = desc.calculate_offset(make_tuple(row, 0));
+                printf("[DEVICE] %s[%3d] = %5.2f",
+                       name,
+                       row,
+                       ck_tile::type_convert<float>(data[offset]));
+                for(int col = 1; col < num_cols; ++col)
+                {
+                    printf(", ");
+                    offset = desc.calculate_offset(make_tuple(row, col));
+                    printf("%5.2f", ck_tile::type_convert<float>(data[offset]));
+                }
+                printf("\n");
+            }
+        };
+
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
             dram_reg_tile dram_tile;
 
             if(my_id == warp_id)
             {
+                __builtin_amdgcn_sched_barrier(0);
+                asm volatile("; start if(my_id == warp_id)");
+                __builtin_amdgcn_sched_barrier(0);
                 if constexpr(AsyncCopy)
                 {
                     async_load_tile(x_block_lds_window_no_dist, x_block_window);
+
+                    __builtin_amdgcn_s_waitcnt(3952);
+                    block_sync_lds();
+
+                    if(threadIdx.x == 0)
+                        print_lds(x_block_lds_window_no_dist, "N");
 
                     load_tile(dram_tile, x_block_lds_window);
 
@@ -176,6 +213,11 @@ struct TileCopy
                     // store in lds
                     store_tile(x_block_lds_window_no_dist, dram_tile);
 
+                    block_sync_lds();
+
+                    if(threadIdx.x == 0)
+                        print_lds(x_block_lds_window_no_dist, "N");
+
                     // read from lds to registers
                     load_tile(dram_tile, x_block_lds_window);
 
@@ -183,9 +225,19 @@ struct TileCopy
                     store_tile(y_block_window, dram_tile);
                 }
             }
+            else
+            {
+
+                block_sync_lds();
+            }
+
             __syncthreads();
             move_tile_window(x_block_window, {0, S::Block_N});
             move_tile_window(y_block_window, {0, S::Block_N});
+
+            __builtin_amdgcn_sched_barrier(0);
+            asm volatile("; end end (my_id == warp_id)");
+            __builtin_amdgcn_sched_barrier(0);
         }
     }
 };

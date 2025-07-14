@@ -13,14 +13,15 @@ auto create_args(int argc, char* argv[])
         .insert("id", "0", "warp to use")
         .insert("v", "1", "cpu validation or not")
         .insert("prec", "fp16", "precision")
-        .insert("warmup", "50", "cold iter")
-        .insert("repeat", "100", "hot iter");
+        .insert("warmup", "0", "cold iter")
+        .insert("repeat", "1", "hot iter")
+        .insert("async", "1", "async copy");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
 
-template <typename DataType>
+template <typename DataType, bool AsyncCopy>
 bool run(const ck_tile::ArgParser& arg_parser)
 {
     using XDataType = DataType;
@@ -53,11 +54,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     x_buf.ToDevice(x_host.data());
 
-    using BlockWaves         = ck_tile::sequence<2, 1>;
-    using BlockTile          = ck_tile::sequence<64, 8>;
-    using WaveTile           = ck_tile::sequence<64, 8>;
-    using Vector             = ck_tile::sequence<1, 2>;
-    constexpr bool AsyncCopy = true;
+    using BlockWaves = ck_tile::sequence<2, 1>;
+    using BlockTile  = ck_tile::sequence<64, 8>;
+    using WaveTile   = ck_tile::sequence<64, 8>;
+    using Vector     = ck_tile::sequence<1, 2>;
 
     ck_tile::index_t kGridSize = (m / BlockTile::at(ck_tile::number<0>{}));
     std::cout << "grid size " << kGridSize << std::endl;
@@ -114,5 +114,8 @@ int main(int argc, char* argv[])
         return -1;
 
     const std::string data_type = arg_parser.get_str("prec");
-    return run<ck_tile::half_t>(arg_parser) ? 0 : -2;
+    const int async             = arg_parser.get_int("async");
+
+    return async == 0 ? (run<ck_tile::half_t, false>(arg_parser) ? 0 : -2)
+                      : (run<ck_tile::half_t, true>(arg_parser) ? 0 : -2);
 }
