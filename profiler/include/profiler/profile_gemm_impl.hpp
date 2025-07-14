@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -74,8 +74,8 @@ int profile_gemm_impl(int do_verification,
     switch(init_method)
     {
     case 0:
-        ck::utils::FillConstant<ADataType>{static_cast<ADataType>(1.f)}(a_m_k);
-        ck::utils::FillConstant<BDataType>{static_cast<BDataType>(1.f)}(b_k_n);
+        ck::utils::FillConstant<ADataType>{type_convert<ADataType>(1.f)}(a_m_k);
+        ck::utils::FillConstant<BDataType>{type_convert<BDataType>(1.f)}(b_k_n);
         break;
     case 1:
         ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_m_k);

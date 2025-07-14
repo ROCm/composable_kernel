@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
@@ -223,9 +223,6 @@ struct numeric<half_t>
     }
 };
 
-template <typename T>
-struct numeric_traits;
-
 template <>
 struct numeric_traits<half_t>
 {
@@ -236,10 +233,12 @@ struct numeric_traits<half_t>
     static constexpr uint16_t head_mask = 0xFC00;
     static constexpr uint16_t mant_mask = 0x3FF;
     static constexpr uint16_t exp_mask  = 0x1F;
-    static constexpr uint32_t Inf       = 0x7C00;
-    static constexpr uint32_t NegInf    = 0xFC00;
-    static constexpr uint32_t NaN       = 0x7C01;
-    static constexpr uint32_t Neg0      = 0x8000;
+    static constexpr uint16_t abs_mask  = 0x7FFF;
+    static constexpr uint16_t Inf       = 0x7C00;
+    static constexpr uint16_t NegInf    = 0xFC00;
+    static constexpr uint16_t NaN       = 0x7C01;
+    static constexpr uint16_t Neg0      = 0x8000;
+    static constexpr int PackedSize     = 1;
     using bitwise_type                  = uint16_t;
 };
 
@@ -382,4 +381,24 @@ half_t exp2(half_t x) { return static_cast<half_t>(exp2f(static_cast<float>(x)))
 CK_TILE_DEVICE
 half_t log(half_t x) { return static_cast<half_t>(__logf(static_cast<float>(x))); };
 #endif
+
+using fp16x2_t = _Float16 __attribute__((ext_vector_type(2)));
+
+CK_TILE_HOST fp16x2_t pk_add_f16(const fp16x2_t& x, const fp16x2_t& y)
+{
+    fp16x2_t vector_res;
+
+    vector_res.x = x.x + y.x;
+    vector_res.y = x.y + y.y;
+
+    return vector_res;
+}
+
+CK_TILE_DEVICE fp16x2_t pk_add_f16(const fp16x2_t& x, const fp16x2_t& y)
+{
+    fp16x2_t c;
+    asm volatile("v_pk_add_f16 %0, %1, %2" : "=v"(c) : "v"(x), "v"(y));
+    return c;
+}
+
 } // namespace ck_tile

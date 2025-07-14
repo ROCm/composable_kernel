@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -58,7 +58,7 @@ struct thread_buffer {
     template <index_t I> CK_TILE_HOST_DEVICE constexpr const auto& at() const           { return get(I); }
     template <index_t I> CK_TILE_HOST_DEVICE constexpr auto& at(number<I>)              { return get(I); }
     template <index_t I> CK_TILE_HOST_DEVICE constexpr const auto& at(number<I>) const  { return get(I); }
-
+    
     template <typename X_,
               typename std::enable_if<has_same_scalar_type<value_type, X_>::value, bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr auto _get_as() const
@@ -149,14 +149,21 @@ struct thread_buffer {
 };
 // clang-format on
 
-template <typename>
+template <typename, typename>
 struct vector_traits;
 
 // specialization for array
 template <typename T, index_t N>
-struct vector_traits<thread_buffer<T, N>>
+struct vector_traits<thread_buffer<T, N>, std::enable_if_t<!std::is_class_v<T>>>
 {
     using scalar_type                    = T;
+    static constexpr index_t vector_size = N;
+};
+
+template <typename T, index_t N>
+struct vector_traits<thread_buffer<T, N>, std::enable_if_t<std::is_class_v<T>>>
+{
+    using scalar_type                    = typename T::type;
     static constexpr index_t vector_size = N;
 };
 

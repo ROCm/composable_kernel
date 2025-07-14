@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -26,6 +26,15 @@ constexpr bool is_GNWC_GKXC_GNWK()
            is_same_v<WeiLayout, tensor_layout::convolution::GKXC> &&
            is_same_v<OutLayout, tensor_layout::convolution::GNWK>;
 }
+
+template <typename InLayout, typename WeiLayout, typename OutLayout>
+constexpr bool is_NGCW_GKXC_NGKW()
+{
+    return is_same_v<InLayout, tensor_layout::convolution::NGCW> &&
+           is_same_v<WeiLayout, tensor_layout::convolution::GKXC> &&
+           is_same_v<OutLayout, tensor_layout::convolution::NGKW>;
+}
+
 // 2d
 template <typename InLayout, typename WeiLayout, typename OutLayout>
 constexpr bool is_NHWGC_GKYXC_NHWGK()
@@ -50,6 +59,22 @@ constexpr bool is_NGCHW_GKYXC_NGKHW()
            is_same_v<WeiLayout, tensor_layout::convolution::GKYXC> &&
            is_same_v<OutLayout, tensor_layout::convolution::NGKHW>;
 }
+
+template <typename InLayout, typename WeiLayout, typename OutLayout>
+constexpr bool is_NGCHW_GKCYX_NGKHW()
+{
+    return is_same_v<InLayout, tensor_layout::convolution::NGCHW> &&
+           is_same_v<WeiLayout, tensor_layout::convolution::GKCYX> &&
+           is_same_v<OutLayout, tensor_layout::convolution::NGKHW>;
+}
+
+template <typename InLayout, typename WeiLayout, typename OutLayout>
+constexpr bool is_NGCHW_NGKHW()
+{
+    return is_same_v<InLayout, tensor_layout::convolution::NGCHW> &&
+           is_same_v<OutLayout, tensor_layout::convolution::NGKHW>;
+}
+
 // 3d
 template <typename InLayout, typename WeiLayout, typename OutLayout>
 constexpr bool is_NDHWGC_GKZYXC_NDHWGK()
@@ -76,6 +101,21 @@ constexpr bool is_NGCDHW_GKZYXC_NGKDHW()
 }
 
 template <typename InLayout, typename WeiLayout, typename OutLayout>
+constexpr bool is_NGCDHW_GKCZYX_NGKDHW()
+{
+    return is_same_v<InLayout, tensor_layout::convolution::NGCDHW> &&
+           is_same_v<WeiLayout, tensor_layout::convolution::GKCZYX> &&
+           is_same_v<OutLayout, tensor_layout::convolution::NGKDHW>;
+}
+
+template <typename InLayout, typename WeiLayout, typename OutLayout>
+constexpr bool is_NGCDHW_NGKDHW()
+{
+    return is_same_v<InLayout, tensor_layout::convolution::NGCDHW> &&
+           is_same_v<OutLayout, tensor_layout::convolution::NGKDHW>;
+}
+
+template <typename InLayout, typename WeiLayout, typename OutLayout>
 constexpr bool is_NSpatialGC_GKSpatial_NSpatialGK()
 {
     return is_NWGC_GKXC_NWGK<InLayout, WeiLayout, OutLayout>() ||
@@ -89,6 +129,14 @@ constexpr bool is_GNSpatialC_GKSpatial_GNSpatialK()
     return is_GNWC_GKXC_GNWK<InLayout, WeiLayout, OutLayout>() ||
            is_GNHWC_GKYXC_GNHWK<InLayout, WeiLayout, OutLayout>() ||
            is_GNDHWC_GKZYXC_GNDHWK<InLayout, WeiLayout, OutLayout>();
+}
+
+template <typename InLayout, typename WeiLayout, typename OutLayout>
+constexpr bool is_NGCSpatial_GKSpatial_NGKSpatial()
+{
+    return is_NGCW_GKXC_NGKW<InLayout, WeiLayout, OutLayout>() ||
+           is_NGCHW_GKYXC_NGKHW<InLayout, WeiLayout, OutLayout>() ||
+           is_NGCDHW_GKZYXC_NGKDHW<InLayout, WeiLayout, OutLayout>();
 }
 
 template <index_t NumATensor = 1, index_t NumBTensor = 1, index_t NumDTensor = 0, typename = void>

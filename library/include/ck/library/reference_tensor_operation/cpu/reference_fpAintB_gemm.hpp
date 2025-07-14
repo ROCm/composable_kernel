@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -73,39 +73,9 @@ struct ReferencefpAintBGemm : public device::BaseOperator
                     ScaleDataType v_scale;
                     ADataType v_converted_b;
 
-                    // use PassThrough instead of ConvertBF16RTN for reference calculation
-                    if constexpr(is_same_v<AElementwiseOperation,
-                                           ck::tensor_operation::element_wise::ConvertBF16RTN>)
-                    {
-                        ck::tensor_operation::element_wise::PassThrough{}(v_a, arg.a_m_k_(m, k));
-                    }
-                    else
-                    {
-                        arg.a_element_op_(v_a, arg.a_m_k_(m, k));
-                    }
-
-                    // same for B matrix
-                    if constexpr(is_same_v<BElementwiseOperation,
-                                           ck::tensor_operation::element_wise::ConvertBF16RTN>)
-                    {
-                        ck::tensor_operation::element_wise::PassThrough{}(v_b, arg.b_k_n_(k, n));
-                    }
-                    else
-                    {
-                        arg.b_element_op_(v_b, arg.b_k_n_(k, n));
-                    }
-
-                    // same for scale matrix
-                    if constexpr(is_same_v<BElementwiseOperation,
-                                           ck::tensor_operation::element_wise::ConvertBF16RTN>)
-                    {
-                        ck::tensor_operation::element_wise::PassThrough{}(v_scale,
-                                                                          arg.scale_k_n_(k, n));
-                    }
-                    else
-                    {
-                        arg.b_element_op_(v_scale, arg.scale_k_n_(k, n));
-                    }
+                    arg.a_element_op_(v_a, arg.a_m_k_(m, k));
+                    arg.b_element_op_(v_b, arg.b_k_n_(k, n));
+                    arg.b_element_op_(v_scale, arg.scale_k_n_(k, n));
 
                     v_converted_b = type_convert<ADataType>(v_b) * v_scale;
                     v_acc += ck::type_convert<AccDataType>(v_a) *

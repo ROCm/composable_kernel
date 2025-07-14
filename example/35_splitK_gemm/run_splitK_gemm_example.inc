@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 struct ProblemSize final
@@ -66,8 +69,8 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
         break;
     default:
-        a_m_k.GenerateTensorValue(GeneratorTensor_Sequential<0>{});
-        b_k_n.GenerateTensorValue(GeneratorTensor_Sequential<1>{});
+        a_m_k.GenerateTensorValue(GeneratorTensor_Sequential<ADataType, 0>{});
+        b_k_n.GenerateTensorValue(GeneratorTensor_Sequential<BDataType, 1>{});
     }
 
     DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());

@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
+
 #include <string>
 #include <type_traits>
+#include <utility>
+#include <variant>
 
 // S[seqlen_q, seqlen_k] = Q[seqlen_q, hdim_q] @ K[seqlen_k, hdim_q]
 // S'[seqlen_q, seqlen_k] = S[seqlen_q, seqlen_k] * Scale[1]
@@ -97,10 +100,10 @@ struct FmhaBwdDQDKDVKernel
             "r" + _TS_(gbr4::at(ck_tile::number<0>{})) + "x" + _TS_(gbr4::at(ck_tile::number<1>{})) + "x" + _TS_(gbr4::at(ck_tile::number<2>{})) + "_" +
             "w" + _TS_(gwt0::at(ck_tile::number<0>{})) + "x" + _TS_(gwt0::at(ck_tile::number<1>{})) + "x" + _TS_(gwt0::at(ck_tile::number<2>{})) + "_" +
             "w" + _TS_(gwt1::at(ck_tile::number<0>{})) + "x" + _TS_(gwt1::at(ck_tile::number<1>{})) + "x" + _TS_(gwt1::at(ck_tile::number<2>{})) + "_" +
-            ("o" + _TS_(kBlockPerCu) + "_") + _SS_(FmhaPipeline::name) + (pn.empty() ? "" : "_" + pn) +
-            (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) +
-            (kHasBiasGrad ? "_dbias" : "") + (kHasMask ? "_" + _SS_(FmhaMask::name) : "") + (kHasDropout ? "_dropout" : "" ) +
-            (kIsStoreRandval ? "_storerandval" : "" ) + (kIsDeterministic ? "_deterministic" : "" );
+            ("o" + _TS_(kBlockPerCu) + "_") + _SS_(FmhaPipeline::name) + (pn.empty() ? "_npad" : "_" + pn) +
+            (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("_nbias") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) +
+            (kHasBiasGrad ? "_dbias" : "_ndbias") + (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kHasDropout ? "_dropout" : "_ndropout" ) +
+            (kIsStoreRandval ? "_storerandval" : "" ) + (kIsDeterministic ? "_deterministic" : "_ndeterministic" );
         #undef _SS_
         #undef _TS_
         // clang-format on
@@ -194,11 +197,23 @@ struct FmhaBwdDQDKDVKernel
         ck_tile::GenericAttentionMaskEnum mask_type;
     };
 
-    struct FmhaBwdCommonDropoutKargs
+    struct FmhaBwdDropoutSeedOffset
     {
-        void init_dropout(const float p_drop,
-                          const std::tuple<uint64_t, uint64_t>& drop_seed_offset,
-                          const float raw_scale)
+        template <typename T>
+        union ValueOrPointer
+        {
+            T val;
+            const T* ptr;
+        };
+
+        ValueOrPointer<uint64_t> drop_seed;
+        ValueOrPointer<uint64_t> drop_offset;
+        bool is_drop_seed_offset_from_host;
+    };
+
+    struct FmhaBwdCommonDropoutKargs : FmhaBwdDropoutSeedOffset
+    {
+        void init_dropout(float p_drop, uint64_t seed, uint64_t offset, float raw_scale)
         {
             float p_undrop = 1.0 - p_drop;
             p_undrop_in_uint8_t =
@@ -206,23 +221,41 @@ struct FmhaBwdDQDKDVKernel
             rp_undrop       = 1.0 / p_undrop;
             scale_rp_undrop = rp_undrop * raw_scale;
 
-            drop_seed   = std::get<0>(drop_seed_offset);
-            drop_offset = std::get<1>(drop_seed_offset);
+            this->drop_seed.val                 = seed;
+            this->drop_offset.val               = offset;
+            this->is_drop_seed_offset_from_host = true;
         }
+
+        void init_dropout(float p_drop,
+                          const uint64_t* seed_ptr,
+                          const uint64_t* offset_ptr,
+                          float raw_scale)
+        {
+            float p_undrop = 1.0 - p_drop;
+            p_undrop_in_uint8_t =
+                uint8_t(std::floor(p_undrop * std::numeric_limits<uint8_t>::max()));
+            rp_undrop       = 1.0 / p_undrop;
+            scale_rp_undrop = rp_undrop * raw_scale;
+
+            this->drop_seed.ptr                 = seed_ptr;
+            this->drop_offset.ptr               = offset_ptr;
+            this->is_drop_seed_offset_from_host = false;
+        }
+
         float rp_undrop             = 1;
         float scale_rp_undrop       = 1;
         uint8_t p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
-        uint64_t drop_seed          = 1;
-        uint64_t drop_offset        = 0;
         void* rand_val_ptr          = nullptr;
 
         ck_tile::index_t stride_randval       = 0;
         ck_tile::index_t nhead_stride_randval = 0;
     };
+
     struct FmhaBwdBatchModeDropoutKargs : FmhaBwdCommonDropoutKargs
     {
         ck_tile::index_t batch_stride_randval = 0;
     };
+
     struct FmhaBwdDeterministicKargs
     {
         ck_tile::index_t split_stride_dq_acc = 0;
@@ -271,63 +304,64 @@ struct FmhaBwdDQDKDVKernel
 
     template <bool Cond = !kIsGroupMode>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
-    MakeKargs(const void* q_ptr,
-              const void* k_ptr,
-              const void* v_ptr,
-              const void* bias_ptr,
-              const void* lse_ptr,
-              const void* do_ptr,
-              const void* d_ptr,
-              void* rand_val_ptr,
-              void* dk_ptr,
-              void* dv_ptr,
-              void* dbias_ptr,
-              void* dq_acc_ptr,
-              ck_tile::index_t seqlen_q,
-              ck_tile::index_t seqlen_k,
-              ck_tile::index_t hdim_q,
-              ck_tile::index_t hdim_v,
-              ck_tile::index_t num_head_q,
-              ck_tile::index_t nhead_ratio_qk,
-              float scale,
-              ck_tile::index_t stride_q,
-              ck_tile::index_t stride_k,
-              ck_tile::index_t stride_v,
-              ck_tile::index_t stride_bias,
-              ck_tile::index_t stride_randval,
-              ck_tile::index_t stride_do,
-              ck_tile::index_t stride_dq_acc,
-              ck_tile::index_t stride_dk,
-              ck_tile::index_t stride_dv,
-              ck_tile::index_t stride_dbias,
-              ck_tile::index_t nhead_stride_q,
-              ck_tile::index_t nhead_stride_k,
-              ck_tile::index_t nhead_stride_v,
-              ck_tile::index_t nhead_stride_bias,
-              ck_tile::index_t nhead_stride_randval,
-              ck_tile::index_t nhead_stride_do,
-              ck_tile::index_t nhead_stride_lsed,
-              ck_tile::index_t nhead_stride_dq_acc,
-              ck_tile::index_t nhead_stride_dk,
-              ck_tile::index_t nhead_stride_dv,
-              ck_tile::index_t nhead_stride_dbias,
-              ck_tile::index_t batch_stride_q,
-              ck_tile::index_t batch_stride_k,
-              ck_tile::index_t batch_stride_v,
-              ck_tile::index_t batch_stride_bias,
-              ck_tile::index_t batch_stride_randval,
-              ck_tile::index_t batch_stride_do,
-              ck_tile::index_t batch_stride_lsed,
-              ck_tile::index_t batch_stride_dq_acc,
-              ck_tile::index_t batch_stride_dk,
-              ck_tile::index_t batch_stride_dv,
-              ck_tile::index_t batch_stride_dbias,
-              ck_tile::index_t split_stride_dq_acc,
-              ck_tile::index_t window_size_left,
-              ck_tile::index_t window_size_right,
-              ck_tile::index_t mask_type,
-              float p_drop,
-              const std::tuple<uint64_t, uint64_t>& drop_seed_offset)
+    MakeKargsImpl(const void* q_ptr,
+                  const void* k_ptr,
+                  const void* v_ptr,
+                  const void* bias_ptr,
+                  const void* lse_ptr,
+                  const void* do_ptr,
+                  const void* d_ptr,
+                  void* rand_val_ptr,
+                  void* dk_ptr,
+                  void* dv_ptr,
+                  void* dbias_ptr,
+                  void* dq_acc_ptr,
+                  ck_tile::index_t seqlen_q,
+                  ck_tile::index_t seqlen_k,
+                  ck_tile::index_t hdim_q,
+                  ck_tile::index_t hdim_v,
+                  ck_tile::index_t num_head_q,
+                  ck_tile::index_t nhead_ratio_qk,
+                  float scale,
+                  ck_tile::index_t stride_q,
+                  ck_tile::index_t stride_k,
+                  ck_tile::index_t stride_v,
+                  ck_tile::index_t stride_bias,
+                  ck_tile::index_t stride_randval,
+                  ck_tile::index_t stride_do,
+                  ck_tile::index_t stride_dq_acc,
+                  ck_tile::index_t stride_dk,
+                  ck_tile::index_t stride_dv,
+                  ck_tile::index_t stride_dbias,
+                  ck_tile::index_t nhead_stride_q,
+                  ck_tile::index_t nhead_stride_k,
+                  ck_tile::index_t nhead_stride_v,
+                  ck_tile::index_t nhead_stride_bias,
+                  ck_tile::index_t nhead_stride_randval,
+                  ck_tile::index_t nhead_stride_do,
+                  ck_tile::index_t nhead_stride_lsed,
+                  ck_tile::index_t nhead_stride_dq_acc,
+                  ck_tile::index_t nhead_stride_dk,
+                  ck_tile::index_t nhead_stride_dv,
+                  ck_tile::index_t nhead_stride_dbias,
+                  ck_tile::index_t batch_stride_q,
+                  ck_tile::index_t batch_stride_k,
+                  ck_tile::index_t batch_stride_v,
+                  ck_tile::index_t batch_stride_bias,
+                  ck_tile::index_t batch_stride_randval,
+                  ck_tile::index_t batch_stride_do,
+                  ck_tile::index_t batch_stride_lsed,
+                  ck_tile::index_t batch_stride_dq_acc,
+                  ck_tile::index_t batch_stride_dk,
+                  ck_tile::index_t batch_stride_dv,
+                  ck_tile::index_t batch_stride_dbias,
+                  ck_tile::index_t split_stride_dq_acc,
+                  ck_tile::index_t window_size_left,
+                  ck_tile::index_t window_size_right,
+                  ck_tile::index_t mask_type,
+                  float p_drop,
+                  std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
+                      drop_seed_offset)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -405,7 +439,20 @@ struct FmhaBwdDQDKDVKernel
 
         if constexpr(kHasDropout)
         {
-            kargs.init_dropout(p_drop, drop_seed_offset, scale);
+            if(drop_seed_offset.index() == 0) // seed & offset come from host
+            {
+                const auto& [seed, offset] = std::get<0>(drop_seed_offset);
+                kargs.init_dropout(p_drop, seed, offset, scale);
+            }
+            else // seed & offset come from device
+            {
+                const auto& [seed_ptr, offset_ptr] = std::get<1>(drop_seed_offset);
+                kargs.init_dropout(p_drop,
+                                   reinterpret_cast<const uint64_t*>(seed_ptr),
+                                   reinterpret_cast<const uint64_t*>(offset_ptr),
+                                   scale);
+            }
+
             if constexpr(kIsStoreRandval)
             {
                 kargs.rand_val_ptr         = rand_val_ptr;
@@ -423,7 +470,8 @@ struct FmhaBwdDQDKDVKernel
         return kargs;
     }
 
-    template <bool Cond = kIsGroupMode>
+    // std::variant<> can't take in a list initializer, overload for backward compatibility
+    template <bool Cond = !kIsGroupMode>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
     MakeKargs(const void* q_ptr,
               const void* k_ptr,
@@ -437,9 +485,8 @@ struct FmhaBwdDQDKDVKernel
               void* dv_ptr,
               void* dbias_ptr,
               void* dq_acc_ptr,
-              const void* seqstart_q_ptr,
-              const void* seqstart_k_ptr,
-              const void* seqlen_k_ptr,
+              ck_tile::index_t seqlen_q,
+              ck_tile::index_t seqlen_k,
               ck_tile::index_t hdim_q,
               ck_tile::index_t hdim_v,
               ck_tile::index_t num_head_q,
@@ -466,12 +513,255 @@ struct FmhaBwdDQDKDVKernel
               ck_tile::index_t nhead_stride_dk,
               ck_tile::index_t nhead_stride_dv,
               ck_tile::index_t nhead_stride_dbias,
+              ck_tile::index_t batch_stride_q,
+              ck_tile::index_t batch_stride_k,
+              ck_tile::index_t batch_stride_v,
+              ck_tile::index_t batch_stride_bias,
+              ck_tile::index_t batch_stride_randval,
+              ck_tile::index_t batch_stride_do,
+              ck_tile::index_t batch_stride_lsed,
+              ck_tile::index_t batch_stride_dq_acc,
+              ck_tile::index_t batch_stride_dk,
+              ck_tile::index_t batch_stride_dv,
+              ck_tile::index_t batch_stride_dbias,
               ck_tile::index_t split_stride_dq_acc,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
               ck_tile::index_t mask_type,
               float p_drop,
               const std::tuple<uint64_t, uint64_t>& drop_seed_offset)
+    {
+        return MakeKargsImpl(
+            q_ptr,
+            k_ptr,
+            v_ptr,
+            bias_ptr,
+            lse_ptr,
+            do_ptr,
+            d_ptr,
+            rand_val_ptr,
+            dk_ptr,
+            dv_ptr,
+            dbias_ptr,
+            dq_acc_ptr,
+            seqlen_q,
+            seqlen_k,
+            hdim_q,
+            hdim_v,
+            num_head_q,
+            nhead_ratio_qk,
+            scale,
+            stride_q,
+            stride_k,
+            stride_v,
+            stride_bias,
+            stride_randval,
+            stride_do,
+            stride_dq_acc,
+            stride_dk,
+            stride_dv,
+            stride_dbias,
+            nhead_stride_q,
+            nhead_stride_k,
+            nhead_stride_v,
+            nhead_stride_bias,
+            nhead_stride_randval,
+            nhead_stride_do,
+            nhead_stride_lsed,
+            nhead_stride_dq_acc,
+            nhead_stride_dk,
+            nhead_stride_dv,
+            nhead_stride_dbias,
+            batch_stride_q,
+            batch_stride_k,
+            batch_stride_v,
+            batch_stride_bias,
+            batch_stride_randval,
+            batch_stride_do,
+            batch_stride_lsed,
+            batch_stride_dq_acc,
+            batch_stride_dk,
+            batch_stride_dv,
+            batch_stride_dbias,
+            split_stride_dq_acc,
+            window_size_left,
+            window_size_right,
+            mask_type,
+            p_drop,
+            std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
+    }
+
+    // std::variant<> can't take in a list initializer, overload for backward compatibility
+    template <bool Cond = !kIsGroupMode>
+    CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
+    MakeKargs(const void* q_ptr,
+              const void* k_ptr,
+              const void* v_ptr,
+              const void* bias_ptr,
+              const void* lse_ptr,
+              const void* do_ptr,
+              const void* d_ptr,
+              void* rand_val_ptr,
+              void* dk_ptr,
+              void* dv_ptr,
+              void* dbias_ptr,
+              void* dq_acc_ptr,
+              ck_tile::index_t seqlen_q,
+              ck_tile::index_t seqlen_k,
+              ck_tile::index_t hdim_q,
+              ck_tile::index_t hdim_v,
+              ck_tile::index_t num_head_q,
+              ck_tile::index_t nhead_ratio_qk,
+              float scale,
+              ck_tile::index_t stride_q,
+              ck_tile::index_t stride_k,
+              ck_tile::index_t stride_v,
+              ck_tile::index_t stride_bias,
+              ck_tile::index_t stride_randval,
+              ck_tile::index_t stride_do,
+              ck_tile::index_t stride_dq_acc,
+              ck_tile::index_t stride_dk,
+              ck_tile::index_t stride_dv,
+              ck_tile::index_t stride_dbias,
+              ck_tile::index_t nhead_stride_q,
+              ck_tile::index_t nhead_stride_k,
+              ck_tile::index_t nhead_stride_v,
+              ck_tile::index_t nhead_stride_bias,
+              ck_tile::index_t nhead_stride_randval,
+              ck_tile::index_t nhead_stride_do,
+              ck_tile::index_t nhead_stride_lsed,
+              ck_tile::index_t nhead_stride_dq_acc,
+              ck_tile::index_t nhead_stride_dk,
+              ck_tile::index_t nhead_stride_dv,
+              ck_tile::index_t nhead_stride_dbias,
+              ck_tile::index_t batch_stride_q,
+              ck_tile::index_t batch_stride_k,
+              ck_tile::index_t batch_stride_v,
+              ck_tile::index_t batch_stride_bias,
+              ck_tile::index_t batch_stride_randval,
+              ck_tile::index_t batch_stride_do,
+              ck_tile::index_t batch_stride_lsed,
+              ck_tile::index_t batch_stride_dq_acc,
+              ck_tile::index_t batch_stride_dk,
+              ck_tile::index_t batch_stride_dv,
+              ck_tile::index_t batch_stride_dbias,
+              ck_tile::index_t split_stride_dq_acc,
+              ck_tile::index_t window_size_left,
+              ck_tile::index_t window_size_right,
+              ck_tile::index_t mask_type,
+              float p_drop,
+              const std::tuple<const void*, const void*>& drop_seed_offset)
+    {
+        return MakeKargsImpl(
+            q_ptr,
+            k_ptr,
+            v_ptr,
+            bias_ptr,
+            lse_ptr,
+            do_ptr,
+            d_ptr,
+            rand_val_ptr,
+            dk_ptr,
+            dv_ptr,
+            dbias_ptr,
+            dq_acc_ptr,
+            seqlen_q,
+            seqlen_k,
+            hdim_q,
+            hdim_v,
+            num_head_q,
+            nhead_ratio_qk,
+            scale,
+            stride_q,
+            stride_k,
+            stride_v,
+            stride_bias,
+            stride_randval,
+            stride_do,
+            stride_dq_acc,
+            stride_dk,
+            stride_dv,
+            stride_dbias,
+            nhead_stride_q,
+            nhead_stride_k,
+            nhead_stride_v,
+            nhead_stride_bias,
+            nhead_stride_randval,
+            nhead_stride_do,
+            nhead_stride_lsed,
+            nhead_stride_dq_acc,
+            nhead_stride_dk,
+            nhead_stride_dv,
+            nhead_stride_dbias,
+            batch_stride_q,
+            batch_stride_k,
+            batch_stride_v,
+            batch_stride_bias,
+            batch_stride_randval,
+            batch_stride_do,
+            batch_stride_lsed,
+            batch_stride_dq_acc,
+            batch_stride_dk,
+            batch_stride_dv,
+            batch_stride_dbias,
+            split_stride_dq_acc,
+            window_size_left,
+            window_size_right,
+            mask_type,
+            p_drop,
+            std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
+    }
+
+    template <bool Cond = kIsGroupMode>
+    CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
+    MakeKargsImpl(const void* q_ptr,
+                  const void* k_ptr,
+                  const void* v_ptr,
+                  const void* bias_ptr,
+                  const void* lse_ptr,
+                  const void* do_ptr,
+                  const void* d_ptr,
+                  void* rand_val_ptr,
+                  void* dk_ptr,
+                  void* dv_ptr,
+                  void* dbias_ptr,
+                  void* dq_acc_ptr,
+                  const void* seqstart_q_ptr,
+                  const void* seqstart_k_ptr,
+                  const void* seqlen_k_ptr,
+                  ck_tile::index_t hdim_q,
+                  ck_tile::index_t hdim_v,
+                  ck_tile::index_t num_head_q,
+                  ck_tile::index_t nhead_ratio_qk,
+                  float scale,
+                  ck_tile::index_t stride_q,
+                  ck_tile::index_t stride_k,
+                  ck_tile::index_t stride_v,
+                  ck_tile::index_t stride_bias,
+                  ck_tile::index_t stride_randval,
+                  ck_tile::index_t stride_do,
+                  ck_tile::index_t stride_dq_acc,
+                  ck_tile::index_t stride_dk,
+                  ck_tile::index_t stride_dv,
+                  ck_tile::index_t stride_dbias,
+                  ck_tile::index_t nhead_stride_q,
+                  ck_tile::index_t nhead_stride_k,
+                  ck_tile::index_t nhead_stride_v,
+                  ck_tile::index_t nhead_stride_bias,
+                  ck_tile::index_t nhead_stride_randval,
+                  ck_tile::index_t nhead_stride_do,
+                  ck_tile::index_t nhead_stride_lsed,
+                  ck_tile::index_t nhead_stride_dq_acc,
+                  ck_tile::index_t nhead_stride_dk,
+                  ck_tile::index_t nhead_stride_dv,
+                  ck_tile::index_t nhead_stride_dbias,
+                  ck_tile::index_t split_stride_dq_acc,
+                  ck_tile::index_t window_size_left,
+                  ck_tile::index_t window_size_right,
+                  ck_tile::index_t mask_type,
+                  float p_drop,
+                  std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
+                      drop_seed_offset)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -539,7 +829,20 @@ struct FmhaBwdDQDKDVKernel
         }
         if constexpr(kHasDropout)
         {
-            kargs.init_dropout(p_drop, drop_seed_offset, scale);
+            if(drop_seed_offset.index() == 0) // seed & offset come from host
+            {
+                const auto& [seed, offset] = std::get<0>(drop_seed_offset);
+                kargs.init_dropout(p_drop, seed, offset, scale);
+            }
+            else // seed & offset come from device
+            {
+                const auto& [seed_ptr, offset_ptr] = std::get<1>(drop_seed_offset);
+                kargs.init_dropout(p_drop,
+                                   reinterpret_cast<const uint64_t*>(seed_ptr),
+                                   reinterpret_cast<const uint64_t*>(offset_ptr),
+                                   scale);
+            }
+
             if constexpr(kIsStoreRandval)
             {
                 kargs.rand_val_ptr         = rand_val_ptr;
@@ -553,6 +856,208 @@ struct FmhaBwdDQDKDVKernel
         }
 
         return kargs;
+    }
+
+    // std::variant<> can't take in a list initializer, overload for backward compatibility
+    template <bool Cond = kIsGroupMode>
+    CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
+    MakeKargs(const void* q_ptr,
+              const void* k_ptr,
+              const void* v_ptr,
+              const void* bias_ptr,
+              const void* lse_ptr,
+              const void* do_ptr,
+              const void* d_ptr,
+              void* rand_val_ptr,
+              void* dk_ptr,
+              void* dv_ptr,
+              void* dbias_ptr,
+              void* dq_acc_ptr,
+              const void* seqstart_q_ptr,
+              const void* seqstart_k_ptr,
+              const void* seqlen_k_ptr,
+              ck_tile::index_t hdim_q,
+              ck_tile::index_t hdim_v,
+              ck_tile::index_t num_head_q,
+              ck_tile::index_t nhead_ratio_qk,
+              float scale,
+              ck_tile::index_t stride_q,
+              ck_tile::index_t stride_k,
+              ck_tile::index_t stride_v,
+              ck_tile::index_t stride_bias,
+              ck_tile::index_t stride_randval,
+              ck_tile::index_t stride_do,
+              ck_tile::index_t stride_dq_acc,
+              ck_tile::index_t stride_dk,
+              ck_tile::index_t stride_dv,
+              ck_tile::index_t stride_dbias,
+              ck_tile::index_t nhead_stride_q,
+              ck_tile::index_t nhead_stride_k,
+              ck_tile::index_t nhead_stride_v,
+              ck_tile::index_t nhead_stride_bias,
+              ck_tile::index_t nhead_stride_randval,
+              ck_tile::index_t nhead_stride_do,
+              ck_tile::index_t nhead_stride_lsed,
+              ck_tile::index_t nhead_stride_dq_acc,
+              ck_tile::index_t nhead_stride_dk,
+              ck_tile::index_t nhead_stride_dv,
+              ck_tile::index_t nhead_stride_dbias,
+              ck_tile::index_t split_stride_dq_acc,
+              ck_tile::index_t window_size_left,
+              ck_tile::index_t window_size_right,
+              ck_tile::index_t mask_type,
+              float p_drop,
+              const std::tuple<uint64_t, uint64_t>& drop_seed_offset)
+    {
+        return MakeKargsImpl(
+            q_ptr,
+            k_ptr,
+            v_ptr,
+            bias_ptr,
+            lse_ptr,
+            do_ptr,
+            d_ptr,
+            rand_val_ptr,
+            dk_ptr,
+            dv_ptr,
+            dbias_ptr,
+            dq_acc_ptr,
+            seqstart_q_ptr,
+            seqstart_k_ptr,
+            seqlen_k_ptr,
+            hdim_q,
+            hdim_v,
+            num_head_q,
+            nhead_ratio_qk,
+            scale,
+            stride_q,
+            stride_k,
+            stride_v,
+            stride_bias,
+            stride_randval,
+            stride_do,
+            stride_dq_acc,
+            stride_dk,
+            stride_dv,
+            stride_dbias,
+            nhead_stride_q,
+            nhead_stride_k,
+            nhead_stride_v,
+            nhead_stride_bias,
+            nhead_stride_randval,
+            nhead_stride_do,
+            nhead_stride_lsed,
+            nhead_stride_dq_acc,
+            nhead_stride_dk,
+            nhead_stride_dv,
+            nhead_stride_dbias,
+            split_stride_dq_acc,
+            window_size_left,
+            window_size_right,
+            mask_type,
+            p_drop,
+            std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
+    }
+
+    // std::variant<> can't take in a list initializer, overload for backward compatibility
+    template <bool Cond = kIsGroupMode>
+    CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
+    MakeKargs(const void* q_ptr,
+              const void* k_ptr,
+              const void* v_ptr,
+              const void* bias_ptr,
+              const void* lse_ptr,
+              const void* do_ptr,
+              const void* d_ptr,
+              void* rand_val_ptr,
+              void* dk_ptr,
+              void* dv_ptr,
+              void* dbias_ptr,
+              void* dq_acc_ptr,
+              const void* seqstart_q_ptr,
+              const void* seqstart_k_ptr,
+              const void* seqlen_k_ptr,
+              ck_tile::index_t hdim_q,
+              ck_tile::index_t hdim_v,
+              ck_tile::index_t num_head_q,
+              ck_tile::index_t nhead_ratio_qk,
+              float scale,
+              ck_tile::index_t stride_q,
+              ck_tile::index_t stride_k,
+              ck_tile::index_t stride_v,
+              ck_tile::index_t stride_bias,
+              ck_tile::index_t stride_randval,
+              ck_tile::index_t stride_do,
+              ck_tile::index_t stride_dq_acc,
+              ck_tile::index_t stride_dk,
+              ck_tile::index_t stride_dv,
+              ck_tile::index_t stride_dbias,
+              ck_tile::index_t nhead_stride_q,
+              ck_tile::index_t nhead_stride_k,
+              ck_tile::index_t nhead_stride_v,
+              ck_tile::index_t nhead_stride_bias,
+              ck_tile::index_t nhead_stride_randval,
+              ck_tile::index_t nhead_stride_do,
+              ck_tile::index_t nhead_stride_lsed,
+              ck_tile::index_t nhead_stride_dq_acc,
+              ck_tile::index_t nhead_stride_dk,
+              ck_tile::index_t nhead_stride_dv,
+              ck_tile::index_t nhead_stride_dbias,
+              ck_tile::index_t split_stride_dq_acc,
+              ck_tile::index_t window_size_left,
+              ck_tile::index_t window_size_right,
+              ck_tile::index_t mask_type,
+              float p_drop,
+              const std::tuple<const void*, const void*>& drop_seed_offset)
+    {
+        return MakeKargsImpl(
+            q_ptr,
+            k_ptr,
+            v_ptr,
+            bias_ptr,
+            lse_ptr,
+            do_ptr,
+            d_ptr,
+            rand_val_ptr,
+            dk_ptr,
+            dv_ptr,
+            dbias_ptr,
+            dq_acc_ptr,
+            seqstart_q_ptr,
+            seqstart_k_ptr,
+            seqlen_k_ptr,
+            hdim_q,
+            hdim_v,
+            num_head_q,
+            nhead_ratio_qk,
+            scale,
+            stride_q,
+            stride_k,
+            stride_v,
+            stride_bias,
+            stride_randval,
+            stride_do,
+            stride_dq_acc,
+            stride_dk,
+            stride_dv,
+            stride_dbias,
+            nhead_stride_q,
+            nhead_stride_k,
+            nhead_stride_v,
+            nhead_stride_bias,
+            nhead_stride_randval,
+            nhead_stride_do,
+            nhead_stride_lsed,
+            nhead_stride_dq_acc,
+            nhead_stride_dk,
+            nhead_stride_dv,
+            nhead_stride_dbias,
+            split_stride_dq_acc,
+            window_size_left,
+            window_size_right,
+            mask_type,
+            p_drop,
+            std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
     }
 
     CK_TILE_HOST static constexpr auto
@@ -958,8 +1463,10 @@ struct FmhaBwdDQDKDVKernel
                 return FmhaDropout{i_batch_,
                                    i_nhead_,
                                    kargs.num_head_q,
-                                   kargs.drop_seed,
-                                   kargs.drop_offset,
+                                   kargs.is_drop_seed_offset_from_host ? kargs.drop_seed.val
+                                                                       : *kargs.drop_seed.ptr,
+                                   kargs.is_drop_seed_offset_from_host ? kargs.drop_offset.val
+                                                                       : *kargs.drop_offset.ptr,
                                    kargs.rp_undrop,
                                    kargs.p_undrop_in_uint8_t};
             }
@@ -1113,7 +1620,7 @@ struct FmhaBwdOGradDotOKernel
         return
             _SS_("fmha_bwd_dot_do_o_d") + _TS_(kVHeaddim) + "_" + _SS_(t2s<ODataType>::name) +
             "_" + (kIsGroupMode ? "group" : "batch") + "_" +
-            ("o" + _TS_(kBlockPerCu)) + (pn.empty() ? "" : "_" + pn);
+            ("o" + _TS_(kBlockPerCu)) + (pn.empty() ? "_npad" : "_" + pn);
         #undef _SS_
         #undef _TS_
         // clang-format on
@@ -1367,9 +1874,12 @@ struct FmhaBwdConvertQGradKernel
             if (kPadHeadDimQ) n += "d";
             return n.empty() ? n : std::string("p") + n; }();
         return
-            _SS_("fmha_bwd_convert_dq_d") + _TS_(kQKHeaddim) + "_" + _SS_(t2s<QGradDataType>::name) +
-            "_" + (kIsGroupMode ? "group" : "batch") + (kIsDeterministic ? "_deterministic" : "") + "_" +
-            ("o" + _TS_(kBlockPerCu)) + (pn.empty() ? "" : "_" + pn);
+            _SS_("fmha_bwd_convert_dq_d") + _TS_(kQKHeaddim) + "_"
+            + _SS_(t2s<QGradDataType>::name) + "_"
+            + "b" + _TS_(kM0) + "x" + _TS_(kN0) + "_"
+            + (kIsGroupMode ? "group" : "batch") + "_"
+            + ("o" + _TS_(kBlockPerCu)) + (pn.empty() ? "_npad" : "_" + pn)
+            + (kIsDeterministic ? "_deterministic" : "_ndeterministic") ;
         #undef _SS_
         #undef _TS_
         // clang-format on

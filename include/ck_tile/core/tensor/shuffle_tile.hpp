@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -109,7 +109,7 @@ CK_TILE_DEVICE void shuffle_tile_impl_in_thread(OutTensor& out_tensor, const InT
 
         // get input vectors
         static_for<0, num_vec_in, 1>{}([&](auto i) {
-            constexpr auto idx_y_in = generate_array(
+            constexpr auto idx_y_in = generate_tuple(
                 [&](auto ii) {
                     return ii == y_dim_vec_out ? idx_y_start[ii] + i : idx_y_start[ii];
                 },
@@ -129,7 +129,10 @@ CK_TILE_DEVICE void shuffle_tile_impl_in_thread(OutTensor& out_tensor, const InT
         // set output vectors
         static_for<0, num_vec_out, 1>{}([&](auto i) {
             constexpr auto idx_y_out_tmp = generate_array(
-                [&](auto ii) { return ii == y_dim_vec_in ? idx_y_start[ii] + i : idx_y_start[ii]; },
+                [&](auto ii) {
+                    return ii == y_dim_vec_in ? static_cast<index_t>(idx_y_start[ii]) + i
+                                              : static_cast<index_t>(idx_y_start[ii]);
+                },
                 number<NDimY>{});
 
             constexpr auto idx_y_out =
@@ -170,7 +173,7 @@ CK_TILE_DEVICE void shuffle_tile(OutTensor& out, const InTensor& in)
     }
     else
     {
-        // NOT implemented
+        static_assert(false, "The shuffle should always happen!");
     }
 }
 

@@ -6,6 +6,7 @@ add_subdirectory(convscale_add)
 add_subdirectory(convscale_reduce)
 add_subdirectory(multi_AB)
 add_subdirectory(unary)
+add_subdirectory(dynamic_unary)
 
 add_custom_target(example_convnd_activ_xdl)
 # ScaleAdd ScaleAdd Relu

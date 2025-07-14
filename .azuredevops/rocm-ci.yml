@@ -14,6 +14,7 @@ trigger:
   branches:
     include:
     - develop
+    - amd-develop
   paths:
     exclude:
     - .github

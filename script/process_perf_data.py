@@ -82,7 +82,7 @@ def parse_logfile(logfile):
     StrideA=[]
     StrideB=[]
     StrideC=[]
-    if 'perf_gemm.log' in logfile:
+    if 'perf_gemm' in logfile and 'gemm_bilinear' not in logfile:
         for line in open(logfile):
             if 'Best Perf' in line:
                 lst=line.split()
@@ -133,17 +133,23 @@ def parse_logfile(logfile):
             if 'Best Perf' in line:
                 lst=line.split()
                 res.append(lst[4])
-    elif 'onnx_gemm' in logfile or 'mixed_gemm' in logfile:
+    elif 'onnx_gemm' in logfile:
         for line in open(logfile):
             if 'Best Perf' in line:
                 lst=line.split()
                 res.append(lst[33])
-    elif 'splitK_gemm' in logfile:
+    elif 'splitK_gemm' in logfile or 'mixed_gemm' in logfile:
         for line in open(logfile):
             if 'Best Perf' in line:
                 lst=line.split()
                 res.append(lst[36])
     elif 'perf_fmha' in logfile:
+        for line in open(logfile):
+            if 'TFlops' in line:
+                lst=line.split()
+                line_dict=dict(zip(lst[1:],lst))
+                res.append(line_dict['TFlops,'])
+    elif 'perf_tile_gemm_basic' in logfile or 'perf_tile_gemm_mem_pipeline' in logfile:
         for line in open(logfile):
             if 'TFlops' in line:
                 lst=line.split()
@@ -260,7 +266,7 @@ def main():
         conn = sqlEngine.connect()
 
         #save gemm performance tests:
-        if 'perf_gemm.log' in filename:
+        if 'perf_gemm' in filename and 'gemm_bilinear' not in filename:
             #write the ck_gemm_test_params table only needed once the test set changes
             #post_test_params(test_list,conn)
             for i in range(1,len(results)+1):
@@ -330,9 +336,41 @@ def main():
             for i in range(1,len(results)+1):
                 testlist.append("Test%i"%i)
             table_name="ck_fmha_bwd_tflops"
+        if 'gemm_basic_fp16' in filename:
+            for i in range(1, len(results)+1):
+                testlist.append("Test%i"%i)
+            table_name="ck_tile_gemm_basic_fp16_tflops"
+        if 'gemm_mem_pipeline_fp16' in filename:
+            for i in range(1, len(results)+1):
+                testlist.append("Test%i"%i)
+            table_name="ck_tile_gemm_mem_pipeline_fp16_tflops"
+        if 'gemm_basic_bf16' in filename:
+            for i in range(1, len(results)+1):
+                testlist.append("Test%i"%i)
+            table_name="ck_tile_gemm_basic_bf16_tflops"
+        if 'gemm_mem_pipeline_bf16' in filename:
+            for i in range(1, len(results)+1):
+                testlist.append("Test%i"%i)
+            table_name="ck_tile_gemm_mem_pipeline_bf16_tflops"
+        if 'gemm_basic_fp8' in filename:
+            for i in range(1, len(results)+1):
+                testlist.append("Test%i"%i)
+            table_name="ck_tile_gemm_basic_fp8_tflops"
+        if 'gemm_mem_pipeline_fp8' in filename:
+            for i in range(1, len(results)+1):
+                testlist.append("Test%i"%i)
+            table_name="ck_tile_gemm_mem_pipeline_fp8_tflops"
+        if 'gemm_basic_bf8' in filename:
+            for i in range(1, len(results)+1):
+                testlist.append("Test%i"%i)
+            table_name="ck_tile_gemm_basic_bf8_tflops"
+        if 'gemm_mem_pipeline_bf8' in filename:
+            for i in range(1, len(results)+1):
+                testlist.append("Test%i"%i)
+            table_name="ck_tile_gemm_mem_pipeline_bf8_tflops"
 
         tflops_base = get_baseline(table_name,conn)
-        store_new_test_result(table_name, results, testlist, branch_name, node_id, gpu_arch, compute_units, rocm_vers, hip_vers, environment, conn)
+        store_new_test_result(table_name, results, testlist, branch_name, node_id, gpu_arch, compute_units, rocm_vers, hip_vers, environment, sqlEngine)
         conn.close()
 
     #compare the results to the baseline if baseline exists

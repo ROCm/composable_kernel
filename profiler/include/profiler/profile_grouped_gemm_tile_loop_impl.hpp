@@ -6,6 +6,7 @@
 #include <iomanip>
 
 #include "ck/ck.hpp"
+#include "ck/utility/env.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm_tile_loop.hpp"
@@ -127,7 +128,7 @@ bool profile_grouped_gemm_tile_loop_impl(int do_verification,
     p_b.reserve(group_count);
     p_c.reserve(group_count);
 
-    using KernelArguments = ck::tensor_operation::device::GroupedGemmTileLoopKernelArguments<>;
+    using KernelArguments = ck::tensor_operation::device::GroupedGemmKernelArgument<>;
 
     std::vector<ck::tensor_operation::device::GemmDesc> gemm_descs;
     std::vector<KernelArguments> gemm_kargs;

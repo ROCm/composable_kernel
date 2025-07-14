@@ -22,7 +22,6 @@
 #include "ck/utility/tuple.hpp"
 #include "ck/utility/number.hpp"
 #include "profiler/profile_grouped_gemm_impl.hpp"
-#include "profiler/profile_grouped_gemm_two_stage_impl.hpp"
 
 namespace ck {
 namespace test {
@@ -40,7 +39,7 @@ std::string serialize_range(const Range& range)
 }
 
 template <typename Tuple>
-class TestGroupedGemm : public testing::TestWithParam<int>
+class TestGroupedGemm : public testing::Test
 {
     protected:
     using ALayout   = std::tuple_element_t<0, Tuple>;
@@ -50,23 +49,77 @@ class TestGroupedGemm : public testing::TestWithParam<int>
     using BDataType = std::tuple_element_t<4, Tuple>;
     using EDataType = std::tuple_element_t<5, Tuple>;
 
+    using Row = ck::tensor_layout::gemm::RowMajor;
+    using Col = ck::tensor_layout::gemm::ColumnMajor;
+
     public:
     static constexpr bool verify_     = true;
-    static constexpr int init_method_ = 1; // decimal value initialization
+    static constexpr int init_method_ = 1; // integer value initialization
     static constexpr bool log_        = false;
     static constexpr bool bench_      = false; // measure kernel performance
+    static constexpr int n_warmup_    = 0;
+    static constexpr int n_iter_      = 1;
+    std::vector<int> k_batches_;
 
-    void SetUp() override {}
+    void SetUp() override { k_batches_ = {1, 2, 3, 5, 8}; }
 
+    private:
+    template <typename Layout>
+    void SetStrides(std::vector<int>& strides,
+                    const std::vector<int>& rows,
+                    const std::vector<int>& cols) const
+    {
+        if(std::is_same_v<Layout, Row>)
+        {
+            for(const auto c : cols)
+            {
+                strides.emplace_back(c);
+            }
+        }
+        else if(std::is_same_v<Layout, Col>)
+        {
+            for(const auto r : rows)
+            {
+                strides.emplace_back(r);
+            }
+        }
+    }
+
+    public:
     void Run(const std::vector<int>& Ms,
              const std::vector<int>& Ns,
              const std::vector<int>& Ks,
-             const std::vector<int>& StrideAs,
-             const std::vector<int>& StrideBs,
-             const std::vector<int>& StrideCs,
-             int kbatch   = 1,
-             int n_warmup = 1,
-             int n_iter   = 10)
+             const std::vector<int>& StrideAs = {},
+             const std::vector<int>& StrideBs = {},
+             const std::vector<int>& StrideCs = {})
+    {
+        std::vector<int> stride_as = StrideAs;
+        std::vector<int> stride_bs = StrideBs;
+        std::vector<int> stride_cs = StrideCs;
+
+        if(stride_as.empty())
+        {
+            SetStrides<ALayout>(stride_as, Ms, Ks);
+        }
+        if(stride_bs.empty())
+        {
+            SetStrides<BLayout>(stride_bs, Ks, Ns);
+        }
+        if(stride_cs.empty())
+        {
+            SetStrides<ELayout>(stride_cs, Ms, Ns);
+        }
+
+        RunSingle(Ms, Ns, Ks, stride_as, stride_bs, stride_cs, k_batches_);
+    }
+
+    void RunSingle(const std::vector<int>& Ms,
+                   const std::vector<int>& Ns,
+                   const std::vector<int>& Ks,
+                   const std::vector<int>& StrideAs,
+                   const std::vector<int>& StrideBs,
+                   const std::vector<int>& StrideCs,
+                   const std::vector<int>& kbatches)
     {
         bool pass = ck::profiler::profile_grouped_gemm_impl<ADataType,
                                                             BDataType,
@@ -84,61 +137,9 @@ class TestGroupedGemm : public testing::TestWithParam<int>
                                                                      StrideAs,
                                                                      StrideBs,
                                                                      StrideCs,
-                                                                     kbatch,
-                                                                     n_warmup,
-                                                                     n_iter);
-        EXPECT_TRUE(pass);
-    }
-};
-
-template <typename Tuple>
-class TestGroupedGemmTwoStage : public testing::TestWithParam<int>
-{
-    protected:
-    using ALayout   = std::tuple_element_t<0, Tuple>;
-    using BLayout   = std::tuple_element_t<1, Tuple>;
-    using ELayout   = std::tuple_element_t<2, Tuple>;
-    using ADataType = std::tuple_element_t<3, Tuple>;
-    using BDataType = std::tuple_element_t<4, Tuple>;
-    using EDataType = std::tuple_element_t<5, Tuple>;
-
-    public:
-    static constexpr bool verify_     = true;
-    static constexpr int init_method_ = 1; // decimal value initialization
-    static constexpr bool log_        = false;
-    static constexpr bool bench_      = false; // measure kernel performance
-
-    void SetUp() override {}
-
-    void Run(const std::vector<int>& Ms,
-             const std::vector<int>& Ns,
-             const std::vector<int>& Ks,
-             const std::vector<int>& StrideAs,
-             const std::vector<int>& StrideBs,
-             const std::vector<int>& StrideCs,
-             int kbatch   = 1,
-             int n_warmup = 1,
-             int n_iter   = 10)
-    {
-        bool pass = ck::profiler::profile_grouped_gemm_two_stage_impl<ADataType,
-                                                                      BDataType,
-                                                                      EDataType,
-                                                                      float,
-                                                                      ALayout,
-                                                                      BLayout,
-                                                                      ELayout>(verify_,
-                                                                               init_method_,
-                                                                               log_,
-                                                                               bench_,
-                                                                               Ms,
-                                                                               Ns,
-                                                                               Ks,
-                                                                               StrideAs,
-                                                                               StrideBs,
-                                                                               StrideCs,
-                                                                               kbatch,
-                                                                               n_warmup,
-                                                                               n_iter);
+                                                                     kbatches,
+                                                                     n_warmup_,
+                                                                     n_iter_);
         EXPECT_TRUE(pass);
     }
 };
@@ -263,7 +264,7 @@ struct DeviceGroupedGemmSplitkInstanceWrapper
             p_As, p_Bs, p_Ds, p_Cs, gemm_descs, PassThrough{}, PassThrough{}, PassThrough{});
         if(kbatch > 1)
         {
-            ggemm_instance.SetKBatchSize(argument, kbatch);
+            ggemm_instance.SetKBatchSize(&argument, kbatch);
         }
 
         return ggemm_instance.IsSupportedArgument(argument);
@@ -300,13 +301,13 @@ struct DeviceGroupedGemmSplitkInstanceWrapper
             p_As, p_Bs, p_Ds, p_Cs, gemm_descs, PassThrough{}, PassThrough{}, PassThrough{});
         if(kbatch > 1)
         {
-            ggemm_instance.SetKBatchSize(argument, kbatch);
+            ggemm_instance.SetKBatchSize(&argument, kbatch);
         }
 
         EXPECT_TRUE(ggemm_instance.IsSupportedArgument(argument));
         auto invoker = ggemm_instance.MakeInvoker();
-        DeviceMem gemm_desc_workspace(ggemm_instance.GetWorkSpaceSize(&argument));
-        ggemm_instance.SetWorkSpacePointer(&argument, gemm_desc_workspace.GetDeviceBuffer());
+        DeviceMem dev_gemm_kargs(ggemm_instance.GetDeviceKernelArgSize(&argument));
+        ggemm_instance.SetDeviceKernelArgs(&argument, dev_gemm_kargs.GetDeviceBuffer());
         return invoker.Run(argument, StreamConfig{nullptr, false});
     }
 };

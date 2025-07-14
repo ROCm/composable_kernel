@@ -60,6 +60,7 @@ using fmha_bwd_trait_{F_idx} = ck_tile::TileFmhaTraits<{F_spad},
                                                        {F_skpad},
                                                        {F_dpad},
                                                        {F_dvpad},
+                                                       false,
                                                        {F_bias},
                                                        {F_dbias},
                                                        false,
@@ -168,7 +169,7 @@ template <typename dot_do_o_trait_, typename dq_dk_dv_trait_, typename convert_d
 float fmha_bwd_(const ck_tile::stream_config& s, fmha_bwd_args a)
 {{
     if(s.log_level_ > 0)
-        std::cout << ", " << fmha_bwd_dot_do_o_get_name_<dot_do_o_trait_>() << ", " << fmha_bwd_dq_dk_dv_get_name_<dq_dk_dv_trait_>() << ", " << fmha_bwd_convert_dq_get_name_<convert_dq_trait_>() << std::flush;
+        std::cout << ", " << fmha_bwd_dot_do_o_get_name_<dot_do_o_trait_>() << "@" << fmha_bwd_convert_dq_get_name_<convert_dq_trait_>() << "@" << fmha_bwd_dq_dk_dv_get_name_<dq_dk_dv_trait_>() << std::flush;
     return ck_tile::launch_kernel(s,
         [=](const ck_tile::stream_config& s_){{ fmha_bwd_dot_do_o_oneshot_<dot_do_o_trait_>(s_, a); }},
         [=](const ck_tile::stream_config& s_){{ fmha_bwd_dq_dk_dv_oneshot_<dq_dk_dv_trait_>(s_, a); }},
@@ -176,7 +177,8 @@ float fmha_bwd_(const ck_tile::stream_config& s, fmha_bwd_args a)
     );
 }}
 
-float fmha_bwd(fmha_bwd_traits t, fmha_bwd_args a, const ck_tile::stream_config& s){{
+template <>
+float fmha_bwd<2>(fmha_bwd_traits t, fmha_bwd_args a, const ck_tile::stream_config& s){{
     float r = -1;
 {F_dispatch}
     return r;
@@ -283,7 +285,7 @@ class FmhaBwdApiPool:
                         inners = inners + FMHA_BWD_API_INNER_DISPATCH.format(F_if=if_k, F_mode=MODE_MAP[trait.mode], F_pipeline_enum=BWD_DQDKDV_PIPELINE_ENUM_MAP[trait.pipeline],
                                     F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask], F_mask=get_mask_map(self.mask_impl)[trait.mask], F_bias_check=BIAS_CHECK_MAP[trait.bias],
                                     F_bias=BIAS_MAP[trait.bias], F_dbias=BOOL_MAP[trait.dbias], F_dropout_check=DROPOUT_CHECK_MAP[trait.dropout], F_dropout=DROPOUT_MAP[trait.dropout],
-                                    F_scheck=trait.scheck(spad1=spad1), F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck, F_hdim=hdim, F_dtype=DTYPE_MAP[dtype],
+                                    F_scheck=trait.scheck(spad1=spad1), F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck, F_hdim=hdim, F_dtype=BWD_DTYPE_MAP[dtype],
                                     F_spad0=BOOL_MAP[trait.spad], F_spad1=BOOL_MAP[spad1], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
                                     F_deterministic=BOOL_MAP[trait.deterministic])
 
@@ -360,7 +362,7 @@ class FmhaBwdDQDKDVKernel:
             FMHA_BWD_DQ_DK_DV_KERNEL_BODY.format(
                 F_idx           = self.F_idx,
                 F_hdim          = self.F_hdim,
-                F_dtype         = DTYPE_MAP[self.F_dtype],
+                F_dtype         = BWD_DTYPE_MAP[self.F_dtype],
                 F_bm0           = self.F_tile.F_bm0,
                 F_bn0           = self.F_tile.F_bn0,
                 F_bk0           = self.F_tile.F_bk0,
@@ -412,14 +414,26 @@ class FmhaBwdDQDKDVKernel:
         pn = pad_name()
         n = f"fmha_bwd_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_" + self.F_tile.name + f'_{self.F_pipeline}'
         if pn != '' : n += f'_{pn}'
+        else: n += '_npad'
+
         if self.F_bias != 'no' : n += f'_{self.F_bias}'
+        else: n += '_nbias'
+
         if self.F_dbias == 't' : n += '_dbias'
+        else: n += '_ndbias'
+
         if self.F_mask[0:2] == 's_':
             if self.F_mask == 's_mask': n += f'_mask'
+            else: n += '_nmask'
         else:
             if self.F_mask != 'no' : n += f'_m{self.F_mask[0]}'
+            else: n += '_nmask'
+
         if self.F_dropout != 'no' : n += f'_{self.F_dropout}'
+        else: n += '_ndropout'
+
         if self.F_deterministic == 't' : n += '_deterministic'
+        else: n += '_ndeterministic'
         return n
 
     @property
@@ -469,7 +483,7 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
     gen = list()
     api_pool = FmhaBwdApiPool(mask_impl)
 
-    for dtype in DTYPE_MAP.keys():
+    for dtype in BWD_DTYPE_MAP.keys():
         d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype)
         if d == None:
             continue
@@ -489,9 +503,10 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                                 F_spad=spad, F_skpad=skpad, F_dpad=dpad, F_dvpad=dvpad,
                                 F_bias=bias, F_dbias=dbias, F_dropout=dropout, F_mask=mask, F_mode=mode,
                                 F_pipeline=ppl, mask_impl=mask_impl, F_deterministic=deterministic)
-            if kernel_filter != None:
+            if kernel_filter != '':
                 if not fnmatch.fnmatch(k.name, kernel_filter):
                     continue
+            # Flash attention integration
             if receipt == 2:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= bias in ['no', 'alibi']
@@ -499,11 +514,43 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                     cond &= dpad == dvpad
                     if not cond:
                         continue
-            if receipt == 3:
+            elif receipt == 3:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= bias in ['no', 'alibi']
                     cond &= dpad == dvpad
                     cond &= deterministic == "f"
+                    if not cond:
+                        continue
+            # PyTorch integration
+            elif receipt == 4:
+                    cond = dtype in ['fp16', 'bf16']
+                    cond &= bias in ['no', 'bias']
+                    cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
+                    cond &= dpad == dvpad
+                    cond &= mode == 'batch'
+                    cond &= deterministic == "f"
+                    if not cond:
+                        continue
+            # Aiter (mha_bwd) integration
+            elif receipt == 300:
+                    cond = dtype in ['fp16', 'bf16']
+                    cond &= mode == "batch"
+                    cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
+                    cond &= dpad == dvpad
+                    if not cond:
+                        continue
+            # Aiter (mha_varlen_bwd) integration
+            elif receipt == 400:
+                    cond = dtype in ['fp16', 'bf16']
+                    cond &= mode == "group"
+                    cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
+                    cond &= dpad == dvpad
+                    if not cond:
+                        continue
+            # aiter::mha_bwd C++ api integration
+            elif receipt == 600:
+                    cond = dtype in ['fp16', 'bf16']
+                    cond &= dpad == dvpad
                     if not cond:
                         continue
             api_pool.register_dq_dk_dv_traits(k.api_trait())
@@ -585,7 +632,7 @@ class FmhaBwdOGradDotOKernel:
             FMHA_BWD_DOT_DO_O_KERNEL_BODY.format(
                 F_idx       = self.F_idx,
                 F_hdim      = self.F_hdim,
-                F_dtype     = DTYPE_MAP[self.F_dtype],
+                F_dtype     = BWD_DTYPE_MAP[self.F_dtype],
                 F_spad      = BOOL_MAP[self.F_spad],
                 F_dvpad     = BOOL_MAP[self.F_dvpad],
                 F_mode      = MODE_MAP[self.F_mode],
@@ -602,13 +649,14 @@ class FmhaBwdOGradDotOKernel:
         pn = pad_name()
         n = f"fmha_bwd_dot_do_o_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_o{self.F_occupancy}"
         if pn != '' : n += f'_{pn}'
+        else: n += '_npad'
         return n
 
     @property
     def filename(self) -> str:
         return self.name + ".cpp"
 
-def get_bwd_dot_do_o_blobs() -> List[FmhaBwdOGradDotOKernel]:
+def get_bwd_dot_do_o_blobs(kernel_filter : Optional[str], receipt) -> List[FmhaBwdOGradDotOKernel]:
     # TODO: we don't support tuning yet, so pick up one value for pad/occupancy
     #       support this in future
     def get_occupancy(dtype, hdim):
@@ -616,7 +664,7 @@ def get_bwd_dot_do_o_blobs() -> List[FmhaBwdOGradDotOKernel]:
 
     gen = list()
 
-    for dtype in DTYPE_MAP.keys():
+    for dtype in BWD_DTYPE_MAP.keys():
         d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype)
         if d == None:
             continue
@@ -627,6 +675,26 @@ def get_bwd_dot_do_o_blobs() -> List[FmhaBwdOGradDotOKernel]:
             k = FmhaBwdOGradDotOKernel(F_idx=0, F_hdim=hdim, F_dtype=dtype,
                                 F_spad=spad, F_dvpad=dvpad, F_mode=mode,
                                 F_occupancy=get_occupancy(dtype, hdim))
+            if kernel_filter != '':
+                if not fnmatch.fnmatch(k.name, kernel_filter):
+                    continue
+            # Aiter (mha_bwd) integration
+            if receipt == 300:
+                    cond = dtype in ['fp16', 'bf16']
+                    cond &= mode == "batch"
+                    if not cond:
+                        continue
+            # Aiter (mha_varlen_bwd) integration
+            elif receipt == 400:
+                    cond = dtype in ['fp16', 'bf16']
+                    cond &= mode == "group"
+                    if not cond:
+                        continue
+            # aiter::mha_bwd C++ api integration
+            elif receipt == 600:
+                    cond = dtype in ['fp16', 'bf16']
+                    if not cond:
+                        continue
             gen.append(k)
 
     return gen
@@ -716,7 +784,7 @@ class FmhaBwdConvertQGradKernel:
             FMHA_BWD_CONVERT_DQ_KERNEL_BODY.format(
                 F_idx           = self.F_idx,
                 F_hdim          = self.F_hdim,
-                F_dtype         = DTYPE_MAP[self.F_dtype],
+                F_dtype         = BWD_DTYPE_MAP[self.F_dtype],
                 F_bm0           = self.F_bm0,
                 F_bn0           = self.F_bn0,
                 F_spad          = BOOL_MAP[self.F_spad],
@@ -736,14 +804,16 @@ class FmhaBwdConvertQGradKernel:
         pn = pad_name()
         n = f"fmha_bwd_convert_dq_d{self.F_hdim}_{self.F_dtype}_b{self.F_bm0}x{self.F_bn0}_{self.F_mode}_o{self.F_occupancy}"
         if pn != '' : n += f'_{pn}'
-        if self.F_deterministic == 't' : n += f'_deterministic'
+        else: n += '_npad'
+        if self.F_deterministic == 't' : n += '_deterministic'
+        else: n += '_ndeterministic'
         return n
 
     @property
     def filename(self) -> str:
         return self.name + ".cpp"
 
-def get_bwd_convert_dq_blobs() -> List[FmhaBwdConvertQGradKernel]:
+def get_bwd_convert_dq_blobs(kernel_filter : Optional[str], receipt) -> List[FmhaBwdConvertQGradKernel]:
     # TODO: we don't support tuning yet, so pick up one value for pad/occupancy
     #       support this in future
     def get_occupancy(dtype, hdim):
@@ -751,7 +821,7 @@ def get_bwd_convert_dq_blobs() -> List[FmhaBwdConvertQGradKernel]:
 
     gen = list()
 
-    for dtype in DTYPE_MAP.keys():
+    for dtype in BWD_DTYPE_MAP.keys():
         d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype)
         if d == None:
             continue
@@ -762,6 +832,26 @@ def get_bwd_convert_dq_blobs() -> List[FmhaBwdConvertQGradKernel]:
                 continue
             k = FmhaBwdConvertQGradKernel(F_idx=0, F_hdim=hdim, F_dtype=dtype, F_bm0=64, F_bn0=tile.F_bn0,
                                 F_spad=spad, F_dpad=dpad, F_mode=mode, F_occupancy=get_occupancy(dtype, hdim), F_deterministic=deterministic)
+            if kernel_filter != '':
+                if not fnmatch.fnmatch(k.name, kernel_filter):
+                    continue
+            # Aiter (mha_bwd) integration
+            if receipt == 300:
+                    cond = dtype in ['fp16', 'bf16']
+                    cond &= mode == "batch"
+                    if not cond:
+                        continue
+            # Aiter (mha_varlen_bwd) integration
+            elif receipt == 400:
+                    cond = dtype in ['fp16', 'bf16']
+                    cond &= mode == "group"
+                    if not cond:
+                        continue
+            # aiter::mha_bwd C++ api integration
+            elif receipt == 600:
+                    cond = dtype in ['fp16', 'bf16']
+                    if not cond:
+                        continue
             gen.append(k)
 
     return gen
@@ -778,27 +868,37 @@ def write_single_bwd_convert_dq_kernel(kernel: FmhaBwdConvertQGradKernel, autoge
 def write_bwd_api(api_pool : FmhaBwdApiPool, autogen_dir: Path) -> None:
     (autogen_dir / FMHA_BWD_API_FILENAME).write_text(api_pool.api)
 
-def write_blobs(output_dir : Path, kernel_filter : Optional[str], receipt, mask_impl) -> None:
-    kernels = get_bwd_dot_do_o_blobs()
+def write_blobs(output_dir : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
+    filter_list = filter_list.split('@')
+    filter_list.extend([''] * (3 - len(filter_list)))
+    # TODO
+    assert optdim_list == [-1]
+
+    kernels = get_bwd_dot_do_o_blobs(filter_list[0], receipt)
     for kernel in kernels:
         write_single_bwd_dot_do_o_kernel(kernel, output_dir)
-    kernels = get_bwd_convert_dq_blobs()
+    kernels = get_bwd_convert_dq_blobs(filter_list[1], receipt)
     for kernel in kernels:
         write_single_bwd_convert_dq_kernel(kernel, output_dir)
-    api_pool, kernels = get_bwd_dq_dk_dv_blobs(kernel_filter, receipt, mask_impl)
+    api_pool, kernels = get_bwd_dq_dk_dv_blobs(filter_list[2], receipt, mask_impl)
     for kernel in kernels:
         write_single_bwd_dq_dk_dv_kernel(kernel, output_dir)
     write_bwd_api(api_pool, output_dir)
 
-def list_blobs(file_path : Path, kernel_filter : Optional[str], receipt, mask_impl) -> None:
+def list_blobs(file_path : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
+    filter_list = filter_list.split('@')
+    filter_list.extend([''] * (3 - len(filter_list)))
+    # TODO
+    assert optdim_list == [-1]
+
     with file_path.open('a') as f:
-        kernels = get_bwd_dot_do_o_blobs()
+        kernels = get_bwd_dot_do_o_blobs(filter_list[0], receipt)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
-        kernels = get_bwd_convert_dq_blobs()
+        kernels = get_bwd_convert_dq_blobs(filter_list[1], receipt)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
-        _, kernels = get_bwd_dq_dk_dv_blobs(kernel_filter, receipt, mask_impl)
+        _, kernels = get_bwd_dq_dk_dv_blobs(filter_list[2], receipt, mask_impl)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
         f.write(str(file_path.parent / GEN_DIR / FMHA_BWD_API_FILENAME) + "\n")

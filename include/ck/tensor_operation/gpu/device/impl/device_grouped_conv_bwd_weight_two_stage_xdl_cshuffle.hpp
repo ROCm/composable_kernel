@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -8,21 +8,21 @@
 #include <sstream>
 
 #include "ck/utility/common_header.hpp"
-
+#include "ck/utility/env.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_bwd_weight.hpp"
 #include "ck/tensor_operation/operator_transform/transform_conv_bwd_weight_to_gemm.hpp"
 #include "ck/tensor_operation/operator_transform/transform_conv_bwd_weight_to_gemm_v2.hpp"
+#include "ck/tensor_operation/operator_transform/transform_conv_ngchw_to_nhwgc.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_elementwise_2d.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_bwd_weight_v3.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_conv_v3.hpp"
 #include <ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp>
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -55,17 +55,16 @@ __global__ void
             [[maybe_unused]] const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
             [[maybe_unused]] const index_t num_k_per_block)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z * NumGroupsToMerge);
     const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.y * num_k_per_block);
 
-    const long_index_t a_batch_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
-    const long_index_t b_batch_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx));
-    const long_index_t e_batch_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx));
+    const long_index_t a_batch_offset = amd_wave_read_first_lane(
+        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
+    const long_index_t b_batch_offset = amd_wave_read_first_lane(
+        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx)));
+    const long_index_t e_batch_offset = amd_wave_read_first_lane(
+        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx)));
 
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
@@ -85,7 +84,7 @@ __global__ void
                                         k_idx);
 #else
     ignore = karg;
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+#endif // end of if (defined(__gfx9__))
 }
 
 template <typename GridwiseGemm,
@@ -111,18 +110,17 @@ __global__ void
             [[maybe_unused]] const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
             [[maybe_unused]] const index_t num_k_per_block)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     // offset base pointer for each work-group
     const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z * NumGroupsToMerge);
     const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.y * num_k_per_block);
 
-    const long_index_t a_batch_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
-    const long_index_t b_batch_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx));
-    const long_index_t e_batch_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx));
+    const long_index_t a_batch_offset = amd_wave_read_first_lane(
+        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
+    const long_index_t b_batch_offset = amd_wave_read_first_lane(
+        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx)));
+    const long_index_t e_batch_offset = amd_wave_read_first_lane(
+        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx)));
 
     // Pass two lds pointer is the key to tell compiler that ds_read/write
     // operate on different lds chunk at same time without order dependecy
@@ -146,7 +144,7 @@ __global__ void
                                              k_idx);
 #else
     ignore = karg;
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+#endif // end of if (defined(__gfx9__))
 }
 
 template <ck::index_t NDimSpatial,
@@ -220,8 +218,8 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
     using EDataType = WeiDataType;
 
     // If NGCHW then ADataType must be equal to BDataType
-    static_assert(!(is_NGCHW_GKYXC_NGKHW<InLayout, WeiLayout, OutLayout>() ||
-                    is_NGCDHW_GKZYXC_NGKDHW<InLayout, WeiLayout, OutLayout>()) ||
+    static_assert(!(is_NGCHW_NGKHW<InLayout, WeiLayout, OutLayout>() ||
+                    is_NGCDHW_NGKDHW<InLayout, WeiLayout, OutLayout>()) ||
                   is_same_v<ADataType, BDataType>);
 
     using AElementwiseOperation   = OutElementwiseOperation;
@@ -256,6 +254,19 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                      K1Number,
                                      KPerBlock / K1Number,
                                      ConvBackwardWeightSpecialization>{};
+
+    static constexpr index_t ClusterLengthMPerBlock =
+        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock::At(1);
+    static constexpr index_t ClusterLengthNPerBlock =
+        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock::At(3);
+
+    static constexpr auto conv_ngchw_to_nhwgc_transformer =
+        TransformConvNGCHWToNHWGC<InLayout,
+                                  WeiLayout,
+                                  OutLayout,
+                                  NDimSpatial,
+                                  MPerBlock / ClusterLengthMPerBlock,
+                                  NPerBlock / ClusterLengthNPerBlock>{};
 
     static constexpr GemmSpecialization GemmSpec = GemmSpecialization::Default;
 
@@ -359,141 +370,18 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                                                          batch)[I2];
     }
 
-    static constexpr index_t ClusterLengthMPerBlock =
-        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock::At(1);
-    static constexpr index_t ClusterLengthNPerBlock =
-        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock::At(3);
-
-    template <ck::index_t NDim, typename ck::enable_if<NDim == 2, bool>::type = false>
-    static auto MakeInputTransposeDesc(std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_lengths,
-                                       std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_strides)
-    {
-        const index_t& G  = g_n_c_wis_lengths[0];
-        const index_t& N  = g_n_c_wis_lengths[1];
-        const index_t& C  = g_n_c_wis_lengths[2];
-        const index_t& Hi = g_n_c_wis_lengths[3];
-        const index_t& Wi = g_n_c_wis_lengths[4];
-
-        const index_t& GStride  = g_n_c_wis_strides[0];
-        const index_t& NStride  = g_n_c_wis_strides[1];
-        const index_t& CStride  = g_n_c_wis_strides[2];
-        const index_t& HiStride = g_n_c_wis_strides[3];
-        const index_t& WiStride = g_n_c_wis_strides[4];
-
-        const auto desc = make_naive_tensor_descriptor(
-            make_tuple(N, G, C, Hi, Wi), make_tuple(NStride, GStride, CStride, HiStride, WiStride));
-        const auto merged_desc =
-            transform_tensor_descriptor(desc,
-                                        make_tuple(make_merge_transform(make_tuple(N, G, C)),
-                                                   make_merge_transform(make_tuple(Hi, Wi))),
-                                        make_tuple(Sequence<0, 1, 2>{}, Sequence<3, 4>{}),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}));
-        return PadTensorDescriptor(
-            merged_desc,
-            make_tuple(MPerBlock / ClusterLengthMPerBlock, NPerBlock / ClusterLengthNPerBlock),
-            Sequence<true, true>{});
-    }
-
-    template <ck::index_t NDim, typename ck::enable_if<NDim == 2, bool>::type = false>
-    static auto MakeOutputTransposeDesc(std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_lengths,
-                                        std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_strides)
-    {
-        const index_t& G  = g_n_c_wis_lengths[0];
-        const index_t& N  = g_n_c_wis_lengths[1];
-        const index_t& C  = g_n_c_wis_lengths[2];
-        const index_t& Hi = g_n_c_wis_lengths[3];
-        const index_t& Wi = g_n_c_wis_lengths[4];
-
-        const index_t& NStride = g_n_c_wis_strides[1];
-        const index_t HiStride = Wi * G * C;
-        const index_t WiStride = G * C;
-        const index_t GStride  = C;
-        const index_t CStride  = 1;
-
-        const auto desc = make_naive_tensor_descriptor(
-            make_tuple(N, G, C, Hi, Wi), make_tuple(NStride, GStride, CStride, HiStride, WiStride));
-        const auto merged_desc =
-            transform_tensor_descriptor(desc,
-                                        make_tuple(make_merge_transform(make_tuple(N, G, C)),
-                                                   make_merge_transform(make_tuple(Hi, Wi))),
-                                        make_tuple(Sequence<0, 1, 2>{}, Sequence<3, 4>{}),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}));
-        return PadTensorDescriptor(
-            merged_desc,
-            make_tuple(MPerBlock / ClusterLengthMPerBlock, NPerBlock / ClusterLengthNPerBlock),
-            Sequence<true, true>{});
-    }
-
-    template <ck::index_t NDim, typename ck::enable_if<NDim == 3, bool>::type = false>
-    static auto MakeInputTransposeDesc(std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_lengths,
-                                       std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_strides)
-    {
-        const index_t& G  = g_n_c_wis_lengths[0];
-        const index_t& N  = g_n_c_wis_lengths[1];
-        const index_t& C  = g_n_c_wis_lengths[2];
-        const index_t& Di = g_n_c_wis_lengths[3];
-        const index_t& Hi = g_n_c_wis_lengths[4];
-        const index_t& Wi = g_n_c_wis_lengths[5];
-
-        const index_t& GStride  = g_n_c_wis_strides[0];
-        const index_t& NStride  = g_n_c_wis_strides[1];
-        const index_t& CStride  = g_n_c_wis_strides[2];
-        const index_t& DiStride = g_n_c_wis_strides[3];
-        const index_t& HiStride = g_n_c_wis_strides[4];
-        const index_t& WiStride = g_n_c_wis_strides[5];
-
-        const auto desc = make_naive_tensor_descriptor(
-            make_tuple(N, G, C, Di, Hi, Wi),
-            make_tuple(NStride, GStride, CStride, DiStride, HiStride, WiStride));
-        const auto merged_desc =
-            transform_tensor_descriptor(desc,
-                                        make_tuple(make_merge_transform(make_tuple(N, G, C)),
-                                                   make_merge_transform(make_tuple(Di, Hi, Wi))),
-                                        make_tuple(Sequence<0, 1, 2>{}, Sequence<3, 4, 5>{}),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}));
-        return PadTensorDescriptor(
-            merged_desc,
-            make_tuple(MPerBlock / ClusterLengthMPerBlock, NPerBlock / ClusterLengthNPerBlock),
-            Sequence<true, true>{});
-    }
-
-    template <ck::index_t NDim, typename ck::enable_if<NDim == 3, bool>::type = false>
-    static auto MakeOutputTransposeDesc(std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_lengths,
-                                        std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_strides)
-    {
-        const index_t& G  = g_n_c_wis_lengths[0];
-        const index_t& N  = g_n_c_wis_lengths[1];
-        const index_t& C  = g_n_c_wis_lengths[2];
-        const index_t& Di = g_n_c_wis_lengths[3];
-        const index_t& Hi = g_n_c_wis_lengths[4];
-        const index_t& Wi = g_n_c_wis_lengths[5];
-
-        const index_t& NStride = g_n_c_wis_strides[1];
-        const index_t DiStride = Hi * Wi * G * C;
-        const index_t HiStride = Wi * G * C;
-        const index_t WiStride = G * C;
-        const index_t GStride  = C;
-        const index_t CStride  = 1;
-
-        const auto desc = make_naive_tensor_descriptor(
-            make_tuple(N, G, C, Di, Hi, Wi),
-            make_tuple(NStride, GStride, CStride, DiStride, HiStride, WiStride));
-        const auto merged_desc =
-            transform_tensor_descriptor(desc,
-                                        make_tuple(make_merge_transform(make_tuple(N, G, C)),
-                                                   make_merge_transform(make_tuple(Di, Hi, Wi))),
-                                        make_tuple(Sequence<0, 1, 2>{}, Sequence<3, 4, 5>{}),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}));
-        return PadTensorDescriptor(
-            merged_desc,
-            make_tuple(MPerBlock / ClusterLengthMPerBlock, NPerBlock / ClusterLengthNPerBlock),
-            Sequence<true, true>{});
-    }
-
-    using InputTransposeDescType =
-        remove_cvref_t<decltype(MakeInputTransposeDesc<NDimSpatial>({}, {}))>;
-    using OutputTransposeDescType =
-        remove_cvref_t<decltype(MakeOutputTransposeDesc<NDimSpatial>({}, {}))>;
+    using NGCHWTransposeDescType =
+        remove_cvref_t<decltype(conv_ngchw_to_nhwgc_transformer
+                                    .template MakeNGCHWTransposeDesc<NDimSpatial>({}, {}))>;
+    using NHWGCTransposeDescType =
+        remove_cvref_t<decltype(conv_ngchw_to_nhwgc_transformer
+                                    .template MakeNHWGCTransposeDesc<NDimSpatial>({}, {}))>;
+    using GKCYXTransposeDescType =
+        remove_cvref_t<decltype(conv_ngchw_to_nhwgc_transformer
+                                    .template MakeGKCYXTransposeDesc<NDimSpatial>({}, {}))>;
+    using GKYXCTransposeDescType =
+        remove_cvref_t<decltype(conv_ngchw_to_nhwgc_transformer
+                                    .template MakeGKYXCTransposeDesc<NDimSpatial>({}, {}))>;
 
     using ABCGridDescs = decltype(GetABCGridDesc<NDimSpatial>());
 
@@ -503,53 +391,53 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
     using CElementwiseGridDesc_M_N =
         remove_cvref_t<decltype(GetElementwiseCGridDesc<NDimSpatial>())>;
 
-    using GridwiseGemm =
-        GridwiseGemm_xdl_cshuffle_v3<tensor_layout::gemm::RowMajor,
-                                     tensor_layout::gemm::ColumnMajor,
-                                     tensor_layout::gemm::RowMajor,
-                                     ADataType,
-                                     BDataType,
-                                     AccDataType,
-                                     AccDataType,
-                                     AccDataType,
-                                     AElementwiseOperation,
-                                     BElementwiseOperation,
-                                     CDEElementwiseOperation,
-                                     GemmSpec,
-                                     BlockSize,
-                                     MPerBlock,
-                                     NPerBlock,
-                                     KPerBlock,
-                                     K1,
-                                     K1,
-                                     MPerXdl,
-                                     NPerXdl,
-                                     MXdlPerWave,
-                                     NXdlPerWave,
-                                     ABlockTransferThreadClusterLengths_K0_M_K1,
-                                     ABlockTransferThreadClusterArrangeOrder,
-                                     ABlockTransferSrcAccessOrder,
-                                     ABlockTransferSrcVectorDim,
-                                     ABlockTransferSrcScalarPerVector,
-                                     ABlockTransferDstScalarPerVector_K1,
-                                     false,
-                                     ABlockLdsAddExtraM,
-                                     BBlockTransferThreadClusterLengths_K0_N_K1,
-                                     BBlockTransferThreadClusterArrangeOrder,
-                                     BBlockTransferSrcAccessOrder,
-                                     BBlockTransferSrcVectorDim,
-                                     BBlockTransferSrcScalarPerVector,
-                                     BBlockTransferDstScalarPerVector_K1,
-                                     false,
-                                     BBlockLdsAddExtraN,
-                                     CShuffleMXdlPerWavePerShuffle,
-                                     CShuffleNXdlPerWavePerShuffle,
-                                     CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-                                     CBlockTransferScalarPerVector_NWaveNPerXdl,
-                                     BlkGemmPipeSched,
-                                     BlkGemmPipelineVer,
-                                     ComputeTypeA,
-                                     ComputeTypeB>;
+    using GridwiseGemm = GridwiseGemm_xdl_cshuffle_conv_v3<
+        tensor_layout::gemm::RowMajor,
+        tensor_layout::gemm::ColumnMajor,
+        tensor_layout::gemm::RowMajor,
+        ADataType,
+        BDataType,
+        AccDataType,
+        AccDataType,
+        AccDataType,
+        AElementwiseOperation,
+        BElementwiseOperation,
+        CDEElementwiseOperation,
+        GemmSpec,
+        BlockSize,
+        MPerBlock,
+        NPerBlock,
+        KPerBlock,
+        K1,
+        K1,
+        MPerXdl,
+        NPerXdl,
+        MXdlPerWave,
+        NXdlPerWave,
+        ABlockTransferThreadClusterLengths_K0_M_K1,
+        ABlockTransferThreadClusterArrangeOrder,
+        ABlockTransferSrcAccessOrder,
+        ABlockTransferSrcVectorDim,
+        ABlockTransferSrcScalarPerVector,
+        ABlockTransferDstScalarPerVector_K1,
+        false,
+        ABlockLdsAddExtraM,
+        BBlockTransferThreadClusterLengths_K0_N_K1,
+        BBlockTransferThreadClusterArrangeOrder,
+        BBlockTransferSrcAccessOrder,
+        BBlockTransferSrcVectorDim,
+        BBlockTransferSrcScalarPerVector,
+        BBlockTransferDstScalarPerVector_K1,
+        false,
+        BBlockLdsAddExtraN,
+        CShuffleMXdlPerWavePerShuffle,
+        CShuffleNXdlPerWavePerShuffle,
+        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        CBlockTransferScalarPerVector_NWaveNPerXdl,
+        BlkGemmPipeSched,
+        BlkGemmPipelineVer,
+        ComputeTypeA,
+        ComputeTypeB>;
 
     using Block2TileMapElementwise = BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock>;
 
@@ -570,10 +458,32 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                             Sequence<CBlockTransferScalarPerVector_NWaveNPerXdl>,
                             I1,
                             I1>;
+    // NPerBlock is used for the first dim which is store dimension
+    // (with CBlockTransferScalarPerVector_NWaveNPerXdl scalar per vector).
+    // CBlockTransferScalarPerVector_NWaveNPerXdl is aligned to NPerBlock so
+    // it is more flexible to use this dim for store dimension with such scalar
+    // per vector.
+    using GridwiseElementwiseWeightTransposeCast =
+        GridwiseElementwise<Tuple<GKYXCTransposeDescType>,
+                            Tuple<GKCYXTransposeDescType>,
+                            Tuple<const AccDataType*>,
+                            Tuple<EDataType*>,
+                            Block2TileMapElementwise,
+                            CDEElementwiseOperation,
+                            BlockSize,
+                            MPerBlock,
+                            NPerBlock,
+                            MPerBlock / ClusterLengthMPerBlock,
+                            NPerBlock / ClusterLengthNPerBlock,
+                            Sequence<0, 1>,
+                            Sequence<CBlockTransferScalarPerVector_NWaveNPerXdl>,
+                            Sequence<1>,
+                            I1,
+                            I0>;
 
     using GridwiseElementwiseTranspose =
-        GridwiseElementwise<Tuple<InputTransposeDescType>,
-                            Tuple<OutputTransposeDescType>,
+        GridwiseElementwise<Tuple<NGCHWTransposeDescType>,
+                            Tuple<NHWGCTransposeDescType>,
                             Tuple<const ADataType*>,
                             Tuple<ADataType*>,
                             Block2TileMapElementwise,
@@ -640,6 +550,11 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
               input_right_pads_{input_right_pads},
               k_batch_{split_k}
         {
+            c_space_size_bytes =
+                ck::accumulate_n<long_index_t>(
+                    e_g_k_c_xs_lengths.begin(), NDimSpatial + I3, 1, std::multiplies<>()) *
+                sizeof(AccDataType);
+
             constexpr index_t spatial_offset = 3;
             std::copy(begin(b_g_n_c_wis_lengths) + spatial_offset,
                       end(b_g_n_c_wis_lengths),
@@ -651,44 +566,15 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                       end(a_g_n_k_wos_lengths),
                       begin(output_spatial_lengths_));
 
-            std::array<index_t, NDimSpatial + 3> b_g_n_c_wis_strides_transposed =
-                b_g_n_c_wis_strides;
             std::array<index_t, NDimSpatial + 3> a_g_n_k_wos_strides_transposed =
-                a_g_n_k_wos_strides;
-
-            // NGKHW - transpose needed
-            if constexpr(is_NGCHW_GKYXC_NGKHW<InLayout, WeiLayout, OutLayout>() ||
-                         is_NGCDHW_GKZYXC_NGKDHW<InLayout, WeiLayout, OutLayout>())
-            {
-                b_g_n_c_wis_strides_transposed[I0] = Conv_C_;
-                b_g_n_c_wis_strides_transposed[I2] = I1;
-                a_g_n_k_wos_strides_transposed[I0] = Conv_K_;
-                a_g_n_k_wos_strides_transposed[I2] = I1;
-
-                if constexpr(NDimSpatial == 2)
-                {
-                    b_g_n_c_wis_strides_transposed[I3] =
-                        input_spatial_lengths_[I1] * Conv_G_ * Conv_C_;
-                    b_g_n_c_wis_strides_transposed[I4] = Conv_G_ * Conv_C_;
-                    a_g_n_k_wos_strides_transposed[I3] =
-                        output_spatial_lengths_[I1] * Conv_G_ * Conv_K_;
-                    a_g_n_k_wos_strides_transposed[I4] = Conv_G_ * Conv_K_;
-                }
-                else if constexpr(NDimSpatial == 3)
-                {
-                    b_g_n_c_wis_strides_transposed[I3] =
-                        input_spatial_lengths_[I1] * input_spatial_lengths_[I2] * Conv_G_ * Conv_C_;
-                    b_g_n_c_wis_strides_transposed[I4] =
-                        input_spatial_lengths_[I2] * Conv_G_ * Conv_C_;
-                    b_g_n_c_wis_strides_transposed[I5] = Conv_G_ * Conv_C_;
-                    a_g_n_k_wos_strides_transposed[I3] = output_spatial_lengths_[I1] *
-                                                         input_spatial_lengths_[I2] * Conv_G_ *
-                                                         Conv_K_;
-                    a_g_n_k_wos_strides_transposed[I4] =
-                        input_spatial_lengths_[I2] * Conv_G_ * Conv_K_;
-                    a_g_n_k_wos_strides_transposed[I5] = Conv_G_ * Conv_K_;
-                }
-            }
+                conv_ngchw_to_nhwgc_transformer.TransposeInOutStrides(a_g_n_k_wos_lengths,
+                                                                      a_g_n_k_wos_strides);
+            std::array<index_t, NDimSpatial + 3> b_g_n_c_wis_strides_transposed =
+                conv_ngchw_to_nhwgc_transformer.TransposeInOutStrides(b_g_n_c_wis_lengths,
+                                                                      b_g_n_c_wis_strides);
+            std::array<index_t, NDimSpatial + 3> e_g_k_c_xs_strides_transposed =
+                conv_ngchw_to_nhwgc_transformer.TransposeWeiStrides(e_g_k_c_xs_lengths,
+                                                                    e_g_k_c_xs_strides);
 
             const auto descs =
                 conv_to_gemm_transformer_v2
@@ -700,7 +586,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                         filter_spatial_lengths_,
                         output_spatial_lengths_,
                         b_g_n_c_wis_strides_transposed,
-                        e_g_k_c_xs_strides,
+                        e_g_k_c_xs_strides_transposed,
                         a_g_n_k_wos_strides_transposed,
                         conv_filter_strides,
                         conv_filter_dilations,
@@ -730,39 +616,42 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                         input_right_pads,
                         k_batch_)[I2];
 
-            elementwise_block_2_ctile_map_ = Block2TileMapElementwise{
-                ce_grid_desc_m_n_.GetLength(I0), ce_grid_desc_m_n_.GetLength(I1)};
-
             const index_t GemmM = a_grid_desc_k0_m_k1_.GetLength(I1);
             const index_t GemmN = b_grid_desc_k0_n_k1_.GetLength(I1);
 
             // A/B/C Batch Stride
             compute_ptr_offset_of_batch_.BatchStrideA_ = a_g_n_k_wos_strides_transposed[0];
             compute_ptr_offset_of_batch_.BatchStrideB_ = b_g_n_c_wis_strides_transposed[0];
-            compute_ptr_offset_of_batch_.BatchStrideC_ =
-                Conv_K_ * Conv_C_ *
-                std::accumulate(begin(filter_spatial_lengths_),
-                                end(filter_spatial_lengths_),
-                                index_t{1},
-                                std::multiplies<>{});
+            compute_ptr_offset_of_batch_.BatchStrideC_ = e_g_k_c_xs_strides_transposed[0];
             c_grid_desc_mblock_mperblock_nblock_nperblock_ =
                 GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                     ce_grid_desc_m_n_,
                     GridwiseGemm::CalculateMBlock(GemmM),
                     GridwiseGemm::CalculateNBlock(GemmN));
 
-            if constexpr(is_NGCHW_GKYXC_NGKHW<InLayout, WeiLayout, OutLayout>() ||
-                         is_NGCDHW_GKZYXC_NGKDHW<InLayout, WeiLayout, OutLayout>())
+            if constexpr(is_NGCHW_NGKHW<InLayout, WeiLayout, OutLayout>() ||
+                         is_NGCDHW_NGKDHW<InLayout, WeiLayout, OutLayout>())
             {
                 a_in_transpose_desc_ =
-                    MakeInputTransposeDesc<NDimSpatial>(a_g_n_k_wos_lengths, a_g_n_k_wos_strides);
+                    conv_ngchw_to_nhwgc_transformer.template MakeNGCHWTransposeDesc<NDimSpatial>(
+                        a_g_n_k_wos_lengths, a_g_n_k_wos_strides);
                 a_out_transpose_desc_ =
-                    MakeOutputTransposeDesc<NDimSpatial>(a_g_n_k_wos_lengths, a_g_n_k_wos_strides);
+                    conv_ngchw_to_nhwgc_transformer.template MakeNHWGCTransposeDesc<NDimSpatial>(
+                        a_g_n_k_wos_lengths, a_g_n_k_wos_strides);
 
                 b_in_transpose_desc_ =
-                    MakeInputTransposeDesc<NDimSpatial>(b_g_n_c_wis_lengths, b_g_n_c_wis_strides);
+                    conv_ngchw_to_nhwgc_transformer.template MakeNGCHWTransposeDesc<NDimSpatial>(
+                        b_g_n_c_wis_lengths, b_g_n_c_wis_strides);
                 b_out_transpose_desc_ =
-                    MakeOutputTransposeDesc<NDimSpatial>(b_g_n_c_wis_lengths, b_g_n_c_wis_strides);
+                    conv_ngchw_to_nhwgc_transformer.template MakeNHWGCTransposeDesc<NDimSpatial>(
+                        b_g_n_c_wis_lengths, b_g_n_c_wis_strides);
+
+                e_in_transpose_desc_ =
+                    conv_ngchw_to_nhwgc_transformer.template MakeGKYXCTransposeDesc<NDimSpatial>(
+                        e_g_k_c_xs_lengths, e_g_k_c_xs_strides);
+                e_out_transpose_desc_ =
+                    conv_ngchw_to_nhwgc_transformer.template MakeGKCYXTransposeDesc<NDimSpatial>(
+                        e_g_k_c_xs_lengths, e_g_k_c_xs_strides);
 
                 elementwise_block_2_ctile_map_transpose_a_ = Block2TileMapElementwise{
                     a_in_transpose_desc_.GetLength(I0), a_in_transpose_desc_.GetLength(I1)};
@@ -770,11 +659,22 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                 elementwise_block_2_ctile_map_transpose_b_ = Block2TileMapElementwise{
                     b_in_transpose_desc_.GetLength(I0), b_in_transpose_desc_.GetLength(I1)};
             }
+
+            elementwise_block_2_ctile_map_ =
+                is_NGCHW_GKCYX_NGKHW<InLayout, WeiLayout, OutLayout>() ||
+                        is_NGCDHW_GKCZYX_NGKDHW<InLayout, WeiLayout, OutLayout>()
+                    ? Block2TileMapElementwise{e_in_transpose_desc_.GetLength(I0),
+                                               e_in_transpose_desc_.GetLength(I1)}
+                    : Block2TileMapElementwise{ce_grid_desc_m_n_.GetLength(I0),
+                                               ce_grid_desc_m_n_.GetLength(I1)};
         }
 
         std::size_t GetWorkspaceATensorSizeBytes() const
         {
-            return sizeof(ADataType) * a_in_transpose_desc_.GetElementSpaceSize();
+            // Align to 128B
+            return math::integer_divide_ceil(
+                       sizeof(ADataType) * a_in_transpose_desc_.GetElementSpaceSize(), 128) *
+                   128;
         }
 
         std::size_t GetWorkspaceBTensorSizeBytes() const
@@ -784,14 +684,23 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
 
         std::size_t GetWorkspaceETensorSizeBytes() const
         {
-            return sizeof(AccDataType) * ce_grid_desc_m_n_.GetElementSpaceSize() * Conv_G_;
+            // Align to 128B
+            return math::integer_divide_ceil(sizeof(AccDataType) *
+                                                 ce_grid_desc_m_n_.GetElementSpaceSize() * Conv_G_,
+                                             128) *
+                   128;
         }
 
         std::size_t GetWorkspaceSizeBytes() const
         {
-            // Transpose require workspace for A and B
-            if constexpr(is_NGCHW_GKYXC_NGKHW<InLayout, WeiLayout, OutLayout>() ||
-                         is_NGCDHW_GKZYXC_NGKDHW<InLayout, WeiLayout, OutLayout>())
+            // 1. We need to transpose A and B for NGCHW and NGKHW layouts
+            // 2. If C format is GKCYX then tranpose during second stage.
+            //    If C format is GKYXC then just perform second stage.
+            //    Due to the fact that E workspace is always needed, we
+            //    allocate them as the first part of the workspace.
+            //    [EWorkspace, AWorkspace, BWorkspace]
+            if constexpr(is_NGCHW_NGKHW<InLayout, WeiLayout, OutLayout>() ||
+                         is_NGCDHW_NGKDHW<InLayout, WeiLayout, OutLayout>())
             {
                 return GetWorkspaceATensorSizeBytes() + GetWorkspaceBTensorSizeBytes() +
                        GetWorkspaceETensorSizeBytes();
@@ -816,8 +725,10 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
         Block2TileMapElementwise elementwise_block_2_ctile_map_transpose_a_,
             elementwise_block_2_ctile_map_transpose_b_;
 
-        InputTransposeDescType a_in_transpose_desc_, b_in_transpose_desc_;
-        OutputTransposeDescType a_out_transpose_desc_, b_out_transpose_desc_;
+        NGCHWTransposeDescType a_in_transpose_desc_, b_in_transpose_desc_;
+        NHWGCTransposeDescType a_out_transpose_desc_, b_out_transpose_desc_;
+        GKYXCTransposeDescType e_in_transpose_desc_;
+        GKCYXTransposeDescType e_out_transpose_desc_;
 
         // for computing batch offset
         ComputePtrOffsetOfStridedBatch<I1, I1, I0> compute_ptr_offset_of_batch_;
@@ -841,6 +752,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
         const std::array<ck::index_t, NDimSpatial>& input_left_pads_;
         const std::array<ck::index_t, NDimSpatial>& input_right_pads_;
         const index_t k_batch_;
+        long_index_t c_space_size_bytes;
     };
 
     // Invoker
@@ -874,11 +786,11 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             const ADataType* p_a_grid = arg.p_a_grid_;
             const BDataType* p_b_grid = arg.p_b_grid_;
 
-            if constexpr(is_NGCHW_GKYXC_NGKHW<InLayout, WeiLayout, OutLayout>() ||
-                         is_NGCDHW_GKZYXC_NGKDHW<InLayout, WeiLayout, OutLayout>())
+            if constexpr(is_NGCHW_NGKHW<InLayout, WeiLayout, OutLayout>() ||
+                         is_NGCDHW_NGKDHW<InLayout, WeiLayout, OutLayout>())
             {
                 p_a_grid = type_convert<const ADataType*>(arg.p_workspace_) +
-                           arg.GetWorkspaceETensorSizeBytes() / sizeof(BDataType);
+                           arg.GetWorkspaceETensorSizeBytes() / sizeof(ADataType);
                 p_b_grid =
                     type_convert<const BDataType*>(arg.p_workspace_) +
                     (arg.GetWorkspaceETensorSizeBytes() + arg.GetWorkspaceATensorSizeBytes()) /
@@ -904,10 +816,11 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                 arg.a_grid_desc_k0_m_k1_.GetLength(Number<0>{}) / gemm_arg.KBatch;
 
             const auto clear_workspace = [&]() {
-                hip_check_error(hipMemsetAsync(gemm_arg.p_c_grid,
-                                               0,
-                                               arg.GetWorkspaceETensorSizeBytes(),
-                                               stream_config.stream_id_));
+                if(arg.k_batch_ > 1)
+                {
+                    hip_check_error(hipMemsetAsync(
+                        gemm_arg.p_c_grid, 0, arg.c_space_size_bytes, stream_config.stream_id_));
+                }
             };
 
             const auto Run = [&](const auto& kernel) {
@@ -1519,41 +1432,72 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             float avg_time                 = 0.f;
             auto launch_elementwise_kernel = [&]() {
                 const AccDataType* p_c_grid = type_convert<const AccDataType*>(arg.p_workspace_);
-                const index_t grid_size     = arg.elementwise_block_2_ctile_map_.CalculateGridSize(
-                                              arg.ce_elementwise_grid_desc_m_n_) *
-                                          arg.Conv_G_;
 
                 std::array<index_t, I1> in_out_batch_strides = {
                     static_cast<index_t>(arg.compute_ptr_offset_of_batch_.BatchStrideC_)};
 
-                const auto kernel = kernel_batched_elementwise<GridwiseElementwiseCast,
-                                                               ck::Tuple<CElementwiseGridDesc_M_N>,
-                                                               ck::Tuple<CElementwiseGridDesc_M_N>,
-                                                               ck::Tuple<const AccDataType*>,
-                                                               ck::Tuple<EDataType*>,
-                                                               Block2TileMapElementwise,
-                                                               CDEElementwiseOperation,
-                                                               I1,
-                                                               I1>;
+                if constexpr(is_NGCHW_GKCYX_NGKHW<InLayout, WeiLayout, OutLayout>() ||
+                             is_NGCDHW_GKCZYX_NGKDHW<InLayout, WeiLayout, OutLayout>())
+                {
+                    const index_t grid_size = arg.elementwise_block_2_ctile_map_.CalculateGridSize(
+                        arg.e_in_transpose_desc_);
 
-                return launch_and_time_kernel(stream_config,
-                                              kernel,
-                                              dim3(grid_size),
-                                              dim3(BlockSize),
-                                              0,
-                                              make_tuple(arg.ce_elementwise_grid_desc_m_n_),
-                                              make_tuple(arg.ce_elementwise_grid_desc_m_n_),
-                                              make_tuple(p_c_grid),
-                                              make_tuple(arg.p_e_grid_),
-                                              arg.elementwise_block_2_ctile_map_,
-                                              arg.cde_element_op_,
-                                              arg.Conv_G_,
-                                              in_out_batch_strides,
-                                              in_out_batch_strides);
+                    const auto kernel = kernel_elementwise<GridwiseElementwiseWeightTransposeCast,
+                                                           ck::Tuple<GKYXCTransposeDescType>,
+                                                           ck::Tuple<GKCYXTransposeDescType>,
+                                                           ck::Tuple<const AccDataType*>,
+                                                           ck::Tuple<EDataType*>,
+                                                           Block2TileMapElementwise,
+                                                           CDEElementwiseOperation>;
+
+                    return launch_and_time_kernel(stream_config,
+                                                  kernel,
+                                                  dim3(grid_size),
+                                                  dim3(BlockSize),
+                                                  0,
+                                                  make_tuple(arg.e_in_transpose_desc_),
+                                                  make_tuple(arg.e_out_transpose_desc_),
+                                                  make_tuple(p_c_grid),
+                                                  make_tuple(arg.p_e_grid_),
+                                                  arg.elementwise_block_2_ctile_map_,
+                                                  arg.cde_element_op_);
+                }
+                else
+                {
+                    const index_t grid_size = arg.elementwise_block_2_ctile_map_.CalculateGridSize(
+                                                  arg.ce_elementwise_grid_desc_m_n_) *
+                                              arg.Conv_G_;
+
+                    const auto kernel =
+                        kernel_batched_elementwise<GridwiseElementwiseCast,
+                                                   ck::Tuple<CElementwiseGridDesc_M_N>,
+                                                   ck::Tuple<CElementwiseGridDesc_M_N>,
+                                                   ck::Tuple<const AccDataType*>,
+                                                   ck::Tuple<EDataType*>,
+                                                   Block2TileMapElementwise,
+                                                   CDEElementwiseOperation,
+                                                   I1,
+                                                   I1>;
+
+                    return launch_and_time_kernel(stream_config,
+                                                  kernel,
+                                                  dim3(grid_size),
+                                                  dim3(BlockSize),
+                                                  0,
+                                                  make_tuple(arg.ce_elementwise_grid_desc_m_n_),
+                                                  make_tuple(arg.ce_elementwise_grid_desc_m_n_),
+                                                  make_tuple(p_c_grid),
+                                                  make_tuple(arg.p_e_grid_),
+                                                  arg.elementwise_block_2_ctile_map_,
+                                                  arg.cde_element_op_,
+                                                  arg.Conv_G_,
+                                                  in_out_batch_strides,
+                                                  in_out_batch_strides);
+                }
             };
 
-            if constexpr(is_NGCHW_GKYXC_NGKHW<InLayout, WeiLayout, OutLayout>() ||
-                         is_NGCDHW_GKZYXC_NGKDHW<InLayout, WeiLayout, OutLayout>())
+            if constexpr(is_NGCHW_NGKHW<InLayout, WeiLayout, OutLayout>() ||
+                         is_NGCDHW_NGKDHW<InLayout, WeiLayout, OutLayout>())
             {
                 const index_t grid_size_a =
                     arg.elementwise_block_2_ctile_map_transpose_a_.CalculateGridSize(
@@ -1563,19 +1507,23 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                         arg.b_in_transpose_desc_);
 
                 ADataType* p_a_out_grid = type_convert<ADataType*>(arg.p_workspace_) +
-                                          arg.GetWorkspaceETensorSizeBytes() / sizeof(BDataType);
+                                          arg.GetWorkspaceETensorSizeBytes() / sizeof(ADataType);
                 BDataType* p_b_out_grid =
                     type_convert<BDataType*>(arg.p_workspace_) +
                     (arg.GetWorkspaceETensorSizeBytes() + arg.GetWorkspaceATensorSizeBytes()) /
                         sizeof(BDataType);
 
+                // Different data type for A and B is not supported
                 auto kernel_transpose = kernel_elementwise_dual<GridwiseElementwiseTranspose,
-                                                                ck::Tuple<InputTransposeDescType>,
-                                                                ck::Tuple<InputTransposeDescType>,
-                                                                ck::Tuple<OutputTransposeDescType>,
-                                                                ck::Tuple<OutputTransposeDescType>,
+                                                                GridwiseElementwiseTranspose,
+                                                                ck::Tuple<NGCHWTransposeDescType>,
+                                                                ck::Tuple<NGCHWTransposeDescType>,
+                                                                ck::Tuple<NHWGCTransposeDescType>,
+                                                                ck::Tuple<NHWGCTransposeDescType>,
                                                                 ck::Tuple<const ADataType*>,
-                                                                ck::Tuple<BDataType*>,
+                                                                ck::Tuple<const ADataType*>,
+                                                                ck::Tuple<ADataType*>,
+                                                                ck::Tuple<ADataType*>,
                                                                 Block2TileMapElementwise,
                                                                 Block2TileMapElementwise,
                                                                 element_wise::PassThrough>;
@@ -1640,10 +1588,13 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
         // if workspace is not allocated
         if(!arg.p_workspace_)
         {
-            std::cerr << "Warning: Workspace for "
-                         "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle::Argument is not "
-                         "allocated, use SetWorkSpacePointer."
-                      << std::endl;
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Warning: Workspace for "
+                             "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle::Argument is not "
+                             "allocated, use SetWorkSpacePointer."
+                          << std::endl;
+            }
             return false;
         }
         if(!ck::is_xdl_supported())
@@ -1653,7 +1604,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
         if constexpr(NDimSpatial == 2)
         {
             if constexpr(!(is_NHWGC_GKYXC_NHWGK<InLayout, WeiLayout, OutLayout>() ||
-                           is_NGCHW_GKYXC_NGKHW<InLayout, WeiLayout, OutLayout>()))
+                           is_NGCHW_NGKHW<InLayout, WeiLayout, OutLayout>()))
             {
                 return false;
             }
@@ -1661,7 +1612,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
         else if constexpr(NDimSpatial == 3)
         {
             if constexpr(!(is_NDHWGC_GKZYXC_NDHWGK<InLayout, WeiLayout, OutLayout>() ||
-                           is_NGCDHW_GKZYXC_NGKDHW<InLayout, WeiLayout, OutLayout>()))
+                           is_NGCDHW_NGKDHW<InLayout, WeiLayout, OutLayout>()))
             {
                 return false;
             }
@@ -1702,14 +1653,23 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             }
         }
 
-        if(!(arg.Conv_C_ % BBlockTransferSrcScalarPerVector == 0 &&
+        const bool is_w_pad_zero = arg.input_left_pads_[NDimSpatial - 1] == 0 &&
+                                   arg.input_right_pads_[NDimSpatial - 1] == 0;
+        const auto X                 = arg.filter_spatial_lengths_[NDimSpatial - 1];
+        const bool XC_access_allowed = arg.Conv_G_ == 1 &&
+                                       (arg.Conv_C_ * X) % BBlockTransferSrcScalarPerVector == 0 &&
+                                       is_w_pad_zero;
+
+        if(!((arg.Conv_C_ % BBlockTransferSrcScalarPerVector == 0 || XC_access_allowed) &&
              arg.Conv_K_ % ABlockTransferSrcScalarPerVector == 0))
         {
-            if(!(arg.Conv_K_ == 1 && arg.compute_ptr_offset_of_batch_.BatchStrideA_ == 1))
+            if(!(arg.Conv_K_ == 1 && arg.compute_ptr_offset_of_batch_.BatchStrideA_ == 1 &&
+                 NumGroupsToMerge > 1))
             {
                 return false;
             }
-            if(!(arg.Conv_C_ == 1 && arg.compute_ptr_offset_of_batch_.BatchStrideB_ == 1))
+            if(!(arg.Conv_C_ == 1 && arg.compute_ptr_offset_of_batch_.BatchStrideB_ == 1 &&
+                 NumGroupsToMerge > 1))
             {
                 return false;
             }
@@ -1727,8 +1687,8 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             return false;
         }
 
-        if constexpr(is_NGCHW_GKYXC_NGKHW<InLayout, WeiLayout, OutLayout>() ||
-                     is_NGCDHW_GKZYXC_NGKDHW<InLayout, WeiLayout, OutLayout>())
+        if constexpr(is_NGCHW_NGKHW<InLayout, WeiLayout, OutLayout>() ||
+                     is_NGCDHW_NGKDHW<InLayout, WeiLayout, OutLayout>())
         {
             if((arg.Conv_G_ * arg.Conv_C_) % TransposeTransferDstScalarPerVector != 0)
             {
@@ -1751,6 +1711,13 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             }
 
             if(output_spatial_acum % TransposeTransferSrcScalarPerVector != 0)
+            {
+                return false;
+            }
+
+            constexpr long_index_t TwoGB = (long_index_t{1} << 31);
+            if(!(arg.a_out_transpose_desc_.GetElementSpaceSize() * sizeof(ADataType) <= TwoGB &&
+                 arg.b_out_transpose_desc_.GetElementSpaceSize() * sizeof(BDataType) <= TwoGB))
             {
                 return false;
             }
@@ -1890,8 +1857,8 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
             << NumGroupsToMerge;
             
-        if constexpr(is_NGCHW_GKYXC_NGKHW<InLayout, WeiLayout, OutLayout>() || 
-                        is_NGCDHW_GKZYXC_NGKDHW<InLayout, WeiLayout, OutLayout>()) {
+        if constexpr(is_NGCHW_NGKHW<InLayout, WeiLayout, OutLayout>() || 
+                        is_NGCDHW_NGKDHW<InLayout, WeiLayout, OutLayout>()) {
                 str << ", TransposeTransferSrcScalarPerVector: "
                 << TransposeTransferSrcScalarPerVector <<", "
                 << "TransposeTransferDstScalarPerVector: " << TransposeTransferDstScalarPerVector;

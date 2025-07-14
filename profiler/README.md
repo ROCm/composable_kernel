@@ -1,3 +1,29 @@
+[Back to the main page](../README.md)
+# Composable Kernel profiler
+## Profiler GEMM UNIVERSAL kernels
+```bash
+# arg1: tensor operation (gemm_universal: Universal GEMM)
+# arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8; 4: f8@f16; 5: f16@f8; 6: f16->f8; 7: f8->bf16, comp f8; 8: f16@i4; 9: bf16@i4
+# arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];
+#                     1: A[m, k] * B[n, k] = C[m, n];
+#                     2: A[k, m] * B[k, n] = C[m, n];
+#                     3: A[k, m] * B[n, k] = C[m, n])
+# arg4: verification (0: no; 1: yes)
+# arg5: initialization (0: no init; 1: integer value; 2: decimal value)
+# arg6: print tensor value (0: no; 1: yes)
+# arg7: time kernel (0=no, 1=yes)
+# arg8 to 13: M, N, K, StrideA, StrideB, StrideC
+# arg14: split k into  mulitiple batch
+# optional:
+# arg15: number of warm-up cycles (default 1)
+# arg16: number of iterations (default 10)
+# arg17: memory for rotating buffer (default 0, size in MB)
+
+
+################        op  datatype  layout  verify  init  print  time  M N K  StrideA StrideB StrideC  SplitK  WarmupCycles  Iterations  MemoryBuffer
+./bin/ckProfiler gemm_universal 1 0 1 1 0 1 4096 4096 4096 4096 4096 4096 1 1 10 0
+```
+
 ## Profile GEMM kernels
 ```bash
 #arg1: tensor operation (gemm=GEMM)
@@ -180,3 +206,13 @@ Note: Column to image kernel adds to the output memory, this will cause output b
 ################            op datatype  verify  init  log  time  dim0 dim1 dim2 in_stride0 in_stride1 in_stride2 out_stride0 out_stride1 out_stride2
 ./bin/ckProfiler permute_scale        0       1     1    0     1    64   64   64       4096         64          1           1          64        4096
 ```
+
+## Convert MIOpen driver command to CKProfiler
+
+```bash
+python3 ../script/convert_miopen_driver_to_profiler.py
+/opt/rocm/bin/MIOpenDriver conv -n 32 -c 64 -H 28 -W 28 -k 64 -y 3 -x 3
+-p 1 -q 1 -u 2 -v 2 -l 1 -j 1 -m conv -g 32 -F 1 -t 1 
+```
+
+Only convolution driver is supported.

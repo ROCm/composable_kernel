@@ -2,10 +2,11 @@
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-
+#ifndef __HIPCC_RTC__
 #include <hip/hip_runtime.h>
 
 #include "ck/ck.hpp"
+#include "ck/utility/env.hpp"
 #include "ck/stream_config.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
 
@@ -65,6 +66,9 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
         float total_time = 0;
 
         hip_check_error(hipEventElapsedTime(&total_time, start, stop));
+
+        hip_check_error(hipEventDestroy(start));
+        hip_check_error(hipEventDestroy(stop));
 
         return total_time / nrepeat;
     }
@@ -143,6 +147,9 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
 
         hip_check_error(hipEventElapsedTime(&total_time, start, stop));
 
+        hip_check_error(hipEventDestroy(start));
+        hip_check_error(hipEventDestroy(stop));
+
         return total_time / nrepeat;
     }
     else
@@ -160,3 +167,4 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
     return 0;
 #endif
 }
+#endif

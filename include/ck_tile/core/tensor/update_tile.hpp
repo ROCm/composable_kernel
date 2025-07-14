@@ -41,15 +41,65 @@ template <typename BottomTensorView_,
           typename WindowLengths_,
           typename TileDistribution_,
           index_t NumCoord,
-          typename DataType_>
+          typename DataType_,
+          index_t i_access           = -1,
+          bool oob_conditional_check = true>
 CK_TILE_DEVICE void
 update_tile(tile_window_with_static_distribution<BottomTensorView_,
                                                  WindowLengths_,
                                                  TileDistribution_,
                                                  NumCoord>& tile_window,
-            const static_distributed_tensor<DataType_, TileDistribution_>& dstr_tensor)
+            const static_distributed_tensor<DataType_, TileDistribution_>& dstr_tensor,
+            number<i_access>                     = {},
+            bool_constant<oob_conditional_check> = {})
 {
-    tile_window.update(dstr_tensor);
+    tile_window.update(dstr_tensor, number<i_access>{}, bool_constant<oob_conditional_check>{});
+}
+
+template <typename BottomTensorView_,
+          typename WindowLengths_,
+          typename TileDistribution_,
+          index_t NumCoord,
+          typename DataType_,
+          index_t i_access           = -1,
+          bool oob_conditional_check = true,
+          bool pre_nop               = false>
+CK_TILE_DEVICE void
+update_tile_raw(tile_window_with_static_distribution<BottomTensorView_,
+                                                     WindowLengths_,
+                                                     TileDistribution_,
+                                                     NumCoord>& tile_window,
+                const static_distributed_tensor<DataType_, TileDistribution_>& dstr_tensor,
+                number<i_access>                     = {},
+                bool_constant<oob_conditional_check> = {},
+                bool_constant<pre_nop>               = {})
+{
+    tile_window.update_raw(dstr_tensor,
+                           number<i_access>{},
+                           bool_constant<oob_conditional_check>{},
+                           bool_constant<pre_nop>{});
+}
+
+template <typename BottomTensorView_,
+          typename WindowLengths_,
+          typename TileDistribution_,
+          typename LinearBottomDims_,
+          typename DataType_,
+          index_t i_access           = -1,
+          bool oob_conditional_check = true,
+          bool pre_nop               = false>
+CK_TILE_DEVICE auto update_tile_raw(
+    tile_window_linear<BottomTensorView_, WindowLengths_, TileDistribution_, LinearBottomDims_>&
+        tile_window,
+    const static_distributed_tensor<DataType_, TileDistribution_>& dstr_tensor,
+    number<i_access>                     = {},
+    bool_constant<oob_conditional_check> = {},
+    bool_constant<pre_nop>               = {})
+{
+    tile_window.update_raw(dstr_tensor,
+                           number<i_access>{},
+                           bool_constant<oob_conditional_check>{},
+                           bool_constant<pre_nop>{});
 }
 
 } // namespace ck_tile

@@ -67,6 +67,36 @@ void add_device_pool2d_fwd_nhwc_index_f32_instances(
     std::vector<std::unique_ptr<
         DevicePoolFwd<InOutRank, WindowRank, F32, F32, I32, NHWC, NHWC, MaxOp, true>>>&);
 #endif
+#ifdef CK_ENABLE_INT8
+// I8
+void add_device_pool2d_fwd_nhwc_i8_instances(
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, I8, I8, I32, NHWC, NHWC, MaxOp, false>>>&);
+
+void add_device_pool2d_fwd_nhwc_i8_instances(
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, I8, I8, I32, NHWC, NHWC, AvgOp, false>>>&);
+
+// I8 - return index
+void add_device_pool2d_fwd_nhwc_index_i8_instances(
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, I8, I8, I32, NHWC, NHWC, MaxOp, true>>>&);
+#endif
+#ifdef CK_ENABLE_FP8
+// F8
+void add_device_pool2d_fwd_nhwc_f8_instances(
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, F8, F8, I32, NHWC, NHWC, MaxOp, false>>>&);
+
+void add_device_pool2d_fwd_nhwc_f8_instances(
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, F8, F8, I32, NHWC, NHWC, AvgOp, false>>>&);
+
+// F8 - return index
+void add_device_pool2d_fwd_nhwc_index_f8_instances(
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, F8, F8, I32, NHWC, NHWC, MaxOp, true>>>&);
+#endif
 template <typename InDataType,
           typename OutDataType,
           typename IndexDataType,
@@ -138,6 +168,34 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DevicePoolFw
                 else
                 {
                     add_device_pool2d_fwd_nhwc_f32_instances(op_ptrs);
+                }
+            }
+#endif
+#ifdef CK_ENABLE_INT8
+            else if constexpr(is_same_v<InDataType, I8> && is_same_v<OutDataType, I8> &&
+                              is_same_v<IndexDataType, I32>)
+            {
+                if constexpr(OutputIndex && ReduceOpId == MaxOp)
+                {
+                    add_device_pool2d_fwd_nhwc_index_i8_instances(op_ptrs);
+                }
+                else
+                {
+                    add_device_pool2d_fwd_nhwc_i8_instances(op_ptrs);
+                }
+            }
+#endif
+#ifdef CK_ENABLE_FP8
+            else if constexpr(is_same_v<InDataType, F8> && is_same_v<OutDataType, F8> &&
+                              is_same_v<IndexDataType, I32>)
+            {
+                if constexpr(OutputIndex && ReduceOpId == MaxOp)
+                {
+                    add_device_pool2d_fwd_nhwc_index_f8_instances(op_ptrs);
+                }
+                else
+                {
+                    add_device_pool2d_fwd_nhwc_f8_instances(op_ptrs);
                 }
             }
 #endif

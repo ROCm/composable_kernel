@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -58,11 +58,17 @@ using KernelTypes1d = ::testing::Types<std::tuple<float, GNWC, GKXC, GNWK>,
 using KernelTypes2d = ::testing::Types<std::tuple<float, GNHWC, GKYXC, GNHWK>,
                                        std::tuple<ck::half_t, GNHWC, GKYXC, GNHWK>,
                                        std::tuple<ck::bhalf_t, GNHWC, GKYXC, GNHWK>,
-                                       std::tuple<int8_t, GNHWC, GKYXC, GNHWK>,
                                        std::tuple<float, NHWGC, GKYXC, NHWGK>,
                                        std::tuple<ck::half_t, NHWGC, GKYXC, NHWGK>,
                                        std::tuple<ck::bhalf_t, NHWGC, GKYXC, NHWGK>,
-                                       std::tuple<int8_t, NHWGC, GKYXC, NHWGK>>;
+                                       std::tuple<int8_t, NHWGC, GKYXC, NHWGK>,
+                                       std::tuple<float, NGCHW, GKYXC, NGKHW>,
+                                       std::tuple<ck::half_t, NGCHW, GKYXC, NGKHW>,
+                                       std::tuple<ck::bhalf_t, NGCHW, GKYXC, NGKHW>,
+                                       std::tuple<int8_t, NGCHW, GKYXC, NGKHW>,
+                                       std::tuple<float, NGCHW, GKCYX, NGKHW>,
+                                       std::tuple<ck::half_t, NGCHW, GKCYX, NGKHW>,
+                                       std::tuple<ck::bhalf_t, NGCHW, GKCYX, NGKHW>>;
 
 using KernelTypes3d = ::testing::Types<std::tuple<float, GNDHWC, GKZYXC, GNDHWK>,
                                        std::tuple<ck::half_t, GNDHWC, GKZYXC, GNDHWK>,
@@ -71,7 +77,9 @@ using KernelTypes3d = ::testing::Types<std::tuple<float, GNDHWC, GKZYXC, GNDHWK>
                                        std::tuple<float, NDHWGC, GKZYXC, NDHWGK>,
                                        std::tuple<ck::half_t, NDHWGC, GKZYXC, NDHWGK>,
                                        std::tuple<ck::bhalf_t, NDHWGC, GKZYXC, NDHWGK>,
-                                       std::tuple<int8_t, NDHWGC, GKZYXC, NDHWGK>>;
+                                       std::tuple<float, NGCDHW, GKCZYX, NGKDHW>,
+                                       std::tuple<ck::half_t, NGCDHW, GKCZYX, NGKDHW>,
+                                       std::tuple<ck::bhalf_t, NGCDHW, GKCZYX, NGKDHW>>;
 
 template <typename Tuple>
 class TestGroupedConvndFwd1d : public TestGroupedConvndFwd<Tuple>

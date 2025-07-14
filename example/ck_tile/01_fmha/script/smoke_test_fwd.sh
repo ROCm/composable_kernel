@@ -29,14 +29,14 @@ while getopts ":sa" opt; do
 done
 
 run_fp16_bf16_tests() {
-    local NUM_SPLITS=(1)
-    local PAGE_BLOCK_SIZE=(0)
-    local CACHE_BATCH_IDX=(0)
+    local NUM_SPLITS="1"
+    local PAGE_BLOCK_SIZE="0"
+    local CACHE_BATCH_IDX="0"
 
     if [ $TEST_SPLITKV -eq 1 ] ; then
-        NUM_SPLITS+=(2 3)
-        PAGE_BLOCK_SIZE+=(128)
-        CACHE_BATCH_IDX+=(1)
+        NUM_SPLITS="$NUM_SPLITS 2 3"
+        PAGE_BLOCK_SIZE="$PAGE_BLOCK_SIZE 128"
+        CACHE_BATCH_IDX="$CACHE_BATCH_IDX 1"
     fi
 
     for prec in "fp16" "bf16" ; do
@@ -47,9 +47,9 @@ run_fp16_bf16_tests() {
     for lse in 0 1 ; do
     for bias in "n" "e" "a" ; do
     for p_drop in 0.0 0.2 ; do
-    for num_splits in "${NUM_SPLITS[@]}" ; do
-    for page_block_size in "${PAGE_BLOCK_SIZE[@]}" ; do
-    for cache_batch_idx in "${CACHE_BATCH_IDX[@]}" ; do
+    for num_splits in $NUM_SPLITS ; do
+    for page_block_size in $PAGE_BLOCK_SIZE ; do
+    for cache_batch_idx in $CACHE_BATCH_IDX ; do
 
     # $EXE -prec=$prec -mode=$mode -b=1 -h=1 -d=$hdim -s=1024 -bias=$bias -p_drop=$p_drop -lse=$lse -iperm=$perm -operm=$perm -vlayout=$vlayout -num_splits=$num_splits -page_block_size=$page_block_size -kname=$KNAME $COMMON_ARGS  
     $EXE -prec=$prec -mode=$mode -b=2 -h=2 -h_k=1 -d=16, -d_v=$hdim -s=55 -s_k=256 -bias=$bias -p_drop=$p_drop -lse=$lse -iperm=$perm -operm=$perm -vlayout=$vlayout -num_splits=$num_splits -page_block_size=$page_block_size -cache_batch_idx=$cache_batch_idx -kname=$KNAME $COMMON_ARGS  

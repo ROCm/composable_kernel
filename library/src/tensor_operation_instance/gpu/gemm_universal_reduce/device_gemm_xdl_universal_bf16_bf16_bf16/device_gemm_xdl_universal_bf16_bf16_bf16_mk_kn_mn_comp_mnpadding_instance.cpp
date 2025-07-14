@@ -2,6 +2,7 @@
 // Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn.hpp"
+#include "ck/host_utility/device_prop.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -24,6 +25,14 @@ void add_device_gemm_xdl_universal_reduce_bf16_bf16_bf16_mk_kn_mn_comp_mnpadding
     add_device_operation_instances(
         instances,
         device_gemm_xdl_universal_reduce_bf16_bf16_bf16_mk_kn_mn_comp_instances<GemmMNPadding>{});
+
+    if(ck::get_device_name() != "gfx950")
+    {
+        add_device_operation_instances(
+            instances,
+            device_gemm_xdl_universal_reduce_bf16_bf16_bf16_mk_kn_mn_comp_instances_part2<
+                GemmMNPadding>{});
+    }
 }
 
 } // namespace instance

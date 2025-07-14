@@ -2,9 +2,7 @@ set(GEMM_INSTANCES)
 list(APPEND GEMM_INSTANCES device_gemm_xdl_f64_f64_f64_mk_kn_mn_instance.cpp
     device_gemm_xdl_f64_f64_f64_mk_nk_mn_instance.cpp
     device_gemm_xdl_f64_f64_f64_km_kn_mn_instance.cpp
-    device_gemm_xdl_f64_f64_f64_km_nk_mn_instance.cpp)
-
-list(APPEND GEMM_INSTANCES
+    device_gemm_xdl_f64_f64_f64_km_nk_mn_instance.cpp
     device_gemm_xdl_f32_f32_f32_mk_kn_mn_instance.cpp
     device_gemm_xdl_f32_f32_f32_mk_nk_mn_instance.cpp
     device_gemm_xdl_f32_f32_f32_km_kn_mn_instance.cpp
@@ -21,9 +19,6 @@ list(APPEND GEMM_INSTANCES
     device_gemm_dl_f32_f32_f32_mk_nk_mn_instance.cpp
     device_gemm_dl_f32_f32_f32_km_kn_mn_instance.cpp
     device_gemm_dl_f32_f32_f32_km_nk_mn_instance.cpp
-    )
-
-list(APPEND GEMM_INSTANCES
     device_gemm_dl_f16_f16_f16_mk_kn_mn_instance.cpp
     device_gemm_dl_f16_f16_f16_mk_kn_mn_irregular_instance.cpp
     device_gemm_dl_f16_f16_f16_mk_nk_mn_instance.cpp
@@ -78,9 +73,6 @@ list(APPEND GEMM_INSTANCES
     device_gemm_xdl_f16_f16_f16/mk_nk_mn_irregular_default_pipeline_v1_instance.cpp
     device_gemm_xdl_f16_f16_f16/mk_nk_mn_irregular_default_pipeline_v2_instance.cpp
     device_gemm_xdl_f16_f16_f16/mk_nk_mn_irregular_interwave_pipeline_v1_instance.cpp
-    )
-
-list(APPEND GEMM_INSTANCES
     device_gemm_dl_i8_i8_i8_mk_kn_mn_instance.cpp
     device_gemm_dl_i8_i8_i8_mk_kn_mn_irregular_instance.cpp
     device_gemm_dl_i8_i8_i8_mk_nk_mn_instance.cpp
@@ -92,15 +84,11 @@ list(APPEND GEMM_INSTANCES
     device_gemm_xdl_c_shuffle_i8_i8_i8_mk_kn_mn_instance.cpp
     device_gemm_xdl_c_shuffle_i8_i8_i8_mk_nk_mn_instance.cpp
     device_gemm_xdl_c_shuffle_i8_i8_i8_km_kn_mn_instance.cpp
-    device_gemm_xdl_c_shuffle_i8_i8_i8_km_nk_mn_instance.cpp)
-
-list(APPEND GEMM_INSTANCES
+    device_gemm_xdl_c_shuffle_i8_i8_i8_km_nk_mn_instance.cpp
     device_gemm_xdl_c_shuffle_bf16_bf16_bf16_mk_kn_mn_instance.cpp
     device_gemm_xdl_c_shuffle_bf16_bf16_bf16_mk_nk_mn_instance.cpp
     device_gemm_xdl_c_shuffle_bf16_bf16_bf16_km_kn_mn_instance.cpp
-    device_gemm_xdl_c_shuffle_bf16_bf16_bf16_km_nk_mn_instance.cpp)
-
-list(APPEND GEMM_INSTANCES
+    device_gemm_xdl_c_shuffle_bf16_bf16_bf16_km_nk_mn_instance.cpp
     device_gemm_xdl_c_shuffle_fp8_fp8_fp8_mk_kn_mn_v1_default_instance.cpp
     device_gemm_xdl_c_shuffle_fp8_fp8_fp8_mk_kn_mn_v1_interwave_default_instance.cpp
     device_gemm_xdl_c_shuffle_fp8_fp8_fp8_mk_kn_mn_v2_default_instance.cpp
@@ -109,14 +97,19 @@ list(APPEND GEMM_INSTANCES
     device_gemm_xdl_c_shuffle_fp8_fp8_fp8_mk_kn_mn_v2_padded_instance.cpp
     device_gemm_xdl_c_shuffle_fp8_fp8_fp8_mk_nk_mn_instance.cpp
     device_gemm_xdl_c_shuffle_fp8_fp8_fp8_km_kn_mn_instance.cpp
-    device_gemm_xdl_c_shuffle_fp8_fp8_fp8_km_nk_mn_instance.cpp)
-
-
-list(APPEND GEMM_INSTANCES
+    device_gemm_xdl_c_shuffle_fp8_fp8_fp8_km_nk_mn_instance.cpp
     device_gemm_wmma_f16_f16_f16_mk_kn_mn_instance.cpp
     device_gemm_wmma_f16_f16_f16_mk_nk_mn_instance.cpp
     device_gemm_wmma_f16_f16_f16_km_kn_mn_instance.cpp
-    device_gemm_wmma_f16_f16_f16_km_nk_mn_instance.cpp)
+    device_gemm_wmma_f16_f16_f16_km_nk_mn_instance.cpp
+    device_gemm_wmma_bf16_bf16_bf16_mk_kn_mn_instance.cpp
+    device_gemm_wmma_bf16_bf16_bf16_mk_nk_mn_instance.cpp
+    device_gemm_wmma_bf16_bf16_bf16_km_kn_mn_instance.cpp
+    device_gemm_wmma_bf16_bf16_bf16_km_nk_mn_instance.cpp
+    device_gemm_wmma_int8_int8_int8_mk_kn_mn_instance.cpp
+    device_gemm_wmma_int8_int8_int8_mk_nk_mn_instance.cpp
+    device_gemm_wmma_int8_int8_int8_km_kn_mn_instance.cpp
+    device_gemm_wmma_int8_int8_int8_km_nk_mn_instance.cpp)
 
 add_instance_library(device_gemm_instance ${GEMM_INSTANCES})
 

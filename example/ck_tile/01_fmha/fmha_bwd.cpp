@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "fmha_bwd.hpp"
 #include "ck_tile/host.hpp"
@@ -85,6 +85,9 @@ auto create_args(int argc, char* argv[])
         .insert("p_drop", "0", "0~1 probability of dropout")
         .insert("drop_seed", "1", "seed for random number generator")
         .insert("drop_offset", "0", "offset for random number generator")
+        .insert("drop_prefs",
+                "0",
+                "seed and offset values are present on GPU; 0 - host, 1 - device/GPU")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "20", "number of iterations to benchmark the kernel")
@@ -98,15 +101,28 @@ auto create_args(int argc, char* argv[])
 }
 
 // different threshold for different dtype
-template <typename DataType>
-auto get_elimit(int /*init_method*/)
+template <typename DataTypeConfig>
+auto get_elimit(ck_tile::index_t /*hdim_q*/, ck_tile::index_t /*hdim_v*/)
 {
     double rtol = 1e-2;
     double atol = 1e-2;
     return ck_tile::make_tuple(rtol, atol);
 }
 
-template <typename DataType>
+template <>
+auto get_elimit<FmhaBwdBf16>(ck_tile::index_t hdim_q, ck_tile::index_t hdim_v)
+{
+    double rtol = 1e-2;
+    double atol = 1e-2;
+    if(hdim_q > 128 && hdim_v > 128) // 3.2 for RTZ/1.5 for RTN
+    {
+        rtol = 3.2e-2;
+        atol = 3.2e-2;
+    }
+    return ck_tile::make_tuple(rtol, atol);
+}
+
+template <typename DataTypeConfig>
 bool run(const ck_tile::ArgParser& arg_parser)
 {
     std::string data_type    = arg_parser.get_str("prec");
@@ -145,6 +161,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     float p_drop         = arg_parser.get_float("p_drop");
     uint64_t drop_seed   = arg_parser.get_uint64("drop_seed");
     uint64_t drop_offset = arg_parser.get_uint64("drop_offset");
+    bool drop_prefs      = arg_parser.get_bool("drop_prefs");
+
     if(use_dbias && bias.type != bias_enum::elementwise_bias)
     {
         std::cerr << "dbias only exists when bias type is elementwise" << std::endl;
@@ -191,7 +209,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     const auto seqstart_q_host = generate_seqstarts(mode, batch, seqlen_q);
     const auto seqstart_k_host = generate_seqstarts(mode, batch, seqlen_k);
 
-    using TypeConfig = FmhaBwdTypeConfig<DataType>;
+    using TypeConfig = FmhaBwdTypeConfig<DataTypeConfig>;
 
     using QDataType             = typename TypeConfig::QDataType;
     using KDataType             = typename TypeConfig::KDataType;
@@ -337,7 +355,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(bias.type == bias_enum::alibi)
     {
         auto slopes = ck_tile::get_alibi_slopes<AccDataType>(nhead);
-        assert(slopes.size() == nhead);
+        assert(slopes.size() == static_cast<decltype(slopes.size())>(nhead));
         if(bias.rank_info == 0)
         {
             // alibi in 1*h
@@ -368,6 +386,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem dbias_buf(dbias_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
+    ck_tile::DeviceMem drop_seed_buf(drop_prefs ? sizeof(uint64_t) : 0);
+    ck_tile::DeviceMem drop_offset_buf(drop_prefs ? sizeof(uint64_t) : 0);
     ck_tile::DeviceMem alibi_slope_buf(alibi_slope_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem dq_acc_buf(dq_acc_host.get_element_space_size_in_bytes());
 
@@ -378,6 +398,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     do_buf.ToDevice(do_host.data());
     seqstart_q.ToDevice(seqstart_q_host.data());
     seqstart_k.ToDevice(seqstart_k_host.data());
+    drop_seed_buf.ToDevice(drop_prefs ? &drop_seed : nullptr);
+    drop_offset_buf.ToDevice(drop_prefs ? &drop_offset : nullptr);
     alibi_slope_buf.ToDevice(alibi_slope_host.data());
 
     // clang-format off
@@ -459,6 +481,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t split_stride_dq_acc =
             (shape_batch * nhead * shape_seqlen_q * hdim_q);
 
+        const auto drop_seed_offset = [&]() -> decltype(fmha_bwd_args::drop_seed_offset) {
+            if(drop_prefs)
+            {
+                return std::make_pair(drop_seed_buf.GetDeviceBuffer(),
+                                      drop_offset_buf.GetDeviceBuffer());
+            }
+            else
+            {
+                return std::make_pair(drop_seed, drop_offset);
+            }
+        }();
+
         return fmha_bwd_args{q_buf.GetDeviceBuffer(),
                              k_buf.GetDeviceBuffer(),
                              v_buf.GetDeviceBuffer(),
@@ -532,7 +566,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              static_cast<ck_tile::index_t>(mask.type),
                              p_drop,
                              p_undrop,
-                             {drop_seed, drop_offset}};
+                             drop_seed_offset};
     }();
 
     float ave_time = fmha_bwd(fmha_traits, fmha_args, stream_config);
@@ -722,22 +756,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         if(p_drop > 0)
         {
-            p_hp_host_ref.ForEach(
-                [&](auto& self, auto idx) { p_dropped_hp_host_ref(idx) = self(idx); });
+            p_dropped_hp_host_ref = p_hp_host_ref;
             randval_host_ref.ForEach([&](auto& self, auto idx) {
                 self(idx) = randval_host(b, idx[0], idx[1] + query_offset, idx[2]);
             });
             ck_tile::reference_batched_dropout(
                 p_dropped_hp_host_ref, randval_host_ref, p_undrop_in_uint8_t, rp_undrop);
-            p_dropped_hp_host_ref.ForEach([&](auto& self, auto idx) {
-                p_lp_host_ref(idx) = ck_tile::type_convert<GemmDataType>(self(idx));
-            });
+            p_lp_host_ref = p_dropped_hp_host_ref.template CopyAsType<GemmDataType>();
         }
         else
         {
-            p_hp_host_ref.ForEach([&](auto& self, auto idx) {
-                p_lp_host_ref(idx) = ck_tile::type_convert<GemmDataType>(self(idx));
-            });
+            p_lp_host_ref = p_hp_host_ref.template CopyAsType<GemmDataType>();
         }
 
         // O = P * V
@@ -820,29 +849,27 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
 
         // dS_i_j = P_i_j .* (dP_i_j - dO_i dot O_i)
-        ds_hp_host_ref.ForEach([&](auto& self, auto idx_gmn) {
-            AccDataType do_dot_o = 0;
-            for(int o = 0; o < hdim_v; o++)
-            {
-                auto idx_gmo = idx_gmn;
-                idx_gmo[2]   = o;
-                do_dot_o += ck_tile::type_convert<AccDataType>(do_host_ref(idx_gmo)) *
-                            ck_tile::type_convert<AccDataType>(o_host_refs[wb](idx_gmo));
-            }
-            self(idx_gmn) = ck_tile::type_convert<AccDataType>(
-                p_hp_host_refs[wb](idx_gmn) * (dp_hp_host_ref(idx_gmn) - do_dot_o));
-        });
+        ck_tile::make_ParallelTensorFunctor(
+            [&](auto i0, auto i1, auto i2) {
+                AccDataType do_dot_o = 0;
+                for(int o = 0; o < hdim_v; o++)
+                {
+                    do_dot_o += ck_tile::type_convert<AccDataType>(do_host_ref(i0, i1, o)) *
+                                ck_tile::type_convert<AccDataType>(o_host_refs[wb](i0, i1, o));
+                }
+                ds_hp_host_ref(i0, i1, i2) = ck_tile::type_convert<AccDataType>(
+                    p_hp_host_refs[wb](i0, i1, i2) * (dp_hp_host_ref(i0, i1, i2) - do_dot_o));
+            },
+            ds_hp_host_ref.mDesc.get_lengths()[0],
+            ds_hp_host_ref.mDesc.get_lengths()[1],
+            ds_hp_host_ref.mDesc.get_lengths()[2])(std::thread::hardware_concurrency());
 
         if(use_dbias)
         {
-            ds_hp_host_ref.ForEach([&](auto& self, auto idx) {
-                dbias_host_ref(idx) = ck_tile::type_convert<BiasGradDataType>(self(idx));
-            });
+            dbias_host_ref = ds_hp_host_ref.template CopyAsType<BiasGradDataType>();
         }
 
-        ds_hp_host_ref.ForEach([&](auto& self, auto idx) {
-            ds_lp_host_ref(idx) = ck_tile::type_convert<GemmDataType>(self(idx));
-        });
+        ds_lp_host_ref = ds_hp_host_ref.template CopyAsType<GemmDataType>();
 
         // dV = P_drop^T@dO^T
         // dV = P^T@dO^T w/o dropout
@@ -899,7 +926,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
         // clang-format on
 
-        auto [rtol, atol] = get_elimit<DataType>(init_method);
+        auto [rtol, atol] = get_elimit<DataTypeConfig>(hdim_q, hdim_v);
         bool dq_cur_pass  = ck_tile::check_err(dq_host_result,
                                               dq_host_ref,
                                               std::string("Error: QGrad Incorrect results!"),
@@ -952,11 +979,11 @@ int main(int argc, char* argv[])
     const std::string data_type = arg_parser.get_str("prec");
     if(data_type == "fp16")
     {
-        return run<ck_tile::half_t>(arg_parser) ? 0 : -2;
+        return run<FmhaBwdFp16>(arg_parser) ? 0 : -2;
     }
     else if(data_type == "bf16")
     {
-        return run<ck_tile::bf16_t>(arg_parser) ? 0 : -2;
+        return run<FmhaBwdBf16>(arg_parser) ? 0 : -2;
     }
 
     return -3;

@@ -1,7 +1,10 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+
 import logging
 import os
 import subprocess
-from dataclasses import fields, replace
+from dataclasses import replace
 from functools import lru_cache, partial
 from typing import List
 
@@ -65,12 +68,13 @@ def parse_instances(str_instances: List[str]) -> List[CKGemmOperation]:
 
         template_args.insert(2, tuple())  # ds layout
         template_args.insert(6, tuple())  # ds dtype
-
-        new_instance = CKGemmOperation(
-            *template_args,  # type: ignore[arg-type]
-        )
-
-        op_instances.append(new_instance)
+        try:
+            new_instance = CKGemmOperation(
+                *template_args,  # type: ignore[arg-type]
+            )
+            op_instances.append(new_instance)
+        except TypeError as e:
+            log.debug(f"{e} when parsing {line}")
     return op_instances
 
 

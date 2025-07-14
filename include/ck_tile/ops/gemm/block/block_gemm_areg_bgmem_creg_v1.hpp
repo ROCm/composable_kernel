@@ -32,7 +32,7 @@ struct BlockGemmARegBGmemCRegV1
         BlockGemmProblem<ADataType, BDataType, CDataType, kBlockSize, BlockGemmShape>,
         BlockGemmARegBGmemCRegV1DefaultPolicy>;
 
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetStaticLdsSize()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetStaticLdsSize()
     {
         return sizeof(BDataType) *
                Policy::template MakeBSmemBlockDescriptor<Problem>().get_element_space_size();

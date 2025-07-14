@@ -43,8 +43,7 @@ __global__ void
             const B1ElementwiseOperation b1_element_op,
             const CElementwiseOperation c_element_op)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const index_t block_id = get_block_1d_id();
@@ -109,7 +108,7 @@ __global__ void
     ignore = acc_element_op;
     ignore = b1_element_op;
     ignore = c_element_op;
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+#endif // end of if (defined(__gfx9__))
 }
 
 // Computes C = A * B0 * B1
