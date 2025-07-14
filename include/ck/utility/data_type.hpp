@@ -60,6 +60,17 @@ struct f4x2_pk_t
     {
         return (x0 << 4) | (x1 & 0b00001111);
     }
+
+    // Compare operator
+    __host__ __device__ friend bool operator==(const f4x2_pk_t& lhs, const f4x2_pk_t& rhs)
+    {
+        return lhs.data == rhs.data;
+    }
+
+    __host__ __device__ friend bool operator!=(const f4x2_pk_t& lhs, const f4x2_pk_t& rhs)
+    {
+        return !(lhs == rhs);
+    }
 };
 
 template <typename BitType, index_t pk_size>
