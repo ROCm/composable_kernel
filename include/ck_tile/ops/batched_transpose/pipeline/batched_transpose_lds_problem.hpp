@@ -71,7 +71,7 @@ struct BatchedTransposeLdsProblem
 
     // FIXME: support padding
     static constexpr bool kPadM = kPadM_;
-    static constexpr bool kPadN = false;
+    static constexpr bool kPadN = kPadN_;
 
     static constexpr auto kMPerBlock = kLeadSizePerBlock;
     static constexpr auto kNPerBlock = kSecondSizePerBlock;
@@ -80,6 +80,7 @@ struct BatchedTransposeLdsProblem
     static constexpr index_t MaxLoadStoreSize = 16;
     static constexpr auto VectorSizeInput     = kPadM ? 1 : MaxLoadStoreSize / sizeof(DataType);
     static constexpr auto VectorSizeOutput    = kPadN ? 1 : MaxLoadStoreSize / sizeof(DataType);
+    static constexpr auto LDSVectorSize = MaxLoadStoreSize / sizeof(DataType);
 };
 
 } // namespace ck_tile
