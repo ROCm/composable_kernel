@@ -454,7 +454,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
 
 #define GridwiseGemmV3SplitKTemplateParams                                                     \
     tensor_layout::gemm::RowMajor, tensor_layout::gemm::ColumnMajor,                           \
-        tensor_layout::gemm::RowMajor, ADataType, BDataType, AccDataType, CShuffleDataType,    \
+        tensor_layout::gemm::RowMajor, ADataType, BDataType, AccDataType, AccDataType,         \
         AccDataType, AElementwiseOperation, BElementwiseOperation, CDEElementwiseOperation,    \
         GemmSpec, BlockSize, MPerBlock, NPerBlock, KPerBlock, AK1, BK1, MPerXDL, NPerXDL,      \
         MXdlPerWave, NXdlPerWave, ABlockTransferThreadClusterLengths_AK0_M_AK1,                \
