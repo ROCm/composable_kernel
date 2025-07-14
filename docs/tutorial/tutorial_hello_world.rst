@@ -29,9 +29,6 @@ CK library acceleration features are based on:
 * Hardware acceleration use
 * Support of low precision data types including fp16, bf16, int8 and int4
 
-If you need more technical details and benchmarking results read the following 
-`blog post <https://community.amd.com/t5/instinct-accelerators/amd-composable-kernel-library-efficient-fused-kernels-for-ai/ba-p/553224>`_.
-
 To download the library visit the `composable_kernel repository <https://github.com/ROCm/composable_kernel>`_.
 
 Hardware targets
