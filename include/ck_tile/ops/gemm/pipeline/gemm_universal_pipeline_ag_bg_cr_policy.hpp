@@ -625,14 +625,13 @@ struct UniversalGemmPipelineAgBgCrPolicy
         using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
 
-        constexpr index_t B64_SIZE       = 8;
-        constexpr index_t vector_size    = B64_SIZE / sizeof(typename Problem::ComputeDataType);
-        constexpr index_t thead_elements = WarpTile::at(I1) * WarpTile::at(I2) / get_warp_size();
+        constexpr index_t vector_size = DS_READ_TR_SIZE / sizeof(typename Problem::ComputeDataType);
+        constexpr index_t thread_elements = WarpTile::at(I1) * WarpTile::at(I2) / get_warp_size();
         constexpr auto wg_attr_num_access =
             !(is_a_load_tr<Problem> || is_b_load_tr<Problem>) ? WGAttrNumAccessEnum::Single
-            : vector_size == thead_elements                   ? WGAttrNumAccessEnum::Single
-            : vector_size * 2 == thead_elements               ? WGAttrNumAccessEnum::Double
-            : vector_size * 4 == thead_elements               ? WGAttrNumAccessEnum::Quad
+            : vector_size == thread_elements                  ? WGAttrNumAccessEnum::Single
+            : vector_size * 2 == thread_elements              ? WGAttrNumAccessEnum::Double
+            : vector_size * 4 == thread_elements              ? WGAttrNumAccessEnum::Quad
                                                               : WGAttrNumAccessEnum::Invalid;
 
         using WarpGemm        = WarpGemmMfmaDispatcher<typename Problem::ComputeDataType,

@@ -15,6 +15,8 @@
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 
+#define DS_READ_TR_SIZE 8
+
 namespace ck_tile {
 
 namespace util {

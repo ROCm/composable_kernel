@@ -131,8 +131,9 @@ struct TransposePolicy
         constexpr index_t kSecondDimIterations = Problem::kIterationsInSecondDim;
         constexpr index_t kSecondDimStrSub     = kSecondRepetitions / kSecondDimIterations;
 
+        constexpr index_t kLaneGroupSize      = 16;
         constexpr auto xdllevel_dstr_encoding = make_transposed_distr_encode<DataType,
-                                                                             16,
+                                                                             kLaneGroupSize,
                                                                              kSecondDimStrSub,
                                                                              kSecondDimIterations,
                                                                              kLeadRepetitions,
