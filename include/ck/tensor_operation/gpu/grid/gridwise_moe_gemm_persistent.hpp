@@ -50,9 +50,10 @@ __global__ void
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
     const index_t tile_cnt = math::integer_divide_ceil(karg.p_max_token_id[0], GridwiseGemm::SortedTileSize) * (karg.N / GridwiseGemm::NTileSize);
-    const index_t round_cnt = math::integer_divide_ceil(tile_cnt, block_cnt);
+    const index_t round_cnt = math::integer_divide_floor(tile_cnt, block_cnt);
     const index_t tall_id = tile_cnt % block_cnt;
-    for (auto round = 0; round < ((blockIdx.x < static_cast<uint>(tall_id)) ? round_cnt : round_cnt - 1); round++)
+    // if ((threadIdx.x == 0) && (blockIdx.x == 0)){printf("tile_cnt=%d, block_cnt=%d, round_cnt=%d, tall_id=%d\n", tile_cnt, block_cnt, round_cnt, tall_id);}
+    for (auto round = 0; round < ((blockIdx.x < static_cast<uint>(tall_id)) ? round_cnt + 1: round_cnt); round++)
     {
         const index_t tile_id = round * block_cnt + blockIdx.x;
         GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
