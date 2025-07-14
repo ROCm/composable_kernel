@@ -70,7 +70,7 @@ struct BatchedTransposeLdsProblem
     // definitions to adapt to BatchedTransposeKernel
 
     // FIXME: support padding
-    static constexpr bool kPadM = false;
+    static constexpr bool kPadM = kPadM_;
     static constexpr bool kPadN = false;
 
     static constexpr auto kMPerBlock = kLeadSizePerBlock;
