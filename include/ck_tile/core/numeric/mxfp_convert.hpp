@@ -166,7 +166,7 @@ CK_TILE_HOST_DEVICE typename T::raw_type convert_to_type(float value)
     {
         // closer to 0
         if(std::abs(value) <= std::abs(min_subnorm - value))
-            return 0 | (sign << (numeric_traits<T>::exp + numeric_traits<T>::mant));
+            return sign << (numeric_traits<T>::exp + numeric_traits<T>::mant);
         else
             return 1 | (sign << (numeric_traits<T>::exp + numeric_traits<T>::mant));
     }
@@ -202,7 +202,7 @@ CK_TILE_HOST_DEVICE typename T::raw_type convert_to_type(float value)
 
     if(out_exponent == 0 && mantissa == 0)
     {
-        return 0 | (sign << (numeric_traits<T>::exp + numeric_traits<T>::mant));
+        return sign << (numeric_traits<T>::exp + numeric_traits<T>::mant);
     }
 
     mantissa &= (1UL << numeric_traits<T>::mant) - 1;
