@@ -75,22 +75,22 @@ struct layernorm2d_fwd_traits_
     using SmoothScaleDataType = ck_tile::remove_cvref_t<SmoothScaleDataType_>;
     using YScaleDataType = ck_tile::remove_cvref_t<YScaleDataType_>;
 
-    static constexpr bool is_warp_per_row = ThreadPerBlock_N_ <= warpSize;
-    static_assert((ThreadPerBlock_M_ * ThreadPerBlock_N_) % warpSize == 0);
+    static constexpr bool is_warp_per_row = ThreadPerBlock_N_ <= ck_tile::get_warp_size();
+    static_assert((ThreadPerBlock_M_ * ThreadPerBlock_N_) % ck_tile::get_warp_size() == 0);
     static constexpr ck_tile::index_t total_warps =
-        (ThreadPerBlock_M_ * ThreadPerBlock_N_) / warpSize;
+        (ThreadPerBlock_M_ * ThreadPerBlock_N_) / ck_tile::get_warp_size();
 
     // num of warps along m
     static constexpr ck_tile::index_t BlockWarps_M = []() {
         if constexpr(is_warp_per_row)
         {
-            static_assert(warpSize % ThreadPerBlock_N_ == 0);
-            return total_warps * (warpSize / ThreadPerBlock_N_);
+            static_assert(ck_tile::get_warp_size() % ThreadPerBlock_N_ == 0);
+            return total_warps * (ck_tile::get_warp_size() / ThreadPerBlock_N_);
         }
         else
         {
-            // static_assert(warpSize % ThreadPerBlock_M_ == 0);
-            return total_warps / (ThreadPerBlock_N_ / warpSize);
+            // static_assert(ck_tile::get_warp_size() % ThreadPerBlock_M_ == 0);
+            return total_warps / (ThreadPerBlock_N_ / ck_tile::get_warp_size());
         }
     }();
 
@@ -98,13 +98,13 @@ struct layernorm2d_fwd_traits_
     static constexpr ck_tile::index_t BlockWarps_N = []() {
         if constexpr(is_warp_per_row)
         {
-            static_assert(warpSize % ThreadPerBlock_N_ == 0);
+            static_assert(ck_tile::get_warp_size() % ThreadPerBlock_N_ == 0);
             return 1;
         }
         else
         {
-            static_assert(ThreadPerBlock_N_ % warpSize == 0);
-            return ThreadPerBlock_N_ / warpSize;
+            static_assert(ThreadPerBlock_N_ % ck_tile::get_warp_size() == 0);
+            return ThreadPerBlock_N_ / ck_tile::get_warp_size();
         }
     }();
 
@@ -564,9 +564,9 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
                                   h_traits('x', 'y', 'xs', 'ys', 1,  4,  1, 512, 4,  True,  False, True, True,   False,   0,    0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 1,  4,  1,1024, 2,  True,  False, True, True,   False,   0,    0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 1,  8,  1,1024, 1,  True,  False, True, True,   False,   0,    0,    0)],
-                        'big'  :[ h_traits('x', 'y', 'xs', 'ys', 1,  2,  1, 256, 8,  True,  False, True, True,    True,   0,    0,    0),
+                        'big'  :[ h_traits('x', 'y', 'xs', 'ys', 1,  1,  1,1024, 8,  True,  False, True, True,    True,   0,    0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 1,  4,  1, 256, 4,  True,  False, True, True,    True,   0,    0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 1,  2,  1,1024, 2,  True,  False, True, True,    True,   0,    0,    0),
+                                  h_traits('x', 'y', 'xs', 'ys', 1, 12,  1, 256, 2,  True,  False, True, True,    True,   0,    0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 1,  4,  1,1024, 1,  True,  False, True, True,    True,   0,    0,    0)]}
         total_blob = list()
         for hs_key in h_trait_dict:

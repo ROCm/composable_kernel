@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #ifndef DEVICE_CONV3D_FWD_XDL_HPP
 #define DEVICE_CONV3D_FWD_XDL_HPP
@@ -10,6 +10,7 @@
 #include "device.hpp"
 #include "device_conv_fwd.hpp"
 #include "common_header.hpp"
+#include "ck/utility/env.hpp"
 #include "tensor_layout.hpp"
 #include "convolution_forward_specialization.hpp"
 #include "tensor_descriptor.hpp"
@@ -55,8 +56,7 @@ __global__ void
             const CElementwiseOperation c_element_op,
             const Block2CTileMap block_2_ctile_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / num_batches);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
@@ -97,7 +97,7 @@ __global__ void
     ignore = b_element_op;
     ignore = c_element_op;
     ignore = block_2_ctile_map;
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+#endif // end of if (defined(__gfx9__))
 }
 
 // specialization for #D conv: in[n, di, hi, wi, c] * wei[k, z, y, x, c] = out[n, do, ho, wo, k]

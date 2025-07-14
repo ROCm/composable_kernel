@@ -50,8 +50,7 @@ __global__ void
                                          const BElementwiseOperation b_element_op,
                                          const CDEElementwiseOperation c_element_op)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const index_t block_id = get_block_1d_id();

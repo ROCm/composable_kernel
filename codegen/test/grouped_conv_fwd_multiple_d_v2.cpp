@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+
 #include "ck/host/device_grouped_conv_fwd_multiple_d/conv_fwd_op.hpp"
 #include "ck/host/device_grouped_conv_fwd_multiple_d/conv_fwd_problem.hpp"
 #include "ck/host/headers.hpp"

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -28,7 +28,7 @@ enum struct GemmSpecialization
     NKOPadding,
     MNKOPadding,
 };
-
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 inline std::string getGemmSpecializationString(const GemmSpecialization& s)
 {
     switch(s)
@@ -52,6 +52,7 @@ inline std::string getGemmSpecializationString(const GemmSpecialization& s)
     default: return "Unrecognized specialization!";
     }
 }
+#endif
 
 } // namespace device
 } // namespace tensor_operation

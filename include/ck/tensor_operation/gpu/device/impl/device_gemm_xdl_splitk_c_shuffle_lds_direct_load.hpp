@@ -98,10 +98,12 @@ struct DeviceGemmXdlSplitKCShuffle_LdsDirectLoad : public DeviceGemmSplitK<ALayo
         MXdlPerWave,
         NXdlPerWave,
         ABlockTransferThreadClusterLengths_K0_M_K1,
+        ABlockTransferSrcAccessOrder,
         ABlockTransferSrcVectorDim,
         ABlockTransferScalarPerVector,
         ABlockLdsAddExtraM,
         BBlockTransferThreadClusterLengths_K0_N_K1,
+        BBlockTransferSrcAccessOrder,
         BBlockTransferSrcVectorDim,
         BBlockTransferScalarPerVector,
         BBlockLdsAddExtraN,
@@ -183,8 +185,8 @@ struct DeviceGemmXdlSplitKCShuffle_LdsDirectLoad : public DeviceGemmSplitK<ALayo
 
             const auto b2c_map = DefaultBlock2CTileMap{};
             index_t gdx, gdy, gdz;
-            std::tie(gdx, gdy, gdz) = b2c_map.CalculateGridSize(karg.M, karg.N, karg.k_batch);
-            const auto K0Padded     = karg.K0Padded;
+            ck::tie(gdx, gdy, gdz) = b2c_map.CalculateGridSize(karg.M, karg.N, karg.k_batch);
+            const auto K0Padded    = karg.K0Padded;
 
             const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0Padded);
 

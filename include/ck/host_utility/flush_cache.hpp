@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "ck/ck.hpp"
+#include "ck/utility/env.hpp"
 #include "ck/stream_config.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
 #include "ck/utility/flush_icache.hpp"

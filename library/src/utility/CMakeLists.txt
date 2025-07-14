@@ -1,4 +1,4 @@
-add_library(utility STATIC
+add_library(utility
     device_memory.cpp
     host_tensor.cpp
     convolution_parameter.cpp
@@ -6,6 +6,10 @@ add_library(utility STATIC
 
 add_library(composable_kernel::utility ALIAS utility)
 set_target_properties(utility PROPERTIES POSITION_INDEPENDENT_CODE ON)
+set_target_properties(utility
+    PROPERTIES
+    VERSION ${CMAKE_PROJECT_VERSION}
+    SOVERSION ${CMAKE_PROJECT_VERSION_MAJOR})
 target_compile_options(utility PRIVATE ${CMAKE_COMPILER_WARNINGS})
 target_include_directories(utility PUBLIC
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck>"

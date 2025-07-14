@@ -11,3 +11,4 @@
 #include "ck_tile/ops/layernorm2d/pipeline/layernorm2d_fwd_traits.hpp"
 #include "ck_tile/ops/common/generic_2d_block_shape.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
+#include "ck_tile/ops/common/utils.hpp"

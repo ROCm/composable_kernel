@@ -11,8 +11,7 @@ namespace ck_tile {
 // This pipeline is qkv all located in LDS
 using BlockFmhaPipelineQRKSVSAsyncDefaultPolicy =
     BlockFmhaPipelineQXKSVSCustomPolicy</* QLoadOnce = */ true,
-                                        /* AsyncCopyK = */ true,
-                                        /* AsyncCopyV = */ false,
+                                        /* AsyncCopy = */ true,
                                         /* NumPrefetchK = */ 3,
                                         /* NumPrefetchV = */ 3>;
 

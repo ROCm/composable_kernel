@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #ifndef UTILITY_DEBUG_HPP
 #define UTILITY_DEBUG_HPP
+#include "type.hpp"
 
 namespace ck {
 namespace debug {
@@ -84,6 +85,19 @@ __device__ static bool is_thread_local_1d_id_idx()
 {
     const auto tid = get_thread_local_1d_id();
     return ((tid == Ids) || ...);
+}
+
+// Use `CK_PRINT<T1, T2, ...>()` to inspect values of type T1, T2, ...
+// Use `CK_PRINT<v1, v2, ...>()` to inspect constexpr values of val1, val2, ... of the same type
+// In a non-evaluated context, you can use `using _dummy = decltype(CK_PRINT<...>());`
+// Set BUILD_DEV to OFF to avoid enabling Werror
+template <auto... val>
+[[deprecated("Help function to print value")]] inline constexpr void CK_PRINT()
+{
+}
+template <typename... type>
+[[deprecated("Help function to print value")]] inline constexpr void CK_PRINT()
+{
 }
 
 } // namespace debug

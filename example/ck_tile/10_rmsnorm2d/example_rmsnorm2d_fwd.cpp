@@ -41,6 +41,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using YDataType           = DataType;
     using GammaDataType       = DataType;
     using InvRmsDataType      = ck_tile::null_type;
+    using UnquantYDataType    = ck_tile::null_type;
     using SmoothScaleDataType = ck_tile::null_type;
     using YScaleDataType      = ck_tile::null_type;
 
@@ -54,6 +55,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<YDataType> y_host_dev({m, n}, {stride, 1});
 
     ck_tile::HostTensor<InvRmsDataType> invRms_host_ref({m});
+
+    ck_tile::HostTensor<UnquantYDataType> unquant_y_host_ref({m, n}, {stride, 1});
 
     ck_tile::FillUniformDistribution<XDataType>{-.5f, .5f}(x_host);
     ck_tile::FillUniformDistribution<GammaDataType>{-.5f, .5f}(gamma_host);
@@ -76,6 +79,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using PipelineTraits =
         ck_tile::Rmsnorm2dFwdTraits<true,  // kPadN
                                     false, // kSaveInvRms
+                                    false, // kSaveUnquant
                                     kTwoPass,
                                     ck_tile::Rmsnorm2dFusedAddEnum::NO_ADD,      // fuse add
                                     ck_tile::Rmsnorm2dFusedQuantEnum::NO_SWEEP>; // fuse quant
@@ -85,6 +89,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                          ComputeDataType,
                                                          YDataType,
                                                          InvRmsDataType,
+                                                         UnquantYDataType,
                                                          SmoothScaleDataType,
                                                          YScaleDataType,
                                                          Shape,
@@ -105,6 +110,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        nullptr,
                                        gamma_buf.GetDeviceBuffer(),
                                        y_buf.GetDeviceBuffer(),
+                                       nullptr,
                                        nullptr,
                                        nullptr,
                                        nullptr,
@@ -135,8 +141,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                          GammaDataType,
                                          ComputeDataType,
                                          YDataType,
-                                         InvRmsDataType>(
-            x_host, gamma_host, y_host_ref, invRms_host_ref, epsilon);
+                                         InvRmsDataType,
+                                         UnquantYDataType>(
+            x_host, gamma_host, y_host_ref, invRms_host_ref, unquant_y_host_ref, epsilon);
 
         y_buf.FromDevice(y_host_dev.data());
 

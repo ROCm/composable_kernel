@@ -22,3 +22,6 @@ if(USE_BITINT_EXTENSION_INT4)
     add_example_executable(example_batched_gemm_xdl_int4 batched_gemm_xdl_int4.cpp)
     add_example_dependencies(example_batched_gemm_xdl example_batched_gemm_xdl_int4)
 endif()
+
+add_example_executable(example_batched_gemm_xdl_fp16int4_b_scale_v3 batched_gemm_xdl_fp16int4_b_scale_v3.cpp)
+add_example_dependencies(example_batched_gemm_xdl example_batched_gemm_xdl_fp16int4_b_scale_v3)

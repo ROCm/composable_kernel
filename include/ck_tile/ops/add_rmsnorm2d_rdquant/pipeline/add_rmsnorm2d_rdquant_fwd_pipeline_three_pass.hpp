@@ -260,7 +260,7 @@ struct AddRmsnorm2dRdquantFwdPipelineThreePass
                 const auto x_ = type_convert<ComputeDataType>(x[idx]);
                 auto y_       = x_ * inv_rms[i_idx] * gamma_;
                 auto qy_      = y_ / yscale[i_idx];
-                qy(idx)       = saturates<QYDataType>{}(qy_);
+                qy(idx)       = type_convert<QYDataType>(saturates<QYDataType>{}(qy_));
             });
 
             store_tile(qy_window, qy);

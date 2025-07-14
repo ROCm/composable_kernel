@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include <iomanip>
 
 #include "ck/ck.hpp"
+#include "ck/utility/env.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm_splitk.hpp"
