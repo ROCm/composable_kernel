@@ -12,27 +12,6 @@ static constexpr inline auto is_row_major(Layout layout_)
                                                  ck_tile::tensor_layout::gemm::RowMajor>>{};
 }
 
-template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
-auto calculate_rtol_atol(const ck_tile::index_t K,
-                         const ck_tile::index_t kbatch,
-                         const float max_accumulated_value)
-{
-    using ComputeType =
-        std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
-    // Calculate thresholds
-    const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType, AccDataType>(
-        ck_tile::integer_divide_ceil(K, kbatch));
-    const auto atol = ck_tile::get_absolute_threshold<ComputeType, CDataType, AccDataType>(
-        max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
-    // Calculate error due to split_k accumulation
-    const auto rtol_split_k =
-        ck_tile::get_relative_threshold<CDataType, CDataType, CDataType>(kbatch);
-    const auto atol_split_k = ck_tile::get_absolute_threshold<CDataType, CDataType, CDataType>(
-        max_accumulated_value, kbatch);
-    // Use higher threshold
-    return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
-}
-
 template <typename ADataType,
           typename AQDataType,
           typename BDataType,
@@ -133,7 +112,11 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::index_t N = arg_parser.get_int("n");
     ck_tile::index_t K = arg_parser.get_int("k");
 
-    assert(K % QuantGroupSize == 0 && "K must be aligned with QuantGroupSize");
+    if(K % QuantGroupSize != 0)
+    {
+        throw std::runtime_error("K must be aligned with QuantGroupSize");
+    }
+
     ck_tile::index_t AQK = K / QuantGroupSize;
 
     ck_tile::index_t stride_A  = arg_parser.get_int("stride_a");
@@ -220,9 +203,6 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::DeviceMem aq_m_aqk_dev_buf(aq_m_aqk.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
-
-    // static_assert(!GemmConfig::PermuteA, "Not implemented");
-    // static_assert(!GemmConfig::PermuteB, "Not implemented");
 
     a_m_k_dev_buf.ToDevice(a_m_k.data());
     aq_m_aqk_dev_buf.ToDevice(aq_m_aqk.data());

@@ -4,6 +4,7 @@
 #include <cstring>
 #include <iostream>
 #include <ostream>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 
@@ -86,24 +87,24 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
                                                tail_number_v>;
         using CodegenGemmPipeline = ck_tile::AQuantGemmPipelineAgBgCrCompV3<CodegenPipelineProblem>;
         using GemmEpilogue        = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<ADataType,
-                                             BDataType,
-                                             ck_tile::tuple<>,
-                                             AccDataType,
-                                             CDataType,
-                                             ck_tile::tuple<>,
-                                             CLayout,
-                                             ck_tile::element_wise::PassThrough,
-                                             CodegenPipelineProblem::kBlockSize,
-                                             TilePartitioner::MPerBlock,
-                                             TilePartitioner::NPerBlock,
-                                             M_Warp,
-                                             N_Warp,
-                                             M_Warp_Tile,
-                                             N_Warp_Tile,
-                                             K_Warp_Tile,
-                                             transposed_warp_gemm,
-                                             ck_tile::memory_operation_enum::set>>;
+                   ck_tile::CShuffleEpilogueProblem<ADataType,
+                                                    BDataType,
+                                                    ck_tile::tuple<>,
+                                                    AccDataType,
+                                                    CDataType,
+                                                    ck_tile::tuple<>,
+                                                    CLayout,
+                                                    ck_tile::element_wise::PassThrough,
+                                                    CodegenPipelineProblem::kBlockSize,
+                                                    TilePartitioner::MPerBlock,
+                                                    TilePartitioner::NPerBlock,
+                                                    M_Warp,
+                                                    N_Warp,
+                                                    M_Warp_Tile,
+                                                    N_Warp_Tile,
+                                                    K_Warp_Tile,
+                                                    transposed_warp_gemm,
+                                                    ck_tile::memory_operation_enum::set>>;
         using Kernel =
             ck_tile::AQuantGemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
 
@@ -112,7 +113,10 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
         const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
         constexpr dim3 blocks = Kernel::BlockSize();
 
-        assert(args.k_batch == 1 && "split-k is not supported yet!");
+        if(args.k_batch != 1)
+        {
+            throw std::runtime_error("split-k is not supported yet!");
+        }
 
         if(!Kernel::IsSupportedArgument(kargs))
         {
@@ -240,14 +244,18 @@ int run_gemm_example(int argc, char* argv[])
     }
     else if(data_type == "i4fp8")
     {
-        using TypeConfig = decltype(
-            GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::fp8_t, float, ck_tile::fp8_t>{});
+        using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t,
+                                                        ck_tile::fp8_t,
+                                                        float,
+                                                        ck_tile::fp8_t>{});
         return run_gemm_example_prec_type<TypeConfig, 128>(a_layout, b_layout, argc, argv);
     }
     else if(data_type == "i4bf8")
     {
-        using TypeConfig = decltype(
-            GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::bf8_t, float, ck_tile::bf8_t>{});
+        using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t,
+                                                        ck_tile::bf8_t,
+                                                        float,
+                                                        ck_tile::bf8_t>{});
         return run_gemm_example_prec_type<TypeConfig, 128>(a_layout, b_layout, argc, argv);
     }
     else if(data_type == "i4f32fp8")
