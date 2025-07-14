@@ -1,23 +1,35 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/core/config.hpp"
-#include "ck_tile/host/stream_config.hpp"
+#include "ck_tile/core/utility/ignore.hpp"
 #include "ck_tile/host/hip_check_error.hpp"
+#include "ck_tile/host/stream_config.hpp"
 #include "ck_tile/host/timer.hpp"
-#include <hip/hip_runtime.h>
 #include <cstddef>
+#include <hip/hip_runtime.h>
 
 namespace ck_tile {
+
+#define LOW_CU_PROCESSORS 80
+#define HIGH_CU_PROCESSORS 228
+#define OPTIMAL_LATENCY_LOW_CU_PROCESSORS 0.005
+#define OPTIMAL_LATENCY_HIGH_CU_PROCESSORS 0.0015
+#define OPTIMAL_LATENCY_SAFE_MARGIN 0.01
+
 template <int MaxThreadPerBlock, int MinBlockPerCu, typename Kernel, typename... Args>
 #if CK_TILE_USE_LAUNCH_BOUNDS
 __launch_bounds__(MaxThreadPerBlock, MinBlockPerCu)
 #endif
     __global__ void kentry(Args... args)
 {
+#if defined(__HIP_DEVICE_COMPILE__)
     Kernel{}(args...);
+#else
+    (..., (ignore = args, 0));
+#endif
 }
 
 //
@@ -39,6 +51,16 @@ make_kernel(KernelImpl /*f*/, dim3 grid_dim, dim3 block_dim, std::size_t lds_byt
     return [=](const stream_config& s) {
         kernel<<<grid_dim, block_dim, lds_byte, s.stream_id_>>>(args...);
     };
+}
+
+template <typename... Callables>
+CK_TILE_HOST void launch_and_check(const stream_config& sc, Callables&&... callables)
+{
+    // abort the sequence in case of intermediate error
+    if(!((static_cast<void>(callables(sc)), hipPeekAtLastError() == hipSuccess) && ...))
+    {
+        HIP_CHECK_ERROR(hipGetLastError());
+    }
 }
 
 // clang-format off
@@ -69,38 +91,90 @@ make_kernel(KernelImpl /*f*/, dim3 grid_dim, dim3 block_dim, std::size_t lds_byt
  **/
 // clang-format on
 template <typename... Callables>
-CK_TILE_HOST float launch_kernel(const stream_config& s, Callables... callables)
+CK_TILE_HOST float launch_kernel(const stream_config& s, Callables&&... callables)
 {
-    // clang-format off
-    if(!s.time_kernel_) {
-        (callables(s),...); hip_check_error(hipGetLastError());
+    static_assert(sizeof...(callables) > 0, "At least one callable is required!");
+
+    if(!s.time_kernel_)
+    {
+        launch_and_check(s, std::forward<Callables>(callables)...);
         return 0;
     }
-    if(s.is_gpu_timer_) {
-        gpu_timer timer {};
 
-        // warmup
-        for(int i = 0; i < s.cold_niters_; i++) { (callables(s),...); } hip_check_error(hipGetLastError());
+    auto time_launches = [&](auto timer) {
+        // Warmup
+        for(int i = 0; i < s.cold_niters_; i++)
+        {
+            launch_and_check(s, std::forward<Callables>(callables)...);
+        }
 
         timer.start(s.stream_id_);
-        for(int i = 0; i < s.nrepeat_; i++) { (callables(s),...); } hip_check_error(hipGetLastError());
+        for(int i = 0; i < s.nrepeat_; i++)
+        {
+            launch_and_check(s, std::forward<Callables>(callables)...);
+        }
         timer.stop(s.stream_id_);
 
         return timer.duration() / s.nrepeat_;
+    };
+
+    if(s.is_gpu_timer_)
+    {
+        return time_launches(gpu_timer{});
     }
-    else {
-        cpu_timer timer {};
-
-        // warmup
-        for(int i = 0; i < s.cold_niters_; i++) { (callables(s),...); } hip_check_error(hipGetLastError());
-
-        timer.start(s.stream_id_);
-        for(int i = 0; i < s.nrepeat_; i++) { (callables(s),...); } hip_check_error(hipGetLastError());
-        timer.stop(s.stream_id_);
-
-        return timer.duration() / s.nrepeat_;
+    else
+    {
+        return time_launches(cpu_timer{});
     }
-    // clang-format on
 }
 
+template <typename PreprocessFunc, typename... Callables>
+CK_TILE_HOST float launch_kernel_preprocess(const stream_config& s,
+                                            PreprocessFunc preprocess,
+                                            Callables&&... callables)
+{
+    static_assert(sizeof...(callables) > 0, "At least one callable is required!");
+
+    if(!s.time_kernel_)
+    {
+        preprocess();
+        launch_and_check(s, std::forward<Callables>(callables)...);
+        return 0;
+    }
+
+    auto time_launches = [&](auto timer) {
+        // Warmup
+        for(int i = 0; i < s.cold_niters_; i++)
+        {
+            launch_and_check(s, std::forward<Callables>(callables)...);
+        }
+
+        timer.start(s.stream_id_);
+        for(int i = 0; i < s.nrepeat_; i++)
+        {
+            preprocess();
+            launch_and_check(s, std::forward<Callables>(callables)...);
+        }
+        timer.stop(s.stream_id_);
+
+        hipDeviceProp_t deviceProps;
+        HIP_CHECK_ERROR(hipGetDeviceProperties(&deviceProps, 0));
+
+        float preprocess_offset = (deviceProps.multiProcessorCount >= HIGH_CU_PROCESSORS)
+                                      ? OPTIMAL_LATENCY_HIGH_CU_PROCESSORS
+                                  : (deviceProps.multiProcessorCount == LOW_CU_PROCESSORS)
+                                      ? OPTIMAL_LATENCY_LOW_CU_PROCESSORS
+                                      : OPTIMAL_LATENCY_SAFE_MARGIN;
+        return (timer.duration() - preprocess_offset * s.nrepeat_) / s.nrepeat_;
+    };
+
+    if(s.is_gpu_timer_)
+    {
+        return time_launches(gpu_timer{});
+    }
+    else
+    {
+        return time_launches(cpu_timer{});
+    }
+}
 } // namespace ck_tile

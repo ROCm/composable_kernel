@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -39,16 +39,13 @@ namespace {
 std::vector<int> argToIntArray(char* input)
 {
     std::vector<int> out;
-
     std::istringstream in(input);
-
     std::string item;
 
     while(std::getline(in, item, ','))
     {
         out.push_back(std::stoi(item));
     }
-
     return out;
 }
 
@@ -69,7 +66,7 @@ int profile_grouped_gemm(int argc, char* argv[])
             << "arg7: time kernel (0=n0, 1=yes)\n"
             << "arg8 to 13: Ms, Ns, Ks, StrideAs, StrideBs, StrideCs (e.g., 256,256 128,128 64,64 "
                "64,64 64,64 128,128)\n"
-            << "arg15: kbatch value (default 1)\n"
+            << "arg15: kbatch values (default 1)\n"
             << "optional:\n"
             << "arg16: number of warm-up cycles (default 1)\n"
             << "arg17: number of iterations (default 10)\n"
@@ -92,7 +89,7 @@ int profile_grouped_gemm(int argc, char* argv[])
     const auto StrideAs = argToIntArray(argv[11]);
     const auto StrideBs = argToIntArray(argv[12]);
     const auto StrideCs = argToIntArray(argv[13]);
-    const int kbatch    = argc == 15 ? std::stoi(argv[14]) : 1;
+    const auto kbatches = argc >= 15 ? argToIntArray(argv[14]) : std::vector<int>{};
 
     int n_warmup = 1;
     int n_iter   = 10;
@@ -102,7 +99,6 @@ int profile_grouped_gemm(int argc, char* argv[])
         n_iter   = std::stoi(argv[16]);
     }
 
-#ifdef CK_ENABLE_FP16
     if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         ck::profiler::profile_grouped_gemm_impl<ck::half_t,
@@ -121,7 +117,7 @@ int profile_grouped_gemm(int argc, char* argv[])
                                                                                    StrideAs,
                                                                                    StrideBs,
                                                                                    StrideCs,
-                                                                                   kbatch,
+                                                                                   kbatches,
                                                                                    n_warmup,
                                                                                    n_iter);
     }
@@ -143,7 +139,7 @@ int profile_grouped_gemm(int argc, char* argv[])
                                                                                    StrideAs,
                                                                                    StrideBs,
                                                                                    StrideCs,
-                                                                                   kbatch,
+                                                                                   kbatches,
                                                                                    n_warmup,
                                                                                    n_iter);
     }
@@ -165,7 +161,7 @@ int profile_grouped_gemm(int argc, char* argv[])
                                                                                    StrideAs,
                                                                                    StrideBs,
                                                                                    StrideCs,
-                                                                                   kbatch,
+                                                                                   kbatches,
                                                                                    n_warmup,
                                                                                    n_iter);
     }
@@ -187,7 +183,7 @@ int profile_grouped_gemm(int argc, char* argv[])
                                                                                    StrideAs,
                                                                                    StrideBs,
                                                                                    StrideCs,
-                                                                                   kbatch,
+                                                                                   kbatches,
                                                                                    n_warmup,
                                                                                    n_iter);
     }
@@ -209,7 +205,7 @@ int profile_grouped_gemm(int argc, char* argv[])
                                                                                    StrideAs,
                                                                                    StrideBs,
                                                                                    StrideCs,
-                                                                                   kbatch,
+                                                                                   kbatches,
                                                                                    n_warmup,
                                                                                    n_iter);
     }
@@ -231,7 +227,73 @@ int profile_grouped_gemm(int argc, char* argv[])
                                                                                    StrideAs,
                                                                                    StrideBs,
                                                                                    StrideCs,
-                                                                                   kbatch,
+                                                                                   kbatches,
+                                                                                   n_warmup,
+                                                                                   n_iter);
+    }
+    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
+    {
+        ck::profiler::profile_grouped_gemm_impl<ck::bhalf_t,
+                                                ck::bhalf_t,
+                                                ck::bhalf_t,
+                                                float,
+                                                ck::tensor_layout::gemm::RowMajor,
+                                                ck::tensor_layout::gemm::RowMajor,
+                                                ck::tensor_layout::gemm::RowMajor>(do_verification,
+                                                                                   init_method,
+                                                                                   do_log,
+                                                                                   time_kernel,
+                                                                                   Ms,
+                                                                                   Ns,
+                                                                                   Ks,
+                                                                                   StrideAs,
+                                                                                   StrideBs,
+                                                                                   StrideCs,
+                                                                                   kbatches,
+                                                                                   n_warmup,
+                                                                                   n_iter);
+    }
+    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        ck::profiler::profile_grouped_gemm_impl<ck::bhalf_t,
+                                                ck::bhalf_t,
+                                                ck::bhalf_t,
+                                                float,
+                                                ck::tensor_layout::gemm::RowMajor,
+                                                ck::tensor_layout::gemm::ColumnMajor,
+                                                ck::tensor_layout::gemm::RowMajor>(do_verification,
+                                                                                   init_method,
+                                                                                   do_log,
+                                                                                   time_kernel,
+                                                                                   Ms,
+                                                                                   Ns,
+                                                                                   Ks,
+                                                                                   StrideAs,
+                                                                                   StrideBs,
+                                                                                   StrideCs,
+                                                                                   kbatches,
+                                                                                   n_warmup,
+                                                                                   n_iter);
+    }
+    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::KM_KN_MN)
+    {
+        ck::profiler::profile_grouped_gemm_impl<ck::bhalf_t,
+                                                ck::bhalf_t,
+                                                ck::bhalf_t,
+                                                float,
+                                                ck::tensor_layout::gemm::ColumnMajor,
+                                                ck::tensor_layout::gemm::RowMajor,
+                                                ck::tensor_layout::gemm::RowMajor>(do_verification,
+                                                                                   init_method,
+                                                                                   do_log,
+                                                                                   time_kernel,
+                                                                                   Ms,
+                                                                                   Ns,
+                                                                                   Ks,
+                                                                                   StrideAs,
+                                                                                   StrideBs,
+                                                                                   StrideCs,
+                                                                                   kbatches,
                                                                                    n_warmup,
                                                                                    n_iter);
     }
@@ -239,7 +301,6 @@ int profile_grouped_gemm(int argc, char* argv[])
     {
         throw std::runtime_error("wrong! this GEMM data_type & layout is not implemented");
     }
-#endif
     return 0;
 }
 

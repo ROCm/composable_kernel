@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -62,27 +62,74 @@ struct ReferenceGemm : public device::BaseOperator
             auto f_mk_kn_mn = [&](auto m, auto n) {
                 const int K = arg.a_m_k_.mDesc.GetLengths()[1];
 
-                AccDataType v_acc = 0;
-                ComputeTypeA v_a  = 0;
-                ComputeTypeB v_b  = 0;
+                AccDataType v_acc{0};
+                ComputeTypeA v_a{0};
+                ComputeTypeB v_b{0};
 
                 for(int k = 0; k < K; ++k)
                 {
-                    // use PassThrough instead of ConvertBF16RTN for reference calculation
-                    if constexpr(is_same_v<AElementwiseOperation,
-                                           ck::tensor_operation::element_wise::ConvertBF16RTN>)
+                    if constexpr(is_same_v<ADataType, pk_i4_t>)
                     {
-                        ck::tensor_operation::element_wise::PassThrough{}(v_a, arg.a_m_k_(m, k));
+                        uint8_t i4x2 = arg.a_m_k_(m, k).data;
+                        int8_t i4    = 0;
+                        if(k % 2 == 1)
+                            i4 = (i4x2 >> 0) & 0xf;
+                        else
+                            i4 = (i4x2 >> 4) & 0xf;
+                        i4  = i4 - 8;
+                        v_a = type_convert<ComputeTypeA>(i4);
+                    }
+                    else if constexpr(is_same_v<ADataType, f4x2_pk_t>)
+                    {
+                        // TODO: add support for ColMajor layout as well
+                        if(k % 2 == 1)
+                            v_a = type_convert<ComputeTypeA>(
+                                f4_t(arg.a_m_k_(m, k).template unpack<>(Number<1>{})));
+                        else
+                            v_a = type_convert<ComputeTypeA>(
+                                f4_t(arg.a_m_k_(m, k).template unpack<>(Number<0>{})));
+                    }
+                    else if constexpr(is_same_v<ADataType, f6x16_pk_t> ||
+                                      is_same_v<ADataType, bf6x16_pk_t> ||
+                                      is_same_v<ADataType, f6x32_pk_t> ||
+                                      is_same_v<ADataType, bf6x32_pk_t>)
+                    {
+                        v_a = type_convert<ComputeTypeA>(
+                            arg.a_m_k_(m, k).unpack(k % ADataType::packed_size));
                     }
                     else
                     {
                         arg.a_element_op_(v_a, arg.a_m_k_(m, k));
                     }
-                    // same for B matrix
-                    if constexpr(is_same_v<BElementwiseOperation,
-                                           ck::tensor_operation::element_wise::ConvertBF16RTN>)
+
+                    if constexpr(is_same_v<BDataType, pk_i4_t>)
                     {
-                        ck::tensor_operation::element_wise::PassThrough{}(v_b, arg.b_k_n_(k, n));
+                        uint8_t i4x2 = arg.b_k_n_(k, n).data;
+                        int8_t i4    = 0;
+                        if(k % 2 == 1)
+                            i4 = (i4x2 >> 0) & 0xf;
+                        else
+                            i4 = (i4x2 >> 4) & 0xf;
+                        i4  = i4 - 8;
+                        v_b = type_convert<ComputeTypeB>(i4);
+                    }
+                    else if constexpr(is_same_v<BDataType, f4x2_pk_t>)
+                    {
+                        // TODO: add support for RowMajor layout as well
+                        if(k % 2 == 1)
+                            v_b = type_convert<ComputeTypeB>(
+                                f4_t(arg.b_k_n_(k, n).template unpack<>(Number<1>{})));
+                        else
+                            v_b = type_convert<ComputeTypeB>(
+                                f4_t(arg.b_k_n_(k, n).template unpack<>(Number<0>{})));
+                    }
+                    else if constexpr(is_same_v<BDataType, f6x16_pk_t> ||
+                                      is_same_v<BDataType, bf6x16_pk_t> ||
+                                      is_same_v<BDataType, f6x32_pk_t> ||
+                                      is_same_v<BDataType, bf6x32_pk_t>)
+                    {
+                        v_b = type_convert<ComputeTypeB>(
+                            arg.b_k_n_(k, n).unpack(k % BDataType::packed_size));
                     }
                     else
                     {
@@ -93,7 +140,7 @@ struct ReferenceGemm : public device::BaseOperator
                         ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
                 }
 
-                CDataType v_c = 0;
+                CDataType v_c{0};
 
                 arg.c_element_op_(v_c, v_acc);
 

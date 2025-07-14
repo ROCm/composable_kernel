@@ -3,88 +3,6 @@
 
 #pragma once
 
-template <typename DataType>
-inline __host__ __device__ constexpr double get_rtol()
-{
-    if constexpr(std::is_same_v<DataType, float>)
-    {
-        return 1e-3;
-    }
-    else if constexpr(std::is_same_v<DataType, double>)
-    {
-        return 1e-6;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::half_t>)
-    {
-        return 1e-3;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
-    {
-        return 5e-2;
-    }
-    else if constexpr(std::is_same_v<DataType, int32_t>)
-    {
-        return 1e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, int8_t>)
-    {
-        return 1e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::f8_t>)
-    {
-        return 1e-1; // 240 and 224 are acceptable
-    }
-    else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
-    {
-        return 1.5e-1; // 57344 and 49152 are acceptable
-    }
-    else
-    {
-        return 1e-3;
-    }
-}
-
-template <typename DataType>
-inline __host__ __device__ constexpr double get_atol()
-{
-    if constexpr(std::is_same_v<DataType, float>)
-    {
-        return 1e-3;
-    }
-    else if constexpr(std::is_same_v<DataType, double>)
-    {
-        return 1e-6;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::half_t>)
-    {
-        return 1e-3;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
-    {
-        return 5e-2;
-    }
-    else if constexpr(std::is_same_v<DataType, int32_t>)
-    {
-        return 1e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, int8_t>)
-    {
-        return 1e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::f8_t>)
-    {
-        return 16.1; // 240 and 224 are acceptable
-    }
-    else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
-    {
-        return 8192.1; // 57344 and 49152 are acceptable
-    }
-    else
-    {
-        return 1e-3;
-    }
-}
-
 template <typename ProblemType>
 bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 {
@@ -103,6 +21,16 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     auto Grid_size   = problem_size.Grid_size;
     auto Streamk_sel = problem_size.Streamk_sel;
 
+    auto reduction_strategy = problem_size.reduction_strategy;
+    if(reduction_strategy == ck::StreamKReductionStrategy::Atomic)
+    {
+        std::cout << "Using Atomic reduction strategy" << std::endl;
+    }
+    else
+    {
+        std::cout << "Using Parallel reduction strategy" << std::endl;
+    }
+
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
@@ -117,7 +45,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
     auto f_get_default_stride =
         [](std::size_t row, std::size_t col, ck::index_t stride, auto layout) {
-            if(stride == -1)
+            if(stride == -1 || stride == 0)
             {
                 // give a chance if stride is -1, return a default packed stride
                 if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
@@ -176,6 +104,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    Tensor<CDataType> c_m_n_device_ref_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
@@ -196,6 +125,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem c_m_n_device_ref_buf(sizeof(CDataType) *
+                                   c_m_n_device_ref_result.mDesc.GetElementSpaceSize());
 
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n.mData.data());
@@ -231,7 +162,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         Grid_size,
         a_element_op,
         b_element_op,
-        c_element_op);
+        c_element_op,
+        reduction_strategy);
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -240,8 +172,15 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         return true;
     }
 
+    std::size_t workspace_size = gemm.GetWorkSpaceSize(&argument);
+    if(workspace_size != 0)
+    {
+        workspace.Realloc(workspace_size);
+        gemm.SetWorkSpacePointer(&argument, workspace.GetDeviceBuffer());
+    }
+
     bool pass = true;
-    if(config.do_verification)
+    if((config.do_verification == 1) || (config.do_verification == 3))
     {
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
@@ -271,6 +210,36 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 #endif
     }
 
+    if((config.do_verification == 2) || (config.do_verification == 3))
+    {
+        // GPU verification
+        auto ref_gemm_gpu    = ReferenceGemmInstanceGPU{};
+        auto ref_invoker_gpu = ref_gemm_gpu.MakeInvoker();
+
+        auto ref_argument_gpu = ref_gemm_gpu.MakeArgument(
+            static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+            static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+            static_cast<CDataType*>(c_m_n_device_ref_buf.GetDeviceBuffer()),
+            M,
+            N,
+            K,
+            a_element_op,
+            b_element_op,
+            c_element_op);
+
+        std::cout << "Running verification on GPU." << std::endl;
+        ref_invoker_gpu.Run(ref_argument_gpu, StreamConfig{});
+
+        c_m_n_device_ref_buf.FromDevice(c_m_n_device_ref_result.mData.data());
+        c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
+
+        pass &= ck::utils::check_err(c_m_n_device_result,
+                                     c_m_n_device_ref_result,
+                                     "Error: Incorrect results!",
+                                     get_rtol<CDataType>(),
+                                     get_atol<CDataType>());
+    }
+
     if(config.time_kernel)
     {
         ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
@@ -284,7 +253,10 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         float gb_per_sec = num_btype / 1.E6 / ave_time;
 
         std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                  << " GB/s, " << gemm.GetTypeString() << std::endl;
+                  << " GB/s, " << gemm.GetTypeString()
+                  << (reduction_strategy == ck::StreamKReductionStrategy::Atomic ? " (Atomic)"
+                                                                                 : " (Reduction)")
+                  << std::endl;
     }
     return pass;
 }

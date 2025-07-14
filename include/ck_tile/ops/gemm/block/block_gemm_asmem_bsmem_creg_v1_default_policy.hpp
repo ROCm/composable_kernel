@@ -49,6 +49,10 @@ struct BlockGemmASmemBSmemCRegV1DefaultPolicy
         {
             return make_tuple(WarpGemmMfmaBf16Bf16F32M32N32K16TransposedCDistribution{}, 4, 1);
         }
+        else
+        {
+            static_assert(false, "Unsupported data type configuration for GEMM warp execution.");
+        }
     }
 };
 

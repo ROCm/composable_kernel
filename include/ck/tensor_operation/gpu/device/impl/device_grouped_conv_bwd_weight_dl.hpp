@@ -1039,14 +1039,14 @@ struct DeviceGroupedConvBwdWeight_Dl : public DeviceGroupedConvBwdWeight<NDimSpa
             return false;
 
         if constexpr(!((NDimSpatial == 1 &&
-                        (is_NWGK_GKXC_NWGC<InLayout, WeiLayout, OutLayout>() ||
-                         is_GNWK_GKXC_GNWC<InLayout, WeiLayout, OutLayout>())) ||
+                        (is_NWGC_GKXC_NWGK<InLayout, WeiLayout, OutLayout>() ||
+                         is_GNWC_GKXC_GNWK<InLayout, WeiLayout, OutLayout>())) ||
                        (NDimSpatial == 2 &&
-                        (is_NHWGK_GKYXC_NHWGC<InLayout, WeiLayout, OutLayout>() ||
-                         is_GNHWK_GKYXC_GNHWC<InLayout, WeiLayout, OutLayout>())) ||
+                        (is_NHWGC_GKYXC_NHWGK<InLayout, WeiLayout, OutLayout>() ||
+                         is_GNHWC_GKYXC_GNHWK<InLayout, WeiLayout, OutLayout>())) ||
                        (NDimSpatial == 3 &&
-                        (is_NDHWGK_GKZYXC_NDHWGC<InLayout, WeiLayout, OutLayout>() ||
-                         is_GNDHWK_GKZYXC_GNDHWC<InLayout, WeiLayout, OutLayout>()))))
+                        (is_NDHWGC_GKZYXC_NDHWGK<InLayout, WeiLayout, OutLayout>() ||
+                         is_GNDHWC_GKZYXC_GNDHWK<InLayout, WeiLayout, OutLayout>()))))
         {
             return false;
         }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "fmha_bwd.hpp"
 #include "ck_tile/host.hpp"
@@ -85,24 +85,44 @@ auto create_args(int argc, char* argv[])
         .insert("p_drop", "0", "0~1 probability of dropout")
         .insert("drop_seed", "1", "seed for random number generator")
         .insert("drop_offset", "0", "offset for random number generator")
+        .insert("drop_prefs",
+                "0",
+                "seed and offset values are present on GPU; 0 - host, 1 - device/GPU")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
-        .insert("repeat", "20", "number of iterations to benchmark the kernel");
+        .insert("repeat", "20", "number of iterations to benchmark the kernel")
+        .insert("deterministic",
+                "0",
+                "if set to 1 will use multi-buffer reduction strategy for dq, atomic opeartion "
+                "will not be used");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
 
 // different threshold for different dtype
-template <typename DataType>
-auto get_elimit(int /*init_method*/)
+template <typename DataTypeConfig>
+auto get_elimit(ck_tile::index_t /*hdim_q*/, ck_tile::index_t /*hdim_v*/)
 {
     double rtol = 1e-2;
     double atol = 1e-2;
     return ck_tile::make_tuple(rtol, atol);
 }
 
-template <typename DataType>
+template <>
+auto get_elimit<FmhaBwdBf16>(ck_tile::index_t hdim_q, ck_tile::index_t hdim_v)
+{
+    double rtol = 1e-2;
+    double atol = 1e-2;
+    if(hdim_q > 128 && hdim_v > 128) // 3.2 for RTZ/1.5 for RTN
+    {
+        rtol = 3.2e-2;
+        atol = 3.2e-2;
+    }
+    return ck_tile::make_tuple(rtol, atol);
+}
+
+template <typename DataTypeConfig>
 bool run(const ck_tile::ArgParser& arg_parser)
 {
     std::string data_type    = arg_parser.get_str("prec");
@@ -128,11 +148,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::index_t hdim_v = arg_parser.get_int("d_v");
     if(hdim_v < 0)
         hdim_v = hdim_q;
-    if(hdim_q % 2 != 0 || hdim_v % 2 != 0)
-    {
-        std::cerr << "FMHA Bwd kernel currently only supports even headdim" << std::endl;
-        return false;
-    }
 
     bool i_perm = arg_parser.get_bool("iperm"); // if true, will be batch * nhead * seqlen * hdim
     bool o_perm = arg_parser.get_bool("operm"); // if false, will be batch * seqlen * nhead * hdim
@@ -146,6 +161,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     float p_drop         = arg_parser.get_float("p_drop");
     uint64_t drop_seed   = arg_parser.get_uint64("drop_seed");
     uint64_t drop_offset = arg_parser.get_uint64("drop_offset");
+    bool drop_prefs      = arg_parser.get_bool("drop_prefs");
+
     if(use_dbias && bias.type != bias_enum::elementwise_bias)
     {
         std::cerr << "dbias only exists when bias type is elementwise" << std::endl;
@@ -177,9 +194,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
         seed.reset();
     }
 
-    int stream_warmup = arg_parser.get_int("warmup");
-    int stream_repeat = arg_parser.get_int("repeat");
-    bool kname        = arg_parser.get_bool("kname");
+    int stream_warmup  = arg_parser.get_int("warmup");
+    int stream_repeat  = arg_parser.get_int("repeat");
+    bool kname         = arg_parser.get_bool("kname");
+    bool deterministic = arg_parser.get_bool("deterministic");
 
     ck_tile::stream_config stream_config{nullptr,
                                          true,
@@ -191,7 +209,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     const auto seqstart_q_host = generate_seqstarts(mode, batch, seqlen_q);
     const auto seqstart_k_host = generate_seqstarts(mode, batch, seqlen_k);
 
-    using TypeConfig = FmhaBwdTypeConfig<DataType>;
+    using TypeConfig = FmhaBwdTypeConfig<DataTypeConfig>;
 
     using QDataType             = typename TypeConfig::QDataType;
     using KDataType             = typename TypeConfig::KDataType;
@@ -265,6 +283,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
         (mode == mode_enum::batch ? seqlen_q : seqstart_q_host.back());
     const ck_tile::index_t shape_seqlen_k =
         (mode == mode_enum::batch ? seqlen_k : seqstart_k_host.back());
+    const ck_tile::index_t kN0 = (hdim_q <= 128) ? 128 : 64;
+    const ck_tile::index_t nsplits =
+        deterministic ? ck_tile::integer_divide_ceil(max_seqlen_k, kN0) : 1;
 
     ck_tile::HostTensor<QDataType> q_host(
         get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, hdim_q));
@@ -284,9 +305,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<ODataType> o_host(
         get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
     ck_tile::HostTensor<LSEDataType> lse_host(
-        std::array<ck_tile::index_t, 3>{batch, nhead, max_seqlen_q});
+        std::array<ck_tile::index_t, 3>{shape_batch, nhead, shape_seqlen_q});
     ck_tile::HostTensor<DDataType> d_host(
-        std::array<ck_tile::index_t, 3>{batch, nhead, max_seqlen_q});
+        std::array<ck_tile::index_t, 3>{shape_batch, nhead, shape_seqlen_q});
     ck_tile::HostTensor<RandValOutputDataType> randval_host(
         p_drop > 0 ? get_lengths(true, shape_batch, nhead, shape_seqlen_q, max_seqlen_k)
                    : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
@@ -302,6 +323,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
         use_dbias
             ? get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, max_seqlen_k)
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
+    ck_tile::HostTensor<AccDataType> dq_acc_host(
+        i_perm
+            ? std::array<ck_tile::index_t, 5>{nsplits, shape_batch, nhead, shape_seqlen_q, hdim_q}
+            : std::array<ck_tile::index_t, 5>{nsplits, shape_batch, shape_seqlen_q, nhead, hdim_q});
 
     if(init_method == 0)
     {
@@ -330,7 +355,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(bias.type == bias_enum::alibi)
     {
         auto slopes = ck_tile::get_alibi_slopes<AccDataType>(nhead);
-        assert(slopes.size() == nhead);
+        assert(slopes.size() == static_cast<decltype(slopes.size())>(nhead));
         if(bias.rank_info == 0)
         {
             // alibi in 1*h
@@ -361,7 +386,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem dbias_buf(dbias_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
+    ck_tile::DeviceMem drop_seed_buf(drop_prefs ? sizeof(uint64_t) : 0);
+    ck_tile::DeviceMem drop_offset_buf(drop_prefs ? sizeof(uint64_t) : 0);
     ck_tile::DeviceMem alibi_slope_buf(alibi_slope_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem dq_acc_buf(dq_acc_host.get_element_space_size_in_bytes());
 
     q_buf.ToDevice(q_host.data());
     k_buf.ToDevice(k_host.data());
@@ -370,6 +398,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     do_buf.ToDevice(do_host.data());
     seqstart_q.ToDevice(seqstart_q_host.data());
     seqstart_k.ToDevice(seqstart_k_host.data());
+    drop_seed_buf.ToDevice(drop_prefs ? &drop_seed : nullptr);
+    drop_offset_buf.ToDevice(drop_prefs ? &drop_offset : nullptr);
     alibi_slope_buf.ToDevice(alibi_slope_host.data());
 
     // clang-format off
@@ -387,8 +417,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
     std::cout << "[" << prec << "|" << mode << "|" << io_layout(i_perm, o_perm) << "] b:" << batch
               << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_q << "/" << seqlen_k
               << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale << ", bias:" << bias
-              << ", dbias:" << use_dbias << ", p_drop:" << p_drop << ", mask:" << mask
-              << std::flush;
+              << ", dbias:" << use_dbias << ", p_drop:" << p_drop << ", s_randval:" << s_randval
+              << ", deterministic:" << deterministic << ", mask:" << mask << std::flush;
+
+    std::size_t workspace_size =
+        dq_acc_host.get_element_space_size_in_bytes() * sizeof(AccDataType) / (1024 * 1024);
+
+    if(deterministic == 1)
+    {
+        std::cout << "\nDeterministic mode ON: " << workspace_size
+                  << " MByte memory workspace allocated" << std::endl;
+    }
 
     auto fmha_traits = fmha_bwd_traits{hdim_q,
                                        hdim_v,
@@ -397,7 +436,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        mask.type,
                                        bias.type,
                                        use_dbias,
-                                       p_drop > 0.0f};
+                                       p_drop > 0.0f,
+                                       s_randval,
+                                       deterministic};
     auto fmha_args   = [&]() {
         assert(nhead % nhead_k == 0);
         /// NOTE: we broadcast bias from [1, 1, seqlen_q, seqlen_k] to [batch, nhead, seqlen_q,
@@ -422,7 +463,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
         const ck_tile::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t nhead_stride_do      = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
-        const ck_tile::index_t nhead_stride_lsed    = max_seqlen_q;
+        const ck_tile::index_t nhead_stride_lsed    = shape_seqlen_q;
         const ck_tile::index_t nhead_stride_dbias =
             (i_perm ? shape_seqlen_q * max_seqlen_k : max_seqlen_k);
         // setup batch_stride_* arguments
@@ -433,10 +474,24 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t batch_stride_o       = (nhead * shape_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t batch_stride_do      = (nhead * shape_seqlen_q * hdim_v);
-        const ck_tile::index_t batch_stride_lsed    = (nhead * max_seqlen_q);
+        const ck_tile::index_t batch_stride_lsed    = (nhead * shape_seqlen_q);
         const ck_tile::index_t batch_stride_dk      = (nhead * shape_seqlen_k * hdim_q);
         const ck_tile::index_t batch_stride_dv      = (nhead * shape_seqlen_k * hdim_v);
         const ck_tile::index_t batch_stride_dbias   = (nhead * shape_seqlen_q * max_seqlen_k);
+        const ck_tile::index_t split_stride_dq_acc =
+            (shape_batch * nhead * shape_seqlen_q * hdim_q);
+
+        const auto drop_seed_offset = [&]() -> decltype(fmha_bwd_args::drop_seed_offset) {
+            if(drop_prefs)
+            {
+                return std::make_pair(drop_seed_buf.GetDeviceBuffer(),
+                                      drop_offset_buf.GetDeviceBuffer());
+            }
+            else
+            {
+                return std::make_pair(drop_seed, drop_offset);
+            }
+        }();
 
         return fmha_bwd_args{q_buf.GetDeviceBuffer(),
                              k_buf.GetDeviceBuffer(),
@@ -452,6 +507,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              dk_buf.GetDeviceBuffer(),
                              dv_buf.GetDeviceBuffer(),
                              dbias_buf.GetDeviceBuffer(),
+                             dq_acc_buf.GetDeviceBuffer(),
                              seqstart_q.GetDeviceBuffer(),
                              seqstart_k.GetDeviceBuffer(),
                              nullptr,
@@ -473,6 +529,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              stride_o,
                              stride_randval,
                              stride_do,
+                             stride_q, // stride_dq_acc
+                             stride_q, // stride_dq
                              stride_dk,
                              stride_dv,
                              stride_dbias,
@@ -484,6 +542,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              nhead_stride_randval,
                              nhead_stride_do,
                              nhead_stride_lsed,
+                             nhead_stride_q, // nhead_stride_dq_acc
+                             nhead_stride_q, // nhead_stride_dq
+                             nhead_stride_k, // nhead_stride_dk
+                             nhead_stride_v, // nhead_stride_dv
                              nhead_stride_dbias,
                              batch_stride_q,
                              batch_stride_k,
@@ -493,16 +555,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              batch_stride_randval,
                              batch_stride_do,
                              batch_stride_lsed,
+                             batch_stride_q, // batch_stride_dq_acc
+                             batch_stride_q, // batch_stride_dq
                              batch_stride_dk,
                              batch_stride_dv,
                              batch_stride_dbias,
+                             split_stride_dq_acc,
                              mask.left,
                              mask.right,
                              static_cast<ck_tile::index_t>(mask.type),
                              p_drop,
                              p_undrop,
-                             s_randval,
-                             {drop_seed, drop_offset}};
+                             drop_seed_offset};
     }();
 
     float ave_time = fmha_bwd(fmha_traits, fmha_args, stream_config);
@@ -692,22 +756,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         if(p_drop > 0)
         {
-            p_hp_host_ref.ForEach(
-                [&](auto& self, auto idx) { p_dropped_hp_host_ref(idx) = self(idx); });
+            p_dropped_hp_host_ref = p_hp_host_ref;
             randval_host_ref.ForEach([&](auto& self, auto idx) {
                 self(idx) = randval_host(b, idx[0], idx[1] + query_offset, idx[2]);
             });
             ck_tile::reference_batched_dropout(
                 p_dropped_hp_host_ref, randval_host_ref, p_undrop_in_uint8_t, rp_undrop);
-            p_dropped_hp_host_ref.ForEach([&](auto& self, auto idx) {
-                p_lp_host_ref(idx) = ck_tile::type_convert<GemmDataType>(self(idx));
-            });
+            p_lp_host_ref = p_dropped_hp_host_ref.template CopyAsType<GemmDataType>();
         }
         else
         {
-            p_hp_host_ref.ForEach([&](auto& self, auto idx) {
-                p_lp_host_ref(idx) = ck_tile::type_convert<GemmDataType>(self(idx));
-            });
+            p_lp_host_ref = p_hp_host_ref.template CopyAsType<GemmDataType>();
         }
 
         // O = P * V
@@ -719,7 +778,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         if(o_perm) o_host_ref.ForEach([&](auto& self, auto idx) { o_host(b, idx[0], idx[1] + query_offset, idx[2]) = self(idx); });
         else       o_host_ref.ForEach([&](auto& self, auto idx) { o_host(b, idx[1] + query_offset, idx[0], idx[2]) = self(idx); });
 
-        lse_host_ref.ForEach([&](auto& self, auto idx) { lse_host(wb, idx[0], idx[1]) = self(idx); });
+        lse_host_ref.ForEach([&](auto& self, auto idx) { lse_host(b, idx[0], idx[1] + query_offset) = self(idx); });
         // clang-format on
 
         q_host_refs.push_back(q_host_ref);
@@ -738,6 +797,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     lse_buf.ToDevice(lse_host.data());
     dq_buf.SetZero();
     dbias_buf.SetZero();
+    dq_acc_buf.SetZero();
 
     ck_tile::stream_config stream_config_v{
         nullptr, true, 0, 0, 1, arg_parser.get_str("timer") == std::string("gpu")};
@@ -789,29 +849,27 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
 
         // dS_i_j = P_i_j .* (dP_i_j - dO_i dot O_i)
-        ds_hp_host_ref.ForEach([&](auto& self, auto idx_gmn) {
-            AccDataType do_dot_o = 0;
-            for(int o = 0; o < hdim_v; o++)
-            {
-                auto idx_gmo = idx_gmn;
-                idx_gmo[2]   = o;
-                do_dot_o += ck_tile::type_convert<AccDataType>(do_host_ref(idx_gmo)) *
-                            ck_tile::type_convert<AccDataType>(o_host_refs[wb](idx_gmo));
-            }
-            self(idx_gmn) = ck_tile::type_convert<AccDataType>(
-                p_hp_host_refs[wb](idx_gmn) * (dp_hp_host_ref(idx_gmn) - do_dot_o));
-        });
+        ck_tile::make_ParallelTensorFunctor(
+            [&](auto i0, auto i1, auto i2) {
+                AccDataType do_dot_o = 0;
+                for(int o = 0; o < hdim_v; o++)
+                {
+                    do_dot_o += ck_tile::type_convert<AccDataType>(do_host_ref(i0, i1, o)) *
+                                ck_tile::type_convert<AccDataType>(o_host_refs[wb](i0, i1, o));
+                }
+                ds_hp_host_ref(i0, i1, i2) = ck_tile::type_convert<AccDataType>(
+                    p_hp_host_refs[wb](i0, i1, i2) * (dp_hp_host_ref(i0, i1, i2) - do_dot_o));
+            },
+            ds_hp_host_ref.mDesc.get_lengths()[0],
+            ds_hp_host_ref.mDesc.get_lengths()[1],
+            ds_hp_host_ref.mDesc.get_lengths()[2])(std::thread::hardware_concurrency());
 
         if(use_dbias)
         {
-            ds_hp_host_ref.ForEach([&](auto& self, auto idx) {
-                dbias_host_ref(idx) = ck_tile::type_convert<BiasGradDataType>(self(idx));
-            });
+            dbias_host_ref = ds_hp_host_ref.template CopyAsType<BiasGradDataType>();
         }
 
-        ds_hp_host_ref.ForEach([&](auto& self, auto idx) {
-            ds_lp_host_ref(idx) = ck_tile::type_convert<GemmDataType>(self(idx));
-        });
+        ds_lp_host_ref = ds_hp_host_ref.template CopyAsType<GemmDataType>();
 
         // dV = P_drop^T@dO^T
         // dV = P^T@dO^T w/o dropout
@@ -868,7 +926,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
         // clang-format on
 
-        auto [rtol, atol] = get_elimit<DataType>(init_method);
+        auto [rtol, atol] = get_elimit<DataTypeConfig>(hdim_q, hdim_v);
         bool dq_cur_pass  = ck_tile::check_err(dq_host_result,
                                               dq_host_ref,
                                               std::string("Error: QGrad Incorrect results!"),
@@ -921,11 +979,11 @@ int main(int argc, char* argv[])
     const std::string data_type = arg_parser.get_str("prec");
     if(data_type == "fp16")
     {
-        return run<ck_tile::half_t>(arg_parser) ? 0 : -2;
+        return run<FmhaBwdFp16>(arg_parser) ? 0 : -2;
     }
     else if(data_type == "bf16")
     {
-        return run<ck_tile::bf16_t>(arg_parser) ? 0 : -2;
+        return run<FmhaBwdBf16>(arg_parser) ? 0 : -2;
     }
 
     return -3;

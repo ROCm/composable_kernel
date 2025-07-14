@@ -1,5 +1,8 @@
 # Composable Kernel
 
+> [!NOTE]
+> The published documentation is available at [Composable Kernel](https://rocm.docs.amd.com/projects/composable_kernel/en/latest/) in an organized, easy-to-read format, with search and a table of contents. The documentation source files reside in the `docs` folder of this repository. As with all ROCm projects, the documentation is open source. For more information on contributing to the documentation, see [Contribute to ROCm documentation](https://rocm.docs.amd.com/en/latest/contribute/contributing.html).
+
 The Composable Kernel (CK) library provides a programming model for writing performance-critical
 kernels for machine learning workloads across multiple architectures (GPUs, CPUs, etc.). The CK library
 uses general purpose kernel languages, such as HIP C++.
@@ -23,23 +26,15 @@ The current CK library is structured into four layers:
 
 ## General information
 
-To build our documentation locally, use the following code:
-
-``` bash
-cd docs
-pip3 install -r sphinx/requirements.txt
-python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
-```
-
-You can find a list of our developers and contributors on our [Contributors](/CONTRIBUTORS.md) page.
-
-```note
-If you use CK, cite us as follows:
-
-* [Realizing Tensor Operators Using Coordinate Transformations and Tile Based Programming](???):
-  This paper will be available on arXiv soon.
-* [CITATION.cff](/CITATION.cff)
-```
+* [CK supported operations](include/ck/README.md)
+* [CK Tile supported operations](include/ck_tile/README.md)
+* [CK wrapper](client_example/25_wrapper/README.md)
+* [CK codegen](codegen/README.md)
+* [CK profiler](profiler/README.md)
+* [Examples (Custom use of CK supported operations)](example/README.md)
+* [Client examples (Use of CK supported operations with instance factory)](client_example/README.md)
+* [Terminology](/TERMINOLOGY.md)
+* [Contributors](/CONTRIBUTORS.md)
 
 CK is released under the **[MIT license](/LICENSE)**.
 
@@ -78,7 +73,7 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
 
     You must set the `GPU_TARGETS` macro to specify the GPU target architecture(s) you want
     to run CK on. You can specify single or multiple architectures. If you specify multiple architectures,
-    use a semicolon between each; for example, `gfx908;gfx90a;gfx940`.
+    use a semicolon between each; for example, `gfx908;gfx90a;gfx942`.
 
     ```bash
     cmake                                                                                             \
@@ -90,7 +85,13 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
     ```
 
     If you don't set `GPU_TARGETS` on the cmake command line, CK is built for all GPU targets
-    supported by the current compiler (this may take a long time).
+    supported by the current compiler (this may take a long time). 
+    Tests and examples will only get built if the GPU_TARGETS is set by the user on the cmake command line.
+
+    NOTE: If you try setting `GPU_TARGETS` to a list of architectures, the build will only work if the 
+    architectures are similar, e.g., `gfx908;gfx90a`, or `gfx1100;gfx1101;gfx11012`. Otherwise, if you 
+    want to build the library for a list of different architectures,
+    you should use the `GPU_ARCHS` build argument, for example `GPU_ARCHS=gfx908;gfx1030;gfx1100;gfx942`.
 
 4. Build the entire CK library:
 
@@ -103,6 +104,7 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
     ```bash
     make -j install
     ```
+    **[See Note on -j](#notes)**
 
 ## Optional post-install steps
 
@@ -120,6 +122,15 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
 
     You can find instructions for running each individual example in [example](/example).
 
+* Build and run smoke/regression examples and tests:
+
+    ```bash
+    make -j smoke # tests and examples that run for < 30 seconds each
+    ```
+     ```bash
+    make -j regression # tests and examples that run for >= 30 seconds each
+    ```
+
 * Build ckProfiler:
 
     ```bash
@@ -128,26 +139,37 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
 
     You can find instructions for running ckProfiler in [profiler](/profiler).
 
-Note the `-j` option for building with multiple threads in parallel. This speeds up the build significantly.
-Depending on the number of CPU cores and the amount of RAM on your system, you may want to
-limit the number of threads. For example, if you have a 128-core CPU and 64 Gb of RAM.
+* Build our documentation locally:
 
-By default, `-j` launches one thread per CPU core, which can cause the build to run out of memory and
-crash. In such cases, you can reduce the number of threads to 32 by using `-j32`.
+    ``` bash
+    cd docs
+    pip3 install -r sphinx/requirements.txt
+    python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
+    ```
+
+### Notes
+The `-j` option for building with multiple threads in parallel, which speeds up the build significantly.
+However, `-j` launches unlimited number of threads, which can cause the build to run out of memory and
+crash. On average, you should expect each thread to use ~2Gb of RAM.
+Depending on the number of CPU cores and the amount of RAM on your system, you may want to
+limit the number of threads. For example, if you have a 128-core CPU and 128 Gb of RAM it's advisable to use `-j32`.
 
 Additional cmake flags can be used to significantly speed-up the build:
-
-* `INSTANCES_ONLY` (default is OFF) must be set to ON in order to build only the instances and library
-  while skipping all tests, examples, and profiler. This is useful in cases when you plan to use CK as a
-  dependency and don't plan to run any examples or tests.
 
 * `DTYPES` (default is not set) can be set to any subset of "fp64;fp32;fp16;fp8;bf16;int8" to build
   instances of select data types only. The main default data types are fp32 and fp16; you can safely skip
   other data types.
 
-* `DL_KERNELS` (default is OFF) must be set to ON in order to build instances, such as `gemm_dl` or
+* `DISABLE_DL_KERNELS` (default is OFF) must be set to ON in order not to build instances, such as `gemm_dl` or
   `batched_gemm_multi_d_dl`. These instances are useful on architectures like the NAVI2x, as most
   other platforms have faster instances, such as `xdl` or `wmma`, available.
+
+* `DISABLE_DPP_KERNELS` (default is OFF) must be set to ON in order not to build instances, such as `gemm_dpp`. 
+  These instances offer a slightly better performance of fp16 gemms on NAVI2x. But on other architectures faster alternatives are available.
+
+* `CK_USE_FP8_ON_UNSUPPORTED_ARCH` (default is OFF) must be set to ON in order to build instances,
+  such as `gemm_universal`, `gemm_universal_streamk` and `gemm_multiply_multiply` for fp8 data type for GPU targets which do not  have native support for fp8 data type, such as gfx908 or gfx90a. These instances are useful on
+  architectures like the MI100/MI200 for the functional support only.
 
 ## Using sccache for building
 

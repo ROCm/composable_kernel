@@ -3,14 +3,12 @@
 
 #include "ck/library/tensor_operation_instance/gpu/grouped_conv_fwd/device_grouped_conv_fwd_xdl_outelementop_instance.hpp"
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
-#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_convscale_relu.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-
-using ConvScaleRelu = ck::tensor_operation::element_wise::ConvScaleRelu;
 
 void add_device_grouped_conv3d_fwd_xdl_convscale_relu_ndhwgc_gkzyxc_ndhwgk_f8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
@@ -56,7 +54,6 @@ void add_device_grouped_conv3d_fwd_xdl_convscale_relu_ndhwgc_gkzyxc_ndhwgk_f8_in
                                                               ConvFwd1x1S1P0,
                                                               ConvScaleRelu>{});
 }
-
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation

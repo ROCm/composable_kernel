@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core/config.hpp"
+#include <tuple>
 #include <type_traits>
 #include <stdint.h>
 
@@ -21,6 +22,23 @@ using remove_cvref_t = remove_cv_t<std::remove_reference_t<T>>;
 
 template <typename T>
 using remove_pointer_t = typename std::remove_pointer<T>::type;
+
+template <typename From, typename To>
+struct copy_const
+{
+    static_assert(!std::is_const_v<From>);
+
+    using type = To;
+};
+
+template <typename From, typename To>
+struct copy_const<const From, To>
+{
+    using type = std::add_const_t<typename copy_const<From, To>::type>;
+};
+
+template <typename From, typename To>
+using copy_const_t = typename copy_const<From, To>::type;
 
 namespace detail {
 template <class Default, class AlwaysVoid, template <class...> class Op, class... Args>
@@ -91,5 +109,63 @@ CK_TILE_HOST_DEVICE PY c_style_pointer_cast(PX p_x)
     return (PY)p_x; // NOLINT(old-style-cast, cast-align)
 #pragma clang diagnostic pop
 }
+
+template <typename CompareTo, typename... Rest>
+struct is_any_of : std::false_type
+{
+};
+
+template <typename CompareTo, typename FirstType>
+struct is_any_of<CompareTo, FirstType> : std::is_same<CompareTo, FirstType>
+{
+};
+
+template <typename CompareTo, typename FirstType, typename... Rest>
+struct is_any_of<CompareTo, FirstType, Rest...>
+    : std::integral_constant<bool,
+                             std::is_same<CompareTo, FirstType>::value ||
+                                 is_any_of<CompareTo, Rest...>::value>
+{
+};
+
+// Helper to check if a type is a specialization of a given template
+template <typename Test, template <typename...> class RefTemplate>
+struct is_specialization_of : std::false_type
+{
+};
+
+template <template <typename...> class RefTemplate, typename... Args>
+struct is_specialization_of<RefTemplate<Args...>, RefTemplate> : std::true_type
+{
+};
+
+// Helper to get a tuple element or default type
+namespace detail {
+
+template <bool IsWithinBounds, std::size_t Idx, typename Tuple, typename DefaultType>
+struct tuple_element_or_default_dispatch
+{
+    using type = DefaultType;
+};
+
+template <std::size_t Idx, typename Tuple, typename DefaultType>
+struct tuple_element_or_default_dispatch<true, Idx, Tuple, DefaultType>
+{
+    using type = std::tuple_element_t<Idx, Tuple>;
+};
+
+} // namespace detail
+
+template <typename Tuple_, std::size_t Idx, typename DefaultType>
+struct tuple_element_or_default
+{
+    using Tuple                            = remove_cvref_t<Tuple_>;
+    static constexpr bool is_within_bounds = Idx < std::tuple_size_v<Tuple>;
+    using type                             = typename detail::
+        tuple_element_or_default_dispatch<is_within_bounds, Idx, Tuple, DefaultType>::type;
+};
+template <typename Tuple_, std::size_t Idx, typename DefaultType>
+using tuple_element_or_default_t =
+    typename tuple_element_or_default<Tuple_, Idx, DefaultType>::type;
 
 } // namespace ck_tile

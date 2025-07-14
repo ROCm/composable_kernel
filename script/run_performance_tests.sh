@@ -1,7 +1,7 @@
 #!/bin/bash 
 #
 # in order to run this script you'd first need to build the ckProfiler executable in ../build/bin/
-# run the script as "./run_performance_tests.sh <verification> <tag for your test environment> <branch name> < node name>
+# run the script as "./run_performance_tests.sh <verification> <tag for your test environment> <branch name> <node name>
 # input arguments: 
 # verification = 0 : do not verify result correctness on CPU
 #              = 1 : verify correctness on CPU (may take a long time)
@@ -50,6 +50,12 @@ print_log_header $gemm_log $env_type $branch $host_name
 ./profile_gemm.sh gemm 1 3 $verify 1 0 1 | tee -a $gemm_log
 ./profile_gemm.sh gemm 2 3 $verify 1 0 1 | tee -a $gemm_log
 ./profile_gemm.sh gemm 3 3 $verify 1 0 1 | tee -a $gemm_log
+
+#run ONNX gemm tests
+export onnx_log="perf_onnx_gemm.log"
+print_log_header $onnx_log $env_type $branch $host_name
+./profile_onnx_gemm.sh gemm 0 0 $verify 1 0 1 2>&1 | tee -a $onnx_log
+./profile_onnx_gemm.sh gemm 1 0 $verify 1 0 1 2>&1 | tee -a $onnx_log
 
 #run resnet50 tests
 export resnet256_log="perf_resnet50_N256.log"

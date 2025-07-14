@@ -35,16 +35,13 @@ struct BlockGemmASmemBRegCRegV1
                 std::is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
             "wrong!");
 
-        // constexpr index_t MPerBlock = ABlockWindowTmp{}.get_window_lengths()[number<0>{}];
-        // constexpr index_t NPerBlock = BBlockTensorTmp{}.get_lengths()[number<0>{}];
-        // constexpr index_t KPerBlock = ABlockWindowTmp{}.get_window_lengths()[number<1>{}];
-        constexpr index_t MPerBlock = BlockGemmShape::kM;
-        constexpr index_t NPerBlock = BlockGemmShape::kN;
-        constexpr index_t KPerBlock = BlockGemmShape::kK;
+        constexpr index_t MPerBlock = ABlockWindowTmp{}.get_window_lengths()[number<0>{}];
+        constexpr index_t NPerBlock = BBlockTensorTmp{}.get_lengths()[number<0>{}];
+        constexpr index_t KPerBlock = ABlockWindowTmp{}.get_window_lengths()[number<1>{}];
 
-        // static_assert(MPerBlock == BlockGemmShape::kM && NPerBlock == BlockGemmShape::kN &&
-        //                   KPerBlock == BlockGemmShape::kK,
-        //               "wrong!");
+        static_assert(MPerBlock == BlockGemmShape::kM && NPerBlock == BlockGemmShape::kN &&
+                          KPerBlock == BlockGemmShape::kK,
+                      "wrong!");
 
         constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
 
@@ -183,7 +180,7 @@ struct BlockGemmASmemBRegCRegV1
         });
     }
 
-    CK_TILE_DEVICE constexpr auto MakeCBlockTile() const
+    CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
     {
         constexpr index_t MPerBlock = BlockGemmShape::kM;
         constexpr index_t NPerBlock = BlockGemmShape::kN;

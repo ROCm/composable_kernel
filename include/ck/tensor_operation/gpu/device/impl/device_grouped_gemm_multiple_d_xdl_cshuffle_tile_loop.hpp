@@ -20,7 +20,6 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include <ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp>
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v3_multi_d.hpp" // stare wywalic
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp"
 
 namespace ck {
@@ -69,8 +68,7 @@ __global__ void
                                            const BElementwiseOperation b_element_op,
                                            const CDEElementwiseOperation cde_element_op)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
 
     constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
     __shared__ uint8_t p_shared[shared_size];
@@ -109,7 +107,7 @@ __global__ void
             N = gemm_desc_ptr[group_id].N;
             K = gemm_desc_ptr[group_id].K;
 
-            if(M * N * K == 0)
+            if(M == 0 || N == 0 || K == 0)
             {
                 grid_size_grp = 0;
                 continue;
@@ -405,7 +403,7 @@ __global__ void
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = cde_element_op;
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+#endif // end of if (defined(__gfx9__))
 }
 
 template <typename ALayout,
@@ -522,7 +520,7 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
         ComputeTypeA,
         ComputeTypeB>;
 
-    using KernelArguments = GroupedGemmTileLoopKernelArguments<NumDTensor>;
+    using KernelArguments = GroupedGemmKernelArgument<NumDTensor>;
     using Block2ETileMap  = BlockToCTileMap_Grouped_M00_N0_M01Adapt<8, MPerBlock, NPerBlock>;
     using OffsettedLocalBlock2ETileMap = OffsettedBlockToCTileMap2<Block2ETileMap>;
 
@@ -936,12 +934,31 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
         return str.str();
     }
 
+    void SetDeviceKernelArgs(Argument& arg,
+                             void* p_dev_kernel_args,
+                             const void* p_host_kernel_args) const
+    {
+        arg.p_dev_gemm_args_ = p_dev_kernel_args;
+        hip_check_error(hipMemcpyAsync(p_dev_kernel_args,
+                                       p_host_kernel_args,
+                                       GetDeviceKernelArgSize(&arg),
+                                       hipMemcpyHostToDevice));
+    }
+
+    virtual void SetDeviceKernelArgs(BaseArgument* p_arg,
+                                     void* p_dev_kernel_args,
+                                     const void* p_host_kernel_args) const override
+    {
+        return SetDeviceKernelArgs(
+            *dynamic_cast<Argument*>(p_arg), p_dev_kernel_args, p_host_kernel_args);
+    }
+
     void SetDeviceKernelArgs(Argument& arg, void* p_dev_kernel_args) const
     {
         arg.p_dev_gemm_args_ = p_dev_kernel_args;
     }
 
-    void SetDeviceKernelArgs(BaseArgument* p_arg, void* p_dev_kernel_args) const override
+    virtual void SetDeviceKernelArgs(BaseArgument* p_arg, void* p_dev_kernel_args) const override
     {
         return SetDeviceKernelArgs(*dynamic_cast<Argument*>(p_arg), p_dev_kernel_args);
     }

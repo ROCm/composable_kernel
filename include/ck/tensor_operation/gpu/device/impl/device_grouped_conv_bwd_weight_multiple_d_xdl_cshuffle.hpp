@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -60,8 +60,7 @@ __global__ void
             const Block2CTileMap block_2_ctile_map,
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
@@ -103,7 +102,7 @@ __global__ void
     compute_ptr_offset_of_batch.GetAPtrOffset(0);
     compute_ptr_offset_of_batch.GetBPtrOffset(0);
     compute_ptr_offset_of_batch.GetCPtrOffset(0);
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+#endif // end of if (defined(__gfx9__))
 }
 
 template <index_t NDimSpatial,
@@ -394,8 +393,10 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                 {
                     const index_t GemmM = K;
                     const index_t GemmN = C * X;
-                    const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
-                    const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
+                    const auto PadGemmM =
+                        GemmM % MPerBlock == 0 ? 0 : MPerBlock - GemmM % MPerBlock;
+                    const auto PadGemmN =
+                        GemmN % NPerBlock == 0 ? 0 : NPerBlock - GemmN % NPerBlock;
 
                     return transform_tensor_descriptor(
                         wei_grid_desc,
@@ -433,8 +434,10 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                 {
                     const index_t GemmM = K;
                     const index_t GemmN = C * X * Y;
-                    const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
-                    const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
+                    const auto PadGemmM =
+                        GemmM % MPerBlock == 0 ? 0 : MPerBlock - GemmM % MPerBlock;
+                    const auto PadGemmN =
+                        GemmN % NPerBlock == 0 ? 0 : NPerBlock - GemmN % NPerBlock;
 
                     return transform_tensor_descriptor(
                         wei_grid_desc,
@@ -473,8 +476,10 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                 {
                     const index_t GemmM = K;
                     const index_t GemmN = C * X * Y * Z;
-                    const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
-                    const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
+                    const auto PadGemmM =
+                        GemmM % MPerBlock == 0 ? 0 : MPerBlock - GemmM % MPerBlock;
+                    const auto PadGemmN =
+                        GemmN % NPerBlock == 0 ? 0 : NPerBlock - GemmN % NPerBlock;
 
                     return transform_tensor_descriptor(
                         wei_grid_desc,
@@ -590,6 +595,11 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
               input_right_pads_{input_right_pads},
               k_batch_{split_k}
         {
+            c_space_size_bytes =
+                ck::accumulate_n<long_index_t>(
+                    e_g_k_c_xs_lengths.begin(), NDimSpatial + I3, 1, std::multiplies<>()) *
+                sizeof(AccDataType);
+
             constexpr index_t spatial_offset = 3;
             std::copy(begin(b_g_n_c_wis_lengths) + spatial_offset,
                       end(b_g_n_c_wis_lengths),
@@ -704,6 +714,7 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
         const std::array<ck::index_t, NDimSpatial>& input_left_pads_;
         const std::array<ck::index_t, NDimSpatial>& input_right_pads_;
         const index_t k_batch_;
+        long_index_t c_space_size_bytes;
     };
 
     // Invoker
@@ -752,7 +763,7 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
 
                 auto preprocess = [&]() {
                     hip_check_error(hipMemsetAsync(
-                        p_c_grid, 0, arg.GetWorkspaceSizeBytes(), stream_config.stream_id_));
+                        p_c_grid, 0, arg.c_space_size_bytes, stream_config.stream_id_));
                 };
 
                 const auto kernel = kernel_batched_gemm_xdlops_bwd_weight<
@@ -864,23 +875,23 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
         }
         if constexpr(NDimSpatial == 1)
         {
-            if constexpr(!is_GNWK_GKXC_GNWC<InLayout, WeiLayout, OutLayout>())
+            if constexpr(!is_GNWC_GKXC_GNWK<InLayout, WeiLayout, OutLayout>())
             {
                 return false;
             }
         }
         else if constexpr(NDimSpatial == 2)
         {
-            if constexpr(!(is_NHWGK_GKYXC_NHWGC<InLayout, WeiLayout, OutLayout>() ||
-                           is_GNHWK_GKYXC_GNHWC<InLayout, WeiLayout, OutLayout>()))
+            if constexpr(!(is_NHWGC_GKYXC_NHWGK<InLayout, WeiLayout, OutLayout>() ||
+                           is_GNHWC_GKYXC_GNHWK<InLayout, WeiLayout, OutLayout>()))
             {
                 return false;
             }
         }
         else if constexpr(NDimSpatial == 3)
         {
-            if constexpr(!(is_NDHWGK_GKZYXC_NDHWGC<InLayout, WeiLayout, OutLayout>() ||
-                           is_GNDHWK_GKZYXC_GNDHWC<InLayout, WeiLayout, OutLayout>()))
+            if constexpr(!(is_NDHWGC_GKZYXC_NDHWGK<InLayout, WeiLayout, OutLayout>() ||
+                           is_GNDHWC_GKZYXC_GNDHWK<InLayout, WeiLayout, OutLayout>()))
             {
                 return false;
             }

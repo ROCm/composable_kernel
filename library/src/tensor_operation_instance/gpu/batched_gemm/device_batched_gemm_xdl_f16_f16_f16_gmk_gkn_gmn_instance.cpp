@@ -8,6 +8,7 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_xdl.hpp"
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
+#include "ck/host_utility/device_prop.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -32,6 +33,16 @@ using device_batched_gemm_xdl_f16_f16_f16_gmk_gkn_gmn_generic_instances = std::t
         //#################|      |      |      |        |        |        |        |   Operation|   Operation|   Operation|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |                |       PerVector| Stage   |                       |                            |
         //#################|      |      |      |        |        |        |        |            |            |            |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |                |                |         |                       |                            |
         DeviceBatchedGemmXdl<  F16,   F16,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,    64,    16,    16,     4,  8,   16,   16,    1,    1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              8,      true,     S<4, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              1,              8,      true,               7,               1,        1, LoopScheduler::Default,        PipelineVersion::v1>
+    // clang-format on
+    >;
+// double rate mfma instances on gfx950
+using device_batched_gemm_xdl_f16_f16_f16_gmk_gkn_gmn_generic_instances_2x = std::tuple<
+    // clang-format off
+        //#################| AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CThreadTransfer| CThreadTransfer| NumGemmK|          LoopScheduler|                    Pipeline|
+        //#################|  Type|  Type|  Type|    Type|        |        |        | Elementwise| Elementwise| Elementwise|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| SrcDstVectorDim|       DstScalar| Prefetch|                       |                            |
+        //#################|      |      |      |        |        |        |        |   Operation|   Operation|   Operation|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |                |       PerVector| Stage   |                       |                            |
+        //#################|      |      |      |        |        |        |        |            |            |            |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |                |                |         |                       |                            |
+        DeviceBatchedGemmXdl<  F16,   F16,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,    64,    16,    16,     4, 16,   16,   16,    1,    1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              8,      true,     S<4, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              1,              8,      true,               7,               1,        1, LoopScheduler::Default,        PipelineVersion::v1>
     // clang-format on
     >;
 
@@ -104,6 +115,17 @@ using device_batched_gemm_xdl_f16_f16_f16_gmk_gkn_gmn_instances = std::tuple<
 #endif
     // clang-format on
     >;
+// double rate mfma instances on gfx950
+using device_batched_gemm_xdl_f16_f16_f16_gmk_gkn_gmn_instances_2x = std::tuple<
+    // clang-format off
+        //#################| AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CThreadTransfer| CThreadTransfer| NumGemmK|          LoopScheduler|                    Pipeline|
+        //#################|  Type|  Type|  Type|    Type|        |        |        | Elementwise| Elementwise| Elementwise|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| SrcDstVectorDim|       DstScalar| Prefetch|                       |                            |
+        //#################|      |      |      |        |        |        |        |   Operation|   Operation|   Operation|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |                |       PerVector| Stage   |                       |                            |
+        //#################|      |      |      |        |        |        |        |            |            |            |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |                |                |         |                       |                            |
+        // pipeline v1, 1 wave
+        DeviceBatchedGemmXdl<  F16,   F16,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,   256,   128,   128,     4, 16,   32,   32,    2,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              8,      true,               7,               1,        1, LoopScheduler::Default,        PipelineVersion::v1>
+    // clang-format on
+    >;
 
 void add_device_batched_gemm_xdl_f16_f16_f16_gmk_gkn_gmn_instances(
     std::vector<std::unique_ptr<
@@ -114,6 +136,14 @@ void add_device_batched_gemm_xdl_f16_f16_f16_gmk_gkn_gmn_instances(
         instances, device_batched_gemm_xdl_f16_f16_f16_gmk_gkn_gmn_generic_instances{});
     add_device_operation_instances(instances,
                                    device_batched_gemm_xdl_f16_f16_f16_gmk_gkn_gmn_instances{});
+
+    if(ck::get_device_name() == "gfx950")
+    {
+        add_device_operation_instances(
+            instances, device_batched_gemm_xdl_f16_f16_f16_gmk_gkn_gmn_generic_instances_2x{});
+        add_device_operation_instances(
+            instances, device_batched_gemm_xdl_f16_f16_f16_gmk_gkn_gmn_instances_2x{});
+    }
 }
 
 } // namespace instance

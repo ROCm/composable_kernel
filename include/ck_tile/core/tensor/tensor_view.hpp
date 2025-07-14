@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -16,6 +16,24 @@
 
 namespace ck_tile {
 
+/*
+ * tensor_view
+ * abstract the underneath memory buffer(global, LDS, etc...)
+ * and provide a unified get/set function for access
+ *
+ * For addressing into the buffer we use 2 variable to control:
+ * coord : ND tensor coordinate, will calculate the actual offset inside
+ * linear_offset : 1D offset, will be used in the immediate field of
+ *   the buffer instruction to help reduce register usage
+ *
+ * User can use either of the field, or both to indexing into the tensor
+ *
+ * We usually provide 2 set of API for buffer get/set, e.g.
+ * get_vectorized_elements()/get_vectorized_elements_raw()
+ * the former usually will call intrinsic or normal C function, the later
+ * usually will call inline-asm function
+ *
+ */
 template <typename BufferView_,
           typename TensorDesc_,
           memory_operation_enum DstInMemOp_ = memory_operation_enum::set>
@@ -27,6 +45,8 @@ struct tensor_view
     using TensorIndex = array<index_t, TensorDesc::get_num_of_top_dimension()>;
     using TensorCoord = decltype(make_tensor_coordinate(TensorDesc{}, TensorIndex{}));
     static constexpr auto DstInMemOp = DstInMemOp_;
+    static constexpr index_t PackedSize =
+        ck_tile::numeric_traits<remove_cvref_t<DataType>>::PackedSize;
 
     CK_TILE_HOST_DEVICE constexpr tensor_view() = default;
 
@@ -49,22 +69,6 @@ struct tensor_view
 
     CK_TILE_HOST_DEVICE constexpr auto& get_buffer_view() { return buf_; }
 
-#if 0
-    CK_TILE_HOST_DEVICE constexpr DataType get_element(const TensorCoord& coord) const
-    {
-        return buf_.template get<DataType>(
-            coord.get_offset(),
-            coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord));
-    }
-
-    CK_TILE_HOST_DEVICE constexpr void set_element(const TensorCoord& coord, const DataType& x)
-    {
-        buf_.template set<DataType>(
-            coord.get_offset(),
-            coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord),
-            x);
-    }
-#endif
     // X is vector of DataType.
     // "coord" is coordinate of DataType, not X. "coord" should be aligned to X
     template <typename X,
@@ -75,12 +79,32 @@ struct tensor_view
                   bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr remove_cvref_t<X>
     get_vectorized_elements(const TensorCoord& coord,
+                            index_t linear_offset,
                             bool_constant<oob_conditional_check> = {}) const
     {
         return buf_.template get<X>(
-            coord.get_offset(),
+            coord.get_offset() / PackedSize,
+            linear_offset / PackedSize,
             coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord),
             bool_constant<oob_conditional_check>{});
+    }
+
+    template <typename X,
+              bool oob_conditional_check = true,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr remove_cvref_t<X>
+    get_vectorized_elements(const TensorCoord& coord,
+                            index_t linear_offset,
+                            bool is_valid_element, // flag
+                            bool_constant<oob_conditional_check> = {}) const
+    {
+        return buf_.template get<X>(coord.get_offset() / PackedSize,
+                                    linear_offset / PackedSize,
+                                    is_valid_element,
+                                    bool_constant<oob_conditional_check>{});
     }
 
     // X is vector of DataType.
@@ -94,12 +118,96 @@ struct tensor_view
                   bool>::type = false>
     CK_TILE_HOST_DEVICE void get_vectorized_elements_raw(remove_cvref_t<X>& dst,
                                                          const TensorCoord& coord,
+                                                         index_t linear_offset,
                                                          bool_constant<oob_conditional_check> = {},
                                                          bool_constant<pre_nop> = {}) const
     {
         return buf_.template get_raw<X, oob_conditional_check, pre_nop>(
             dst,
-            coord.get_offset(),
+            coord.get_offset() / PackedSize,
+            linear_offset / PackedSize,
+            coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord),
+            bool_constant<pre_nop>{});
+    }
+
+    template <typename X,
+              bool oob_conditional_check = true,
+              bool pre_nop               = false,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
+    CK_TILE_HOST_DEVICE void get_vectorized_elements_raw(remove_cvref_t<X>& dst,
+                                                         const TensorCoord& coord,
+                                                         index_t linear_offset,
+                                                         bool is_valid_element,
+                                                         bool_constant<oob_conditional_check> = {},
+                                                         bool_constant<pre_nop> = {}) const
+    {
+        return buf_.template get_raw<X, oob_conditional_check, pre_nop>(dst,
+                                                                        coord.get_offset() /
+                                                                            PackedSize,
+                                                                        linear_offset / PackedSize,
+                                                                        is_valid_element,
+                                                                        bool_constant<pre_nop>{});
+    }
+
+    template <typename X,
+              bool oob_conditional_check = true,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr void
+    async_get_vectorized_elements(CK_TILE_LDS_ADDR remove_cvref_t<DataType>* smem,
+                                  const TensorCoord& coord,
+                                  index_t linear_offset,
+                                  bool_constant<oob_conditional_check> = {}) const
+    {
+        return buf_.template async_get<X>(
+            smem,
+            coord.get_offset() / PackedSize,
+            linear_offset / PackedSize,
+            coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord),
+            bool_constant<oob_conditional_check>{});
+    }
+
+    template <typename X,
+              bool oob_conditional_check = true,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr void
+    async_get_vectorized_elements(CK_TILE_LDS_ADDR remove_cvref_t<DataType>* smem,
+                                  const TensorCoord& coord,
+                                  index_t linear_offset,
+                                  bool is_valid_element,
+                                  bool_constant<oob_conditional_check> = {}) const
+    {
+        return buf_.template async_get<X>(smem,
+                                          coord.get_offset() / PackedSize,
+                                          linear_offset / PackedSize,
+                                          is_valid_element,
+                                          bool_constant<oob_conditional_check>{});
+    }
+
+    template <typename X,
+              bool pre_nop = false,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr void
+    async_get_vectorized_elements_raw(remove_cvref_t<DataType>* smem,
+                                      const TensorCoord& coord,
+                                      index_t linear_offset,
+                                      bool_constant<pre_nop> = {}) const
+    {
+        return buf_.template async_get_raw<X>(
+            smem,
+            coord.get_offset() / PackedSize,
+            linear_offset / PackedSize,
             coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord),
             bool_constant<pre_nop>{});
     }
@@ -110,13 +218,68 @@ struct tensor_view
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                  typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
                   bool>::type = false>
-    CK_TILE_HOST_DEVICE constexpr void async_get_vectorized_elements_raw(
-        remove_cvref_t<DataType>* smem, const TensorCoord& coord, bool_constant<pre_nop> = {}) const
+    CK_TILE_HOST_DEVICE constexpr void
+    async_get_vectorized_elements_raw(remove_cvref_t<DataType>* smem,
+                                      const TensorCoord& coord,
+                                      index_t coord_extra_offset,
+                                      index_t linear_offset,
+                                      bool_constant<pre_nop> = {}) const
     {
         return buf_.template async_get_raw<X>(
-            smem, coord.get_offset(), true /*not used*/, bool_constant<pre_nop>{});
+            smem,
+            (coord.get_offset() + coord_extra_offset) / PackedSize,
+            linear_offset / PackedSize,
+            coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord),
+            bool_constant<pre_nop>{});
     }
 
+    template <typename X,
+              bool pre_nop = false,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr void
+    async_get_vectorized_elements_raw(remove_cvref_t<DataType>* smem,
+                                      const TensorCoord& coord,
+                                      index_t linear_offset,
+                                      bool is_valid_element,
+                                      bool_constant<pre_nop> = {}) const
+    {
+        return buf_.template async_get_raw<X>(smem,
+                                              coord.get_offset() / PackedSize,
+                                              linear_offset / PackedSize,
+                                              is_valid_element,
+                                              bool_constant<pre_nop>{});
+    }
+
+    template <typename X,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr remove_cvref_t<X>
+    get_transpose_vectorized_elements(const TensorCoord& coord, index_t linear_offset) const
+    {
+        return buf_.template transpose_get<X>(
+            coord.get_offset(),
+            linear_offset,
+            coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord));
+    }
+
+    template <typename X,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr remove_cvref_t<X>
+    get_transpose_vectorized_elements(const TensorCoord& coord,
+                                      index_t linear_offset,
+                                      bool is_valid_element // flag
+    ) const
+    {
+        return buf_.template transpose_get<X>(coord.get_offset(), linear_offset, is_valid_element);
+    }
     // X is vector of DataType.
     // "coord" is coordinate of DataType, not X. "coord" should be aligned to X
     template <typename X,
@@ -125,11 +288,15 @@ struct tensor_view
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                  typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
                   bool>::type = false>
-    CK_TILE_HOST_DEVICE constexpr void set_vectorized_elements(
-        const TensorCoord& coord, const X& x, bool_constant<oob_conditional_check> = {})
+    CK_TILE_HOST_DEVICE constexpr void
+    set_vectorized_elements(const TensorCoord& coord,
+                            index_t linear_offset,
+                            const X& x,
+                            bool_constant<oob_conditional_check> = {})
     {
         buf_.template set<X, oob_conditional_check>(
-            coord.get_offset(),
+            coord.get_offset() / PackedSize,
+            linear_offset / PackedSize,
             coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord),
             x);
     }
@@ -140,13 +307,51 @@ struct tensor_view
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                  typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
                   bool>::type = false>
-    CK_TILE_HOST_DEVICE constexpr void set_vectorized_elements_raw(
-        const TensorCoord& coord, const X& x, bool_constant<oob_conditional_check> = {})
+    CK_TILE_HOST_DEVICE constexpr void
+    set_vectorized_elements(const TensorCoord& coord,
+                            index_t linear_offset,
+                            bool is_valid_element,
+                            const X& x,
+                            bool_constant<oob_conditional_check> = {})
+    {
+        buf_.template set<X, oob_conditional_check>(
+            coord.get_offset(), linear_offset, is_valid_element, x);
+    }
+
+    template <typename X,
+              bool oob_conditional_check = true,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr void
+    set_vectorized_elements_raw(const TensorCoord& coord,
+                                index_t linear_offset,
+                                const X& x,
+                                bool_constant<oob_conditional_check> = {})
     {
         buf_.template set_raw<X, oob_conditional_check>(
-            coord.get_offset(),
+            coord.get_offset() / PackedSize,
+            linear_offset / PackedSize,
             coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord),
             x);
+    }
+
+    template <typename X,
+              bool oob_conditional_check = true,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr void
+    set_vectorized_elements_raw(const TensorCoord& coord,
+                                index_t linear_offset,
+                                bool is_valid_element,
+                                const X& x,
+                                bool_constant<oob_conditional_check> = {})
+    {
+        buf_.template set_raw<X, oob_conditional_check>(
+            coord.get_offset() / PackedSize, linear_offset / PackedSize, is_valid_element, x);
     }
 
     // X is vector of DataType.
@@ -157,29 +362,76 @@ struct tensor_view
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                  typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
                   bool>::type = false>
-    CK_TILE_HOST_DEVICE constexpr void update_vectorized_elements(
-        const TensorCoord& coord, const X& x, bool_constant<oob_conditional_check> = {})
+    CK_TILE_HOST_DEVICE constexpr void
+    update_vectorized_elements(const TensorCoord& coord,
+                               index_t linear_offset,
+                               const X& x,
+                               bool_constant<oob_conditional_check> = {})
     {
         buf_.template update<DstInMemOp, X, oob_conditional_check>(
-            coord.get_offset(),
+            coord.get_offset() / PackedSize,
+            linear_offset / PackedSize,
             coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord),
             x);
     }
 
-    CK_TILE_HOST_DEVICE void print() const
+    template <typename X,
+              bool oob_conditional_check = true,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr void
+    update_vectorized_elements(const TensorCoord& coord,
+                               index_t linear_offset,
+                               bool is_valid_element,
+                               const X& x,
+                               bool_constant<oob_conditional_check> = {})
     {
-        printf("tensor_view{");
+        buf_.template update<DstInMemOp, X, oob_conditional_check>(
+            coord.get_offset() / PackedSize, linear_offset / PackedSize, is_valid_element, x);
+    }
 
-        // buf_
-        printf("buf_: ");
-        print(buf_);
-        printf(", ");
+    // X is vector of DataType.
+    // "coord" is coordinate of DataType, not X. "coord" should be aligned to X
+    template <typename X,
+              bool oob_conditional_check = true,
+              bool pre_nop               = false,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr void
+    update_vectorized_elements_raw(const TensorCoord& coord,
+                                   index_t linear_offset,
+                                   const X& x,
+                                   bool_constant<oob_conditional_check> = {},
+                                   bool_constant<pre_nop>               = {})
+    {
+        buf_.template update_raw<DstInMemOp, X, oob_conditional_check, pre_nop>(
+            coord.get_offset() / PackedSize,
+            linear_offset / PackedSize,
+            coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord),
+            x);
+    }
 
-        // desc_
-        printf("desc_: ");
-        print(desc_);
-
-        printf("}");
+    template <typename X,
+              bool oob_conditional_check = true,
+              bool pre_nop               = false,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr void
+    update_vectorized_elements_raw(const TensorCoord& coord,
+                                   index_t linear_offset,
+                                   bool is_valid_element,
+                                   const X& x,
+                                   bool_constant<oob_conditional_check> = {},
+                                   bool_constant<pre_nop>               = {})
+    {
+        buf_.template update_raw<DstInMemOp, X, oob_conditional_check, pre_nop>(
+            coord.get_offset() / PackedSize, linear_offset / PackedSize, is_valid_element, x);
     }
 
     // member
@@ -193,18 +445,21 @@ struct null_tensor_view
 };
 
 template <address_space_enum BufferAddressSpace = address_space_enum::generic,
+          amd_buffer_coherence_enum Coherence   = amd_buffer_coherence_enum::coherence_default,
           typename DataType,
           typename... Ts>
 CK_TILE_HOST_DEVICE constexpr auto make_tensor_view(DataType* p,
                                                     const tensor_descriptor<Ts...>& desc)
 {
-    auto buffer_view = make_buffer_view<BufferAddressSpace>(p, desc.get_element_space_size());
+    auto buffer_view =
+        make_buffer_view<BufferAddressSpace, Coherence>(p, desc.get_element_space_size());
 
     return tensor_view<decltype(buffer_view), decltype(desc)>{buffer_view, desc};
 }
 
 template <address_space_enum BufferAddressSpace = address_space_enum::generic,
           memory_operation_enum DstInMemOp      = memory_operation_enum::set,
+          amd_buffer_coherence_enum Coherence   = amd_buffer_coherence_enum::coherence_default,
           typename DataType,
           typename... Lengths,
           typename... Strides,
@@ -223,12 +478,14 @@ make_naive_tensor_view(DataType* p,
                                              number<GuaranteedLastDimensionVectorLength>{},
                                              number<GuaranteedLastDimensionVectorStride>{});
 
-    auto buffer_view = make_buffer_view<BufferAddressSpace>(p, desc.get_element_space_size());
+    auto buffer_view =
+        make_buffer_view<BufferAddressSpace, Coherence>(p, desc.get_element_space_size());
 
     return tensor_view<decltype(buffer_view), decltype(desc), DstInMemOp>{buffer_view, desc};
 }
 
 template <address_space_enum BufferAddressSpace = address_space_enum::generic,
+          amd_buffer_coherence_enum Coherence   = amd_buffer_coherence_enum::coherence_default,
           typename DataType,
           typename... Lengths,
           index_t GuaranteedLastDimensionVectorLength = -1>
@@ -240,7 +497,8 @@ make_naive_tensor_view_packed(DataType* p,
     auto desc =
         make_naive_tensor_descriptor_packed(lengths, number<GuaranteedLastDimensionVectorLength>{});
 
-    auto buffer_view = make_buffer_view<BufferAddressSpace>(p, desc.get_element_space_size());
+    auto buffer_view =
+        make_buffer_view<BufferAddressSpace, Coherence>(p, desc.get_element_space_size());
 
     return tensor_view<decltype(buffer_view), decltype(desc)>{buffer_view, desc};
 }
@@ -270,6 +528,7 @@ template <typename TensorView,
 CK_TILE_HOST_DEVICE constexpr auto
 pad_tensor_view(const TensorView& tensor_view, const TileLengths& tile_lengths, DoPads)
 {
+
     constexpr index_t num_dim = DoPads::size();
 
     static_assert(num_dim == TileLengths::size() && num_dim == TensorView::get_num_of_dimension(),

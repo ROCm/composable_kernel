@@ -80,6 +80,13 @@ CK_TILE_DEVICE constexpr auto make_tile_window(null_tensor_view,
     return null_tile_window<remove_cvref_t<WindowLengths>>{window_lengths};
 }
 
+template <typename WindowLengths, typename StaticTileDistribution>
+CK_TILE_DEVICE constexpr auto make_tile_window(const null_tile_window<WindowLengths>& t,
+                                               const StaticTileDistribution&)
+{
+    return t;
+}
+
 template <typename WindowLengths>
 CK_TILE_DEVICE void
 move_tile_window(null_tile_window<WindowLengths>&,

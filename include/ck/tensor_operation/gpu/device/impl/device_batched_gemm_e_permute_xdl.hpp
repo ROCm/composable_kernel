@@ -74,8 +74,7 @@ __global__ void
                                           const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
                                           const Block2ETileMap block_2_etile_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
@@ -89,19 +88,20 @@ __global__ void
 
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
-                                                  p_b_grid + b_batch_offset,
-                                                  ck::Tuple<>{},
-                                                  p_e_grid + e_batch_offset,
-                                                  p_shared,
-                                                  a_element_op,
-                                                  b_element_op,
-                                                  cde_element_op,
-                                                  a_grid_desc_ak0_m_ak1,
-                                                  b_grid_desc_bk0_n_bk1,
-                                                  ck::Tuple<>{},
-                                                  e_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  block_2_etile_map);
+    GridwiseGemm::template Run<HasMainKBlockLoop, InMemoryDataOperationEnum::Set>(
+        p_a_grid + a_batch_offset,
+        p_b_grid + b_batch_offset,
+        ck::Tuple<>{},
+        p_e_grid + e_batch_offset,
+        p_shared,
+        a_element_op,
+        b_element_op,
+        cde_element_op,
+        a_grid_desc_ak0_m_ak1,
+        b_grid_desc_bk0_n_bk1,
+        ck::Tuple<>{},
+        e_grid_desc_mblock_mperblock_nblock_nperblock,
+        block_2_etile_map);
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
@@ -345,7 +345,6 @@ struct DeviceBatchedGemmEPermuteXdl : public DeviceBatchedGemmEPermute<ALayout,
         AElementwiseOperation,
         BElementwiseOperation,
         CDEElementwiseOperation,
-        InMemoryDataOperationEnum::Set,
         AGridDesc_M_K,
         BGridDesc_N_K,
         Tuple<>,
