@@ -334,13 +334,17 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
         constexpr auto a_wave_desc = [&]() {
             if constexpr(AEnableLds)
             {
-                // AK0_M_AK1 -> AK0_MRepeat_Mwaves_MPerWmma_AK1
-                constexpr auto A_K0   = ABlockDesc_{}.GetLength(I0);
-                constexpr auto A_K1   = ABlockDesc_{}.GetLength(I2);
+                // AK0_M_AK1 -> AK0_MRepeat_Mwaves_AKRow_MPerWmma_AK1
+                constexpr auto A_K0 = ABlockDesc_{}.GetLength(I0);
+                constexpr auto A_K1 = ABlockDesc_{}.GetLength(I2);
+#ifdef __gfx12__
+                constexpr auto A_KRow = I2;
+#else
                 constexpr auto A_KRow = I1;
+#endif
                 return transform_tensor_descriptor(
                     ABlockDesc_{},
-                    make_tuple(make_unmerge_transform(make_tuple(Number<A_K0>{}, A_KRow)),
+                    make_tuple(make_unmerge_transform(make_tuple(Number<A_K0 / A_KRow>{}, A_KRow)),
                                make_unmerge_transform(make_tuple(
                                    Number<MRepeat>{}, Number<MWaves>{}, Number<MPerWmma>{})),
                                make_pass_through_transform(Number<A_K1>{})),
@@ -374,7 +378,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
         constexpr auto b0_wave_desc = [&]() {
             if constexpr(B0EnableLds)
             {
-                // BK0_L_BK1 -> BK0_LRepeat_Lwaves_LPerWmma_BK1
+                // BK0_L_BK1 -> BK0_LRepeat_Lwaves_BKRow_LPerWmma_BK1
                 constexpr auto B_K0 = B0BlockDesc_{}.GetLength(I0);
                 constexpr auto B_K1 = B0BlockDesc_{}.GetLength(I2);
 #ifdef __gfx12__
