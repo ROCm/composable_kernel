@@ -14,6 +14,7 @@
 #define CK_TILE_PIPELINE_MEMORY 2
 #define CK_TILE_PIPELINE_COMPUTE_V4 3
 #define CK_TILE_PIPELINE_COMPUTE_V5 4
+#define CK_TILE_PIPELINE_PRESHUFFLE 5
 
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile()
@@ -30,6 +31,21 @@ constexpr ck_tile::index_t get_k_warp_tile()
         return 16;
     else
         return 32;
+#endif
+}
+template <typename PrecType, ck_tile::index_t M_Warp_Tile>
+constexpr ck_tile::index_t get_k_warp_tile_flatmm()
+{
+#if defined(__gfx950__)
+    if constexpr(M_Warp_Tile == 32)
+        return sizeof(PrecType) == 2 ? 16 : 64;
+    else
+        return sizeof(PrecType) == 2 ? 32 : 128;
+#else
+    if constexpr(M_Warp_Tile == 32)
+        return sizeof(PrecType) == 2 ? 16 : 32;
+    else
+        return sizeof(PrecType) == 2 ? 32 : 64;
 #endif
 }
 
@@ -51,6 +67,7 @@ struct GemmConfigBase
     static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
     static constexpr ck_tile::index_t Pipeline      = CK_TILE_PIPELINE_COMPUTE_V3;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
+    static constexpr bool Preshuffle                = false;
 };
 
 template <typename PrecType>
@@ -213,6 +230,50 @@ struct GemmConfigComputeV5 : public GemmConfigBase
     static constexpr ck_tile::index_t NumWaNumWaveGroups = 2;
 };
 
+template <typename PrecType>
+struct GemmConfigPreshufle_1 : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile_flatmm<PrecType, M_Warp_Tile>();
+
+    static constexpr int kBlockPerCu           = 2;
+    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE;
+    static constexpr bool Preshuffle           = true;
+    static constexpr bool DoubleSmemBuffer     = false;
+};
+
+template <typename PrecType>
+struct GemmConfigPreshufle_2 : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile_flatmm<PrecType, M_Warp_Tile>();
+
+    static constexpr int kBlockPerCu           = 2;
+    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE;
+    static constexpr bool Preshuffle           = true;
+    static constexpr bool DoubleSmemBuffer     = false;
+};
+
 template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>
 struct GemmTypeConfig;
 
@@ -365,6 +426,16 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V5>
     using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV5<PipelineProblem>;
     template <typename PipelineProblem>
     using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV5<PipelineProblem>;
+};
+
+template <>
+struct PipelineTypeTraits<CK_TILE_PIPELINE_PRESHUFFLE>
+{
+    template <typename PipelineProblem>
+    using GemmPipeline = ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV1<PipelineProblem>;
+    template <typename PipelineProblem>
+    using UniversalGemmPipeline =
+        ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV1<PipelineProblem>;
 };
 
 auto create_args(int argc, char* argv[])
