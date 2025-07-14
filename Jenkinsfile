@@ -1234,7 +1234,7 @@ pipeline {
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx90a" \
                                             -D GEMM_DATATYPE="fp8;fp16" \
-                                            -D GEMM_LAYOUT="rcr" \
+                                            -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 benchmark_gemm_fp8_rcr && \
                                            ./bin/benchmark_gemm_fp8_rcr && \
@@ -1272,6 +1272,7 @@ pipeline {
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx942" \
                                             -D GEMM_DATATYPE="fp8;fp16" \
+                                            -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 benchmark_gemm_fp8_rcr && \
                                            ./bin/benchmark_gemm_fp8_rcr && \
