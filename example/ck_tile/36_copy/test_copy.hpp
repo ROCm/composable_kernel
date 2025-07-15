@@ -35,10 +35,10 @@ struct TileCopyShape
     static constexpr index_t ThreadPerWarp_M = Warp_M / Vector_M;
     static constexpr index_t ThreadPerWarp_N = Warp_N / Vector_N;
 
+    // We splited the waves on M dimension
     static constexpr index_t WarpPerBlock_M =
         integer_divide_ceil(BlockWaves::at(number<0>{}), WaveGroups);
-    static constexpr index_t WarpPerBlock_N =
-        integer_divide_ceil(BlockWaves::at(number<1>{}), WaveGroups);
+    static constexpr index_t WarpPerBlock_N = BlockWaves::at(number<1>{});
 
     static constexpr index_t Repeat_M = Block_M / (WarpPerBlock_M * Warp_M);
     static constexpr index_t Repeat_N = Block_N / (WarpPerBlock_N * Warp_N);
@@ -79,19 +79,19 @@ struct TileCopy
 
         constexpr index_t Y0 =
             S::WaveNum / S::WaveGroups;        // no. of active warps working in this thread block.
-        constexpr index_t Y1 = warp_size / X0; // no. of threads in a warp needed along M dimension.
-        constexpr index_t Y2 =
+        constexpr index_t Y2 = warp_size / X0; // no. of threads in a warp needed along M dimension.
+        constexpr index_t Y1 =
             S::Warp_M /
-            (Y1 *
-             Y0); // no. of iterations each warp needs to perform to cover the entire tile window.
+            Y2; // no. of iterations each warp needs to perform to cover the entire tile window.
 
         constexpr auto outer_encoding =
-            tile_distribution_encoding<sequence<Y0>,
-                                       tuple<sequence<Y1, Y2>, sequence<X0, X1>>,
-                                       tuple<sequence<0>, sequence<1, 2>>,
-                                       tuple<sequence<0>, sequence<0, 0>>,
+            tile_distribution_encoding<sequence<S::WaveGroups>,
+                                       tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1>>,
+                                       tuple<sequence<0, 1>, sequence<1, 2>>,
+                                       tuple<sequence<0, 0>, sequence<2, 0>>,
                                        sequence<1, 2>,
                                        sequence<1, 1>>{};
+
         return make_static_tile_distribution(outer_encoding);
     }
 
@@ -104,29 +104,22 @@ struct TileCopy
         __shared__ XDataType x_lds[number<S::Block_M>{} * number<S::Block_N>{}];
         XDataType* __restrict__ p_x_lds = static_cast<XDataType*>(x_lds);
 
-        const auto x_lds_desc = make_naive_tensor_descriptor(
-            make_tuple(number<S::Block_M>{}, number<S::Block_N>{}, number<S::Vector_N>{}),
-            make_tuple(number<S::Block_N>{}, number<S::Vector_N>{}, 1),
-            number<S::Vector_N>{},
-            number<1>{});
+        const auto x_lds_desc =
+            make_naive_tensor_descriptor(make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
+                                         make_tuple(number<S::Block_N>{}, 1),
+                                         number<S::Vector_N>{},
+                                         number<1>{});
 
-        auto x_lds_block_desc = transform_tensor_descriptor(
-            x_lds_desc,
-            make_tuple(make_pass_through_transform(number<S::Block_M>{}),
-                       make_merge_transform(
-                           make_tuple(number<S::Block_N>{} / S::Vector_N, number<S::Vector_N>{}))),
-            make_tuple(sequence<1>{}, sequence<0, 2>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
+        auto x_lds_view = make_tensor_view<address_space_enum::lds>(p_x_lds, x_lds_desc);
 
-        auto x_lds_view = make_tensor_view<address_space_enum::lds>(p_x_lds, x_lds_block_desc);
+        auto x_block_lds_write_window = make_tile_window(
+            x_lds_view, make_tuple(number<S::Block_M>{}, number<S::Block_N>{}), {0, 0});
 
-        auto x_block_lds_window =
+        auto x_block_lds_read_window =
             make_tile_window(x_lds_view,
                              make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
                              {0, 0},
                              MakeDRAMDistribution<Problem>());
-        auto x_block_lds_window_no_dist = make_tile_window(
-            x_lds_view, make_tuple(number<S::Block_M>{}, number<S::Block_N>{}), {0, 0});
 
         // Input tensor
         const auto iM    = get_block_id() * S::Block_M;
@@ -150,40 +143,44 @@ struct TileCopy
             __builtin_amdgcn_readfirstlane(integer_divide_ceil(N, S::Block_N));
         auto my_id = get_warp_id();
 
-        auto DramTileDist   = x_block_window.get_tile_distribution();
-        using dram_reg_tile = decltype(make_static_distributed_tensor<XDataType>(DramTileDist));
-
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
-            dram_reg_tile dram_tile;
-
             if(my_id == warp_id)
             {
                 if constexpr(AsyncCopy)
                 {
-                    async_load_tile(x_block_lds_window_no_dist, x_block_window);
+                    async_load_tile(x_block_lds_write_window, x_block_window);
 
-                    load_tile(dram_tile, x_block_lds_window);
+                    // Wait all asyncload insts complete.
+                    __builtin_amdgcn_s_waitcnt(3952);
+                    // Wait all waves synced
+                    __builtin_amdgcn_s_barrier();
+
+                    auto lds_tile = load_tile(x_block_lds_read_window);
 
                     // store from registers to DRAM
-                    store_tile(y_block_window, dram_tile);
+                    store_tile(y_block_window, lds_tile);
                 }
                 else
                 {
                     // load from DRAM to registers
-                    load_tile(dram_tile, x_block_window);
+                    auto dram_tile = load_tile(x_block_window);
 
                     // store in lds
-                    store_tile(x_block_lds_window_no_dist, dram_tile);
+                    store_tile(x_block_lds_write_window, dram_tile);
+
+                    // Wait all lds write insts complete
+                    // Wait all waves synced
+                    block_sync_lds();
 
                     // read from lds to registers
-                    load_tile(dram_tile, x_block_lds_window);
+                    auto lds_tile = load_tile(x_block_lds_read_window);
 
                     // store from registers to DRAM
-                    store_tile(y_block_window, dram_tile);
+                    store_tile(y_block_window, lds_tile);
                 }
             }
-            __syncthreads();
+
             move_tile_window(x_block_window, {0, S::Block_N});
             move_tile_window(y_block_window, {0, S::Block_N});
         }

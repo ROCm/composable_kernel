@@ -70,7 +70,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     constexpr ck_tile::index_t kBlockPerCu = 1;
     std::cout << "block size " << kBlockSize << std::endl;
     std::cout << "warp SIze " << ck_tile::get_warp_size() << std::endl;
-    std::cout << "warps per block _M " << Shape::WarpPerBlock_M << " " << Shape::WarpPerBlock_N
+    std::cout << "warps per block _M " << Shape::WarpPerBlock_M << " _N " << Shape::WarpPerBlock_N
               << std::endl;
     std::cout << "Block waves: " << BlockWaves::at(ck_tile::number<0>{}) << " "
               << BlockWaves::at(ck_tile::number<1>{}) << std::endl;
