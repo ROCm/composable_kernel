@@ -10,7 +10,7 @@ if(GPU_TARGETS MATCHES "gfx9")
         # NOTE: we turn off undefined-func-template to let source compile without explicit declare function specializations
         list(APPEND EXAMPLE_BATCHED_TRANSPOSE_COMPILE_OPTIONS -Wno-undefined-func-template -Wno-float-equal)
         # list(APPEND EXAMPLE_BATCHED_TRANSPOSE_COMPILE_OPTIONS -v --save-temps -Wno-gnu-line-marker)
-        target_compile_options(test_ck_tile_batched_transpose_fp16 PRIVATE ${EXAMPLE_BATCHED_TRANSPOSE_COMPILE_OPTIONS})
+        target_compile_options(${TARGET_NAME} PRIVATE ${EXAMPLE_BATCHED_TRANSPOSE_COMPILE_OPTIONS})
 
     endfunction(add_batched_transpose_test TARGET_NAME MAIN_SRC)
 
