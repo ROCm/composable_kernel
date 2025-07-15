@@ -5,12 +5,13 @@
 
 #include <hip/hip_runtime.h>
 #include <hip/hip_fp16.h>
+#include "utility/env.hpp"
 
 struct StreamConfig
 {
     hipStream_t stream_id_ = nullptr;
     bool time_kernel_      = false;
-    int log_level_         = 0;
+    int log_level_         = ck::EnvIsEnabled(CK_ENV(CK_LOGGING)) ? 1 : 0;
     int cold_niters_       = 5;
     int nrepeat_           = 50;
 
