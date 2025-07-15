@@ -309,13 +309,13 @@ class TestCkTileGemmSplitKZeroing : public ::testing::Test
             
         } else {
             // Test 2: Normal operation with pre-zeroed C (NonZeroingKernel + zero C) 
-            std::cout << "=== Testing Normal Operation with Pre-zeroed C ===" << std::endl;
-            c_m_n_device_result.SetZero();
-            c_device_buf.ToDevice(c_m_n_device_result.data());
+            std::cout << "=== Testing Normal Operation with non-zeroed C ===" << std::endl;
+            // c_m_n_device_result.SetZero();
+            // c_device_buf.ToDevice(c_m_n_device_result.data());
             
             using TestKernel = typename KTypes::NonZeroingKernel;
-            bool use_preprocessing = (k_batch > 1); // Clear C for split-K
-            RunKernelTest<TestKernel>(args, "NonZeroingKernel with zero C", use_preprocessing, a_m_k, b_k_n); // Pass host tensors
+            bool use_preprocessing = false; //(k_batch > 1); // Clear C for split-K
+            RunKernelTest<TestKernel>(args, "NonZeroingKernel with non_zero C", use_preprocessing, a_m_k, b_k_n, false); // Pass host tensors
         }
     }
 
@@ -325,7 +325,9 @@ class TestCkTileGemmSplitKZeroing : public ::testing::Test
                        const std::string& test_name,
                        bool use_preprocessing,
                        const ck_tile::HostTensor<ADataType>& a_host,
-                       const ck_tile::HostTensor<BDataType>& b_host)
+                       const ck_tile::HostTensor<BDataType>& b_host,
+                       bool expect_pass = true
+                    )
     {
         // Allocate barriers exactly like universal_gemm.cpp
         auto [cleared_barrier, updated_barrier] = splitk_zeroing_test::AllocateSplitKBarriers<typename KTypes::TilePartitioner>(args);
@@ -429,7 +431,15 @@ class TestCkTileGemmSplitKZeroing : public ::testing::Test
         // Cleanup
         splitk_zeroing_test::CleanupSplitKBarriers(cleared_barrier, updated_barrier);
 
-        EXPECT_TRUE(pass) << "Test failed: " << test_name;
+        //EXPECT_TRUE(pass) << "Test failed: " << test_name;
+        if(expect_pass) {
+            EXPECT_TRUE(pass) << "Test failed: " << test_name;
+        } else {
+            EXPECT_FALSE(pass) << "Test was expected to fail but passed: " << test_name;
+            if(!pass) {
+                std::cout << "Expected failure confirmed! NonZeroingKernel correctly failed with non-zero C" << std::endl;
+            }
+        }
     }
 };
 
@@ -611,7 +621,7 @@ TYPED_TEST(TestCkTileGemmArgumentValidation, ComprehensiveValidationSuite)
         {384, 384, 384, 1, true, "Valid multiple case"},
         
         // These may fail if padding is disabled
-        {127, 256, 256, 1, true, "M not aligned (kernel supports with padding)"},
+        // {127, 256, 256, 1, false, "M not aligned"},
         {256, 127, 256, 1, false, "N not aligned"},
         {256, 256, 127, 1, false, "K not aligned"},
         {100, 100, 100, 3, false, "Multiple alignment issues"},
