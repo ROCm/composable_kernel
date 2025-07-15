@@ -16,7 +16,6 @@
 #define CK_TILE_PIPELINE_COMPUTE_V5 4
 #define CK_TILE_PIPELINE_PRESHUFFLE 5
 #define CK_TILE_PIPELINE_PRESHUFFLE_V2 6
-#define CK_TILE_PIPELINE_PRESHUFFLE_V3 7
 
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile()
@@ -448,16 +447,6 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_PRESHUFFLE_V2>
     using UniversalGemmPipeline =
         ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<PipelineProblem>;
 };
-
-// template <>
-// struct PipelineTypeTraits<CK_TILE_PIPELINE_PRESHUFFLE_V3>
-// {
-//     template <typename PipelineProblem>
-//     using GemmPipeline = ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV3<PipelineProblem>;
-//     template <typename PipelineProblem>
-//     using UniversalGemmPipeline =
-//         ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV3<PipelineProblem>;
-// };
 
 auto create_args(int argc, char* argv[])
 {
