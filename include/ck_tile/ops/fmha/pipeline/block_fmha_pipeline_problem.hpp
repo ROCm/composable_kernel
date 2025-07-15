@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -216,7 +216,7 @@ struct BlockFmhaSplitKVCombinePipelineProblem
     static constexpr index_t kMaxSplits     = Traits::kMaxSplits;
     static_assert(8 <= kMaxSplits);
 
-    static constexpr index_t kNumWarps  = 4; // always use 4 warps for each workgroup
+    static constexpr index_t kNumWarps  = 4;
     static constexpr index_t kBlockSize = kNumWarps * get_warp_size();
 
     static_assert(get_warp_size() <= (kM0 * kMaxSplits) &&

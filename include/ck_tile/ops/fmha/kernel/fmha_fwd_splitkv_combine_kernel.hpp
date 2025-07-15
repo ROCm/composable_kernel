@@ -344,7 +344,7 @@ struct FmhaFwdSplitKVCombineKernel
             const auto lse_acc_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 lse_acc_ptr,
                 make_tuple(kargs.num_splits, kargs.seqlen_q),
-                make_tuple(kargs.split_stride_lse_acc, 1),
+                make_tuple(kargs.split_stride_lse_acc, number<1>{}),
                 number<FmhaPipeline::kAlignmentLSEacc>{},
                 number<1>{});
 
@@ -358,11 +358,11 @@ struct FmhaFwdSplitKVCombineKernel
             const auto o_acc_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 o_acc_ptr,
                 make_tuple(kargs.num_splits, kargs.seqlen_q, kargs.hdim_v),
-                make_tuple(kargs.split_stride_o_acc, kargs.row_stride_o_acc, 1),
+                make_tuple(kargs.split_stride_o_acc, kargs.row_stride_o_acc, number<1>{}),
                 number<FmhaPipeline::kAlignmentOacc>{},
                 number<1>{});
 
-            // read 4 * (kM0, kN1) o_acc tiles simultaneously by 4 warps
+            // read kNumWarps * (kM0, kN1) o_acc tiles simultaneously by kNumWarps warps
             const auto o_acc_dram_view = pad_tensor_view(
                 o_acc_dram_naive,
                 make_tuple(
@@ -469,7 +469,7 @@ struct FmhaFwdSplitKVCombineKernel
             const auto o_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 o_ptr,
                 make_tuple(kargs.seqlen_q, kargs.hdim_v),
-                make_tuple(kargs.row_stride_o, 1),
+                make_tuple(kargs.row_stride_o, number<1>{}),
                 number<FmhaPipeline::kAlignmentO>{},
                 number<1>{});
 

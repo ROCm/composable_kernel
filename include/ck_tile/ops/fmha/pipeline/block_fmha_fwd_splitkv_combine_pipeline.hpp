@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -278,7 +278,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                              o_acc_dram_block_window_tmp.get_window_origin(),
                              o_acc_4_dist);
 
-        // shape=[4 * KM0, kN1]
+        // shape=[kNumWarps * KM0, kN1]
         auto o_acc_4 = make_static_distributed_tensor<OaccDataType>(o_acc_4_dist);
         clear_tile(o_acc_4);
 
@@ -311,7 +311,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
             move_tile_window(o_acc_4_dram_window, {kNumWarps * kM0, 0});
         }
 
-        // 4 o_acc tiles in LDS. shape=[4 * kM0, kN1]
+        // kNumWarps o_acc tiles in LDS. shape=[kNumWarps * kM0, kN1]
         OaccDataType* o_acc_4_lds_ptr = static_cast<OaccDataType*>(static_cast<void*>(
             static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeLSEacc<Problem>()));
 
