@@ -17,12 +17,12 @@ template <typename ADataType,
           typename BDataType,
           typename AccDataType,
           typename CDataType,
+          typename FlatmmConfig,
           typename ALayout,
           typename BLayout,
           typename CLayout>
 float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_config& s)
 {
-    using FlatmmConfig       = FlatmmConfig<ADataType>;
     using CodegenFlatmmShape = ck_tile::TileFlatmmShape<
         ck_tile::sequence<FlatmmConfig::M_Tile, FlatmmConfig::N_Tile, FlatmmConfig::K_Tile>,
         ck_tile::sequence<FlatmmConfig::M_Warp, FlatmmConfig::N_Warp, FlatmmConfig::K_Warp>,
@@ -32,18 +32,20 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
 
     using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenFlatmmShape>;
 
-    using CodegenGemmTraits      = ck_tile::TileGemmTraits<FlatmmConfig::kPadM,
+    using CodegenGemmTraits = ck_tile::TileGemmTraits<FlatmmConfig::kPadM,
                                                       FlatmmConfig::kPadN,
                                                       FlatmmConfig::kPadK,
                                                       ALayout,
                                                       BLayout,
                                                       CLayout>;
+
     using CodegenPipelineProblem = ck_tile::GemmPipelineProblem<ADataType,
                                                                 BDataType,
                                                                 AccDataType,
                                                                 CodegenFlatmmShape,
                                                                 CodegenGemmTraits>;
-    const auto Run               = [&](const auto memory_operation_) {
+
+    const auto Run = [&](const auto memory_operation_) {
         constexpr auto memory_operation = memory_operation_.value;
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
@@ -151,6 +153,7 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
     }
 }
 
+template <template <typename PreType> typename FlatmmConfig>
 int run_flatmm_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -163,24 +166,27 @@ int run_flatmm_example(int argc, char* argv[])
     std::string data_type = arg_parser.get_str("prec");
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
-
     if(a_layout == "R" && b_layout == "C")
     {
         if(data_type == "fp16")
         {
-            run_flatmm_example_with_layouts<ck_tile::half_t>(argc, argv, Row{}, Col{}, Row{});
+            run_flatmm_example_with_layouts<ck_tile::half_t, FlatmmConfig<ck_tile::half_t>>(
+                argc, argv, Row{}, Col{}, Row{});
         }
         else if(data_type == "bf16")
         {
-            run_flatmm_example_with_layouts<ck_tile::bf16_t>(argc, argv, Row{}, Col{}, Row{});
+            run_flatmm_example_with_layouts<ck_tile::bf16_t, FlatmmConfig<ck_tile::bf16_t>>(
+                argc, argv, Row{}, Col{}, Row{});
         }
         else if(data_type == "fp8")
         {
-            run_flatmm_example_with_layouts<ck_tile::fp8_t>(argc, argv, Row{}, Col{}, Row{});
+            run_flatmm_example_with_layouts<ck_tile::fp8_t, FlatmmConfig<ck_tile::fp8_t>>(
+                argc, argv, Row{}, Col{}, Row{});
         }
         else if(data_type == "bf8")
         {
-            run_flatmm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Row{}, Col{}, Row{});
+            run_flatmm_example_with_layouts<ck_tile::bf8_t, FlatmmConfig<ck_tile::bf8_t>>(
+                argc, argv, Row{}, Col{}, Row{});
         }
         else
         {
@@ -196,9 +202,29 @@ int run_flatmm_example(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
+    auto [result, arg_parser] = create_args(argc, argv);
+    if(!result)
+        return EXIT_FAILURE;
+
     try
     {
-        return !run_flatmm_example(argc, argv);
+        int warp_tile = arg_parser.get_int("warp_tile");
+        if(warp_tile == 0)
+        {
+            return !run_flatmm_example<FlatmmConfig16>(argc, argv);
+        }
+        else if(warp_tile == 1)
+        {
+            return !run_flatmm_example<FlatmmConfig32>(argc, argv);
+        }
+        else if(warp_tile == 2)
+        {
+            return !run_flatmm_example<FlatmmConfig16_950>(argc, argv);
+        }
+        else
+        {
+            return !run_flatmm_example<FlatmmConfig32_950>(argc, argv);
+        }
     }
     catch(const std::runtime_error& e)
     {
