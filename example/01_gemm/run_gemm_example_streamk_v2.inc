@@ -21,6 +21,16 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     auto Grid_size   = problem_size.Grid_size;
     auto Streamk_sel = problem_size.Streamk_sel;
 
+    auto reduction_strategy = problem_size.reduction_strategy;
+    if(reduction_strategy == ck::StreamKReductionStrategy::Atomic)
+    {
+        std::cout << "Using Atomic reduction strategy" << std::endl;
+    }
+    else
+    {
+        std::cout << "Using Parallel reduction strategy" << std::endl;
+    }
+
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
@@ -152,7 +162,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         Grid_size,
         a_element_op,
         b_element_op,
-        c_element_op);
+        c_element_op,
+        reduction_strategy);
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -242,7 +253,10 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         float gb_per_sec = num_btype / 1.E6 / ave_time;
 
         std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                  << " GB/s, " << gemm.GetTypeString() << std::endl;
+                  << " GB/s, " << gemm.GetTypeString()
+                  << (reduction_strategy == ck::StreamKReductionStrategy::Atomic ? " (Atomic)"
+                                                                                 : " (Reduction)")
+                  << std::endl;
     }
     return pass;
 }

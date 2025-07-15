@@ -150,14 +150,14 @@ unsigned get_num_thread_blocks(unsigned batch, unsigned nheads, unsigned max_seq
 float fmha_batch_prefill(fmha_batch_prefill_traits t, fmha_batch_prefill_args a, const ck_tile::stream_config& s) {{
     float r = -1;
 
-    const float min_cu_util_rate = 0.8; // minimum CU utilization rate
+    [[maybe_unused]] const float min_cu_util_rate = 0.8; // minimum CU utilization rate
 
     unsigned num_cus;
     if (!get_num_cus(num_cus)) {{
         return r;
     }}
 
-    auto get_num_blocks = [&](unsigned kM0) {{
+    [[maybe_unused]] auto get_num_blocks = [&](unsigned kM0) {{
         return get_num_thread_blocks(a.batch, a.nhead_q, a.max_seqlen_q, kM0);
     }};
 
@@ -490,7 +490,7 @@ class KernelComponentFactory:
     def get_hdim_tile_size_dict(dtype : str) -> Optional[dict]:
         if dtype == 'fp16' or dtype == 'bf16':
             return {
-                '128' : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
+                128 : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
             }
         else:
             return None
@@ -516,13 +516,11 @@ class KernelComponentFactory:
 class CustomFactory(KernelComponentFactory):
     @staticmethod
     def get_hdim_tile_size_dict(dtype : str) -> Optional[dict]:
+        result = KernelComponentFactory.get_hdim_tile_size_dict(dtype)
         if dtype == 'fp16' or dtype == 'bf16':
-            return {
-                '128' : [FmhaFwdTileSize( 64, 128, 64, 128, 64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1, CppConstraint('get_num_blocks(128) < num_cus * min_cu_util_rate')),
-                         FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),]
-            }
-        else:
-            return None
+            if 128 in result.keys():
+                result[128].insert(0, FmhaFwdTileSize( 64, 128, 64, 128, 64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1, CppConstraint('get_num_blocks(128) < num_cus * min_cu_util_rate')))
+        return result
 
 def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
     # TODO: we don't support tuning yet, so pick up one value for vlayout/pipeline/pad
@@ -536,9 +534,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
         if d == None:
             continue
         #for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
-        for hdim_str, mode in itertools.product(d.keys(), MODE_MAP.keys()):
-            tiles = d[hdim_str]
-            hdim = int(hdim_str)
+        for (hdim, tiles), mode in itertools.product(d.items(), MODE_MAP.keys()):
             for tile, pipeline in itertools.product(tiles, CustomFactory.get_pipelines(dtype, hdim, receipt, mask_impl)):
                 if mode == "group":
                     if pipeline.F_spad != 't' or pipeline.F_skpad != 't':

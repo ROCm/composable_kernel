@@ -192,6 +192,9 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
 
     static constexpr index_t NumDTensor  = DsDataType::Size();
     static constexpr index_t MaxGemmsNum = 32;
+    static constexpr bool DoElementwiseBeforeCShuffle =
+        NumDTensor == 0 && is_same_v<EDataType, bhalf_t> &&
+        !is_same_v<CDEElementwiseOperation, tensor_operation::element_wise::PassThrough>;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -361,7 +364,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
         BBlockLdsExtraN, CShuffleMXdlPerWavePerShuffle, CShuffleNXdlPerWavePerShuffle,            \
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                         \
         CDEBlockTransferScalarPerVector_NPerBlock, LoopSched, PipelineVersion::v1,                \
-        AComputeDataType
+        AComputeDataType, DoElementwiseBeforeCShuffle
     // Use appropriate gridwise gemm
     using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<GridwiseGemmTemplateParameters>;
 

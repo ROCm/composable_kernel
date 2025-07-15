@@ -1,5 +1,6 @@
 add_executable(tile_example_gemm_basic EXCLUDE_FROM_ALL gemm_basic.cpp)
 add_executable(tile_example_gemm_universal EXCLUDE_FROM_ALL universal_gemm.cpp)
+add_executable(tile_example_gemm_weight_preshuffle EXCLUDE_FROM_ALL gemm_weight_preshuffle.cpp)
 add_executable(tile_example_gemm_universal_zeroing EXCLUDE_FROM_ALL universal_gemm_zeroing.cpp)
 set(EXAMPLE_GEMM_COMPILE_OPTIONS)
 if(CK_USE_OCP_FP8)

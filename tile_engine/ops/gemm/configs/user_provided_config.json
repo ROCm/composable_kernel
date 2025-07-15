@@ -14,27 +14,13 @@
       "values": [
         "r"
       ]
-    },
-    "datatype_a": {
-      "values": [
-        "fp16"
-      ]
-    },
-    "datatype_b": {
-      "values": [
-        "fp16"
-      ]
-    },
-    "datatype_c": {
-      "values": [
-        "fp16"
-      ]
     }
   },
   "tile_config": {
     "tile_m": {
       "values": [
-        128
+        128,
+        256
       ]
     },
     "tile_n": {
@@ -44,17 +30,17 @@
     },
     "tile_k": {
       "values": [
-        32
+        128
       ]
     },
     "warp_m": {
       "values": [
-        2
+        4
       ]
     },
     "warp_n": {
       "values": [
-        2
+        1
       ]
     },
     "warp_k": {
@@ -64,17 +50,17 @@
     },
     "warp_tile_m": {
       "values": [
-        32
+        16, 32
       ]
     },
     "warp_tile_n": {
       "values": [
-        32
+        16, 32
       ]
     },
     "warp_tile_k": {
       "values": [
-        16
+        16, 32
       ]
     }
   },
