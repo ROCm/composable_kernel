@@ -12,47 +12,75 @@
 
 namespace ck_tile {
 
-struct FlatmmProblem
-{
-    CK_TILE_HOST FlatmmProblem() = default;
-    CK_TILE_HOST FlatmmProblem(
-        index_t M_, index_t N_, index_t K_, index_t stride_A_, index_t stride_B_, index_t stride_C_)
-        : M(M_), N(N_), K(K_), stride_A(stride_A_), stride_B(stride_B_), stride_C(stride_C_)
-    {
-    }
-
-    index_t M;
-    index_t N;
-    index_t K;
-    index_t stride_A;
-    index_t stride_B;
-    index_t stride_C;
-};
-
-struct FlatmmHostArgs : public FlatmmProblem
+template <index_t NumDTensor = 0>
+struct FlatmmHostArgs
 {
     CK_TILE_HOST FlatmmHostArgs() = default;
     CK_TILE_HOST FlatmmHostArgs(const void* a_ptr_,
-                                const void* b_shuffle_ptr_,
-                                void* c_ptr_,
+                                const void* b_ptr_,
+                                const std::array<const void*, NumDTensor>& ds_ptr_,
+                                void* e_ptr_,
                                 index_t k_batch_,
                                 index_t M_,
                                 index_t N_,
                                 index_t K_,
                                 index_t stride_A_,
                                 index_t stride_B_,
-                                index_t stride_C_)
-        : FlatmmProblem(M_, N_, K_, stride_A_, stride_B_, stride_C_),
-          a_ptr(a_ptr_),
-          b_shuffle_ptr(b_shuffle_ptr_),
-          c_ptr(c_ptr_),
+                                const std::array<index_t, NumDTensor>& stride_Ds_,
+                                index_t stride_E_)
+        : a_ptr(a_ptr_),
+          b_ptr(b_ptr_),
+          ds_ptr(ds_ptr_),
+          e_ptr(e_ptr_),
+          M(M_),
+          N(N_),
+          K(K_),
+          stride_A(stride_A_),
+          stride_B(stride_B_),
+          stride_Ds(stride_Ds_),
+          stride_E(stride_E_),
           k_batch(k_batch_)
     {
     }
 
     const void* a_ptr;
-    const void* b_shuffle_ptr;
-    void* c_ptr;
+    const void* b_ptr;
+    const std::array<const void*, NumDTensor> ds_ptr;
+    union
+    {
+        void* e_ptr;
+        void* c_ptr;
+    };
+    index_t M;
+    index_t N;
+    index_t K;
+    index_t stride_A;
+    index_t stride_B;
+    const std::array<index_t, NumDTensor> stride_Ds;
+    union
+    {
+        index_t stride_E;
+        index_t stride_C;
+    };
+
+    index_t k_batch;
+};
+
+template <index_t NumDTensor = 0>
+struct FlatmmKernelArgs
+{
+    const void* a_ptr;
+    // const void* b_shuffle_ptr;
+    const void* b_ptr;
+    const std::array<const void*, NumDTensor> ds_ptr;
+    void* e_ptr;
+    index_t M;
+    index_t N;
+    index_t K;
+    index_t stride_A;
+    index_t stride_B;
+    std::array<index_t, NumDTensor> stride_Ds;
+    index_t stride_E;
     index_t k_batch;
 };
 
@@ -63,23 +91,29 @@ struct FlatmmKernel
     using FlatmmPipeline  = remove_cvref_t<FlatmmPipeline_>;
     using BlockGemmShape =
         remove_cvref_t<typename FlatmmPipeline::BlockGemmShape>; // TileFlatmmShape
-    using EpiloguePipeline                   = remove_cvref_t<EpiloguePipeline_>;
-    using ALayout                            = remove_cvref_t<typename FlatmmPipeline::ALayout>;
-    using BLayout                            = remove_cvref_t<typename FlatmmPipeline::BLayout>;
-    using CLayout                            = remove_cvref_t<typename FlatmmPipeline::CLayout>;
+    using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
+    using ALayout          = remove_cvref_t<typename FlatmmPipeline::ALayout>;
+    using BLayout          = remove_cvref_t<typename FlatmmPipeline::BLayout>;
+    using ELayout          = remove_cvref_t<typename FlatmmPipeline::CLayout>;
+    using DsLayout         = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
+    using DsDataType       = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
     static constexpr index_t KernelBlockSize = FlatmmPipeline::BlockSize;
 
     using ADataType = remove_cvref_t<typename FlatmmPipeline::ADataType>;
     using BDataType = remove_cvref_t<typename FlatmmPipeline::BDataType>;
     // Below type is actually accumulation data type - the output of block GEMM.
-    using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
+    using EDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
-    static constexpr auto I0   = number<0>();
-    static constexpr auto I1   = number<1>();
-    static constexpr auto I2   = number<2>();
-    static constexpr auto idxM = I0;
-    static constexpr auto idxN = I1;
-    static constexpr auto idxK = I2;
+    static constexpr index_t NumDTensor = DsDataType::size();
+
+    static constexpr auto I0 = number<0>();
+    static constexpr auto I1 = number<1>();
+    static constexpr auto I2 = number<2>();
+    static constexpr auto I3 = number<3>();
+
+    static_assert(DsLayout::size() == DsDataType::size(),
+                  "The size of DsLayout and DsDataType should be the same");
+    using KernelArgs = FlatmmKernelArgs<DsLayout::size()>;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
@@ -95,32 +129,21 @@ struct FlatmmKernel
 
     CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
 
-    struct FlatmmKernelArgs
+    CK_TILE_HOST static constexpr KernelArgs
+    MakeKernelArgs(const FlatmmHostArgs<NumDTensor>& hostArgs)
     {
-        const void* a_ptr;
-        const void* b_shuffle_ptr;
-        void* c_ptr;
-        index_t M;
-        index_t N;
-        index_t K;
-        index_t stride_A;
-        index_t stride_B;
-        index_t stride_C;
-        index_t k_batch;
-    };
-
-    CK_TILE_HOST static constexpr FlatmmKernelArgs MakeKernelArgs(const FlatmmHostArgs& hostArgs)
-    {
-        return FlatmmKernelArgs{hostArgs.a_ptr,
-                                hostArgs.b_shuffle_ptr,
-                                hostArgs.c_ptr,
-                                hostArgs.M,
-                                hostArgs.N,
-                                hostArgs.K,
-                                hostArgs.stride_A,
-                                hostArgs.stride_B,
-                                hostArgs.stride_C,
-                                hostArgs.k_batch};
+        return KernelArgs{hostArgs.a_ptr,
+                          hostArgs.b_ptr,
+                          hostArgs.ds_ptr,
+                          hostArgs.e_ptr,
+                          hostArgs.M,
+                          hostArgs.N,
+                          hostArgs.K,
+                          hostArgs.stride_A,
+                          hostArgs.stride_B,
+                          hostArgs.stride_Ds,
+                          hostArgs.stride_E,
+                          hostArgs.k_batch};
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
@@ -130,8 +153,7 @@ struct FlatmmKernel
 
     struct SplitKBatchOffset
     {
-        __device__ SplitKBatchOffset(const FlatmmKernelArgs& kargs,
-                                     const std::size_t k_id = blockIdx.z)
+        __device__ SplitKBatchOffset(const KernelArgs& kargs, const std::size_t k_id = blockIdx.z)
         {
             constexpr auto K1   = TilePartitioner::BlockGemmShape::WarpTile::at(number<2>{});
             const index_t K_t   = kargs.k_batch * K1;
@@ -170,10 +192,10 @@ struct FlatmmKernel
         index_t splitted_k;
     };
 
-    CK_TILE_HOST static bool IsSupportedArgument(const FlatmmKernelArgs& kargs)
+    CK_TILE_HOST static bool IsSupportedArgument(const KernelArgs& kargs)
     {
         if constexpr(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
-                     is_any_of<CDataType, fp16_t, bf16_t>::value)
+                     is_any_of<EDataType, fp16_t, bf16_t>::value)
         {
             if(kargs.k_batch != 1)
             {
@@ -244,7 +266,45 @@ struct FlatmmKernel
             }
         }
 
-        if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+        bool DTesnorIsValid = {true};
+        static_for<0, NumDTensor, 1>{}([&](auto index) {
+            using DiLayout = remove_cvref_t<std::tuple_element_t<index.value, DsLayout>>;
+            if(std::is_same_v<DiLayout, ELayout> == false)
+            {
+                DTesnorIsValid = false;
+            }
+            if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
+            {
+                if(kargs.N % TilePartitioner::NPerBlock != 0 && FlatmmPipeline::kPadN == false)
+                {
+                    CK_TILE_ERROR("Can't support N for tensor D that is not a multiple of "
+                                  "NPerBlock without padding!");
+                    DTesnorIsValid = false;
+                }
+                if(kargs.N % EpiloguePipeline::GetVectorSizeD(index) != 0)
+                {
+                    CK_TILE_ERROR("N is not a multiple of vector load size for D tensor!");
+                    DTesnorIsValid = false;
+                }
+            }
+            else
+            {
+                if(kargs.M % TilePartitioner::MPerBlock != 0 && FlatmmPipeline::kPadM == false)
+                {
+                    CK_TILE_ERROR("Can't support M for tensor D that is not a multiple of "
+                                  "MPerBlock without padding!");
+
+                    DTesnorIsValid = false;
+                }
+                if(kargs.M % EpiloguePipeline::GetVectorSizeD(index) != 0)
+                {
+                    CK_TILE_ERROR("M is not a multiple of vector load size for D tensor!");
+                    DTesnorIsValid = false;
+                }
+            }
+        });
+
+        if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
         {
             if(kargs.N % TilePartitioner::NPerBlock != 0 && FlatmmPipeline::kPadN == false)
             {
@@ -274,15 +334,17 @@ struct FlatmmKernel
                 return false;
             }
         }
-        return true;
+        return DTesnorIsValid;
     }
 
     template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
-    CK_TILE_DEVICE static auto MakeGemmTensorViews(const ADataType* a_ptr,
-                                                   const BDataType* b_flat_ptr,
-                                                   CDataType* c_ptr,
-                                                   const FlatmmKernelArgs& kargs,
-                                                   const SplitKBatchOffset& splitk_batch_offset)
+    CK_TILE_DEVICE static auto
+    MakeGemmTensorViews(const ADataType* a_ptr,
+                        const BDataType* b_flat_ptr,
+                        const std::array<const void*, NumDTensor>& ds_ptr,
+                        EDataType* e_ptr,
+                        const KernelArgs& kargs,
+                        const SplitKBatchOffset& splitk_batch_offset)
     {
         const auto& a_tensor_view = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
@@ -317,29 +379,54 @@ struct FlatmmKernel
                 number<1>{});
         }();
 
+        const auto& ds_tensor_view = generate_tuple(
+            [&](auto i) {
+                using DiLayout   = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
+                using DDataType_ = remove_cvref_t<std::tuple_element_t<i.value, DsDataType>>;
+                if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
+                {
+                    return make_naive_tensor_view<address_space_enum::global>(
+                        static_cast<const DDataType_*>(ds_ptr[i]),
+                        make_tuple(kargs.M, kargs.N),
+                        make_tuple(kargs.stride_Ds[i], 1),
+                        number<EpiloguePipeline::GetVectorSizeD(i)>{},
+                        number<1>{});
+                }
+                else
+                {
+                    return make_naive_tensor_view<address_space_enum::global>(
+                        static_cast<const DDataType_*>(ds_ptr[i]),
+                        make_tuple(kargs.N, kargs.M),
+                        make_tuple(kargs.stride_Ds[i], 1),
+                        number<EpiloguePipeline::GetVectorSizeD(i)>{},
+                        number<1>{});
+                }
+            },
+            number<NumDTensor>{});
+
         // TODO: enable vector write for C in ColMajor
-        const auto& c_tensor_view = [&]() {
-            if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+        const auto& e_tensor_view = [&]() {
+            if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
             {
                 return make_naive_tensor_view<address_space_enum::global>(
-                    c_ptr,
+                    e_ptr,
                     make_tuple(kargs.M, kargs.N),
-                    make_tuple(kargs.stride_C, 1),
+                    make_tuple(kargs.stride_E, 1),
                     number<EpiloguePipeline::GetVectorSizeC()>{},
                     number<1>{});
             }
             else
             {
                 return make_naive_tensor_view<address_space_enum::global>(
-                    c_ptr,
-                    make_tuple(kargs.M, kargs.N),
-                    make_tuple(1, kargs.stride_C),
+                    e_ptr,
+                    make_tuple(kargs.N, kargs.M),
+                    make_tuple(kargs.stride_E, 1),
                     number<1>{},
                     number<1>{});
             }
         }();
 
-        return make_tuple(a_tensor_view, b_flat_tensor_view, c_tensor_view);
+        return make_tuple(a_tensor_view, b_flat_tensor_view, ds_tensor_view, e_tensor_view);
     }
 
     template <typename TensorView>
@@ -365,26 +452,47 @@ struct FlatmmKernel
 
         const auto& b_flat_tensor_view = views.at(I1);
 
+        const auto& ds_pad_view = generate_tuple(
+            [&](auto i) {
+                const auto& d_tensor_view = views.at(I2);
+                using DiLayout            = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
+                if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
+                {
+                    return pad_tensor_view(d_tensor_view[i],
+                                           make_tuple(number<TilePartitioner::MPerBlock>{},
+                                                      number<TilePartitioner::NPerBlock>{}),
+                                           sequence<false, FlatmmPipeline::kPadN>{});
+                }
+                else
+                {
+                    return pad_tensor_view(d_tensor_view[i],
+                                           make_tuple(number<TilePartitioner::NPerBlock>{},
+                                                      number<TilePartitioner::MPerBlock>{}),
+                                           sequence<false, FlatmmPipeline::kPadM>{});
+                }
+            },
+            number<NumDTensor>{});
+
         // TODO vector write in for C in ColMajor
-        const auto& c_pad_view = [&]() {
-            const auto& c_tensor_view = views.at(I2);
-            if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+        const auto& e_pad_view = [&]() {
+            const auto& e_tensor_view = views.at(I3);
+            if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
             {
-                return pad_tensor_view(c_tensor_view,
+                return pad_tensor_view(e_tensor_view,
                                        make_tuple(number<TilePartitioner::MPerBlock>{},
                                                   number<TilePartitioner::NPerBlock>{}),
                                        sequence<false, FlatmmPipeline::kPadN>{});
             }
             else
             {
-                return pad_tensor_view(c_tensor_view,
+                return pad_tensor_view(e_tensor_view,
                                        make_tuple(number<TilePartitioner::MPerBlock>{},
                                                   number<TilePartitioner::NPerBlock>{}),
                                        sequence<FlatmmPipeline::kPadM, false>{});
             }
         }();
 
-        return make_tuple(a_pad_view, b_flat_tensor_view, c_pad_view);
+        return make_tuple(a_pad_view, b_flat_tensor_view, ds_pad_view, e_pad_view);
     }
 
     template <typename PadView>
@@ -393,7 +501,8 @@ struct FlatmmKernel
     {
         const auto& a_pad_view      = views.at(I0);
         const auto& b_flat_pad_view = views.at(I1);
-        const auto& c_pad_view      = views.at(I2);
+        const auto& ds_pad_view     = views.at(I2);
+        const auto& e_pad_view      = views.at(I3);
 
         const auto& a_block_window = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
@@ -416,21 +525,43 @@ struct FlatmmKernel
             make_tile_window(b_flat_pad_view,
                              make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
                                         number<FlatmmPipeline::flatKPerWarp>{}),
-                             {static_cast<int>(i_n / BlockGemmShape::WarpTile::at(idxN)), 0});
+                             {static_cast<int>(i_n / BlockGemmShape::WarpTile::at(I1)), 0});
 
-        auto c_block_window = make_tile_window(
-            c_pad_view,
+        const auto ds_block_window = generate_tuple(
+            [&](auto i) {
+                using DiLayout = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
+                if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
+                {
+                    return make_tile_window(ds_pad_view[i],
+                                            make_tuple(number<TilePartitioner::MPerBlock>{},
+                                                       number<TilePartitioner::NPerBlock>{}),
+                                            {i_m, i_n});
+                }
+                else
+                {
+                    return make_tile_window(ds_pad_view[i],
+                                            make_tuple(number<TilePartitioner::NPerBlock>{},
+                                                       number<TilePartitioner::MPerBlock>{}),
+                                            {i_n, i_m});
+                }
+            },
+            number<NumDTensor>{});
+
+        auto e_block_window = make_tile_window(
+            e_pad_view,
             make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
             {i_m, i_n});
 
-        return make_tuple(a_block_window, b_flat_block_window, c_block_window);
+        return make_tuple(a_block_window, b_flat_block_window, ds_block_window, e_block_window);
     }
 
+    template <bool UseDefaultScheduler = true>
     CK_TILE_DEVICE static void RunFlatmm(const ADataType* a_ptr,
                                          const BDataType* b_flat_ptr,
-                                         CDataType* c_ptr,
+                                         const std::array<const void*, NumDTensor>& ds_ptr,
+                                         EDataType* e_ptr,
                                          void* smem_ptr,
-                                         const FlatmmKernelArgs& kargs,
+                                         const KernelArgs& kargs,
                                          const SplitKBatchOffset& splitk_batch_offset,
                                          const index_t block_idx_m,
                                          const index_t block_idx_n)
@@ -438,7 +569,7 @@ struct FlatmmKernel
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
             MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-                a_ptr, b_flat_ptr, c_ptr, kargs, splitk_batch_offset);
+                a_ptr, b_flat_ptr, ds_ptr, e_ptr, kargs, splitk_batch_offset);
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
 
@@ -450,15 +581,18 @@ struct FlatmmKernel
         const auto& d_block_window      = gemm_tile_windows.at(I2);
         const auto& c_block_tile        = FlatmmPipeline{}.template operator()(
             a_block_window, b_flat_block_window, num_loop, smem_ptr);
+        if(UseDefaultScheduler || (get_warp_id() == 0))
+        {
+            // Run Epilogue Pipeline
+            auto& c_block_window = gemm_tile_windows.at(I3);
 
-        // Run Epilogue Pipeline
-        auto& c_block_window = gemm_tile_windows.at(I2);
-
-        EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
-            c_block_window, c_block_tile, d_block_window, smem_ptr);
+            EpiloguePipeline{}.template
+            operator()<decltype(c_block_window), decltype(c_block_tile), decltype(d_block_window)>(
+                c_block_window, c_block_tile, d_block_window, smem_ptr);
+        }
     }
 
-    CK_TILE_DEVICE void operator()(FlatmmKernelArgs kargs) const
+    CK_TILE_DEVICE void operator()(KernelArgs kargs) const
     {
         const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockIdx.x);
         const index_t i_m   = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
@@ -468,18 +602,27 @@ struct FlatmmKernel
         // options
         const ADataType* a_ptr =
             static_cast<const ADataType*>(kargs.a_ptr) + splitk_batch_offset.a_k_split_offset;
-        const BDataType* b_flat_ptr = static_cast<const BDataType*>(kargs.b_shuffle_ptr) +
-                                      splitk_batch_offset.b_k_split_offset;
-        CDataType* c_ptr = static_cast<CDataType*>(kargs.c_ptr);
+        const BDataType* b_flat_ptr =
+            static_cast<const BDataType*>(kargs.b_ptr) + splitk_batch_offset.b_k_split_offset;
+        EDataType* e_ptr = static_cast<EDataType*>(kargs.e_ptr);
 
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
 
         if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
                        EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
-                       is_any_of<CDataType, fp16_t, bf16_t>::value))
+                       is_any_of<EDataType, fp16_t, bf16_t>::value))
         {
-            RunFlatmm(a_ptr, b_flat_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+            constexpr auto scheduler_type = (FlatmmPipeline::NumWaveGroups == 1);
+            RunFlatmm<scheduler_type>(a_ptr,
+                                      b_flat_ptr,
+                                      kargs.ds_ptr,
+                                      e_ptr,
+                                      smem_ptr,
+                                      kargs,
+                                      splitk_batch_offset,
+                                      i_m,
+                                      i_n);
         }
     }
 };
