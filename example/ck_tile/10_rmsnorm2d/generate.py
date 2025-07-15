@@ -226,7 +226,6 @@ float rmsnorm2d_fwd_(const S& s, A a)
         T5PassPipeline
     >;
 
-
     using Default2DEpilogueProblem = ck_tile::Default2DEpilogueProblem<ComputeDataType, YDataType, false, Traits_::kPadN, false>;
     using Default2DEpilogue = ck_tile::Default2DEpilogue<Default2DEpilogueProblem>;
 
