@@ -979,7 +979,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                 });
             });
 
-            TailHotLoopScheduler();
+            // TailHotLoopScheduler();
 
             static_for<0, m_preload, 1>{}([&](auto loadIter) {
                 constexpr auto mIter = loadIter % MIterPerWarp;
