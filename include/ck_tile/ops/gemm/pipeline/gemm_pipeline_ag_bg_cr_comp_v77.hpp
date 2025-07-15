@@ -197,18 +197,21 @@ struct GemmPipelineAgBgCrCompV77 : public BaseGemmPipelineAgBgCrCompV77<Problem>
                                                 (BlockSize / WaveSize) /
                                                 (MPerXDL * NPerXDL * KPerXDL);
 
+            constexpr auto num_bytes_per_ds_read_a =
+                A_LDS_Read_Width * sizeof(ADataType) / APackedSize;
+            constexpr auto num_bytes_per_ds_read_b =
+                B_LDS_Read_Width * sizeof(BDataType) / BPackedSize;
+
             constexpr auto num_ds_read_inst_a =
-                A_LDS_Read_Width * sizeof(ADataType) / APackedSize == 16 ? A_LDS_Read_Inst_Num
-                                                                         : A_LDS_Read_Inst_Num / 2;
+                num_bytes_per_ds_read_a == 16 ? A_LDS_Read_Inst_Num / 2 : A_LDS_Read_Inst_Num;
             constexpr auto num_ds_read_inst_b =
-                B_LDS_Read_Width * sizeof(BDataType) / BPackedSize == 16 ? B_LDS_Read_Inst_Num
-                                                                         : B_LDS_Read_Inst_Num / 2;
+                num_bytes_per_ds_read_b == 16 ? B_LDS_Read_Inst_Num / 2 : B_LDS_Read_Inst_Num;
 
             constexpr auto mfma_cycle = NPerXDL == 16 ? 16 : 32;
-            constexpr auto ds_read_a_issue_cycle =
-                A_LDS_Read_Width * sizeof(ADataType) == 16 ? 8 : 4;
-            constexpr auto ds_read_b_issue_cycle =
-                B_LDS_Read_Width * sizeof(BDataType) == 16 ? 8 : 4;
+
+            constexpr auto ds_read_a_issue_cycle = num_bytes_per_ds_read_a == 16 ? 4 : 8;
+            constexpr auto ds_read_b_issue_cycle = num_bytes_per_ds_read_b == 16 ? 4 : 8;
+
             constexpr auto ds_read_a_mfma_rate =
                 (mfma_cycle - 4 + 2 * ds_read_a_issue_cycle - 1) / (2 * ds_read_a_issue_cycle);
             constexpr auto ds_read_b_mfma_rate =
@@ -340,7 +343,7 @@ struct GemmPipelineAgBgCrCompV77 : public BaseGemmPipelineAgBgCrCompV77<Problem>
                                        const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                        const BElementFunction& b_element_func,
                                        index_t num_loop,
-                                       void* p_smem) const
+                                       void* __restrict__ p_smem) const
         {
             static_assert(
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
@@ -659,7 +662,7 @@ struct GemmPipelineAgBgCrCompV77 : public BaseGemmPipelineAgBgCrCompV77<Problem>
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                    const BElementFunction& b_element_func,
                                    index_t num_loop,
-                                   void* p_smem) const
+                                   void* __restrict__ p_smem) const
     {
         return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
             a_dram_block_window_tmp,
@@ -675,7 +678,7 @@ struct GemmPipelineAgBgCrCompV77 : public BaseGemmPipelineAgBgCrCompV77<Problem>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                    const index_t num_loop,
-                                   void* p_smem) const
+                                   void* __restrict__ p_smem) const
     {
         return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
             a_dram_block_window_tmp,
