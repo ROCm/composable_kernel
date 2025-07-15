@@ -61,7 +61,7 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
                                                                  CodegenGemmTraits,
                                                                  ComputeDataType>;
 
-    using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
+    using BaseGemmPipeline = ck_tile::BaseAQuantGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
 
     const ck_tile::index_t K_split      = (args.K + K_Tile - 1) / K_Tile * K_Tile;
     const ck_tile::index_t num_loop     = TilePartitioner::GetLoopNum(K_split);
@@ -87,24 +87,24 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
                                                tail_number_v>;
         using CodegenGemmPipeline = ck_tile::AQuantGemmPipelineAgBgCrCompV3<CodegenPipelineProblem>;
         using GemmEpilogue        = ck_tile::CShuffleEpilogue<
-                   ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                    BDataType,
-                                                    ck_tile::tuple<>,
-                                                    AccDataType,
-                                                    CDataType,
-                                                    ck_tile::tuple<>,
-                                                    CLayout,
-                                                    ck_tile::element_wise::PassThrough,
-                                                    CodegenPipelineProblem::kBlockSize,
-                                                    TilePartitioner::MPerBlock,
-                                                    TilePartitioner::NPerBlock,
-                                                    M_Warp,
-                                                    N_Warp,
-                                                    M_Warp_Tile,
-                                                    N_Warp_Tile,
-                                                    K_Warp_Tile,
-                                                    transposed_warp_gemm,
-                                                    ck_tile::memory_operation_enum::set>>;
+            ck_tile::CShuffleEpilogueProblem<ADataType,
+                                             BDataType,
+                                             ck_tile::tuple<>,
+                                             AccDataType,
+                                             CDataType,
+                                             ck_tile::tuple<>,
+                                             CLayout,
+                                             ck_tile::element_wise::PassThrough,
+                                             CodegenPipelineProblem::kBlockSize,
+                                             TilePartitioner::MPerBlock,
+                                             TilePartitioner::NPerBlock,
+                                             M_Warp,
+                                             N_Warp,
+                                             M_Warp_Tile,
+                                             N_Warp_Tile,
+                                             K_Warp_Tile,
+                                             transposed_warp_gemm,
+                                             ck_tile::memory_operation_enum::set>>;
         using Kernel =
             ck_tile::AQuantGemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
 
@@ -139,56 +139,7 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
 
         return ave_time;
     };
-    if(has_hot_loop)
-    {
-        if(tail_num == ck_tile::TailNumber::Full)
-        {
-            return Run(
-                ck_tile::bool_constant<true>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-        }
-        else if(tail_num == ck_tile::TailNumber::Odd)
-        {
-            return Run(ck_tile::bool_constant<true>{},
-                       ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
-        }
-        else if(tail_num == ck_tile::TailNumber::Even)
-        {
-            return Run(
-                ck_tile::bool_constant<true>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported tail number for this operation !!!");
-        }
-    }
-    else
-    {
-        if(tail_num == ck_tile::TailNumber::Full)
-        {
-            return Run(
-                ck_tile::bool_constant<false>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-        }
-        else if(tail_num == ck_tile::TailNumber::Odd)
-        {
-            return Run(ck_tile::bool_constant<false>{},
-                       ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
-        }
-        else if(tail_num == ck_tile::TailNumber::Even)
-        {
-            return Run(
-                ck_tile::bool_constant<false>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported tail number for this operation !!!");
-        }
-    }
-
-    return 0.f;
+    return BaseGemmPipeline::TailHandler(Run, has_hot_loop, tail_num);
 }
 
 #include "run_gemm_aquant_example.inc"
@@ -244,18 +195,14 @@ int run_gemm_example(int argc, char* argv[])
     }
     else if(data_type == "i4fp8")
     {
-        using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t,
-                                                        ck_tile::fp8_t,
-                                                        float,
-                                                        ck_tile::fp8_t>{});
+        using TypeConfig = decltype(
+            GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::fp8_t, float, ck_tile::fp8_t>{});
         return run_gemm_example_prec_type<TypeConfig, 128>(a_layout, b_layout, argc, argv);
     }
     else if(data_type == "i4bf8")
     {
-        using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t,
-                                                        ck_tile::bf8_t,
-                                                        float,
-                                                        ck_tile::bf8_t>{});
+        using TypeConfig = decltype(
+            GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::bf8_t, float, ck_tile::bf8_t>{});
         return run_gemm_example_prec_type<TypeConfig, 128>(a_layout, b_layout, argc, argv);
     }
     else if(data_type == "i4f32fp8")
