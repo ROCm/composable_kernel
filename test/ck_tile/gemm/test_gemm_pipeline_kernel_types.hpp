@@ -25,6 +25,7 @@ using Interwave = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
 using Mem       = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::Mem>;
 using CompV3    = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV3>;
 using CompV4    = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV4>;
+using CompV77   = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV77>;
 
 using Persistent    = std::true_type;
 using NonPersistent = std::false_type;
@@ -70,6 +71,10 @@ using KernelTypesCompV4 = ::testing::Types<
     std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV4>,
     std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV4>,
     std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV4>
+>;
+
+using KernelTypesCompV77 = ::testing::Types<
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV77>
 >;
 
 using KernelTypesPersistent = ::testing::Types<

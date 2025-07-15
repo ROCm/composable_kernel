@@ -36,7 +36,8 @@ enum struct GemmPipelineType
 {
     Mem,
     CompV3,
-    CompV4
+    CompV4,
+    CompV77
 };
 
 template <GemmPipelineType PT, typename Problem>
@@ -69,6 +70,15 @@ struct GemmPipelineTypeSelector<GemmPipelineType::CompV4, Problem>
     static constexpr auto GetName() { return "GemmPipelineAgBgCrCompV4"; }
 };
 
+template <typename Problem>
+struct GemmPipelineTypeSelector<GemmPipelineType::CompV77, Problem>
+{
+    using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrCompV77<Problem>;
+    using pipeline      = ck_tile::GemmPipelineAgBgCrCompV77<Problem>;
+
+    static constexpr auto GetName() { return "GemmPipelineAgBgCrCompV77"; }
+};
+
 template <typename Tuple>
 class TestCkTileGemmPipeline : public ::testing::Test
 {
@@ -95,9 +105,13 @@ class TestCkTileGemmPipeline : public ::testing::Test
                      const ck_tile::stream_config& s)
     {
         // TODO: This should be parameterized in tests
+        constexpr auto numWaveGroups      = (PipelineType == GemmPipelineType::CompV77) ? 2 : 1;
         constexpr ck_tile::index_t M_Tile = 256;
         constexpr ck_tile::index_t N_Tile = 256;
-        constexpr ck_tile::index_t K_Tile = (PipelineType == GemmPipelineType::CompV4) ? 32 : 64;
+        constexpr ck_tile::index_t K_Tile =
+            (PipelineType == GemmPipelineType::CompV4 || PipelineType == GemmPipelineType::CompV77)
+                ? 32
+                : 64;
 
         constexpr ck_tile::index_t M_Warp = 2;
         constexpr ck_tile::index_t N_Warp = 2;
@@ -129,7 +143,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
         using TilePartitioner = ck_tile::
             GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
-        using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
+        using Traits =
+            ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout, numWaveGroups>;
         static constexpr bool StructuredSparsity = false;
         using GemmUniversalTraits                = ck_tile::TileGemmUniversalTraits<kPadM,
                                                                      kPadN,
@@ -140,7 +155,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                                      CLayout,
                                                                      TransposeC,
                                                                      StructuredSparsity,
-                                                                     Persistent>;
+                                                                     Persistent,
+                                                                     numWaveGroups>;
 
         using GemmPipelineProblem =
             ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;

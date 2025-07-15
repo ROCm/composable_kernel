@@ -45,10 +45,15 @@ struct BaseGemmPipelineAgBgCrCompV77
         // Handle all the valid cases.
         if(has_hot_loop)
         {
-            if(tail_number == TailNumber::Full)
+            if(tail_number == TailNumber::Odd)
             {
                 return run_func(bool_constant<true>{},
-                                integral_constant<TailNumber, TailNumber::Full>{});
+                                integral_constant<TailNumber, TailNumber::Odd>{});
+            }
+            else if(tail_number == TailNumber::Even)
+            {
+                return run_func(bool_constant<true>{},
+                                integral_constant<TailNumber, TailNumber::Even>{});
             }
         }
         else
@@ -64,21 +69,12 @@ struct BaseGemmPipelineAgBgCrCompV77
                                 integral_constant<TailNumber, TailNumber::Even>{});
             }
         }
+        // If execution reaches here, it's an invalid tail_number because it wasn't handled above.
 #if defined(__HIP_DEVICE_COMPILE__)
-        // This path should be unreachable in device code if tail_number is valid.
         __builtin_unreachable();
 #else
-        // If execution reaches here, it's an invalid combination of arguments.
-        if(has_hot_loop)
-        {
-            throw std::logic_error("Invalid TailNumber: If has_hot_loop is true, tail_number must "
-                                   "be TailNumber::Full.");
-        }
-        else
-        {
-            throw std::logic_error("Invalid TailNumber: If has_hot_loop is false, tail_number must "
-                                   "be TailNumber::Odd or TailNumber::Even.");
-        }
+        throw std::logic_error("Invalid TailNumber: Only TailNumber::Full and smaller than "
+                               "PrefetchStages are supported.");
 #endif
     }
 };
@@ -111,6 +107,8 @@ struct GemmPipelineAgBgCrCompV77 : public BaseGemmPipelineAgBgCrCompV77<Problem>
     using BLayout = remove_cvref_t<typename Problem::BLayout>;
     using CLayout = remove_cvref_t<typename Problem::CLayout>;
 
+    static constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
+
     using BlockGemm          = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
@@ -141,6 +139,15 @@ struct GemmPipelineAgBgCrCompV77 : public BaseGemmPipelineAgBgCrCompV77<Problem>
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
     static constexpr auto TailNum    = Problem::TailNum;
     static constexpr auto Scheduler  = Problem::Scheduler;
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
+    {
+        // clang-format off
+        return concat('_', "pipeline_AgBgCrCompV77", BlockSize,
+                      concat('x', GetVectorSizeA(), GetVectorSizeB(),  GetVectorSizeC()),
+                      concat('x', kPadM, kPadN, kPadK));
+        // clang-format on
+    }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
