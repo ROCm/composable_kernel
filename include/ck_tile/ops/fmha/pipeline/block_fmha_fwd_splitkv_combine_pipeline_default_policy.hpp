@@ -78,16 +78,16 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeOacc4()
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeOacc()
     {
         return sizeof(typename Problem::OaccDataType) *
-               MakeOacc4LdsBlockDescriptor<Problem>().get_element_space_size();
+               MakeOaccLdsBlockDescriptor<Problem>().get_element_space_size();
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        return GetSmemSizeLSEacc<Problem>() + GetSmemSizeOacc4<Problem>();
+        return GetSmemSizeLSEacc<Problem>() + GetSmemSizeOacc<Problem>();
     }
 
     // shape=[kMaxSplits, kM0]
@@ -181,7 +181,7 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
 
     // 3d + padding, shape=[kNumWarps * kM0, kN1]
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeOacc4LdsBlockDescriptor()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeOaccLdsBlockDescriptor()
     {
         using LSEDataType = remove_cvref_t<typename Problem::LSEDataType>;
 
@@ -238,10 +238,10 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
                                        sequence<2, 1>>{});
     }
 
-    // similar to MakeOaccDramTileDistribution(), but duplicate same 1-warp encoding kNumWarps
+    // similar to MakeOaccResultDramTileDistribution(), but duplicate same 1-warp encoding kNumWarps
     // times on M direction
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeOacc4DramTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeOaccDramTileDistribution()
     {
         constexpr index_t kNumWarps  = Problem::kNumWarps;
         constexpr index_t kMPerBlock = Problem::kM0; // real kMPerBlock we want is (kNumWarps * kM0)
@@ -264,7 +264,7 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeOaccDramTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeOaccResultDramTileDistribution()
     {
         constexpr index_t kNumWarps  = Problem::kNumWarps;
         constexpr index_t kMPerBlock = Problem::kM0;
