@@ -176,14 +176,13 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
 
             float gb_per_sec = num_btype / 1.E6 / avg_time;
 
-            std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << tflops << " TFlops, "
-                      << gb_per_sec << " GB/s, " << op_name;
-
             if(supports_split_k)
             {
-                std::cout << ", SplitK " << split_k_local;
+                op_name += ", SplitK " + std::to_string(split_k_local);
             }
-            std::cout << std::endl;
+
+            std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << tflops << " TFlops, "
+                      << gb_per_sec << " GB/s, " << op_name << std::endl;
 
             if(tflops > best_tflops)
             {
