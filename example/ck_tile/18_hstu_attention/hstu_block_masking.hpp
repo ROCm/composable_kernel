@@ -19,7 +19,6 @@ struct HstuBlockMaskWithLocal
 
     int max_attn_len;
     int min_full_attn_seqlen;
-    int num_target;
 
     int max_uih_len;
     int max_id;
@@ -32,10 +31,9 @@ struct HstuBlockMaskWithLocal
         : seqlen(seqlen_),
           contextual_seqlen(contextual_seqlen_),
           max_attn_len(max_attn_len_),
-          min_full_attn_seqlen(min_full_attn_seqlen_),
-          num_target(num_target_)
+          min_full_attn_seqlen(min_full_attn_seqlen_)
     {
-        max_uih_len = seqlen - num_target;
+        max_uih_len = seqlen - num_target_;
 
         if(contextual_seqlen > 0)
             max_id = max_uih_len - (contextual_seqlen - 1);
@@ -254,15 +252,14 @@ struct HstuBlockMaskNoLocal
 
     int seqlen;
     int contextual_seqlen;
-    int num_target;
 
     int max_uih_len;
     int max_id;
 
     CK_TILE_HOST_DEVICE HstuBlockMaskNoLocal(int seqlen_, int contextual_seqlen_, int num_target_)
-        : seqlen(seqlen_), contextual_seqlen(contextual_seqlen_), num_target(num_target_)
+        : seqlen(seqlen_), contextual_seqlen(contextual_seqlen_)
     {
-        max_uih_len = seqlen - num_target;
+        max_uih_len = seqlen - num_target_;
 
         if(contextual_seqlen > 0)
             max_id = max_uih_len - (contextual_seqlen - 1);
