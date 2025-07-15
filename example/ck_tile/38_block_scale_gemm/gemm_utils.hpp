@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
-
 #pragma once
 
 #include <string>
@@ -666,6 +665,4 @@ auto create_args(int argc, char* argv[])
 }
 
 // host API
-float gemm(const ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& s);
-
 float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::stream_config& s);

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
-
 #pragma once
 #include <bit>
 #include <random>
@@ -150,34 +149,13 @@ int run_gemm_example_with_layouts(int argc,
 
     if(init_method == 0)
     {
-        if(std::is_same_v<ADataType, ck_tile::pk_int4_t>)
+        if constexpr(std::is_same_v<ADataType, ck_tile::pk_int4_t>)
         {
-            constexpr auto int4_array = std::array<uint8_t, 16>{0x77,
-                                                                0x66,
-                                                                0x55,
-                                                                0x44,
-                                                                0x33,
-                                                                0x22,
-                                                                0x11,
-                                                                0x00,
-                                                                0xff,
-                                                                0xee,
-                                                                0xdd,
-                                                                0xcc,
-                                                                0xbb,
-                                                                0xaa,
-                                                                0x99,
-                                                                0x88};
-            std::uniform_int_distribution<std::uint32_t> dis(0, 15);
-            for(size_t i = 0; i < a_m_k.size(); i++)
-            {
-                int randomInt   = dis(gen);
-                a_m_k.data()[i] = int4_array[randomInt];
-            }
+            ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{fill_seed(gen)}(a_m_k);
         }
         else
         {
-            ck_tile::FillUniformDistribution<BDataType>{-2.0f, 3.0f, fill_seed(gen)}(a_m_k);
+            ck_tile::FillUniformDistribution<ADataType>{-2.0f, 3.0f, fill_seed(gen)}(a_m_k);
         }
         ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f, fill_seed(gen)}(aq_m_aqk);
         ck_tile::FillUniformDistribution<BDataType>{-5.0f, 5.0f, fill_seed(gen)}(b_k_n);

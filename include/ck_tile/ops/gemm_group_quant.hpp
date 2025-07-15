@@ -5,7 +5,7 @@
 
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/flatmm.hpp"
-#include "ck_tile/ops/gemm_group_quant/block/block_universal_gemm_as_quant_bs_cr.hpp"
+#include "ck_tile/ops/gemm_group_quant/block/block_universal_gemm_as_aquant_bs_cr.hpp"
 #include "ck_tile/ops/gemm_group_quant/kernel/gemm_aquant_kernel.hpp"
 #include "ck_tile/ops/gemm_group_quant/pipeline/gemm_aquant_pipeline_problem.hpp"
 #include "ck_tile/ops/gemm_group_quant/pipeline/gemm_aquant_pipeline_ag_bg_cr_policy.hpp"

@@ -63,7 +63,7 @@ struct FillUniformDistribution
                         return;
                     // need to make each thread unique, add an offset to current seed
                     std::mt19937 gen(seed_.has_value() ? (*seed_ + iw_begin)
-                                                              : std::random_device{}());
+                                                       : std::random_device{}());
                     std::uniform_real_distribution<float> dis(a_, b_);
                     std::generate(first + iw_begin, first + iw_end, [&dis, &gen]() {
                         return ck_tile::type_convert<T>(dis(gen));
@@ -81,6 +81,33 @@ struct FillUniformDistribution
         }
     }
 
+    template <typename ForwardRange>
+    auto operator()(ForwardRange&& range) const
+        -> std::void_t<decltype(std::declval<const FillUniformDistribution&>()(
+            std::begin(std::forward<ForwardRange>(range)),
+            std::end(std::forward<ForwardRange>(range))))>
+    {
+        (*this)(std::begin(std::forward<ForwardRange>(range)),
+                std::end(std::forward<ForwardRange>(range)));
+    }
+};
+
+template <>
+struct FillUniformDistribution<ck_tile::pk_int4_t>
+{
+    std::optional<uint32_t> seed_{11939};
+    template <typename ForwardIter>
+    void operator()(ForwardIter first, ForwardIter last) const
+    {
+        std::mt19937 gen(seed_.has_value() ? *seed_ : std::random_device{}());
+        std::uniform_int_distribution<std::uint32_t> dis(0, 15);
+        while(first != last)
+        {
+            int randomInt1 = dis(gen);
+            int randomInt2 = dis(gen);
+            *first         = randomInt1 << 4 | randomInt2;
+        }
+    }
     template <typename ForwardRange>
     auto operator()(ForwardRange&& range) const
         -> std::void_t<decltype(std::declval<const FillUniformDistribution&>()(
@@ -187,7 +214,7 @@ struct FillNormalDistribution
                         return;
                     // need to make each thread unique, add an offset to current seed
                     std::mt19937 gen(seed_.has_value() ? (*seed_ + iw_begin)
-                                                              : std::random_device{}());
+                                                       : std::random_device{}());
                     std::normal_distribution<float> dis(mean_, std::sqrt(variance_));
                     std::generate(first + iw_begin, first + iw_end, [&dis, &gen]() {
                         return ck_tile::type_convert<T>(dis(gen));
