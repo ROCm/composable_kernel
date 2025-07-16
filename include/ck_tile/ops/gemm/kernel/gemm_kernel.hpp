@@ -16,34 +16,8 @@
 #include "ck_tile/core/tensor/static_distributed_tensor.hpp"
 #include "ck_tile/core/arch/workgroup_barrier.hpp"
 
-
-
 namespace ck_tile {
 
-// ADD: Global barrier for Split-K synchronization
-// static __device__ volatile uint32_t g_splitk_barrier = 0;
-
-/// @brief The GEMM problem definition.
-///
-/// @par Overview
-///      This structure defines the GEMM problem configuration by stating all required information
-///      like M,N,K sizes and respective strides.
-struct GemmProblem
-{
-    CK_TILE_HOST GemmProblem() = default;
-    CK_TILE_HOST GemmProblem(
-        index_t M_, index_t N_, index_t K_, index_t stride_A_, index_t stride_B_, index_t stride_C_)
-        : M(M_), N(N_), K(K_), stride_A(stride_A_), stride_B(stride_B_), stride_C(stride_C_)
-    {
-    }
-
-    index_t M;
-    index_t N;
-    index_t K;
-    index_t stride_A;
-    index_t stride_B;
-    index_t stride_C;
-};
 
 /// @brief The GEMM kernel host arguments.
 ///
@@ -70,7 +44,7 @@ struct GemmHostArgs
                               index_t stride_B_,
                               const std::array<index_t, NumDTensor>& stride_Ds_,
                               index_t stride_E_,
-                              uint32_t* cleared_c_tile_barrier_ = nullptr,
+                              uint32_t* cleared_tile_barrier_  = nullptr,
                               uint32_t* updated_batches_barrier_ = nullptr)
         : a_ptr(a_ptr_),
           b_ptr(b_ptr_),
@@ -84,7 +58,7 @@ struct GemmHostArgs
           stride_Ds(stride_Ds_),
           stride_E(stride_E_),
           k_batch(k_batch_),
-          cleared_c_tile_barrier(cleared_c_tile_barrier_),
+          cleared_tile_barrier(cleared_tile_barrier_),
           updated_batches_barrier(updated_batches_barrier_)
     {
     }
@@ -110,7 +84,7 @@ struct GemmHostArgs
     };
 
     index_t k_batch;
-    uint32_t* cleared_c_tile_barrier;
+    uint32_t* cleared_tile_barrier;
     uint32_t* updated_batches_barrier;
 };
 
@@ -145,7 +119,7 @@ struct GemmKernelArgs
     ///        (in memory) of E tensor.
     index_t stride_E;
     index_t k_batch;
-    uint32_t* cleared_c_tile_barrier; // Signals C tile is zeroed   0 - > 1
+    uint32_t* cleared_tile_barrier;  // Signals C tile is zeroed   0 - > 1
     uint32_t* updated_batches_barrier; // counts completed k_batches  0 - > k_batch
 };
 
@@ -185,7 +159,10 @@ struct GemmKernelArgs
 ///                             multiplication implementation. It is responsible for storing
 ///                             results calculated by @ref GemmPipeline_ "GemmPipeline" to
 ///                             the output E tensor in global memory.
-template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_, bool UseZeroing_ = false>
+template <typename TilePartitioner_,
+          typename GemmPipeline_,
+          typename EpiloguePipeline_,
+          bool UseZeroing_ = false>
 struct GemmKernel
 {
     using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
@@ -215,8 +192,7 @@ struct GemmKernel
     static constexpr bool PersistentKernel = has_persistent_kernel::value;
 
     static constexpr bool UseZeroing = UseZeroing_;
-    
-    
+
     using ADataType = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
     // Below type is actually accumulation data type - the output of block GEMM.
@@ -266,7 +242,6 @@ struct GemmKernel
 
     CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
 
-    
     CK_TILE_HOST static constexpr KernelArgs
     MakeKernelArgs(const GemmHostArgs<NumDTensor>& hostArgs)
     {
@@ -283,7 +258,7 @@ struct GemmKernel
                           hostArgs.stride_Ds,
                           hostArgs.stride_E,
                           hostArgs.k_batch,
-                          hostArgs.cleared_c_tile_barrier,
+                          hostArgs.cleared_tile_barrier,
                           hostArgs.updated_batches_barrier};
     }
 
@@ -859,21 +834,22 @@ struct GemmKernel
 
         return make_tuple(a_block_window, b_block_window, ds_block_window, e_block_window);
     }
-   
-    template<typename GemmPipeline_Type>
-    struct GemmProblemForPolicy {
-        using ADataType = typename GemmPipeline_Type::ADataType;
-        using BDataType = typename GemmPipeline_Type::BDataType;
-        using CDataType = typename GemmPipeline_Type::CDataType;
-        using ALayout = typename GemmPipeline_Type::ALayout;
-        using BLayout = typename GemmPipeline_Type::BLayout;
-        using CLayout = typename GemmPipeline_Type::CLayout;
-        using BlockGemmShape = typename GemmPipeline_Type::BlockGemmShape;
-        static constexpr index_t kBlockSize = GemmPipeline_Type::BlockSize;
-        static constexpr bool TransposeC = GemmPipeline_Type::TransposeC;
+
+    template <typename GemmPipeline_Type>
+    struct GemmProblemForPolicy
+    {
+        using ADataType                             = typename GemmPipeline_Type::ADataType;
+        using BDataType                             = typename GemmPipeline_Type::BDataType;
+        using CDataType                             = typename GemmPipeline_Type::CDataType;
+        using ALayout                               = typename GemmPipeline_Type::ALayout;
+        using BLayout                               = typename GemmPipeline_Type::BLayout;
+        using CLayout                               = typename GemmPipeline_Type::CLayout;
+        using BlockGemmShape                        = typename GemmPipeline_Type::BlockGemmShape;
+        static constexpr index_t kBlockSize         = GemmPipeline_Type::BlockSize;
+        static constexpr bool TransposeC            = GemmPipeline_Type::TransposeC;
         static constexpr bool UseStructuredSparsity = false;
     };
-   
+
     /**
      * @brief Runs single GEMM problem cooperatively by whole workgroup.
      *
@@ -888,7 +864,7 @@ struct GemmKernel
      * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
      *
      */
-    template <bool UseDefaultScheduler = true> 
+    template <bool UseDefaultScheduler = true>
     CK_TILE_DEVICE static void RunGemm(const ADataType* a_ptr,
                                        const BDataType* b_ptr,
                                        const std::array<const void*, NumDTensor>& ds_ptr,
@@ -907,45 +883,45 @@ struct GemmKernel
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
 
         auto gemm_tile_windows = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
-        
+
         // --- Per-tile zeroing for split-K ---
-        if constexpr (UseZeroing) {
-            
-            if (blockIdx.z == 0 ) {
-                
-                // c tile in global memory
-                auto& c_block_window = gemm_tile_windows.at(I2);
-                 
+        if constexpr(UseZeroing)
+        {
+
+            if(blockIdx.z == 0)
+            {
+
+                // output tile in global memory
+                auto& c_block_window = gemm_tile_windows.at(I3);
+
                 constexpr index_t BlockSize = GemmPipeline::BlockSize;
                 constexpr index_t MPerBlock = TilePartitioner::MPerBlock;
                 constexpr index_t NPerBlock = TilePartitioner::NPerBlock;
 
-                constexpr index_t VecSize = GetThreadVectorLoadSize<CDataType, CLayout, MPerBlock, NPerBlock, BlockSize>();
-                
+                constexpr index_t VecSize =
+                    GetThreadVectorLoadSize<EDataType, ELayout, MPerBlock, NPerBlock, BlockSize>();
+
                 using TilePattern = typename std::conditional_t<
-                    std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>,
+                    std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
                     TileDistributionEncodingPattern2D<BlockSize,
-                                                    MPerBlock,
-                                                    NPerBlock,
-                                                    VecSize,
-                                                    tile_distribution_pattern::thread_raked>,
+                                                      MPerBlock,
+                                                      NPerBlock,
+                                                      VecSize,
+                                                      tile_distribution_pattern::thread_raked>,
                     TileDistributionEncodingPattern2D<BlockSize,
-                                                    NPerBlock,
-                                                    MPerBlock,
-                                                    VecSize,
-                                                    tile_distribution_pattern::thread_raked>
-                >;
-                
-                
-                auto zero_tile = make_static_distributed_tensor<CDataType>(
-                     TilePattern::Make2DStaticTileDistribution()
-                );
+                                                      NPerBlock,
+                                                      MPerBlock,
+                                                      VecSize,
+                                                      tile_distribution_pattern::thread_raked>>;
+
+                auto zero_tile = make_static_distributed_tensor<EDataType>(
+                    TilePattern::Make2DStaticTileDistribution());
                 clear_tile(zero_tile);
 
                 // Store the zero tile to global memory
                 store_tile(c_block_window, zero_tile);
-                
-                workgroup_barrier cleared_barrier(kargs.cleared_c_tile_barrier);
+
+                workgroup_barrier cleared_barrier(kargs.cleared_tile_barrier);
 
                 // Signal that C tile has been zeroed
                 cleared_barrier.inc(blockIdx.x);
@@ -966,15 +942,18 @@ struct GemmKernel
         if(UseDefaultScheduler || (get_warp_id() == 0))
         {
             auto& c_block_window = gemm_tile_windows.at(I3);
-        
-            EpiloguePipeline{}.template
-            operator()<decltype(c_block_window), decltype(c_block_tile), decltype(d_block_window), UseZeroing>(
-                c_block_window, 
-            c_block_tile, d_block_window, 
-            smem_ptr_0,
-            kargs.cleared_c_tile_barrier,   // Pass cleared barrier
-            kargs.updated_batches_barrier); // Pass updated barrier
 
+            EpiloguePipeline{}
+                .template operator()<decltype(c_block_window),
+                                     decltype(c_block_tile),
+                                     decltype(d_block_window),
+                                     UseZeroing>(
+                    c_block_window,
+                    c_block_tile,
+                    d_block_window,
+                    smem_ptr_0,
+                    kargs.cleared_tile_barrier,   // Pass cleared barrier
+                    kargs.updated_batches_barrier); // Pass updated barrier
         }
     }
 
@@ -1014,30 +993,48 @@ struct GemmKernel
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
 
         auto gemm_tile_windows = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
-        
+
         // --- Per-tile zeroing for split-K ---
-        if constexpr (UseZeroing) {
-            if (blockIdx.z == 0) {
-                auto& c_block_window = gemm_tile_windows.at(I2);
-                
-                auto block_gemm = typename GemmPipeline::BlockGemm();
-                auto reference_tile = block_gemm.MakeCBlockTile();
-                using CDistribution = typename decltype(reference_tile)::StaticTileDistribution;
-                
-                // Create zero tensor with same distribution as C block tile
-                auto zero_tile = make_static_distributed_tensor<CDataType>(CDistribution{});
-       
-                tile_elementwise_inout([](auto& c) { c = 0; }, zero_tile);
-                
-                // Store the correctly typed zero tile to global memory
+        if constexpr(UseZeroing)
+        {
+
+            if(blockIdx.z == 0)
+            {
+
+                // output tile in global memory
+                auto& c_block_window = gemm_tile_windows.at(I3);
+
+                constexpr index_t BlockSize = GemmPipeline::BlockSize;
+                constexpr index_t MPerBlock = TilePartitioner::MPerBlock;
+                constexpr index_t NPerBlock = TilePartitioner::NPerBlock;
+
+                constexpr index_t VecSize =
+                    GetThreadVectorLoadSize<EDataType, ELayout, MPerBlock, NPerBlock, BlockSize>();
+
+                using TilePattern = typename std::conditional_t<
+                    std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
+                    TileDistributionEncodingPattern2D<BlockSize,
+                                                      MPerBlock,
+                                                      NPerBlock,
+                                                      VecSize,
+                                                      tile_distribution_pattern::thread_raked>,
+                    TileDistributionEncodingPattern2D<BlockSize,
+                                                      NPerBlock,
+                                                      MPerBlock,
+                                                      VecSize,
+                                                      tile_distribution_pattern::thread_raked>>;
+
+                auto zero_tile = make_static_distributed_tensor<EDataType>(
+                    TilePattern::Make2DStaticTileDistribution());
+                clear_tile(zero_tile);
+
+                // Store the zero tile to global memory
                 store_tile(c_block_window, zero_tile);
 
+                workgroup_barrier cleared_barrier(kargs.cleared_tile_barrier);
+
                 // Signal that C tile has been zeroed
-                if(kargs.cleared_c_tile_barrier && threadIdx.x == 0) {
-                    __atomic_store_n(&kargs.cleared_c_tile_barrier[blockIdx.x], 1, __ATOMIC_RELEASE);
-                }
-                
-                __syncthreads();
+                cleared_barrier.inc(blockIdx.x);
             }
         }
 
@@ -1055,13 +1052,13 @@ struct GemmKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I3);
 
-        
         EpiloguePipeline{}.template
         operator()<decltype(c_block_window), decltype(c_block_tile), decltype(d_block_window)>(
-            c_block_window, 
-            c_block_tile, d_block_window, 
+            c_block_window,
+            c_block_tile,
+            d_block_window,
             smem_ptr_0,
-            kargs.cleared_c_tile_barrier,   // Pass cleared barrier
+            kargs.cleared_tile_barrier,   // Pass cleared barrier
             kargs.updated_batches_barrier); // Pass updated barrier);
     }
 
@@ -1135,7 +1132,6 @@ struct GemmKernel
             __builtin_amdgcn_readfirstlane(TilePartitioner::GridSize(kargs.M, kargs.N));
         const auto num_work = __builtin_amdgcn_readfirstlane(num_tiles * kargs.k_batch);
         auto block_id       = __builtin_amdgcn_readfirstlane(get_block_id());
-
 
         while(block_id < num_work)
         {

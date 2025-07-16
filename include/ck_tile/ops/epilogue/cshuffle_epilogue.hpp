@@ -11,7 +11,8 @@ namespace ck_tile {
 
 // Global static barrier array - initialized once at program startup
 // constexpr index_t MAX_STATIC_TILES = 4;  // Adjust based on max grid size
-// __device__ static uint32_t global_static_barriers[MAX_STATIC_TILES] = {0};  // Initialize to zeros
+// __device__ static uint32_t global_static_barriers[MAX_STATIC_TILES] = {0};  // Initialize to
+// zeros
 
 template <typename ADataType_,
           typename BDataType_,
@@ -260,16 +261,18 @@ struct CShuffleEpilogue
         return MPerIterationShuffle * NPerIterationShuffle * sizeof(ODataType);
     }
 
-
-    template <typename ODramWindow, typename OAccTile, typename DsDramWindows, bool UseZeroing = false>
-    CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window, 
-                                const OAccTile& o_acc_tile, 
-                                const DsDramWindows& ds_dram_windows,
-                                void* p_smem,
-                                uint32_t* cleared_c_tile_barrier = nullptr,
-                                uint32_t* updated_batches_barrier = nullptr)
+    template <typename ODramWindow,
+              typename OAccTile,
+              typename DsDramWindows,
+              bool UseZeroing = false>
+    CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window,
+                                   const OAccTile& o_acc_tile,
+                                   const DsDramWindows& ds_dram_windows,
+                                   void* p_smem,
+                                   uint32_t* cleared_tile_barrier  = nullptr,
+                                   uint32_t* updated_batches_barrier = nullptr)
     {
-            constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
+        constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
 
         auto lds_tile = make_static_distributed_tensor<AccDataType>(LdsTileDistr);
 
@@ -314,15 +317,12 @@ struct CShuffleEpilogue
         constexpr auto c_warp_y_lengths =
             to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
-        
-        
-        CWarpTensor c_warp_in_tensor;
-        
+
         ////////////////////////////////////////////////////////////
         if constexpr(UseZeroing)
         {
-            workgroup_barrier cleared_barrier(cleared_c_tile_barrier);
-        
+            workgroup_barrier cleared_barrier(cleared_tile_barrier);
+
             // Wait for C tile to be zeroed before first access
             cleared_barrier.wait_lt(1, blockIdx.x);
         }
@@ -367,8 +367,7 @@ struct CShuffleEpilogue
             {
                 update_tile(out_dram_window, c_out_tensor);
             }
-        
-           
+
             if constexpr(iAccess != num_access - 1)
             {
                 constexpr auto step = SFC::get_forward_step(iAccess);
@@ -380,25 +379,25 @@ struct CShuffleEpilogue
         // Update barriers and reset if needed
         if constexpr(UseZeroing)
         {
-            workgroup_barrier cleared_barrier(cleared_c_tile_barrier);
+            workgroup_barrier cleared_barrier(cleared_tile_barrier);
             workgroup_barrier updated_barrier(updated_batches_barrier);
 
             // After moving tile, increment completed batches counter
-            updated_barrier.inc(blockIdx.x);  // Increment completion counter
-            
+            updated_barrier.inc(blockIdx.x); // Increment completion counter
+
             // Check if all k-batches completed and reset if needed
-            if(threadIdx.x == 0) {
+            if(threadIdx.x == 0)
+            {
                 uint32_t completed = updated_barrier.ld(blockIdx.x);
-                if(completed >= static_cast<uint32_t>(gridDim.z)) {
+                if(completed >= static_cast<uint32_t>(gridDim.z))
+                {
                     // Reset barriers for next iteration
-                    
-                    cleared_c_tile_barrier[blockIdx.x] = 0;  // Reset cleared barrier
-                    updated_batches_barrier[blockIdx.x] = 0;  // Reset updated batches
+
+                    cleared_tile_barrier[blockIdx.x]  = 0; // Reset cleared barrier
+                    updated_batches_barrier[blockIdx.x] = 0; // Reset updated batches
                 }
             }
         }
-
-       
     }
 };
 } // namespace ck_tile

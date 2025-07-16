@@ -28,7 +28,7 @@ struct workgroup_barrier
         {
             while(ld(offset) != value) {}
         }
-        
+
         __builtin_amdgcn_s_barrier();
     }
 
@@ -58,7 +58,7 @@ struct workgroup_barrier
 
     CK_TILE_DEVICE void inc(uint32_t offset = 0)
     {
-        
+
         if(threadIdx.x == 0)
         {
             atomicAdd(base_ptr + offset, 1);

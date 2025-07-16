@@ -32,7 +32,6 @@ std::string gemm_prec_str()
     return base_str;
 }
 
-
 /**
  * @brief Calculate optimal vector size for thread memory loads in tensor operations.
  *
@@ -43,44 +42,52 @@ std::string gemm_prec_str()
  * @tparam BlockSize    The thread block size.
  * @return Optimal vector size (elements per vector load) for each thread.
  */
-template <typename DataType, typename Layout, index_t Dim0PerBlock, index_t Dim1PerBlock, index_t BlockSize>
+template <typename DataType,
+          typename Layout,
+          index_t Dim0PerBlock,
+          index_t Dim1PerBlock,
+          index_t BlockSize>
 CK_TILE_HOST_DEVICE static constexpr auto GetThreadVectorLoadSize()
 {
     // For Dim0 × Dim1 tensor dimensions
     constexpr index_t elements_per_thread = Dim0PerBlock * Dim1PerBlock / BlockSize;
     constexpr index_t PackedSize = ck_tile::numeric_traits<remove_cvref_t<DataType>>::PackedSize;
-    
+
     // XPerTile depends on layout (contiguous dimension)
-    constexpr index_t XPerTile = std::is_same_v<Layout, tensor_layout::gemm::RowMajor> ? Dim1PerBlock : Dim0PerBlock;
-    
+    constexpr index_t XPerTile =
+        std::is_same_v<Layout, tensor_layout::gemm::RowMajor> ? Dim1PerBlock : Dim0PerBlock;
+
     if constexpr(XPerTile % (PackedSize * 32 / sizeof(DataType)) == 0 &&
-                 elements_per_thread % (PackedSize * 32 / sizeof(DataType)) == 0 &&
-                 PackedSize == 2) {
+                 elements_per_thread % (PackedSize * 32 / sizeof(DataType)) == 0 && PackedSize == 2)
+    {
         return (PackedSize * 32 / sizeof(DataType));
     }
     else if constexpr(XPerTile % (PackedSize * 16 / sizeof(DataType)) == 0 &&
-                      elements_per_thread % (PackedSize * 16 / sizeof(DataType)) == 0) {
+                      elements_per_thread % (PackedSize * 16 / sizeof(DataType)) == 0)
+    {
         return (PackedSize * 16 / sizeof(DataType));
     }
     else if constexpr(XPerTile % (PackedSize * 8 / sizeof(DataType)) == 0 &&
-                      elements_per_thread % (PackedSize * 8 / sizeof(DataType)) == 0) {
+                      elements_per_thread % (PackedSize * 8 / sizeof(DataType)) == 0)
+    {
         return (PackedSize * 8 / sizeof(DataType));
     }
     else if constexpr(sizeof(DataType) >= PackedSize * 4 &&
                       XPerTile % (PackedSize * 4 / sizeof(DataType)) == 0 &&
-                      elements_per_thread % (PackedSize * 4 / sizeof(DataType)) == 0) {
+                      elements_per_thread % (PackedSize * 4 / sizeof(DataType)) == 0)
+    {
         return (PackedSize * 4 / sizeof(DataType));
     }
     else if constexpr(sizeof(DataType) >= PackedSize * 2 &&
                       XPerTile % (PackedSize * 2 / sizeof(DataType)) == 0 &&
-                      elements_per_thread % (PackedSize * 2 / sizeof(DataType)) == 0) {
+                      elements_per_thread % (PackedSize * 2 / sizeof(DataType)) == 0)
+    {
         return (PackedSize * 2 / sizeof(DataType));
     }
-    else {
+    else
+    {
         return PackedSize;
     }
 }
-
-
 
 } // namespace ck_tile
