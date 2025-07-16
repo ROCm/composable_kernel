@@ -521,6 +521,7 @@ class FmhaFwdSplitKVKernel:
 
     @property
     def template(self) -> str:
+        assert self.F_pipeline.F_lse == 't'
         kernel_body = str()
         return FMHA_FWD_KERNEL_HEADER + \
             FMHA_FWD_SPLITKV_KERNEL_BODY.format(
@@ -608,7 +609,7 @@ class FmhaFwdSplitKVCombineKernel:
 
 # TODO: design a more practical way to do it
 # this is current supported tile size per hdim
-def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
+def get_fmha_fwd_tile_dict_from_dtype_gfx9(dtype : str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {
             '32'  : FmhaFwdTileSize(32, 64,  16, 32,  32,  32,   2, 1, 1,  2, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
@@ -622,6 +623,25 @@ def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
         return {
             '64'  : FmhaFwdTileSize(128, 64,  32, 64,  32,  64,   2, 1, 1,  2, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
             '128' : FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
+        }
+    else:
+        return None
+
+def get_fmha_fwd_tile_dict_from_dtype_gfx12(dtype : str) -> Optional[dict]:
+    if dtype == 'fp16' or dtype == 'bf16':
+        return {
+            #                       bm0, bn0, bk0, bn1, bk1,
+            '32'  : FmhaFwdTileSize( 64,  64,  16,  32,  32,   32,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+            '64'  : FmhaFwdTileSize( 64,  64,  32,  64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+            '128' : FmhaFwdTileSize( 64,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+            '256' : FmhaFwdTileSize( 64,  64,  32, 256,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+        }
+    elif dtype == 'fp8' or dtype == 'bf8':
+        return {
+            #                       bm0, bn0, bk0, bn1, bk1,
+            '64'  : FmhaFwdTileSize(128,  64,  32,  64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+            '128' : FmhaFwdTileSize( 64,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+            '256' : FmhaFwdTileSize( 64,  32,  32, 256,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
         }
     else:
         return None
@@ -652,7 +672,7 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl, opt
 
     # TODO: we don't support tuning yet, so pick up one value for vlayout/pipeline/pad
     #       support this in future
-    def get_pipelines(dtype, hdim) -> List[FmhaFwdSplitKVPipeline]:
+    def get_pipelines_gfx9(dtype, hdim) -> List[FmhaFwdSplitKVPipeline]:
         # this function will populate a list possible pipelines
         # TODO: the order of List matters! the later in this list will be also be checked later
         # TODO: currently for qr pipeline, let 't' padding to appear later!!
@@ -682,7 +702,35 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl, opt
             assert False
         return pipelines
 
+    def get_pipelines_gfx12(dtype, hdim) -> List[FmhaFwdSplitKVPipeline]:
+        squant = 't' if dtype == 'fp8' else 'f'
+        pipelines = []
+        if dtype in ['fp16', 'bf16']:
+            for logits, mask, bias, pagedkv in itertools.product(['t', 'f'], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ['t', 'f']):
+                pipelines.append(Pipeline('qr', 'row', 'f', 't', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
+                pipelines.append(Pipeline('qr', 'col', 'f', 't', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
+
+                pipelines.append(Pipeline('qr', 'row', 't', 'f', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
+                pipelines.append(Pipeline('qr', 'col', 't', 'f', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
+
+                pipelines.append(Pipeline('qr', 'row', 't', 't', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
+                pipelines.append(Pipeline('qr', 'col', 't', 't', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
+
+                pipelines.append(Pipeline('qr', 'row', 't', 't', 't', 't', logits, bias, 't', squant, pagedkv, mask))
+                pipelines.append(Pipeline('qr', 'col', 't', 't', 't', 't', logits, bias, 't', squant, pagedkv, mask))
+        elif dtype in ['fp8', 'bf8']:
+            for logits, mask, bias in itertools.product(['t', 'f'], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()):
+                pipelines.append(Pipeline('qr', 'col', 'f', 'f', 'f', 'f', logits, bias, 't', squant, 'f', mask))
+        else:
+            assert False
+        return pipelines
+
     gen = list()
+
+    # TODO: Pass architecture as an argument?
+    use_gfx12 = True
+    get_fmha_fwd_tile_dict_from_dtype = get_fmha_fwd_tile_dict_from_dtype_gfx12 if use_gfx12 else get_fmha_fwd_tile_dict_from_dtype_gfx9
+    get_pipelines = get_pipelines_gfx12 if use_gfx12 else get_pipelines_gfx9
 
     for dtype in FWD_DTYPE_MAP.keys():
         d = get_fmha_fwd_tile_dict_from_dtype(dtype)
