@@ -255,8 +255,6 @@ struct AQuantBlockUniversalGemmAsBsCr
 
         static_assert(WarpTile::get_thread_buffer_size() % UnaryOpSize == 0);
 
-        static_assert(std::is_same_v<ComputeDataType, fp8_t> ||
-                      std::is_same_v<ComputeDataType, bf8_t>);
         using ComputeVectorType = ComputeDataType __attribute__((ext_vector_type(UnaryOpSize)));
         static_for<0, thread_buffer_size, 1>{}([&](auto i) {
             elementwise_op(warp_tile.get_thread_buffer().template get_as<ComputeVectorType>()(i),
@@ -307,6 +305,8 @@ struct AQuantBlockUniversalGemmAsBsCr
         {
             if constexpr(std::is_same_v<ADataType, pk_int4_t>)
             {
+                static_assert(std::is_same_v<ComputeDataType, fp8_t> ||
+                              std::is_same_v<ComputeDataType, bf8_t>);
                 load_interleaved_pk_type(a_warp_tile_, a_block_window);
             }
             else
@@ -315,6 +315,8 @@ struct AQuantBlockUniversalGemmAsBsCr
             }
             if constexpr(std::is_same_v<BDataType, pk_int4_t>)
             {
+                static_assert(std::is_same_v<ComputeDataType, fp8_t> ||
+                              std::is_same_v<ComputeDataType, bf8_t>);
                 load_interleaved_pk_type(b_warp_tile_, b_block_window);
             }
             else

@@ -37,10 +37,9 @@ struct GemmAQuantPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Prob
     GetAQDramLoadWindow(const AQDramBlockWindowTmp& aq_dram_block_window_tmp) const
     {
         static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
-        constexpr bool is_col_major = std::is_same_v<AQLayout, tensor_layout::gemm::ColumnMajor>;
 
-        using YPerTile = std::conditional_t<is_col_major, number<KPerBlockAQ>, number<MPerBlock>>;
-        using XPerTile = std::conditional_t<is_col_major, number<MPerBlock>, number<KPerBlockAQ>>;
+        using YPerTile = number<MPerBlock>;
+        using XPerTile = number<KPerBlockAQ>;
 
         auto aq_copy_dram_window =
             make_tile_window(aq_dram_block_window_tmp.get_bottom_tensor_view(),
