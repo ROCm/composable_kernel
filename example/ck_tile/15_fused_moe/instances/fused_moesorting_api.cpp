@@ -413,5 +413,6 @@ float fused_moesorting_mp(fused_moesorting_trait t,
 
 int fused_moesorting_get_workspace_size(int tokens, int num_experts, int topk)
 {
-    return ck_tile::moe_sorting_get_workspace_size(tokens, num_experts, topk);
+    return ck_tile::moe_sorting_get_workspace_size(
+        tokens, num_experts, topk, 0 /*dispatch policy*/);
 }
