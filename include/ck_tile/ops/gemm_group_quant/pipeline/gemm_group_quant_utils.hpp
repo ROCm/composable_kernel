@@ -10,47 +10,36 @@ namespace ck_tile {
 template <typename Problem, typename DataType, index_t YPerTile, index_t XPerTile>
 CK_TILE_HOST_DEVICE static constexpr auto GetAQGlobalVectorLoadSize()
 {
-    using I0                 = number<0>;
-    constexpr index_t MWarps = Problem::BlockGemmShape::BlockWarps::at(I0{});
+    using I1                 = number<1>;
+    constexpr index_t NWarps = Problem::BlockGemmShape::BlockWarps::at(I1{});
 
     constexpr index_t BlockSize = Problem::kBlockSize;
 
-    // Data is replicated across warps along NWarps, so we divide BlockSize by MWarps
-    constexpr index_t elements_per_thread = (YPerTile * XPerTile) / (BlockSize / MWarps);
+    // Data is replicated across warps along NWarps, so we divide BlockSize by NWarps
+    constexpr index_t elements_per_thread = (YPerTile * XPerTile) / (BlockSize / NWarps);
     constexpr index_t PackedSize = ck_tile::numeric_traits<remove_cvref_t<DataType>>::PackedSize;
 
-    // Assume DataType is even!
-    if constexpr(XPerTile % (PackedSize * 32 / sizeof(DataType)) == 0 &&
-                 elements_per_thread % (PackedSize * 32 / sizeof(DataType)) == 0 && PackedSize == 2)
+    // Define vector load candidates in descending order of priority
+    constexpr std::array<index_t, 5> candidates{
+        PackedSize * 32 / sizeof(DataType), // Optimal for wave32 architectures
+        PackedSize * 16 / sizeof(DataType), // Fallback 1
+        PackedSize * 8 / sizeof(DataType),  // Fallback 2
+        PackedSize * 4 / sizeof(DataType),  // Fallback 3
+        PackedSize * 2 / sizeof(DataType),  // Minimal vectorization
+    };
+
+    for(const auto vec_size : candidates)
     {
-        return (PackedSize * 32 / sizeof(DataType));
+        bool is_valid =
+            (vec_size > 0) && (XPerTile % vec_size == 0) && (elements_per_thread % vec_size == 0) &&
+            (sizeof(DataType) * vec_size >=
+             PackedSize * (vec_size == candidates[0] ? 32 : 4)); // Condition 4/2 handling
+        if(is_valid)
+        {
+            return vec_size;
+        }
     }
-    else if constexpr(XPerTile % (PackedSize * 16 / sizeof(DataType)) == 0 &&
-                      elements_per_thread % (PackedSize * 16 / sizeof(DataType)) == 0)
-    {
-        return (PackedSize * 16 / sizeof(DataType));
-    }
-    else if constexpr(XPerTile % (PackedSize * 8 / sizeof(DataType)) == 0 &&
-                      elements_per_thread % (PackedSize * 8 / sizeof(DataType)) == 0)
-    {
-        return (PackedSize * 8 / sizeof(DataType));
-    }
-    else if constexpr(sizeof(DataType) >= PackedSize * 4 &&
-                      XPerTile % (PackedSize * 4 / sizeof(DataType)) == 0 &&
-                      elements_per_thread % (PackedSize * 4 / sizeof(DataType)) == 0)
-    {
-        return (PackedSize * 4 / sizeof(DataType));
-    }
-    else if constexpr(sizeof(DataType) >= PackedSize * 2 &&
-                      XPerTile % (PackedSize * 2 / sizeof(DataType)) == 0 &&
-                      elements_per_thread % (PackedSize * 2 / sizeof(DataType)) == 0)
-    {
-        return (PackedSize * 2 / sizeof(DataType));
-    }
-    else
-    {
-        return PackedSize;
-    }
+    return PackedSize; // Absolute fallback
 }
 
 // AQ holds groupquant scale data for A. Data is loaded from DRAM and partitioned across

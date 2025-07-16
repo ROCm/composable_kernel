@@ -250,10 +250,10 @@ struct AQuantBlockUniversalGemmAsBsCr
     {
         constexpr index_t UnaryOpSize = 8;
         const element_wise::PassThroughPack8 elementwise_op{};
-        constexpr index_t thread_buffer_size = WarpTile::get_thread_buffer_size() / UnaryOpSize;
-        const auto in_dstr_tensors           = load_tile(warp_window);
 
         static_assert(WarpTile::get_thread_buffer_size() % UnaryOpSize == 0);
+        constexpr index_t thread_buffer_size = WarpTile::get_thread_buffer_size() / UnaryOpSize;
+        const auto in_dstr_tensors           = load_tile(warp_window);
 
         using ComputeVectorType = ComputeDataType __attribute__((ext_vector_type(UnaryOpSize)));
         static_for<0, thread_buffer_size, 1>{}([&](auto i) {
@@ -270,24 +270,6 @@ struct AQuantBlockUniversalGemmAsBsCr
     template <typename GemmTraits>
     struct BlockGemmImpl<GemmPipelineScheduler::Intrawave, GemmTraits>
     {
-        private:
-        template <int mIter, int kIter>
-        CK_TILE_DEVICE void LoadAWarpTensorFromBlockTensor(AWarpTensor& warp_tensor)
-        {
-            warp_tensor.get_thread_buffer() = a_warp_tile_.get_y_sliced_thread_data(
-                merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
-                merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
-        }
-
-        template <int nIter, int kIter>
-        CK_TILE_DEVICE void LoadBWarpTensorFromBlockTensor(BWarpTensor& warp_tensor)
-        {
-            warp_tensor.get_thread_buffer() = b_warp_tile_.get_y_sliced_thread_data(
-                merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
-                merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
-        }
-
-        public:
         static constexpr auto ALdsTileDistr =
             decltype(make_static_tile_distribution(MakeABlockDistributionEncode())){};
         static constexpr auto BLdsTileDistr =
@@ -350,10 +332,16 @@ struct AQuantBlockUniversalGemmAsBsCr
                             constexpr auto kIter = kQScale * Traits::KIterPerQScale + kIterInQScale;
 
                             AWarpTensor a_warp_tensor;
-                            LoadAWarpTensorFromBlockTensor<mIter, kIter>(a_warp_tensor);
+                            a_warp_tensor.get_thread_buffer() =
+                                a_warp_tile_.get_y_sliced_thread_data(
+                                    merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                                    merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
 
                             BWarpTensor b_warp_tensor;
-                            LoadBWarpTensorFromBlockTensor<nIter, kIter>(b_warp_tensor);
+                            b_warp_tensor.get_thread_buffer() =
+                                b_warp_tile_.get_y_sliced_thread_data(
+                                    merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
+                                    merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
 
                             if constexpr(kIterInQScale == 0)
                             {
@@ -470,16 +458,6 @@ struct AQuantBlockUniversalGemmAsBsCr
                                    const BSmemBlockWindow& b_block_window)
     {
         block_gemm_impl_(c_block_tensor, aq_block_tensor, a_block_window, b_block_window);
-    }
-
-    // C = A * B
-    template <typename ASmemBlockWindow, typename BSmemBlockWindow>
-    CK_TILE_DEVICE auto operator()(const ASmemBlockWindow& a_block_window,
-                                   const BSmemBlockWindow& b_block_window)
-    {
-        auto c_block_tensor = MakeCBlockTile();
-        block_gemm_impl_(c_block_tensor, a_block_window, b_block_window);
-        return c_block_tensor;
     }
 
     private:
