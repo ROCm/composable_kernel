@@ -618,7 +618,7 @@ struct FlatmmKernel
             a_block_window, b_flat_block_window, num_loop, smem_ptr_ping, smem_ptr_pong);
 
         // Run Epilogue Pipeline
-        auto& c_block_window = gemm_tile_windows.at(I2);
+        auto& c_block_window = gemm_tile_windows.at(I3);
 
         // Create empty D tensors
         constexpr auto empty_ds_dram_windows = ck_tile::make_tuple();
