@@ -807,13 +807,61 @@ def process_results(Map conf=[:]){
     }
 }
 
+def run_aiter_tests(Map conf=[:]){
+    env.HSA_ENABLE_SDMA=0
+    checkout scm
+    //use the latest pytorch image
+    def image = "rocm/pytorch:latest"
+    def dockerOpts="--cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+    def variant = env.STAGE_NAME
+    def retimage
+
+    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'aiter') {
+        try
+        {
+            echo "Pulling image: ${image}"
+            retimage = docker.image("${image}")
+            withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
+                retimage.pull()
+            }
+        }
+        catch(Exception ex)
+        {
+            error "Unable to locate image: ${image}"
+        }
+    }
+
+    withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
+        timeout(time: 45, unit: 'MINUTES'){
+            try{
+                sh "git clone --recursive https://github.com/ROCm/aiter.git"
+                dir("aiter"){
+                    sh "rm -rf 3rdparty/composable_kernel/"
+                    sh "git clone https://github.com/ROCm/composable_kernel.git 3rdparty/composable_kernel/"
+                    sh "python3 setup.py develop"
+                    sh "python3 op_tests/test_gemm_a8w8_blockscale.py"
+                    sh "python3 op_tests/test_mha.py"
+                }
+            }
+            catch(e){
+                echo "Throwing error exception while running AITER tests"
+                echo 'Exception occurred: ' + e.toString()
+                throw e
+            }
+            finally{
+                echo "Finished running AITER tests"
+            }
+        }
+    }
+}
+
 //launch develop branch daily jobs
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_CK_TILE_TRANSPOSE_TESTS=true;RUN_CK_TILE_GEMM_TESTS=true;RUN_TILE_ENGINE_GEMM_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
                                               0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX908=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
-                                              0 13 * * * % BUILD_LEGACY_OS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false''' : ""
+                                              0 13 * * * % RUN_AITER_TESTS=true;BUILD_LEGACY_OS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false''' : ""
 
 pipeline {
     agent none
@@ -952,6 +1000,10 @@ pipeline {
             name: "RUN_ALL_UNIT_TESTS",
             defaultValue: false,
             description: "Run all unit tests (default: OFF)")
+        booleanParam(
+            name: "RUN_AITER_TESTS",
+            defaultValue: false,
+            description: "Run AITER tests with latest CK develop branch (default: OFF)")
     }
     environment{
         dbuser = "${dbuser}"
@@ -1027,6 +1079,24 @@ pipeline {
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
+                        cleanWs()
+                    }
+                }
+            }
+        }
+        stage("Run AITER Tests")
+        {
+            parallel
+            {
+                stage("Run AITER Tests on gfx942")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_AITER_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx942")}
+                    steps{
+                        run_aiter_tests()
                         cleanWs()
                     }
                 }
