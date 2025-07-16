@@ -74,7 +74,7 @@ using KernelTypesCompV4 = ::testing::Types<
 >;
 
 using KernelTypesCompV77 = ::testing::Types<
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV77>
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV77, Persistent>
 >;
 
 using KernelTypesPersistent = ::testing::Types<
