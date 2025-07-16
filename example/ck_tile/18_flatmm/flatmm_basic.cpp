@@ -220,9 +220,9 @@ int run_flatmm_example(int argc, char* argv[])
     std::string b_layout  = arg_parser.get_str("b_layout");
     if(a_layout == "R" && b_layout == "C")
     {
-        
+
         if(data_type == "fp16")
-        {   
+        {
             std::cout << "Running with fp16 data type" << std::endl;
             run_flatmm_example_with_layouts<ck_tile::half_t, FlatmmConfig<ck_tile::half_t>>(
                 argc, argv, Row{}, Col{}, Row{});
@@ -264,7 +264,7 @@ int main(int argc, char* argv[])
     {
         int warp_tile = arg_parser.get_int("warp_tile");
         if(warp_tile == 0)
-        {   
+        {
             std::cout << "Running with warp tile size 16x16" << std::endl;
             return !run_flatmm_example<FlatmmConfig16>(argc, argv);
         }

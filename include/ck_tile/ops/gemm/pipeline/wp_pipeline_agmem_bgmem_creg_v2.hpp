@@ -28,7 +28,8 @@ struct BaseWeightPreshufflePipelineAGmemBGmemCRegV2
     }
 
     template <typename RunFunction>
-    CK_TILE_HOST_DEVICE static auto TailHandler(const RunFunction& run_func, bool, TailNumber tail_number)
+    CK_TILE_HOST_DEVICE static auto
+    TailHandler(const RunFunction& run_func, bool, TailNumber tail_number)
     {
         if(tail_number == TailNumber::Odd)
         {
@@ -42,9 +43,10 @@ struct BaseWeightPreshufflePipelineAGmemBGmemCRegV2
 };
 
 template <typename Problem, typename PipelinePolicy = UniversalWeightPreshufflePipelineAgBgCrPolicy>
-struct WeightPreshufflePipelineAGmemBGmemCRegV2 : public BaseWeightPreshufflePipelineAGmemBGmemCRegV2<Problem>
+struct WeightPreshufflePipelineAGmemBGmemCRegV2
+    : public BaseWeightPreshufflePipelineAGmemBGmemCRegV2<Problem>
 {
-    using Base           = BaseWeightPreshufflePipelineAGmemBGmemCRegV2<Problem>;
+    using Base = BaseWeightPreshufflePipelineAGmemBGmemCRegV2<Problem>;
 
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
@@ -79,7 +81,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2 : public BaseWeightPreshufflePip
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
 
-    static constexpr index_t kLdsAlignmentInBytes = Problem::VectorLoadSize/sizeof(ADataType);
+    static constexpr index_t kLdsAlignmentInBytes = Problem::VectorLoadSize / sizeof(ADataType);
     static constexpr index_t NumWaveGroups        = Problem::NumWaveGroups;
 
     static constexpr auto I0   = number<0>();
@@ -105,17 +107,13 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2 : public BaseWeightPreshufflePip
     static constexpr index_t MPerBlockPerIter = kMPerBlock / MIterPerWarp;
     static constexpr index_t KPerBlockPerIter = kKPerBlock / KIterPerWarp;
 
-    static constexpr index_t K1               = 16 / sizeof(ADataType);
-    static constexpr index_t ACopyLoadNum     = kMPerBlock * kKPerBlock / BlockSize / K1;
-    static constexpr auto TailNum    = Problem::TailNum;
+    static constexpr index_t K1           = 16 / sizeof(ADataType);
+    static constexpr index_t ACopyLoadNum = kMPerBlock * kKPerBlock / BlockSize / K1;
+    static constexpr auto TailNum         = Problem::TailNum;
 
     static constexpr auto warp_m = WarpTile::at(idxM);
     static constexpr auto warp_n = WarpTile::at(idxN);
     static constexpr auto warp_k = WarpTile::at(idxK);
-
-
-
-
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
@@ -128,7 +126,6 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2 : public BaseWeightPreshufflePip
 
         // clang-format on
     }
-
 
     static constexpr bool DoubleSmemBuffer = true;
     static constexpr index_t Preshuffle    = Problem::Preshuffle;
@@ -508,11 +505,13 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2 : public BaseWeightPreshufflePip
         }
         else
         {
-            if constexpr ((A_LDS_Read_Inst_Num / 2 >
-                           A_Buffer_Load_Inst_Num + B_Buffer_Load_Inst_Num)) {
+            if constexpr((A_LDS_Read_Inst_Num / 2 >
+                          A_Buffer_Load_Inst_Num + B_Buffer_Load_Inst_Num))
+            {
                 static_for<0,
-                        A_LDS_Read_Inst_Num / 2 - A_Buffer_Load_Inst_Num - B_Buffer_Load_Inst_Num,
-                        1>{}([&](auto i) {
+                           A_LDS_Read_Inst_Num / 2 - A_Buffer_Load_Inst_Num -
+                               B_Buffer_Load_Inst_Num,
+                           1>{}([&](auto i) {
                     ignore = i;
                     __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
@@ -587,7 +586,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2 : public BaseWeightPreshufflePip
         auto a_lds_block_pong =
             make_tensor_view<address_space_enum::lds>(p_a_lds_pong, a_lds_block_desc);
 
-// A DRAM tile window for load
+        // A DRAM tile window for load
         auto a_copy_dram_window =
             make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
                              make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
@@ -605,8 +604,6 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2 : public BaseWeightPreshufflePip
                              make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
                              {0, 0},
                              PipelinePolicy::template MakeADramTileDistribution<Problem>());
-
-
 
         // ping-pong window for A LDS
         auto a_warp_window_ping_tmp =
@@ -680,11 +677,10 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2 : public BaseWeightPreshufflePip
             NIterPerWarp>
             b_warp_tensor_pong;
 
-// Prefetch A0
+        // Prefetch A0
         auto a_block_tile = load_tile(a_copy_dram_window);
         // move A window to next k
         move_tile_window(a_copy_dram_window, {0, kKPerBlock});
-
 
         // prefetch B
         static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
@@ -700,17 +696,16 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2 : public BaseWeightPreshufflePip
         // move B window to next flat K
         move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
 
-// Prefill A0
+        // Prefill A0
         auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
         store_tile(a_copy_lds_window_ping, a_block_tile_tmp);
 
         __builtin_amdgcn_sched_barrier(0);
 
-// Prefetch A1
+        // Prefetch A1
         a_block_tile = load_tile(a_copy_dram_window);
         // move A window to next k
         move_tile_window(a_copy_dram_window, {0, kKPerBlock});
-
 
         // initialize C
         tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
@@ -733,8 +728,6 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2 : public BaseWeightPreshufflePip
                 load_tile(a_warp_windows_ping(number<mIter>{})(number<kIter>{}));
         });
         __builtin_amdgcn_sched_barrier(0);
-
-
 
         index_t iCounter = (num_loop - 1) / 2;
         while(iCounter > 0)
@@ -782,7 +775,6 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2 : public BaseWeightPreshufflePip
                             merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
                             merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
                             c_warp_tensor.get_thread_buffer());
-
 
                         __builtin_amdgcn_sched_barrier(0x7F6);
                     });
@@ -859,7 +851,6 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2 : public BaseWeightPreshufflePip
                             merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
                             c_warp_tensor.get_thread_buffer());
 
-
                         __builtin_amdgcn_sched_barrier(0x7F6);
                     });
                     // preload next A from lds
@@ -896,7 +887,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2 : public BaseWeightPreshufflePip
         // tail
         if constexpr(TailNum == TailNumber::Even)
         {
-// __builtin_amdgcn_sched_barrier(0);
+            // __builtin_amdgcn_sched_barrier(0);
             // prefetch B(loopK)
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
@@ -935,7 +926,6 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2 : public BaseWeightPreshufflePip
                             merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
                             merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
                             c_warp_tensor.get_thread_buffer());
-
 
                         __builtin_amdgcn_sched_barrier(0x7F6);
                     });
@@ -1028,7 +1018,6 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2 : public BaseWeightPreshufflePip
                             merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
                             c_warp_tensor.get_thread_buffer());
 
-
                         __builtin_amdgcn_sched_barrier(0x7F6);
                     });
                     // preload next A from lds
@@ -1050,7 +1039,6 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2 : public BaseWeightPreshufflePip
             });
         }
 
-
         return c_block_tile;
     }
 
@@ -1070,6 +1058,5 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2 : public BaseWeightPreshufflePip
             p_smem_pong);
     }
 };
-
 
 } // namespace ck_tile

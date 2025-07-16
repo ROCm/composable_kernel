@@ -51,7 +51,8 @@ struct BaseFlatmmPipelineAGmemBGmemCRegV2
     }
 
     template <typename RunFunction>
-    CK_TILE_HOST_DEVICE static auto TailHandler(const RunFunction& run_func, bool, TailNumber tail_number)
+    CK_TILE_HOST_DEVICE static auto
+    TailHandler(const RunFunction& run_func, bool, TailNumber tail_number)
     {
         if(tail_number == TailNumber::Odd)
         {
@@ -499,7 +500,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1 : public BaseFlatmmPipelineAGmemBGmemCRegV
 template <typename Problem, typename PipelinePolicy = UniversalFlatmmPipelineAgBgCrPolicy>
 struct FlatmmPipelineAGmemBGmemCRegV2 : public BaseFlatmmPipelineAGmemBGmemCRegV2<Problem>
 {
-    using Base           = BaseFlatmmPipelineAGmemBGmemCRegV2<Problem>;
+    using Base = BaseFlatmmPipelineAGmemBGmemCRegV2<Problem>;
 
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
@@ -509,8 +510,6 @@ struct FlatmmPipelineAGmemBGmemCRegV2 : public BaseFlatmmPipelineAGmemBGmemCRegV
     using ALayout = remove_cvref_t<typename Problem::ALayout>;
     using BLayout = remove_cvref_t<typename Problem::BLayout>;
     using CLayout = remove_cvref_t<typename Problem::CLayout>;
-
-    
 
     using BlockFlatmm =
         remove_cvref_t<decltype(PipelinePolicy::template GetBlockFlatmm<Problem>())>;
@@ -585,7 +584,6 @@ struct FlatmmPipelineAGmemBGmemCRegV2 : public BaseFlatmmPipelineAGmemBGmemCRegV
     static constexpr MfmaConfig GetMfmaConfig()
     {
 
-
         // K1 per Mfma = 0.5 cases: mfma_per_wg = 2, dsread_per_wg = 1
         if constexpr((warp_m == 16 && warp_n == 16 && warp_k == 32 &&
                       std::is_same_v<ADataType, fp8_t>) ||
@@ -644,7 +642,6 @@ struct FlatmmPipelineAGmemBGmemCRegV2 : public BaseFlatmmPipelineAGmemBGmemCRegV
 
         // clang-format on
     }
-
 
     static constexpr bool DoubleSmemBuffer = true;
     static constexpr index_t Preshuffle    = Problem::Preshuffle;
@@ -1024,11 +1021,13 @@ struct FlatmmPipelineAGmemBGmemCRegV2 : public BaseFlatmmPipelineAGmemBGmemCRegV
         }
         else
         {
-            if constexpr ((A_LDS_Read_Inst_Num / 2 >
-                           A_Buffer_Load_Inst_Num + B_Buffer_Load_Inst_Num)) {
+            if constexpr((A_LDS_Read_Inst_Num / 2 >
+                          A_Buffer_Load_Inst_Num + B_Buffer_Load_Inst_Num))
+            {
                 static_for<0,
-                        A_LDS_Read_Inst_Num / 2 - A_Buffer_Load_Inst_Num - B_Buffer_Load_Inst_Num,
-                        1>{}([&](auto i) {
+                           A_LDS_Read_Inst_Num / 2 - A_Buffer_Load_Inst_Num -
+                               B_Buffer_Load_Inst_Num,
+                           1>{}([&](auto i) {
                     ignore = i;
                     __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA

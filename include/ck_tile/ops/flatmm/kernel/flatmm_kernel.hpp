@@ -590,27 +590,27 @@ struct FlatmmKernel
             operator()<decltype(c_block_window), decltype(c_block_tile), decltype(d_block_window)>(
                 c_block_window, c_block_tile, d_block_window, smem_ptr);
         }
-    }        
+    }
     CK_TILE_DEVICE static void RunFlatmm2(const ADataType* a_ptr,
-        const BDataType* b_flat_ptr,
-        const std::array<const void*, NumDTensor>& ds_ptr,
-        EDataType* e_ptr,
-        void* smem_ptr_ping,
-        void* smem_ptr_pong,
-        const KernelArgs& kargs,
-        const SplitKBatchOffset& splitk_batch_offset,
-        const index_t block_idx_m,
-        const index_t block_idx_n)
+                                          const BDataType* b_flat_ptr,
+                                          const std::array<const void*, NumDTensor>& ds_ptr,
+                                          EDataType* e_ptr,
+                                          void* smem_ptr_ping,
+                                          void* smem_ptr_pong,
+                                          const KernelArgs& kargs,
+                                          const SplitKBatchOffset& splitk_batch_offset,
+                                          const index_t block_idx_m,
+                                          const index_t block_idx_n)
     {
-    // Create Gemm tensor views, pad views and tile windows
+        // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
             MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
                 a_ptr, b_flat_ptr, ds_ptr, e_ptr, kargs, splitk_batch_offset);
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
-        
+
         const index_t num_loop = TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k);
-        
+
         // Run GEMM cooperatively by whole workgroup.
         const auto& a_block_window      = gemm_tile_windows.at(I0);
         const auto& b_flat_block_window = gemm_tile_windows.at(I1);
@@ -651,7 +651,8 @@ struct FlatmmKernel
 
         if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
                        EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
-                       is_any_of<EDataType, fp16_t, bf16_t>::value) && FlatmmPipeline::DoubleSmemBuffer == false)
+                       is_any_of<EDataType, fp16_t, bf16_t>::value) &&
+                     FlatmmPipeline::DoubleSmemBuffer == false)
         {
             constexpr auto scheduler_type = (FlatmmPipeline::NumWaveGroups == 1);
             RunFlatmm<scheduler_type>(a_ptr,
@@ -667,15 +668,15 @@ struct FlatmmKernel
         else
         {
             RunFlatmm2(a_ptr,
-                      b_flat_ptr,
-                      kargs.ds_ptr,
-                      e_ptr,
-                      smem_ptr,
-                      smem_ptr_pong,
-                      kargs,
-                      splitk_batch_offset,
-                      i_m,
-                      i_n);
+                       b_flat_ptr,
+                       kargs.ds_ptr,
+                       e_ptr,
+                       smem_ptr,
+                       smem_ptr_pong,
+                       kargs,
+                       splitk_batch_offset,
+                       i_m,
+                       i_n);
         }
     }
 };

@@ -33,7 +33,6 @@ struct BaseWeightPreshufflePipelineAGmemBGmemCRegV1
     }
 };
 
-
 template <typename Problem, typename PipelinePolicy = UniversalWeightPreshufflePipelineAgBgCrPolicy>
 struct WeightPreshufflePipelineAGmemBGmemCRegV1
     : public BaseWeightPreshufflePipelineAGmemBGmemCRegV1<Problem>
@@ -73,7 +72,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
 
-    static constexpr index_t kLdsAlignmentInBytes = Problem::VectorLoadSize/sizeof(ADataType);
+    static constexpr index_t kLdsAlignmentInBytes = Problem::VectorLoadSize / sizeof(ADataType);
     static constexpr index_t NumWaveGroups        = Problem::NumWaveGroups;
 
     static constexpr auto I0 = number<0>();
