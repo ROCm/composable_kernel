@@ -10,8 +10,26 @@
 
 namespace ck_tile {
 
+/**
+ * @brief This T5Pass implements the RMSNorm2d forward pipeline as a variant
+ *        based on Rmsnorm2dFwdPipelineOnePass and Rmsnorm2dFwdPipelineTwoPass using a T5 model-like
+ * method.
+ *
+ * The T5 model, developed by Google, is a transformer-based architecture designed to perform
+ * a variety of NLP tasks. The T5-like approach employed here is characterized by how RMS
+ * normalization is handled, particularly where intermediate values are cast to BF16. This aims to
+ * achieve a similar value distribution to that produced by the VLLM hip implementation, thereby
+ * enhancing model accuracy.
+ *
+ * Note: While this implementation improves precision and can reduce discrepancies with VLLM, it is
+ * not guaranteed to eliminate all differences or ensure uniform outcomes across every use case.
+ *
+ * This implementation is a variant based on the original one-pass and two-pass approaches,
+ * allowing for both fused and non-fused add operations.
+ */
+
 template <typename Problem_, typename Policy_ = Rmsnorm2dFwdPipelineDefaultPolicy>
-struct Rmsnorm2dFwdPipelineOnePass
+struct Rmsnorm2dFwdPipelineModelSensitiveT5Pass
 {
     using Problem = ck_tile::remove_cvref_t<Problem_>;
     using Policy  = ck_tile::remove_cvref_t<Policy_>;
@@ -84,8 +102,8 @@ struct Rmsnorm2dFwdPipelineOnePass
         auto reduce_sum_func        = ReduceOp::Add{};
         auto block_reduce2d         = Policy::template GetBlockReduce2d<Problem>();
         auto block_reduce2d_sync    = Policy::template GetBlockReduce2dSync<Problem>();
-        auto block_reduce2d_cross_warp_sync =
-            Policy::template GetBlockReduce2dCrossWarpSync<Problem>();
+        auto block_reduce2d_tree_cross_warp_sync =
+            Policy::template GetBlockReduce2dTreeCrossWarpSync<Problem>();
 
         auto x      = load_tile(x_window);
         auto x_resi = load_tile(x_residual_window);
@@ -98,22 +116,53 @@ struct Rmsnorm2dFwdPipelineOnePass
         if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD ||
                      kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
         {
+            [[maybe_unused]] auto pre_out =
+                make_static_distributed_tensor<YResidualDataType>(x.get_tile_distribution());
+
             sweep_tile(x_resi, [&](auto idx) {
                 // compute x = x_resi + x
                 acc(idx) = type_convert<ComputeDataType>(x_resi(idx)) + acc(idx);
+
+                // To make norm input align with residual output
+                if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
+                {
+                    if constexpr(std::is_same_v<YResidualDataType, ck_tile::bf16_t>)
+                    {
+                        pre_out(idx) = float_to_bf16<bf16_rounding_mode::standard>(acc(idx));
+                    }
+                    else
+                    {
+                        pre_out(idx) = type_convert<YResidualDataType>(acc(idx));
+                    }
+                    acc(idx) = type_convert<ComputeDataType>(pre_out(idx));
+                }
             });
             if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
             {
-                store_tile(y_residual_window, cast_tile<YResidualDataType>(acc));
+                store_tile(y_residual_window, pre_out);
             }
         }
 
         // compute mean square each-thread->cross-lane->cross-warp
-        auto square_sum = block_reduce2d(acc,
-                                         reduce_square_sum_func.GetIdentityValue<ComputeDataType>(),
-                                         reduce_square_sum_func);
+        auto square_sum = block_reduce2d.template MakeYBlockTile<decltype(acc)>();
+        set_tile(square_sum, 0);
+        if constexpr(Problem::BlockShape::Vector_N % 2 == 0)
+        {
+            sweep_tile(
+                acc,
+                [&](auto idx_0, auto idx_1) {
+                    square_sum(idx_0) += acc[idx_0] * acc[idx_0] + acc[idx_1] * acc[idx_1];
+                },
+                sequence<1, 2>{});
+        }
+        else
+        {
+            square_sum = block_reduce2d(acc,
+                                        reduce_square_sum_func.GetIdentityValue<ComputeDataType>(),
+                                        reduce_square_sum_func);
+        }
         block_reduce2d_sync(square_sum, reduce_sum_func);
-        block_reduce2d_cross_warp_sync(square_sum, smem, reduce_sum_func);
+        block_reduce2d_tree_cross_warp_sync(square_sum, smem, reduce_sum_func);
 
         // compute inv-rms
         auto inv_rms = tile_elementwise_in(
@@ -130,9 +179,21 @@ struct Rmsnorm2dFwdPipelineOnePass
 
             const auto gamma_ = type_convert<ComputeDataType>(gamma[j_idx]);
 
-            auto rmsn_ = acc[idx] * inv_rms_[i_idx] * gamma_;
-
-            rmsn(idx) = rmsn_;
+            if constexpr(std::is_same_v<YResidualDataType, ck_tile::bf16_t>)
+            {
+                const auto tmp0 =
+                    float_to_bf16<bf16_rounding_mode::standard>(acc[idx] * inv_rms_[i_idx]);
+                const auto tmp1 = float_to_bf16<bf16_rounding_mode::standard>(
+                    type_convert<ComputeDataType>(tmp0) * gamma_);
+                const auto rmsn_ = type_convert<ComputeDataType>(tmp1);
+                rmsn(idx)        = rmsn_;
+            }
+            else
+            {
+                const auto tmp   = type_convert<YResidualDataType>(acc[idx] * inv_rms_[i_idx]);
+                const auto rmsn_ = type_convert<ComputeDataType>(tmp) * gamma_;
+                rmsn(idx)        = rmsn_;
+            }
         });
 
         if constexpr(kFusedQuant == Rmsnorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT)
