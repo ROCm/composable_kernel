@@ -315,8 +315,8 @@ int run_gemm_example_with_layouts(int argc,
 
     if(init_method == 0)
     {
-        ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k);
-        ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n);
+        ck_tile::FillUniformDistribution<ADataType>{-0.5f, 0.5f}(a_m_k);
+        ck_tile::FillUniformDistribution<BDataType>{-0.5f, 0.5f}(b_k_n);
     }
     else if(init_method == 1)
     {

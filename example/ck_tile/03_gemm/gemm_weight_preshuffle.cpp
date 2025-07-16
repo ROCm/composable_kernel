@@ -60,7 +60,7 @@ float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile:
                                                                  GemmConfig::UseStructuredSparsity,
                                                                  Persistent,
                                                                  GemmConfig::NumWaveGroups,
-                                                                 GemmConfig::Preshuffle>;
+                                                                 true>;
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
@@ -282,7 +282,7 @@ int main(int argc, char* argv[])
 {
     try
     {
-        return !run_gemm_example<GemmConfigPreshufle_1>(argc, argv);
+        return !run_gemm_example<GemmConfigPreshufle_2>(argc, argv);
     }
     catch(const std::runtime_error& e)
     {

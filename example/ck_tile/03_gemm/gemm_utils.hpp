@@ -249,7 +249,7 @@ struct GemmConfigPreshufle_1 : public GemmConfigBase
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE;
     static constexpr bool Preshuffle           = true;
-    static constexpr bool DoubleSmemBuffer     = false;
+    static constexpr bool DoubleSmemBuffer     = true;
 };
 
 template <typename PrecType>
@@ -271,7 +271,7 @@ struct GemmConfigPreshufle_2 : public GemmConfigBase
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE;
     static constexpr bool Preshuffle           = true;
-    static constexpr bool DoubleSmemBuffer     = false;
+    static constexpr bool DoubleSmemBuffer     = true;
 };
 
 template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>
@@ -432,10 +432,10 @@ template <>
 struct PipelineTypeTraits<CK_TILE_PIPELINE_PRESHUFFLE>
 {
     template <typename PipelineProblem>
-    using GemmPipeline = ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV1<PipelineProblem>;
+    using GemmPipeline = ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2<PipelineProblem>;
     template <typename PipelineProblem>
     using UniversalGemmPipeline =
-        ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV1<PipelineProblem>;
+        ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<PipelineProblem>;
 };
 
 auto create_args(int argc, char* argv[])
