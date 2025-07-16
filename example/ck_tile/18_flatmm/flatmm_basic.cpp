@@ -80,14 +80,14 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_c
         constexpr auto scheduler        = FlatmmConfig::Scheduler;
         constexpr auto memory_operation = memory_operation_.value;
 
-        using CodegenPipelineProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                             BDataType,
-                                                                             AccDataType,
-                                                                             CodegenFlatmmShape,
-                                                                             CodegenGemmTraits,
-                                                                             scheduler,
-                                                                             has_hot_loop_v,
-                                                                             tail_number_v>;
+        using CodegenPipelineProblem = ck_tile::FlatmmPipelineProblem<ADataType,
+                                                                      BDataType,
+                                                                      AccDataType,
+                                                                      CodegenFlatmmShape,
+                                                                      CodegenGemmTraits,
+                                                                      scheduler,
+                                                                      has_hot_loop_v,
+                                                                      tail_number_v>;
 
         using CodegenFlatmmPipeline =
             ck_tile::FlatmmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
