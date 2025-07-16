@@ -23,9 +23,11 @@ struct kernel_traits<0>
 template <>
 struct kernel_traits<1>
 {
+    using NumWarps = ck_tile::sequence<1, 1>;
     template <typename ts_type, typename block_tile, bool kPadM, bool kPadN>
-    using Problem = ck_tile::BatchedTransposeLdsProblem<ts_type, block_tile, kPadM, kPadN>;
-    using Policy  = ck_tile::BatchedTransposeLdsPolicy;
+    using Problem =
+        ck_tile::BatchedTransposeLdsProblem<ts_type, block_tile, NumWarps, kPadM, kPadN>;
+    using Policy = ck_tile::BatchedTransposeLdsPolicy;
     template <typename ts_type, typename block_tile, typename, bool kPadM, bool kPadN>
     using Pipeline =
         ck_tile::BatchedTransposeLdsPipeline<Problem<ts_type, block_tile, kPadM, kPadN>, Policy>;

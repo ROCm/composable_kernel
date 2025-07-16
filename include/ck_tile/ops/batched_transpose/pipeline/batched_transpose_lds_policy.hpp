@@ -89,21 +89,15 @@ struct BatchedTransposeLdsPolicy : public BatchedTransposeCommonPolicy
     {
         using DataType = typename Problem::DataType;
 
-        // Extract base dimensions from the traits
-        constexpr index_t kBaseLeadDim   = LaneGroupTransposeTraits<DataType>::kleadDim;
-        constexpr index_t kBaseSecondDim = LaneGroupTransposeTraits<DataType>::ksecondDim;
-
         // Calculate block-level dimensions
-        constexpr index_t kLead              = Problem::kLeadSizePerXdl;
-        constexpr index_t kSecond            = Problem::kSecondSizePerXdl;
-        constexpr index_t kLeadIterPerWarp   = Problem::kLeadXdlNumPerWarp;
-        constexpr index_t kSecondIterPerWarp = Problem::kSecondXdlNumPerWarp;
+        constexpr index_t kLeadIterPerWarp   = 1;
+        constexpr index_t kSecondIterPerWarp = 1;
         constexpr index_t kLeadNumWarps      = Problem::kLeadNumWarps;
         constexpr index_t kSecondNumWarps    = Problem::kSecondNumWarps;
 
         // Calculate repetitions of base pattern
-        constexpr index_t kLeadRepetitions     = kLead / kBaseLeadDim;
-        constexpr index_t kSecondRepetitions   = kSecond / kBaseSecondDim;
+        constexpr index_t kLeadRepetitions     = Problem::kQuadNumPerLeadDim;
+        constexpr index_t kSecondRepetitions   = Problem::kQuadNumPerSecondDim;
         constexpr index_t kSecondDimIterations = Problem::kIterationsInSecondDim;
         constexpr index_t kSecondDimStrSub     = kSecondRepetitions / kSecondDimIterations;
 
