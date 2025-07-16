@@ -47,7 +47,7 @@ struct GemmPipelineAGmemBGmemCRegV1
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
 
-    static constexpr index_t Preshuffle = Problem::Preshuffle;
+    static constexpr bool Preshuffle = Problem::Preshuffle;
 
     static constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
 
