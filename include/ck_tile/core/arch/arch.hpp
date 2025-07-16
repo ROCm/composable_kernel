@@ -113,13 +113,13 @@ CK_TILE_DEVICE void block_sync_load_raw(index_t cnt = 0)
 #endif
 }
 
+template <index_t vmcnt>
 CK_TILE_DEVICE void block_sync_lds_direct_load()
 {
-    asm volatile("\
-    s_waitcnt vmcnt(0) \n \
-    s_waitcnt lgkmcnt(0) \n \
-    s_barrier \
-    " ::);
+    // We don't sync the lds insts here.
+    constexpr auto s_waitcnt_imm = 3952 + ((vmcnt >> 4) << 14) + (vmcnt & 0xff);
+    __builtin_amdgcn_s_waitcnt(s_waitcnt_imm);
+    __builtin_amdgcn_s_barrier();
 }
 
 CK_TILE_DEVICE void s_nop(index_t cnt = 0)

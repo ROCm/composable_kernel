@@ -130,6 +130,7 @@ struct TileCopy
                              make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
                              {iM, 0},
                              MakeDRAMDistribution<Problem>());
+        constexpr auto async_copy_fence_cnt = 0;
 
         // Output tensor
         const auto y_m = make_naive_tensor_view<address_space_enum::global>(
@@ -152,9 +153,8 @@ struct TileCopy
                     async_load_tile(x_block_lds_write_window, x_block_window);
 
                     // Wait all asyncload insts complete.
-                    __builtin_amdgcn_s_waitcnt(3952);
                     // Wait all waves synced
-                    __builtin_amdgcn_s_barrier();
+                    block_sync_lds_direct_load<async_copy_fence_cnt>();
 
                     auto lds_tile = load_tile(x_block_lds_read_window);
 
