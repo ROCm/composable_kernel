@@ -13,7 +13,7 @@
 #define CK_TILE_S_CNT_MAX 0b1100'1111'0111'1111
 #define CK_TILE_VMCNT(cnt)                                                 \
     ([]() { static_assert((cnt) < 0b111111, "VMCNT only has 6 bits"); }(), \
-     ((cnt)&0b1111) | (((cnt)&0b110000) << 14))
+     ((cnt)&0b1111) | (((cnt)&0b110000) << 10))
 #define CK_TILE_EXPCNT(cnt) \
     ([]() { static_assert((cnt) < 0b111, "EXP only has 3 bits"); }(), ((cnt) << 4))
 #define CK_TILE_LGKMCNT(cnt) \
