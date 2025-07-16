@@ -1238,7 +1238,7 @@ pipeline {
                                            ninja -j64 benchmark_gemm_fp8_crr && \
                                            ./bin/benchmark_gemm_fp8_crr && \
                                            ninja -j64 benchmark_gemm_fp16_crr && \
-                                           ./bin/benchmark_gemm_fp16_crr \
+                                           ./bin/benchmark_gemm_fp16_crr && \
                                            ninja -j64 benchmark_gemm_fp8_ccr && \
                                            ./bin/benchmark_gemm_fp8_ccr && \
                                            ninja -j64 benchmark_gemm_fp16_ccr && \
@@ -1276,7 +1276,7 @@ pipeline {
                                            ninja -j64 benchmark_gemm_fp8_crr && \
                                            ./bin/benchmark_gemm_fp8_crr && \
                                            ninja -j64 benchmark_gemm_fp16_crr && \
-                                           ./bin/benchmark_gemm_fp16_crr \
+                                           ./bin/benchmark_gemm_fp16_crr && \
                                            ninja -j64 benchmark_gemm_fp8_ccr && \
                                            ./bin/benchmark_gemm_fp8_ccr && \
                                            ninja -j64 benchmark_gemm_fp16_ccr && \
