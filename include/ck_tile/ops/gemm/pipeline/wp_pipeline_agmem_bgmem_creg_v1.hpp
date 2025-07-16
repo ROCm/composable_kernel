@@ -72,7 +72,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
 
-    static constexpr index_t kLdsAlignmentInBytes = Problem::VectorLoadSize / sizeof(ADataType);
+    static constexpr index_t kLdsAlignmentInBytes = 16;
     static constexpr index_t NumWaveGroups        = Problem::NumWaveGroups;
 
     static constexpr auto I0 = number<0>();

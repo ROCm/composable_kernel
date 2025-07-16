@@ -81,7 +81,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
 
-    static constexpr index_t kLdsAlignmentInBytes = Problem::VectorLoadSize / sizeof(ADataType);
+    static constexpr index_t kLdsAlignmentInBytes = 16;
     static constexpr index_t NumWaveGroups        = Problem::NumWaveGroups;
 
     static constexpr auto I0   = number<0>();
@@ -107,7 +107,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
     static constexpr index_t MPerBlockPerIter = kMPerBlock / MIterPerWarp;
     static constexpr index_t KPerBlockPerIter = kKPerBlock / KIterPerWarp;
 
-    static constexpr index_t K1           = 16 / sizeof(ADataType);
+    static constexpr index_t K1           = Problem::VectorLoadSize / sizeof(ADataType);
     static constexpr index_t ACopyLoadNum = kMPerBlock * kKPerBlock / BlockSize / K1;
     static constexpr auto TailNum         = Problem::TailNum;
 

@@ -107,7 +107,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV3
     static constexpr index_t MPerBlockPerIter = kMPerBlock / MIterPerWarp;
     static constexpr index_t KPerBlockPerIter = kKPerBlock / KIterPerWarp;
 
-    static constexpr index_t K1               = VectorLoadSize / sizeof(ADataType);
+    static constexpr index_t K1               = Problem::VectorLoadSize / sizeof(ADataType);
     static constexpr index_t ACopyLoadNum     = kMPerBlock * kKPerBlock / BlockSize / K1;
     static constexpr index_t ACopyLoadNumPerK = ACopyLoadNum / KIterPerWarp;
     static constexpr index_t ACopyPerLoadM    = kMPerBlock / ACopyLoadNum;
