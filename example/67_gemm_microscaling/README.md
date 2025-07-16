@@ -30,8 +30,6 @@ Custom tensor shapes:
 ./bin/example_gemm_mx_fp8 1 2 1 0 256  256  512 -1 -1 -1 1 10 10
 ```
 
-<<<<<<< HEAD
-=======
 ### Run the Example
 
 Custom verification parameters:
@@ -50,7 +48,6 @@ Custom tensor shapes:
 ./bin/example_gemm_mx_fp8 1 2 1 0 128  128  256 -1 -1 -1 1
 ```
 
->>>>>>> 1e3ba1beb (Further improvement for readmes.)
 Default invocation:
 ```bash
 # Implies: ./bin/example_gemm_mx_fp8 1 2 0 0

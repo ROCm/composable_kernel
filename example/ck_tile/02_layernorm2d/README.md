@@ -128,7 +128,7 @@ Note that `fquant=2`, `fadd=2`, `prec_sm/prec_sy` other than `fp32` are not by d
 - [03_gemm](../03_gemm/README.md): Tile-programming GEMM
 - [12_smoothquant](../12_smoothquant/README.md): Standalone smoothquant kernel
 
-For tile engine and distribution, see `include/ck_tile/tile_engine/` and `include/ck_tile/tile_program/tile_distribution/`.
+For and distribution, see `include/ck_tile/tile_program/tile_distribution/`.
 
 ---
 [Back to CK Tile Examples](../README.md)
