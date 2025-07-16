@@ -245,6 +245,34 @@ int run_grouped_flatmm_example(int argc, char* argv[])
                 throw std::runtime_error("Unsupported data_type!");
             }
         }
+        else if(mode == "masked")
+        {
+            
+            if(data_type == "fp16")
+            {
+                run_masked_grouped_flatmm_example_with_layouts<ck_tile::half_t>(
+                    argc, argv, Row{}, Col{}, Row{});
+            }
+            else if(data_type == "bf16")
+            {
+                run_masked_grouped_flatmm_example_with_layouts<ck_tile::bf16_t>(
+                    argc, argv, Row{}, Col{}, Row{});
+            }
+            else if(data_type == "fp8")
+            {
+                run_masked_grouped_flatmm_example_with_layouts<ck_tile::fp8_t>(
+                    argc, argv, Row{}, Col{}, Row{});
+            }
+            else if(data_type == "bf8")
+            {
+                run_masked_grouped_flatmm_example_with_layouts<ck_tile::bf8_t>(
+                    argc, argv, Row{}, Col{}, Row{});
+            }
+            else
+            {
+                throw std::runtime_error("Unsupported data_type!");
+            }
+        }
         else
         {
             throw std::runtime_error("Unsupported mode!");

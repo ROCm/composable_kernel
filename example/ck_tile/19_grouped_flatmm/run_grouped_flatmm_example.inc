@@ -114,6 +114,35 @@ float invoke_gemm(int n_warmup, int n_repeat, const ck_tile::ContiguousGroupedFl
     return ave_time;
 }
 
+template <typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
+float invoke_gemm(int n_warmup, int n_repeat, const ck_tile::MaskedGroupedFlatmmHostArgs& args)
+{
+    float ave_time =
+        grouped_flatmm<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
+            args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
+
+    std::string op_name{"Grouped Gemm"};
+
+    std::size_t flop     = std::size_t(2) * args.Max_M * args.N * args.K;
+    std::size_t num_byte = sizeof(ADataType) * args.Max_M * args.K +
+                           sizeof(BDataType) * args.N * args.K +
+                           sizeof(CDataType) * args.Max_M * args.N;
+
+    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
+    float gb_per_sec = num_byte / 1.E6 / ave_time;
+
+    std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops << " TFlops, "
+              << gb_per_sec << " GB/s, " << op_name << std::endl;
+
+    return ave_time;
+}
+
 template <typename PrecType, typename ALayout, typename BLayout, typename CLayout>
 int run_grouped_flatmm_example_with_layouts(int argc,
                                             char* argv[],
@@ -510,6 +539,183 @@ int run_contiguous_grouped_flatmm_example_with_layouts(
         }
         ck_tile::hip_check_error(hipMemcpy(
             c_gpu_ref_host.data(), d_C, M * N * sizeof(CDataType), hipMemcpyDeviceToHost));
+
+        ck_tile::hip_check_error(hipFree(d_B));
+        ck_tile::hip_check_error(hipFree(d_C));
+
+        float rtol = 1e-3;
+        float atol = 1e-3;
+
+        pass = ck_tile::check_err(
+            c_m_n_tensor, c_gpu_ref_host, "Error: Incorrect results!", rtol, atol);
+
+        std::cout << "Relative error threshold: " << rtol << " Absolute error threshold: " << atol
+                  << std::endl;
+        std::cout << "The GPU veification result is: " << (pass ? "correct" : "fail") << std::endl;
+    }
+
+    return pass;
+}
+
+template <typename PrecType, typename ALayout, typename BLayout, typename CLayout>
+int run_masked_grouped_flatmm_example_with_layouts(
+    int argc,
+    char* argv[],
+    const ALayout a_layout                  = ALayout{},
+    const BLayout b_layout                  = BLayout{},
+    [[maybe_unused]] const CLayout c_layout = CLayout{})
+{
+    auto [result, arg_parser] = create_args(argc, argv);
+
+    if(!result)
+    {
+        return -1;
+    };
+
+    using ADataType   = typename GemmBasicTypeConfig<PrecType>::ADataType;
+    using BDataType   = typename GemmBasicTypeConfig<PrecType>::BDataType;
+    using CDataType   = typename GemmBasicTypeConfig<PrecType>::CDataType;
+    using AccDataType = typename GemmBasicTypeConfig<PrecType>::AccDataType;
+
+    constexpr int BlockM = GemmConfig<BDataType>::M_Tile;
+
+    const int group_count = arg_parser.get_int("group_count");
+    const int repeat      = arg_parser.get_int("repeat");
+    const int warmup      = arg_parser.get_int("warmup");
+
+    std::vector<ck_tile::index_t> Ms = arg_parser.get_int_vec("Ms");
+    std::vector<ck_tile::index_t> Ns = arg_parser.get_int_vec("Ns");
+    std::vector<ck_tile::index_t> Ks = arg_parser.get_int_vec("Ks");
+
+    if(!(int(Ms.size()) == group_count))
+    {
+        std::cout << "Please check the input data." << std::endl;
+        // padding additional Ms if needed
+        for(int i = 0; i < group_count; i++)
+        {
+            Ms.push_back(256 + 64 * i);
+        }
+    }
+
+    ck_tile::index_t M = 4096;//Ms[0];
+    ck_tile::index_t N = Ns[0];
+    ck_tile::index_t K = Ks[0];
+
+    ck_tile::index_t kbatch = arg_parser.get_int("split_k");
+
+    ck_tile::index_t stride_A = K;
+    ck_tile::index_t stride_B = K;
+    ck_tile::index_t stride_C = N;
+
+    stride_A = ck_tile::get_default_stride(group_count * M, K, stride_A, is_row_major(a_layout));
+    stride_B = ck_tile::get_default_stride(K, N * group_count, stride_B, is_row_major(b_layout));
+    stride_C = ck_tile::get_default_stride(group_count * M, N, stride_C, is_row_major(c_layout));
+
+    ck_tile::HostTensor<ADataType> a_m_k_tensor(
+        ck_tile::host_tensor_descriptor(group_count * M, K, stride_A, is_row_major(a_layout)));
+    ck_tile::HostTensor<BDataType> b_k_n_tensor(ck_tile::HostTensor<BDataType>(
+        ck_tile::host_tensor_descriptor(K, N * group_count, stride_B, is_row_major(b_layout))));
+    ck_tile::HostTensor<CDataType> c_m_n_tensor(ck_tile::HostTensor<CDataType>(
+        ck_tile::host_tensor_descriptor(group_count * M, N, stride_C, is_row_major(c_layout))));
+
+    std::vector<ck_tile::index_t> m_indices(group_count);
+    int indices_fill_start = 0;
+    for(int i = 0; i < group_count; ++i)
+    {
+        int group_m        = Ms[i];
+        int padded_group_m = (group_m + BlockM - 1) / BlockM * BlockM;
+        for(int j = 0; j < padded_group_m; j++)
+        {
+            m_indices[i] = padded_group_m; // -1 for padding
+        }
+    }
+
+    ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k_tensor);
+    ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_k_n_tensor);
+
+    constexpr int N_Warp_Tile = GemmConfig<BDataType>::N_Warp_Tile;
+    assert(N % N_Warp_Tile == 0 &&
+           "N must be divisible by N_Warp_Tile for contiguous grouped gemm");
+    ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<BDataType>(b_k_n_tensor);
+
+    std::unique_ptr<ck_tile::DeviceMem> a_m_k_dev_buf(
+        std::make_unique<ck_tile::DeviceMem>(a_m_k_tensor.get_element_space_size_in_bytes()));
+    std::unique_ptr<ck_tile::DeviceMem> b_shfl_dev_buf(
+        std::make_unique<ck_tile::DeviceMem>(b_shuffle_host.get_element_space_size_in_bytes()));
+    std::unique_ptr<ck_tile::DeviceMem> c_m_n_dev_buf(
+        std::make_unique<ck_tile::DeviceMem>(c_m_n_tensor.get_element_space_size_in_bytes()));
+    c_m_n_dev_buf->SetZero();
+
+    ck_tile::DeviceMem m_indices_dev_buf(group_count * sizeof(ck_tile::index_t));
+    m_indices_dev_buf.ToDevice(m_indices.data());
+
+    a_m_k_dev_buf->ToDevice(a_m_k_tensor.data());
+    b_shfl_dev_buf->ToDevice(b_shuffle_host.data());
+
+    ck_tile::MaskedGroupedFlatmmHostArgs kernal_args{
+        static_cast<ck_tile::index_t*>(m_indices_dev_buf.GetDeviceBuffer()),
+        group_count,
+        M,
+        N,
+        K,
+        a_m_k_dev_buf->GetDeviceBuffer(),
+        stride_A,
+        b_shfl_dev_buf->GetDeviceBuffer(),
+        stride_B,
+        c_m_n_dev_buf->GetDeviceBuffer(),
+        stride_C,
+        kbatch,
+    };
+
+    invoke_gemm<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
+        warmup, repeat, kernal_args);
+    c_m_n_dev_buf->FromDevice(c_m_n_tensor.data());
+
+    bool pass{true};
+    if(arg_parser.get_int("v") == 1)
+    {
+        throw std::runtime_error(
+            "Not support v=1 host verification in contiguous grouped gemm, use "
+            "v=2 device verification instead");
+    }
+    else if(arg_parser.get_int("v") == 2)
+    {
+        BDataType* d_B;
+        CDataType* d_C;
+        ck_tile::hip_check_error(hipMalloc(&d_B, N * K * sizeof(BDataType)));
+        ck_tile::hip_check_error(hipMalloc(&d_C, M * N * sizeof(CDataType)));
+        ck_tile::hip_check_error(hipMemset(d_C, 0, M * N * sizeof(CDataType)));
+
+        ck_tile::HostTensor<CDataType> c_gpu_ref_host(
+            ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
+
+        ck_tile::index_t acc_m = 0;
+        for(int i = 0; i < group_count; ++i)
+        {
+            ck_tile::hip_check_error(hipMemcpy(d_B,
+                                               b_k_n_tensor.data() + i * N * K,
+                                               N * K * sizeof(BDataType),
+                                               hipMemcpyHostToDevice));
+            ck_tile::reference_gemm_gpu<ADataType,
+                                        BDataType,
+                                        AccDataType,
+                                        CDataType,
+                                        ALayout,
+                                        BLayout,
+                                        CLayout>(
+                static_cast<ADataType*>(a_m_k_dev_buf->GetDeviceBuffer()) + i * M * K,
+                d_B,
+                d_C + i * M * N,
+                m_indices[i],
+                N,
+                K,
+                stride_A,
+                stride_B,
+                stride_C);
+                ck_tile::hip_check_error(hipMemcpy(
+                    c_gpu_ref_host.data(), d_C, m_indices[i] * N * sizeof(CDataType), hipMemcpyDeviceToHost));
+        }
+
 
         ck_tile::hip_check_error(hipFree(d_B));
         ck_tile::hip_check_error(hipFree(d_C));

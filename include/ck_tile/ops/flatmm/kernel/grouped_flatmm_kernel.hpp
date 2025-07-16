@@ -94,6 +94,50 @@ struct ContiguousGroupedFlatmmHostArgs
     index_t k_batch;
 };
 
+struct MaskedGroupedFlatmmHostArgs
+{
+    CK_TILE_HOST MaskedGroupedFlatmmHostArgs() = default;
+    CK_TILE_HOST MaskedGroupedFlatmmHostArgs(index_t* M_indices_,
+                                            index_t group_count_,
+                                            index_t Max_M_,
+                                            index_t N_,
+                                            index_t K_,
+                                            const void* a_ptr_,
+                                            index_t stride_A_,
+                                            const void* b_shuffle_ptr_,
+                                            index_t stride_B_,
+                                            void* c_ptr_,
+                                            index_t stride_C_,
+                                            index_t k_batch_)
+    : M_indices(M_indices_),
+        group_count(group_count_),
+        Max_M(Max_M_),
+        N(N_),
+        K(K_),
+        a_ptr(a_ptr_),
+        stride_A(stride_A_),
+        b_shuffle_ptr(b_shuffle_ptr_),
+        stride_B(stride_B_),
+        c_ptr(c_ptr_),
+        stride_C(stride_C_),
+        k_batch(k_batch_)
+    {
+    }
+
+    index_t* M_indices;
+    index_t group_count;
+    index_t Max_M;
+    index_t N;
+    index_t K;
+    const void* a_ptr;
+    index_t stride_A;
+    const void* b_shuffle_ptr;
+    index_t stride_B;
+    void* c_ptr;
+    index_t stride_C;
+    index_t k_batch;
+};
+
 template <typename TilePartitioner_, typename FlatmmPipeline_, typename EpiloguePipeline_>
 struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, EpiloguePipeline_>
 {
@@ -174,12 +218,46 @@ struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Epi
         return dim3(min(persistent_block_size, total_work_tile_cnt), 1, kernelArgs.k_batch);
     }
 
+    CK_TILE_HOST_DEVICE static auto
+    GridSize([[maybe_unused]] const MaskedGroupedFlatmmHostArgs& kernelArgs)
+    {
+        hipDeviceProp_t prop;
+        int deviceId = 0; // default device
+
+        constexpr int block_size = UnderlyingGemmKernel::BlockSize().x;
+        int dync_smem_size       = 0;
+        int maxActiveBlocksPerCU;
+
+        [[maybe_unused]] auto e = hipGetDeviceProperties(&prop, deviceId);
+
+        e = hipOccupancyMaxActiveBlocksPerMultiprocessor(
+            &maxActiveBlocksPerCU,
+            reinterpret_cast<void*>(
+                kentry2<block_size, GroupedFlatmmKernel, ContiguousGroupedFlatmmHostArgs>),
+            block_size,
+            dync_smem_size);
+
+        const int persistent_block_size = prop.multiProcessorCount * maxActiveBlocksPerCU;
+        // const int total_work_tile_cnt   = TilePartitioner::GridSize(kernelArgs.M, kernelArgs.N);
+
+        std::cout << "maxActiveBlocksPerCU: " << maxActiveBlocksPerCU
+                  << ", persistent_block_size: " << persistent_block_size << std::endl;
+
+        assert(kernelArgs.k_batch == 1);
+        return dim3(persistent_block_size, 1, kernelArgs.k_batch);
+    }
+
     CK_TILE_HOST static constexpr auto MakeKernelArgs(const GroupedFlatmmHostArgs& hostArgs)
     {
         return hostArgs;
     }
     CK_TILE_HOST static constexpr auto
     MakeKernelArgs(const ContiguousGroupedFlatmmHostArgs& hostArgs)
+    {
+        return hostArgs;
+    }
+    CK_TILE_HOST static constexpr auto
+    MakeKernelArgs(const MaskedGroupedFlatmmHostArgs& hostArgs)
     {
         return hostArgs;
     }
@@ -249,6 +327,43 @@ struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Epi
             };
             // call the underlying flatmm kernel
             underlying_kernel(impl_kargs, block_linear_idx);
+        }
+    }
+
+    CK_TILE_DEVICE void operator()(MaskedGroupedFlatmmHostArgs kargs) const
+    {
+        int group_idx        = 0;
+        int block_linear_idx = blockIdx.x;
+        int total_block_cnt  = gridDim.x;
+
+        UnderlyingGemmKernel underlying_kernel{};
+        for(; group_idx < kargs.group_count; ++group_idx)
+        {
+            const index_t M               = kargs.M_indices[group_idx];
+            const index_t N               = kargs.N;
+            const index_t group_block_cnt = TilePartitioner::GridSize(M, N);
+
+            while(block_linear_idx < group_block_cnt)
+            {
+                // Found the group this block belongs to
+                // create the kernel args for the underlying flatmm kernel
+                typename UnderlyingGemmKernel::FlatmmKernelArgs impl_kargs{
+                    static_cast<const ADataType*>(kargs.a_ptr) + group_idx * kargs.Max_M * kargs.K,
+                    static_cast<const BDataType*>(kargs.b_shuffle_ptr) + group_idx * kargs.N * kargs.K,
+                    static_cast<CDataType*>(kargs.c_ptr) + group_idx * kargs.Max_M * kargs.N,
+                    M,
+                    kargs.N,
+                    kargs.K,
+                    kargs.stride_A,
+                    kargs.stride_B,
+                    kargs.stride_C,
+                    kargs.k_batch,
+                };
+                // call the underlying flatmm kernel
+                underlying_kernel(impl_kargs, block_linear_idx);
+                block_linear_idx += total_block_cnt;
+            }
+            block_linear_idx -= group_block_cnt;
         }
     }
 };
