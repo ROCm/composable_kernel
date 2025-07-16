@@ -838,7 +838,10 @@ def run_aiter_tests(Map conf=[:]){
                 dir("aiter"){
                     sh "rm -rf 3rdparty/composable_kernel/"
                     sh "git clone https://github.com/ROCm/composable_kernel.git 3rdparty/composable_kernel/"
+                    sh "set -ex"
+                    sh "pip install pandas zmq einops pip install numpy==1.26.2"
                     sh "python3 setup.py develop"
+                    sh "set -e"
                     sh "python3 op_tests/test_gemm_a8w8_blockscale.py"
                     sh "python3 op_tests/test_mha.py"
                 }
