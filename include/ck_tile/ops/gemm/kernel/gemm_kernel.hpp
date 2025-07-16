@@ -18,7 +18,6 @@
 
 namespace ck_tile {
 
-
 /// @brief The GEMM kernel host arguments.
 ///
 /// @par Overview
@@ -44,7 +43,7 @@ struct GemmHostArgs
                               index_t stride_B_,
                               const std::array<index_t, NumDTensor>& stride_Ds_,
                               index_t stride_E_,
-                              uint32_t* cleared_tile_barrier_  = nullptr,
+                              uint32_t* cleared_tile_barrier_    = nullptr,
                               uint32_t* updated_batches_barrier_ = nullptr)
         : a_ptr(a_ptr_),
           b_ptr(b_ptr_),
@@ -119,7 +118,7 @@ struct GemmKernelArgs
     ///        (in memory) of E tensor.
     index_t stride_E;
     index_t k_batch;
-    uint32_t* cleared_tile_barrier;  // Signals C tile is zeroed   0 - > 1
+    uint32_t* cleared_tile_barrier;    // Signals C tile is zeroed   0 - > 1
     uint32_t* updated_batches_barrier; // counts completed k_batches  0 - > k_batch
 };
 
@@ -952,7 +951,7 @@ struct GemmKernel
                     c_block_tile,
                     d_block_window,
                     smem_ptr_0,
-                    kargs.cleared_tile_barrier,   // Pass cleared barrier
+                    kargs.cleared_tile_barrier,     // Pass cleared barrier
                     kargs.updated_batches_barrier); // Pass updated barrier
         }
     }
@@ -1058,7 +1057,7 @@ struct GemmKernel
             c_block_tile,
             d_block_window,
             smem_ptr_0,
-            kargs.cleared_tile_barrier,   // Pass cleared barrier
+            kargs.cleared_tile_barrier,     // Pass cleared barrier
             kargs.updated_batches_barrier); // Pass updated barrier);
     }
 

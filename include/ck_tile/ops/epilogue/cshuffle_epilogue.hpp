@@ -269,7 +269,7 @@ struct CShuffleEpilogue
                                    const OAccTile& o_acc_tile,
                                    const DsDramWindows& ds_dram_windows,
                                    void* p_smem,
-                                   uint32_t* cleared_tile_barrier  = nullptr,
+                                   uint32_t* cleared_tile_barrier    = nullptr,
                                    uint32_t* updated_batches_barrier = nullptr)
     {
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
@@ -393,7 +393,7 @@ struct CShuffleEpilogue
                 {
                     // Reset barriers for next iteration
 
-                    cleared_tile_barrier[blockIdx.x]  = 0; // Reset cleared barrier
+                    cleared_tile_barrier[blockIdx.x]    = 0; // Reset cleared barrier
                     updated_batches_barrier[blockIdx.x] = 0; // Reset updated batches
                 }
             }
