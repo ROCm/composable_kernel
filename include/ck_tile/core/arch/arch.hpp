@@ -116,8 +116,10 @@ CK_TILE_DEVICE void block_sync_load_raw(index_t cnt = 0)
 template <index_t vmcnt>
 CK_TILE_DEVICE void block_sync_lds_direct_load()
 {
+    // we maximum track 64 insts back
+    static_assert(vmcnt <= 63);
     // We don't sync the lds insts here.
-    constexpr auto s_waitcnt_imm = 3952 + ((vmcnt >> 4) << 14) + (vmcnt & 0xff);
+    constexpr auto s_waitcnt_imm = 3952 + (((vmcnt & 0xf0) << 10) | (vmcnt & 0xf));
     __builtin_amdgcn_s_waitcnt(s_waitcnt_imm);
     __builtin_amdgcn_s_barrier();
 }

@@ -130,6 +130,7 @@ struct TileCopy
                              make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
                              {iM, 0},
                              MakeDRAMDistribution<Problem>());
+        // We don't have prefetch here, wait the data back immediately.
         constexpr auto async_copy_fence_cnt = 0;
 
         // Output tensor
