@@ -23,6 +23,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added Ping-pong scheduler support for GEMM operation along the K dimension.
 * Added rotating buffer feature for CK_Tile GEMM.
 * Added int8 support for CK_TILE GEMM.
+* Added Zeroing output window (initial values for output tile) inside the kernel when kbatch is more than 1.
 
 ### Optimized
 
@@ -44,6 +45,7 @@ None
 * Number of instances in instance factory for grouped convolution forward NGCHW/GKYXC/NGKHW has been reduced.
 * Number of instances in instance factory for grouped convolution backward weight NGCHW/GKYXC/NGKHW has been reduced.
 * Number of instances in instance factory for grouped convolution backward data NGCHW/GKYXC/NGKHW has been reduced.
+
 
 ### Known issues
 
