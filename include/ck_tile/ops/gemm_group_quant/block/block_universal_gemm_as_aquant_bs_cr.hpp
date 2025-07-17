@@ -321,13 +321,12 @@ struct AQuantBlockUniversalGemmAsBsCr
                           "The CDataType as defined in traits should be the same as correspoinding "
                           "C block tensor data type!");
 
-            constexpr auto count_q_scale = KIterPerWarp / Traits::KIterPerQScale;
             // hot loop:
             static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                     CWarpTensor c_warp_tensor;
 
-                    static_for<0, count_q_scale, 1>{}([&](auto kQScale) {
+                    static_for<0, Traits::QScalesPerBlockRow, 1>{}([&](auto kQScale) {
                         static_for<0, Traits::KIterPerQScale, 1>{}([&](auto kIterInQScale) {
                             constexpr auto kIter = kQScale * Traits::KIterPerQScale + kIterInQScale;
 
@@ -353,6 +352,22 @@ struct AQuantBlockUniversalGemmAsBsCr
                             }
                         });
 
+                        // Need to multiply aquant with accumulated C
+                        //
+                        // The accumulated C tile has the standard distribution. For example
+                        // lane 0 holds elements [0,0], [1,0], [2,0], [3,0], [8,0], [9,0],
+                        // [10,0], [11,0], [16,0], [17,0], [18,0], [19,0], [24,0], [25,0],
+                        // [26,0], [27,0].
+                        //
+                        // These elements are in different rows, need to get the scale value
+                        // for the corresponding row.
+                        // Based on aquant's tile distribution, it can be inferred which
+                        // lane holds the relevant scale. For example, the scales corresponding
+                        // to the 16 elements held by lane 0 are held by lanes 0, 1, 2, 3, 8, 9,
+                        // 10, 11, 16, 17, 18, 19, 24, 25, 26, 27 respectively.
+                        //
+                        // These scales can be obtained using __builtin_amdgcn_ds_bpermute.
+
                         // MIters per warp
                         constexpr index_t mIters_per_warp = get_warp_size() / WarpGemm::kM;
 
@@ -364,9 +379,7 @@ struct AQuantBlockUniversalGemmAsBsCr
                             (mIter % mIters_per_warp) * WarpGemm::kM;
 
                         // Scale tensor offset along K
-                        constexpr index_t src_reg_offset =
-                            reg_block_offset + ((kQScale * Traits::KIterPerQScale * WarpGemm::kK) /
-                                                Traits::kQuantGroupSize);
+                        constexpr index_t src_reg_offset = reg_block_offset + kQScale;
 
                         constexpr uint32_t kTileRows        = 4;
                         constexpr uint32_t kTiledCMsPerWarp = WarpGemm::kCMLane * kTileRows;
