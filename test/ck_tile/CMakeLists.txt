@@ -9,6 +9,5 @@ add_subdirectory(data_type)
 # resulting in "GPU core dump"
 #add_subdirectory(moe_smoothquant)
 add_subdirectory(slice_tile)
-
 add_subdirectory(batched_transpose)
 add_subdirectory(smoothquant)
