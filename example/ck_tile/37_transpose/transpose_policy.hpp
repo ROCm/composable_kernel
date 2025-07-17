@@ -6,7 +6,18 @@
 #include "ck_tile/core.hpp"
 
 namespace ck_tile {
-
+// Use `CK_PRINT<T1, T2, ...>()` to inspect values of type T1, T2, ...
+// Use `CK_PRINT<v1, v2, ...>()` to inspect constexpr values of val1, val2, ... of the same type
+// In a non-evaluated context, you can use `using _dummy = decltype(CK_PRINT<...>());`
+// Set BUILD_DEV to OFF to avoid enabling Werror
+template <auto... val>
+[[deprecated("Help function to print value")]] inline constexpr void CK_PRINT()
+{
+}
+template <typename... type>
+[[deprecated("Help function to print value")]] inline constexpr void CK_PRINT()
+{
+}
 struct TransposePolicy
 {
     static constexpr auto TileAccessPattern = tile_distribution_pattern::thread_raked;
@@ -22,7 +33,7 @@ struct TransposePolicy
     {
         return integer_least_multiple(
             sizeof(typename Problem::DataType) *
-                MakeLdsStoreBlockDescriptor<Problem>().get_element_space_size(),
+                MakeLdsBlockDescriptor<Problem>().get_element_space_size(),
             16);
     }
 
@@ -39,71 +50,22 @@ struct TransposePolicy
                                                                       LeadDimPerBlock,
                                                                       VecLoadSize,
                                                                       TileAccessPattern>;
+
         return TileEncodingPattern::Make2DStaticTileDistribution();
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeOutputDistribution()
-    {
-        constexpr auto input_dstr = MakeLdsLoadTileDistribution<Problem>();
-
-        using OutTileDstrEncode =
-            typename OutputTileDistributionTraits<remove_cvref_t<decltype(input_dstr)>,
-                                                  typename Problem::DataType>::OutDstrEncode;
-        constexpr auto block_dstr = make_static_tile_distribution(OutTileDstrEncode{});
-
-        return block_dstr;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeLdsStoreBlockDescriptor()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeLdsBlockDescriptor()
     {
         constexpr index_t kLeadDimPerBlock   = Problem::kLeadSizePerBlock;
         constexpr index_t kSecondDimPerBlock = Problem::kSecondSizePerBlock;
         constexpr index_t kVectorSize        = 16 / sizeof(typename Problem::DataType);
 
-        constexpr auto lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(number<kSecondDimPerBlock>{},
-                       number<kLeadDimPerBlock / kVectorSize>{},
-                       number<kVectorSize>{}),
-            make_tuple(number<kLeadDimPerBlock>{}, number<kVectorSize>{}, number<1>{}),
+        constexpr auto lds_block_desc = make_naive_tensor_descriptor(
+            make_tuple(number<kSecondDimPerBlock>{}, number<kLeadDimPerBlock>{}),
+            make_tuple(number<kLeadDimPerBlock>{}, number<1>{}),
             number<kVectorSize>{},
             number<1>{});
-
-        constexpr auto lds_block_desc = transform_tensor_descriptor(
-            lds_block_desc_0,
-            make_tuple(make_pass_through_transform(number<kSecondDimPerBlock>{}),
-                       make_merge_transform(make_tuple(number<kLeadDimPerBlock / kVectorSize>{},
-                                                       number<kVectorSize>{}))),
-            make_tuple(sequence<0>{}, sequence<1, 2>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
-
-        return lds_block_desc;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeLdsLoadBlockDescriptor()
-    {
-        constexpr index_t kLeadDimPerBlock   = Problem::kLeadSizePerBlock;
-        constexpr index_t kSecondDimPerBlock = Problem::kSecondSizePerBlock;
-
-        constexpr index_t kVectorSize = 8 / sizeof(typename Problem::DataType);
-
-        constexpr auto lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(number<kSecondDimPerBlock>{},
-                       number<kLeadDimPerBlock / kVectorSize>{},
-                       number<kVectorSize>{}),
-            make_tuple(number<kLeadDimPerBlock>{}, number<kVectorSize>{}, number<1>{}),
-            number<kVectorSize>{},
-            number<1>{});
-
-        constexpr auto lds_block_desc = transform_tensor_descriptor(
-            lds_block_desc_0,
-            make_tuple(make_pass_through_transform(number<kSecondDimPerBlock>{}),
-                       make_merge_transform(make_tuple(number<kLeadDimPerBlock / kVectorSize>{},
-                                                       number<kVectorSize>{}))),
-            make_tuple(sequence<0>{}, sequence<1, 2>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
 
         return lds_block_desc;
     }
@@ -130,6 +92,18 @@ struct TransposePolicy
         constexpr index_t kSecondRepetitions   = kSecond / kBaseSecondDim;
         constexpr index_t kSecondDimIterations = Problem::kIterationsInSecondDim;
         constexpr index_t kSecondDimStrSub     = kSecondRepetitions / kSecondDimIterations;
+        // CK_PRINT<number<kBaseLeadDim>,          // 16
+        //          number<kBaseSecondDim>,        // 4
+        //          number<kLead>,                 // 16
+        //          number<kSecond>,               // 32
+        //          number<kLeadIterPerWarp>,      // 1
+        //          number<kSecondIterPerWarp>,    // 1
+        //          number<kLeadNumWarps>,         // 1
+        //          number<kSecondNumWarps>,       // 1
+        //          number<kLeadRepetitions>,      // 1
+        //          number<kSecondRepetitions>,    // 8
+        //          number<kSecondDimIterations>,  // 2
+        //          number<kSecondDimStrSub>>();   // 4
 
         constexpr auto xdllevel_dstr_encoding = make_transposed_distr_encode<DataType,
                                                                              kSecondDimStrSub,
@@ -143,7 +117,16 @@ struct TransposePolicy
                                           kSecondIterPerWarp,
                                           kLeadNumWarps,
                                           kSecondNumWarps>();
+        CK_PRINT<decltype(input_tile_encode)>();
+        const ck_tile::tile_distribution_encoding<
+            ck_tile::sequence<>,
+            ck_tile::tuple<ck_tile::sequence<1, 2, 4, 2, 4>, ck_tile::sequence<1, 2, 1, 1, 4, 4>>,
+            ck_tile::tuple<ck_tile::sequence<2, 1>, ck_tile::sequence<1, 2, 1, 2>>,
+            ck_tile::tuple<ck_tile::sequence<1, 1>, ck_tile::sequence<2, 2, 4, 4>>,
+            ck_tile::sequence<2, 1, 2, 1, 2>,
+            ck_tile::sequence<0, 0, 3, 3, 5>>;
         constexpr auto block_dstr = make_static_tile_distribution(input_tile_encode);
+
         return block_dstr;
     }
 };

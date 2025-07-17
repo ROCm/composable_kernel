@@ -20,9 +20,9 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
 
     using ts_problem  = ck_tile::TransposePipelineProblem<ts_type,
                                                          ck_tile::tensor_layout::gemm::RowMajor,
-                                                         64,
-                                                         1,
-                                                         1,
+                                                         256,
+                                                         2,
+                                                         2,
                                                          block_y,
                                                          block_x,
                                                          warp_y,
@@ -48,12 +48,12 @@ float batched_transpose(batched_transpose_trait t,
 {
     if(t.type == "fp16")
     {
-        return batched_transpose_dispatch<ck_tile::fp16_t, 16, 32, 16, 32>(a, s);
+        return batched_transpose_dispatch<ck_tile::fp16_t, 32, 64, 16, 32>(a, s);
     }
-    else if(t.type == "fp8")
-    {
-        return batched_transpose_dispatch<ck_tile::fp8_t, 16, 64, 16, 64>(a, s);
-    }
+    // else if(t.type == "fp8")
+    // {
+    //     return batched_transpose_dispatch<ck_tile::fp8_t, 16, 64, 16, 64>(a, s);
+    // }
 
     return -1;
 }

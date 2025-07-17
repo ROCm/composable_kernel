@@ -16,7 +16,17 @@ struct LaneGroupTransposeTraits;
 template <typename T>
 struct LaneGroupTransposeTraits<T, std::enable_if_t<sizeof(T) == 2>>
 {
-    // before transpose, 4x16
+    // using ds_read_b64_tr
+    // basic unit [4, 16]
+
+    // Before transpose
+    // 4 contiguous thread access 16 elements with 4 elements each on kleadDim
+    // 4 threads in ksecondDim
+
+    // After transpose
+    // 16 threads on ksecondDimT
+    // each threads hold 4 elements on kleadDimT
+
     static constexpr index_t ksecondDim = 4;
     static constexpr index_t kleadDim   = 16;
     // after transpose, 16x4

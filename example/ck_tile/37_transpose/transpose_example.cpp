@@ -156,6 +156,29 @@ bool run_batched_transpose(ck_tile::ArgParser args)
         {stride_dim_out[0], stride_dim_out[1], stride_dim_out[2], stride_dim_out[3]});
 
     ck_tile::FillUniformDistribution<Type>{-.5f, .5f}(x_host);
+    // printf("--------------X-----------------\n");
+    // for(int i = 0; i < dim_in[1]; i++)
+    // {
+    //     for(int j = 0; j < dim_in[3]; j++)
+    //     {
+    //         printf("%04x ", *(reinterpret_cast<uint16_t*>(&(x_host(0, i, 0, j)))));
+    //         if(j % 8 == 7)
+    //             printf("|");
+    //     }
+    //     printf("\n");
+    // }
+
+    // printf("--------------X^T-----------------\n");
+    // for(int j = 0; j < dim_in[3]; j++)
+    // {
+    //     for(int i = 0; i < dim_in[1]; i++)
+    //     {
+    //         printf("%04x ", *(reinterpret_cast<uint16_t*>(&(x_host(0, i, 0, j)))));
+    //         if(i % 8 == 7)
+    //             printf("|");
+    //     }
+    //     printf("\n");
+    // }
 
     ck_tile::DeviceMem x_dev(x_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem y_dev(y_host.get_element_space_size_in_bytes());
@@ -177,7 +200,7 @@ bool run_batched_transpose(ck_tile::ArgParser args)
         return a_;
     }();
 
-    ck_tile::stream_config sc{nullptr, true};
+    ck_tile::stream_config sc{nullptr, true, 0, 0, 1};
 
     auto ms = batched_transpose(trait, karg, sc);
 
@@ -244,10 +267,10 @@ int main(int argc, char** argv)
     {
         r &= run_batched_transpose<ck_tile::fp16_t>(args);
     }
-    else if(prec.compare("fp8") == 0)
-    {
-        r &= run_batched_transpose<ck_tile::fp8_t>(args);
-    }
+    // else if(prec.compare("fp8") == 0)
+    // {
+    //     r &= run_batched_transpose<ck_tile::fp8_t>(args);
+    // }
     else
     {
         std::cerr << "Unsupported data type: " << prec << std::endl;

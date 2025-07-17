@@ -113,36 +113,40 @@ struct BlockTranspose
     {
         auto input_tile_window =
             make_tile_window(input_window, Policy::template MakeInputDistribution<Problem>());
-        auto output_tile_window =
-            make_tile_window(output_window, Policy::template MakeOutputDistribution<Problem>());
 
-        DataType* p_lds_ptr              = static_cast<DataType*>(p_smem);
-        constexpr auto in_lds_block_desc = Policy::template MakeLdsStoreBlockDescriptor<Problem>();
-        auto input_lds_block =
-            make_tensor_view<address_space_enum::lds>(p_lds_ptr, in_lds_block_desc);
-
-        constexpr auto out_lds_block_desc = Policy::template MakeLdsLoadBlockDescriptor<Problem>();
-        auto output_lds_block =
-            make_tensor_view<address_space_enum::lds>(p_lds_ptr, out_lds_block_desc);
+        DataType* p_lds_ptr           = static_cast<DataType*>(p_smem);
+        constexpr auto lds_block_desc = Policy::template MakeLdsBlockDescriptor<Problem>();
+        auto lds_tensor_view = make_tensor_view<address_space_enum::lds>(p_lds_ptr, lds_block_desc);
 
         auto copy_to_lds_window =
-            make_tile_window(input_lds_block,
+            make_tile_window(lds_tensor_view,
                              make_tuple(number<kSecondSizePerBlock>{}, number<kLeadSizePerBlock>{}),
                              {0, 0});
+
         auto load_from_lds_window =
-            make_tile_window(output_lds_block,
+            make_tile_window(lds_tensor_view,
                              make_tuple(number<kSecondSizePerBlock>{}, number<kLeadSizePerBlock>{}),
                              {0, 0},
                              Policy::template MakeLdsLoadTileDistribution<Problem>());
 
-        auto x = load_tile(input_tile_window);
+        async_load_tile(copy_to_lds_window, input_tile_window);
 
-        store_tile(copy_to_lds_window, x);
-        block_sync_lds();
+        block_sync_lds_direct_load();
 
         auto y = load_tile_transpose(load_from_lds_window);
 
-        store_tile(output_tile_window, y);
+        // printf("Tid: %d, LDS_TR-Load: %04x %04x %04x %04x %04x %04x %04x %04x\n",
+        //        get_thread_local_1d_id(),
+        //        *(reinterpret_cast<uint16_t*>(&(y.get_thread_buffer()(number<0>{})))),
+        //        *(reinterpret_cast<uint16_t*>(&(y.get_thread_buffer()(number<1>{})))),
+        //        *(reinterpret_cast<uint16_t*>(&(y.get_thread_buffer()(number<2>{})))),
+        //        *(reinterpret_cast<uint16_t*>(&(y.get_thread_buffer()(number<3>{})))),
+        //        *(reinterpret_cast<uint16_t*>(&(y.get_thread_buffer()(number<4>{})))),
+        //        *(reinterpret_cast<uint16_t*>(&(y.get_thread_buffer()(number<5>{})))),
+        //        *(reinterpret_cast<uint16_t*>(&(y.get_thread_buffer()(number<6>{})))),
+        //        *(reinterpret_cast<uint16_t*>(&(y.get_thread_buffer()(number<7>{})))));
+
+        store_tile(output_window, y);
     }
 };
 
