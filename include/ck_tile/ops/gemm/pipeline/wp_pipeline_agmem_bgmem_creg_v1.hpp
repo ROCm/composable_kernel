@@ -84,7 +84,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
     using WarpTile   = remove_cvref_t<typename BlockGemmShape::WarpTile>;
 
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
-    static constexpr index_t Preshuffle    = Problem::Preshuffle;
+    static constexpr bool Preshuffle       = Problem::Preshuffle;
     using Base::UsePersistentKernel;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
