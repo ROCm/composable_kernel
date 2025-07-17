@@ -333,8 +333,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
         ck_tile::HostTensor<CDataType> c_m_n_dev_result(
             f_host_tensor_descriptor(M, N, stride_C, CLayout{}));
 
-        ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5, 5}(a_m_k);
-        ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5, 5}(b_k_n);
+        ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5, 5, 11939}(a_m_k);
+        ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5, 5, 11940}(b_k_n);
 
         ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());

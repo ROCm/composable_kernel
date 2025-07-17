@@ -18,7 +18,7 @@ constexpr const char* DataTypeToString()
     {
         return "bf8";
     }
-    else if  constexpr(std::is_same_v<T, ck_tile::bf16_t>)
+    else if constexpr(std::is_same_v<T, ck_tile::bf16_t>)
     {
         return "bf16";
     }
