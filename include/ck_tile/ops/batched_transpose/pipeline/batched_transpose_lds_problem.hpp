@@ -65,8 +65,8 @@ struct BatchedTransposeLdsProblem
 
     // 128-bit is the max single-instruction bandwidth for load/store
     static constexpr index_t MaxLoadStoreSize = 16;
-    static constexpr auto VectorSizeInput     = kPadM ? 1 : MaxLoadStoreSize / sizeof(DataType);
-    static constexpr auto VectorSizeOutput    = kPadN ? 1 : MaxLoadStoreSize / sizeof(DataType);
+    static constexpr auto VectorSizeInput     = kPadN ? 1 : MaxLoadStoreSize / sizeof(DataType);
+    static constexpr auto VectorSizeOutput    = kPadM ? 1 : MaxLoadStoreSize / sizeof(DataType);
     static constexpr auto LDSVectorSize       = MaxLoadStoreSize / sizeof(DataType);
 };
 

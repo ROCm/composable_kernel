@@ -40,7 +40,7 @@ struct BatchedTransposeProblem
 
     // 128-bit is the max single-instruction bandwidth for load/store
     static constexpr index_t MaxLoadStoreSize = 16;
-    static constexpr index_t VectorSizeInput  = kPadM ? 1 : MaxLoadStoreSize / sizeof(DataType);
-    static constexpr index_t VectorSizeOutput = kPadN ? 1 : MaxLoadStoreSize / sizeof(DataType);
+    static constexpr index_t VectorSizeInput  = kPadN ? 1 : MaxLoadStoreSize / sizeof(DataType);
+    static constexpr index_t VectorSizeOutput = kPadM ? 1 : MaxLoadStoreSize / sizeof(DataType);
 };
 } // namespace ck_tile
