@@ -76,6 +76,58 @@ template <typename QDataType_,
           typename AttentionVariant_,
           typename FmhaMask_,
           typename Traits_>
+struct BlockFmhaFwdPagedKVPipelineProblem
+{
+    using QDataType           = remove_cvref_t<QDataType_>;
+    using KDataType           = remove_cvref_t<KDataType_>;
+    using VDataType           = remove_cvref_t<VDataType_>;
+    using SaccDataType        = remove_cvref_t<SaccDataType_>;
+    using SMPLComputeDataType = remove_cvref_t<SMPLComputeDataType_>;
+    using BiasDataType        = remove_cvref_t<BiasDataType_>;
+    using LSEDataType         = remove_cvref_t<LSEDataType_>;
+    using PDataType           = remove_cvref_t<PDataType_>;
+    using OaccDataType        = remove_cvref_t<OaccDataType_>;
+    using ODataType           = remove_cvref_t<ODataType_>;
+    using BlockFmhaShape      = remove_cvref_t<BlockFmhaShape_>;
+    using AttentionVariant    = remove_cvref_t<AttentionVariant_>;
+    using FmhaMask            = remove_cvref_t<FmhaMask_>;
+    using Traits              = remove_cvref_t<Traits_>;
+
+    static constexpr index_t kNumGemm0Warps = BlockFmhaShape::NumGemm0Warps;
+    static constexpr index_t kNumGemm1Warps = BlockFmhaShape::NumGemm1Warps;
+    static constexpr index_t kBlockSize     = BlockFmhaShape::NumWarps * get_warp_size();
+
+    static constexpr bool kIsGroupMode = kIsGroupMode_;
+
+    // attributes from traits
+    static constexpr bool kPadSeqLenQ       = Traits::kPadSeqLenQ;
+    static constexpr bool kPadSeqLenK       = Traits::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ      = Traits::kPadHeadDimQ;
+    static constexpr bool kPadHeadDimV      = Traits::kPadHeadDimV;
+    static constexpr bool kHasLogitsSoftCap = Traits::kHasLogitsSoftCap;
+    static constexpr bool kSkipMinSeqlenQ   = Traits::kSkipMinSeqlenQ;
+    static constexpr auto BiasEnum          = Traits::BiasEnum;
+    static constexpr bool kStoreLSE         = Traits::kStoreLSE;
+    static constexpr bool kDoFp8StaticQuant = Traits::kDoFp8StaticQuant;
+    static constexpr bool kIsPagedKV        = Traits::kIsPagedKV;
+    static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
+};
+
+template <typename QDataType_,
+          typename KDataType_,
+          typename VDataType_,
+          typename SaccDataType_,
+          typename SMPLComputeDataType_,
+          typename BiasDataType_,
+          typename LSEDataType_,
+          typename PDataType_,
+          typename OaccDataType_,
+          typename ODataType_,
+          typename BlockFmhaShape_,
+          bool kIsGroupMode_,
+          typename AttentionVariant_,
+          typename FmhaMask_,
+          typename Traits_>
 struct BlockFmhaFwdSplitKVPipelineProblem
 {
     using QDataType           = remove_cvref_t<QDataType_>;

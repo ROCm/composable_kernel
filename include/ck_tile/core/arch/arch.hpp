@@ -10,6 +10,15 @@
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
 
+#define CK_TILE_S_CNT_MAX 0b1100'1111'0111'1111
+#define CK_TILE_VMCNT(cnt)                                                 \
+    ([]() { static_assert((cnt) < 0b111111, "VMCNT only has 6 bits"); }(), \
+     ((cnt)&0b1111) | (((cnt)&0b110000) << 10))
+#define CK_TILE_EXPCNT(cnt) \
+    ([]() { static_assert((cnt) < 0b111, "EXP only has 3 bits"); }(), ((cnt) << 4))
+#define CK_TILE_LGKMCNT(cnt) \
+    ([]() { static_assert((cnt) < 0b1111, "LGKM only has 4 bits"); }(), ((cnt) << 8))
+
 namespace ck_tile {
 
 template <typename, bool>
@@ -113,13 +122,12 @@ CK_TILE_DEVICE void block_sync_load_raw(index_t cnt = 0)
 #endif
 }
 
+template <index_t vmcnt>
 CK_TILE_DEVICE void block_sync_lds_direct_load()
 {
-    asm volatile("\
-    s_waitcnt vmcnt(0) \n \
-    s_waitcnt lgkmcnt(0) \n \
-    s_barrier \
-    " ::);
+    // We don't sync the lds insts here.
+    __builtin_amdgcn_s_waitcnt(CK_TILE_S_CNT_MAX & CK_TILE_VMCNT(vmcnt));
+    __builtin_amdgcn_s_barrier();
 }
 
 CK_TILE_DEVICE void s_nop(index_t cnt = 0)

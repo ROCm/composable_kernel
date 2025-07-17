@@ -35,7 +35,7 @@ struct Reduce2dShape
     static constexpr index_t Repeat_N = Block_N / (WarpPerBlock_N * Warp_N);
 
     static constexpr index_t BlockSize =
-        WarpSize * reduce_on_sequence(BlockWarps{}, multiplies{}, number<1>{});
+        ck_tile::get_warp_size() * reduce_on_sequence(BlockWarps{}, multiplies{}, number<1>{});
 };
 
 template <typename XDataType_,

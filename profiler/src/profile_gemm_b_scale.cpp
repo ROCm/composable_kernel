@@ -5,6 +5,7 @@
 #include <initializer_list>
 #include <iostream>
 #include <numeric>
+#include <inttypes.h>
 
 #include "profiler/profile_gemm_b_scale_impl.hpp"
 #include "profiler_operation_registry.hpp"
@@ -100,7 +101,7 @@ int profile_gemm_b_scale(int argc, char* argv[])
         n_iter   = std::stoi(argv[17]);
         rotating = std::stoull(argv[18]) * 1024 * 1024;
 
-        printf("n_warmup:%d, n_iter:%d, rotating:%lu\n", n_warmup, n_iter, rotating);
+        printf("n_warmup:%d, n_iter:%d, rotating:%" PRIu64 "\n", n_warmup, n_iter, rotating);
     }
 
     using F32 = float;
