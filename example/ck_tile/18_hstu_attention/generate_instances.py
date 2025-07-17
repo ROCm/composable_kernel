@@ -161,7 +161,7 @@ def create_forward_instances_ref(instance_dir: Path, headdims: List) -> None:
                                 file.write(forward_instance)
 
 if __name__ == "__main__":
-    headdims_fwd = [64, 128, 256]
+    headdims_fwd = [128]
 
     this_dir = os.path.dirname(__file__)
     output_dir = Path(this_dir) / "instances"
