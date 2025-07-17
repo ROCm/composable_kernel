@@ -63,7 +63,7 @@ struct FillUniformDistribution
                         return;
                     // need to make each thread unique, add an offset to current seed
                     std::mt19937 gen(seed_.has_value() ? (*seed_ + iw_begin)
-                                                       : std::random_device{}());
+                                                              : std::random_device{}());
                     std::uniform_real_distribution<float> dis(a_, b_);
                     std::generate(first + iw_begin, first + iw_end, [&dis, &gen]() {
                         return ck_tile::type_convert<T>(dis(gen));
@@ -99,13 +99,29 @@ struct FillUniformDistribution<ck_tile::pk_int4_t>
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
     {
+        constexpr auto int4_array = std::array<uint8_t, 16>{0x77,
+                                                            0x66,
+                                                            0x55,
+                                                            0x44,
+                                                            0x33,
+                                                            0x22,
+                                                            0x11,
+                                                            0x00,
+                                                            0xff,
+                                                            0xee,
+                                                            0xdd,
+                                                            0xcc,
+                                                            0xbb,
+                                                            0xaa,
+                                                            0x99,
+                                                            0x88};
         std::mt19937 gen(seed_.has_value() ? *seed_ : std::random_device{}());
         std::uniform_int_distribution<std::uint32_t> dis(0, 15);
         while(first != last)
         {
-            int randomInt1 = dis(gen);
-            int randomInt2 = dis(gen);
-            *first         = randomInt1 << 4 | randomInt2;
+            int randomInt = dis(gen);
+            *first        = int4_array[randomInt];
+            ++first;
         }
     }
     template <typename ForwardRange>
@@ -214,7 +230,7 @@ struct FillNormalDistribution
                         return;
                     // need to make each thread unique, add an offset to current seed
                     std::mt19937 gen(seed_.has_value() ? (*seed_ + iw_begin)
-                                                       : std::random_device{}());
+                                                              : std::random_device{}());
                     std::normal_distribution<float> dis(mean_, std::sqrt(variance_));
                     std::generate(first + iw_begin, first + iw_end, [&dis, &gen]() {
                         return ck_tile::type_convert<T>(dis(gen));
