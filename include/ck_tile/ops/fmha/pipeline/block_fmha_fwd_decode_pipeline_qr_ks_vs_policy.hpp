@@ -7,6 +7,11 @@
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qx_ks_vs_custom_policy.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_custom_policy.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1.hpp"
+#include "ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v1_custom_policy.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v1.hpp"
 
 namespace ck_tile {
 
@@ -114,6 +119,137 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
             make_tuple(sequence<0>{}, sequence<1>{}));
 
         return q_lds_block_desc;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetQKBlockGemm()
+    {
+        using GemmProblem =
+            BlockGemmProblem<typename Problem::QDataType,
+                             typename Problem::KDataType,
+                             typename Problem::SaccDataType,
+                             Problem::kBlockSize,
+                             TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
+                                                    Problem::BlockFmhaShape::kN0,
+                                                    Problem::BlockFmhaShape::kK0>,
+                                           typename Problem::BlockFmhaShape::Gemm0BlockWarps,
+                                           typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
+
+        using WarpGemm = WarpGemmMfmaDispatcher<
+            typename Problem::QDataType,
+            typename Problem::KDataType,
+            typename Problem::SaccDataType,
+            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
+            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
+            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
+            true,
+            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}) == 16 ? false : true>;
+
+        using BlockGemmPolicy =
+            BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::QDataType,
+                                                typename Problem::KDataType,
+                                                typename Problem::SaccDataType,
+                                                typename Problem::BlockFmhaShape::Gemm0BlockWarps,
+                                                WarpGemm>;
+
+        return BlockGemmARegBRegCRegV1<GemmProblem, BlockGemmPolicy>{};
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetPVBlockGemm()
+    {
+        using GemmProblem =
+            BlockGemmProblem<typename Problem::PDataType,
+                             typename Problem::VDataType,
+                             typename Problem::OaccDataType,
+                             Problem::kBlockSize,
+                             TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
+                                                    Problem::BlockFmhaShape::kN1,
+                                                    Problem::BlockFmhaShape::kK1>,
+                                           typename Problem::BlockFmhaShape::Gemm1BlockWarps,
+                                           typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
+
+        using WarpGemm =
+            WarpGemmMfmaDispatcher<typename Problem::PDataType,
+                                   typename Problem::VDataType,
+                                   typename Problem::OaccDataType,
+                                   Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
+                                   Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
+                                   Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
+                                   true>;
+
+        using BlockGemmPolicy =
+            BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::PDataType,
+                                                typename Problem::VDataType,
+                                                typename Problem::OaccDataType,
+                                                typename Problem::BlockFmhaShape::Gemm1BlockWarps,
+                                                WarpGemm>;
+
+        return BlockGemmARegBRegCRegV1<GemmProblem, BlockGemmPolicy>{};
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeKRegTileDistribution()
+    {
+        using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
+
+        constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<0>{});
+        constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
+
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+
+        constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
+        constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
+
+        constexpr auto k_block_outer_dstr_encoding =
+            tile_distribution_encoding<sequence<MWarp>,
+                                       tuple<sequence<NIterPerWarp, NWarp>, sequence<KIterPerWarp>>,
+                                       tuple<sequence<0, 1>>,
+                                       tuple<sequence<0, 1>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 0>>{};
+
+        constexpr auto k_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            k_block_outer_dstr_encoding, typename WarpGemm::BWarpDstrEncoding{});
+
+        constexpr auto k_block_dstr = make_static_tile_distribution(k_block_dstr_encode);
+
+        return k_block_dstr;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeVRegTileDistribution()
+    {
+        using BlockGemm       = remove_cvref_t<decltype(GetPVBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
+
+        constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm1BlockWarps::at(number<0>{});
+        constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm1BlockWarps::at(number<1>{});
+
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+
+        constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
+        constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
+
+        constexpr auto v_block_outer_dstr_encoding =
+            tile_distribution_encoding<sequence<MWarp>,
+                                       tuple<sequence<NIterPerWarp, NWarp>, sequence<KIterPerWarp>>,
+                                       tuple<sequence<0, 1>>,
+                                       tuple<sequence<0, 1>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 0>>{};
+
+        constexpr auto v_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            v_block_outer_dstr_encoding, typename WarpGemm::BWarpDstrEncoding{});
+
+        constexpr auto v_block_dstr = make_static_tile_distribution(v_block_dstr_encode);
+
+        return v_block_dstr;
     }
 
     template <typename Problem>

@@ -757,7 +757,9 @@ struct FmhaFwdDecodeKernel
 
         const auto make_k_dram = [&](const KDataType* data, index_t height) {
             // We don't expect K data reuse among different blocks in decode case.
-            const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global, memory_operation_enum::set, amd_buffer_coherence_enum::SYSTEM_NT1>(
+            const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global,
+                                                             memory_operation_enum::set,
+                                                             amd_buffer_coherence_enum::SYSTEM_NT1>(
                 data, // will update this pointer if using paged-kvcache
                 make_tuple(height, kargs.hdim_q),
                 make_tuple(kargs.stride_k, 1),
@@ -784,12 +786,15 @@ struct FmhaFwdDecodeKernel
             if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
             {
                 // We don't expect V data reuse among different blocks in decode case.
-                const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global, memory_operation_enum::set, amd_buffer_coherence_enum::SYSTEM_NT1>(
-                    data, // will update this pointer if using paged-kvcache
-                    make_tuple(length, kargs.hdim_v),
-                    make_tuple(kargs.stride_v, 1),
-                    number<FmhaPipeline::kAlignmentV>{},
-                    number<1>{});
+                const auto v_dram_naive =
+                    make_naive_tensor_view<address_space_enum::global,
+                                           memory_operation_enum::set,
+                                           amd_buffer_coherence_enum::SYSTEM_NT1>(
+                        data, // will update this pointer if using paged-kvcache
+                        make_tuple(length, kargs.hdim_v),
+                        make_tuple(kargs.stride_v, 1),
+                        number<FmhaPipeline::kAlignmentV>{},
+                        number<1>{});
 
                 const auto v_dram_transposed =
                     transform_tensor_view(v_dram_naive,
@@ -1079,15 +1084,15 @@ struct FmhaFwdDecodeKernel
                                       v_page_block_navigator, // Remove it
                                       bias_dram_window,
                                       lse_acc_dram_window,
-                                      kargs.num_splits,       // Remove it
-                                      i_split_,               // Remove it
+                                      kargs.num_splits, // Remove it
+                                      i_split_,         // Remove it
                                       mask,
                                       position_encoding,
                                       kargs.scale_s,
-                                      variant,                // Remove it
-                                      variant_params,         // Remove it
-                                      block_indices,          // Remove it
-                                      kv_l2p_offset,          // Remove it
+                                      variant,        // Remove it
+                                      variant_params, // Remove it
+                                      block_indices,  // Remove it
+                                      kv_l2p_offset,  // Remove it
                                       smem_ptr);
             }
         }();

@@ -995,7 +995,7 @@ auto fmha_fwd_decode_create_kargs_and_grids(fmha_fwd_decode_args args)
                                      args.v_ptr,
                                      args.bias_ptr,
                                      args.lse_acc_ptr,
-                                    //  args.o_acc_ptr,
+                                     //  args.o_acc_ptr,
                                      args.o_ptr, // hardcoding
                                      args.batch,
                                      args.seqlen_q,
@@ -1625,10 +1625,7 @@ struct fmha_fwd_decode_traits
     bool do_fp8_static_quant;
     // TODO: padding check is inside this api
 };
-float fmha_fwd_decode(fmha_fwd_decode_traits,
-                       fmha_fwd_decode_args,
-                       const ck_tile::stream_config&);
-
+float fmha_fwd_decode(fmha_fwd_decode_traits, fmha_fwd_decode_args, const ck_tile::stream_config&);
 
 struct fmha_fwd_appendkv_traits
 {
