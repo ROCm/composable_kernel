@@ -52,7 +52,12 @@ using Acc0ElementOp = ck::tensor_operation::element_wise::Scale;
 using B1ElementOp   = PassThrough;
 using CElementOp    = PassThrough;
 
-static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
+// static constexpr auto GemmPadded = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
+
+static constexpr auto PipeSched   = ck::BlockGemmPipelineScheduler::Interwave;
+static constexpr auto PipelineVer = ck::BlockGemmPipelineVersion::v1;
+static constexpr int NumPrefetch  = 1;
+static constexpr auto GemmSpec    = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
 
 // clang-format off
 #define CK_MHA_USE_RCCR_LAYOUT
@@ -68,7 +73,7 @@ using DeviceMHAFactory =
             Row, Col, Col, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, 1,
+            GemmSpec, NumPrefetch,
             32,
             //      Gemm 0
             16, 64, 64, 64, 64, 8,  8,
@@ -84,7 +89,8 @@ using DeviceMHAFactory =
             // B1BlockTransfer NL -> L0 N L1
             S<2, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
             // CShuffleBlockTransfer MN
-            1, 1, S<1, 16, 1, 2>, 8>
+            1, 1, S<1, 16, 1, 2>, 8,
+            PipeSched, PipelineVer>
     >;
 #else
 using DeviceMHAFactory = 
@@ -95,7 +101,7 @@ using DeviceMHAFactory =
             Row, Col, Row, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, 1,
+            GemmSpec, NumPrefetch,
             32,
             //      Gemm 0
             16, 128, 64, 64, 64, 8,  8,
@@ -111,12 +117,13 @@ using DeviceMHAFactory =
             // B1BlockTransfer NL -> L0 N L1
             S<2, 2, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 8, 1, false,
             // CShuffleBlockTransfer MN
-            1, 1, S<1, 16, 1, 2>, 8>,
+            1, 1, S<1, 16, 1, 2>, 8, 
+            PipeSched, PipelineVer>,
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
             Row, Col, Row, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, 1,
+            GemmSpec, NumPrefetch,
             32,
             //      Gemm 0
             16, 64, 64, 64, 64, 8,  8,
@@ -132,14 +139,15 @@ using DeviceMHAFactory =
             // B1BlockTransfer NL -> L0 N L1
             S<2, 2, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 8, 1, false,
             // CShuffleBlockTransfer MN
-            1, 1, S<1, 16, 1, 2>, 8>
+            1, 1, S<1, 16, 1, 2>, 8,
+            PipeSched, PipelineVer>,
 #endif
 #ifdef CK_MHA_USE_WAVE_2
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
             Row, Col, Row, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, 1,
+            GemmSpec, NumPrefetch,
             64,
             //      Gemm 0
             32, 128, 64, 64, 64, 8, 8,
@@ -155,12 +163,13 @@ using DeviceMHAFactory =
             // B1BlockTransfer NL -> L0 N L1
             S<2, 4, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 4, 1, false,
             // CShuffleBlockTransfer MN
-            1, 1, S<1, 32, 1, 2>, 8>,
+            1, 1, S<1, 32, 1, 2>, 8,
+            PipeSched, PipelineVer>,
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
             Row, Col, Row, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, 1,
+            GemmSpec, NumPrefetch,
             64,
             //      Gemm 0
             32, 64, 64, 64, 64, 8, 8,
@@ -176,14 +185,15 @@ using DeviceMHAFactory =
             // B1BlockTransfer NL -> L0 N L1
             S<2, 4, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 4, 1, false,
             // CShuffleBlockTransfer MN
-            1, 1, S<1, 32, 1, 2>, 8>,
+            1, 1, S<1, 32, 1, 2>, 8,
+            PipeSched, PipelineVer>
 #endif
 #ifdef CK_MHA_USE_WAVE_4
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
             Row, Col, Row, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, 1,
+            GemmSpec, NumPrefetch,
             128,
             //      Gemm 0
             64, 128, 64, 64, 64, 8, 8,
@@ -199,12 +209,13 @@ using DeviceMHAFactory =
             // B1BlockTransfer NL -> L0 N L1
             S<2, 8, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 2, 1, false,
             // CShuffleBlockTransfer MN
-            1, 1, S<1, 64, 1, 2>, 8>,
+            1, 1, S<1, 64, 1, 2>, 8,
+            PipeSched, PipelineVer>,
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
             Row, Col, Row, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, 1,
+            GemmSpec, NumPrefetch,
             128,
             //      Gemm 0
             64, 64, 64, 64, 64, 8, 8,
@@ -220,14 +231,15 @@ using DeviceMHAFactory =
             // B1BlockTransfer NL -> L0 N L1
             S<2, 8, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 2, 1, false,
             // CShuffleBlockTransfer MN
-            1, 1, S<1, 64, 1, 2>, 8>,
+            1, 1, S<1, 64, 1, 2>, 8,
+            PipeSched, PipelineVer>
 #endif
 #ifdef CK_MHA_USE_WAVE_8
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
             Row, Col, Row, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, 1,
+            GemmSpec, NumPrefetch,
             256,
             //      Gemm 0
             128, 128, 64, 64, 64, 8, 8,   
@@ -243,12 +255,13 @@ using DeviceMHAFactory =
             // B1BlockTransfer NL -> L0 N L1
             S<2,  16, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 1, 1, false,
             // CShuffleBlockTransfer MN
-            1, 1, S<1, 128, 1, 2>, 8>,
+            1, 1, S<1, 128, 1, 2>, 8,
+            PipeSched, PipelineVer>,
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
             Row, Col, Row, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, 1,
+            GemmSpec, NumPrefetch,
             256,
             //      Gemm 0
             128, 128, 64, 64, 64, 8, 8,   
@@ -264,7 +277,8 @@ using DeviceMHAFactory =
             // B1BlockTransfer NL -> L0 N L1
             S<2,  16, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 1, 1, false,
             // CShuffleBlockTransfer MN
-            1, 1, S<1, 128, 1, 2>, 8>
+            1, 1, S<1, 128, 1, 2>, 8,
+            PipeSched, PipelineVer>
 #endif
     >;
 #endif

@@ -145,7 +145,7 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
 
     __host__ __device__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {
-        return num_loop > PrefetchStages;
+        return num_loop > 1; // TODO: Experimental
     }
 
     __host__ __device__ static constexpr TailNumber BlockLoopTailNum(index_t num_loop)
@@ -368,11 +368,14 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
         b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
 
         // Global prefetch 2
-        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
-        b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
+        if(num_loop > 1) // TODO: This should be constexpr?
+        {
+            a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
+            b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
 
-        a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
-        b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+            a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+            b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+        }
 
         // Initialize C
         c_thread_buf.Clear();
@@ -395,11 +398,18 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                 a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
                 b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
 
-                a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
-                b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
+                // Since we are doing 2-stage prefetch we need  to stop reading from global after i
+                // = num_loop - 3. Not doing so at best performs an unnecessary operation and at
+                // worst puts the blockwise copy operators in an invalid state which can lead to
+                // issues down the line if these are re-used.
+                if(i < num_loop - 2) // TODO: this should be constexpr?
+                {
+                    a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
+                    b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
 
-                a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
-                b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+                    a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+                    b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+                }
 
                 b_scale_struct.template GlobalLoad<0>((i + 2) % num_loop_per_scale == 0);
 

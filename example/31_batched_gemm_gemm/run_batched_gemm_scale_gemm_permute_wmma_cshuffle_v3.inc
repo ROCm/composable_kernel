@@ -10,9 +10,15 @@ int run(int argc, char* argv[])
     // GEMM shape for A/B0/B1/C
     // C_g_m_o = A_g_m_k * B0_g_k_n * B1_g_n_o
     ck::index_t M = 113;
-    ck::index_t N = 512; // Small inaccuracies with unusual size + RCCR layout! TODO
-    ck::index_t K = 64;  // Can't handle unusual sizes (small inaccuracies?)
-    ck::index_t O = 128; // Can't handle unusual sizes (small inaccuracies?)
+#ifdef CK_MHA_USE_RCCR_LAYOUT
+    ck::index_t N = 480; // Small inaccuracies with unusual size + RCCR layout! TODO
+#else
+    ck::index_t N = 477;
+#endif
+    ck::index_t K = 200; // Seems to have to be multiple of 8 even with padding, for v3 must be >=
+                         // 192 = 3 * kPerBlock? Yes, meaning must be at least 136 with padding.
+    ck::index_t O =
+        208; // Seems to have to be multiple of 8 even with padding (small inaccuracies?)
 
     // Output shape C[G0, M, G1, O]. Batch dim, outer dim, inner dim must match GEMM shape
     // C_g0_g1_m_o = reshape(C_g_m_o, [g0, g1, m, o])

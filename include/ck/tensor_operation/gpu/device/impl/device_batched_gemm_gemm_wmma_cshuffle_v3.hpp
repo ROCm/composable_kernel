@@ -787,6 +787,10 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         // clang-format off
         str << "DeviceBatchedGemmGemm_Wmma_CShuffleV3"
             << "<"
+            << ALayout::name[0]
+            << BLayout::name[0]
+            << B1Layout::name[0]
+            << CLayout::name[0] << ", "
             << BlockSize << ", "
             << MPerBlock << ", "
             << LPerBlock << ", "
