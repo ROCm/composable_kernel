@@ -406,6 +406,13 @@ def get_dq_dk_dv_tiles_gfx12(dtype : str, tr_load: str) -> List[FmhaBwdDQDKDVTil
     else:
         return []
 
+def get_dq_dk_dv_tiles(arch : str, dtype : str, tr_load : str) -> Optional[dict]:
+    if arch.startswith('gfx12'):
+        return get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype_gfx12(dtype, tr_load)
+    else:
+        return get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype_gfx9(dtype, tr_load)
+
+
 FMHA_BWD_DOT_DO_O_KERNEL_BODY="""
 using fmha_dtype_{F_idx} = {F_dtype};
 
@@ -788,7 +795,7 @@ class FmhaBwdApiPool:
         result = FMHA_BWD_KERNEL_HEADER + FMHA_BWD_API.format(F_dispatch = per_tr_load)
         return result.replace('\n\n', '\n')
 
-def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[FmhaBwdApiPool, List[FmhaBwdOGradDotOKernel], List[FmhaBwdDQDKDVKernel], List[FmhaBwdConvertQGradKernel]]:
+def get_bwd_blobs(arch: str, filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[FmhaBwdApiPool, List[FmhaBwdOGradDotOKernel], List[FmhaBwdDQDKDVKernel], List[FmhaBwdConvertQGradKernel]]:
     if filter_list == '':
         filter_list = '*@*@*'
     filters = filter_list.split('@')
@@ -797,11 +804,6 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[Fm
     filter_convert_dq = filters[1]
     filter_dq_dk_dv = filters[2]
 
-    # TODO: Pass architecture as an argument?
-    use_gfx12 = True
-
-    get_dq_dk_dv_tiles = get_dq_dk_dv_tiles_gfx12 if use_gfx12 else get_dq_dk_dv_tiles_gfx9
-
     # use dict as ordered set
     gen_dot_do_o: Dict[FmhaBwdOGradDotOKernel, Literal[True]] = {}
     gen_dq_dk_dv: Dict[FmhaBwdDQDKDVKernel, Literal[True]] = {}
@@ -809,7 +811,7 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[Fm
     api_pool = FmhaBwdApiPool(mask_impl)
 
     for dtype, tr_load in itertools.product(BWD_DTYPE_MAP.keys(), ["t", "f"]):
-        tiles: Any = get_dq_dk_dv_tiles(dtype, tr_load)
+        tiles: Any = get_dq_dk_dv_tiles(arch, dtype, tr_load)
         for tile, mode, mask, bias, dbias, dropout, spad1d, dpad, dvpad, deterministic in itertools.product(tiles, MODE_MAP.keys(), get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], DROPOUT_MAP.keys(), *([["t", "f"]] * 4)):
             assert isinstance(tile, FmhaBwdDQDKDVTileSize), "tile must be FmhaBwdDQDKDVTileSize"
             hdim = tile.F_bhdq
@@ -886,8 +888,10 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[Fm
 
     return api_pool, list(gen_dot_do_o.keys()), list(gen_dq_dk_dv.keys()), list(gen_convert_dq.keys())
 
-def write_blobs(output_dir : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
-    api_pool, kernels_dot_do_o,  kernels_dq_dk_dv,  kernels_convert_dq = get_bwd_blobs(filter_list, receipt, mask_impl, optdim_list)
+def write_blobs(arch : str, output_dir : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
+    api_pool, kernels_dot_do_o, kernels_dq_dk_dv, kernels_convert_dq = get_bwd_blobs(
+        arch, filter_list, receipt, mask_impl, optdim_list
+    )
     update_file(output_dir / FMHA_BWD_API_FILENAME, api_pool.api)
     for k in kernels_dot_do_o:
         update_file(output_dir / k.filename, k.template)
@@ -897,9 +901,9 @@ def write_blobs(output_dir : Path, filter_list : str, receipt, optdim_list, mask
         update_file(output_dir / k.filename, k.template)
 
 
-def list_blobs(file_path: Path, filter_list: str, receipt, optdim_list, mask_impl) -> None:
+def list_blobs(arch : str, file_path: Path, filter_list: str, receipt, optdim_list, mask_impl) -> None:
     _, kernels_dot_do_o, kernels_dq_dk_dv, kernels_convert_dq = get_bwd_blobs(
-        filter_list, receipt, mask_impl, optdim_list
+        arch, filter_list, receipt, mask_impl, optdim_list
     )
     with file_path.open("a") as f:
         for k in kernels_dot_do_o:

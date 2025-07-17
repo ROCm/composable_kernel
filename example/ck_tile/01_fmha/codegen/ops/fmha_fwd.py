@@ -659,13 +659,11 @@ class CustomFactory(KernelComponentFactoryGfx9):
                 result[(128, 128)].insert(0, FmhaFwdTileSize( 64, 128, 64, 128, 64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1, CppConstraint('get_num_blocks(128) < num_cus * min_cu_util_rate')))
         return result
 
-def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
+def get_fwd_blobs(arch: str, kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
     gen = list()
     api_pool = FmhaFwdApiPool(mask_impl)
 
-    # TODO: Pass architecture as an argument?
-    use_gfx12 = True
-    KernelComponentFactory = KernelComponentFactoryGfx12 if use_gfx12 else KernelComponentFactoryGfx9
+    KernelComponentFactory = KernelComponentFactoryGfx12 if arch.startswith('gfx12') else KernelComponentFactoryGfx9
 
     factory = CustomFactory if os.environ.get('CK_TILE_FMHA_FWD_CUSTOM_FACTORY', '0') == '1' else KernelComponentFactory
 
@@ -770,15 +768,15 @@ def write_single_fwd_kernel(kernel: FmhaFwdKernel, autogen_dir: Path) -> None:
 def write_fwd_api(api_pool : FmhaFwdApiPool, autogen_dir: Path) -> None:
     update_file(autogen_dir / FMHA_FWD_API_FILENAME, api_pool.api)
 
-def write_blobs(output_dir : Path, kernel_filter : str, receipt, optdim_list, mask_impl) -> None:
-    api_pool, kernels = get_fwd_blobs(kernel_filter, receipt, optdim_list, mask_impl)
+def write_blobs(arch : str, output_dir : Path, kernel_filter : str, receipt, optdim_list, mask_impl) -> None:
+    api_pool, kernels = get_fwd_blobs(arch, kernel_filter, receipt, optdim_list, mask_impl)
     for kernel in kernels:
         write_single_fwd_kernel(kernel, output_dir)
     write_fwd_api(api_pool, output_dir)
 
-def list_blobs(file_path : Path, kernel_filter : str, receipt, optdim_list, mask_impl) -> None:
+def list_blobs(arch : str, file_path : Path, kernel_filter : str, receipt, optdim_list, mask_impl) -> None:
     with file_path.open('a') as f:
-        _, kernels = get_fwd_blobs(kernel_filter, receipt, optdim_list, mask_impl)
+        _, kernels = get_fwd_blobs(arch, kernel_filter, receipt, optdim_list, mask_impl)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
         f.write(str(file_path.parent / GEN_DIR / FMHA_FWD_API_FILENAME) + "\n")

@@ -1,8 +1,8 @@
 set(INST_TARGETS ${SUPPORTED_GPU_TARGETS})
-# Currently only gfx9 archs are supported by FMHA
-list(FILTER INST_TARGETS INCLUDE REGEX "gfx9")
+# Currently only gfx9 and gfx12 archs are supported by FMHA
+list(FILTER INST_TARGETS INCLUDE REGEX "gfx9|gfx12")
 if(NOT INST_TARGETS)
-  message(WARNING "Skipping Tile Engine FMHA compilation: No supported GPU targets (gfx9) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
+  message(WARNING "Skipping Tile Engine FMHA compilation: No supported GPU targets (gfx9, gfx12) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
   return()
 endif()
 
@@ -36,15 +36,28 @@ file(GLOB_RECURSE CODE_GEN_SCRIPTS CONFIGURE_DEPENDS
 # re-run execute_process `generate.py --list_blobs` if any of the codegen scripts change
 set_directory_properties(PROPERTIES CMAKE_CONFIGURE_DEPENDS "${CODE_GEN_SCRIPTS}")
 
+set(FMHA_ARCH)
+
+if(INST_TARGETS MATCHES "gfx12" AND NOT INST_TARGETS MATCHES "gfx9")
+  set(FMHA_ARCH "gfx12")
+elseif(NOT INST_TARGETS MATCHES "gfx12" AND INST_TARGETS MATCHES "gfx9")
+  set(FMHA_ARCH "gfx9")
+else()
+  message(WARNING "FMHA cannot be built for gfx9 and gfx12 at the same time, only gfx9 is forced to use")
+  set(FMHA_ARCH "gfx9")
+endif()
+
 string(REPLACE ";" "," FMHA_FWD_APIS "${FMHA_FWD_ENABLE_APIS}")
 set(FMHA_FWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
+  --arch=${FMHA_ARCH}
   --api ${FMHA_FWD_APIS}
   --optdim 32,64,128,256
   # --filter fmha_fwd...
 )
 set(FMHA_BWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
+  --arch=${FMHA_ARCH}
   --api bwd
   --receipt 3
   --optdim 32,64,128,256
@@ -134,16 +147,16 @@ list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -Wno-float-equal)
 # TODO: Can MFMA and WMMA implementations coexist in one binary? Some host code DEPENDS on warp
 # size so it cannot launch kernels for MFMA and WMMA at the same time
 # Create separate binaries?
-if(SUPPORTED_GPU_TARGETS MATCHES "gfx12" AND NOT SUPPORTED_GPU_TARGETS MATCHES "gfx9")
-  message(STATUS "FMHA examples use WMMA")
+if(INST_TARGETS MATCHES "gfx12" AND NOT INST_TARGETS MATCHES "gfx9")
+  message(STATUS "FMHA use WMMA")
   list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=1 -DCK_TILE_USE_MFMA=0)
   list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=1 -DCK_TILE_USE_MFMA=0)
-elseif(NOT SUPPORTED_GPU_TARGETS MATCHES "gfx12" AND SUPPORTED_GPU_TARGETS MATCHES "gfx9")
-  message(STATUS "FMHA examples use MFMA")
+elseif(NOT INST_TARGETS MATCHES "gfx12" AND INST_TARGETS MATCHES "gfx9")
+  message(STATUS "FMHA use MFMA")
   list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=0 -DCK_TILE_USE_MFMA=1)
   list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=0 -DCK_TILE_USE_MFMA=1)
 else()
-  message(WARNING "FMHA examples cannot use both MFMA and WMMA, only MFMA is forced to use")
+  message(WARNING "FMHA cannot use both MFMA and WMMA, only MFMA is forced to use")
   list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=0 -DCK_TILE_USE_MFMA=1)
   list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=0 -DCK_TILE_USE_MFMA=1)
 endif()

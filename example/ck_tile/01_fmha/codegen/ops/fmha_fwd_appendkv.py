@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 # generate kernel instances to speed up compilation
 
 import copy
@@ -85,7 +85,7 @@ FMHA_FWD_APPENDKV_API_INNER_DISPATCH="""            {F_if}((t.is_v_rowmajor == {
 
 @dataclass
 class FmhaFwdAppendKVApiTrait:
-    # sync with fmha_fwd_traits<>, to generate fallback calls
+    # sync with fmha_fwd_appendkv_traits, to generate fallback calls
     hdim      : str
     dtype     : str  # data type
     bs        : int  # tile size along q seqlen
@@ -273,7 +273,7 @@ def get_fmha_fwd_appendkv_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
     else:
         return None
 
-def get_fwd_appendkv_blobs(kernel_filter : Optional[str], receipt, mask_impl, optdim_list) -> Tuple[FmhaFwdAppendKVApiPool, List[FmhaFwdAppendKVKernel]]:
+def get_fwd_appendkv_blobs(arch : str, kernel_filter : Optional[str], receipt, mask_impl, optdim_list) -> Tuple[FmhaFwdAppendKVApiPool, List[FmhaFwdAppendKVKernel]]:
     # TODO: we don't support tuning yet, so pick up one value for vlayout/pipeline/pad
     #       support this in future
     def get_pipelines(dtype, hdim) -> List[FmhaFwdAppendKVPipeline]:
@@ -352,15 +352,15 @@ def write_single_kernel(kernel: FmhaFwdAppendKVKernel, autogen_dir: Path) -> Non
 def write_fwd_appendkv_api(api_pool : FmhaFwdAppendKVApiPool, autogen_dir: Path) -> None:
     (autogen_dir / FMHA_FWD_APPENDKV_API_FILENAME).write_text(api_pool.api)
 
-def write_blobs(output_dir : Path, kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> None:
-    api_pool, kernels = get_fwd_appendkv_blobs(kernel_filter, receipt, mask_impl, optdim_list)
+def write_blobs(arch : str, output_dir : Path, kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> None:
+    api_pool, kernels = get_fwd_appendkv_blobs(arch, kernel_filter, receipt, mask_impl, optdim_list)
     for kernel in kernels:
         write_single_kernel(kernel, output_dir)
     write_fwd_appendkv_api(api_pool, output_dir)
 
-def list_blobs(file_path : Path, kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> None:
+def list_blobs(arch : str, file_path : Path, kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> None:
     with file_path.open('a') as f:
-        _, kernels = get_fwd_appendkv_blobs(kernel_filter, receipt, mask_impl, optdim_list)
+        _, kernels = get_fwd_appendkv_blobs(arch, kernel_filter, receipt, mask_impl, optdim_list)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
         f.write(str(file_path.parent / GEN_DIR / FMHA_FWD_APPENDKV_API_FILENAME) + "\n")
