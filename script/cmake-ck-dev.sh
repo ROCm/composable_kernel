@@ -5,13 +5,16 @@ rm -rf CMakeFiles
 
 MY_PROJECT_SOURCE=$1
 
-if [ $# -ge 2 ] ; then
+if [ $# -ge 2 ] && [[ "$2" =~ ^gfx ]]; then
     GPU_TARGETS=$2
     shift 2
+    echo "GPU targets provided: $GPU_TARGETS"
     REST_ARGS=$@
 else
+    echo "No GPU targets provided, using default targets: gfx908;gfx90a;gfx942"
     GPU_TARGETS="gfx908;gfx90a;gfx942"
-    REST_ARGS=
+    shift 1
+    REST_ARGS=$@
 fi
 
 cmake                                                                                             \
