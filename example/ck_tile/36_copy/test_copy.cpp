@@ -33,7 +33,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int warmup               = arg_parser.get_int("warmup");
     int repeat               = arg_parser.get_int("repeat");
 
-    constexpr dword_bytes = 4;
+    constexpr auto dword_bytes = 4;
 
     if(n % (dword_bytes / sizeof(DataType)) != 0)
     {
@@ -69,7 +69,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::index_t kGridSize =
         ck_tile::integer_divide_ceil(m, BlockTile::at(ck_tile::number<0>{}));
-    std::cout << "grid size " << kGridSize << std::endl;
 
     using Shape   = ck_tile::TileCopyShape<BlockWaves, BlockTile, WaveTile, Vector>;
     using Problem = ck_tile::TileCopyProblem<XDataType, Shape, AsyncCopy>;
@@ -77,13 +76,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     constexpr ck_tile::index_t kBlockSize  = 128;
     constexpr ck_tile::index_t kBlockPerCu = 1;
-    std::cout << "block size " << kBlockSize << std::endl;
-    std::cout << "warp SIze " << ck_tile::get_warp_size() << std::endl;
-    std::cout << "warps per block _M " << Shape::WarpPerBlock_M << " _N " << Shape::WarpPerBlock_N
-              << std::endl;
-    std::cout << "Block waves: " << BlockWaves::at(ck_tile::number<0>{}) << " "
-              << BlockWaves::at(ck_tile::number<1>{}) << std::endl;
-    std::cout << " Wave Groups: " << Shape::WaveGroups << std::endl;
 
     float ave_time = launch_kernel(ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
                                    ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
