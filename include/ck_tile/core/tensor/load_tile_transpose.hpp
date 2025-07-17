@@ -15,9 +15,12 @@
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 
-#define DS_READ_TR_SIZE 8
-
 namespace ck_tile {
+
+constexpr int DS_READ_TR_SIZE()
+{
+    return 8; // Literal constant, evaluated at compile time
+}
 
 namespace util {
 template <typename Suffix, typename Sequence>

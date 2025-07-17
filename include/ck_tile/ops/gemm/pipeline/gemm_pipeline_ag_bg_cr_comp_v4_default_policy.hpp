@@ -25,7 +25,7 @@ struct GemmPipelineAgBgCrCompV4DefaultPolicy
         using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
 
         constexpr bool single_load_tr_length =
-            (DS_READ_TR_SIZE / sizeof(typename Problem::ComputeDataType)) ==
+            (DS_READ_TR_SIZE() / sizeof(typename Problem::ComputeDataType)) ==
             (WarpTile::at(I1) * WarpTile::at(I2) / get_warp_size());
         constexpr auto wg_attr_num_access =
             ((is_a_load_tr<Problem> || is_b_load_tr<Problem>)&&!single_load_tr_length)
