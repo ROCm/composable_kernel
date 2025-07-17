@@ -1242,7 +1242,7 @@ pipeline {
                                            ninja -j64 benchmark_gemm_fp8_ccr && \
                                            ./bin/benchmark_gemm_fp8_ccr && \
                                            ninja -j64 benchmark_gemm_fp16_ccr && \
-                                           ./bin/benchmark_gemm_fp16_ccr \
+                                           ./bin/benchmark_gemm_fp16_ccr && \
                                            ninja -j64 benchmark_gemm_fp8_rrr && \
                                            ./bin/benchmark_gemm_fp8_rrr && \
                                            ninja -j64 benchmark_gemm_fp16_rrr && \
