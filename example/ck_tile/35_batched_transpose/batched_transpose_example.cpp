@@ -187,7 +187,7 @@ bool run_batched_transpose(ck_tile::ArgParser args)
 
     auto ms = batched_transpose(trait, karg, sc);
 
-    std::size_t num_bytes      = N * C * H * W * sizeof(Type) * 2; // read + written
+    std::size_t num_bytes = N * C * H * W * sizeof(Type) * 2; // read + written
 
     float gb_per_sec = num_bytes / ms * 1.E-6;
 
