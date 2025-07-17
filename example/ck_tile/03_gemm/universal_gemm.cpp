@@ -25,7 +25,7 @@ template <typename GemmConfig,
           typename ELayout,
           bool Persistent,
           typename CDEElementWise>
-float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile::stream_config& s)
+float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 
 {
     using GemmShape = ck_tile::TileGemmShape<
@@ -160,7 +160,7 @@ float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile:
                 auto size_b_buffer = b_n.get_element_space_size_in_bytes() / BPackedSize;
 
                 ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
-                    kargs.a_ptr, kargs.b_ptr, s.rotating_count_, size_a_buffer, size_b_buffer);
+                    kargs.as_ptr[0], kargs.bs_ptr[0], s.rotating_count_, size_a_buffer, size_b_buffer);
                 rotating_mem.Print();
 
                 auto run_flush_cache = [&]() {
