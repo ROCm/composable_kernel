@@ -10,3 +10,5 @@ add_subdirectory(data_type)
 #add_subdirectory(moe_smoothquant)
 add_subdirectory(slice_tile)
 
+add_subdirectory(batched_transpose)
+add_subdirectory(smoothquant)
