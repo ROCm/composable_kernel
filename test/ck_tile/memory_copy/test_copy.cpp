@@ -1,0 +1,129 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
+#include <algorithm>
+#include <gtest/gtest.h>
+
+#include "ck_tile/host.hpp"
+#include "ck_tile/core.hpp"
+#include "ck_tile/host/kernel_launch.hpp"
+#include "test_copy.hpp"
+
+struct MemoryCopyParam
+{
+    MemoryCopyParam(ck_tile::index_t m_, ck_tile::index_t n_, ck_tile::index_t warp_id_)
+        : m(m_), n(n_), warp_id(warp_id_)
+    {
+    }
+    ck_tile::index_t m;
+    ck_tile::index_t n;
+    ck_tile::index_t warp_id;
+};
+
+template <typename DataType>
+class TestCkTileMemoryCopy : public ::testing::Test
+{
+    protected:
+    void Run(const MemoryCopyParam& memcpy_params)
+    {
+        using XDataType = DataType;
+        using YDataType = DataType;
+
+        ck_tile::index_t m       = memcpy_params.m;
+        ck_tile::index_t n       = memcpy_params.n;
+        ck_tile::index_t warp_id = memcpy_params.warp_id;
+
+        constexpr auto dword_bytes = 4;
+
+        if(n % (dword_bytes / sizeof(DataType)) != 0)
+        {
+            std::cerr << "n size should be multiple of dword_bytes" << std::endl;
+        }
+
+        ck_tile::HostTensor<XDataType> x_host({m, n});
+        ck_tile::HostTensor<YDataType> y_host_dev({m, n});
+        std::cout << "input: " << x_host.mDesc << std::endl;
+        std::cout << "output: " << y_host_dev.mDesc << std::endl;
+
+        ck_tile::half_t value = 1;
+        for(int i = 0; i < m; i++)
+        {
+            value = 1;
+            for(int j = 0; j < n; j++)
+            {
+                x_host(i, j) = value++;
+            }
+        }
+
+        ck_tile::DeviceMem x_buf(x_host.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem y_buf(y_host_dev.get_element_space_size_in_bytes());
+
+        x_buf.ToDevice(x_host.data());
+
+        using BlockWaves         = ck_tile::sequence<2, 1>;
+        using BlockTile          = ck_tile::sequence<64, 8>;
+        using WaveTile           = ck_tile::sequence<64, 8>;
+        using Vector             = ck_tile::sequence<1, 2>;
+        constexpr bool AsyncCopy = true;
+
+        ck_tile::index_t kGridSize =
+            ck_tile::integer_divide_ceil(m, BlockTile::at(ck_tile::number<0>{}));
+
+        using Shape   = ck_tile::TileCopyShape<BlockWaves, BlockTile, WaveTile, Vector>;
+        using Problem = ck_tile::TileCopyProblem<XDataType, Shape, AsyncCopy>;
+        using Kernel  = ck_tile::TileCopy<Problem>;
+
+        constexpr ck_tile::index_t kBlockSize  = 128;
+        constexpr ck_tile::index_t kBlockPerCu = 1;
+
+        launch_kernel(ck_tile::stream_config{},
+                      ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
+                          Kernel{},
+                          kGridSize,
+                          kBlockSize,
+                          0,
+                          static_cast<XDataType*>(x_buf.GetDeviceBuffer()),
+                          static_cast<YDataType*>(y_buf.GetDeviceBuffer()),
+                          m,
+                          n,
+                          warp_id));
+
+        // reference
+        y_buf.FromDevice(y_host_dev.mData.data());
+        bool pass = ck_tile::check_err(y_host_dev, x_host);
+
+        EXPECT_TRUE(pass);
+    }
+};
+
+class TestCkTileMemoryCopyHalf : public TestCkTileMemoryCopy<ck_tile::half_t>
+{
+};
+
+class TestCkTileMemoryCopyBFloat : public TestCkTileMemoryCopy<ck_tile::bf16_t>
+{
+};
+
+TEST_F(TestCkTileMemoryCopyHalf, TestCorrectness)
+{
+    this->Run({64, 8, 0});
+    this->Run({63, 8, 0});
+    this->Run({63, 2, 0});
+    this->Run({127, 30, 0});
+    this->Run({64, 8, 1});
+    this->Run({63, 8, 1});
+    this->Run({63, 2, 1});
+    this->Run({127, 30, 1});
+}
+
+TEST_F(TestCkTileMemoryCopyBFloat, TestCorrectness)
+{
+    this->Run({64, 8, 0});
+    this->Run({63, 8, 0});
+    this->Run({63, 2, 0});
+    this->Run({127, 30, 0});
+    this->Run({64, 8, 1});
+    this->Run({63, 8, 1});
+    this->Run({63, 2, 1});
+    this->Run({127, 30, 1});
+}

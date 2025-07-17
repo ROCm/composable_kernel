@@ -18,10 +18,10 @@ template <typename BlockWaves, // num warps along seq<M, N>
 struct TileCopyShape
 {
     // We split Workgroup waves into two specialized groups.
-    // One for reading data from global -> LDS, the other is doing reduction
+    // One for reading data from global -> LDS, the other idled
     static constexpr index_t WaveGroups = 2;
     static constexpr index_t MWarps     = BlockWaves::at(number<0>{});
-    static constexpr index_t NWarps     = BlockWaves::at(number<0>{});
+    static constexpr index_t NWarps     = BlockWaves::at(number<1>{});
 
     static constexpr index_t Block_M = BlockTile::at(number<0>{});
     static constexpr index_t Block_N = BlockTile::at(number<1>{});
@@ -36,9 +36,8 @@ struct TileCopyShape
     static constexpr index_t ThreadPerWarp_N = Warp_N / Vector_N;
 
     // We splited the waves on M dimension
-    static constexpr index_t WarpPerBlock_M =
-        integer_divide_ceil(BlockWaves::at(number<0>{}), WaveGroups);
-    static constexpr index_t WarpPerBlock_N = BlockWaves::at(number<1>{});
+    static constexpr index_t WarpPerBlock_M = integer_divide_ceil(MWarps, WaveGroups);
+    static constexpr index_t WarpPerBlock_N = NWarps;
 
     static constexpr index_t Repeat_M = Block_M / (WarpPerBlock_M * Warp_M);
     static constexpr index_t Repeat_N = Block_N / (WarpPerBlock_N * Warp_N);
