@@ -33,6 +33,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int warmup               = arg_parser.get_int("warmup");
     int repeat               = arg_parser.get_int("repeat");
 
+    constexpr dword_bytes = 4;
+
+    if(n % (dword_bytes / sizeof(DataType)) != 0)
+    {
+        std::cerr << "n should be multiple of 2" << std::endl;
+        return false;
+    }
+
     ck_tile::HostTensor<XDataType> x_host({m, n});
     ck_tile::HostTensor<YDataType> y_host_ref({m, n});
     ck_tile::HostTensor<YDataType> y_host_dev({m, n});
@@ -59,7 +67,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using Vector             = ck_tile::sequence<1, 2>;
     constexpr bool AsyncCopy = true;
 
-    ck_tile::index_t kGridSize = (m / BlockTile::at(ck_tile::number<0>{}));
+    ck_tile::index_t kGridSize =
+        ck_tile::integer_divide_ceil(m, BlockTile::at(ck_tile::number<0>{}));
     std::cout << "grid size " << kGridSize << std::endl;
 
     using Shape   = ck_tile::TileCopyShape<BlockWaves, BlockTile, WaveTile, Vector>;
