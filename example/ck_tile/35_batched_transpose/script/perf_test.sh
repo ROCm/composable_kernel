@@ -5,8 +5,8 @@
 
 EXE=./build/bin/tile_example_batched_transpose
 
-for C in "64" "256" "1024" "4096" "16384" "65536"; do
-for W in "64" "256" "1024" "4096" "16384" "65536"; do
+for C in "64" "256" "1024" "4096" "16384"; do
+for W in "64" "256" "1024" "4096" "16384"; do
 for pr in "fp8" "fp16" "bf16"; do
 for pipeline in "0" "1"; do
 
