@@ -35,138 +35,144 @@
 #endif
 
 namespace splitk_zeroing_test {
-    // Use exact same configuration as GemmConfig from gemm_utils.hpp
-    struct TestGemmConfig
-    {
+// Use exact same configuration as GemmConfig from gemm_utils.hpp
+struct TestGemmConfig
+{
 #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
-        // Compute friendly for Intrawave scheduler
-        static constexpr ck_tile::index_t M_Tile = 128;
-        static constexpr ck_tile::index_t N_Tile = 128;
-        static constexpr ck_tile::index_t K_Tile = 128;
+    // Compute friendly for Intrawave scheduler
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128;
 
-        static constexpr ck_tile::index_t M_Warp = 2;
-        static constexpr ck_tile::index_t N_Warp = 2;
-        static constexpr ck_tile::index_t K_Warp = 1;
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
 
-        static constexpr ck_tile::index_t M_Warp_Tile = 16;
-        static constexpr ck_tile::index_t N_Warp_Tile = 16;
-        static constexpr ck_tile::index_t K_Warp_Tile = 32;
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 32;
 
-        static constexpr bool DoubleSmemBuffer = false;
+    static constexpr bool DoubleSmemBuffer = false;
 #endif
 
-        static constexpr bool kPadM = false;
-        static constexpr bool kPadN = false;
-        static constexpr bool kPadK = false;
+    static constexpr bool kPadM = false;
+    static constexpr bool kPadN = false;
+    static constexpr bool kPadK = false;
 
-        static constexpr bool PermuteA = false;
-        static constexpr bool PermuteB = false;
+    static constexpr bool PermuteA = false;
+    static constexpr bool PermuteB = false;
 
-        static constexpr bool TransposeC            = false;
-        static constexpr bool UseStructuredSparsity = false;
+    static constexpr bool TransposeC            = false;
+    static constexpr bool UseStructuredSparsity = false;
 
-        static constexpr int kBlockPerCu                         = 1;
-        static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
-        static constexpr ck_tile::index_t TileParitionerM01      = 4;
+    static constexpr int kBlockPerCu                         = 1;
+    static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
+    static constexpr ck_tile::index_t TileParitionerM01      = 4;
 
-        static constexpr ck_tile::index_t NumWaveGroups = 1;
-        static constexpr bool Preshuffle = false;
-    };
+    static constexpr ck_tile::index_t NumWaveGroups = 1;
+    static constexpr bool Preshuffle                = false;
+};
 
-    // Copy the exact calculate_rtol_atol function from run_gemm_example.inc
-    template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
-    auto calculate_split_k_rtol_atol(const ck_tile::index_t K,
-                                     const ck_tile::index_t kbatch,
-                                     const float max_accumulated_value)
+// Copy the exact calculate_rtol_atol function from run_gemm_example.inc
+template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
+auto calculate_split_k_rtol_atol(const ck_tile::index_t K,
+                                 const ck_tile::index_t kbatch,
+                                 const float max_accumulated_value)
+{
+    using ComputeType =
+        std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
+    // Calculate thresholds
+    const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType, AccDataType>(
+        ck_tile::integer_divide_ceil(K, kbatch));
+    const auto atol = ck_tile::get_absolute_threshold<ComputeType, CDataType, AccDataType>(
+        max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
+    // Calculate error due to split_k accumulation
+    const auto rtol_split_k =
+        ck_tile::get_relative_threshold<CDataType, CDataType, CDataType>(kbatch);
+    const auto atol_split_k = ck_tile::get_absolute_threshold<CDataType, CDataType, CDataType>(
+        max_accumulated_value, kbatch);
+    // Use higher threshold
+    return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
+}
+
+// Copy helper functions exactly from universal_gemm.cpp
+template <typename Layout>
+static constexpr inline auto is_row_major(Layout layout_)
+{
+    return ck_tile::bool_constant<std::is_same_v<ck_tile::remove_cvref_t<decltype(layout_)>,
+                                                 ck_tile::tensor_layout::gemm::RowMajor>>{};
+}
+
+// Calculate number of tiles for barrier allocation
+template <typename TilePartitioner>
+auto CalculateNumTiles(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args)
+{
+    const auto M_blocks = (args.M + TilePartitioner::MPerBlock - 1) / TilePartitioner::MPerBlock;
+    const auto N_blocks = (args.N + TilePartitioner::NPerBlock - 1) / TilePartitioner::NPerBlock;
+    printf("MPerBlock=%d, NPerBlock=%d, M_blocks=%d, N_blocks=%d, \n",
+           TilePartitioner::MPerBlock,
+           TilePartitioner::NPerBlock,
+           M_blocks,
+           N_blocks);
+    return M_blocks * N_blocks;
+}
+
+// Calculate workspace size needed for barriers only - same as universal_gemm_zeroing.cpp
+template <typename TilePartitioner>
+size_t GetWorkspaceSize(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args)
+{
+    if(args.k_batch <= 1)
     {
-        using ComputeType =
-            std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
-        // Calculate thresholds
-        const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType, AccDataType>(
-            ck_tile::integer_divide_ceil(K, kbatch));
-        const auto atol = ck_tile::get_absolute_threshold<ComputeType, CDataType, AccDataType>(
-            max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
-        // Calculate error due to split_k accumulation
-        const auto rtol_split_k =
-            ck_tile::get_relative_threshold<CDataType, CDataType, CDataType>(kbatch);
-        const auto atol_split_k = ck_tile::get_absolute_threshold<CDataType, CDataType, CDataType>(
-            max_accumulated_value, kbatch);
-        // Use higher threshold
-        return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
+        return 0; // No barriers needed
     }
 
-    // Copy helper functions exactly from universal_gemm.cpp
-    template<typename Layout>
-    static constexpr inline auto is_row_major(Layout layout_)
+    const auto total_tiles    = CalculateNumTiles<TilePartitioner>(args);
+    const size_t barrier_size = 2 * total_tiles * sizeof(uint32_t); // Two barriers
+
+    return barrier_size;
+}
+
+// Setup workspace with barriers - same as universal_gemm_zeroing.cpp
+template <typename Kernel, typename TilePartitioner>
+std::pair<uint32_t*, uint32_t*>
+SetupWorkspace(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, ck_tile::DeviceMem& workspace)
+{
+    if(args.k_batch <= 1)
     {
-        return ck_tile::bool_constant<std::is_same_v<ck_tile::remove_cvref_t<decltype(layout_)>,
-                                                     ck_tile::tensor_layout::gemm::RowMajor>>{};
+        return std::make_pair(nullptr, nullptr);
     }
 
-    // Calculate number of tiles for barrier allocation
-    template<typename TilePartitioner>
-    auto CalculateNumTiles(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args)
+    // Calculate workspace size for barriers only
+    const size_t workspace_size = GetWorkspaceSize<TilePartitioner>(args);
+
+    // Allocate workspace using DeviceMem (handles cleanup automatically)
+    workspace.Realloc(workspace_size);
+    void* workspace_ptr = workspace.GetDeviceBuffer();
+
+    const auto total_tiles    = CalculateNumTiles<TilePartitioner>(args);
+    const size_t barrier_size = total_tiles * sizeof(uint32_t);
+
+    uint32_t* cleared_barrier = static_cast<uint32_t*>(workspace_ptr);
+    uint32_t* updated_barrier = cleared_barrier + total_tiles;
+
+    // Initialize barriers to zero
+    hipError_t hip_err = hipMemset(cleared_barrier, 0, barrier_size);
+    if(hip_err != hipSuccess)
     {
-        const auto M_blocks = (args.M + TilePartitioner::MPerBlock - 1) / TilePartitioner::MPerBlock;
-        const auto N_blocks = (args.N + TilePartitioner::NPerBlock - 1) / TilePartitioner::NPerBlock;
-        printf("MPerBlock=%d, NPerBlock=%d, M_blocks=%d, N_blocks=%d, \n",
-            TilePartitioner::MPerBlock, TilePartitioner::NPerBlock, M_blocks, N_blocks);
-        return M_blocks * N_blocks;
+        throw std::runtime_error("Failed to initialize cleared_tile_barrier");
     }
 
-    
-    // Calculate workspace size needed for barriers only - same as universal_gemm_zeroing.cpp
-    template<typename TilePartitioner>
-    size_t GetWorkspaceSize(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args)
+    hip_err = hipMemset(updated_barrier, 0, barrier_size);
+    if(hip_err != hipSuccess)
     {
-        if(args.k_batch <= 1) {
-            return 0;  // No barriers needed
-        }
-        
-        const auto total_tiles = CalculateNumTiles<TilePartitioner>(args);
-        const size_t barrier_size = 2 * total_tiles * sizeof(uint32_t);  // Two barriers
-        
-        return barrier_size;
+        throw std::runtime_error("Failed to initialize updated_batches_barrier");
     }
 
-    // Setup workspace with barriers - same as universal_gemm_zeroing.cpp
-    template<typename Kernel, typename TilePartitioner>
-    std::pair<uint32_t*, uint32_t*> SetupWorkspace(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args,
-                                                   ck_tile::DeviceMem& workspace)
-    {
-        if(args.k_batch <= 1) {
-            return std::make_pair(nullptr, nullptr);
-        }
+    return std::make_pair(cleared_barrier, updated_barrier);
+}
 
-        // Calculate workspace size for barriers only
-        const size_t workspace_size = GetWorkspaceSize<TilePartitioner>(args);
-        
-        // Allocate workspace using DeviceMem (handles cleanup automatically)
-        workspace.Realloc(workspace_size);
-        void* workspace_ptr = workspace.GetDeviceBuffer();
-        
-        const auto total_tiles = CalculateNumTiles<TilePartitioner>(args);
-        const size_t barrier_size = total_tiles * sizeof(uint32_t);
-        
-        uint32_t* cleared_barrier = static_cast<uint32_t*>(workspace_ptr);
-        uint32_t* updated_barrier = cleared_barrier + total_tiles;
-        
-        // Initialize barriers to zero
-        hipError_t hip_err = hipMemset(cleared_barrier, 0, barrier_size);
-        if(hip_err != hipSuccess) {
-            throw std::runtime_error("Failed to initialize cleared_tile_barrier");
-        }
-        
-        hip_err = hipMemset(updated_barrier, 0, barrier_size);
-        if(hip_err != hipSuccess) {
-            throw std::runtime_error("Failed to initialize updated_batches_barrier");
-        }
-        
-        return std::make_pair(cleared_barrier, updated_barrier);
-    }
-
-    // Common kernel types used by both test classes
-    template <typename ADataType,
+// Common kernel types used by both test classes
+template <typename ADataType,
           typename BDataType,
           typename DsDataType,
           typename AccDataType,
@@ -175,78 +181,83 @@ namespace splitk_zeroing_test {
           typename BLayout,
           typename DsLayout,
           typename CLayout>
-    struct KernelTypes {
-        using GemmShape = ck_tile::TileGemmShape<
-            ck_tile::sequence<TestGemmConfig::M_Tile, TestGemmConfig::N_Tile, TestGemmConfig::K_Tile>,
-            ck_tile::sequence<TestGemmConfig::M_Warp, TestGemmConfig::N_Warp, TestGemmConfig::K_Warp>,
-            ck_tile::sequence<TestGemmConfig::M_Warp_Tile, TestGemmConfig::N_Warp_Tile, TestGemmConfig::K_Warp_Tile>,
-            TestGemmConfig::PermuteA,
-            TestGemmConfig::PermuteB>;
+struct KernelTypes
+{
+    using GemmShape = ck_tile::TileGemmShape<
+        ck_tile::sequence<TestGemmConfig::M_Tile, TestGemmConfig::N_Tile, TestGemmConfig::K_Tile>,
+        ck_tile::sequence<TestGemmConfig::M_Warp, TestGemmConfig::N_Warp, TestGemmConfig::K_Warp>,
+        ck_tile::sequence<TestGemmConfig::M_Warp_Tile,
+                          TestGemmConfig::N_Warp_Tile,
+                          TestGemmConfig::K_Warp_Tile>,
+        TestGemmConfig::PermuteA,
+        TestGemmConfig::PermuteB>;
 
-        using TilePartitioner = ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
-                                                                           TestGemmConfig::TileParitionerGroupNum,
-                                                                           TestGemmConfig::TileParitionerM01>;
+    using TilePartitioner =
+        ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
+                                                   TestGemmConfig::TileParitionerGroupNum,
+                                                   TestGemmConfig::TileParitionerM01>;
 
-        using Traits = ck_tile::TileGemmTraits<TestGemmConfig::kPadM,
-                                               TestGemmConfig::kPadN,
-                                               TestGemmConfig::kPadK,
-                                               ALayout,
-                                               BLayout,
-                                               CLayout,
-                                               TestGemmConfig::NumWaveGroups>;
-        
-        using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<TestGemmConfig::kPadM,
-                                                                     TestGemmConfig::kPadN,
-                                                                     TestGemmConfig::kPadK,
-                                                                     TestGemmConfig::DoubleSmemBuffer,
-                                                                     ALayout,
-                                                                     BLayout,
-                                                                     CLayout,
-                                                                     TestGemmConfig::TransposeC,
-                                                                     TestGemmConfig::UseStructuredSparsity,
-                                                                     false,
-                                                                     TestGemmConfig::NumWaveGroups,
-                                                                     TestGemmConfig::Preshuffle>;
+    using Traits = ck_tile::TileGemmTraits<TestGemmConfig::kPadM,
+                                           TestGemmConfig::kPadN,
+                                           TestGemmConfig::kPadK,
+                                           ALayout,
+                                           BLayout,
+                                           CLayout,
+                                           TestGemmConfig::NumWaveGroups>;
 
-                                               
+    using GemmUniversalTraits =
+        ck_tile::TileGemmUniversalTraits<TestGemmConfig::kPadM,
+                                         TestGemmConfig::kPadN,
+                                         TestGemmConfig::kPadK,
+                                         TestGemmConfig::DoubleSmemBuffer,
+                                         ALayout,
+                                         BLayout,
+                                         CLayout,
+                                         TestGemmConfig::TransposeC,
+                                         TestGemmConfig::UseStructuredSparsity,
+                                         false,
+                                         TestGemmConfig::NumWaveGroups,
+                                         TestGemmConfig::Preshuffle>;
 
-        using GemmPipelineProblem = ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
+    using GemmPipelineProblem =
+        ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
-        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                           BDataType,
-                                                                           AccDataType,
-                                                                           GemmShape,
-                                                                           GemmUniversalTraits,
-                                                                           GEMM_PIPELINE_SCHEDULER,
-                                                                           true,
-                                                                           ck_tile::TailNumber::Full>;
+    using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                                       BDataType,
+                                                                       AccDataType,
+                                                                       GemmShape,
+                                                                       GemmUniversalTraits,
+                                                                       GEMM_PIPELINE_SCHEDULER,
+                                                                       true,
+                                                                       ck_tile::TailNumber::Full>;
 
-        using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
+    using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
 
-        using GemmEpilogue = ck_tile::CShuffleEpilogue<
-                ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                 BDataType,
-                                                 DsDataType,
-                                                 AccDataType,
-                                                 CDataType,
-                                                 DsLayout,
-                                                 CLayout,
-                                                 ck_tile::element_wise::PassThrough,
-                                                 UniversalGemmProblem::kBlockSize,
-                                                 TilePartitioner::MPerBlock,
-                                                 TilePartitioner::NPerBlock,
-                                                 TestGemmConfig::M_Warp,
-                                                 TestGemmConfig::N_Warp,
-                                                 TestGemmConfig::M_Warp_Tile,
-                                                 TestGemmConfig::N_Warp_Tile,
-                                                 TestGemmConfig::K_Warp_Tile,
-                                                 UniversalGemmProblem::TransposeC,
-                                                 ck_tile::memory_operation_enum::atomic_add,
-                                                 TestGemmConfig::NumWaveGroups>>;
+    using GemmEpilogue = ck_tile::CShuffleEpilogue<
+        ck_tile::CShuffleEpilogueProblem<ADataType,
+                                         BDataType,
+                                         DsDataType,
+                                         AccDataType,
+                                         CDataType,
+                                         DsLayout,
+                                         CLayout,
+                                         ck_tile::element_wise::PassThrough,
+                                         UniversalGemmProblem::kBlockSize,
+                                         TilePartitioner::MPerBlock,
+                                         TilePartitioner::NPerBlock,
+                                         TestGemmConfig::M_Warp,
+                                         TestGemmConfig::N_Warp,
+                                         TestGemmConfig::M_Warp_Tile,
+                                         TestGemmConfig::N_Warp_Tile,
+                                         TestGemmConfig::K_Warp_Tile,
+                                         UniversalGemmProblem::TransposeC,
+                                         ck_tile::memory_operation_enum::atomic_add,
+                                         TestGemmConfig::NumWaveGroups>>;
 
-        using ZeroingKernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue, true>;
-        using NonZeroingKernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue, false>;
-    };
+    using ZeroingKernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue, true>;
+    using NonZeroingKernel =
+        ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue, false>;
+};
 } // end namespace splitk_zeroing_test
 
 // =============================================================================
@@ -256,41 +267,51 @@ namespace splitk_zeroing_test {
 template <typename Tuple>
 class TestCkTileGemmSplitKZeroing : public ::testing::Test
 {
-    
+
     public:
-    using ALayout                      = std::tuple_element_t<0, Tuple>;
-    using BLayout                      = std::tuple_element_t<1, Tuple>;
-    using CLayout                      = std::tuple_element_t<2, Tuple>;
-    using ADataType                    = std::tuple_element_t<3, Tuple>;
-    using BDataType                    = std::tuple_element_t<4, Tuple>;
-    using AccDataType                  = std::tuple_element_t<5, Tuple>;
-    using CDataType                    = std::tuple_element_t<6, Tuple>;
-    
+    using ALayout     = std::tuple_element_t<0, Tuple>;
+    using BLayout     = std::tuple_element_t<1, Tuple>;
+    using CLayout     = std::tuple_element_t<2, Tuple>;
+    using ADataType   = std::tuple_element_t<3, Tuple>;
+    using BDataType   = std::tuple_element_t<4, Tuple>;
+    using AccDataType = std::tuple_element_t<5, Tuple>;
+    using CDataType   = std::tuple_element_t<6, Tuple>;
+
     using DsLayout   = ck_tile::tuple<>;
     using DsDataType = ck_tile::tuple<>;
 
-
-    using KTypes = splitk_zeroing_test::KernelTypes<ADataType, BDataType, DsDataType, AccDataType, CDataType, ALayout, BLayout, DsLayout, CLayout>;
+    using KTypes = splitk_zeroing_test::KernelTypes<ADataType,
+                                                    BDataType,
+                                                    DsDataType,
+                                                    AccDataType,
+                                                    CDataType,
+                                                    ALayout,
+                                                    BLayout,
+                                                    DsLayout,
+                                                    CLayout>;
 
     protected:
-    void RunZeroingTest(ck_tile::index_t M, 
-                        ck_tile::index_t N, 
-                        ck_tile::index_t K, 
+    void RunZeroingTest(ck_tile::index_t M,
+                        ck_tile::index_t N,
+                        ck_tile::index_t K,
                         ck_tile::index_t k_batch,
-                        bool test_kernel_zeroing = true)  // Renamed for clarity
+                        bool test_kernel_zeroing = true) // Renamed for clarity
     {
         // Use exact same stride calculation as run_gemm_example.inc
-        ck_tile::index_t stride_A = ck_tile::get_default_stride(M, K, 0, splitk_zeroing_test::is_row_major(ALayout{}));
-        ck_tile::index_t stride_B = ck_tile::get_default_stride(K, N, 0, splitk_zeroing_test::is_row_major(BLayout{}));
-        ck_tile::index_t stride_C = ck_tile::get_default_stride(M, N, 0, splitk_zeroing_test::is_row_major(CLayout{}));
+        ck_tile::index_t stride_A =
+            ck_tile::get_default_stride(M, K, 0, splitk_zeroing_test::is_row_major(ALayout{}));
+        ck_tile::index_t stride_B =
+            ck_tile::get_default_stride(K, N, 0, splitk_zeroing_test::is_row_major(BLayout{}));
+        ck_tile::index_t stride_C =
+            ck_tile::get_default_stride(M, N, 0, splitk_zeroing_test::is_row_major(CLayout{}));
 
         // Create host tensors exactly like run_gemm_example.inc
-        ck_tile::HostTensor<ADataType> a_m_k(
-            ck_tile::host_tensor_descriptor(M, K, stride_A, splitk_zeroing_test::is_row_major(ALayout{})));
-        ck_tile::HostTensor<BDataType> b_k_n(
-            ck_tile::host_tensor_descriptor(K, N, stride_B, splitk_zeroing_test::is_row_major(BLayout{})));
-        ck_tile::HostTensor<CDataType> c_m_n_device_result(
-            ck_tile::host_tensor_descriptor(M, N, stride_C, splitk_zeroing_test::is_row_major(CLayout{})));
+        ck_tile::HostTensor<ADataType> a_m_k(ck_tile::host_tensor_descriptor(
+            M, K, stride_A, splitk_zeroing_test::is_row_major(ALayout{})));
+        ck_tile::HostTensor<BDataType> b_k_n(ck_tile::host_tensor_descriptor(
+            K, N, stride_B, splitk_zeroing_test::is_row_major(BLayout{})));
+        ck_tile::HostTensor<CDataType> c_m_n_device_result(ck_tile::host_tensor_descriptor(
+            M, N, stride_C, splitk_zeroing_test::is_row_major(CLayout{})));
 
         // Initialize input tensors - use same pattern as run_gemm_example.inc
         ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
@@ -304,8 +325,10 @@ class TestCkTileGemmSplitKZeroing : public ::testing::Test
         a_device_buf.ToDevice(a_m_k.data());
         b_device_buf.ToDevice(b_k_n.data());
 
-        std::cout << "Matrix dimensions: M=" << M << " N=" << N << " K=" << K << " k_batch=" << k_batch << std::endl;
-        std::cout << "Strides: A=" << stride_A << " B=" << stride_B << " C=" << stride_C << std::endl;
+        std::cout << "Matrix dimensions: M=" << M << " N=" << N << " K=" << K
+                  << " k_batch=" << k_batch << std::endl;
+        std::cout << "Strides: A=" << stride_A << " B=" << stride_B << " C=" << stride_C
+                  << std::endl;
 
         // Create host args structure exactly like universal_gemm.cpp
         ck_tile::GemmHostArgs</*NumDTensor = 0*/> args;
@@ -320,111 +343,133 @@ class TestCkTileGemmSplitKZeroing : public ::testing::Test
         args.stride_B = stride_B;
         args.stride_C = stride_C;
 
-        if(test_kernel_zeroing) {
+        if(test_kernel_zeroing)
+        {
             // Test 1: Kernel should zero C before computing (ZeroingKernel + non-zero C)
             std::cout << "=== Testing Kernel Zeroing Capability ===" << std::endl;
             ck_tile::FillUniformDistribution<CDataType>{-2.f, 2.f}(c_m_n_device_result);
             c_device_buf.ToDevice(c_m_n_device_result.data());
-            
+
             using TestKernel = typename KTypes::ZeroingKernel;
-            RunKernelTest<TestKernel>(args, "ZeroingKernel with non-zero C", false, a_m_k, b_k_n); // Pass host tensors
-            
-        } else {
-            // Test 2: Normal operation with pre-zeroed C (NonZeroingKernel + zero C) 
+            RunKernelTest<TestKernel>(
+                args, "ZeroingKernel with non-zero C", false, a_m_k, b_k_n); // Pass host tensors
+        }
+        else
+        {
+            // Test 2: Normal operation with pre-zeroed C (NonZeroingKernel + zero C)
             std::cout << "=== Testing Normal Operation with non-zeroed C ===" << std::endl;
             // c_m_n_device_result.SetZero();
             // c_device_buf.ToDevice(c_m_n_device_result.data());
-            
-            using TestKernel = typename KTypes::NonZeroingKernel;
+
+            using TestKernel       = typename KTypes::NonZeroingKernel;
             bool use_preprocessing = false; //(k_batch > 1); // Clear C for split-K
-            RunKernelTest<TestKernel>(args, "NonZeroingKernel with non_zero C", use_preprocessing, a_m_k, b_k_n, false); // Pass host tensors
+            RunKernelTest<TestKernel>(args,
+                                      "NonZeroingKernel with non_zero C",
+                                      use_preprocessing,
+                                      a_m_k,
+                                      b_k_n,
+                                      false); // Pass host tensors
         }
     }
 
     private:
-    template<typename Kernel>
-    void RunKernelTest(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, 
+    template <typename Kernel>
+    void RunKernelTest(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args,
                        const std::string& test_name,
                        bool use_preprocessing,
                        const ck_tile::HostTensor<ADataType>& a_host,
                        const ck_tile::HostTensor<BDataType>& b_host,
-                       bool expect_pass = true
-                    )
+                       bool expect_pass = true)
     {
         // Use DeviceMem for automatic memory management - same as universal_gemm_zeroing.cpp
         ck_tile::DeviceMem workspace;
-        auto [cleared_barrier, updated_barrier] = splitk_zeroing_test::SetupWorkspace<Kernel, typename KTypes::TilePartitioner>(args, workspace);
+        auto [cleared_barrier, updated_barrier] =
+            splitk_zeroing_test::SetupWorkspace<Kernel, typename KTypes::TilePartitioner>(
+                args, workspace);
 
         // Create kernel arguments exactly like universal_gemm.cpp
-        auto kargs = Kernel::MakeKernelArgs(args);
-        kargs.cleared_tile_barrier = cleared_barrier;
+        auto kargs                    = Kernel::MakeKernelArgs(args);
+        kargs.cleared_tile_barrier    = cleared_barrier;
         kargs.updated_batches_barrier = updated_barrier;
 
         // Check if kernel supports the arguments BEFORE launching
-        if(!Kernel::IsSupportedArgument(kargs)) {
-            GTEST_SKIP() << "Kernel configuration not supported for M=" << args.M << " N=" << args.N << " K=" << args.K;
+        if(!Kernel::IsSupportedArgument(kargs))
+        {
+            GTEST_SKIP() << "Kernel configuration not supported for M=" << args.M << " N=" << args.N
+                         << " K=" << args.K;
         }
 
         // Launch kernel with preprocessing
-        const dim3 grids = Kernel::GridSize(args.M, args.N, args.k_batch);
+        const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
         constexpr dim3 blocks = Kernel::BlockSize();
 
         std::cout << "Grid: (" << grids.x << "," << grids.y << "," << grids.z << ")" << std::endl;
-        std::cout << "Block: (" << blocks.x << "," << blocks.y << "," << blocks.z << ")" << std::endl;
+        std::cout << "Block: (" << blocks.x << "," << blocks.y << "," << blocks.z << ")"
+                  << std::endl;
 
         // Create proper stream config
         ck_tile::stream_config stream_cfg{nullptr, true, 0};
 
         float kernel_time;
 
-        if(use_preprocessing) {
+        if(use_preprocessing)
+        {
             // Need preprocessing to clear C buffer (like universal_gemm.cpp run_flush_cache)
             auto run_preprocess = [&]() {
                 // Clear C memory for split-K operations (following universal_gemm pattern)
                 hipError_t hip_err = hipMemsetAsync(
                     args.c_ptr, 0, args.M * args.N * sizeof(CDataType), stream_cfg.stream_id_);
-                if(hip_err != hipSuccess) {
-                    throw std::runtime_error("Failed to clear C buffer: " + 
-                                           std::string(hipGetErrorString(hip_err)));
+                if(hip_err != hipSuccess)
+                {
+                    throw std::runtime_error("Failed to clear C buffer: " +
+                                             std::string(hipGetErrorString(hip_err)));
                 }
-                std::cout << "Cleared device C buffer for pre-zeroed test (k_batch=" << args.k_batch << ")" << std::endl;
+                std::cout << "Cleared device C buffer for pre-zeroed test (k_batch=" << args.k_batch
+                          << ")" << std::endl;
             };
 
-            std::cout << "Launching kernel with preprocessing (k_batch=" << args.k_batch 
-            << ", Test=" << test_name << ")" << std::endl;
-    
+            std::cout << "Launching kernel with preprocessing (k_batch=" << args.k_batch
+                      << ", Test=" << test_name << ")" << std::endl;
+
             // Launch with preprocessing (like universal_gemm.cpp)
             kernel_time = ck_tile::launch_kernel_preprocess(
                 stream_cfg,
                 run_preprocess,
-                ck_tile::make_kernel<blocks.x, splitk_zeroing_test::TestGemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
-        } else {
+                ck_tile::make_kernel<blocks.x, splitk_zeroing_test::TestGemmConfig::kBlockPerCu>(
+                    Kernel{}, grids, blocks, 0, kargs));
+        }
+        else
+        {
             // Normal launch without preprocessing (like universal_gemm.cpp else branch)
-            std::cout << "Launching kernel without preprocessing (k_batch=" << args.k_batch 
+            std::cout << "Launching kernel without preprocessing (k_batch=" << args.k_batch
                       << ", Test=" << test_name << ")" << std::endl;
-                      
+
             kernel_time = ck_tile::launch_kernel(
                 stream_cfg,
-                ck_tile::make_kernel<blocks.x, splitk_zeroing_test::TestGemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+                ck_tile::make_kernel<blocks.x, splitk_zeroing_test::TestGemmConfig::kBlockPerCu>(
+                    Kernel{}, grids, blocks, 0, kargs));
         }
 
         // Create host tensor for device result and copy data back
-        ck_tile::HostTensor<CDataType> c_m_n_device_result(
-            ck_tile::host_tensor_descriptor(args.M, args.N, args.stride_C, splitk_zeroing_test::is_row_major(CLayout{})));
+        ck_tile::HostTensor<CDataType> c_m_n_device_result(ck_tile::host_tensor_descriptor(
+            args.M, args.N, args.stride_C, splitk_zeroing_test::is_row_major(CLayout{})));
 
         // Copy result back from device
-        hipError_t hip_err = hipMemcpy(c_m_n_device_result.data(), args.c_ptr, 
-                                       args.M * args.N * sizeof(CDataType), hipMemcpyDeviceToHost);
-        if(hip_err != hipSuccess) {
-            throw std::runtime_error("Failed to copy result from device: " + 
+        hipError_t hip_err = hipMemcpy(c_m_n_device_result.data(),
+                                       args.c_ptr,
+                                       args.M * args.N * sizeof(CDataType),
+                                       hipMemcpyDeviceToHost);
+        if(hip_err != hipSuccess)
+        {
+            throw std::runtime_error("Failed to copy result from device: " +
                                      std::string(hipGetErrorString(hip_err)));
         }
 
         // Compute reference result exactly like run_gemm_example.inc
-        ck_tile::HostTensor<CDataType> c_m_n_reference(
-            ck_tile::host_tensor_descriptor(args.M, args.N, args.stride_C, splitk_zeroing_test::is_row_major(CLayout{})));
+        ck_tile::HostTensor<CDataType> c_m_n_reference(ck_tile::host_tensor_descriptor(
+            args.M, args.N, args.stride_C, splitk_zeroing_test::is_row_major(CLayout{})));
         c_m_n_reference.SetZero();
-        
+
         // Use the passed host tensors for reference computation
         ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
             a_host, b_host, c_m_n_reference);
@@ -432,32 +477,38 @@ class TestCkTileGemmSplitKZeroing : public ::testing::Test
         // Calculate error tolerances exactly like run_gemm_example.inc
         const float max_accumulated_value =
             *std::max_element(c_m_n_reference.mData.begin(), c_m_n_reference.mData.end());
-        const auto rtol_atol = splitk_zeroing_test::calculate_split_k_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
-            args.K, args.k_batch, max_accumulated_value);
+        const auto rtol_atol = splitk_zeroing_test::
+            calculate_split_k_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+                args.K, args.k_batch, max_accumulated_value);
 
         // Verify results exactly like run_gemm_example.inc
-        bool pass = ck_tile::check_err(
-            c_m_n_device_result,
-            c_m_n_reference,
-            "Error: Incorrect results!",
-            rtol_atol.at(ck_tile::number<0>{}),
-            rtol_atol.at(ck_tile::number<1>{}));
+        bool pass = ck_tile::check_err(c_m_n_device_result,
+                                       c_m_n_reference,
+                                       "Error: Incorrect results!",
+                                       rtol_atol.at(ck_tile::number<0>{}),
+                                       rtol_atol.at(ck_tile::number<1>{}));
 
         // Debug output
-        std::cout << "Test: " << test_name << " -> " << (pass ? "PASS" : "FAIL") << " (time: " << kernel_time << "ms)" << std::endl;
-        
+        std::cout << "Test: " << test_name << " -> " << (pass ? "PASS" : "FAIL")
+                  << " (time: " << kernel_time << "ms)" << std::endl;
+
         std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
                   << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
                   << std::endl;
 
-        
-        //EXPECT_TRUE(pass) << "Test failed: " << test_name;
-        if(expect_pass) {
+        // EXPECT_TRUE(pass) << "Test failed: " << test_name;
+        if(expect_pass)
+        {
             EXPECT_TRUE(pass) << "Test failed: " << test_name;
-        } else {
+        }
+        else
+        {
             EXPECT_FALSE(pass) << "Test was expected to fail but passed: " << test_name;
-            if(!pass) {
-                std::cout << "Expected failure confirmed! NonZeroingKernel correctly failed with non-zero C" << std::endl;
+            if(!pass)
+            {
+                std::cout << "Expected failure confirmed! NonZeroingKernel correctly failed with "
+                             "non-zero C"
+                          << std::endl;
             }
         }
     }
@@ -471,60 +522,69 @@ template <typename Tuple>
 class TestCkTileGemmArgumentValidation : public ::testing::Test
 {
     public:
+    using ALayout     = std::tuple_element_t<0, Tuple>;
+    using BLayout     = std::tuple_element_t<1, Tuple>;
+    using CLayout     = std::tuple_element_t<2, Tuple>;
+    using ADataType   = std::tuple_element_t<3, Tuple>;
+    using BDataType   = std::tuple_element_t<4, Tuple>;
+    using AccDataType = std::tuple_element_t<5, Tuple>;
+    using CDataType   = std::tuple_element_t<6, Tuple>;
 
-    using ALayout                      = std::tuple_element_t<0, Tuple>;
-    using BLayout                      = std::tuple_element_t<1, Tuple>;
-    using CLayout                      = std::tuple_element_t<2, Tuple>;
-    using ADataType                    = std::tuple_element_t<3, Tuple>;
-    using BDataType                    = std::tuple_element_t<4, Tuple>;
-    using AccDataType                  = std::tuple_element_t<5, Tuple>;
-    using CDataType                    = std::tuple_element_t<6, Tuple>;
-    
     using DsLayout   = ck_tile::tuple<>;
     using DsDataType = ck_tile::tuple<>;
 
-    using KTypes = splitk_zeroing_test::KernelTypes<ADataType, BDataType, DsDataType, AccDataType, CDataType, ALayout, BLayout, DsLayout, CLayout>;
+    using KTypes = splitk_zeroing_test::KernelTypes<ADataType,
+                                                    BDataType,
+                                                    DsDataType,
+                                                    AccDataType,
+                                                    CDataType,
+                                                    ALayout,
+                                                    BLayout,
+                                                    DsLayout,
+                                                    CLayout>;
 
     using TestKernel = typename KTypes::ZeroingKernel;
 
     protected:
-    
     // Helper function to create valid kernel arguments
-    auto CreateValidArgs(ck_tile::index_t M = 256, 
-                         ck_tile::index_t N = 256, 
-                         ck_tile::index_t K = 256,
+    auto CreateValidArgs(ck_tile::index_t M       = 256,
+                         ck_tile::index_t N       = 256,
+                         ck_tile::index_t K       = 256,
                          ck_tile::index_t k_batch = 1)
     {
-        ck_tile::index_t stride_A = ck_tile::get_default_stride(M, K, 0, splitk_zeroing_test::is_row_major(ALayout{}));
-        ck_tile::index_t stride_B = ck_tile::get_default_stride(K, N, 0, splitk_zeroing_test::is_row_major(BLayout{}));
-        ck_tile::index_t stride_C = ck_tile::get_default_stride(M, N, 0, splitk_zeroing_test::is_row_major(CLayout{}));
+        ck_tile::index_t stride_A =
+            ck_tile::get_default_stride(M, K, 0, splitk_zeroing_test::is_row_major(ALayout{}));
+        ck_tile::index_t stride_B =
+            ck_tile::get_default_stride(K, N, 0, splitk_zeroing_test::is_row_major(BLayout{}));
+        ck_tile::index_t stride_C =
+            ck_tile::get_default_stride(M, N, 0, splitk_zeroing_test::is_row_major(CLayout{}));
 
         ck_tile::GemmHostArgs</*NumDTensor = 0*/> args;
-        args.a_ptr = nullptr;  // pointers not checked by IsSupportedArgument
-        args.b_ptr = nullptr;
-        args.c_ptr = nullptr;
-        args.M = M;
-        args.N = N;
-        args.K = K;
+        args.a_ptr    = nullptr; // pointers not checked by IsSupportedArgument
+        args.b_ptr    = nullptr;
+        args.c_ptr    = nullptr;
+        args.M        = M;
+        args.N        = N;
+        args.K        = K;
         args.stride_A = stride_A;
         args.stride_B = stride_B;
         args.stride_C = stride_C;
-        args.k_batch = k_batch;
+        args.k_batch  = k_batch;
 
         return TestKernel::MakeKernelArgs(args);
     }
 
-    template<typename KernelArgs>
-    void TestArgument(const KernelArgs& kargs, 
-                      bool expected_support, 
+    template <typename KernelArgs>
+    void TestArgument(const KernelArgs& kargs,
+                      bool expected_support,
                       const std::string& test_description)
     {
         bool actual_support = TestKernel::IsSupportedArgument(kargs);
-        std::cout << "Test: " << test_description 
+        std::cout << "Test: " << test_description
                   << " -> Expected: " << (expected_support ? "SUPPORTED" : "NOT_SUPPORTED")
-                  << ", Actual: " << (actual_support ? "SUPPORTED" : "NOT_SUPPORTED")
-                  << " [" << (actual_support == expected_support ? "PASS" : "FAIL") << "]" << std::endl;
-        
+                  << ", Actual: " << (actual_support ? "SUPPORTED" : "NOT_SUPPORTED") << " ["
+                  << (actual_support == expected_support ? "PASS" : "FAIL") << "]" << std::endl;
+
         EXPECT_EQ(actual_support, expected_support) << "Failed test: " << test_description;
     }
 };
@@ -534,15 +594,14 @@ class TestCkTileGemmArgumentValidation : public ::testing::Test
 // =============================================================================
 
 // Test with same type as universal_gemm supports
-using TestTypes = ::testing::Types<
-    std::tuple<ck_tile::tensor_layout::gemm::RowMajor,     // ALayout
-               ck_tile::tensor_layout::gemm::ColumnMajor,  // BLayout  
-               ck_tile::tensor_layout::gemm::RowMajor,     // CLayout
-               ck_tile::half_t,                            // ADataType
-               ck_tile::half_t,                            // BDataType
-               float,                                      // AccDataType
-               ck_tile::half_t>                            // CDataType
->;
+using TestTypes = ::testing::Types<std::tuple<ck_tile::tensor_layout::gemm::RowMajor,    // ALayout
+                                              ck_tile::tensor_layout::gemm::ColumnMajor, // BLayout
+                                              ck_tile::tensor_layout::gemm::RowMajor,    // CLayout
+                                              ck_tile::half_t, // ADataType
+                                              ck_tile::half_t, // BDataType
+                                              float,           // AccDataType
+                                              ck_tile::half_t> // CDataType
+                                   >;
 
 // =============================================================================
 // SPLIT-K ZEROING TESTS
@@ -553,13 +612,13 @@ TYPED_TEST_SUITE(TestCkTileGemmSplitKZeroing, TestTypes);
 TYPED_TEST(TestCkTileGemmSplitKZeroing, KernelZeroingCapabilityTest)
 {
     // Test that ZeroingKernel properly zeros non-zero C before computing
-    this->RunZeroingTest(256, 256, 512, 2, true);   // test_kernel_zeroing = true
+    this->RunZeroingTest(256, 256, 512, 2, true); // test_kernel_zeroing = true
 }
 
-TYPED_TEST(TestCkTileGemmSplitKZeroing, NormalOperationTest) 
+TYPED_TEST(TestCkTileGemmSplitKZeroing, NormalOperationTest)
 {
     // Test that NonZeroingKernel works correctly with pre-zeroed C
-    this->RunZeroingTest(256, 256, 512, 2, false);  // test_kernel_zeroing = false
+    this->RunZeroingTest(256, 256, 512, 2, false); // test_kernel_zeroing = false
 }
 
 TYPED_TEST(TestCkTileGemmSplitKZeroing, KernelComparisonTest)
@@ -593,29 +652,35 @@ TYPED_TEST(TestCkTileGemmArgumentValidation, SplitKValidationTest)
 
 TYPED_TEST(TestCkTileGemmArgumentValidation, InvalidDimensionsTest)
 {
-    using TestKernel = typename TestFixture::TestKernel;
+    using TestKernel           = typename TestFixture::TestKernel;
     constexpr auto M_per_block = TestKernel::TilePartitioner::MPerBlock;
     constexpr auto N_per_block = TestKernel::TilePartitioner::NPerBlock;
     constexpr auto K_per_block = TestKernel::TilePartitioner::KPerBlock;
 
-    std::cout << "Block sizes: M=" << M_per_block << " N=" << N_per_block << " K=" << K_per_block << std::endl;
+    std::cout << "Block sizes: M=" << M_per_block << " N=" << N_per_block << " K=" << K_per_block
+              << std::endl;
 
     // Test dimensions that don't align to block sizes (when padding disabled)
     // Note: M dimension may have more flexible alignment requirements due to vectorization
-    if constexpr(!TestKernel::GemmPipeline::kPadM) {
+    if constexpr(!TestKernel::GemmPipeline::kPadM)
+    {
         auto invalid_m = this->CreateValidArgs(M_per_block + 1, N_per_block, K_per_block, 1);
         // M dimension might still be supported due to internal padding/vectorization
         // Check actual kernel behavior rather than assuming strict alignment
         bool m_supports_unaligned = true; // Adjust based on actual kernel capabilities
-        this->TestArgument(invalid_m, m_supports_unaligned, "M not multiple of MPerBlock (may have internal padding)");
+        this->TestArgument(invalid_m,
+                           m_supports_unaligned,
+                           "M not multiple of MPerBlock (may have internal padding)");
     }
 
-    if constexpr(!TestKernel::GemmPipeline::kPadN) {
+    if constexpr(!TestKernel::GemmPipeline::kPadN)
+    {
         auto invalid_n = this->CreateValidArgs(M_per_block, N_per_block + 1, K_per_block, 1);
         this->TestArgument(invalid_n, false, "N not multiple of NPerBlock (no padding)");
     }
 
-    if constexpr(!TestKernel::GemmPipeline::kPadK) {
+    if constexpr(!TestKernel::GemmPipeline::kPadK)
+    {
         auto invalid_k = this->CreateValidArgs(M_per_block, N_per_block, K_per_block + 1, 1);
         this->TestArgument(invalid_k, false, "K not multiple of KPerBlock (no padding)");
     }
@@ -624,9 +689,9 @@ TYPED_TEST(TestCkTileGemmArgumentValidation, InvalidDimensionsTest)
 TYPED_TEST(TestCkTileGemmArgumentValidation, ComprehensiveValidationSuite)
 {
     std::cout << "\n=== Comprehensive Argument Validation Test Suite ===" << std::endl;
-    
+
     using TestKernel = typename TestFixture::TestKernel;
-    
+
     // Print configuration for debugging
     std::cout << "Configuration:" << std::endl;
     std::cout << "  MPerBlock: " << TestKernel::TilePartitioner::MPerBlock << std::endl;
@@ -635,37 +700,61 @@ TYPED_TEST(TestCkTileGemmArgumentValidation, ComprehensiveValidationSuite)
     std::cout << "  PadM: " << TestKernel::GemmPipeline::kPadM << std::endl;
     std::cout << "  PadN: " << TestKernel::GemmPipeline::kPadN << std::endl;
     std::cout << "  PadK: " << TestKernel::GemmPipeline::kPadK << std::endl;
-    std::cout << "  ALayout: " << (std::is_same_v<typename TestFixture::ALayout, ck_tile::tensor_layout::gemm::RowMajor> ? "RowMajor" : "ColumnMajor") << std::endl;
-    std::cout << "  BLayout: " << (std::is_same_v<typename TestFixture::BLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "RowMajor" : "ColumnMajor") << std::endl;
-    std::cout << "  CLayout: " << (std::is_same_v<typename TestFixture::CLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "RowMajor" : "ColumnMajor") << std::endl;
+    std::cout
+        << "  ALayout: "
+        << (std::is_same_v<typename TestFixture::ALayout, ck_tile::tensor_layout::gemm::RowMajor>
+                ? "RowMajor"
+                : "ColumnMajor")
+        << std::endl;
+    std::cout
+        << "  BLayout: "
+        << (std::is_same_v<typename TestFixture::BLayout, ck_tile::tensor_layout::gemm::RowMajor>
+                ? "RowMajor"
+                : "ColumnMajor")
+        << std::endl;
+    std::cout
+        << "  CLayout: "
+        << (std::is_same_v<typename TestFixture::CLayout, ck_tile::tensor_layout::gemm::RowMajor>
+                ? "RowMajor"
+                : "ColumnMajor")
+        << std::endl;
     std::cout << std::endl;
 
     // Test a range of configurations
-    std::vector<std::tuple<ck_tile::index_t, ck_tile::index_t, ck_tile::index_t, ck_tile::index_t, bool, std::string>> test_cases = {
-        // Format: {M, N, K, k_batch, expected_support, description}
-        {256, 256, 256, 1, true, "Standard valid case"},
-        {128, 128, 128, 1, true, "Smaller valid case"},
-        {512, 512, 512, 2, true, "Split-K valid case"},
-        {384, 384, 384, 1, true, "Valid multiple case"},
-        
-        // These may fail if padding is disabled
-        // {127, 256, 256, 1, false, "M not aligned"},
-        {256, 127, 256, 1, false, "N not aligned"},
-        {256, 256, 127, 1, false, "K not aligned"},
-        {100, 100, 100, 3, false, "Multiple alignment issues"},
-    };
+    std::vector<std::tuple<ck_tile::index_t,
+                           ck_tile::index_t,
+                           ck_tile::index_t,
+                           ck_tile::index_t,
+                           bool,
+                           std::string>>
+        test_cases = {
+            // Format: {M, N, K, k_batch, expected_support, description}
+            {256, 256, 256, 1, true, "Standard valid case"},
+            {128, 128, 128, 1, true, "Smaller valid case"},
+            {512, 512, 512, 2, true, "Split-K valid case"},
+            {384, 384, 384, 1, true, "Valid multiple case"},
 
-    for(const auto& [M, N, K, k_batch, expected, desc] : test_cases) {
+            // These may fail if padding is disabled
+            // {127, 256, 256, 1, false, "M not aligned"},
+            {256, 127, 256, 1, false, "N not aligned"},
+            {256, 256, 127, 1, false, "K not aligned"},
+            {100, 100, 100, 3, false, "Multiple alignment issues"},
+        };
+
+    for(const auto& [M, N, K, k_batch, expected, desc] : test_cases)
+    {
         auto args = this->CreateValidArgs(M, N, K, k_batch);
-        
+
         // Adjust expectation based on padding
         bool adjusted_expected = expected;
-        if(!expected && TestKernel::GemmPipeline::kPadM && TestKernel::GemmPipeline::kPadN && TestKernel::GemmPipeline::kPadK) {
-            adjusted_expected = true;  // Padding might make invalid cases valid
+        if(!expected && TestKernel::GemmPipeline::kPadM && TestKernel::GemmPipeline::kPadN &&
+           TestKernel::GemmPipeline::kPadK)
+        {
+            adjusted_expected = true; // Padding might make invalid cases valid
         }
-        
+
         this->TestArgument(args, adjusted_expected, desc);
     }
-    
+
     std::cout << "=== Validation Test Suite Complete ===" << std::endl;
 }
