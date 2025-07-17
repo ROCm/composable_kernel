@@ -11,7 +11,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_bias_clamp.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_clamp.hpp"
 
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
@@ -25,28 +25,6 @@
 namespace ck {
 namespace profiler {
 
-// NOTE: Usage of NHWGK layout for GK bias is a workaround. This test is to
-// just keep such implementation valid.
-// TODO: Add possiblity to pass GK layout and GK lengths for bias and reuse
-// the same instances.
-
-template <ck::index_t NDimSpatial>
-auto get_bias_desc(ck::index_t G, ck::index_t K)
-{
-    if constexpr(NDimSpatial == 1)
-    {
-        return HostTensorDescriptor({G, 1, K, 1}, {K, 0, 1, 0});
-    }
-    else if constexpr(NDimSpatial == 2)
-    {
-        return HostTensorDescriptor({G, 1, K, 1, 1}, {K, 0, 1, 0, 0});
-    }
-    else
-    {
-        return HostTensorDescriptor({G, 1, K, 1, 1, 1}, {K, 0, 1, 0, 0, 0});
-    }
-}
-
 template <ck::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,
@@ -56,17 +34,16 @@ template <ck::index_t NDimSpatial,
           typename OutDataType,
           typename AComputeType = InDataType,
           typename BComputeType = AComputeType,
-          typename IndexType    = ck::index_t,
-          bool BiasGK           = false>
-bool profile_grouped_conv_fwd_bias_clamp_impl(int do_verification,
-                                              int init_method,
-                                              bool do_log,
-                                              bool time_kernel,
-                                              const ck::utils::conv::ConvParam& conv_param)
+          typename IndexType    = ck::index_t>
+bool profile_grouped_conv_fwd_clamp_impl(int do_verification,
+                                         int init_method,
+                                         bool do_log,
+                                         bool time_kernel,
+                                         const ck::utils::conv::ConvParam& conv_param)
 {
     using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using OutElementOp = ck::tensor_operation::element_wise::AddClamp;
+    using OutElementOp = ck::tensor_operation::element_wise::Clamp;
 
     const float floor = 0.f;
     const float ceil  = 256.f;
@@ -83,9 +60,6 @@ bool profile_grouped_conv_fwd_bias_clamp_impl(int do_verification,
 
     const auto out_g_n_k_wos_desc =
         ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(conv_param);
-
-    const index_t G = conv_param.G_;
-    const index_t K = conv_param.K_;
 
     std::array<IndexType, NDimSpatial + 3> a_g_n_c_wis_lengths{};
     std::array<IndexType, NDimSpatial + 3> a_g_n_c_wis_strides{};
@@ -117,13 +91,10 @@ bool profile_grouped_conv_fwd_bias_clamp_impl(int do_verification,
     Tensor<WeiDataType> weight(wei_g_k_c_xs_desc);
     Tensor<OutDataType> host_output(out_g_n_k_wos_desc);
     Tensor<OutDataType> device_output(out_g_n_k_wos_desc);
-    const auto bias_desc = BiasGK ? get_bias_desc<NDimSpatial>(G, K) : out_g_n_k_wos_desc;
-    Tensor<OutDataType> bias(bias_desc);
 
     std::cout << "input: " << input.mDesc << std::endl;
     std::cout << "weight: " << weight.mDesc << std::endl;
     std::cout << "output: " << host_output.mDesc << std::endl;
-    std::cout << "bias: " << bias.mDesc << std::endl;
 
     switch(init_method)
     {
@@ -131,26 +102,18 @@ bool profile_grouped_conv_fwd_bias_clamp_impl(int do_verification,
     case 1:
         input.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
         weight.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
-        bias.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
         break;
     default:
         input.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
         weight.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
-        bias.GenerateTensorValue(GeneratorTensor_3<OutDataType>{-0.5, 0.5});
     }
 
     DeviceMem in_device_buf(sizeof(InDataType) * input.mDesc.GetElementSpaceSize());
     DeviceMem wei_device_buf(sizeof(WeiDataType) * weight.mDesc.GetElementSpaceSize());
     DeviceMem out_device_buf(sizeof(OutDataType) * device_output.mDesc.GetElementSpaceSize());
 
-    const std::size_t bias_dev_buf_size =
-        BiasGK ? sizeof(OutDataType) * G * K
-               : sizeof(OutDataType) * device_output.mDesc.GetElementSpaceSize();
-    DeviceMem bias_device_buf(bias_dev_buf_size);
-
     in_device_buf.ToDevice(input.mData.data());
     wei_device_buf.ToDevice(weight.mData.data());
-    bias_device_buf.ToDevice(bias.mData.data());
 
     // run reference op
     if(do_verification)
@@ -161,14 +124,10 @@ bool profile_grouped_conv_fwd_bias_clamp_impl(int do_verification,
                                                                      OutDataType,
                                                                      InElementOp,
                                                                      WeiElementOp,
-                                                                     OutElementOp,
-                                                                     0,
-                                                                     0,
-                                                                     1>{};
+                                                                     OutElementOp>{};
 
-        std::array<Tensor<OutDataType>, 1> d_tensors = {bias};
-        auto ref_invoker                             = ref_conv.MakeInvoker();
-        auto ref_argument                            = ref_conv.MakeArgument(input,
+        auto ref_invoker  = ref_conv.MakeInvoker();
+        auto ref_argument = ref_conv.MakeArgument(input,
                                                   weight,
                                                   host_output,
                                                   conv_param.conv_filter_strides_,
@@ -180,11 +139,10 @@ bool profile_grouped_conv_fwd_bias_clamp_impl(int do_verification,
                                                   out_element_op,
                                                   {},
                                                   {},
-                                                  d_tensors);
+                                                  {});
 
         // init host output to zero
         host_output.SetZero();
-
         ref_invoker.Run(ref_argument);
     }
 
@@ -257,21 +215,20 @@ bool profile_grouped_conv_fwd_bias_clamp_impl(int do_verification,
         }
     };
 
-    using DeviceOp =
-        ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<NDimSpatial,
-                                                                      InLayout,
-                                                                      WeiLayout,
-                                                                      ck::Tuple<OutLayout>,
-                                                                      OutLayout,
-                                                                      InDataType,
-                                                                      WeiDataType,
-                                                                      ck::Tuple<OutDataType>,
-                                                                      OutDataType,
-                                                                      InElementOp,
-                                                                      WeiElementOp,
-                                                                      OutElementOp,
-                                                                      AComputeType,
-                                                                      BComputeType>;
+    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<NDimSpatial,
+                                                                                   InLayout,
+                                                                                   WeiLayout,
+                                                                                   ck::Tuple<>,
+                                                                                   OutLayout,
+                                                                                   InDataType,
+                                                                                   WeiDataType,
+                                                                                   ck::Tuple<>,
+                                                                                   OutDataType,
+                                                                                   InElementOp,
+                                                                                   WeiElementOp,
+                                                                                   OutElementOp,
+                                                                                   AComputeType,
+                                                                                   BComputeType>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -279,28 +236,18 @@ bool profile_grouped_conv_fwd_bias_clamp_impl(int do_verification,
 
     std::cout << "ckProfiler found " << op_ptrs.size() << " instances" << std::endl;
 
-    if constexpr(BiasGK)
-    {
-        constexpr ck::index_t spatial_offset = 3;
-        d_g_n_k_wos_strides[1]               = 0;
-        for(int i = 0; i < NDimSpatial; i++)
-        {
-            d_g_n_k_wos_strides[i + spatial_offset] = 0;
-        }
-    }
-
     for(auto& op_ptr : op_ptrs)
     {
         auto argument_ptr = op_ptr->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
                                                         wei_device_buf.GetDeviceBuffer(),
-                                                        {bias_device_buf.GetDeviceBuffer()},
+                                                        {},
                                                         out_device_buf.GetDeviceBuffer(),
                                                         a_g_n_c_wis_lengths,
                                                         a_g_n_c_wis_strides,
                                                         b_g_k_c_xs_lengths,
                                                         b_g_k_c_xs_strides,
-                                                        {e_g_n_k_wos_lengths},
-                                                        {d_g_n_k_wos_strides},
+                                                        {},
+                                                        {},
                                                         e_g_n_k_wos_lengths,
                                                         e_g_n_k_wos_strides,
                                                         conv_filter_strides,

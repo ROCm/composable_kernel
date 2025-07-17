@@ -25,29 +25,33 @@ void add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_16x16_instances(
 {
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_xdl_f16_16x16_instances<2,
-                                                        NHWGC,
-                                                        GKYXC,
-                                                        Empty_Tuple,
-                                                        NHWGK,
-                                                        ConvFwdDefault>{});
-
-    add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_xdl_f16_16x16_instances<2,
-                                                                                   NHWGC,
-                                                                                   GKYXC,
-                                                                                   Empty_Tuple,
-                                                                                   NHWGK,
-                                                                                   ConvFwd1x1P0>{});
+        device_grouped_conv_fwd_xdl_16bt_16x16_instances<F16,
+                                                         2,
+                                                         NHWGC,
+                                                         GKYXC,
+                                                         Empty_Tuple,
+                                                         NHWGK,
+                                                         ConvFwdDefault>{});
 
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_xdl_f16_16x16_instances<2,
-                                                        NHWGC,
-                                                        GKYXC,
-                                                        Empty_Tuple,
-                                                        NHWGK,
-                                                        ConvFwd1x1S1P0>{});
+        device_grouped_conv_fwd_xdl_16bt_16x16_instances<F16,
+                                                         2,
+                                                         NHWGC,
+                                                         GKYXC,
+                                                         Empty_Tuple,
+                                                         NHWGK,
+                                                         ConvFwd1x1P0>{});
+
+    add_device_operation_instances(
+        instances,
+        device_grouped_conv_fwd_xdl_16bt_16x16_instances<F16,
+                                                         2,
+                                                         NHWGC,
+                                                         GKYXC,
+                                                         Empty_Tuple,
+                                                         NHWGK,
+                                                         ConvFwd1x1S1P0>{});
 }
 
 } // namespace instance

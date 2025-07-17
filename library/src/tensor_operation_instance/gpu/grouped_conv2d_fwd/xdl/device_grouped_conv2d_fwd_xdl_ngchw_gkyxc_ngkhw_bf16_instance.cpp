@@ -25,7 +25,8 @@ void add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_bf16_instances(
 {
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_xdl_bf16_generic_instances<2,
+        device_grouped_conv_fwd_xdl_16bt_generic_instances<BF16,
+                                                           2,
                                                            NGCHW,
                                                            GKYXC,
                                                            Empty_Tuple,

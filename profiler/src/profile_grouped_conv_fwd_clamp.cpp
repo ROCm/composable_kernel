@@ -2,7 +2,7 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "profiler/profile_grouped_conv_fwd_bias_clamp_impl.hpp"
+#include "profiler/profile_grouped_conv_fwd_clamp_impl.hpp"
 
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/ignore.hpp"
@@ -18,7 +18,7 @@ enum struct ConvLayout
 
 enum struct OutElementOp
 {
-    AddClamp = 0,
+    Clamp = 0,
 };
 
 enum struct ConvDataType
@@ -27,8 +27,8 @@ enum struct ConvDataType
     BF16_BF16_BF16 = 1
 };
 
-#define OP_NAME "grouped_conv_fwd_bias_clamp"
-#define OP_DESC "Grouped Convolution Forward+Bias+Clamp"
+#define OP_NAME "grouped_conv_fwd_clamp"
+#define OP_DESC "Grouped Convolution Forward+Clamp"
 
 static void print_helper_msg()
 {
@@ -48,7 +48,7 @@ static void print_helper_msg()
     // clang-format on
 }
 
-int grouped_conv_fwd_bias_clamp(int argc, char* argv[])
+int grouped_conv_fwd_clamp(int argc, char* argv[])
 {
 
     // 9 total, 1 for num_dim_spatial
@@ -77,7 +77,7 @@ int grouped_conv_fwd_bias_clamp(int argc, char* argv[])
     const auto params = ck::utils::conv::parse_conv_param(num_dim_spatial, 10, argv);
 
     using BF16 = ck::bhalf_t;
-    // using F16  = ck::bhalf_t;
+    // using F16  = ck::half_t;
 
     // using GKZYXC = ck::tensor_layout::convolution::GKZYXC;
     // using NDHWGC = ck::tensor_layout::convolution::NDHWGC;
@@ -87,7 +87,7 @@ int grouped_conv_fwd_bias_clamp(int argc, char* argv[])
     using NHWGC = ck::tensor_layout::convolution::NHWGC;
     using NHWGK = ck::tensor_layout::convolution::NHWGK;
 
-    using AddClamp = ck::tensor_operation::element_wise::AddClamp;
+    using Clamp = ck::tensor_operation::element_wise::Clamp;
 
     constexpr auto I2 = ck::Number<2>{};
     // constexpr auto I3 = ck::Number<3>{};
@@ -118,16 +118,16 @@ int grouped_conv_fwd_bias_clamp(int argc, char* argv[])
         using AComputeType = decltype(a_compute_type);
         using BComputeType = decltype(b_compute_type);
 
-        bool pass = ck::profiler::profile_grouped_conv_fwd_bias_clamp_impl<NDimSpatial,
-                                                                           InLayout,
-                                                                           WeiLayout,
-                                                                           OutLayout,
-                                                                           InDataType,
-                                                                           WeiDataType,
-                                                                           OutDataType,
-                                                                           //  OutElementOp,
-                                                                           AComputeType,
-                                                                           BComputeType>(
+        bool pass = ck::profiler::profile_grouped_conv_fwd_clamp_impl<NDimSpatial,
+                                                                      InLayout,
+                                                                      WeiLayout,
+                                                                      OutLayout,
+                                                                      InDataType,
+                                                                      WeiDataType,
+                                                                      OutDataType,
+                                                                      //  OutElementOp,
+                                                                      AComputeType,
+                                                                      BComputeType>(
             do_verification, init_method, do_log, time_kernel, params);
 
         return pass ? 0 : 1;
@@ -135,20 +135,12 @@ int grouped_conv_fwd_bias_clamp(int argc, char* argv[])
 
     if(num_dim_spatial == 2 && layout == ConvLayout::NHWGC_GKYXC_NHWGK)
     {
-        if(op == OutElementOp::AddClamp)
+        if(op == OutElementOp::Clamp)
         {
             if(data_type == ConvDataType::BF16_BF16_BF16)
             {
-                return profile(I2,
-                               NHWGC{},
-                               GKYXC{},
-                               NHWGK{},
-                               BF16{},
-                               BF16{},
-                               BF16{},
-                               AddClamp{},
-                               BF16{},
-                               BF16{});
+                return profile(
+                    I2, NHWGC{}, GKYXC{}, NHWGK{}, BF16{}, BF16{}, BF16{}, Clamp{}, BF16{}, BF16{});
             }
             // else if(data_type == ConvDataType::F16_F16_F16)
             // {
@@ -164,4 +156,4 @@ int grouped_conv_fwd_bias_clamp(int argc, char* argv[])
     return 1;
 }
 
-REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, grouped_conv_fwd_bias_clamp);
+REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, grouped_conv_fwd_clamp);
