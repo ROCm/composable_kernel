@@ -11,13 +11,64 @@
 
 namespace ck_tile {
 
+template <typename Problem, index_t UnaryOpSize_ = 8>
+struct BlockGemmQuantBase
+{
+    using AQDataType      = remove_cvref_t<typename Problem::AQDataType>;
+    using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
+
+    static constexpr index_t UnaryOpSize = UnaryOpSize_;
+    template <typename T>
+    CK_TILE_DEVICE static float cvt_scale_to_fp32(T scale)
+    {
+        float scale_reg_f = 0.f;
+        if constexpr(std::is_same_v<AQDataType, ck_tile::fp8_t>)
+        {
+            scale_reg_f = ck_tile::element_wise::amd_assembly_fp8_to_fp32(
+                static_cast<uint32_t>(scale));
+        }
+        else if constexpr(std::is_same_v<AQDataType, ck_tile::bf8_t>)
+        {
+            scale_reg_f = ck_tile::element_wise::amd_assembly_bf8_to_fp32(
+                static_cast<uint32_t>(scale));
+        }
+        else if constexpr(std::is_same_v<AQDataType, float>)
+        {
+            scale_reg_f = ck_tile::bit_cast<float>(scale);
+        }
+        else
+        {
+            static_assert(false, "AQDataType must be float, fp8_t or bf8_t.");
+        }
+        return scale_reg_f;
+    }
+
+    template <typename WarpWindow, typename WarpTile>
+    CK_TILE_DEVICE static void load_interleaved_pk_type(WarpTile& warp_tile,
+                                                        const WarpWindow& warp_window)
+    {
+        const element_wise::PassThroughPack8 elementwise_op{};
+
+        static_assert(WarpTile::get_thread_buffer_size() % UnaryOpSize == 0);
+        constexpr index_t thread_buffer_size = WarpTile::get_thread_buffer_size() / UnaryOpSize;
+        const auto in_dstr_tensors           = load_tile(warp_window);
+
+        using ComputeVectorType = ComputeDataType __attribute__((ext_vector_type(UnaryOpSize)));
+        static_for<0, thread_buffer_size, 1>{}([&](auto i) {
+            elementwise_op(warp_tile.get_thread_buffer().template get_as<ComputeVectorType>()(i),
+                           in_dstr_tensors.get_thread_buffer().template get_as<pk_int4x4_t>()[i]);
+        });
+    }
+
+};
+    
 // A is block window on shared memory
 // AQ (scale tensor) is block distributed tensor.
 // Consecutive kQuantGroupSize elements of A are quantized with a separate scale.
 // B is block window on shared memory
 // C is block distributed tensor
 template <typename Problem_, typename Policy_ = BlockGemmASmemBSmemCRegV1DefaultPolicy>
-struct AQuantBlockUniversalGemmAsBsCr
+struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase<Problem_>
 {
     private:
     template <typename PipelineProblem_, typename GemmPolicy_>
@@ -124,6 +175,8 @@ struct AQuantBlockUniversalGemmAsBsCr
     using ComputeDataType = remove_cvref_t<typename Traits::ComputeDataType>;
     using CDataType       = remove_cvref_t<typename Traits::CDataType>;
 
+    using Base = BlockGemmQuantBase<Problem_>;
+
     using WarpGemm = remove_cvref_t<typename Traits::WarpGemm>;
 
     static constexpr index_t KIterPerWarp = Traits::KIterPerWarp;
@@ -165,31 +218,6 @@ struct AQuantBlockUniversalGemmAsBsCr
 
     using I0 = number<0>;
     using I1 = number<1>;
-
-    template <typename T>
-    CK_TILE_DEVICE static float cvt_scale_to_fp32(T& scale)
-    {
-        float scale_reg_f = 0.f;
-        if constexpr(std::is_same_v<AQDataType, ck_tile::fp8_t>)
-        {
-            scale_reg_f =
-                ck_tile::element_wise::amd_assembly_fp8_to_fp32(static_cast<uint32_t>(scale));
-        }
-        else if constexpr(std::is_same_v<AQDataType, ck_tile::bf8_t>)
-        {
-            scale_reg_f =
-                ck_tile::element_wise::amd_assembly_bf8_to_fp32(static_cast<uint32_t>(scale));
-        }
-        else if constexpr(std::is_same_v<AQDataType, float>)
-        {
-            scale_reg_f = ck_tile::bit_cast<float>(scale);
-        }
-        else
-        {
-            static_assert(false, "AQDataType must be float, fp8_t or bf8_t.");
-        }
-        return scale_reg_f;
-    }
 
     CK_TILE_DEVICE static constexpr auto MakeABlockDistributionEncode()
     {
@@ -244,24 +272,6 @@ struct AQuantBlockUniversalGemmAsBsCr
     }
 
     private:
-    template <typename WarpWindow, typename WarpTile>
-    CK_TILE_DEVICE static void load_interleaved_pk_type(WarpTile& warp_tile,
-                                                        const WarpWindow& warp_window)
-    {
-        constexpr index_t UnaryOpSize = 8;
-        const element_wise::PassThroughPack8 elementwise_op{};
-
-        static_assert(WarpTile::get_thread_buffer_size() % UnaryOpSize == 0);
-        constexpr index_t thread_buffer_size = WarpTile::get_thread_buffer_size() / UnaryOpSize;
-        const auto in_dstr_tensors           = load_tile(warp_window);
-
-        using ComputeVectorType = ComputeDataType __attribute__((ext_vector_type(UnaryOpSize)));
-        static_for<0, thread_buffer_size, 1>{}([&](auto i) {
-            elementwise_op(warp_tile.get_thread_buffer().template get_as<ComputeVectorType>()(i),
-                           in_dstr_tensors.get_thread_buffer().template get_as<pk_int4x4_t>()[i]);
-        });
-    }
-
     template <GemmPipelineScheduler Scheduler, typename GemmTraits>
     struct BlockGemmImpl
     {
@@ -289,7 +299,7 @@ struct AQuantBlockUniversalGemmAsBsCr
             {
                 static_assert(std::is_same_v<ComputeDataType, fp8_t> ||
                               std::is_same_v<ComputeDataType, bf8_t>);
-                load_interleaved_pk_type(a_warp_tile_, a_block_window);
+                Base::load_interleaved_pk_type(a_warp_tile_, a_block_window);
             }
             else
             {
@@ -299,7 +309,7 @@ struct AQuantBlockUniversalGemmAsBsCr
             {
                 static_assert(std::is_same_v<ComputeDataType, fp8_t> ||
                               std::is_same_v<ComputeDataType, bf8_t>);
-                load_interleaved_pk_type(b_warp_tile_, b_block_window);
+                Base::load_interleaved_pk_type(b_warp_tile_, b_block_window);
             }
             else
             {
@@ -421,7 +431,7 @@ struct AQuantBlockUniversalGemmAsBsCr
                             int gathered_scale_reg = __builtin_amdgcn_ds_bpermute(
                                 src_lane_idx * 4, __builtin_bit_cast(int, scale_reg_dword));
 
-                            float scale_reg_f = cvt_scale_to_fp32(gathered_scale_reg);
+                            float scale_reg_f = Base::cvt_scale_to_fp32(gathered_scale_reg);
 
                             c_block_tensor
                                 .get_thread_buffer()[tbuf_offset + reg_offset_for_row_data] +=
