@@ -88,7 +88,7 @@ MODE_NAME_MAP = {
 def create_forward_instances(instance_dir: Path, headdims: List) -> None:
     for mode in ["batched", "jagged"]:
         for dtype in ["fp16", "bf16"]:
-            for has_causal, has_local in zip([True, False],[True, False]):
+            for has_causal, has_local in ([True, True], [True, False], [False, True], [False, False]):
                 for has_bias in [True, False]:
                     for has_dropout in [True, False]:
                         for max_k in headdims:
@@ -112,7 +112,7 @@ def create_forward_instances(instance_dir: Path, headdims: List) -> None:
                                 mode=mode,
                                 dtype=TYPE_CTYPE_MAP[dtype],
                                 has_causal=BOOL_MAP[has_causal],
-                                has_local=BOOL_MAP[has_causal],
+                                has_local=BOOL_MAP[has_local],
                                 has_bias=BOOL_MAP[has_bias],
                                 has_dropout=BOOL_MAP[has_dropout],
                                 max_k=max_k,
