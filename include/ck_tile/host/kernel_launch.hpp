@@ -63,6 +63,31 @@ CK_TILE_HOST void launch_and_check(const stream_config& sc, Callables&&... calla
     }
 }
 
+template <class it>
+typename std::iterator_traits<it>::value_type median(it begin, it end)
+{
+    if(begin == end)
+    {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    auto n  = std::distance(begin, end);
+    auto n2 = n / 2;
+    std::nth_element(begin, begin + n2, end);
+    return (n % 2) ? begin[n2] : (*std::max_element(begin, begin + n2) + begin[n2]) / 2.0;
+}
+
+void remove_outliers(std::vector<float>& v)
+{
+    // 1.5x IQR method to detect and remove outliers
+    auto n2 = v.size() / 2;
+    std::nth_element(v.begin(), v.begin() + n2, v.end());
+    auto q1  = median(v.begin(), v.begin() + n2);
+    auto q3  = median(v.begin() + ((v.size() % 2) ? n2 + 1 : n2), v.end());
+    auto iqr = q3 - q1;
+    auto lb  = q1 - 1.5 * iqr;
+    auto ub  = q3 + 1.5 * iqr;
+    v.erase(std::remove_if(v.begin(), v.end(), [&](float f) { return f < lb || f > ub; }), v.end());
+}
 // clang-format off
 /*
  * launch_kernel()
@@ -168,9 +193,58 @@ CK_TILE_HOST float launch_kernel_preprocess(const stream_config& s,
         return (timer.duration() - preprocess_offset * s.nrepeat_) / s.nrepeat_;
     };
 
+    auto timing_loop =
+        [&](auto timer, float bench_time_secs, double& gpu_time_used, hipStream_t& stream) {
+            for(int i = 0; i < s.cold_niters_; i++)
+            {
+                launch_and_check(s, std::forward<Callables>(callables)...);
+            }
+
+            float per_iter_time = 0.f;
+            std::vector<float> times;
+            int i                     = 0;
+            const float bench_time_ms = bench_time_secs * 1000;
+            while(i < s.nrepeat_ || per_iter_time < bench_time_ms)
+            {
+                preprocess();
+                timer.start(i, stream);
+                launch_and_check(s, std::forward<Callables>(callables)...);
+                timer.stop(i, stream);
+
+                if(i > 0)
+                {
+                    // while iteration i is ongoing, wait for iteration i-1 to end
+                    per_iter_time = timer.duration(i - 1);
+                    // record time for iteration i-1
+                    times.push_back(per_iter_time);
+                    // if iterations 0 to i-1 took more than the required runtime, we can stop
+                    per_iter_time = timer.is_exceed(i - 1);
+                }
+                i++;
+            }
+            if(!i)
+            {
+                gpu_time_used = 0.;
+            }
+            else
+            {
+                // wait for the final iteration
+                per_iter_time = timer.duration(i - 1);
+                times.push_back(per_iter_time);
+                remove_outliers(times);
+                gpu_time_used = std::accumulate(times.begin(), times.end(), 0.) / times.size();
+                gpu_time_used *= 1000; // ms to us
+            }
+        };
+
     if(s.is_gpu_timer_)
     {
-        return time_launches(gpu_timer{});
+        double gpu_time_used   = 0.;
+        hipStream_t stream_id  = s.stream_id_;
+        float branch_time_secs = 0.f;
+        timing_loop(gpu_timer_new{stream_id}, branch_time_secs, gpu_time_used, stream_id);
+        return gpu_time_used;
+        // return time_launches(gpu_timer{});
     }
     else
     {

@@ -48,6 +48,65 @@ struct gpu_timer
     hipEvent_t start_evt, stop_evt;
 };
 
+struct gpu_timer_new
+{
+    CK_TILE_HOST gpu_timer_new(const hipStream_t& s)
+    {
+        for(auto& e : start_event)
+        {
+            HIP_CHECK_ERROR(hipEventCreate(&e));
+        }
+        for(auto& e : stop_event)
+        {
+            HIP_CHECK_ERROR(hipEventCreate(&e));
+        }
+        HIP_CHECK_ERROR(hipEventCreate(&event0));
+        HIP_CHECK_ERROR(hipEventRecord(event0, s));
+    }
+
+    CK_TILE_HOST ~gpu_timer_new() noexcept(false)
+    {
+        for(auto& e : start_event)
+        {
+            HIP_CHECK_ERROR(hipEventDestroy(e));
+        }
+        for(auto& e : stop_event)
+        {
+            HIP_CHECK_ERROR(hipEventDestroy(e));
+        }
+        HIP_CHECK_ERROR(hipEventDestroy(event0));
+    }
+
+    CK_TILE_HOST void start(int idx, const hipStream_t& s)
+    {
+        HIP_CHECK_ERROR(hipEventRecord(start_event[idx % 2], s));
+    }
+
+    CK_TILE_HOST void stop(int idx, const hipStream_t& s)
+    {
+        HIP_CHECK_ERROR(hipEventRecord(stop_event[idx % 2], s));
+    }
+    // return in ms
+    CK_TILE_HOST float duration(int idx) const
+    {
+        float ms;
+        HIP_CHECK_ERROR(hipEventSynchronize(stop_event[idx % 2]));
+        HIP_CHECK_ERROR(hipEventElapsedTime(&ms, start_event[idx % 2], stop_event[idx % 2]));
+        return ms;
+    }
+    CK_TILE_HOST float is_exceed(int idx) const
+    {
+        float ms;
+        HIP_CHECK_ERROR(hipEventElapsedTime(&ms, event0, stop_event[idx % 2]));
+        return ms;
+    }
+
+    private:
+    std::vector<hipEvent_t> start_event{2};
+    std::vector<hipEvent_t> stop_event{2};
+    hipEvent_t event0;
+};
+
 struct cpu_timer
 {
     // torch.utils.benchmark.Timer(), there is a sync inside each timer callback
