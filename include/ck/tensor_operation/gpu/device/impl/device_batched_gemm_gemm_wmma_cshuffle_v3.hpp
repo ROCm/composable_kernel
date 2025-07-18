@@ -56,30 +56,21 @@ __global__ void
 
     // ***************************************************
     // Make Tensor Descriptors
-    constexpr index_t array_size = 3;
-    std::array<ck::index_t, array_size> a_gs_ms_ks_lengths{batch_count, M, K};
-    std::array<ck::index_t, array_size> a_gs_ms_ks_strides =
-        std::array<ck::index_t, array_size>{M * K, K, 1}; // A layout [batch_count, M, K]
+    using arr3 = std::array<ck::index_t, 3>;
+    arr3 a_gs_ms_ks_lengths{batch_count, M, K};
+    arr3 a_gs_ms_ks_strides{M * K, K, 1}; // A layout [batch_count, M, K]
 
-    std::array<ck::index_t, array_size> b0_gs_ns_ks_lengths{batch_count, N, K};
-    std::array<ck::index_t, array_size> b0_gs_ns_ks_strides =
-        std::array<ck::index_t, array_size>{N * K, K, 1}; // B0 layout [batch_count, N, K]
+    arr3 b0_gs_ns_ks_lengths{batch_count, N, K};
+    arr3 b0_gs_ns_ks_strides{N * K, K, 1}; // B0 layout [batch_count, N, K]
 
-    std::array<ck::index_t, array_size> b1_gs_os_ns_lengths{batch_count, O, N};
-    std::array<ck::index_t, array_size> b1_gs_os_ns_strides =
-        is_same_v<B1Layout, tensor_layout::gemm::RowMajor>
-            ? std::array<ck::index_t, array_size>{N * O, 1, O}  // B1 layout [batch_count, N, O]
-            : std::array<ck::index_t, array_size>{N * O, N, 1}; // B1 layout [batch_count, O, N]
+    arr3 b1_gs_os_ns_lengths{batch_count, O, N};
+    arr3 b1_gs_os_ns_strides = is_same_v<B1Layout, tensor_layout::gemm::RowMajor>
+                                   ? arr3{N * O, 1, O}  // B1 layout [batch_count, N, O]
+                                   : arr3{N * O, N, 1}; // B1 layout [batch_count, O, N]
 
-    std::array<ck::index_t, array_size> c_gs_ms_os_lengths{batch_count, M, O};
-    std::array<ck::index_t, array_size> c_gs_ms_os_strides =
-        std::array<ck::index_t, array_size>{M * O, O, 1}; // C layout [batch_count, M, O]
+    arr3 c_gs_ms_os_lengths{batch_count, M, O};
+    arr3 c_gs_ms_os_strides{M * O, O, 1}; // C layout [batch_count, M, O]
 
-    const auto a_element_op    = AElementwiseOperation{};
-    const auto b0_element_op   = B0ElementwiseOperation{};
-    const auto acc0_element_op = AccElementwiseOperation{};
-    const auto b1_element_op   = B1ElementwiseOperation{};
-    const auto c_element_op    = CElementwiseOperation{};
     // fail to reuse DeviceOp::MakeArgument() because of the __device__ function required.
 
     const auto a_grid_desc = DeviceOp::MakeAGridDescriptor(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
@@ -109,14 +100,14 @@ __global__ void
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
 
-    const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_base_ptr_of_batch.GetABasePtr(g_idx)));
-    const long_index_t b0_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_base_ptr_of_batch.GetB0BasePtr(g_idx)));
-    const long_index_t b1_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_base_ptr_of_batch.GetB1BasePtr(g_idx)));
-    const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_base_ptr_of_batch.GetCBasePtr(g_idx)));
+    const long_index_t a_batch_offset =
+        __builtin_amdgcn_readfirstlane((compute_base_ptr_of_batch.GetABasePtr(g_idx)));
+    const long_index_t b0_batch_offset =
+        __builtin_amdgcn_readfirstlane((compute_base_ptr_of_batch.GetB0BasePtr(g_idx)));
+    const long_index_t b1_batch_offset =
+        __builtin_amdgcn_readfirstlane((compute_base_ptr_of_batch.GetB1BasePtr(g_idx)));
+    const long_index_t c_batch_offset =
+        __builtin_amdgcn_readfirstlane((compute_base_ptr_of_batch.GetCBasePtr(g_idx)));
 
     GridwiseOp::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
                                                 p_b0_grid + b0_batch_offset,
@@ -127,11 +118,11 @@ __global__ void
                                                 b0_grid_desc,
                                                 b1_grid_desc,
                                                 c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                a_element_op,
-                                                b0_element_op,
-                                                acc0_element_op,
-                                                b1_element_op,
-                                                c_element_op,
+                                                AElementwiseOperation{},
+                                                B0ElementwiseOperation{},
+                                                AccElementwiseOperation{},
+                                                B1ElementwiseOperation{},
+                                                CElementwiseOperation{},
                                                 block_2_ctile_map);
 #else
     ignore = p_a_grid;
@@ -143,7 +134,7 @@ __global__ void
     ignore = K;
     ignore = O;
     ignore = batch_count;
-#endif // end of if (defined(__gfx11__))
+#endif // (!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__)
 }
 
 // Computes C = A  * B0 * B1
@@ -225,22 +216,10 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
     using DeviceOp = DeviceBatchedGemmGemm_Wmma_CShuffleV3;
 
     static constexpr auto I0 = Number<0>{};
-    static constexpr auto I1 = Number<1>{};
-    static constexpr auto I2 = Number<2>{};
-    static constexpr auto I3 = Number<3>{};
-    static constexpr auto I4 = Number<4>{};
-    static constexpr auto I5 = Number<5>{};
-    static constexpr auto I6 = Number<6>{};
-
-    static constexpr auto WmmaK = 16;
 
     // To match XDL implementatrion NPerWmma (A.k.a Gemm1 NPerWmma) is set equal
     // to LPerWmma (A.k.a Gemm0 NPerWmma).
     static constexpr index_t NPerWmma = LPerWmma;
-
-    static constexpr auto MWaves = MPerBlock / (MRepeat * MPerWmma);
-    static constexpr auto LWaves = LPerBlock / (LRepeat * LPerWmma);
-    static constexpr auto NWaves = NPerBlock / (NRepeat * NPerWmma);
 
     // TODO: Now that we are no longer using NumDim or TensorSpec, we can probably use a simpler
     // Transform operator or just not use one at all.
@@ -451,7 +430,6 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
             return false;
         }
 
-        // TODO: Handle other layouts.
         if constexpr(!(is_same_v<ALayout, tensor_layout::gemm::RowMajor>))
         {
             printf("DeviceOp: A layout must be Row");
@@ -483,30 +461,26 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
             return false;
         }
 
-        constexpr index_t array_size = 3;
-        ck::index_t G                = arg.batch_count_;
-        ck::index_t M                = arg.M_;
-        ck::index_t N                = arg.N_;
-        ck::index_t K                = arg.K_;
-        ck::index_t O                = arg.O_;
+        using arr3    = std::array<ck::index_t, 3>;
+        ck::index_t G = arg.batch_count_;
+        ck::index_t M = arg.M_;
+        ck::index_t N = arg.N_;
+        ck::index_t K = arg.K_;
+        ck::index_t O = arg.O_;
 
-        std::array<ck::index_t, array_size> a_gs_ms_ks_lengths{G, M, K};
-        std::array<ck::index_t, array_size> a_gs_ms_ks_strides =
-            std::array<ck::index_t, array_size>{M * K, K, 1}; // A layout [G, M, K]
+        arr3 a_gs_ms_ks_lengths{G, M, K};
+        arr3 a_gs_ms_ks_strides{M * K, K, 1}; // A layout [G, M, K]
 
-        std::array<ck::index_t, array_size> b0_gs_ns_ks_lengths{G, N, K};
-        std::array<ck::index_t, array_size> b0_gs_ns_ks_strides =
-            std::array<ck::index_t, array_size>{N * K, K, 1}; // B0 layout [G, N, K]
+        arr3 b0_gs_ns_ks_lengths{G, N, K};
+        arr3 b0_gs_ns_ks_strides = {N * K, K, 1}; // B0 layout [G, N, K]
 
-        std::array<ck::index_t, array_size> b1_gs_os_ns_lengths{G, O, N};
-        std::array<ck::index_t, array_size> b1_gs_os_ns_strides =
-            is_same_v<B1Layout, tensor_layout::gemm::RowMajor>
-                ? std::array<ck::index_t, array_size>{N * O, 1, O}  // B1 layout [G, N, O]
-                : std::array<ck::index_t, array_size>{N * O, N, 1}; // B1 layout [G, O, N]
+        arr3 b1_gs_os_ns_lengths{G, O, N};
+        arr3 b1_gs_os_ns_strides = is_same_v<B1Layout, tensor_layout::gemm::RowMajor>
+                                       ? arr3{N * O, 1, O}  // B1 layout [G, N, O]
+                                       : arr3{N * O, N, 1}; // B1 layout [G, O, N]
 
-        std::array<ck::index_t, array_size> c_gs_ms_os_lengths{G, M, O};
-        std::array<ck::index_t, array_size> c_gs_ms_os_strides =
-            std::array<ck::index_t, array_size>{M * O, O, 1}; // C layout [G, M, O]
+        arr3 c_gs_ms_os_lengths{G, M, O};
+        arr3 c_gs_ms_os_strides{M * O, O, 1}; // C layout [G, M, O]
 
         const auto a_grid_desc =
             DeviceOp::MakeAGridDescriptor(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
@@ -541,16 +515,11 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         // Note: we need raw lengths since threadwise copy can not handle vector load when part of
         // vector is out of bounds
         // Note: need lowest dim in Ms/Ns/Ks/Os, not merged M/N/K/O
-        const auto MzRaw = M;
-        const auto LzRaw = N;
-        const auto KzRaw = K;
-        const auto NzRaw = O;
-
         // Check scalar per vector requirement
-        const auto a_extent_lowest  = ABlockTransferSrcVectorDim == 2 ? KzRaw : MzRaw;
-        const auto b0_extent_lowest = B0BlockTransferSrcVectorDim == 2 ? KzRaw : LzRaw;
-        const auto b1_extent_lowest = B1BlockTransferSrcVectorDim == 2 ? LzRaw : NzRaw;
-        const auto c_extent_lowest  = NzRaw;
+        const auto a_extent_lowest  = ABlockTransferSrcVectorDim == 2 ? K : M;
+        const auto b0_extent_lowest = B0BlockTransferSrcVectorDim == 2 ? K : N;
+        const auto b1_extent_lowest = B1BlockTransferSrcVectorDim == 2 ? N : O;
+        const auto c_extent_lowest  = O;
 
         if(!(a_extent_lowest % ABlockTransferSrcScalarPerVector == 0 &&
              b0_extent_lowest % B0BlockTransferSrcScalarPerVector == 0 &&
@@ -596,9 +565,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
             const auto N0 = math::integer_divide_ceil(arg.O_, NPerBlock);
 
             const index_t grid_size = arg.batch_count_ * M0 * N0;
-            const auto K            = arg.K_;
-            // printf("HasKBlockLoop: %d\n", GridwiseOp::CalculateHasMainKBlockLoop(K));
-            auto launch_kernel = [&](auto has_main_k_block_loop) {
+            auto launch_kernel      = [&](auto has_main_k_block_loop) {
                 const auto kernel =
                     kernel_batched_gemm_gemm_wmma_cshuffle_v3<DeviceOp,
                                                               GridwiseOp,
@@ -630,7 +597,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
                                               arg.batch_count_);
             };
 
-            if(GridwiseOp::CalculateHasMainKBlockLoop(K))
+            if(GridwiseOp::CalculateHasMainKBlockLoop(arg.K_))
             {
                 return launch_kernel(integral_constant<bool, true>{});
             }
@@ -647,12 +614,6 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
             return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
-
-    static constexpr bool IsValidCompilationParameter()
-    {
-        // TODO: properly implement this check
-        return true;
-    }
 
     // polymorphic
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,

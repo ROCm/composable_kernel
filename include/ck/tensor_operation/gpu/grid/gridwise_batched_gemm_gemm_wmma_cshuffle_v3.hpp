@@ -9,7 +9,6 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_wmma_selector.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_wmma.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r1.hpp"
@@ -92,35 +91,27 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
     static constexpr auto I4 = Number<4>{};
     static constexpr auto I5 = Number<5>{};
     static constexpr auto I6 = Number<6>{};
-    static constexpr auto I7 = Number<7>{};
 
+    static constexpr auto AK0 = Number<KPerBlock / AK1Value>{};
     static constexpr auto AK1 = Number<AK1Value>{};
     static constexpr auto BK0 = Number<KPerBlock / BK1Value>{};
     static constexpr auto BK1 = Number<BK1Value>{};
 
     static constexpr auto L0PerBlock = LTilePerBlock / L1Value;
-    static constexpr auto AL0        = Number<L0PerBlock / 2>{};
-    static constexpr auto AL1        = Number<L1Value>{};
-    static constexpr auto BL0        = Number<L0PerBlock>{};
-    static constexpr auto BL1        = Number<L1Value>{};
+    static constexpr auto AL0 = Number<L0PerBlock / 2>{}; // TODO: Where does this 2 come from?
+    static constexpr auto AL1 = Number<L1Value>{};
+    static constexpr auto BL0 = Number<L0PerBlock>{};
+    static constexpr auto BL1 = Number<L1Value>{};
 
     static constexpr auto MWaves = MPerBlock / (MRepeat * MPerWmma);
     static constexpr auto LWaves = LPerBlock / (LRepeat * LPerWmma);
     static constexpr auto NWaves = NPerBlock / (NRepeat * NPerWmma);
-    static constexpr auto WmmaK  = 16;
-    static constexpr auto WmmaL  = 16;
 
+    // TODO: I am pretty sure this is always 16 and *should* always be 16.
     static constexpr auto KPack =
-        math::integer_least_multiple(math::integer_least_multiple(AK1Value, BK1Value), WmmaK);
+        math::integer_least_multiple(math::integer_least_multiple(AK1Value, BK1Value), 16);
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
-
-    // using GridwiseGemmPipe =
-    //     remove_cvref_t<decltype(GridwiseGemmPipeline_Selector<PipelineVer,
-    //                                                           NumGemmKPrefetchStage,
-    //                                                           LoopSched,
-    //                                                           AEnableLds,
-    //                                                           B0EnableLds>())>;
 
     __host__ __device__ static constexpr auto MakeABlockDescriptor()
     {
@@ -194,30 +185,19 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
 
     __host__ __device__ static constexpr auto MakeABlockSliceCopyStep()
     {
-        constexpr auto a_block_copy_step = [&]() {
-            constexpr auto K0PerBlock = KPerBlock / AK1;
-
-            return make_multi_index(K0PerBlock, 0, 0);
-        }();
-
+        constexpr auto a_block_copy_step = [&]() { return make_multi_index(AK0, 0, 0); }();
         return a_block_copy_step;
     }
 
     __host__ __device__ static constexpr auto MakeB0BlockSliceCopyStep()
     {
-        constexpr auto b0_block_copy_step = [&]() {
-            constexpr auto K0PerBlock = KPerBlock / BK1;
-
-            return make_multi_index(K0PerBlock, 0, 0);
-        }();
-
+        constexpr auto b0_block_copy_step = [&]() { return make_multi_index(BK0, 0, 0); }();
         return b0_block_copy_step;
     }
 
     __host__ __device__ static constexpr auto MakeB1BlockSliceCopyStep()
     {
         constexpr auto b1_block_copy_step = [&]() { return make_multi_index(L0PerBlock, 0, 0); }();
-
         return b1_block_copy_step;
     }
 
@@ -320,15 +300,12 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
     // *Caution Here repeat is shuffle repeat
     GetCShuffleBlockDescriptor_MShRepeat_MPerShRepeat_NShRepeat_NPerShRepeat()
     {
-        constexpr index_t MWave = MPerBlock / (MRepeat * MPerWmma);
-        constexpr index_t NWave = NPerBlock / (NRepeat * NPerWmma);
-
         constexpr auto c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat =
             make_naive_tensor_descriptor_packed(
                 make_tuple(I1,
-                           Number<CShuffleMRepeatPerShuffle * MWave * MPerWmma>{},
+                           Number<CShuffleMRepeatPerShuffle * MWaves * MPerWmma>{},
                            I1,
-                           Number<CShuffleNRepeatPerShuffle * NWave * NPerWmma>{}));
+                           Number<CShuffleNRepeatPerShuffle * NWaves * NPerWmma>{}));
 
         return c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat;
     }
@@ -396,26 +373,10 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                           (LPerBlock % (LPerWmma * LRepeat)) == 0,
                       "Invalid tuning param!");
 
-        // TODO: This seems like an awkward way to get the problem sizes.
-        const auto GetAProblemsizeMK = [&]() {
-            return make_tuple(a_grid_desc.GetLength(I1),
-                              a_grid_desc.GetLength(I0) * a_grid_desc.GetLength(I2));
-        };
-
-        const auto GetB0ProblemsizeLK = [&]() {
-            return make_tuple(b0_grid_desc.GetLength(I1),
-                              b0_grid_desc.GetLength(I0) * b0_grid_desc.GetLength(I2));
-        };
-
-        const auto GetB1ProblemsizeNL = [&]() {
-            return make_tuple(b1_grid_desc.GetLength(I1),
-                              b1_grid_desc.GetLength(I0) * b1_grid_desc.GetLength(I2));
-        };
-
-        const auto M = GetAProblemsizeMK()[I0];
-        const auto L = GetB0ProblemsizeLK()(I0);
-        const auto K = GetAProblemsizeMK()[I1];
-        const auto N = GetB1ProblemsizeNL()(I0);
+        const auto M = a_grid_desc.GetLength(I1);
+        const auto L = b0_grid_desc.GetLength(I1);
+        const auto K = a_grid_desc.GetLength(I0) * a_grid_desc.GetLength(I2);
+        const auto N = b1_grid_desc.GetLength(I1);
 
         if(!(M == c_grid_desc_m_n.GetLength(I0) && N == c_grid_desc_m_n.GetLength(I1)))
         {
@@ -442,15 +403,6 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
             return false;
         }
 
-        // TODO: I think any k loop size is supported in new backend
-        // check gemm0 gridwise gemm pipeline
-        // const auto num_gemm0_k_loop = K / KPerBlock;
-        // if(!GridwiseGemmPipe::IsSupported(num_gemm0_k_loop))
-        // {
-        //     printf("GridwiseOp: outer loop unsupport\n");
-        //     return false;
-        // }
-
         // check gemm1 gridwise gemm pipeline
         if(!(LPerBlock % LTilePerBlock == 0))
         {
@@ -459,14 +411,6 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                    LTilePerBlock);
             return false;
         }
-
-        // TODO: I think any k loop size is supported in new backend
-        // const auto num_gemm1_k_inner_loop = LPerBlock / LTilePerBlock;
-        // if(!GridwiseGemmPipe::IsSupported(num_gemm1_k_inner_loop))
-        // {
-        //     printf("GridwiseOp: inner loop unsupport\n");
-        //     return false;
-        // }
 
         if(!block_2_ctile_map.CheckValidity(c_grid_desc_m_n))
         {
@@ -480,9 +424,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
     __host__ __device__ static constexpr bool CalculateHasMainKBlockLoop(index_t K)
     {
         const index_t num_loop = math::integer_divide_ceil(K, KPerBlock);
-
         return BlockwiseGemmPipe::BlockHasHotloop(num_loop);
-        // return GridwiseGemmPipe::CalculateHasMainLoop(num_loop);
     }
 
     __host__ __device__ static constexpr auto
@@ -685,36 +627,6 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
 
 /*******************************************************************************/
         // Gemm0
-        //constexpr auto KPack = math::integer_least_multiple(math::integer_least_multiple(AK1Value,BK1Value), WmmaK);
-
-        // auto blockwise_gemm0 = BlockwiseGemmWMMA<
-        //     BlockSize,
-        //     ADataType,
-        //     B0DataType,
-        //     Acc0DataType,
-        //     decltype(MakeAWaveDescriptor(a_block_desc)),
-        //     decltype(MakeB0WaveDescriptor(b0_block_desc)),
-        //     MPerBlock,
-        //     LPerBlock,
-        //     KPerBlock,
-        //     MPerWmma,
-        //     LPerWmma,
-        //     MRepeat,
-        //     LRepeat,
-        //     KPack,
-        //     AEnableLds,
-        //     B0EnableLds,
-        //     true>{}; // C' = B' x A'
-
-        // Prepare Register for A*B0 matrix
-        // auto acc0_thread_buf = blockwise_gemm0.GetCThreadBuffer();
-
-        // constexpr auto acc0_thread_desc_mrepeat_mwave_mthreadpersubgroup_nrepeat_nwave_nsubgroup_naccvgprs =
-        //     blockwise_gemm0.GetCThreadDescriptor_MRepeat_MWave_MThreadPerSubGroup_NRepeat_NWave_NSubGroup_NAccVgprs();
-
-        // constexpr auto acc0_thread_desc_mrepeat_mwave_mthreadpersubgroup_nrepeat_nwave_nsubgroup_naccvgprs =
-        //     blockwise_gemm0.GetCThreadDescriptor_MRepeat_MWave_MThreadPerSubGroup_NRepeat_NWave_NSubGroup_NAccVgprs();
-
         // Blockwise GEMM0 pipeline
         static_assert(std::is_default_constructible_v<BlockwiseGemmPipe>);
         auto blockwise_gemm0_pipeline = BlockwiseGemmPipe{};
@@ -878,24 +790,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
         index_t gemm1_l_block_outer_index = 0;
         // Outer loop, along GEMM_L
         // Inner loop, along GEMM_K
-        do {
-            // gemm0 start, A-B swapped
-            // GridwiseGemmPipe::template Run<HasMainKBlockLoop>(a_grid_desc,
-            //                                                   a_block_desc,
-            //                                                   a_blockwise_copy,
-            //                                                   a_grid_buf,
-            //                                                   a_block_buf,
-            //                                                   a_block_slice_copy_step,
-            //                                                   b0_grid_desc,
-            //                                                   b0_block_desc,
-            //                                                   b0_blockwise_copy,
-            //                                                   b0_grid_buf,
-            //                                                   b0_block_buf,
-            //                                                   b0_block_slice_copy_step,
-            //                                                   blockwise_gemm0,
-            //                                                   acc0_thread_buf,
-            //                                                   KBlockMainLoop);
-            
+        do {            
             blockwise_gemm0_pipeline.template Run<HasMainKBlockLoop, TailNumber::Full>(a_grid_desc, 
                                                                                        a_block_desc, 
                                                                                        a_blockwise_copy, 
