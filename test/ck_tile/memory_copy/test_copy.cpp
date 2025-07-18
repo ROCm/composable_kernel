@@ -63,7 +63,7 @@ class TestCkTileMemoryCopy : public ::testing::TestWithParam<std::tuple<int, int
         using BlockWaves         = ck_tile::sequence<2, 1>;
         using BlockTile          = ck_tile::sequence<64, 8>;
         using WaveTile           = ck_tile::sequence<64, 8>;
-        using Vector             = ck_tile::sequence<1, 4 / sizeof(DataType)>;
+        using Vector             = ck_tile::sequence<1, dword_bytes / sizeof(DataType)>;
         constexpr bool AsyncCopy = true;
 
         ck_tile::index_t kGridSize =
@@ -160,10 +160,10 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple{64, 8, 0},
         std::tuple{63, 8, 0},
         std::tuple{63, 4, 0},
-        std::tuple{127, 30, 0},
+        std::tuple{127, 20, 0},
         std::tuple{64, 8, 1},
         std::tuple{63, 8, 1},
         std::tuple{63, 4, 1},
-        std::tuple{127, 30, 1}
+        std::tuple{127, 20, 1}
     )
 );
