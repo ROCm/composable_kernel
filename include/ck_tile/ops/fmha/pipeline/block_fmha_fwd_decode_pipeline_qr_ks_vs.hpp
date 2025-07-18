@@ -297,10 +297,12 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
                              Policy::template MakeSRegTileDistribution<Problem>());
 
         // V tile in LDS
-        auto [i_page_block_v, v_dram_window] = v_page_block_navigator.make_tile_window(
+        auto [i_page_block_v, v_dram_block_window] = v_page_block_navigator.make_tile_window(
             v_dram_block_window_lengths,
-            {0, aligned_physical_seqlen_k_start}, // TODO: hdim split?
-            Policy::template MakeVDramTileDistribution<Problem>());
+            {0, aligned_physical_seqlen_k_start});
+
+        auto v_dram_window = make_tile_window(
+            v_dram_block_window, Policy::template MakeVDramTileDistribution<Problem>());
 
         auto v_lds = make_tensor_view<address_space_enum::lds>(
             reinterpret_cast<VDataType*>(static_cast<char*>(smem_ptr) +
@@ -348,6 +350,9 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
         k_dram_window = make_tile_window(k_dram_block_window,
                                          Policy::template MakeKDramTileDistribution<Problem>());
 
+        constexpr index_t k_vmem_insts = k_dram_window.get_num_of_access();
+        constexpr index_t v_vmem_insts = v_dram_window.get_num_of_access();
+
         do
         {
             // STAGE 1, QK gemm
@@ -370,7 +375,8 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
             i_page_block_v =
                 v_page_block_navigator.move_tile_window(i_page_block_v, v_dram_window, {0, kK1});
 
-            block_sync_lds_direct_load<v_dram_window.get_num_of_access()>();
+            // CK_PRINT<decltype(v_dram_window.get_num_of_access())>();
+            block_sync_lds_direct_load<v_vmem_insts>();
             auto k_tile = load_tile(k_lds_read_window);
 
             gemm_0(
@@ -622,7 +628,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
                 });
             });
 
-            block_sync_lds_direct_load<k_dram_window.get_num_of_access()>();
+            block_sync_lds_direct_load<k_vmem_insts>();
             auto v_tile = load_tile_transpose(v_lds_read_window);
 
             gemm_1(o_acc,

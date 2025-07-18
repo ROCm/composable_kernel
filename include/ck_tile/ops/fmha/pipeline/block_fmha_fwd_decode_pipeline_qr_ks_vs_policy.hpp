@@ -14,7 +14,18 @@
 #include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v1.hpp"
 
 namespace ck_tile {
-
+// Use `CK_PRINT<T1, T2, ...>()` to inspect values of type T1, T2, ...
+// Use `CK_PRINT<v1, v2, ...>()` to inspect constexpr values of val1, val2, ... of the same type
+// In a non-evaluated context, you can use `using _dummy = decltype(CK_PRINT<...>());`
+// Set BUILD_DEV to OFF to avoid enabling Werror
+template <auto... val>
+[[deprecated("Help function to print value")]] inline constexpr void CK_PRINT()
+{
+}
+template <typename... type>
+[[deprecated("Help function to print value")]] inline constexpr void CK_PRINT()
+{
+}
 // This pipeline is qkv all located in LDS
 struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
     : BlockFmhaPipelineQXKSVSCustomPolicy</* QLoadOnce = */ true,
