@@ -76,7 +76,7 @@ class TestCkTileMemoryCopy : public ::testing::TestWithParam<std::tuple<int, int
         constexpr ck_tile::index_t kBlockSize  = 128;
         constexpr ck_tile::index_t kBlockPerCu = 1;
 
-        launch_kernel(ck_tile::stream_config{},
+        auto ms = launch_kernel(ck_tile::stream_config{nullptr, true},
                       ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
                           Kernel{},
                           kGridSize,
@@ -87,6 +87,10 @@ class TestCkTileMemoryCopy : public ::testing::TestWithParam<std::tuple<int, int
                           m,
                           n,
                           warp_id));
+
+        auto bytes = 2 * m * n * sizeof(DataType);
+        std::cout << "elapsed: " << ms << " (ms)" << std::endl;
+        std::cout << (bytes * 1e-6 / ms) << " (GB/s)" << std::endl;
 
         // reference
         y_buf.FromDevice(y_host_dev.mData.data());
