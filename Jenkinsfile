@@ -841,14 +841,14 @@ def run_aiter_tests(Map conf=[:]){
                     sh "git clone https://github.com/ROCm/composable_kernel.git 3rdparty/composable_kernel/"
                     sh "set -ex"
                     sh "python3 -m venv venv"
-                    sh "source venv/bin/activate"
+                    sh "#!/bin/bash source venv/bin/activate"
                     sh "pip install --user pandas zmq einops"
                     sh "pip install --user numpy==1.26.2"
                     sh "python3 setup.py develop"
                     sh "set -e"
                     sh "python3 op_tests/test_gemm_a8w8_blockscale.py"
                     sh "python3 op_tests/test_mha.py"
-                    sh "deactivate"
+                    sh "#!/bin/bash deactivate"
                 }
             }
             catch(e){
