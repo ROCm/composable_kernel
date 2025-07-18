@@ -13,6 +13,9 @@ add_example_dependencies(example_gemm_mx example_gemm_mx_bf8)
 add_example_executable(example_gemm_mx_fp6 gemm_mx_fp6.cpp)
 add_example_dependencies(example_gemm_mx example_gemm_mx_fp6)
 
+add_example_executable(example_gemm_mx_bf6 gemm_mx_bf6.cpp)
+add_example_dependencies(example_gemm_mx example_gemm_mx_bf6)
+
 add_example_executable(example_gemm_mx_fp4 gemm_mx_fp4.cpp)
 add_example_dependencies(example_gemm_mx example_gemm_mx_fp4)
 
@@ -62,3 +65,4 @@ example_compile_options(example_gemm_mx_bf8 PRIVATE ${FP8_MXGEMM_OPTIONS})
 set(FP6_MXGEMM_OPTIONS)
 list(APPEND FP6_MXGEMM_OPTIONS -mavx512f)
 example_compile_options(example_gemm_mx_fp6 PRIVATE ${FP6_MXGEMM_OPTIONS})
+example_compile_options(example_gemm_mx_bf6 PRIVATE ${FP6_MXGEMM_OPTIONS})
