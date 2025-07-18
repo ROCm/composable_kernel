@@ -20,7 +20,7 @@ struct MemoryCopyParam
     ck_tile::index_t warp_id;
 };
 
-template <typename DataType>
+template <typename DataType, bool AsyncCopy = true>
 class TestCkTileMemoryCopy : public ::testing::TestWithParam<std::tuple<int, int, int>>
 {
     protected:
@@ -65,7 +65,6 @@ class TestCkTileMemoryCopy : public ::testing::TestWithParam<std::tuple<int, int
         using BlockTile          = ck_tile::sequence<64, 8>;
         using WaveTile           = ck_tile::sequence<64, 8>;
         using Vector             = ck_tile::sequence<1, dword_bytes / sizeof(DataType)>;
-        constexpr bool AsyncCopy = true;
 
         ck_tile::index_t kGridSize =
             ck_tile::integer_divide_ceil(m, BlockTile::at(ck_tile::number<0>{}));
@@ -97,36 +96,45 @@ class TestCkTileMemoryCopy : public ::testing::TestWithParam<std::tuple<int, int
     }
 };
 
-class TestCkTileMemoryCopyHalf : public TestCkTileMemoryCopy<ck_tile::half_t>
+class TestCkTileMemoryCopyHalfAsync : public TestCkTileMemoryCopy<ck_tile::half_t>
 {
 };
 
-class TestCkTileMemoryCopyBFloat : public TestCkTileMemoryCopy<ck_tile::bf16_t>
+class TestCkTileMemoryCopyHalfSync : public TestCkTileMemoryCopy<ck_tile::half_t, false>
 {
 };
 
-class TestCkTileMemoryCopyFP8 : public TestCkTileMemoryCopy<ck_tile::fp8_t>
+class TestCkTileMemoryCopyBFloatAsync : public TestCkTileMemoryCopy<ck_tile::bf16_t>
 {
 };
 
-TEST_P(TestCkTileMemoryCopyHalf, TestCorrectness) {
+class TestCkTileMemoryCopyFP8Async : public TestCkTileMemoryCopy<ck_tile::fp8_t>
+{
+};
+
+TEST_P(TestCkTileMemoryCopyHalfAsync, TestCorrectness) {
     auto [M, N, warp_id] = GetParam();
     this->Run({M, N, warp_id});
 }
 
-TEST_P(TestCkTileMemoryCopyBFloat, TestCorrectness) {
+TEST_P(TestCkTileMemoryCopyHalfSync, TestCorrectness) {
     auto [M, N, warp_id] = GetParam();
     this->Run({M, N, warp_id});
 }
 
-TEST_P(TestCkTileMemoryCopyFP8, TestCorrectness) {
+TEST_P(TestCkTileMemoryCopyBFloatAsync, TestCorrectness) {
+    auto [M, N, warp_id] = GetParam();
+    this->Run({M, N, warp_id});
+}
+
+TEST_P(TestCkTileMemoryCopyFP8Async, TestCorrectness) {
     auto [M, N, warp_id] = GetParam();
     this->Run({M, N, warp_id});
 }
 
 INSTANTIATE_TEST_SUITE_P(
     TestCkTileMemCopySuite,
-    TestCkTileMemoryCopyHalf,
+    TestCkTileMemoryCopyHalfAsync,
     ::testing::Values(
         std::tuple{64, 8, 0},
         std::tuple{63, 8, 0},
@@ -143,7 +151,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 INSTANTIATE_TEST_SUITE_P(
     TestCkTileMemCopySuite,
-    TestCkTileMemoryCopyBFloat,
+    TestCkTileMemoryCopyHalfSync,
     ::testing::Values(
         std::tuple{64, 8, 0},
         std::tuple{63, 8, 0},
@@ -160,7 +168,24 @@ INSTANTIATE_TEST_SUITE_P(
 
 INSTANTIATE_TEST_SUITE_P(
     TestCkTileMemCopySuite,
-    TestCkTileMemoryCopyFP8,
+    TestCkTileMemoryCopyBFloatAsync,
+    ::testing::Values(
+        std::tuple{64, 8, 0},
+        std::tuple{63, 8, 0},
+        std::tuple{63, 2, 0},
+        std::tuple{127, 30, 0},
+        std::tuple{64, 8, 1},
+        std::tuple{63, 8, 1},
+        std::tuple{63, 2, 1},
+        std::tuple{127, 30, 1},
+        std::tuple{16384, 16384, 0},
+        std::tuple{16384, 16384, 1}
+    )
+);
+
+INSTANTIATE_TEST_SUITE_P(
+    TestCkTileMemCopySuite,
+    TestCkTileMemoryCopyFP8Async,
     ::testing::Values(
         std::tuple{64, 8, 0},
         std::tuple{63, 8, 0},
