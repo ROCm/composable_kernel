@@ -8,6 +8,7 @@
 #include <iterator>
 #include <optional>
 #include <random>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 #include <unordered_set>
@@ -95,32 +96,43 @@ struct FillUniformDistribution
 template <>
 struct FillUniformDistribution<ck_tile::pk_int4_t>
 {
+    float a_{-8.f}; // same type as primary template so that
+                    // `FillUniformDistribution<Type>{-5.0f, 5.0f}` works for all types
+    float b_{7.f};
     std::optional<uint32_t> seed_{11939};
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
     {
-        constexpr auto int4_array = std::array<uint8_t, 16>{0x77,
-                                                            0x66,
-                                                            0x55,
-                                                            0x44,
-                                                            0x33,
-                                                            0x22,
-                                                            0x11,
-                                                            0x00,
-                                                            0xff,
-                                                            0xee,
-                                                            0xdd,
-                                                            0xcc,
-                                                            0xbb,
-                                                            0xaa,
+        if(a_ < -8.0f || b_ > 7.0f)
+        {
+            throw std::runtime_error(
+                "a_ or b_ of FillUniformDistribution<ck_tile::pk_int4_t> is out of range.");
+        }
+
+        int min_value             = static_cast<int>(a_);
+        int max_value             = static_cast<int>(b_);
+        constexpr auto int4_array = std::array<uint8_t, 16>{0x88,
                                                             0x99,
-                                                            0x88};
+                                                            0xaa,
+                                                            0xbb,
+                                                            0xcc,
+                                                            0xdd,
+                                                            0xee,
+                                                            0xff,
+                                                            0x00,
+                                                            0x11,
+                                                            0x22,
+                                                            0x33,
+                                                            0x44,
+                                                            0x55,
+                                                            0x66,
+                                                            0x77};
         std::mt19937 gen(seed_.has_value() ? *seed_ : std::random_device{}());
-        std::uniform_int_distribution<std::uint32_t> dis(0, 15);
+        std::uniform_int_distribution<std::int32_t> dis(0, max_value - min_value + 1);
         while(first != last)
         {
             int randomInt = dis(gen);
-            *first        = int4_array[randomInt];
+            *first        = int4_array[randomInt + (min_value + 8)];
             ++first;
         }
     }

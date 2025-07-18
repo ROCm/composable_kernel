@@ -151,7 +151,8 @@ int run_gemm_example_with_layouts(int argc,
     {
         if constexpr(std::is_same_v<ADataType, ck_tile::pk_int4_t>)
         {
-            ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{fill_seed(gen)}(a_m_k);
+            ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{-5.0f, 5.0f, fill_seed(gen)}(
+                a_m_k);
         }
         else
         {
