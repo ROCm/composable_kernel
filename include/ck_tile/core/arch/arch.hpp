@@ -151,11 +151,19 @@ struct waitcnt_arg
     }
 };
 
+template <index_t vmcnt = 0b111111, index_t expcnt = 0b111, index_t lgkmcnt = 0b1111>
+CK_TILE_DEVICE void s_waitcnt()
+{
+    __builtin_amdgcn_s_waitcnt(waitcnt_arg::from_vmcnt<vmcnt>() &
+                               waitcnt_arg::from_expcnt<expcnt>() &
+                               waitcnt_arg::from_lgkmcnt<lgkmcnt>());
+}
+
 template <index_t vmcnt>
 CK_TILE_DEVICE void block_sync_lds_direct_load()
 {
     // We don't sync the lds insts here.
-    __builtin_amdgcn_s_waitcnt(waitcnt_arg::from_vmcnt<vmcnt>());
+    s_waitcnt<vmcnt>();
     __builtin_amdgcn_s_barrier();
 }
 
