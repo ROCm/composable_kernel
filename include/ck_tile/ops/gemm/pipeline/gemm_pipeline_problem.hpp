@@ -49,6 +49,9 @@ struct GemmPipelineProblemBase
     static constexpr auto Scheduler         = GemmPipelineScheduler::Default;
     static constexpr index_t VectorLoadSize = Traits::_VectorSize;
 
+    // In the base situation, the Preshuffle setting should be false.
+    static constexpr bool Preshuffle = false;
+
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
