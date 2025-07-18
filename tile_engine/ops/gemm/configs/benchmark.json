@@ -1,20 +1,5 @@
 {
     "problem": {
-        "layout_a": {
-            "values": [
-                "r"
-            ]
-        },
-        "layout_b": {
-            "values": [
-                "c"
-            ]
-        },
-        "layout_c": {
-            "values": [
-                "r"
-            ]
-        }
     },
     "tile_config": {
         "tile_m": {
