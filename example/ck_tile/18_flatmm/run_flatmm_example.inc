@@ -2,7 +2,7 @@
 // Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 #include <type_traits>
-#include "json_dump.hpp"
+// #include "json_dump.hpp"
 template <typename T>
 constexpr const char* DataTypeToString()
 {
@@ -252,22 +252,6 @@ int run_flatmm_example_with_layouts(int argc,
               << " StrideB =" << stride_B << " StrideC =" << stride_C << " : " << ave_time
               << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
 
-    if(arg_parser.get_int("json") == 1)
-    {
-        START_JSON_DUMP_FILE("flatmm_basic.json")
-        ADD_KEY_VALUE("name", "flatmm_basic");
-        ADD_KEY_VALUE("DataType", DataTypeToString<ADataType>());
-        ADD_KEY_VALUE("M", M);
-        ADD_KEY_VALUE("N", N);
-        ADD_KEY_VALUE("K", K);
-        ADD_KEY_VALUE("StrideA", stride_A);
-        ADD_KEY_VALUE("StrideB", stride_B);
-        ADD_KEY_VALUE("StrideC", stride_C);
-        ADD_KEY_VALUE("kbatch", kbatch);
-        ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec)
-        END_JSON_DUMP_FILE();
-    }
-
     c_dev_buf.FromDevice(c_rslt_host.data());
     bool pass = true;
 
@@ -352,6 +336,23 @@ int run_flatmm_example_with_layouts(int argc,
                   << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
                   << std::endl;
         std::cout << "The GPU veification result is: " << (pass ? "correct" : "fail") << std::endl;
+    }
+
+    if(arg_parser.get_int("json") == 1)
+    {
+        START_JSON_DUMP_FILE("flatmm_basic.json")
+        ADD_KEY_VALUE("name", "flatmm_basic");
+        ADD_KEY_VALUE("DataType", DataTypeToString<ADataType>());
+        ADD_KEY_VALUE("M", M);
+        ADD_KEY_VALUE("N", N);
+        ADD_KEY_VALUE("K", K);
+        ADD_KEY_VALUE("StrideA", stride_A);
+        ADD_KEY_VALUE("StrideB", stride_B);
+        ADD_KEY_VALUE("StrideC", stride_C);
+        ADD_KEY_VALUE("kbatch", kbatch);
+        ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
+        ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec)
+        END_JSON_DUMP_FILE();
     }
 
     return pass;

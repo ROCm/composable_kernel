@@ -66,7 +66,8 @@ auto create_args(int argc, char* argv[])
         .insert("prec_i", "fp16", "input precision, fp16/bf16")
         .insert("prec_o", "int8", "precision, int8/fp8")
         .insert("warmup", "5", "cold iter")
-        .insert("repeat", "20", "hot iter");
+        .insert("repeat", "20", "hot iter")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);

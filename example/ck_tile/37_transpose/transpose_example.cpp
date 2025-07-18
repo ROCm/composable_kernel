@@ -100,7 +100,8 @@ auto create_args(int argc, char* argv[])
         .insert("layout_in", "NCHW", "input tensor data layout - NCHW by default")
         .insert("layout_out", "NHWC", "output tensor data layout - NHWC by default ")
         .insert("seed", "-1", "seed to be used, -1 means random every time")
-        .insert("kname", "0", "t to 1 will print kernel name");
+        .insert("kname", "0", "t to 1 will print kernel name")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -228,6 +229,24 @@ bool run_batched_transpose(ck_tile::ArgParser args)
             y_host, y_ref, std::string("y Error: Incorrect results!"), rtol, atol);
     }
     printf("valid:%s\n", rtn ? "y" : "n");
+
+    if(arg_parser.get_int("json") == 1)
+    {
+        START_JSON_DUMP_FILE("batched_transpose.json")
+        ADD_KEY_VALUE("name", "batched_transpose");
+        ADD_KEY_VALUE("DataType", DataTypeToString<ADataType>());
+        ADD_KEY_VALUE("N", N);
+        ADD_KEY_VALUE("C", C);
+        ADD_KEY_VALUE("H", H);
+        ADD_KEY_VALUE("W", W);
+        ADD_KEY_VALUE("LayoutIn", layout_in);
+        ADD_KEY_VALUE("LayoutOut", layout_out);
+        ADD_KEY_VALUE("Precision", prec);
+        ADD_KEY_VALUE("verification", rtn ? "pass" : "fail");
+        ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec)
+        END_JSON_DUMP_FILE();
+    }
+
     fflush(stdout);
     return rtn;
 }
