@@ -11,13 +11,13 @@
 #include "ck_tile/core/numeric/integral_constant.hpp"
 
 #define CK_TILE_S_CNT_MAX 0b1100'1111'0111'1111
-#define CK_TILE_VMCNT(cnt)                                                 \
-    ([]() { static_assert((cnt) < 0b111111, "VMCNT only has 6 bits"); }(), \
+#define CK_TILE_VMCNT(cnt)                                              \
+    ([]() { static_assert(!((cnt) >> 6), "VMCNT only has 6 bits"); }(), \
      ((cnt)&0b1111) | (((cnt)&0b110000) << 10))
 #define CK_TILE_EXPCNT(cnt) \
-    ([]() { static_assert((cnt) < 0b111, "EXP only has 3 bits"); }(), ((cnt) << 4))
+    ([]() { static_assert(!((cnt) >> 3), "EXP only has 3 bits"); }(), ((cnt) << 4))
 #define CK_TILE_LGKMCNT(cnt) \
-    ([]() { static_assert((cnt) < 0b1111, "LGKM only has 4 bits"); }(), ((cnt) << 8))
+    ([]() { static_assert(!((cnt) >> 4), "LGKM only has 4 bits"); }(), ((cnt) << 8))
 
 namespace ck_tile {
 
