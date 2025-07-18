@@ -50,12 +50,8 @@ __global__ void
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
     const index_t tile_cnt = math::integer_divide_ceil(karg.p_max_token_id[0], GridwiseGemm::SortedTileSize) * (karg.N / GridwiseGemm::NTileSize);
-    const index_t round_cnt = math::integer_divide_floor(tile_cnt, block_cnt);
-    const index_t tall_id = tile_cnt % block_cnt;
-    // if ((threadIdx.x == 0) && (blockIdx.x == 0)){printf("tile_cnt=%d, block_cnt=%d, round_cnt=%d, tall_id=%d\n", tile_cnt, block_cnt, round_cnt, tall_id);}
-    for (auto round = 0; round < ((blockIdx.x < static_cast<uint>(tall_id)) ? round_cnt + 1: round_cnt); round++)
+    for (index_t tile_id = blockIdx.x; tile_id < tile_cnt; tile_id+=block_cnt)
     {
-        const index_t tile_id = round * block_cnt + blockIdx.x;
         GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
             karg.p_sorted_token_ids,
             karg.p_sorted_expert_ids,
@@ -70,10 +66,10 @@ __global__ void
             karg.b_element_op,
             karg.c_element_op,
             tile_id);
-    #else
-        ignore = karg;
-    #endif // end of if (defined(__gfx9__))
     }
+#else
+    ignore = karg;
+#endif // end of if (defined(__gfx9__))
 }
 
 template <typename GridwiseGemm,
@@ -86,28 +82,32 @@ __global__ void
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
-    kernel_moe_gemm_2lds(typename GridwiseGemm::Argument karg)
+    kernel_moe_gemm_2lds(typename GridwiseGemm::Argument karg, const index_t block_cnt)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
     __shared__ char p_shared1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
-
-    GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        karg.p_sorted_token_ids,
-        karg.p_sorted_expert_ids,
-        karg.p_max_token_id,
-        karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
-        karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-        karg.p_ds_grid,
-        karg.p_c_grid,
-        p_shared,
-        p_shared1,
-        karg,
-        karg.a_element_op,
-        karg.b_element_op,
-        karg.c_element_op);
+    const index_t tile_cnt = math::integer_divide_ceil(karg.p_max_token_id[0], GridwiseGemm::SortedTileSize) * (karg.N / GridwiseGemm::NTileSize);
+    for (index_t tile_id = blockIdx.x; tile_id < tile_cnt; tile_id+=block_cnt)
+    {
+        GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+            karg.p_sorted_token_ids,
+            karg.p_sorted_expert_ids,
+            karg.p_max_token_id,
+            karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
+            karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
+            karg.p_ds_grid,
+            karg.p_c_grid,
+            p_shared,
+            p_shared1,
+            karg,
+            karg.a_element_op,
+            karg.b_element_op,
+            karg.c_element_op,
+            tile_id);
+    }
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -1907,7 +1907,8 @@ struct GridwiseMoeGemm
                                     const Problem& problem,
                                     AElementwiseOperation a_element_op,
                                     BElementwiseOperation b_element_op,
-                                    CElementwiseOperation c_element_op)
+                                    CElementwiseOperation c_element_op,
+                                    const index_t tile_id)
     {
         ignore                           = b_element_op;
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
@@ -1930,7 +1931,7 @@ struct GridwiseMoeGemm
                 c_grid_desc_m_n, problem.MBlock, problem.NBlock);
         const index_t max_token_id = __builtin_amdgcn_readfirstlane(p_max_token_id[0]);
         // static_assert(NSwizzle == false, "to do fix: need another pr in sorting merged");
-        const index_t expert_block_id = NSwizzle ? blockIdx.x / problem.NBlock : blockIdx.y;
+        const index_t expert_block_id = tile_id / problem.NBlock;
         if(expert_block_id * MPerBlock >= max_token_id)
             return;
         const index_t expert_id =
@@ -1952,7 +1953,7 @@ struct GridwiseMoeGemm
             }
             else
             {
-                return {blockIdx.x, blockIdx.y};
+                return {tile_id % problem.NBlock, tile_id / problem.NBlock};
             }
         }();
 
