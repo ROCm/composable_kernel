@@ -175,7 +175,7 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_confi
         }
         }
 #else
-        if(moe_sorting_get_workspace_size(a.tokens, a.num_experts, a.topk) != 0)
+        if(moe_sorting_get_workspace_size(a.tokens, a.num_experts, a.topk, t.dispatch_policy) != 0)
         {
             return moe_sorting_mp(t, a, s);
         }
@@ -293,6 +293,7 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_confi
         {                                                                                          \
             float ave_time =                                                                       \
                 ck_tile::launch_kernel(s,                                                          \
+                                       maybe_clear_workspace,                                      \
                                        MOE_SORTING_MP_0(mesh_type_, token_vec_0_, true, true),     \
                                        MOE_SORTING_MP_1(mesh_type_, token_vec_1_, true, true),     \
                                        MOE_SORTING_MP_23(mesh_type_, token_vec_23_, true, true));  \
@@ -302,6 +303,7 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_confi
         {                                                                                          \
             float ave_time =                                                                       \
                 ck_tile::launch_kernel(s,                                                          \
+                                       maybe_clear_workspace,                                      \
                                        MOE_SORTING_MP_0(mesh_type_, token_vec_0_, true, false),    \
                                        MOE_SORTING_MP_1(mesh_type_, token_vec_1_, true, false),    \
                                        MOE_SORTING_MP_23(mesh_type_, token_vec_23_, true, false)); \
@@ -314,6 +316,7 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_confi
         {                                                                                          \
             float ave_time =                                                                       \
                 ck_tile::launch_kernel(s,                                                          \
+                                       maybe_clear_workspace,                                      \
                                        MOE_SORTING_MP_0(mesh_type_, token_vec_0_, false, true),    \
                                        MOE_SORTING_MP_1(mesh_type_, token_vec_1_, false, true),    \
                                        MOE_SORTING_MP_23(mesh_type_, token_vec_23_, false, true)); \
@@ -323,12 +326,24 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_confi
         {                                                                                          \
             float ave_time = ck_tile::launch_kernel(                                               \
                 s,                                                                                 \
+                maybe_clear_workspace,                                                             \
                 MOE_SORTING_MP_0(mesh_type_, token_vec_0_, false, false),                          \
                 MOE_SORTING_MP_1(mesh_type_, token_vec_1_, false, false),                          \
                 MOE_SORTING_MP_23(mesh_type_, token_vec_23_, false, false));                       \
             return ave_time;                                                                       \
         }                                                                                          \
     }
+
+#define MOR_SORTING_CLEAR_WS_DISPATCH_(is_local_token_, block_size_, occu_)                 \
+    [&]() {                                                                                 \
+        using problem_ =                                                                    \
+            ck_tile::MoeSortingClearWorkspaceProblem<is_local_token_, block_size_, occu_>;  \
+        using kernel      = ck_tile::MoeSortingClearWorkspaceKernel<problem_>;              \
+        auto kargs        = kernel::MakeKargs(a);                                           \
+        const dim3 grids  = kernel::GridSize(a);                                            \
+        const dim3 blocks = kernel::BlockSize(a);                                           \
+        return ck_tile::make_kernel<kernel::BLOCK_SIZE>(kernel{}, grids, blocks, 0, kargs); \
+    }()
 
 float moe_sorting_mp(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_config s)
 {
@@ -338,6 +353,22 @@ float moe_sorting_mp(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_co
         using ms_index_t     = ck_tile::index_t;
         using ms_weight_type = float;
 
+        auto maybe_clear_workspace = [=](const ck_tile::stream_config& s_) {
+            if(t.clear_workspace_inside_api)
+            {
+                if(is_local_token)
+                {
+                    auto k = MOR_SORTING_CLEAR_WS_DISPATCH_(true, 1024, 1);
+                    k(s_);
+                }
+                else
+                {
+                    auto k = MOR_SORTING_CLEAR_WS_DISPATCH_(false, 1024, 1);
+                    k(s_);
+                }
+            }
+        };
+
         if(ck_tile::impl::moe_sorting_get_smem_size_p23(a.num_experts) >
            ck_tile::get_smem_capacity())
         {
@@ -345,6 +376,7 @@ float moe_sorting_mp(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_co
             if(t.local_expert_masking)
             {
                 float ave_time = ck_tile::launch_kernel(s,
+                                                        maybe_clear_workspace,
                                                         MOE_SORTING_MP_0(ms_index_t, 1, true),
                                                         MOE_SORTING_MP_1(ms_index_t, 1, true),
                                                         MOE_SORTING_MP_2(ms_index_t, 1, true),
@@ -354,6 +386,7 @@ float moe_sorting_mp(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_co
             else
             {
                 float ave_time = ck_tile::launch_kernel(s,
+                                                        maybe_clear_workspace,
                                                         MOE_SORTING_MP_0(ms_index_t, 1, false),
                                                         MOE_SORTING_MP_1(ms_index_t, 1, false),
                                                         MOE_SORTING_MP_2(ms_index_t, 1, false),
@@ -405,7 +438,7 @@ float moe_sorting_mp(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_co
     return -1;
 }
 
-int moe_sorting_get_workspace_size(int tokens, int num_experts, int topk)
+int moe_sorting_get_workspace_size(int tokens, int num_experts, int topk, int dispatch_policy)
 {
-    return ck_tile::moe_sorting_get_workspace_size(tokens, num_experts, topk);
+    return ck_tile::moe_sorting_get_workspace_size(tokens, num_experts, topk, dispatch_policy);
 }
