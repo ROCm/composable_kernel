@@ -172,7 +172,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
 
         // Block GEMM
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
-        constexpr auto gemm_1 = Policy::template GetKVBlockGemm<Problem>();
+        constexpr auto gemm_1 = Policy::template GetPVBlockGemm<Problem>();
 
         using SaccBlockTileType = decltype(gemm_0.MakeCBlockTile());
         auto s_acc              = SaccBlockTileType{};
@@ -298,8 +298,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
 
         // V tile in LDS
         auto [i_page_block_v, v_dram_block_window] = v_page_block_navigator.make_tile_window(
-            v_dram_block_window_lengths,
-            {0, aligned_physical_seqlen_k_start});
+            v_dram_block_window_lengths, {0, aligned_physical_seqlen_k_start});
 
         auto v_dram_window = make_tile_window(
             v_dram_block_window, Policy::template MakeVDramTileDistribution<Problem>());
@@ -350,8 +349,8 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
         k_dram_window = make_tile_window(k_dram_block_window,
                                          Policy::template MakeKDramTileDistribution<Problem>());
 
-        constexpr index_t k_vmem_insts = k_dram_window.get_num_of_access();
-        constexpr index_t v_vmem_insts = v_dram_window.get_num_of_access();
+        // constexpr index_t k_vmem_insts = k_dram_window.get_num_of_access();
+        // constexpr index_t v_vmem_insts = v_dram_window.get_num_of_access();
 
         do
         {
@@ -373,10 +372,10 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
             async_load_tile(v_lds_write_window, v_dram_window); // prefetch load v tile
             // move V tile windows
             i_page_block_v =
-                v_page_block_navigator.move_tile_window(i_page_block_v, v_dram_window, {0, kK1});
+                v_page_block_navigator.move_tile_window(i_page_block_v, v_dram_window, {kK1, 0});
 
             // CK_PRINT<decltype(v_dram_window.get_num_of_access())>();
-            block_sync_lds_direct_load<v_vmem_insts>();
+            // block_sync_lds_direct_load<v_vmem_insts>();
             auto k_tile = load_tile(k_lds_read_window);
 
             gemm_0(
@@ -509,7 +508,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
             // Otherwise shuffle through LDS so that the tile layout is consistent with required by
             // Gemm1
             auto s_new = [&]() {
-                if constexpr(!((kNWarp == 1) && (kNXdl == 32)))
+                if constexpr(kNWarp > 1)
                 {
                     auto s = cast_tile<SMPLComputeDataType>(s_acc); // S{j}
 
@@ -589,7 +588,9 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
 
             block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
 
-            const auto p = cast_tile<PDataType>(p_compute);
+            auto p_tile = make_static_distributed_tensor<PDataType>(
+                Policy::template MakePRegTileDistribution<Problem>());
+            p_tile.get_thread_buffer() = cast_tile<PDataType>(p_compute).get_thread_buffer();
 
             // l{j}, Oacc{j}
             constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
@@ -628,15 +629,15 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
                 });
             });
 
-            block_sync_lds_direct_load<k_vmem_insts>();
+            // block_sync_lds_direct_load<k_vmem_insts>();
             auto v_tile = load_tile_transpose(v_lds_read_window);
 
-            gemm_1(o_acc,
-                   get_slice_tile(
-                       p, sequence<0, (k1_loops - 1) * kK1>{}, sequence<kM0, k1_loops * kK1>{}),
-                   get_slice_tile(v_tile,
-                                  sequence<0, (k1_loops - 1) * kK1>{},
-                                  sequence<kN1, k1_loops * kK1>{}));
+            gemm_1(
+                o_acc,
+                get_slice_tile(
+                    p_tile, sequence<0, (k1_loops - 1) * kK1>{}, sequence<kM0, k1_loops * kK1>{}),
+                get_slice_tile(
+                    v_tile, sequence<0, (k1_loops - 1) * kK1>{}, sequence<kN1, k1_loops * kK1>{}));
 
         } while(++i_total_loops < num_total_loop);
 

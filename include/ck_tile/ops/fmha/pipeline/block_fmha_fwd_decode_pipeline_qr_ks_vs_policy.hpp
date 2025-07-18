@@ -14,18 +14,6 @@
 #include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v1.hpp"
 
 namespace ck_tile {
-// Use `CK_PRINT<T1, T2, ...>()` to inspect values of type T1, T2, ...
-// Use `CK_PRINT<v1, v2, ...>()` to inspect constexpr values of val1, val2, ... of the same type
-// In a non-evaluated context, you can use `using _dummy = decltype(CK_PRINT<...>());`
-// Set BUILD_DEV to OFF to avoid enabling Werror
-template <auto... val>
-[[deprecated("Help function to print value")]] inline constexpr void CK_PRINT()
-{
-}
-template <typename... type>
-[[deprecated("Help function to print value")]] inline constexpr void CK_PRINT()
-{
-}
 // This pipeline is qkv all located in LDS
 struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
     : BlockFmhaPipelineQXKSVSCustomPolicy</* QLoadOnce = */ true,
@@ -62,6 +50,34 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentK()
+    {
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+
+        constexpr index_t MaxVectorSize = 16 / sizeof(typename Problem::KDataType);
+
+        constexpr index_t ElemPerThread = (kNPerBlock * kKPerBlock) / kBlockSize;
+        static_assert(0 < ElemPerThread);
+        return min(ElemPerThread, MaxVectorSize);
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentV()
+    {
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+
+        constexpr index_t MaxVectorSize = 16 / sizeof(typename Problem::VDataType);
+
+        constexpr index_t ElemPerThread = (kNPerBlock * kKPerBlock) / kBlockSize;
+        static_assert(0 < ElemPerThread);
+        return min(ElemPerThread, MaxVectorSize);
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQDramTileDistribution()
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
@@ -93,7 +109,33 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQRegTileDistribution()
     {
-        return BasePolicy::template MakeQRegTileDistribution<Problem>();
+        using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
+
+        constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<0>{});
+        constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
+
+        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+
+        constexpr index_t MIterPerWarp = kMPerBlock / (MWarp * WarpGemm::kM);
+        constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
+
+        constexpr auto q_block_outer_dstr_encoding =
+            tile_distribution_encoding<sequence<NWarp>,
+                                       tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
+                                       tuple<sequence<1, 0>>,
+                                       tuple<sequence<1, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 0>>{};
+
+        constexpr auto q_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            q_block_outer_dstr_encoding, typename WarpGemm::AWarpDstrEncoding{});
+
+        constexpr auto q_block_dstr = make_static_tile_distribution(q_block_dstr_encode);
+
+        return q_block_dstr;
     }
 
     template <typename Problem>
@@ -107,29 +149,52 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQLdsBlockDescriptor()
     {
-        constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kSubQKHeaddim;
 
-        constexpr index_t ElemPerThread = (kMPerBlock * kKPerBlock) / kBlockSize;
-        static_assert(0 < ElemPerThread);
-        constexpr index_t kKPack = min(ElemPerThread, GetSmemKPackQ<Problem>());
+        constexpr index_t kKPack = GetSmemKPackQ<Problem>();
 
-        constexpr auto q_lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(number<kKPerBlock / kKPack>{}, number<kMPerBlock>{}, number<kKPack>{}),
-            make_tuple(number<(kMPerBlock + 1) * kKPack>{}, number<kKPack>{}, number<1>{}),
-            number<kKPack>{},
-            number<1>{});
-
-        constexpr auto q_lds_block_desc = transform_tensor_descriptor(
-            q_lds_block_desc_0,
-            make_tuple(
-                make_pass_through_transform(number<kMPerBlock>{}),
-                make_merge_transform(make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
-            make_tuple(sequence<1>{}, sequence<0, 2>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
+        constexpr auto q_lds_block_desc =
+            make_naive_tensor_descriptor(make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
+                                         make_tuple(number<kKPerBlock>{}, number<1>{}),
+                                         number<kKPack>{},
+                                         number<1>{});
 
         return q_lds_block_desc;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
+    {
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kSubQKHeaddim;
+
+        constexpr index_t kKPack = GetSmemKPackK<Problem>();
+
+        constexpr auto k_lds_block_desc =
+            make_naive_tensor_descriptor(make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}),
+                                         make_tuple(number<kKPerBlock>{}, number<1>{}),
+                                         number<kKPack>{},
+                                         number<1>{});
+
+        return k_lds_block_desc;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeVLdsBlockDescriptor()
+    {
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+
+        constexpr index_t kKPack = GetSmemKPackV<Problem>();
+
+        constexpr auto v_lds_block_desc =
+            make_naive_tensor_descriptor(make_tuple(number<kKPerBlock>{}, number<kNPerBlock>{}),
+                                         make_tuple(number<kNPerBlock>{}, number<1>{}),
+                                         number<kKPack>{},
+                                         number<1>{});
+
+        return v_lds_block_desc;
     }
 
     template <typename Problem>
@@ -146,15 +211,14 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm0BlockWarps,
                                            typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
 
-        using WarpGemm = WarpGemmMfmaDispatcher<
-            typename Problem::QDataType,
-            typename Problem::KDataType,
-            typename Problem::SaccDataType,
-            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
-            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
-            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
-            true,
-            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}) == 16 ? false : true>;
+        using WarpGemm =
+            WarpGemmMfmaDispatcher<typename Problem::QDataType,
+                                   typename Problem::KDataType,
+                                   typename Problem::SaccDataType,
+                                   Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
+                                   Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
+                                   Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
+                                   true>;
 
         using BlockGemmPolicy =
             BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::QDataType,
@@ -187,7 +251,10 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
                                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
                                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
                                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
-                                   true>;
+                                   true,
+                                   false,
+                                   false,
+                                   WGAttrNumAccessEnum::Double>;
 
         using BlockGemmPolicy =
             BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::PDataType,
@@ -232,6 +299,67 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
     }
 
     template <typename Problem>
+    CK_TILE_DEVICE static constexpr auto MakeVDramTileDistribution()
+    {
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+
+        constexpr index_t MaxVectorSize = 16 / sizeof(typename Problem::VDataType);
+
+        constexpr index_t ElemPerThread = (kNPerBlock * kKPerBlock) / kBlockSize;
+        static_assert(0 < ElemPerThread);
+        constexpr index_t kMaxVecLoad = min(ElemPerThread, MaxVectorSize);
+
+        constexpr index_t NPerThread     = kMaxVecLoad;
+        constexpr index_t NThreads       = kNPerBlock / NPerThread;
+        constexpr index_t KThreadPerWarp = get_warp_size() / NThreads;
+        constexpr index_t NumWarps       = kBlockSize / get_warp_size();
+        constexpr index_t KPerThread     = kKPerBlock / (KThreadPerWarp * NumWarps);
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<KPerThread, NumWarps, KThreadPerWarp>,
+                                             sequence<NThreads, NPerThread>>,
+                                       tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<1>, sequence<2, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 1>>{});
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakePRegTileDistribution()
+    {
+        using BlockGemm       = remove_cvref_t<decltype(GetPVBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
+
+        constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm1BlockWarps::at(number<0>{});
+        constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm1BlockWarps::at(number<1>{});
+
+        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+
+        constexpr index_t MIterPerWarp = kMPerBlock / (MWarp * WarpGemm::kM);
+        constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
+
+        constexpr auto p_block_outer_dstr_encoding =
+            tile_distribution_encoding<sequence<NWarp>,
+                                       tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
+                                       tuple<sequence<1, 0>>,
+                                       tuple<sequence<1, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 0>>{};
+
+        constexpr auto p_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            p_block_outer_dstr_encoding, typename WarpGemm::AWarpDstrEncoding{});
+
+        constexpr auto p_block_dstr = make_static_tile_distribution(p_block_dstr_encode);
+
+        return p_block_dstr;
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeVRegTileDistribution()
     {
         using BlockGemm       = remove_cvref_t<decltype(GetPVBlockGemm<Problem>())>;
@@ -258,7 +386,10 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
         constexpr auto v_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             v_block_outer_dstr_encoding, typename WarpGemm::BWarpDstrEncoding{});
 
-        constexpr auto v_block_dstr = make_static_tile_distribution(v_block_dstr_encode);
+        constexpr auto v_block_dstr =
+            make_static_tile_distribution(typename InputTileDistributionTraits<
+                                          decltype(v_block_dstr_encode),
+                                          typename Problem::VDataType>::TransposedDstrEncode{});
 
         return v_block_dstr;
     }

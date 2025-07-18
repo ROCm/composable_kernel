@@ -82,7 +82,8 @@ CK_TILE_DEVICE index_t get_lane_id() { return __lane_id(); }
 
 CK_TILE_DEVICE index_t get_warp_id()
 {
-    return __builtin_amdgcn_readfirstlane(threadIdx.x / get_warp_size());
+    // return __builtin_amdgcn_readfirstlane(threadIdx.x / get_warp_size());
+    return threadIdx.x / get_warp_size();
 }
 
 CK_TILE_DEVICE index_t get_thread_id() { return threadIdx.x; }
@@ -126,7 +127,7 @@ template <index_t vmcnt>
 CK_TILE_DEVICE void block_sync_lds_direct_load()
 {
     // We don't sync the lds insts here.
-    __builtin_amdgcn_s_waitcnt(CK_TILE_S_CNT_MAX & CK_TILE_VMCNT(vmcnt));
+    __builtin_amdgcn_s_waitcnt(CK_TILE_VMCNT(vmcnt));
     __builtin_amdgcn_s_barrier();
 }
 

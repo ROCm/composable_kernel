@@ -14,6 +14,7 @@
 #include "ck_tile/core/container/statically_indexed_array.hpp"
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
+#include "ck_tile/core/utility/debug.hpp"
 
 namespace ck_tile {
 
@@ -116,9 +117,18 @@ struct DefaultTranspose
     template <typename InDstrEncode, bool ReverseDirection, index_t LaneGroupSize>
     struct ValidationTraitsImpl
     {
-        using QuadEncoding             = std::conditional_t<ReverseDirection,
+        using QuadEncoding = std::conditional_t<ReverseDirection,
                                                 QuadOutputEncoding<LaneGroupSize>,
                                                 QuadInputEncoding<LaneGroupSize>>;
+        /*
+        using OutputEncoding =
+            tile_distribution_encoding<sequence<>,
+                                       tuple<sequence<LaneGroupSize>, sequence<4>>,
+                                       tuple<sequence<1>>,
+                                       tuple<sequence<0>>,
+                                       sequence<2>,
+                                       sequence<0>>;
+        */
         static constexpr auto I0       = number<0>{};
         static constexpr auto I1       = number<1>{};
         static constexpr auto input_hs = InDstrEncode::hs_lengthss_;
@@ -130,6 +140,7 @@ struct DefaultTranspose
             util::is_sequence_suffix_v<decltype(quad_hs[I0]), decltype(input_hs[I0])>;
         static constexpr bool suffix_valid_dim1 =
             util::is_sequence_suffix_v<decltype(quad_hs[I1]), decltype(input_hs[I1])>;
+        // using bbb = decltype(CK_PRINT<decltype(quad_hs[I1]), decltype(input_hs[I1])>());
 
         // 3. PS→RHS mapping constraints
         static constexpr auto input_ps_major = InDstrEncode::ps_to_rhss_major_;
@@ -169,6 +180,8 @@ struct DefaultTranspose
         static constexpr bool ys_mapping_valid =
             (input_ys_major.back() == 2) && (input_ys_minor.back() == input_hs[I1].size() - 1);
 
+        // using aaa = decltype(CK_PRINT<dims_valid, suffix_valid_dim0, suffix_valid_dim1,
+        // ps_mapping_valid, ys_mapping_valid>());
         static constexpr bool value = dims_valid && suffix_valid_dim0 && suffix_valid_dim1 &&
                                       ps_mapping_valid && ys_mapping_valid;
     };
