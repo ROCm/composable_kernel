@@ -233,7 +233,7 @@ struct GemmConfigComputeV5 : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigPreshufle_1 : public GemmConfigBase
+struct GemmConfigPreshuffle_1 : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 128;
@@ -255,7 +255,7 @@ struct GemmConfigPreshufle_1 : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigPreshufle_2 : public GemmConfigBase
+struct GemmConfigPreshuffle_2 : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 128;
@@ -272,6 +272,28 @@ struct GemmConfigPreshufle_2 : public GemmConfigBase
     static constexpr int kBlockPerCu           = 2;
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V3;
+    static constexpr bool Preshuffle           = true;
+    static constexpr bool DoubleSmemBuffer     = true;
+};
+
+template <typename PrecType>
+struct GemmConfigPreshuffle_3 : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 16;
+    static constexpr ck_tile::index_t N_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 256;
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 32;
+
+    static constexpr int kBlockPerCu           = 2;
+    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V2;
     static constexpr bool Preshuffle           = true;
     static constexpr bool DoubleSmemBuffer     = true;
 };
