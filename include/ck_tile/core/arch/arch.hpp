@@ -122,11 +122,40 @@ CK_TILE_DEVICE void block_sync_load_raw(index_t cnt = 0)
 #endif
 }
 
+// https://llvm.org/docs/AMDGPU/gfx9_waitcnt.html
+struct waitcnt_arg
+{
+    // bit numbers (hex) -------------------------> FE'DC'BA98'7'654'3210
+    // [V]M [E]XP [L]GKM counters and [U]NUSED ---> VV'UU'LLLL'U'EEE'VVVV
+    CK_TILE_DEVICE static constexpr index_t MAX = 0b11'00'1111'0'111'1111;
+
+    template <index_t cnt>
+    CK_TILE_DEVICE static constexpr index_t from_vmcnt()
+    {
+        static_assert(cnt >= 0 && !(cnt >> 6), "valid range is [0..63]");
+        return MAX & ((cnt & 0b1111) | ((cnt & 0b110000) << 10));
+    }
+
+    template <index_t cnt>
+    CK_TILE_DEVICE static constexpr index_t from_expcnt()
+    {
+        static_assert(cnt >= 0 && !(cnt >> 3), "valid range is [0..7]");
+        return MAX & (cnt << 4);
+    }
+
+    template <index_t cnt>
+    CK_TILE_DEVICE static constexpr index_t from_lgkmcnt()
+    {
+        static_assert(cnt >= 0 && !(cnt >> 4), "valid range is [0..15]");
+        return MAX & (cnt << 8);
+    }
+};
+
 template <index_t vmcnt>
 CK_TILE_DEVICE void block_sync_lds_direct_load()
 {
     // We don't sync the lds insts here.
-    __builtin_amdgcn_s_waitcnt(CK_TILE_S_CNT_MAX & CK_TILE_VMCNT(vmcnt));
+    __builtin_amdgcn_s_waitcnt(waitcnt_arg::from_vmcnt<vmcnt>());
     __builtin_amdgcn_s_barrier();
 }
 
