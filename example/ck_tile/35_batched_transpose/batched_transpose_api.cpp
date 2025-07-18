@@ -10,14 +10,12 @@ struct kernel_traits;
 template <>
 struct kernel_traits<0>
 {
-    template <typename ts_type, typename block_tile, typename thread_tile, bool kPadM, bool kPadN>
-    using Problem =
-        ck_tile::BatchedTransposeProblem<ts_type, block_tile, thread_tile, kPadM, kPadN>;
-    using Policy = ck_tile::BatchedTransposePolicy;
-    template <typename ts_type, typename block_tile, typename thread_tile, bool kPadM, bool kPadN>
+    template <typename ts_type, typename block_tile, bool kPadM, bool kPadN>
+    using Problem = ck_tile::BatchedTransposeProblem<ts_type, block_tile, kPadM, kPadN>;
+    using Policy  = ck_tile::BatchedTransposePolicy;
+    template <typename ts_type, typename block_tile, bool kPadM, bool kPadN>
     using Pipeline =
-        ck_tile::BatchedTransposePipeline<Problem<ts_type, block_tile, thread_tile, kPadM, kPadN>,
-                                          Policy>;
+        ck_tile::BatchedTransposePipeline<Problem<ts_type, block_tile, kPadM, kPadN>, Policy>;
 };
 
 template <>
@@ -28,7 +26,7 @@ struct kernel_traits<1>
     using Problem =
         ck_tile::BatchedTransposeLdsProblem<ts_type, block_tile, NumWarps, kPadM, kPadN>;
     using Policy = ck_tile::BatchedTransposeLdsPolicy;
-    template <typename ts_type, typename block_tile, typename, bool kPadM, bool kPadN>
+    template <typename ts_type, typename block_tile, bool kPadM, bool kPadN>
     using Pipeline =
         ck_tile::BatchedTransposeLdsPipeline<Problem<ts_type, block_tile, kPadM, kPadN>, Policy>;
 };
@@ -37,8 +35,6 @@ struct kernel_traits<1>
 template <typename InputType_,
           ck_tile::index_t BlockX_,
           ck_tile::index_t BlockY_,
-          ck_tile::index_t ThreadX_,
-          ck_tile::index_t ThreadY_,
           bool PadM_,
           bool PadN_,
           ck_tile::index_t PipelineId_>
@@ -47,8 +43,6 @@ struct BatchedTransposeConfig
     using InputType                               = InputType_;
     static constexpr ck_tile::index_t kBlockX     = BlockX_;
     static constexpr ck_tile::index_t kBlockY     = BlockY_;
-    static constexpr ck_tile::index_t kThreadX    = ThreadX_;
-    static constexpr ck_tile::index_t kThreadY    = ThreadY_;
     static constexpr bool kPadM                   = PadM_;
     static constexpr bool kPadN                   = PadN_;
     static constexpr ck_tile::index_t kPipelineId = PipelineId_;
@@ -63,16 +57,12 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
     a.dim_block_h = Config::kBlockY;
     a.dim_block_w = Config::kBlockX;
 
-    using block_tile  = ck_tile::sequence<Config::kBlockX, Config::kBlockY>;
-    using thread_tile = ck_tile::sequence<Config::kThreadX, Config::kThreadY>;
-
     // TODO: this is fragile and slow to compile
-    using kernel = ck_tile::BatchedTransposeKernel<
-        typename kernel_traits<Config::kPipelineId>::template Pipeline<typename Config::InputType,
-                                                                       block_tile,
-                                                                       thread_tile,
-                                                                       Config::kPadM,
-                                                                       Config::kPadN>>;
+    using kernel = ck_tile::BatchedTransposeKernel<typename kernel_traits<
+        Config::kPipelineId>::template Pipeline<typename Config::InputType,
+                                                ck_tile::sequence<Config::kBlockX, Config::kBlockY>,
+                                                Config::kPadM,
+                                                Config::kPadN>>;
 
     auto kargs = kernel::MakeKargs(a);
 
@@ -106,29 +96,28 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
     return ave_time;
 }
 
-// Param Comb: type_size, block_x & y, thread_x & y
-#define FOREACH_TRANSPOSE_PARAM(F)                          \
-    F(fp8, ck_tile::fp8_t, 64, 64, 8, 8, true, true, 0)     \
-    F(fp8, ck_tile::fp8_t, 64, 64, 8, 8, false, false, 0)   \
-    F(fp16, ck_tile::fp16_t, 64, 64, 8, 8, true, true, 0)   \
-    F(fp16, ck_tile::fp16_t, 64, 64, 8, 8, false, false, 0) \
-    F(bf16, ck_tile::bf16_t, 64, 64, 8, 8, true, true, 0)   \
-    F(bf16, ck_tile::bf16_t, 64, 64, 8, 8, false, false, 0) \
-    F(fp8, ck_tile::fp8_t, 64, 64, 8, 8, true, true, 1)     \
-    F(fp8, ck_tile::fp8_t, 64, 64, 8, 8, false, false, 1)   \
-    F(fp16, ck_tile::fp16_t, 64, 64, 8, 8, true, true, 1)   \
-    F(fp16, ck_tile::fp16_t, 64, 64, 8, 8, false, false, 1) \
-    F(bf16, ck_tile::bf16_t, 64, 64, 8, 8, true, true, 1)   \
-    F(bf16, ck_tile::bf16_t, 64, 64, 8, 8, false, false, 1)
+// Param Comb: type_size, block_x & y
+#define FOREACH_TRANSPOSE_PARAM(F)                    \
+    F(fp8, ck_tile::fp8_t, 64, 64, true, true, 0)     \
+    F(fp8, ck_tile::fp8_t, 64, 64, false, false, 0)   \
+    F(fp16, ck_tile::fp16_t, 64, 64, true, true, 0)   \
+    F(fp16, ck_tile::fp16_t, 64, 64, false, false, 0) \
+    F(bf16, ck_tile::bf16_t, 64, 64, true, true, 0)   \
+    F(bf16, ck_tile::bf16_t, 64, 64, false, false, 0) \
+    F(fp8, ck_tile::fp8_t, 64, 64, true, true, 1)     \
+    F(fp8, ck_tile::fp8_t, 64, 64, false, false, 1)   \
+    F(fp16, ck_tile::fp16_t, 64, 64, true, true, 1)   \
+    F(fp16, ck_tile::fp16_t, 64, 64, false, false, 1) \
+    F(bf16, ck_tile::bf16_t, 64, 64, true, true, 1)   \
+    F(bf16, ck_tile::bf16_t, 64, 64, false, false, 1)
 
 // Macro that defines one static function per line
-#define GEN_TRANSPOSE_FN(SHORT_NAME, REAL_TYPE, BX, BY, TX, TY, PADM, PADN, PIPE)          \
-    static float                                                                           \
-        transpose_fn_##SHORT_NAME##_##BX##_##BY##_##TX##_##TY##_##PADM##_##PADN##_v##PIPE( \
-            batched_transpose_kargs& a, ck_tile::stream_config& s)                         \
-    {                                                                                      \
-        return batched_transpose_dispatch<                                                 \
-            BatchedTransposeConfig<REAL_TYPE, BX, BY, TX, TY, PADM, PADN, PIPE>>(a, s);    \
+#define GEN_TRANSPOSE_FN(SHORT_NAME, REAL_TYPE, BX, BY, PADM, PADN, PIPE)             \
+    static float transpose_fn_##SHORT_NAME##_##BX##_##BY##_##PADM##_##PADN##_v##PIPE( \
+        batched_transpose_kargs& a, ck_tile::stream_config& s)                        \
+    {                                                                                 \
+        return batched_transpose_dispatch<                                            \
+            BatchedTransposeConfig<REAL_TYPE, BX, BY, PADM, PADN, PIPE>>(a, s);       \
     }
 
 FOREACH_TRANSPOSE_PARAM(GEN_TRANSPOSE_FN)
@@ -143,33 +132,33 @@ float batched_transpose(batched_transpose_trait t,
         {
             if(a.height % 64 == 0 && a.width % 64 == 0)
             {
-                return transpose_fn_fp8_64_64_8_8_false_false_v0(a, s);
+                return transpose_fn_fp8_64_64_false_false_v0(a, s);
             }
             else
             {
-                return transpose_fn_fp8_64_64_8_8_true_true_v0(a, s);
+                return transpose_fn_fp8_64_64_true_true_v0(a, s);
             }
         }
         else if(t.type == "fp16")
         {
             if(a.height % 64 == 0 && a.width % 64 == 0)
             {
-                return transpose_fn_fp16_64_64_8_8_false_false_v0(a, s);
+                return transpose_fn_fp16_64_64_false_false_v0(a, s);
             }
             else
             {
-                return transpose_fn_fp16_64_64_8_8_true_true_v0(a, s);
+                return transpose_fn_fp16_64_64_true_true_v0(a, s);
             }
         }
         else if(t.type == "bf16")
         {
             if(a.height % 64 == 0 && a.width % 64 == 0)
             {
-                return transpose_fn_bf16_64_64_8_8_false_false_v0(a, s);
+                return transpose_fn_bf16_64_64_false_false_v0(a, s);
             }
             else
             {
-                return transpose_fn_bf16_64_64_8_8_true_true_v0(a, s);
+                return transpose_fn_bf16_64_64_true_true_v0(a, s);
             }
         }
     }
@@ -179,33 +168,33 @@ float batched_transpose(batched_transpose_trait t,
         {
             if(a.height % 64 == 0 && a.width % 64 == 0)
             {
-                return transpose_fn_fp8_64_64_8_8_false_false_v1(a, s);
+                return transpose_fn_fp8_64_64_false_false_v1(a, s);
             }
             else
             {
-                return transpose_fn_fp8_64_64_8_8_true_true_v1(a, s);
+                return transpose_fn_fp8_64_64_true_true_v1(a, s);
             }
         }
         else if(t.type == "fp16")
         {
             if(a.height % 64 == 0 && a.width % 64 == 0)
             {
-                return transpose_fn_fp16_64_64_8_8_false_false_v1(a, s);
+                return transpose_fn_fp16_64_64_false_false_v1(a, s);
             }
             else
             {
-                return transpose_fn_fp16_64_64_8_8_true_true_v1(a, s);
+                return transpose_fn_fp16_64_64_true_true_v1(a, s);
             }
         }
         else if(t.type == "bf16")
         {
             if(a.height % 64 == 0 && a.width % 64 == 0)
             {
-                return transpose_fn_bf16_64_64_8_8_false_false_v1(a, s);
+                return transpose_fn_bf16_64_64_false_false_v1(a, s);
             }
             else
             {
-                return transpose_fn_bf16_64_64_8_8_true_true_v1(a, s);
+                return transpose_fn_bf16_64_64_true_true_v1(a, s);
             }
         }
     }
