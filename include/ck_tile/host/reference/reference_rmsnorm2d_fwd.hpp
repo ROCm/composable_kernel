@@ -71,18 +71,47 @@ void reference_rmsnorm2d_fwd(const HostTensor<XDataType>& x_m_n,
         }
 
         // Step 2: intra-warp tree reduction
+        // std::vector<ComputeDataType> warp_partial_sum(num_warps, 0);
+        // for(int w = 0; w < num_warps; ++w)
+        // {
+        //     ComputeDataType warp_sum = 0;
+        //     for(int t = 0; t < warp_size; ++t)
+        //     {
+        //         int tid = w * warp_size + t;
+        //         if(tid < num_threads)
+        //             warp_sum += thread_partial_sum[tid];
+        //     }
+        //     warp_partial_sum[w] = warp_sum;
+        // }
+
         std::vector<ComputeDataType> warp_partial_sum(num_warps, 0);
         for(int w = 0; w < num_warps; ++w)
         {
-            ComputeDataType warp_sum = 0;
+            std::vector<ComputeDataType> buffer(warp_size, 0);
             for(int t = 0; t < warp_size; ++t)
             {
                 int tid = w * warp_size + t;
                 if(tid < num_threads)
-                    warp_sum += thread_partial_sum[tid];
+                    buffer[t] = thread_partial_sum[tid];
             }
-            warp_partial_sum[w] = warp_sum;
+
+            // Tree reduction
+            int size = warp_size;
+            while(size > 1)
+            {
+                int half = size / 2;
+                for(int i = 0; i < half; ++i)
+                {
+                    buffer[i] += buffer[i + half];
+                }
+                if(size % 2 == 1) // odd case
+                    buffer[0] += buffer[size - 1];
+                size = (size + 1) / 2;
+            }
+
+            warp_partial_sum[w] = buffer[0];
         }
+
 
         // Step 3: cross-warp reduction
         // ComputeDataType total_sum = 0;
