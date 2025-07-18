@@ -130,7 +130,8 @@ auto create_args(int argc, char* argv[])
         .insert("seed", "-1", "seed to be used, -1 means random every time")
         .insert("kname", "0", "when set to 1 it will print kernel name")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
-        .insert("repeat", "20", "number of iterations to benchmark the kernel");
+        .insert("repeat", "20", "number of iterations to benchmark the kernel")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);

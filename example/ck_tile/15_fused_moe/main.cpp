@@ -130,7 +130,8 @@ auto create_args(int argc, char* argv[])
                 "normalized(slow)")
         .insert("seed", "11939", "seed used to do random")
         .insert("warmup", "5", "cold iter")
-        .insert("repeat", "20", "hot iter");
+        .insert("repeat", "20", "hot iter")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);

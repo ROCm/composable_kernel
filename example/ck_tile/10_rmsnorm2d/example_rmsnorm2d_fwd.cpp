@@ -16,7 +16,8 @@ auto create_args(int argc, char* argv[])
         .insert("prec", "fp16", "precision")
         .insert("warmup", "0", "cold iter")
         .insert("repeat", "1", "hot iter")
-        .insert("s", "0", "sensitive model mode, 0: for no specific model, 1: for T5-like model");
+        .insert("s", "0", "sensitive model mode, 0: for no specific model, 1: for T5-like model")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
