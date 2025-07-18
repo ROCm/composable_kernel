@@ -606,7 +606,7 @@ struct UniversalGemmKernel
                     else
                     {
                         return make_naive_tensor_view<address_space_enum::global>(
-                            static_cast<const BiDataType*>(bs_ptr[i]),
+                            bs_ptr[i],
                             make_tuple(splitk_batch_offset.splitted_k, kargs.N),
                             make_tuple(kargs.stride_Bs[i], 1),
                             number<GemmPipeline::GetVectorSizeB()>{},
@@ -637,12 +637,30 @@ struct UniversalGemmKernel
                     }
                     else
                     {
-                        return make_naive_tensor_view<address_space_enum::global>(
-                            static_cast<const BiDataType*>(bs_ptr[i]),
-                            make_tuple(kargs.N, splitk_batch_offset.splitted_k),
-                            make_tuple(kargs.stride_Bs[i], 1),
-                            number<GemmPipeline::GetVectorSizeB()>{},
-                            number<1>{});
+                        if constexpr(GemmPipeline::Preshuffle)
+                        {
+                            index_t kFlatK =
+                                GemmPipeline::BlockGemmShape::flatKPerWarp *
+                                (splitk_batch_offset.splitted_k /
+                                 TilePartitioner::BlockGemmShape::WarpTile::at(number<2>{}));
+                            index_t kFlatN = kargs.N * kargs.K / kFlatK;
+
+                            return make_naive_tensor_view<address_space_enum::global>(
+                                bs_ptr[i],
+                                make_tuple(kFlatN, kFlatK),
+                                make_tuple(kFlatK, 1),
+                                number<GemmPipeline::GetVectorSizeB()>{},
+                                number<1>{});
+                        }
+                        else
+                        {
+                            return make_naive_tensor_view<address_space_enum::global>(
+                                bs_ptr[i],
+                                make_tuple(kargs.N, splitk_batch_offset.splitted_k),
+                                make_tuple(kargs.stride_Bs[i], 1),
+                                number<GemmPipeline::GetVectorSizeB()>{},
+                                number<1>{});
+                        }
                     }
                 }
             },
@@ -679,7 +697,7 @@ struct UniversalGemmKernel
             {
                 return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
                     e_ptr,
-                    make_tuple(kargs.M, kargs.N),
+                    make_tuple(kargs.M, kargs.N), // arguments not matching with flatmm.
                     make_tuple(kargs.stride_E, 1),
                     number<EpiloguePipeline::GetVectorSizeC()>{},
                     number<1>{});
@@ -721,6 +739,8 @@ struct UniversalGemmKernel
                 }
             },
             number<NumATensor>{});
+
+        const auto& b_flat_pad_view = views.at(I1);
 
         const auto& bs_pad_view = generate_tuple(
             [&](auto i) {
@@ -783,7 +803,15 @@ struct UniversalGemmKernel
             }
         }();
 
-        return make_tuple(as_pad_view, bs_pad_view, ds_pad_view, e_pad_view);
+        if constexpr(GemmPipeline::Preshuffle)
+        {
+            // For flatmm, we need to use the flat B tensor view
+            return make_tuple(as_pad_view, b_flat_pad_view, ds_pad_view, e_pad_view);
+        }
+        else
+        {
+            return make_tuple(as_pad_view, bs_pad_view, ds_pad_view, e_pad_view);
+        }
     }
 
     template <typename PadView>
@@ -818,19 +846,31 @@ struct UniversalGemmKernel
         const auto& bs_block_window = generate_tuple(
             [&](auto i) {
                 using BiLayout = remove_cvref_t<std::tuple_element_t<i.value, BsLayout>>;
-                if constexpr(std::is_same_v<BiLayout, tensor_layout::gemm::ColumnMajor>)
+                if constexpr(GemmPipeline::Preshuffle)
                 {
-                    return make_tile_window(bs_pad_view[i],
-                                            make_tuple(number<TilePartitioner::NPerBlock>{},
-                                                       number<TilePartitioner::KPerBlock>{}),
-                                            {i_n, 0});
+                    return make_tile_window(
+                        bs_pad_view[i],
+                        make_tuple(number<GemmPipeline::BlockGemmShape::flatNPerWarp>{},
+                                   number<GemmPipeline::BlockGemmShape::flatKPerWarp>{}),
+                        {static_cast<int>(i_n / GemmPipeline::BlockGemmShape::WarpTile::at(I1)),
+                         0});
                 }
                 else
                 {
-                    return make_tile_window(bs_pad_view[i],
-                                            make_tuple(number<TilePartitioner::KPerBlock>{},
-                                                       number<TilePartitioner::NPerBlock>{}),
-                                            {0, i_n});
+                    if constexpr(std::is_same_v<BiLayout, tensor_layout::gemm::ColumnMajor>)
+                    {
+                        return make_tile_window(bs_pad_view[i],
+                                                make_tuple(number<TilePartitioner::NPerBlock>{},
+                                                           number<TilePartitioner::KPerBlock>{}),
+                                                {i_n, 0});
+                    }
+                    else
+                    {
+                        return make_tile_window(bs_pad_view[i],
+                                                make_tuple(number<TilePartitioner::KPerBlock>{},
+                                                           number<TilePartitioner::NPerBlock>{}),
+                                                {0, i_n});
+                    }
                 }
             },
             number<NumBTensor>{});
