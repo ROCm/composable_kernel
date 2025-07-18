@@ -134,7 +134,9 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple{64, 8, 1},
         std::tuple{63, 8, 1},
         std::tuple{63, 2, 1},
-        std::tuple{127, 30, 1}
+        std::tuple{127, 30, 1},
+        std::tuple{16384, 16384, 0},
+        std::tuple{16384, 16384, 1}
     )
 );
 
@@ -149,7 +151,9 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple{64, 8, 1},
         std::tuple{63, 8, 1},
         std::tuple{63, 2, 1},
-        std::tuple{127, 30, 1}
+        std::tuple{127, 30, 1},
+        std::tuple{16384, 16384, 0},
+        std::tuple{16384, 16384, 1}
     )
 );
 
@@ -164,6 +168,8 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple{64, 8, 1},
         std::tuple{63, 8, 1},
         std::tuple{63, 4, 1},
-        std::tuple{127, 20, 1}
+        std::tuple{127, 20, 1},
+        std::tuple{16384, 16384, 0},
+        std::tuple{16384, 16384, 1}
     )
 );
