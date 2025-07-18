@@ -45,13 +45,14 @@ class TestCkTileMemoryCopy : public ::testing::TestWithParam<std::tuple<int, int
         std::cout << "input: " << x_host.mDesc << std::endl;
         std::cout << "output: " << y_host_dev.mDesc << std::endl;
 
-        ck_tile::half_t value = 1;
+        ck_tile::index_t value = 1;
         for(int i = 0; i < m; i++)
         {
             value = 1;
             for(int j = 0; j < n; j++)
             {
-                x_host(i, j) = value++;
+                value = (value + 1) % 127;
+                x_host(i, j) = static_cast<DataType>(value);
             }
         }
 
