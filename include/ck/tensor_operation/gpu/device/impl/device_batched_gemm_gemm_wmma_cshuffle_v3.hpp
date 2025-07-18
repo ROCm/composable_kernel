@@ -242,11 +242,6 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
     static constexpr auto LWaves = LPerBlock / (LRepeat * LPerWmma);
     static constexpr auto NWaves = NPerBlock / (NRepeat * NPerWmma);
 
-    // TODO: Our new pipelines for gemm0 always use LDS, might still be optional for gemm1?
-    static constexpr auto AEnableLds  = true;
-    static constexpr auto B0EnableLds = true;
-    static constexpr auto B1EnableLds = true;
-
     // TODO: Now that we are no longer using NumDim or TensorSpec, we can probably use a simpler
     // Transform operator or just not use one at all.
     using Transform = TransformBatchedContractionContractionToBatchedGemmGemm_Wmma<
@@ -262,74 +257,27 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
     MakeAGridDescriptor(const std::array<index_t, 3>& a_gs_ms_ks_lengths_vec,
                         const std::array<index_t, 3>& a_gs_ms_ks_strides_vec)
     {
-        if constexpr(AEnableLds)
-        {
-            return Transform::MakeAGridDescriptor_AK0_M_AK1(
-                Transform::MakeAGridDescriptor_M_K(a_gs_ms_ks_lengths_vec, a_gs_ms_ks_strides_vec),
-                Number<AK1>{});
-        }
-        else
-        {
-            return Transform::
-                MakeAGridDescriptor_AKWmma_MBlockRepeat_MWaves_AK0PerWmma_AKRow_MPerWmma_AK1(
-                    Transform::MakeAGridDescriptor_M_K(a_gs_ms_ks_lengths_vec,
-                                                       a_gs_ms_ks_strides_vec),
-                    Number<WmmaK>{},
-                    Number<MRepeat>{},
-                    Number<MWaves>{},
-                    Number<MPerWmma>{},
-                    Number<AK1>{});
-        }
+        return Transform::MakeAGridDescriptor_AK0_M_AK1(
+            Transform::MakeAGridDescriptor_M_K(a_gs_ms_ks_lengths_vec, a_gs_ms_ks_strides_vec),
+            Number<AK1>{});
     }
 
     __host__ __device__ static auto
     MakeB0GridDescriptor(const std::array<index_t, 3>& b0_gs_ls_ks_lengths_vec,
                          const std::array<index_t, 3>& b0_gs_ls_ks_strides_vec)
     {
-        if constexpr(B0EnableLds)
-        {
-            return Transform::MakeB0GridDescriptor_BK0_N_BK1(
-                Transform::MakeB0GridDescriptor_N_K(b0_gs_ls_ks_lengths_vec,
-                                                    b0_gs_ls_ks_strides_vec),
-                Number<BK1>{});
-        }
-        else
-        {
-            return Transform::
-                MakeB0GridDescriptor_BKWmma_LBlockRepeat_LWaves_BK0PerWmma_BKRow_LPerWmma_BK1(
-                    Transform::MakeB0GridDescriptor_N_K(b0_gs_ls_ks_lengths_vec,
-                                                        b0_gs_ls_ks_strides_vec),
-                    Number<WmmaK>{},
-                    Number<LRepeat>{},
-                    Number<LWaves>{},
-                    Number<LPerWmma>{},
-                    Number<BK1>{});
-        }
+        return Transform::MakeB0GridDescriptor_BK0_N_BK1(
+            Transform::MakeB0GridDescriptor_N_K(b0_gs_ls_ks_lengths_vec, b0_gs_ls_ks_strides_vec),
+            Number<BK1>{});
     }
 
     __host__ __device__ static auto
     MakeB1GridDescriptor(const std::array<index_t, 3>& b1_gs_ns_ls_lengths_vec,
                          const std::array<index_t, 3>& b1_gs_ns_ls_strides_vec)
     {
-        if constexpr(B1EnableLds)
-        {
-            return Transform::MakeB1GridDescriptor_BK0_N_BK1(
-                Transform::MakeB1GridDescriptor_N_K(b1_gs_ns_ls_lengths_vec,
-                                                    b1_gs_ns_ls_strides_vec),
-                Number<L1>{});
-        }
-        else
-        {
-            return Transform::
-                MakeB1GridDescriptor_BLWmma_NBlockRepeat_NWaves__BL0PerWmma_BLRow_NPerWmma_BL1(
-                    Transform::MakeB1GridDescriptor_N_K(b1_gs_ns_ls_lengths_vec,
-                                                        b1_gs_ns_ls_strides_vec),
-                    Number<WmmaK>{},
-                    Number<NRepeat>{},
-                    Number<NWaves>{},
-                    Number<NPerWmma>{},
-                    Number<L1>{});
-        }
+        return Transform::MakeB1GridDescriptor_BK0_N_BK1(
+            Transform::MakeB1GridDescriptor_N_K(b1_gs_ns_ls_lengths_vec, b1_gs_ns_ls_strides_vec),
+            Number<L1>{});
     }
 
     using AGridDesc        = decltype(MakeAGridDescriptor({}, {}));
@@ -427,7 +375,6 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         ABlockTransferSrcScalarPerVector,
         ABlockTransferDstScalarPerVector_K1,
         true,
-        AEnableLds,
         ABlockLdsAddExtraM,
         B0BlockTransferThreadClusterLengths_K0_L_K1,
         B0BlockTransferThreadClusterArrangeOrder,
@@ -436,7 +383,6 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         B0BlockTransferSrcScalarPerVector,
         B0BlockTransferDstScalarPerVector_K1,
         true,
-        B0EnableLds,
         B0BlockLdsAddExtraL,
         B1BlockTransferThreadClusterLengths_L0_N_L1,
         B1BlockTransferThreadClusterArrangeOrder,
@@ -445,7 +391,6 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         B1BlockTransferSrcScalarPerVector,
         B1BlockTransferDstScalarPerVector_L1,
         false,
-        B1EnableLds,
         B1BlockLdsAddExtraN,
         CShuffleMRepeatPerShuffle,
         CShuffleNRepeatPerShuffle,
@@ -800,12 +745,6 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
             << L1 << ", "
             << getGemmSpecializationString(GemmSpec)
             << ">"
-            << " AEnableLds: "
-            << AEnableLds << ", "
-            << "B0EnableLds: "
-            << B0EnableLds << ", "
-            << "B1EnableLds: "
-            << B1EnableLds << ", "
             << "BlkGemmPipelineScheduler: "
             << BlkGemmPipelineSchedulerToString[BlkGemmPipeSched] << ", "
             << "BlkGemmPipelineVersion: "
