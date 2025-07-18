@@ -91,7 +91,7 @@ extern unsigned char bwd_hd192_bf16_a32_rtna_psskddv_group[];
 extern unsigned char bwd_hd192_bf16_a32_rtne_psskddv_group[];
 extern unsigned char bwd_hd192_bf16_a32_rtz_psskddv_group[];
 extern unsigned char bwd_hd192_bf16_causal_a32_rtna_psskddv_group[];
-extern unsigned char bwd_hd192_bf16_causal_a32_rtna_psskddv_group[];
+extern unsigned char bwd_hd192_bf16_causal_a32_rtne_psskddv_group[];
 extern unsigned char bwd_hd192_bf16_causal_a32_rtz_psskddv_group[];
 extern unsigned char bwd_hd192_fp16_a32_psskddv_group[];
 extern unsigned char bwd_hd192_fp16_causal_a32_psskddv_group[];

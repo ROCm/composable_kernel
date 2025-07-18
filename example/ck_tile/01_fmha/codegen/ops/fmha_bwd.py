@@ -1204,7 +1204,6 @@ float fmha_bwd_v3_group_(const ck_tile::stream_config& s, fmha_bwd_args a)
         std::cout << ", " << fmha_bwd_dot_do_o_get_name_<dot_do_o_trait_>() << ", " << FmhaBwdV3Name<dq_dk_dv_v3_traits_>::bwd_v3_name << ", " << fmha_bwd_convert_dq_get_name_<convert_dq_trait_>() << std::flush;
     
     fmha_bwd_v3_group_args args;
-    auto seqstart_q = reinterpret_cast<const int32_t*>(a.seqstart_q_ptr);
     auto seqstart_k = reinterpret_cast<const int32_t*>(a.seqstart_k_ptr);
     args.ptr_dq   = a.dq_acc_ptr;
     args.ptr_dk   = a.dk_ptr;
@@ -1219,7 +1218,7 @@ float fmha_bwd_v3_group_(const ck_tile::stream_config& s, fmha_bwd_args a)
     args.scalar   = a.scale;
     args.log2e    = ck_tile::log2e_v<float>;
     args.ratio    = a.nhead_q / a.nhead_k;
-    args.seqlen_q = seqstart_q[a.batch];
+    args.Hs_lsed = a.nhead_stride_lsed * 4;
     args.seqlen_k = seqstart_k[a.batch];
     args.Hs_q     = a.nhead_stride_q * 2;
     args.Seqs_q   = a.stride_q * 2;
@@ -1348,7 +1347,7 @@ float fmha_bwd<2>(fmha_bwd_traits t, fmha_bwd_args a, const ck_tile::stream_conf
                             return r;
                         }}
                     }}
-                    else if((t.is_group_mode == true) && (t.is_v3_atomic_fp32 == true) && (a.nhead_stride_dq_acc >= a.stride_dq_acc /*dq_acc only support BHSD*/)){{/group mode
+                    else if((t.is_group_mode == true) && (t.is_v3_atomic_fp32 == true) && (a.nhead_stride_dq_acc >= a.stride_dq_acc /*dq_acc only support BHSD*/)){{//group mode
                         if(t.mask_type == mask_enum::no_mask){{
                             using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<256, FmhaBwdFp16, true/*group*/, true, true>;
                             using dq_dk_dv_v3_traits_ = fmha_bwd_dq_dk_dv_v3_traits_<192, FmhaBwdFp16, false/*causal*/, true/*Atimoc32*/, 0, true/*PadS*/, true/*PadD*/, true/*group*/>;
