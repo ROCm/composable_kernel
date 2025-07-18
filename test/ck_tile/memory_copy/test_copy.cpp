@@ -21,7 +21,7 @@ struct MemoryCopyParam
 };
 
 template <typename DataType>
-class TestCkTileMemoryCopy : public ::testing::Test
+class TestCkTileMemoryCopy : public ::testing::TestWithParam<std::tuple<int, int, int>>
 {
     protected:
     void Run(const MemoryCopyParam& memcpy_params)
@@ -94,6 +94,9 @@ class TestCkTileMemoryCopy : public ::testing::Test
 
         EXPECT_TRUE(pass);
     }
+
+    std::vector<int> Ms = {63, 64, 127, 8192};
+    std::vector<int> Ns = {2, 8, 30, 8192};
 };
 
 class TestCkTileMemoryCopyHalf : public TestCkTileMemoryCopy<ck_tile::half_t>
@@ -104,26 +107,46 @@ class TestCkTileMemoryCopyBFloat : public TestCkTileMemoryCopy<ck_tile::bf16_t>
 {
 };
 
-TEST_F(TestCkTileMemoryCopyHalf, TestCorrectness)
+class TestCkTileMemoryCopyFP8 : public TestCkTileMemoryCopy<ck_tile::fp8_t>
 {
-    this->Run({64, 8, 0});
-    this->Run({63, 8, 0});
-    this->Run({63, 2, 0});
-    this->Run({127, 30, 0});
-    this->Run({64, 8, 1});
-    this->Run({63, 8, 1});
-    this->Run({63, 2, 1});
-    this->Run({127, 30, 1});
+};
+
+TEST_P(TestCkTileMemoryCopyHalf, TestCorrectness) {
+    auto [M, N, warp_id] = GetParam();
+    this->Run({M, N, warp_id});
 }
 
-TEST_F(TestCkTileMemoryCopyBFloat, TestCorrectness)
-{
-    this->Run({64, 8, 0});
-    this->Run({63, 8, 0});
-    this->Run({63, 2, 0});
-    this->Run({127, 30, 0});
-    this->Run({64, 8, 1});
-    this->Run({63, 8, 1});
-    this->Run({63, 2, 1});
-    this->Run({127, 30, 1});
+TEST_P(TestCkTileMemoryCopyBFloat, TestCorrectness) {
+    auto [M, N, warp_id] = GetParam();
+    this->Run({M, N, warp_id});
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    TestCkTileMemCopySuite,
+    TestCkTileMemoryCopyHalf,
+    ::testing::Values(
+        std::tuple{64, 8, 0},
+        std::tuple{63, 8, 0},
+        std::tuple{63, 2, 0},
+        std::tuple{127, 30, 0},
+        std::tuple{64, 8, 1},
+        std::tuple{63, 8, 1},
+        std::tuple{63, 2, 1},
+        std::tuple{127, 30, 1}
+    )
+);
+
+INSTANTIATE_TEST_SUITE_P(
+    TestCkTileMemCopySuite,
+    TestCkTileMemoryCopyBFloat,
+    ::testing::Values(
+        std::tuple{64, 8, 0},
+        std::tuple{63, 8, 0},
+        std::tuple{63, 2, 0},
+        std::tuple{127, 30, 0},
+        std::tuple{64, 8, 1},
+        std::tuple{63, 8, 1},
+        std::tuple{63, 2, 1},
+        std::tuple{127, 30, 1}
+    )
+);
