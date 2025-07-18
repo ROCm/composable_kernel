@@ -21,15 +21,27 @@ struct GemmPipelineAgBgCrCompV4DefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
         // using AccDataType     = float;
-        using BlockWarps      = typename Problem::BlockGemmShape::BlockWarps;
-        using WarpTile        = typename Problem::BlockGemmShape::WarpTile;
+        using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
+        using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
+
+        constexpr bool single_load_tr_length =
+            (DS_READ_TR_SIZE() / sizeof(typename Problem::ComputeDataType)) ==
+            (WarpTile::at(I1) * WarpTile::at(I2) / get_warp_size());
+        constexpr auto wg_attr_num_access =
+            ((is_a_load_tr<Problem> || is_b_load_tr<Problem>)&&!single_load_tr_length)
+                ? WGAttrNumAccessEnum::Double
+                : WGAttrNumAccessEnum::Single;
+
         using WarpGemm        = WarpGemmMfmaDispatcher<typename Problem::ADataType,
                                                 typename Problem::BDataType,
                                                 typename Problem::CDataType, // AccDataType
                                                 WarpTile::at(I0),
                                                 WarpTile::at(I1),
                                                 WarpTile::at(I2),
-                                                Problem::TransposeC>;
+                                                Problem::TransposeC,
+                                                false,
+                                                false,
+                                                wg_attr_num_access>;
         using BlockGemmPolicy = BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::ADataType,
                                                                     typename Problem::BDataType,
                                                                     typename Problem::CDataType,
