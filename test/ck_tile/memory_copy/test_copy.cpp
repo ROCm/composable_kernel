@@ -63,7 +63,7 @@ class TestCkTileMemoryCopy : public ::testing::TestWithParam<std::tuple<int, int
         using BlockWaves         = ck_tile::sequence<2, 1>;
         using BlockTile          = ck_tile::sequence<64, 8>;
         using WaveTile           = ck_tile::sequence<64, 8>;
-        using Vector             = ck_tile::sequence<1, 2>;
+        using Vector             = ck_tile::sequence<1, 4 / sizeof(DataType)>;
         constexpr bool AsyncCopy = true;
 
         ck_tile::index_t kGridSize =
@@ -104,12 +104,21 @@ class TestCkTileMemoryCopyBFloat : public TestCkTileMemoryCopy<ck_tile::bf16_t>
 {
 };
 
+class TestCkTileMemoryCopyFP8 : public TestCkTileMemoryCopy<ck_tile::fp8_t>
+{
+};
+
 TEST_P(TestCkTileMemoryCopyHalf, TestCorrectness) {
     auto [M, N, warp_id] = GetParam();
     this->Run({M, N, warp_id});
 }
 
 TEST_P(TestCkTileMemoryCopyBFloat, TestCorrectness) {
+    auto [M, N, warp_id] = GetParam();
+    this->Run({M, N, warp_id});
+}
+
+TEST_P(TestCkTileMemoryCopyFP8, TestCorrectness) {
     auto [M, N, warp_id] = GetParam();
     this->Run({M, N, warp_id});
 }
@@ -140,6 +149,21 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple{64, 8, 1},
         std::tuple{63, 8, 1},
         std::tuple{63, 2, 1},
+        std::tuple{127, 30, 1}
+    )
+);
+
+INSTANTIATE_TEST_SUITE_P(
+    TestCkTileMemCopySuite,
+    TestCkTileMemoryCopyFP8,
+    ::testing::Values(
+        std::tuple{64, 8, 0},
+        std::tuple{63, 8, 0},
+        std::tuple{63, 4, 0},
+        std::tuple{127, 30, 0},
+        std::tuple{64, 8, 1},
+        std::tuple{63, 8, 1},
+        std::tuple{63, 4, 1},
         std::tuple{127, 30, 1}
     )
 );
