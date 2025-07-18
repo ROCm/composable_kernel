@@ -1218,7 +1218,7 @@ float fmha_bwd_v3_group_(const ck_tile::stream_config& s, fmha_bwd_args a)
     args.scalar   = a.scale;
     args.log2e    = ck_tile::log2e_v<float>;
     args.ratio    = a.nhead_q / a.nhead_k;
-    args.Hs_lsed = a.nhead_stride_lsed * 4;
+    args.Hs_lsed  = a.nhead_stride_lsed * 4;
     args.seqlen_k = seqstart_k[a.batch];
     args.Hs_q     = a.nhead_stride_q * 2;
     args.Seqs_q   = a.stride_q * 2;
@@ -1279,7 +1279,7 @@ float fmha_bwd_v3_swa_genl_(const ck_tile::stream_config& s, fmha_bwd_args a)
     args.seqlen_q = a.seqlen_q;
     args.seqlen_k = a.seqlen_k;
     args.head_dim = a.hdim_q;
-    args.nhead_q = a.nhead_q;
+    args.nhead_q  = a.nhead_q;
     args.Hs_q     = a.nhead_stride_q * 2;
     args.BAs_q    = a.batch_stride_q * 2;
     args.Seqs_q   = a.stride_q * 2;
