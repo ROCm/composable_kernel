@@ -104,10 +104,6 @@ class TestCkTileMemoryCopyBFloat : public TestCkTileMemoryCopy<ck_tile::bf16_t>
 {
 };
 
-class TestCkTileMemoryCopyFP8 : public TestCkTileMemoryCopy<ck_tile::fp8_t>
-{
-};
-
 TEST_P(TestCkTileMemoryCopyHalf, TestCorrectness) {
     auto [M, N, warp_id] = GetParam();
     this->Run({M, N, warp_id});
