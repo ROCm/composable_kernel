@@ -24,13 +24,13 @@ struct BlockGemmQuantBase
         float scale_reg_f = 0.f;
         if constexpr(std::is_same_v<AQDataType, ck_tile::fp8_t>)
         {
-            scale_reg_f = ck_tile::element_wise::amd_assembly_fp8_to_fp32(
-                static_cast<uint32_t>(scale));
+            scale_reg_f =
+                ck_tile::element_wise::amd_assembly_fp8_to_fp32(static_cast<uint32_t>(scale));
         }
         else if constexpr(std::is_same_v<AQDataType, ck_tile::bf8_t>)
         {
-            scale_reg_f = ck_tile::element_wise::amd_assembly_bf8_to_fp32(
-                static_cast<uint32_t>(scale));
+            scale_reg_f =
+                ck_tile::element_wise::amd_assembly_bf8_to_fp32(static_cast<uint32_t>(scale));
         }
         else if constexpr(std::is_same_v<AQDataType, float>)
         {
@@ -59,9 +59,8 @@ struct BlockGemmQuantBase
                            in_dstr_tensors.get_thread_buffer().template get_as<pk_int4x4_t>()[i]);
         });
     }
-
 };
-    
+
 // A is block window on shared memory
 // AQ (scale tensor) is block distributed tensor.
 // Consecutive kQuantGroupSize elements of A are quantized with a separate scale.

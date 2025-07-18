@@ -7,41 +7,40 @@
 
 namespace ck_tile {
 
-    template <typename Problem, typename DataType, index_t YPerTile, index_t XPerTile>
-    CK_TILE_HOST_DEVICE static constexpr auto GetAQGlobalVectorLoadSize()
+template <typename Problem, typename DataType, index_t YPerTile, index_t XPerTile>
+CK_TILE_HOST_DEVICE static constexpr auto GetAQGlobalVectorLoadSize()
+{
+    using I1                 = number<1>;
+    constexpr index_t NWarps = Problem::BlockGemmShape::BlockWarps::at(I1{});
+
+    constexpr index_t BlockSize = Problem::kBlockSize;
+
+    // Data is replicated across warps along NWarps, so we divide BlockSize by NWarps
+    constexpr index_t elements_per_thread = (YPerTile * XPerTile) / (BlockSize / NWarps);
+    constexpr index_t PackedSize = ck_tile::numeric_traits<remove_cvref_t<DataType>>::PackedSize;
+
+    // Define vector load candidates in descending order of priority
+    constexpr std::array<index_t, 5> candidates{
+        PackedSize * 32 / sizeof(DataType),
+        PackedSize * 16 / sizeof(DataType),
+        PackedSize * 8 / sizeof(DataType),
+        PackedSize * 4 / sizeof(DataType),
+        PackedSize * 2 / sizeof(DataType),
+    };
+
+    for(const auto vec_size : candidates)
     {
-        using I1                 = number<1>;
-        constexpr index_t NWarps = Problem::BlockGemmShape::BlockWarps::at(I1{});
-
-        constexpr index_t BlockSize = Problem::kBlockSize;
-
-        // Data is replicated across warps along NWarps, so we divide BlockSize by NWarps
-        constexpr index_t elements_per_thread = (YPerTile * XPerTile) / (BlockSize / NWarps);
-        constexpr index_t PackedSize = ck_tile::numeric_traits<remove_cvref_t<DataType>>::PackedSize;
-
-        // Define vector load candidates in descending order of priority
-        constexpr std::array<index_t, 5> candidates{
-            PackedSize * 32 / sizeof(DataType),
-            PackedSize * 16 / sizeof(DataType),
-            PackedSize * 8 / sizeof(DataType),
-            PackedSize * 4 / sizeof(DataType),
-            PackedSize * 2 / sizeof(DataType),
-        };
-        
-        for(const auto vec_size : candidates)
+        if(vec_size <= 0 || XPerTile % vec_size != 0 || elements_per_thread % vec_size != 0)
+            continue;
+        bool is_valid = (vec_size > 0) && (XPerTile % vec_size == 0) &&
+                        (elements_per_thread % vec_size == 0) && vec_size != candidates[4];
+        if(is_valid)
         {
-            if (vec_size <= 0 || XPerTile % vec_size != 0 || elements_per_thread % vec_size != 0) 
-                continue;
-            bool is_valid =
-                (vec_size > 0) && (XPerTile % vec_size == 0) && (elements_per_thread % vec_size == 0) &&
-                vec_size != candidates[4];
-            if(is_valid)
-            {
-                return vec_size;
-            }
+            return vec_size;
         }
-        return PackedSize; // Absolute fallback
     }
+    return PackedSize; // Absolute fallback
+}
 
 // AQ holds groupquant scale data for A. Data is loaded from DRAM and partitioned across
 // threads. Post mfma scales are shuffled across threads in the warp and applied to
