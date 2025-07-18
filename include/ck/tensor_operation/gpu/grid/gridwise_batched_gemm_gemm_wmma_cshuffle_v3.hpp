@@ -84,8 +84,6 @@ template <typename ADataType,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           bool PadN,
-          index_t NumGemmKPrefetchStage =
-              1, // TODO: This should take specific pipeline into account.
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1>
 struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
@@ -833,7 +831,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
 /* index_t DstScalarStrideInVector,               */     1,
 /* bool ThreadTransferSrcResetCoordinateAfterRun, */     AThreadTransferSrcResetCoordinateAfterRun,
 /* bool ThreadTransferDstResetCoordinateAfterRun, */     true,
-                                                         NumGemmKPrefetchStage>( // TODO: BlockwiseGemmPipe::GlobalBufferNum
+                                                         BlockwiseGemmPipe::GlobalBufferNum>( 
                 a_grid_desc,
                 make_multi_index(0, m_block_data_idx_on_grid, 0),
                 a_element_op,
@@ -912,7 +910,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                                                 1,
                                                 B0ThreadTransferSrcResetCoordinateAfterRun,
                                                 true,
-                                                NumGemmKPrefetchStage>( // TODO: BlockwiseGemmPipe::GlobalBufferNum
+                                                BlockwiseGemmPipe::GlobalBufferNum>(
                 b0_grid_desc,
                 make_multi_index(0, 0, 0),
                 b0_element_op,
@@ -1124,7 +1122,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
 /* index_t DstScalarStrideInVector,               */ 1,
 /* bool ThreadTransferSrcResetCoordinateAfterRun, */ B1ThreadTransferSrcResetCoordinateAfterRun,
 /* bool ThreadTransferDstResetCoordinateAfterRun, */ true, // DstResetCoord
-                                                     NumGemmKPrefetchStage>( // TODO: We are using the same num prefetch stages for gemm 1!?
+                                                     1>( // Used to be NumGemmKPrefetchStage, never tested / used for != 1
                 b1_grid_desc,
                 make_multi_index(0, n_block_data_idx_on_grid, 0),
                 b1_element_op,

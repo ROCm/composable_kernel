@@ -56,7 +56,6 @@ using CElementOp    = PassThrough;
 
 static constexpr auto PipeSched   = ck::BlockGemmPipelineScheduler::Interwave;
 static constexpr auto PipelineVer = ck::BlockGemmPipelineVersion::v1;
-static constexpr int NumPrefetch  = 1;
 static constexpr auto GemmSpec    = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
 
 // clang-format off
@@ -73,7 +72,7 @@ using DeviceMHAFactory =
             Row, Col, Col, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, NumPrefetch,
+            GemmSpec, 1,
             32,
             //      Gemm 0
             16, 64, 64, 64, 64, 8,  8,
@@ -101,7 +100,7 @@ using DeviceMHAFactory =
             Row, Col, Row, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, NumPrefetch,
+            GemmSpec, 1,
             32,
             //      Gemm 0
             16, 128, 64, 64, 64, 8,  8,
@@ -123,7 +122,7 @@ using DeviceMHAFactory =
             Row, Col, Row, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, NumPrefetch,
+            GemmSpec, 1,
             32,
             //      Gemm 0
             16, 64, 64, 64, 64, 8,  8,
@@ -147,7 +146,7 @@ using DeviceMHAFactory =
             Row, Col, Row, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, NumPrefetch,
+            GemmSpec, 1,
             64,
             //      Gemm 0
             32, 128, 64, 64, 64, 8, 8,
@@ -169,7 +168,7 @@ using DeviceMHAFactory =
             Row, Col, Row, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, NumPrefetch,
+            GemmSpec, 1,
             64,
             //      Gemm 0
             32, 64, 64, 64, 64, 8, 8,
@@ -193,7 +192,7 @@ using DeviceMHAFactory =
             Row, Col, Row, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, NumPrefetch,
+            GemmSpec, 1,
             128,
             //      Gemm 0
             64, 128, 64, 64, 64, 8, 8,
@@ -215,7 +214,7 @@ using DeviceMHAFactory =
             Row, Col, Row, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, NumPrefetch,
+            GemmSpec, 1,
             128,
             //      Gemm 0
             64, 64, 64, 64, 64, 8, 8,
@@ -239,7 +238,7 @@ using DeviceMHAFactory =
             Row, Col, Row, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, NumPrefetch,
+            GemmSpec, 1,
             256,
             //      Gemm 0
             128, 128, 64, 64, 64, 8, 8,   
@@ -261,7 +260,7 @@ using DeviceMHAFactory =
             Row, Col, Row, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, NumPrefetch,
+            GemmSpec, 1,
             256,
             //      Gemm 0
             128, 128, 64, 64, 64, 8, 8,   

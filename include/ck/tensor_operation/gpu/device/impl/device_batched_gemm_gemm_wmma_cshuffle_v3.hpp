@@ -166,7 +166,7 @@ template <typename ALayout,
           typename B1ElementwiseOperation,
           typename CElementwiseOperation,
           GemmSpecialization GemmSpec,
-          ck::index_t NumPrefetch,
+          ck::index_t NumPrefetch, // Not used, determined by pipeline version.
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t LPerBlock,     // Gemm0NPerBlock
@@ -234,26 +234,18 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
 
     static constexpr auto WmmaK = 16;
 
-    // To match XDL implementatrion NPerWmma (A.k.a Gemm1 NPerWmma ak.a. Gemm1 NRepeat) is set equal
-    // to LPerWmma (A.k.a Gemm0 NPerWmma ak.a. Gemm0 NRepeat).
+    // To match XDL implementatrion NPerWmma (A.k.a Gemm1 NPerWmma) is set equal
+    // to LPerWmma (A.k.a Gemm0 NPerWmma).
     static constexpr index_t NPerWmma = LPerWmma;
 
     static constexpr auto MWaves = MPerBlock / (MRepeat * MPerWmma);
     static constexpr auto LWaves = LPerBlock / (LRepeat * LPerWmma);
     static constexpr auto NWaves = NPerBlock / (NRepeat * NPerWmma);
 
-    static constexpr auto AEnableLds_auto  = LWaves == 1 ? false : true;
-    static constexpr auto B0EnableLds_auto = MWaves == 1 ? false : true;
-    static constexpr auto B1EnableLds_auto = MWaves == 1 ? false : true;
-
-    static constexpr auto AEnableLds_manu =
-        true; // TODO: forced enabled to be able to use new wmma pipelines.
-    static constexpr auto B0EnableLds_manu = true;
-    static constexpr auto B1EnableLds_manu = true;
-
-    static constexpr auto AEnableLds  = AEnableLds_auto || AEnableLds_manu || (NumPrefetch > 1);
-    static constexpr auto B0EnableLds = B0EnableLds_auto || B0EnableLds_manu || (NumPrefetch > 1);
-    static constexpr auto B1EnableLds = B1EnableLds_auto || B1EnableLds_manu || (NumPrefetch > 1);
+    // TODO: Our new pipelines for gemm0 always use LDS, might still be optional for gemm1?
+    static constexpr auto AEnableLds  = true;
+    static constexpr auto B0EnableLds = true;
+    static constexpr auto B1EnableLds = true;
 
     // TODO: Now that we are no longer using NumDim or TensorSpec, we can probably use a simpler
     // Transform operator or just not use one at all.
@@ -460,7 +452,6 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         Transform::matrix_padder.PadN,
-        NumPrefetch,
         BlkGemmPipeSched,
         BlkGemmPipelineVer>;
 
@@ -538,6 +529,12 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         if constexpr(!(is_same_v<CLayout, tensor_layout::gemm::RowMajor>))
         {
             printf("DeviceOp: C layout must be Row");
+            return false;
+        }
+
+        if constexpr(NumPrefetch != 1)
+        {
+            printf("NumPrefetch is not used!");
             return false;
         }
 
@@ -809,9 +806,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
             << B0EnableLds << ", "
             << "B1EnableLds: "
             << B1EnableLds << ", "
-            << "NumPrefetch: "
-            << NumPrefetch << ", "
-             << "BlkGemmPipelineScheduler: "
+            << "BlkGemmPipelineScheduler: "
             << BlkGemmPipelineSchedulerToString[BlkGemmPipeSched] << ", "
             << "BlkGemmPipelineVersion: "
             << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
