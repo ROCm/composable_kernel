@@ -94,9 +94,6 @@ class TestCkTileMemoryCopy : public ::testing::TestWithParam<std::tuple<int, int
 
         EXPECT_TRUE(pass);
     }
-
-    std::vector<int> Ms = {63, 64, 127, 8192};
-    std::vector<int> Ns = {2, 8, 30, 8192};
 };
 
 class TestCkTileMemoryCopyHalf : public TestCkTileMemoryCopy<ck_tile::half_t>
