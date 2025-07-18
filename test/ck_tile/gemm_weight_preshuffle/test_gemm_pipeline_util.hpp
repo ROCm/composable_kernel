@@ -86,8 +86,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
     // TODO: expose tile size through test t-param ?
 
     template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
-    void invoke_gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args,
-                     const ck_tile::stream_config& s)
+    void invoke_gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     {
         // TODO: This should be parameterized in tests
         // constexpr ck_tile::index_t M_Tile = 128;
@@ -346,17 +345,16 @@ class TestCkTileGemmPipeline : public ::testing::Test
         c_m_n_dev_buf.SetZero();
         c_m_n_dev_result.SetZero();
 
-        ck_tile::GemmHostArgs</*NumDTensor = 0*/> args;
-        args.a_ptr    = a_m_k_dev_buf.GetDeviceBuffer();
-        args.b_ptr    = b_k_n_dev_buf.GetDeviceBuffer();
-        args.e_ptr    = c_m_n_dev_buf.GetDeviceBuffer();
-        args.k_batch  = kbatch;
-        args.M        = M;
-        args.N        = N;
-        args.K        = K;
-        args.stride_A = stride_A;
-        args.stride_B = stride_B;
-        args.stride_E = stride_C;
+        ck_tile::GemmHostArgs args{a_m_k_dev_buf.GetDeviceBuffer(),
+                                   b_k_n_dev_buf.GetDeviceBuffer(),
+                                   c_m_n_dev_buf.GetDeviceBuffer(),
+                                   kbatch,
+                                   M,
+                                   N,
+                                   K,
+                                   stride_A,
+                                   stride_B,
+                                   stride_C}
 
         invoke_gemm<PadM, PadN, PadK, Preshuffle>(args, ck_tile::stream_config{nullptr, false});
 
