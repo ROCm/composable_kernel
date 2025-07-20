@@ -72,16 +72,10 @@ struct TileDistributionEncodingPatternAQ : public TileDistributionEncodingPatter
     // # of elements per thread
     static constexpr index_t X = XPerTile;
 
-    // Number of iters per warp
-    // MIters are indexed using (Y0, Y1)
-    static constexpr index_t Y1 = warp_size / WarpGemm::kM;
-    static constexpr index_t Y0 = MIterPerWarp / Y1;
-
-    // # of warps in Y dim
+    static constexpr index_t Y0 = 1;
+    static constexpr index_t Y1 = MIterPerWarp ? MIterPerWarp : 1;
     static constexpr index_t Y2 = MWarps;
-
-    // # of rows per iter per warp
-    static constexpr index_t Y3 = YPerTile / (Y1 * Y0 * Y2);
+    static constexpr index_t Y3 = WarpGemm::kM;
     static_assert(Y3 >= WarpGemm::kM, "Scales for all rows must be available within the warp.");
     static_assert(Y0 * Y1 * Y2 * Y3 == YPerTile,
                   "Y0, Y1, Y2, Y3 must cover the blocktile along Y.");
@@ -92,9 +86,9 @@ struct TileDistributionEncodingPatternAQ : public TileDistributionEncodingPatter
             tile_distribution_encoding<sequence<NWarps>,
                                        tuple<sequence<Y0, Y1, Y2, Y3>, sequence<X>>,
                                        tuple<sequence<1, 0>, sequence<1, 1>>,
-                                       tuple<sequence<2, 0>, sequence<1, 3>>,
+                                       tuple<sequence<2, 0>, sequence<0, 3>>,
                                        sequence<1, 2>,
-                                       sequence<0, 0>>{});
+                                       sequence<1, 0>>{});
     }
 };
 

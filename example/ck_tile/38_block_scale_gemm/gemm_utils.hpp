@@ -136,12 +136,12 @@ template <typename PrecType>
 struct GemmConfigComputeV3 : public GemmConfigBase
 {
     // Compute V3 only support Intrawave scheduler
-    static constexpr ck_tile::index_t M_Tile = 256;
-    static constexpr ck_tile::index_t N_Tile = 256;
-    static constexpr ck_tile::index_t K_Tile = 64 / sizeof(PrecType);
+    static constexpr ck_tile::index_t M_Tile = 32;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 256;
 
-    static constexpr ck_tile::index_t M_Warp = 2;
-    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
     static constexpr ck_tile::index_t K_Warp = 1;
 
     static constexpr ck_tile::index_t M_Warp_Tile = 32;
@@ -354,11 +354,18 @@ struct GemmTypeConfig<ck_tile::int8_t, ck_tile::int8_t, int32_t>
     using CDataType   = int32_t;
 };
 
-template <typename ADataType,
-          typename BDataType = ADataType,
-          typename CDataType = ADataType,
-          typename QDataType = float>
-struct GemmQuantTypeConfig;
+template <typename ADataType_,
+          typename BDataType_ = ADataType_,
+          typename CDataType_ = ADataType_,
+          typename QDataType_ = float>
+struct GemmQuantTypeConfig
+{
+    using ADataType   = ADataType_;
+    using QDataType   = QDataType_;
+    using BDataType   = BDataType_;
+    using AccDataType = float;
+    using CDataType   = CDataType_;
+};
 
 template <>
 struct GemmQuantTypeConfig<ck_tile::half_t>

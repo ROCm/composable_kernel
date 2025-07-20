@@ -144,8 +144,13 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
-        return concat('_', "aquant_pipeline_AgBgCrCompV3", BlockSize,
-                      concat('x', GetVectorSizeA(), GetVectorSizeAQ(), GetVectorSizeB(),  GetVectorSizeC()),
+        constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(I0{});
+        constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
+        return concat('_', "aquant_pipeline_AgBgCrCompV3", 
+                      concat('x', MPerBlock, NPerBlock, KPerBlock),
+                      BlockSize,
+                      concat('x', WaveNumM, WaveNumN),
+                      concat('x', BlockGemm::WarpGemm::kM, BlockGemm::WarpGemm::kN, BlockGemm::WarpGemm::kK),
                       concat('x', kPadM, kPadN, kPadK), "QuantGroupSize", QuantGroupSize);
         // clang-format on
     }

@@ -409,8 +409,8 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase<Problem_>
                             constexpr uint32_t reg_offset_for_row_data = c_row / WarpGemm::kCMLane;
 
                             // Lane index to source scale from
-                            uint32_t src_lane_idx =
-                                lane_base_offset + row_base + (__lane_id() >= 32 ? kTileRows : 0);
+                            uint32_t src_lane_idx = lane_base_offset + row_base +
+                                                    (__lane_id() / WarpGemm::kN * kTileRows);
 
                             // Directly index into thread buffer corresponding to
                             // desired row coefficient
