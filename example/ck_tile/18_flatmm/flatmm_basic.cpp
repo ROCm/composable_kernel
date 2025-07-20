@@ -138,43 +138,43 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_c
                       << std::endl;
         }
 
-        if(s.flush_cache_)
-        {
-            std::cout << "Flushing cache..." << std::endl;
-            static constexpr ck_tile::index_t APackedSize =
-                std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
-            static constexpr ck_tile::index_t BPackedSize =
-                std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
+        // if(s.flush_cache_)
+        // {
+        //     std::cout << "Flushing cache..." << std::endl;
+        //     static constexpr ck_tile::index_t APackedSize =
+        //         std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
+        //     static constexpr ck_tile::index_t BPackedSize =
+        //         std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
 
-            ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
-                args.M, args.K, args.stride_A, is_row_major(ALayout{})));
-            ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
-                args.K, args.N, args.stride_B, is_row_major(BLayout{})));
+        //     ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
+        //         args.M, args.K, args.stride_A, is_row_major(ALayout{})));
+        //     ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
+        //         args.K, args.N, args.stride_B, is_row_major(BLayout{})));
 
-            auto size_a_buffer = a_m.get_element_space_size_in_bytes() / APackedSize;
-            auto size_b_buffer = b_n.get_element_space_size_in_bytes() / BPackedSize;
+        //     auto size_a_buffer = a_m.get_element_space_size_in_bytes() / APackedSize;
+        //     auto size_b_buffer = b_n.get_element_space_size_in_bytes() / BPackedSize;
 
-            ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
-                kargs.a_ptr, kargs.b_ptr, s.rotating_count_, size_a_buffer, size_b_buffer);
-            rotating_mem.Print();
+        //     ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
+        //         kargs.a_ptr, kargs.b_ptr, s.rotating_count_, size_a_buffer, size_b_buffer);
+        //     rotating_mem.Print();
 
-            auto run_flush_cache = [&]() {
-                // flush icache
-                ck_tile::flush_icache();
-                // rotating mem
-                rotating_mem.Next();
-                // clear c mem
-                if(args.k_batch > 1)
-                    hipGetErrorString(hipMemsetAsync(
-                        args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
-            };
-            ave_time = ck_tile::launch_kernel_preprocess(
-                s,
-                run_flush_cache,
-                ck_tile::make_kernel<blocks.x, FlatmmConfig::kBlockPerCu>(
-                    Kernel{}, grids, blocks, 0, kargs));
-        }
-        else
+        //     auto run_flush_cache = [&]() {
+        //         // flush icache
+        //         ck_tile::flush_icache();
+        //         // rotating mem
+        //         rotating_mem.Next();
+        //         // clear c mem
+        //         if(args.k_batch > 1)
+        //             hipGetErrorString(hipMemsetAsync(
+        //                 args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
+        //     };
+        //     ave_time = ck_tile::launch_kernel_preprocess(
+        //         s,
+        //         run_flush_cache,
+        //         ck_tile::make_kernel<blocks.x, FlatmmConfig::kBlockPerCu>(
+        //             Kernel{}, grids, blocks, 0, kargs));
+        // }
+        // else
         {
             ave_time =
                 ck_tile::launch_kernel(s,
@@ -192,13 +192,13 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_c
                 ck_tile::integral_constant<ck_tile::memory_operation_enum,
                                            ck_tile::memory_operation_enum::set>{});
         }
-        else
-        {
-            Run(has_hot_loop_,
-                tail_number_,
-                ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::atomic_add>{});
-        }
+        // else
+        // {
+        //     Run(has_hot_loop_,
+        //         tail_number_,
+        //         ck_tile::integral_constant<ck_tile::memory_operation_enum,
+        //                                    ck_tile::memory_operation_enum::atomic_add>{});
+        // }
     };
     BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
     return ave_time;
@@ -219,24 +219,9 @@ int run_flatmm_example(int argc, char* argv[])
     std::string b_layout  = arg_parser.get_str("b_layout");
     if(a_layout == "R" && b_layout == "C")
     {
-        if(data_type == "fp16")
-        {
-            run_flatmm_example_with_layouts<ck_tile::half_t, FlatmmConfig<ck_tile::half_t>>(
-                argc, argv, Row{}, Col{}, Row{});
-        }
-        else if(data_type == "bf16")
-        {
-            run_flatmm_example_with_layouts<ck_tile::bf16_t, FlatmmConfig<ck_tile::bf16_t>>(
-                argc, argv, Row{}, Col{}, Row{});
-        }
-        else if(data_type == "fp8")
+        if(data_type == "fp8")
         {
             run_flatmm_example_with_layouts<ck_tile::fp8_t, FlatmmConfig<ck_tile::fp8_t>>(
-                argc, argv, Row{}, Col{}, Row{});
-        }
-        else if(data_type == "bf8")
-        {
-            run_flatmm_example_with_layouts<ck_tile::bf8_t, FlatmmConfig<ck_tile::bf8_t>>(
                 argc, argv, Row{}, Col{}, Row{});
         }
         else
@@ -264,18 +249,19 @@ int main(int argc, char* argv[])
         {
             return !run_flatmm_example<FlatmmConfig16>(argc, argv);
         }
-        else if(warp_tile == 1)
-        {
-            return !run_flatmm_example<FlatmmConfig32>(argc, argv);
-        }
-        else if(warp_tile == 2)
-        {
-            return !run_flatmm_example<FlatmmConfig16_950>(argc, argv);
-        }
-        else
-        {
-            return !run_flatmm_example<FlatmmConfig32_950>(argc, argv);
-        }
+        return EXIT_FAILURE;
+        // else if(warp_tile == 1)
+        // {
+        //     return !run_flatmm_example<FlatmmConfig32>(argc, argv);
+        // }
+        // else if(warp_tile == 2)
+        // {
+        //     return !run_flatmm_example<FlatmmConfig16_950>(argc, argv);
+        // }
+        // else
+        // {
+        //     return !run_flatmm_example<FlatmmConfig32_950>(argc, argv);
+        // }
     }
     catch(const std::runtime_error& e)
     {

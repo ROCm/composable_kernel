@@ -213,6 +213,11 @@ int run_flatmm_example_with_layouts(int argc,
         ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_host);
         ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_origin_host);
     }
+    else if(init_method == 3)
+    {
+        ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_host);
+        ck_tile::FillUniformDistribution<BDataType>{0.f, .5f}(b_origin_host);
+    }
     else
     {
         a_host.SetZero();
