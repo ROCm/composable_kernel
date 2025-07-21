@@ -3,7 +3,7 @@ set(GEMM_DATATYPE "fp8;fp16" CACHE STRING "List of datatypes for GEMM (semicolon
 
 function(build_gemm_for_datatype datatype)
     set(working_path "${CMAKE_CURRENT_BINARY_DIR}/${datatype}/")
-    set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_config.json")
+    set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_config_sample.json")
     #set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/user_provided_config.json")
     # Generate kernel list
     execute_process(
