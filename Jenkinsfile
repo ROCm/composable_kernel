@@ -1027,7 +1027,14 @@ pipeline {
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
-                        cleanWs()
+                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE'){
+                            sh 'exit 1'
+                        }
+                    }
+                    post{
+                        always{
+                            cleanWs()
+                        }
                     }
                 }
             }
