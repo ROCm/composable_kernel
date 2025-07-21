@@ -651,8 +651,11 @@ struct buffer_view<address_space_enum::global,
         bool constexpr use_amd_buffer_addressing =
             std::is_same_v<remove_cvref_t<scalar_t>, int32_t> ||
             std::is_same_v<remove_cvref_t<scalar_t>, float> ||
-            (std::is_same_v<remove_cvref_t<scalar_t>, half_t> && scalar_per_x_vector % 2 == 0) ||
-            (std::is_same_v<remove_cvref_t<scalar_t>, bf16_t> && scalar_per_x_vector % 2 == 0);
+            (std::is_same_v<remove_cvref_t<scalar_t>, half_t> && scalar_per_x_vector % 2 == 0)
+#if defined(__gfx94__)
+            || (std::is_same_v<remove_cvref_t<scalar_t>, bf16_t> && scalar_per_x_vector % 2 == 0);
+#endif
+
 #elif CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER && (!CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT)
         bool constexpr use_amd_buffer_addressing =
             std::is_same_v<remove_cvref_t<scalar_t>, int32_t>;
