@@ -104,10 +104,7 @@ float batched_transpose(batched_transpose_trait t,
         {
             return transpose_fn_bf16_64_64_64_64_8_8_false_false(a, s);
         }
-        else
-        {
-            return transpose_fn_bf16_64_64_64_64_8_8_true_true(a, s);
-        }
+        else { return transpose_fn_bf16_64_64_64_64_8_8_true_true(a, s); }
     }
     return -1;
 }
