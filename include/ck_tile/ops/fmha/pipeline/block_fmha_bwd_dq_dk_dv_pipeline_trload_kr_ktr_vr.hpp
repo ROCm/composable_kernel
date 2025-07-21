@@ -466,6 +466,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
             constexpr bool is_prologue = is_prologue_.value;
             constexpr bool is_epilogue = is_epilogue_.value;
             static_assert(is_prologue || is_epilogue, "is_prologue or is_epilogue should be true");
+            constexpr bool is_main_body = is_prologue && is_epilogue;
 
             if constexpr(is_prologue)
             {
@@ -491,6 +492,8 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
                 dot_lds_read_window.set_bottom_tensor_view_data_ptr(do_lds_ptr_curr);
                 dot_reg_tensor = load_tile_transpose(dot_lds_read_window);
             }
+            if constexpr(is_main_body)
+                Policy::template HotLoopScheduler<Problem>::SchedulerGemm0();
             __builtin_amdgcn_sched_barrier(0);
             if constexpr(is_epilogue)
             {
@@ -577,28 +580,27 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
                     }
                 }();
 
+                // STAGE 4, OGrad@V Gemm2
+                dp_acc = gemm_2(do_reg_tensor, v_reg_tensor);
+
+                qt_lds_read_window.set_bottom_tensor_view_data_ptr(q_lds_ptr_curr);
+                qt_reg_tensor = load_tile_transpose(qt_lds_read_window);
+
                 // STAGE 3, P^T@OGrad^T Gemm1
                 auto pt_reg_tensor = make_static_distributed_tensor<GemmDataType>(
                     Policy::template MakePTRegSliceBlockDescriptor<Problem>());
                 pt_reg_tensor.get_thread_buffer() = p_gemm.get_thread_buffer();
                 gemm_1(dv_acc, pt_reg_tensor, dot_reg_tensor);
-
-                qt_lds_read_window.set_bottom_tensor_view_data_ptr(q_lds_ptr_curr);
-                qt_reg_tensor = load_tile_transpose(qt_lds_read_window);
-            }
-            __builtin_amdgcn_sched_barrier(0);
-            if constexpr(is_epilogue)
-            {
-                // STAGE 4, OGrad@V Gemm2
-                dp_acc = gemm_2(do_reg_tensor, v_reg_tensor);
             }
             block_sync_lds();
+            if constexpr(is_main_body)
+                Policy::template HotLoopScheduler<Problem>::SchedulerGemm12();
+            __builtin_amdgcn_sched_barrier(0);
             if constexpr(is_prologue)
             {
                 store_tile(lse_lds_write_window, lse_block_tile);
                 store_tile(d_lds_write_window, d_block_tile);
             }
-            __builtin_amdgcn_sched_barrier(0);
             if constexpr(is_epilogue)
             {
                 // STAGE 5, P^T(PGrad^T - D)
@@ -666,6 +668,8 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
                 ds_reg_tensor = load_tile_transpose(ds_lds_read_window);
                 move_tile_window(ds_lds_read_window, {kK4, 0});
             }
+            if constexpr(is_main_body)
+                Policy::template HotLoopScheduler<Problem>::SchedulerGemm3();
             __builtin_amdgcn_sched_barrier(0);
             if constexpr(is_epilogue)
             {
@@ -697,6 +701,8 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
                 do_reg_tensor = load_tile(do_lds_read_window);
                 d             = load_tile(d_lds_read_window);
             }
+            if constexpr(is_main_body)
+                Policy::template HotLoopScheduler<Problem>::SchedulerGemm4();
             if constexpr(is_epilogue)
             {
                 // QGrad Scale
