@@ -311,7 +311,7 @@ bool profile_batched_gemm_gemm_impl(bool do_verification,
         }
     }
 
-    std::cout << "found " << num_supported_instances << " supported instances" << std::endl;
+    printf("\033[36mFound %d supported instances\033[0m\n", num_supported_instances);
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_op_name << std::endl;
