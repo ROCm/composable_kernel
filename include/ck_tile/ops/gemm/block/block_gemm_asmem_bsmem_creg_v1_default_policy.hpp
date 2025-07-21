@@ -54,6 +54,7 @@ struct BlockGemmASmemBSmemCRegV1DefaultPolicy
                 return make_tuple(WarpGemmMfmaF16F16F32M32N32K16<>{}, 2, 2);
             }
 #else
+#if CK_TILE_USE_MFMA
             using WG = WarpGemmDispatcher<ck_tile::half_t,
                                           ck_tile::half_t,
                                           float,
@@ -64,6 +65,18 @@ struct BlockGemmASmemBSmemCRegV1DefaultPolicy
                                           false,
                                           false,
                                           wg_attr_num_access>;
+#else
+            using WG = WarpGemmDispatcher<ck_tile::half_t,
+                                          ck_tile::half_t,
+                                          float,
+                                          16,
+                                          16,
+                                          16,
+                                          true,
+                                          false,
+                                          false,
+                                          wg_attr_num_access>;
+#endif
             return make_tuple(WG{}, 4, 1);
 #endif
         }
@@ -71,6 +84,7 @@ struct BlockGemmASmemBSmemCRegV1DefaultPolicy
                           std::is_same_v<typename Problem::BDataType, bf16_t> &&
                           std::is_same_v<typename Problem::CDataType, float>)
         {
+#if CK_TILE_USE_MFMA
             using WG = WarpGemmDispatcher<ck_tile::bf16_t,
                                           ck_tile::bf16_t,
                                           float,
@@ -81,6 +95,18 @@ struct BlockGemmASmemBSmemCRegV1DefaultPolicy
                                           false,
                                           false,
                                           wg_attr_num_access>;
+#else
+            using WG = WarpGemmDispatcher<ck_tile::bf16_t,
+                                          ck_tile::bf16_t,
+                                          float,
+                                          16,
+                                          16,
+                                          16,
+                                          true,
+                                          false,
+                                          false,
+                                          wg_attr_num_access>;
+#endif
             return make_tuple(WG{}, 4, 1);
         }
         else
