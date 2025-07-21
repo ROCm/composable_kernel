@@ -12,12 +12,14 @@
 
 #define CK_TILE_S_CNT_MAX 0b1100'1111'0111'1111
 #define CK_TILE_VMCNT(cnt)                                                 \
-    ([]() { static_assert((cnt) < 0b111111, "VMCNT only has 6 bits"); }(), \
-     ((cnt)&0b1111) | (((cnt)&0b110000) << 10))
-#define CK_TILE_EXPCNT(cnt) \
-    ([]() { static_assert((cnt) < 0b111, "EXP only has 3 bits"); }(), ((cnt) << 4))
-#define CK_TILE_LGKMCNT(cnt) \
-    ([]() { static_assert((cnt) < 0b1111, "LGKM only has 4 bits"); }(), ((cnt) << 8))
+    ([]() { static_assert((cnt) < (1 << 6), "VMCNT only has 6 bits"); }(), \
+     ((cnt)&0b1111) | (((cnt)&0b110000) << 14) | 0b0000'1111'0111'0000)
+#define CK_TILE_EXPCNT(cnt)                                              \
+    ([]() { static_assert((cnt) < (1 << 3), "EXP only has 3 bits"); }(), \
+     ((cnt) << 4) | 0b1100'1111'0000'1111)
+#define CK_TILE_LGKMCNT(cnt)                                              \
+    ([]() { static_assert((cnt) < (1 << 4), "LGKM only has 4 bits"); }(), \
+     ((cnt) << 8) | 0b1100'0000'0111'1111)
 
 namespace ck_tile {
 
@@ -127,7 +129,7 @@ template <index_t vmcnt>
 CK_TILE_DEVICE void block_sync_lds_direct_load()
 {
     // We don't sync the lds insts here.
-    __builtin_amdgcn_s_waitcnt(CK_TILE_VMCNT(vmcnt));
+    __builtin_amdgcn_s_waitcnt(CK_TILE_S_CNT_MAX & CK_TILE_VMCNT(vmcnt));
     __builtin_amdgcn_s_barrier();
 }
 

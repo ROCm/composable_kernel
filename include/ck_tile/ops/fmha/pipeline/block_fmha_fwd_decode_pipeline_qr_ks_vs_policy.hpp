@@ -487,15 +487,18 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeS()
     {
-        return MakeSLdsBlockDescriptor<Problem>().get_element_space_size() *
-               sizeof(typename Problem::SaccDataType);
+        constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
+
+        return NWarp > 1 ? MakeSLdsBlockDescriptor<Problem>().get_element_space_size() *
+                               sizeof(typename Problem::SaccDataType)
+                         : 0;
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        return max(GetSmemSizeQ<Problem>(), GetSmemSizeK<Problem>()) +
-               max(GetSmemSizeV<Problem>(), GetSmemSizeS<Problem>());
+        return max(GetSmemSizeQ<Problem>(), GetSmemSizeK<Problem>()) + GetSmemSizeS<Problem>() +
+               GetSmemSizeV<Problem>();
     }
 };
 

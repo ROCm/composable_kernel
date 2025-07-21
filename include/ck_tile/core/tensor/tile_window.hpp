@@ -433,6 +433,8 @@ struct tile_window_with_static_distribution
                 // data index [y0, y1, ...]
                 constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
 
+                // printf("Tid: %02d, tr_load_idx: %d\n",
+                //    get_thread_local_1d_id(),bottom_tensor_thread_coord.get_offset());
                 // read from bottom tensor
                 const vector_t vec_value =
                     this->get_bottom_tensor_view()

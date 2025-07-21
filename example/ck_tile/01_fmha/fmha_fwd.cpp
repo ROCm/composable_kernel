@@ -676,11 +676,29 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::FillUniformDistribution<VDataType>{0.f, 1.f, seed}(vnew_host);
         ck_tile::FillUniformDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
     }
-    else if(init_method == "exp" || init_method == "99")
+    else if(init_method == "v1" || init_method == "97")
     {
         ck_tile::FillUniformDistribution<QDataType>{0.f, 1.f, seed}(q_host);
         ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(k_host);
         ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(knew_host);
+        ck_tile::FillUniformDistribution<VDataType>{1.f, 1.f, seed}(v_host);
+        ck_tile::FillUniformDistribution<VDataType>{1.f, 1.f, seed}(vnew_host);
+        ck_tile::FillUniformDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
+    }
+    else if(init_method == "kv1" || init_method == "98")
+    {
+        ck_tile::FillUniformDistribution<QDataType>{0.f, 1.f, seed}(q_host);
+        ck_tile::FillUniformDistribution<KDataType>{1.f, 1.f, seed}(k_host);
+        ck_tile::FillUniformDistribution<KDataType>{1.f, 1.f, seed}(knew_host);
+        ck_tile::FillUniformDistribution<VDataType>{1.f, 1.f, seed}(v_host);
+        ck_tile::FillUniformDistribution<VDataType>{1.f, 1.f, seed}(vnew_host);
+        ck_tile::FillUniformDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
+    }
+    else if(init_method == "qkv1" || init_method == "99")
+    {
+        ck_tile::FillUniformDistribution<QDataType>{1.f, 1.f, seed}(q_host);
+        ck_tile::FillUniformDistribution<KDataType>{1.f, 1.f, seed}(k_host);
+        ck_tile::FillUniformDistribution<KDataType>{1.f, 1.f, seed}(knew_host);
         ck_tile::FillUniformDistribution<VDataType>{1.f, 1.f, seed}(v_host);
         ck_tile::FillUniformDistribution<VDataType>{1.f, 1.f, seed}(vnew_host);
         ck_tile::FillUniformDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);

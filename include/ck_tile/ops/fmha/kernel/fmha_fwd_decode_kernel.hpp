@@ -788,7 +788,7 @@ struct FmhaFwdDecodeKernel
                                                              amd_buffer_coherence_enum::SYSTEM_NT1>(
                 data, // will update this pointer if using paged-kvcache
                 make_tuple(length, kargs.hdim_v),
-                make_tuple(kargs.stride_v, 1),
+                make_tuple(kargs.hdim_v, 1),
                 number<FmhaPipeline::kAlignmentV>{},
                 number<1>{});
 
