@@ -14,11 +14,11 @@ namespace ck_tile {
 template <typename BlockWaves, // num warps along seq<M, N>
           typename BlockTile,  // block size, seq<M, N>
           typename WaveTile,   // warp size, seq<M, N>
-          typename Vector>     // contiguous elements(vector size) along seq<M, N>
+          typename Vector>     // contiguous elements (vector size) along seq<M, N>
 struct TileCopyShape
 {
     // We split Workgroup waves into two specialized groups.
-    // One for reading data from global -> LDS, the other idled
+    // One for reading data from global -> LDS, the other idling
     static constexpr index_t WaveGroups = 2;
     static constexpr index_t MWarps     = BlockWaves::at(number<0>{});
     static constexpr index_t NWarps     = BlockWaves::at(number<1>{});
@@ -35,7 +35,7 @@ struct TileCopyShape
     static constexpr index_t ThreadPerWarp_M = Warp_M / Vector_M;
     static constexpr index_t ThreadPerWarp_N = Warp_N / Vector_N;
 
-    // We splited the waves on M dimension
+    // We splitted the waves on M dimension
     static constexpr index_t WarpPerBlock_M = integer_divide_ceil(MWarps, WaveGroups);
     static constexpr index_t WarpPerBlock_N = NWarps;
 
@@ -46,7 +46,7 @@ struct TileCopyShape
 
     static constexpr index_t BlockSize     = get_warp_size() * WaveNum;
     static constexpr index_t WaveGroupSize = WaveNum / WaveGroups;
-    static_assert(WaveGroupSize == WarpPerBlock_M * WarpPerBlock_N, "Inconsisten wave group size!");
+    static_assert(WaveGroupSize == WarpPerBlock_M * WarpPerBlock_N, "Inconsistent wave group size!");
 };
 
 template <typename XDataType_, typename BlockShape_, bool AsyncCopy_>
@@ -77,11 +77,11 @@ struct TileCopy
             S::Vector_N; // no. of elements along N dimensions to be read by each thread.
 
         constexpr index_t Y0 =
-            S::WaveNum / S::WaveGroups;        // no. of active warps working in this thread block.
-        constexpr index_t Y2 = warp_size / X0; // no. of threads in a warp needed along M dimension.
+            S::WaveNum / S::WaveGroups;        // number of active warps working in this thread block.
+        constexpr index_t Y2 = warp_size / X0; // number of threads in a warp needed along M dimension.
         constexpr index_t Y1 =
             S::Warp_M /
-            Y2; // no. of iterations each warp needs to perform to cover the entire tile window.
+            Y2; // number of iterations each warp needs to perform to cover the entire tile window.
 
         constexpr auto outer_encoding =
             tile_distribution_encoding<sequence<S::WaveGroups>,
