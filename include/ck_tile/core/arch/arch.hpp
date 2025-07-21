@@ -165,11 +165,10 @@ CK_TILE_DEVICE void s_waitcnt()
                                waitcnt_arg::from_lgkmcnt<lgkmcnt>());
 }
 
-template <index_t vmcnt>
 CK_TILE_DEVICE void block_sync_lds_direct_load()
 {
     // We don't sync the lds insts here.
-    s_waitcnt<vmcnt>();
+    s_waitcnt<0, waitcnt_arg::kMaxExpCnt, 0>();
     __builtin_amdgcn_s_barrier();
 }
 
