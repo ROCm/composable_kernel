@@ -20,12 +20,12 @@ struct GemmPipelineAgBgCrCompV5DefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
-        using AccDataType     = float;
+        // using AccDataType     = float;
         using BlockWarps      = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile        = typename Problem::BlockGemmShape::WarpTile;
         using WarpGemm        = WarpGemmMfmaDispatcher<typename Problem::ADataType,
                                                 typename Problem::BDataType,
-                                                AccDataType,
+                                                typename Problem::CDataType, // AccDataType
                                                 WarpTile::at(I0),
                                                 WarpTile::at(I1),
                                                 WarpTile::at(I2),
