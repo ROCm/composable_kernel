@@ -387,13 +387,13 @@ struct HstuAttentionFwdPipelineQRKSVS
 
                     __builtin_amdgcn_sched_group_barrier(0x00000020, V_VMEM_LOAD_INST, 0);
 
-                    __builtin_amdgcn_sched_group_barrier(0x00000100, K_LDS_READ_INST, 0);
+                    __builtin_amdgcn_sched_group_barrier(0x00000100, 1, 0);
 
                     __builtin_amdgcn_sched_group_barrier(0x00000020, K_VMEM_LOAD_INST, 0);
 
                     static_for<0, K_LDS_READ_INST - 1, 1>{}([&](auto i) {
                         ignore = i;
-                        __builtin_amdgcn_sched_group_barrier(0x00000100, K_LDS_READ_INST, 0);
+                        __builtin_amdgcn_sched_group_barrier(0x00000100, 1, 0);
                         __builtin_amdgcn_sched_group_barrier(0x00000008, kGemmNumRepM, 0);
                     });
 
