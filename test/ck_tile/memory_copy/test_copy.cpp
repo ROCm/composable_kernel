@@ -108,7 +108,7 @@ class TestCkTileMemoryCopyHalfSync : public TestCkTileMemoryCopy<ck_tile::half_t
 {
 };
 
-class TestCkTileMemoryCopyBFloatAsync : public TestCkTileMemoryCopy<ck_tile::bf16_t>
+class TestCkTileMemoryCopyFloatAsync : public TestCkTileMemoryCopy<float>
 {
 };
 
@@ -128,7 +128,7 @@ TEST_P(TestCkTileMemoryCopyHalfSync, TestCorrectness)
     this->Run({M, N, warp_id});
 }
 
-TEST_P(TestCkTileMemoryCopyBFloatAsync, TestCorrectness)
+TEST_P(TestCkTileMemoryCopyFloatAsync, TestCorrectness)
 {
     auto [M, N, warp_id] = GetParam();
     this->Run({M, N, warp_id});
@@ -167,7 +167,7 @@ INSTANTIATE_TEST_SUITE_P(TestCkTileMemCopySuite,
                                            std::tuple{16384, 16384, 1}));
 
 INSTANTIATE_TEST_SUITE_P(TestCkTileMemCopySuite,
-                         TestCkTileMemoryCopyBFloatAsync,
+                         TestCkTileMemoryCopyFloatAsync,
                          ::testing::Values(std::tuple{64, 8, 0},
                                            std::tuple{63, 8, 0},
                                            std::tuple{63, 2, 0},
