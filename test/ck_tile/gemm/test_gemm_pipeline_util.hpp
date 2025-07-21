@@ -37,7 +37,7 @@ enum struct GemmPipelineType
     Mem,
     CompV3,
     CompV4,
-    CompV77
+    CompV6
 };
 
 template <GemmPipelineType PT, typename Problem>
@@ -71,12 +71,12 @@ struct GemmPipelineTypeSelector<GemmPipelineType::CompV4, Problem>
 };
 
 template <typename Problem>
-struct GemmPipelineTypeSelector<GemmPipelineType::CompV77, Problem>
+struct GemmPipelineTypeSelector<GemmPipelineType::CompV6, Problem>
 {
-    using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrCompV77<Problem>;
-    using pipeline      = ck_tile::GemmPipelineAgBgCrCompV77<Problem>;
+    using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrCompV6<Problem>;
+    using pipeline      = ck_tile::GemmPipelineAgBgCrCompV6<Problem>;
 
-    static constexpr auto GetName() { return "GemmPipelineAgBgCrCompV77"; }
+    static constexpr auto GetName() { return "GemmPipelineAgBgCrCompV6"; }
 };
 
 template <typename Tuple>
@@ -105,11 +105,11 @@ class TestCkTileGemmPipeline : public ::testing::Test
                      const ck_tile::stream_config& s)
     {
         // TODO: This should be parameterized in tests
-        constexpr auto numWaveGroups      = (PipelineType == GemmPipelineType::CompV77) ? 2 : 1;
+        constexpr auto numWaveGroups      = (PipelineType == GemmPipelineType::CompV6) ? 2 : 1;
         constexpr ck_tile::index_t M_Tile = 256;
         constexpr ck_tile::index_t N_Tile = 256;
         constexpr ck_tile::index_t K_Tile =
-            (PipelineType == GemmPipelineType::CompV4 || PipelineType == GemmPipelineType::CompV77)
+            (PipelineType == GemmPipelineType::CompV4 || PipelineType == GemmPipelineType::CompV6)
                 ? 32
                 : 64;
 

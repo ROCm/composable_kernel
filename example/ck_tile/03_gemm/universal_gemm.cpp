@@ -340,7 +340,7 @@ int main(int argc, char* argv[])
 {
     try
     {
-        return !run_gemm_example<GemmConfigComputeV77>(argc, argv);
+        return !run_gemm_example<GemmConfigComputeV6>(argc, argv);
     }
     catch(const std::runtime_error& e)
     {

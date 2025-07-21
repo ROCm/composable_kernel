@@ -14,7 +14,7 @@
 #define CK_TILE_PIPELINE_MEMORY 2
 #define CK_TILE_PIPELINE_COMPUTE_V4 3
 #define CK_TILE_PIPELINE_COMPUTE_V5 4
-#define CK_TILE_PIPELINE_COMPUTE_V77 9
+#define CK_TILE_PIPELINE_COMPUTE_V6 5
 
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile()
@@ -215,7 +215,7 @@ struct GemmConfigComputeV5 : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigComputeV77 : public GemmConfigBase
+struct GemmConfigComputeV6 : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 256;
     static constexpr ck_tile::index_t N_Tile = 256;
@@ -230,7 +230,7 @@ struct GemmConfigComputeV77 : public GemmConfigBase
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
     static constexpr bool DoubleSmemBuffer          = false;
-    static constexpr ck_tile::index_t Pipeline      = CK_TILE_PIPELINE_COMPUTE_V77;
+    static constexpr ck_tile::index_t Pipeline      = CK_TILE_PIPELINE_COMPUTE_V6;
     static constexpr ck_tile::index_t NumWaveGroups = 2;
 };
 
@@ -389,12 +389,12 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V5>
 };
 
 template <>
-struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V77>
+struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V6>
 {
     template <typename PipelineProblem>
-    using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV77<PipelineProblem>;
+    using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV6<PipelineProblem>;
     template <typename PipelineProblem>
-    using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV77<PipelineProblem>;
+    using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV6<PipelineProblem>;
 };
 
 auto create_args(int argc, char* argv[])

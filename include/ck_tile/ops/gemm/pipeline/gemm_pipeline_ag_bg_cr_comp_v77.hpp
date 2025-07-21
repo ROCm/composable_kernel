@@ -4,7 +4,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
-#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_comp_v77_default_policy.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_comp_v6_default_policy.hpp"
 
 namespace ck_tile {
 
@@ -12,7 +12,7 @@ namespace ck_tile {
 //  B Tile Window: global memory
 //  C Distributed tensor: register
 template <typename Problem>
-struct BaseGemmPipelineAgBgCrCompV77
+struct BaseGemmPipelineAgBgCrCompV6
 {
     static constexpr index_t PrefetchStages  = 3;
     static constexpr index_t PrefillStages   = 1;
@@ -85,10 +85,10 @@ struct BaseGemmPipelineAgBgCrCompV77
  *
  * @note TODO
  */
-template <typename Problem, typename Policy = GemmPipelineAgBgCrCompV77DefaultPolicy>
-struct GemmPipelineAgBgCrCompV77 : public BaseGemmPipelineAgBgCrCompV77<Problem>
+template <typename Problem, typename Policy = GemmPipelineAgBgCrCompV6DefaultPolicy>
+struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
 {
-    using Base             = BaseGemmPipelineAgBgCrCompV77<Problem>;
+    using Base             = BaseGemmPipelineAgBgCrCompV6<Problem>;
     using PipelineImplBase = GemmPipelineAgBgCrImplBase<Problem, Policy>;
 
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
@@ -143,7 +143,7 @@ struct GemmPipelineAgBgCrCompV77 : public BaseGemmPipelineAgBgCrCompV77<Problem>
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
-        return concat('_', "pipeline_AgBgCrCompV77", BlockSize,
+        return concat('_', "pipeline_AgBgCrCompV6", BlockSize,
                       concat('x', GetVectorSizeA(), GetVectorSizeB(),  GetVectorSizeC()),
                       concat('x', kPadM, kPadN, kPadK));
         // clang-format on
