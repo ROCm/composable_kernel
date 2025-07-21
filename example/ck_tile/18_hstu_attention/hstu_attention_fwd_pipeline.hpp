@@ -207,7 +207,7 @@ struct HstuAttentionFwdPipelineQRKSVS
 
         __builtin_amdgcn_sched_barrier(0);
 
-        // K tile in LDS
+        // Q tile in LDS
         QKVDataType* q_lds_ptr = static_cast<QKVDataType*>(smem_ptr);
         auto q_lds             = make_tensor_view<address_space_enum::lds>(
             q_lds_ptr, Policy::template MakeQLdsBlockDescriptor<Problem>());
@@ -392,9 +392,8 @@ struct HstuAttentionFwdPipelineQRKSVS
 
                             // ds_load for K
                             __builtin_amdgcn_sched_group_barrier(0x00000100, 1, 0);
-                            // buffer_load for  V & K
-                            __builtin_amdgcn_sched_group_barrier(
-                                0x00000020, 1, 0); // buffer_load for K & V
+                            // buffer_load for V & K
+                            __builtin_amdgcn_sched_group_barrier(0x00000020, 1, 0);
                         });
 
                         static_for<0, K_LDS_READ_INST - (V_VMEM_LOAD_INST + K_VMEM_LOAD_INST), 1>{}(
