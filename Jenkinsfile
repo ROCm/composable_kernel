@@ -1027,7 +1027,7 @@ pipeline {
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
-                        catchError(buildResult: null, stageResult: 'FAILURE'){
+                        catchError(buildResult: null, stageResult: null){
                             sh 'exit 1'
                         }
                     }
