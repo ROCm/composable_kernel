@@ -99,49 +99,48 @@ struct TileCopy
     {
         using S = typename Problem::BlockShape;
 
-        // LDS Data.
-        __shared__ XDataType x_lds[number<S::Block_M>{} * number<S::Block_N>{}];
-        XDataType* __restrict__ p_x_lds = static_cast<XDataType*>(x_lds);
+        // LDS buffer
+        __shared__ XDataType x_lds[S::Block_M * S::Block_N];
+
+        constexpr auto block_dims = make_tuple(number<S::Block_M>{}, number<S::Block_N>{});
+        constexpr auto block_strides =  make_tuple(number<S::Block_N>{}, number<1>{});
 
         const auto x_lds_desc =
-            make_naive_tensor_descriptor(make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
-                                         make_tuple(number<S::Block_N>{}, 1),
+            make_naive_tensor_descriptor(block_dims,
+                                         block_strides,
                                          number<S::Vector_N>{},
                                          number<1>{});
 
-        auto x_lds_view = make_tensor_view<address_space_enum::lds>(p_x_lds, x_lds_desc);
+        auto x_lds_view = make_tensor_view<address_space_enum::lds>(x_lds, x_lds_desc);
 
         auto x_block_lds_write_window = make_tile_window(
-            x_lds_view, make_tuple(number<S::Block_M>{}, number<S::Block_N>{}), {0, 0});
+            x_lds_view, block_dims, {0, 0});
 
         auto x_block_lds_read_window =
             make_tile_window(x_lds_view,
-                             make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
+                             block_dims,
                              {0, 0},
                              MakeDRAMDistribution<Problem>());
 
+        const index_t iM = __builtin_amdgcn_readfirstlane(get_block_id() * S::Block_M);
         // Input tensor
-        const auto iM    = get_block_id() * S::Block_M;
         const auto x_m_n = make_naive_tensor_view<address_space_enum::global>(
             p_x, make_tuple(M, N), make_tuple(N, 1), number<S::Vector_N>{}, number<1>{});
         auto x_block_window =
             make_tile_window(x_m_n,
-                             make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
+                             block_dims,
                              {iM, 0},
                              MakeDRAMDistribution<Problem>());
 
         // Output tensor
         const auto y_m = make_naive_tensor_view<address_space_enum::global>(
             p_y, make_tuple(M, N), make_tuple(N, 1), number<S::Vector_N>{}, number<1>{});
-
         auto y_block_window =
-            make_tile_window(y_m, make_tuple(number<S::Block_M>{}, number<S::Block_N>{}), {iM, 0});
+            make_tile_window(y_m, block_dims, {iM, 0});
 
-        // Programming logic
-        index_t num_n_tile_iteration =
+        const index_t num_n_tile_iteration =
             __builtin_amdgcn_readfirstlane(integer_divide_ceil(N, S::Block_N));
-        auto my_id = get_warp_id();
-
+        const index_t my_id = __builtin_amdgcn_readfirstlane(get_warp_id());
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
             if(my_id == warp_id)
@@ -149,14 +148,11 @@ struct TileCopy
                 if constexpr(AsyncCopy)
                 {
                     async_load_tile(x_block_lds_write_window, x_block_window);
-
                     // We don't have prefetch here, wait the data back immediately.
                     // Wait all asyncload insts complete.
                     // Wait all waves synced
                     block_sync_lds_direct_load();
-
                     auto lds_tile = load_tile(x_block_lds_read_window);
-
                     // store from registers to DRAM
                     store_tile(y_block_window, lds_tile);
                 }
@@ -164,17 +160,13 @@ struct TileCopy
                 {
                     // load from DRAM to registers
                     auto dram_tile = load_tile(x_block_window);
-
                     // store in lds
                     store_tile(x_block_lds_write_window, dram_tile);
-
                     // Wait all lds write insts complete
                     // Wait all waves synced
                     block_sync_lds();
-
                     // read from lds to registers
                     auto lds_tile = load_tile(x_block_lds_read_window);
-
                     // store from registers to DRAM
                     store_tile(y_block_window, lds_tile);
                 }
