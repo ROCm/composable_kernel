@@ -313,9 +313,9 @@ class TestCkTileGemmPipeline : public ::testing::Test
                     return stride;
             };
 
-        std::size_t stride_A = f_get_default_stride(M, K, StrideA, ALayout{});
-        std::size_t stride_B = f_get_default_stride(K, N, StrideB, BLayout{});
-        std::size_t stride_C = f_get_default_stride(M, N, StrideC, CLayout{});
+        ck_tile::index_t stride_A = f_get_default_stride(M, K, StrideA, ALayout{});
+        ck_tile::index_t stride_B = f_get_default_stride(K, N, StrideB, BLayout{});
+        ck_tile::index_t stride_C = f_get_default_stride(M, N, StrideC, CLayout{});
 
         ck_tile::HostTensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, stride_A, ALayout{}));
         ck_tile::HostTensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, stride_B, BLayout{}));
@@ -354,7 +354,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                    K,
                                    stride_A,
                                    stride_B,
-                                   stride_C}
+                                   stride_C};
 
         invoke_gemm<PadM, PadN, PadK, Preshuffle>(args, ck_tile::stream_config{nullptr, false});
 
