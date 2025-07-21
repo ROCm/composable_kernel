@@ -141,6 +141,7 @@ struct TileCopy
         const index_t num_n_tile_iteration =
             __builtin_amdgcn_readfirstlane(integer_divide_ceil(N, S::Block_N));
         const index_t my_id = __builtin_amdgcn_readfirstlane(get_warp_id());
+        constexpr index_t async_copy_fence_cnt = 0;
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
             if(my_id == warp_id)
@@ -151,7 +152,7 @@ struct TileCopy
                     // We don't have prefetch here, wait the data back immediately.
                     // Wait all asyncload insts complete.
                     // Wait all waves synced
-                    block_sync_lds_direct_load();
+                    s_waitcnt_barrier<async_copy_fence_cnt>();
                     auto lds_tile = load_tile(x_block_lds_read_window);
                     // store from registers to DRAM
                     store_tile(y_block_window, lds_tile);

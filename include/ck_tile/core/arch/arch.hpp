@@ -165,11 +165,29 @@ CK_TILE_DEVICE void s_waitcnt()
                                waitcnt_arg::from_lgkmcnt<lgkmcnt>());
 }
 
+template <index_t vmcnt   = waitcnt_arg::kMaxVmCnt,
+          index_t expcnt  = waitcnt_arg::kMaxExpCnt,
+          index_t lgkmcnt = waitcnt_arg::kMaxLgkmCnt>
+CK_TILE_DEVICE void s_waitcnt_barrier()
+{
+    s_waitcnt<vmcnt, expcnt, lgkmcnt>();
+    __builtin_amdgcn_s_barrier();
+}
+
 CK_TILE_DEVICE void block_sync_lds_direct_load()
 {
-    // We don't sync the lds insts here.
-    s_waitcnt<0, waitcnt_arg::kMaxExpCnt, 0>();
-    __builtin_amdgcn_s_barrier();
+#if 1
+    // invoke clang builtins which *should* produce the same result as the inline asm below
+    // difference: inline asm is being compiled to wait vmcnt(0) after the barrier
+    s_waitcnt_barrier<0, waitcnt_arg::kMaxExpCnt, 0>();
+#else
+    // same content as in old CK (#999)
+    asm volatile("\
+    s_waitcnt vmcnt(0) \n \
+    s_waitcnt lgkmcnt(0) \n \
+    s_barrier \
+    " ::);
+#endif
 }
 
 CK_TILE_DEVICE void s_nop(index_t cnt = 0)
