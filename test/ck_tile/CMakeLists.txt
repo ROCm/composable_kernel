@@ -8,6 +8,8 @@ add_subdirectory(data_type)
 # Not including these tests as there is a bug on gfx90a and gfx942
 # resulting in "GPU core dump"
 #add_subdirectory(moe_smoothquant)
+add_subdirectory(permute)
+add_subdirectory(moe_sorting)
 add_subdirectory(slice_tile)
 add_subdirectory(batched_transpose)
 add_subdirectory(smoothquant)
