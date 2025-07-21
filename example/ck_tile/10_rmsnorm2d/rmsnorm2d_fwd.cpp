@@ -314,7 +314,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                                    invRms_host_ref,
                                                                    unquant_y_host_ref,
                                                                    epsilon,
-                                                                   default_and_dquant_functor);
+                                                                   default_and_dquant_functor,
+                                                                   use_model_sensitive_rmsnorm);
             }
             else
             {
@@ -329,7 +330,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                                    invRms_host_ref,
                                                                    unquant_y_host_ref,
                                                                    epsilon,
-                                                                   dquant_functor);
+                                                                   dquant_functor,
+                                                                   use_model_sensitive_rmsnorm);
             }
         }
         else
@@ -341,7 +343,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                              YDataType,
                                              InvRmsDataType,
                                              ck_tile::null_type>(
-                x_host, gamma_host, y_host_ref, invRms_host_ref, unquant_y_null, epsilon);
+                x_host,
+                gamma_host,
+                y_host_ref,
+                invRms_host_ref,
+                unquant_y_null,
+                epsilon,
+                ck_tile::reference_rmsnorm2d_default_epilogue{},
+                use_model_sensitive_rmsnorm);
         }
 
         y_buf.FromDevice(y_host_dev.data());
