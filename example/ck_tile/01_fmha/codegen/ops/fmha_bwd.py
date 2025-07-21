@@ -527,6 +527,7 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                     cond &= bias in ['no', 'bias']
                     cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
                     cond &= dpad == dvpad
+                    cond &= mode == 'batch'
                     cond &= deterministic == "f"
                     if not cond:
                         continue
@@ -535,7 +536,6 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "batch"
                     cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
-                    cond &= dpad == dvpad
                     if not cond:
                         continue
             # Aiter (mha_varlen_bwd) integration
@@ -543,13 +543,11 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "group"
                     cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
-                    cond &= dpad == dvpad
                     if not cond:
                         continue
             # aiter::mha_bwd C++ api integration
             elif receipt == 600:
                     cond = dtype in ['fp16', 'bf16']
-                    cond &= dpad == dvpad
                     if not cond:
                         continue
             api_pool.register_dq_dk_dv_traits(k.api_trait())

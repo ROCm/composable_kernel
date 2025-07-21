@@ -48,8 +48,8 @@ struct TransposePolicy
         constexpr auto input_dstr = MakeLdsLoadTileDistribution<Problem>();
 
         using OutTileDstrEncode =
-            typename OutputTileDistributionTraits<remove_cvref_t<decltype(input_dstr)>,
-                                                  typename Problem::DataType>::OutDstrEncode;
+            typename OutputTileDistributionTraits<typename decltype(input_dstr)::DstrEncode,
+                                                  typename Problem::DataType>::TransposedDstrEncode;
         constexpr auto block_dstr = make_static_tile_distribution(OutTileDstrEncode{});
 
         return block_dstr;
@@ -131,7 +131,9 @@ struct TransposePolicy
         constexpr index_t kSecondDimIterations = Problem::kIterationsInSecondDim;
         constexpr index_t kSecondDimStrSub     = kSecondRepetitions / kSecondDimIterations;
 
+        constexpr index_t kLaneGroupSize      = 16;
         constexpr auto xdllevel_dstr_encoding = make_transposed_distr_encode<DataType,
+                                                                             kLaneGroupSize,
                                                                              kSecondDimStrSub,
                                                                              kSecondDimIterations,
                                                                              kLeadRepetitions,

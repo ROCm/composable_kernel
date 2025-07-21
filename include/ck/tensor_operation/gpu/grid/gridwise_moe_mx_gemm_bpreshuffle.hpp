@@ -467,7 +467,7 @@ struct GridwiseMoeGemmMX_BPreshuffle
 
     __host__ __device__ static auto MakeBGridDescriptor_Preshuffled(index_t N0, index_t K0)
     {
-        constexpr index_t NkSwizzleNumber = Number<warpSize * KPack>{};
+        constexpr index_t NkSwizzleNumber = Number<WarpSize * KPack>{};
         return make_naive_tensor_descriptor_packed(
             make_tuple(N0 / NWave / NXdlPack, NWave, NXdlPack, K0, NkSwizzleNumber));
     }
@@ -1474,7 +1474,7 @@ struct GridwiseMoeGemmMX_BPreshuffle
                 make_multi_index(n_block_data_idx_on_grid,
                                  get_warp_local_1d_id() % NWave,
                                  0,
-                                 KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
+                                 KPack / KGroup * (get_thread_local_1d_id() % WarpSize)));
 
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
@@ -1567,7 +1567,7 @@ struct GridwiseMoeGemmMX_BPreshuffle
                       make_multi_index(n_block_data_idx_on_grid,
                                        get_warp_local_1d_id() % NWave,
                                        0,
-                                       KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
+                                       KPack / KGroup * (get_thread_local_1d_id() % WarpSize)));
             const BScaleDataType* p_b_scale_grid_up = p_b_scale_grid + expert_scale_stride / 2;
             const auto b_scale_grid_buf_up          = make_dynamic_buffer<AddressSpaceEnum::Global>(
                 p_b_scale_grid_up + expert_id * expert_scale_stride,
@@ -2185,7 +2185,7 @@ struct GridwiseMoeGemmMX_BPreshuffle
                                  get_warp_local_1d_id() % NWave,
                                  0,
                                  0,
-                                 KPack * (get_thread_local_1d_id() % warpSize)));
+                                 KPack * (get_thread_local_1d_id() % WarpSize)));
 
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
@@ -2289,7 +2289,7 @@ struct GridwiseMoeGemmMX_BPreshuffle
                                      get_warp_local_1d_id() % NWave,
                                      0,
                                      0,
-                                     KPack * (get_thread_local_1d_id() % warpSize)));
+                                     KPack * (get_thread_local_1d_id() % WarpSize)));
             const BScaleDataType* p_b_scale_grid_up =
                 p_b_scale_grid + expert_scale_stride / 2 / sizeof(BScaleDataType);
             const auto b_scale_grid_buf_up = make_dynamic_buffer<AddressSpaceEnum::Global>(
