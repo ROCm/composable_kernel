@@ -357,18 +357,19 @@ struct BlockReduce2dTreeCrossWarpSync
         if(lane_id == 0)
         {
             static_for<0, thread_buf_size, 1>{}([&](auto i) {
-                // Store the i-th element of this warp's thread_buffer into SMEM
                 smem_ptr[smem_offset + i * num_warps] = y_tensor.get_thread_buffer()[i];
             });
         }
         block_sync_lds();
 
         // We let each warp holds a duplication to do reduction.
+        index_t local_warp_id = warp_id / num_reduce_warps;
+        index_t local_smem_os = local_warp_id * num_reduce_warps;
         static_for<0, thread_buf_size, 1>{}([&](auto i) {
             DataType v = 0;
             if(lane_id < num_reduce_warps)
             {
-                v = smem_ptr[lane_id + i * num_warps];
+                v = smem_ptr[i * num_warps + local_smem_os + lane_id];
             }
 
             // cross-lane reduce for replication

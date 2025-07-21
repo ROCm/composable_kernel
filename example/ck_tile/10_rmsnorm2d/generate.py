@@ -642,15 +642,15 @@ float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t,
                           h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1, 256, 4,  True,  False, False,    True,   0,    0,    1),
                           h_traits('x', 'y', 'xs', 'ys', 'uqy', 1, 12,  1, 256, 2,  True,  False, False,    True,   0,    0,    1),
                           h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1,1024, 1,  True,  False, False,    True,   0,    0,    1)]
-            } 
+            }
         }
-        
+
         total_blob = list()
 
         for model_sensitive_flag in [0, 1]: # 0: default; 1: model sensitive
             current_trait_dict = h_trait_dicts[model_sensitive_flag]
             for hs_key in current_trait_dict:
-                hs = current_trait_dict[hs_key]            
+                hs = current_trait_dict[hs_key]
                 current_n = hs_key
                 for dtype, scale_type, fused_add, fused_quant, save_unquant in itertools.product(dtype_list, scale_list, fused_add_list, fused_sweep_list, bool_list):
                     prec_i, prec_o = dtype.split(',')
