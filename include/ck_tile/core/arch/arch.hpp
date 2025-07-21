@@ -129,6 +129,10 @@ struct waitcnt_arg
     // [V]M [E]XP [L]GKM counters and [U]NUSED ---> VV'UU'LLLL'U'EEE'VVVV
     CK_TILE_DEVICE static constexpr index_t MAX = 0b11'00'1111'0'111'1111;
 
+    CK_TILE_DEVICE static constexpr index_t kMaxVmCnt   = 0b111111;
+    CK_TILE_DEVICE static constexpr index_t kMaxExpCnt  = 0b111;
+    CK_TILE_DEVICE static constexpr index_t kMaxLgkmCnt = 0b1111;
+
     template <index_t cnt>
     CK_TILE_DEVICE static constexpr index_t from_vmcnt()
     {
@@ -151,11 +155,13 @@ struct waitcnt_arg
     }
 };
 
-template <index_t vmcnt = 0b111111, index_t expcnt = 0b111, index_t lgkmcnt = 0b1111>
+template <index_t vmcnt   = waitcnt_arg::kMaxVmCnt,
+          index_t expcnt  = waitcnt_arg::kMaxExpCnt,
+          index_t lgkmcnt = waitcnt_arg::kMaxLgkmCnt>
 CK_TILE_DEVICE void s_waitcnt()
 {
-    __builtin_amdgcn_s_waitcnt(waitcnt_arg::from_vmcnt<vmcnt>() &
-                               waitcnt_arg::from_expcnt<expcnt>() &
+    __builtin_amdgcn_s_waitcnt(waitcnt_arg::from_vmcnt<vmcnt>() |
+                               waitcnt_arg::from_expcnt<expcnt>() |
                                waitcnt_arg::from_lgkmcnt<lgkmcnt>());
 }
 
