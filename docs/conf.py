@@ -43,7 +43,10 @@ mathjax3_config = {
 for sphinx_var in ROCmDocs.SPHINX_VARS:
     globals()[sphinx_var] = getattr(docs_core, sphinx_var)
 
-extensions += ['sphinxcontrib.bibtex']
+extensions += [
+                'sphinxcontrib.bibtex'
+                'sphinxcontrib.doxylink'
+]
 bibtex_bibfiles = ['refs.bib']
 
 cpp_id_attributes = ["__global__", "__device__", "__host__"]
