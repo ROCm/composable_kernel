@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -362,7 +362,6 @@ template <ck_tile::index_t HDim_,
           typename FmhaDropout_,
           ck_tile::BlockAttentionBiasEnum BiasEnum_,
           bool kHasBiasGrad_,
-          bool kPadS_,
           bool kPadSK_,
           bool kPadD_,
           bool kPadDv_,
@@ -377,7 +376,6 @@ struct fmha_bwd_dq_dk_dv_traits_
     using FmhaDropout                         = ck_tile::remove_cvref_t<FmhaDropout_>;
     static constexpr auto BiasEnum            = BiasEnum_;
     static constexpr bool kHasBiasGrad        = kHasBiasGrad_;
-    static constexpr bool kPadS               = kPadS_;
     static constexpr bool kPadSK              = kPadSK_;
     static constexpr bool kPadD               = kPadD_;
     static constexpr bool kPadDv              = kPadDv_;

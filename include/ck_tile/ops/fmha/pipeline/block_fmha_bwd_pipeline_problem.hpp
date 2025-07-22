@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -55,13 +55,16 @@ struct BlockFmhaBwdPipelineProblem
     static constexpr bool kIsDeterministic = kIsDeterministic_;
 
     // attributes from traits
-    static constexpr bool kPadSeqLenQ    = Traits::kPadSeqLenQ;
     static constexpr bool kPadSeqLenK    = Traits::kPadSeqLenK;
     static constexpr bool kPadHeadDimQ   = Traits::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV   = Traits::kPadHeadDimV;
     static constexpr auto BiasEnum       = Traits::BiasEnum;
     static constexpr bool kHasBiasGrad   = Traits::kHasBiasGrad;
     static constexpr index_t kBlockPerCu = Traits::kBlockPerCu;
+    static_assert(!Traits::kPadSeqLenQ, "BlockFmhaBwdPipelineProblem does not need kPadSeqLenQ");
+    static_assert(!kPadSeqLenK || (BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                                   FmhaDropout::IsStoreRandval),
+                  "kPadSeqLenK only used when BiasEnum is ELEMENTWISE_BIAS");
 };
 
 template <typename ODataType_,
