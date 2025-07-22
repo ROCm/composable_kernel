@@ -47,7 +47,7 @@ This document provides a technical reference for terminology used in the Composa
 - [Processing Units](#processing-units)
 - [Reference Kernel](#reference-kernel)
 - [Regression Test](#regression-test)
-- [SGPR (Scalar General Purpose Register)](#sgpr-scalar-general-purpose-register)
+- [Scalar General Purpose Register (SGPR)](#scalar-general-purpose-register-sgpr)
 - [Shared Memory / LDS (Local Data Share)](#shared-memory--lds-local-data-share)
 - [SIMT / SIMD](#simt--simd)
 - [Smoke Test](#smoke-test)
@@ -65,34 +65,34 @@ This document provides a technical reference for terminology used in the Composa
 - [User Customized Tile Pipeline](#user-customized-tile-pipeline)
 - [User Customized Tile Pipeline Optimization](#user-customized-tile-pipeline-optimization)
 - [Vector](#vector)
-- [VGPR (Vector General Purpose Register)](#vgpr-vector-general-purpose-register)
+- [Vector General Purpose Register (VGPR)](#vector-general-purpose-register-vgpr)
 - [Warp / Wavefront](#warp--wavefront)
 - [Wave Tile](#wave-tile)
 - [XDL Instructions](#xdl-instructions)
 
 ---
 
-## 1. Hardware and Memory Hierarchy
+## 1. Hardware and Memory
 
 ### Processing Units
-The GPU is composed of multiple hardware units (SMs on NVIDIA, CUs on AMD), each containing many cores that execute threads in parallel. These units manage shared resources and coordinate execution at scale.
+The GPU is composed of multiple hardware units ([compute units (CUs)](#compute-unit-cu) on AMD, [streaming multiprocessors (SMs)](#compute-unit-cu) on NVIDIA), each containing many cores that run threads in parallel. These units manage shared resources and coordinate execution at scale.
 
 ### Matrix Core
-Specialized GPU units that accelerate matrix operations for AI and deep learning tasks.
+Specialized GPU units that accelerate matrix operations for AI and deep learning tasks. Modern GPUs contain multiple matrix cores.
 
 ### Compute Unit (CU)
-A parallel vector processor in a GPU with multiple ALUs, where all waves in a workgroup run on the same CU.
+AMD's parallel vector processor in a GPU with multiple ALUs. Each compute unit will run all the waves in a workgroup. _This is equivalent to NVIDIA's streaming multiprocessor (SM)_.
 
-### MFMA (Matrix Fused Multiply-Add)
-AMD's matrix core instruction for efficient GEMM operations. CK optimizes for MFMA usage.
+### Matrix Fused Multiply-Add (MFMA)
+AMD's matrix core instruction for efficient GEMM operations. CK optimizes kernel designs to maximize MFMA utilization and performance.
 
 ### Registers
-The fastest memory tier, registers are private to each thread/work-item and used for storing temporary variables during computation. AMD distinguishes between vector (VGPR) and scalar (SGPR) registers, while NVIDIA uses a unified register file.
+The fastest memory tier, registers are private to each thread/work-item and used for storing temporary variables during computation. AMD distinguishes between [vector (VGPR)](#vector-general-purpose-register-vgpr) and [scalar (SGPR)](#scalar-general-purpose-register-sgpr) registers, while NVIDIA uses a unified register file.
 
-### VGPR (Vector General Purpose Register)
+### Vector General Purpose Register (VGPR)
 Per-thread registers that store individual thread data within a wave. Each thread has its own set of VGPRs for private variables and calculations.
 
-### SGPR (Scalar General Purpose Register)
+### Scalar General Purpose Register (SGPR)
 Wave-level registers shared by all threads in a wave. Used for constants, addresses, and control flow that are common across the entire wave.
 
 ### Shared Memory / LDS (Local Data Share)
