@@ -593,6 +593,15 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                          b_thread_bufs(local_read_buf));
                     b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
+                    b_scale_thread_copy.Run(b_scale_grid_desc,
+                                            b_scale_grid_buf,
+                                            b_scale_thread_desc,
+                                            make_tuple(I0, I0),
+                                            b_scale_thread_bufs(local_read_buf));
+
+                    b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
+                                                           b_scale_thread_copy_step);
+
                     a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(local_read_buf));
                     a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
                     a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
@@ -617,15 +626,6 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                         a_scale_thread_copy.MoveSrcSliceWindow(
                             a_scale_grid_desc, a_scale_thread_copy_step.At(Number<1>{}));
                     }
-
-                    b_scale_thread_copy.Run(b_scale_grid_desc,
-                                            b_scale_grid_buf,
-                                            b_scale_thread_desc,
-                                            make_tuple(I0, I0),
-                                            b_scale_thread_bufs(local_read_buf));
-
-                    b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
-                                                           b_scale_thread_copy_step);
 
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
                         vector_type<AccDataType, 2> c_scale_thread_vec;
@@ -744,8 +744,9 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                                  b_scale_thread_bufs[mfma_reg_buf][I0];
                     });
 
-                    HotLoopScheduler();
-                    __builtin_amdgcn_sched_barrier(0);
+                    // We need new compiler to enable this feature
+                    // HotLoopScheduler();
+                    // __builtin_amdgcn_sched_barrier(0);
                 };
 
                 LoopFunc(I0, I1);

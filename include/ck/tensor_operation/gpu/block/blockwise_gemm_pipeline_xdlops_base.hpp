@@ -58,11 +58,6 @@ struct BlockwiseGemmXdlops_pipeline_base
     static constexpr index_t KPerThread    = KPerBlock / xdlops_gemm.K0PerXdlops;
     static constexpr index_t KRepeat       = KPerThread / KPack;
     static constexpr index_t KPerInnerLoop = KPack;
-    static constexpr index_t KGroup =
-        ((MPerXDL == 16 && MPerXDL == 16 && xdlops_gemm.KPerXdlops == 128) ||
-         (MPerXDL == 32 && MPerXDL == 32 && xdlops_gemm.KPerXdlops == 64))
-            ? 2
-            : 1;
 
     static constexpr index_t KGroup = []() {
         if constexpr(is_same_v<remove_cvref_t<ComputeDataType>, f8_t>)
