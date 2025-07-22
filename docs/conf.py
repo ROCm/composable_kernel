@@ -44,8 +44,8 @@ for sphinx_var in ROCmDocs.SPHINX_VARS:
     globals()[sphinx_var] = getattr(docs_core, sphinx_var)
 
 extensions += [
-                'sphinxcontrib.bibtex',
-                'sphinxcontrib.doxylink'
+                "sphinxcontrib.bibtex",
+                "sphinxcontrib.doxylink"
 ]
 bibtex_bibfiles = ['refs.bib']
 
