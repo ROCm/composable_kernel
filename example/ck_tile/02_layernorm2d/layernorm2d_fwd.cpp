@@ -1,5 +1,6 @@
 #include "ck_tile/host.hpp"
 #include "layernorm2d_fwd.hpp"
+#include "json_dump.hpp"
 #include <algorithm>
 #include <cstring>
 
@@ -54,7 +55,8 @@ auto create_args(int argc, char* argv[])
         .insert("fquant", "0", "fused-quant, 0:no, 1:smooth-dynamic-quant, 2:dynamic-quant")
         .insert("warmup", "5", "cold iter")
         .insert("repeat", "20", "hot iter")
-        .insert("json", "0", "0: No Json, 1: Dump Results in Json format");;
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "layernorm2d_fwd.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -407,6 +409,24 @@ bool run(const ck_tile::ArgParser& arg_parser)
         std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
     }
 
+    if(arg_parser.get_int("json") == 1)
+    {
+        START_JSON_DUMP_FILE(arg_parser.get_str("jsonfile"));
+        ADD_KEY_VALUE("name", "layernorm2d_fwd");
+        ADD_KEY_VALUE("prec_i", prec_i);
+        ADD_KEY_VALUE("prec_o", prec_o);
+        ADD_KEY_VALUE("prec_sm", prec_sm);
+        ADD_KEY_VALUE("prec_sy", prec_sy);
+        ADD_KEY_VALUE("m", m);
+        ADD_KEY_VALUE("n", n);
+        ADD_KEY_VALUE("x_stride", x_stride);
+        ADD_KEY_VALUE("xr_stride", xr_stride);
+        ADD_KEY_VALUE("y_stride", y_stride);
+        ADD_KEY_VALUE("yr_stride", yr_stride);
+        ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
+        ADD_PERF_TO_JSON(ave_time, 0, gb_per_sec)
+        END_JSON_DUMP_FILE();
+    }
     return pass;
 }
 
