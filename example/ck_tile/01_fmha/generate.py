@@ -114,7 +114,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--optdim",
-        default='-1',
+        default='32,64,128,256',
         required=False,
         help="only optimize the hdim in the list. separated by comma. -1 is the default choice" + \
               "eg. --optdim=32,64,128,256"
