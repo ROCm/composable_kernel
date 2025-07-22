@@ -35,7 +35,7 @@ using ResidualLayout = typename LayoutSettingSelector<NDimSpatial>::ResidualLayo
 // instance for double rate mfma on gfx950 (vs gfx942)
 template <ck::index_t NDimSpatial>
 using DeviceConvFwdInstance2 =
-    ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
+    ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<
         NDimSpatial,
         InputLayout<NDimSpatial>,
         WeightLayout<NDimSpatial>,
@@ -52,7 +52,6 @@ using DeviceConvFwdInstance2 =
         OutElementOp,
         ConvSpec,    // ConvForwardSpecialization
         GemmSpec,    // GemmSpecialization
-        1,           //
         256,         // BlockSize
         128,         // MPerBlock
         64,          // NPerBlock
@@ -84,7 +83,7 @@ using DeviceConvFwdInstance2 =
 // instance for gfx942-
 template <ck::index_t NDimSpatial>
 using DeviceConvFwdInstance =
-    ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
+    ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<
         NDimSpatial,
         InputLayout<NDimSpatial>,
         WeightLayout<NDimSpatial>,
@@ -101,7 +100,6 @@ using DeviceConvFwdInstance =
         OutElementOp,
         ConvSpec,    // ConvForwardSpecialization
         GemmSpec,    // GemmSpecialization
-        1,           //
         256,         // BlockSize
         128,         // MPerBlock
         128,         // NPerBlock
