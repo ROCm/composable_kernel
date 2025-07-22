@@ -45,11 +45,11 @@ __host__ __device__ constexpr Y bf16_convert_rtn(X x);
 
 // Convert fp32 to bf16 with RTN if higher precision is needed
 template <>
-inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(float x)
+inline __host__ __device__ bhalf_t bf16_convert_rtn<bhalf_t, float>(float x)
 {
 
 #if defined(__gfx950__)
-    // uint32_t zero = 0x0;
+    uint32_t zero = 0x0;
     uint32_t result;
     union
     {
@@ -57,8 +57,8 @@ inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(fl
         uint32_t int32;
     } u = {x};
 
-    asm volatile("v_cvt_pk_bf16_f32 %0, 0, %1" : "=v"(result) : "v"(zero), "v"(u.int32));
-    return static_cast<uint16_t>(result);
+    asm volatile("v_cvt_pk_bf16_f32 %0, %2, %1" : "=v"(result) : "v"(zero), "v"(u.int32));
+    return static_cast<uint16_t>(0);
 #else
     // Nan check
     if(x != x)
