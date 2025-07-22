@@ -198,13 +198,27 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
 
         constexpr index_t kKPack = GetSmemKPackK<Problem>();
 
-        constexpr auto k_lds_block_desc =
-            make_naive_tensor_descriptor(make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}),
-                                         make_tuple(number<kKPerBlock>{}, number<1>{}),
-                                         number<kKPack>{},
-                                         number<1>{});
+        constexpr auto k_lds_block_desc_naive = make_naive_tensor_descriptor(
+            make_tuple(number<kNPerBlock>{}, number<kKPerBlock / kKPack>{}, number<kKPack>{}),
+            make_tuple(number<kKPerBlock>{}, number<kKPack>{}, number<1>{}),
+            number<kKPack>{},
+            number<1>{});
 
-        return k_lds_block_desc;
+        constexpr auto k_lds_block_desc_permuted = transform_tensor_descriptor(
+            k_lds_block_desc_naive,
+            make_tuple(
+                make_xor_transform(make_tuple(number<kNPerBlock>{}, number<kKPerBlock / kKPack>{})),
+                make_pass_through_transform(number<kKPack>{})),
+            make_tuple(sequence<0, 1>{}, sequence<2>{}),
+            make_tuple(sequence<0, 1>{}, sequence<2>{}));
+
+        return transform_tensor_descriptor(
+            k_lds_block_desc_permuted,
+            make_tuple(
+                make_pass_through_transform(number<kNPerBlock>{}),
+                make_merge_transform(make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
+            make_tuple(sequence<0>{}, sequence<1, 2>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
     }
 
     template <typename Problem>
@@ -429,6 +443,14 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackVT()
+    {
+        using VDataType = remove_cvref_t<typename Problem::VDataType>;
+        // Read use ds_read_b64_tr
+        return static_cast<index_t>(8 / sizeof(VDataType));
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeSLdsBlockDescriptor()
     {
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
@@ -527,6 +549,137 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
         return max(GetSmemSizeQ<Problem>(), GetSmemSizeK<Problem>()) + GetSmemSizeS<Problem>() +
                GetSmemSizeV<Problem>();
     }
+#if 0 
+    template <typename Problem_>
+    struct HotLoopScheduler
+    {
+        using Problem = Problem_;
+
+        template <index_t GemmStage>
+        CK_TILE_DEVICE static constexpr void GemmStagedScheduler()
+        {
+        }
+
+        template <>
+        CK_TILE_DEVICE constexpr void GemmStagedScheduler<0>()
+        {
+            // Mem: Q, LSE, OGrad, D global load, OGrad^T LDS load
+            // Comp: Q x K
+            constexpr index_t VMEM_READ_INST =
+                Q_VMEM_READ + OGrad_VMEM_READ + LSE_VMEM_READ + D_VMEM_READ;
+            constexpr index_t LDS_READ_INST = OGradT_LDS_READ;
+            constexpr index_t MFMA_INST     = Gemm0MFMA;
+
+            // Evenly distributed to relieve SQ->TA FIFO pressure
+            constexpr index_t MFMA_PER_VMEM_READ = MFMA_INST / VMEM_READ_INST;
+            constexpr index_t MFMA_Remainder     = MFMA_INST - MFMA_PER_VMEM_READ * VMEM_READ_INST;
+            // To hide instruction issue latency
+            constexpr index_t LDS_READ_PER_MFMA = LDS_READ_INST / MFMA_INST;
+
+            static_for<0, VMEM_READ_INST, 1>{}([&](auto i) {
+                ignore = i;
+                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                static_for<0, MFMA_PER_VMEM_READ, 1>{}([&](auto j) {
+                    ignore = j;
+                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                 // MFMA
+                    __builtin_amdgcn_sched_group_barrier(0x100, LDS_READ_PER_MFMA, 0); // DS read
+                });
+            });
+            static_for<0, MFMA_Remainder, 1>{}([&](auto i) {
+                ignore = i;
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                 // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x100, LDS_READ_PER_MFMA, 0); // DS read
+            });
+        }
+
+        template <>
+        CK_TILE_DEVICE constexpr void GemmStagedScheduler<1>()
+        {
+            // Mem:  Q^T LDS load
+            // Comp: OGrad x V
+            constexpr index_t LDS_READ_INST = QT_LDS_READ;
+            constexpr index_t MFMA_INST     = Gemm1MFMA;
+
+            // To hide instruction issue latency
+            constexpr index_t LDS_READ_PER_MFMA = LDS_READ_INST / MFMA_INST;
+
+            static_for<0, MFMA_INST, 1>{}([&](auto i) {
+                ignore = i;
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                 // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x100, LDS_READ_PER_MFMA, 0); // DS read
+            });
+        }
+
+        private:
+        static constexpr index_t kBlockSize = Problem::kBlockSize;
+        static constexpr index_t kM0        = Problem::BlockFmhaShape::kM0;
+        static constexpr index_t kN0        = Problem::BlockFmhaShape::kN0;
+        static constexpr index_t kN1        = Problem::BlockFmhaShape::kN1;
+        static constexpr index_t kQKHeaddim = Problem::BlockFmhaShape::kQKHeaddim;
+        static constexpr index_t kVHeaddim  = Problem::BlockFmhaShape::kVHeaddim;
+        static constexpr index_t kK0        = Problem::BlockFmhaShape::kK0;
+        static constexpr index_t kK1        = Problem::BlockFmhaShape::kK1;
+
+        using WarpGemm0 =
+            WarpGemmMfmaDispatcher<typename Problem::QDataType,
+                                   typename Problem::KDataType,
+                                   typename Problem::SaccDataType,
+                                   Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
+                                   Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
+                                   Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
+                                   true>;
+
+        using WarpGemm1 =
+            WarpGemmMfmaDispatcher<typename Problem::PDataType,
+                                   typename Problem::VDataType,
+                                   typename Problem::OaccDataType,
+                                   Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
+                                   Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
+                                   Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
+                                   true,
+                                   false,
+                                   false,
+                                   WGAttrNumAccessEnum::Double>;
+
+        static constexpr index_t WarpGemm0M = WarpGemm0::kM;
+        static constexpr index_t WarpGemm0N = WarpGemm0::kN;
+        static constexpr index_t WarpGemm0K = WarpGemm0::kK;
+        static constexpr index_t WarpGemm1M = WarpGemm1::kM;
+        static constexpr index_t WarpGemm1N = WarpGemm1::kN;
+        static constexpr index_t WarpGemm1K = WarpGemm1::kK;
+
+        static constexpr index_t NumOfWarps = kBlockSize / get_warp_size();
+        static constexpr index_t Gemm0NWarp =
+            Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
+        static constexpr index_t Gemm1NWarp =
+            Problem::BlockFmhaShape::Gemm1BlockWarps::at(number<1>{});
+
+        // Compute
+        // 16*32*128/16*16*32 = 8
+        static constexpr index_t Gemm0MFMA =
+            kM0 * kN0 * kQKHeaddim / ( NumOfWarps * WarpGemm0M * WarpGemm0N * WarpGemm0K);
+        static constexpr index_t Gemm0MFMA =
+            kM0 * kN1 * kVHeaddim / ( NumOfWarps * WarpGemm1M * WarpGemm1N * WarpGemm1K);
+
+        // VMEM
+        // 32*128/64/8 = 8
+        static constexpr index_t K_VMEM_READ =
+            kN0 * kQKHeaddim / kBlockSize / GetAlignmentK<Problem>();
+        static constexpr index_t V_VMEM_READ =
+            kN1 * kVHeaddim / kBlockSize / GetAlignmentV<Problem>();
+
+        // LDS Read
+        static constexpr index_t K_LDS_READ =
+            kN0 * kQKHeaddim / (Gemm0NWarp * get_warp_size() * GetSmemKPackK<Problem>());
+        static constexpr index_t V_LDS_READ =
+            kN1 * kVHeaddim / (Gemm1NWarp * get_warp_size() * GetSmemKPackVT<Problem>());
+        
+        /* Add Shuffle S */
+
+        // LDS Write
+        /* Add Shuffle S */
+    };
+#endif
 };
 
 } // namespace ck_tile

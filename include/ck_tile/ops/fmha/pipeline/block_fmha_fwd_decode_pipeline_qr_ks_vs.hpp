@@ -45,11 +45,9 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
     static constexpr index_t kSubQKHeaddim = BlockFmhaShape::kSubQKHeaddim;
     static constexpr index_t kNWarp        = BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
     static constexpr index_t kNXdl         = BlockFmhaShape::Gemm0WarpTile::at(number<1>{});
+    // using HotLoopScheduler      = typename Policy::template HotLoopScheduler<Problem>;
 
     static_assert(kSubQKHeaddim <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
-
-    // static_assert(Problem::kPadSeqLenQ == true && Problem::kPadHeadDimQ == true &&
-    //               Problem::kPadHeadDimV == true);
 
     static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
     static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;

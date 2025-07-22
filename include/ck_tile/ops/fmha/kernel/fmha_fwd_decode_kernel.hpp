@@ -757,20 +757,50 @@ struct FmhaFwdDecodeKernel
 
         const auto make_k_dram = [&](const KDataType* data, index_t height) {
             // We don't expect K data reuse among different blocks in decode case.
-            const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global,
-                                                             memory_operation_enum::set,
-                                                             amd_buffer_coherence_enum::SYSTEM_NT1>(
-                data, // will update this pointer if using paged-kvcache
-                make_tuple(height, kargs.hdim_q),
-                make_tuple(kargs.stride_k, 1),
-                number<FmhaPipeline::kAlignmentK>{},
-                number<1>{});
+            const auto k_dram_naive = [&]() {
+                const auto k_dram_ = make_naive_tensor_view<address_space_enum::global,
+                                                            memory_operation_enum::set,
+                                                            amd_buffer_coherence_enum::SYSTEM_NT1>(
+                    data, // will update this pointer if using paged-kvcache
+                    make_tuple(height, kargs.hdim_q),
+                    make_tuple(kargs.stride_k, 1),
+                    number<FmhaPipeline::kAlignmentK>{},
+                    number<1>{});
 
-            return pad_tensor_view(
+                return pad_tensor_view(
+                    k_dram_,
+                    make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
+                    sequence<kPadSeqLenK, kPadHeadDimQ>{});
+            }();
+
+            const auto k_dram_unmerged = transform_tensor_view(
                 k_dram_naive,
-                make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
-                sequence<false, kPadHeadDimQ>{});
+                make_tuple(make_pass_through_transform(height),
+                           make_unmerge_transform(make_tuple(
+                               number<FmhaPipeline::kQKHeaddim / FmhaPipeline::kAlignmentK>{},
+                               number<FmhaPipeline::kAlignmentK>{}))),
+                make_tuple(sequence<0>{}, sequence<1>{}),
+                make_tuple(sequence<0>{}, sequence<1, 2>{}));
+
+            const auto k_dram_permuted = transform_tensor_view(
+                k_dram_unmerged,
+                make_tuple(
+                    make_xor_transform(make_tuple(
+                        height, number<FmhaPipeline::kQKHeaddim / FmhaPipeline::kAlignmentK>{})),
+                    make_pass_through_transform(number<FmhaPipeline::kAlignmentK>{})),
+                make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                make_tuple(sequence<0, 1>{}, sequence<2>{}));
+
+            return transform_tensor_view(
+                k_dram_permuted,
+                make_tuple(make_pass_through_transform(height),
+                           make_merge_transform_v3_division_mod(make_tuple(
+                               number<FmhaPipeline::kQKHeaddim / FmhaPipeline::kAlignmentK>{},
+                               number<FmhaPipeline::kAlignmentK>{}))),
+                make_tuple(sequence<0>{}, sequence<1, 2>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
         };
+        
         const auto k_dram = [&]() {
             if constexpr(kIsPagedKV)
             {
