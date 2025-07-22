@@ -169,7 +169,7 @@ template <typename ALayout,
           typename ComputeTypeB                       = ComputeTypeA,
           typename LDSTypeA                           = ADataType,
           typename LDSTypeB                           = BDataType>
-struct GridwiseMoeGemm
+struct GridwiseMoeGemmPersistent
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};

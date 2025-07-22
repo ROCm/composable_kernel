@@ -89,7 +89,7 @@ struct DeviceMoeGemmPersistent : public DeviceGemmMultipleDSplitKBPreShuffle<ALa
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
     using GridwiseGemm =
-        GridwiseMoeGemm<ALayout,
+        GridwiseMoeGemmPersistent<ALayout,
                         BLayout,
                         DsLayout,
                         CLayout,
