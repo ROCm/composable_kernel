@@ -107,6 +107,33 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeKDramTileDistribution()
+    {
+        using KDataType = remove_cvref_t<typename Problem::KDataType>;
+
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kSubQKHeaddim;
+
+        constexpr index_t MaxVectorSize = 16 / sizeof(KDataType);
+        constexpr index_t ElemPerThread = (kNPerBlock * kKPerBlock) / kBlockSize;
+
+        constexpr index_t K1 = min(MaxVectorSize, ElemPerThread);
+        constexpr index_t K0 = kKPerBlock / K1;
+        constexpr index_t N2 = get_warp_size() / K0;
+        constexpr index_t N1 = kBlockSize / get_warp_size();
+        constexpr index_t N0 = kNPerBlock / (N2 * N1);
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<N0, N1, N2>, sequence<K0, K1>>,
+                                       tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<1>, sequence<2, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 1>>{});
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQRegTileDistribution()
     {
         using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
