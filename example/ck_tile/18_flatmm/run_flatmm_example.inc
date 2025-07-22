@@ -2,7 +2,7 @@
 // Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 #include <type_traits>
-// #include "json_dump.hpp"
+#include "json_dump.hpp"
 template <typename T>
 constexpr const char* DataTypeToString()
 {
@@ -340,7 +340,7 @@ int run_flatmm_example_with_layouts(int argc,
 
     if(arg_parser.get_int("json") == 1)
     {
-        START_JSON_DUMP_FILE("flatmm_basic.json")
+        START_JSON_DUMP_FILE(arg_parser.get_str("jsonfile"));
         ADD_KEY_VALUE("name", "flatmm_basic");
         ADD_KEY_VALUE("DataType", DataTypeToString<ADataType>());
         ADD_KEY_VALUE("M", M);
