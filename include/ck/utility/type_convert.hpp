@@ -56,7 +56,7 @@ inline __host__ __device__ bhalf_t bf16_convert_rtn<bhalf_t, float>(float x)
         uint32_t int32;
     } u = {x};
 
-    asm volatile("v_cvt_pk_bf16_f32 %0, %1, %2" : "=v"(result) : "v"(u.int32), "v"(u.int32));
+    asm volatile("v_cvt_pk_bf16_f32 %0, %1, %1" : "=v"(result) : "v"(u.int32));
     return static_cast<uint16_t>(result);
 #else
     // Nan check
