@@ -173,18 +173,34 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
-        // A matrix in LDS memory, destination of blockwise copy.
-        return make_naive_tensor_descriptor(
-            make_tuple(AK0PerBlock, Number<MPerBlock>{}, AK1),
-            make_tuple(Number<MPerBlock + ABlockLdsExtraM>{} * AK1, AK1, I1));
+        if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
+        {
+            // FIXME: our support to non-K contiguous layout is limited, only work in some specific
+            // setting
+            return make_naive_tensor_descriptor_packed(
+                make_tuple(AK0PerBlock, Number<MPerBlock>{}, AK1));
+        }
+        else
+        {
+            return make_naive_tensor_descriptor(make_tuple(AK0PerBlock, Number<MPerBlock>{}, AK1),
+                                                make_tuple(AK1, Number<KPerBlock>{}, I1));
+        }
     }
 
     __host__ __device__ static constexpr auto GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()
     {
-        // B matrix in LDS memory, destination of blockwise copy.
-        return make_naive_tensor_descriptor(
-            make_tuple(BK0PerBlock, Number<NPerBlock>{}, BK1),
-            make_tuple(Number<NPerBlock + BBlockLdsExtraN>{} * BK1, BK1, I1));
+        if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
+        {
+            // FIXME: our support to non-K contiguous layout is limited, only work in some specific
+            // setting
+            return make_naive_tensor_descriptor_packed(
+                make_tuple(BK0PerBlock, Number<NPerBlock>{}, BK1));
+        }
+        else
+        {
+            return make_naive_tensor_descriptor(make_tuple(BK0PerBlock, Number<NPerBlock>{}, BK1),
+                                                make_tuple(BK1, Number<KPerBlock>{}, I1));
+        }
     }
 
     __host__ __device__ static constexpr auto
@@ -566,10 +582,12 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
             ThreadGroupTensorSliceTransfer_DirectLoad<ThisThreadBlock,
                                                       Sequence<AK0PerBlock, MPerBlock, AK1>,
                                                       ABlockTransferThreadClusterLengths_AK0_M_AK1,
+                                                      ABlockTransferSrcAccessOrder,
                                                       ADataType,
                                                       AComputeDataType,
                                                       decltype(a_grid_desc_ak0_m_ak1),
                                                       decltype(a_block_desc_ak0_m_ak1),
+                                                      ABlockTransferSrcAccessOrder,
                                                       ABlockTransferSrcVectorDim,
                                                       2,
                                                       ABlockTransferScalarPerVector>(
@@ -582,10 +600,12 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
             ThreadGroupTensorSliceTransfer_DirectLoad<ThisThreadBlock,
                                                       Sequence<BK0PerBlock, NPerBlock, BK1>,
                                                       BBlockTransferThreadClusterLengths_BK0_N_BK1,
+                                                      BBlockTransferSrcAccessOrder,
                                                       BDataType,
                                                       BComputeDataType,
                                                       decltype(b_grid_desc_bk0_n_bk1),
                                                       decltype(b_block_desc_bk0_n_bk1),
+                                                      BBlockTransferSrcAccessOrder,
                                                       BBlockTransferSrcVectorDim,
                                                       2,
                                                       BBlockTransferScalarPerVector>(
@@ -605,17 +625,20 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
             (((is_same<AComputeDataType, half_t>::value ||
                is_same<AComputeDataType, bhalf_t>::value) &&
               lcm_AK1_BK1 <= 4) ||
-             (is_same<AComputeDataType, int8_t>::value && lcm_AK1_BK1 <= 8))
+             (is_same<AComputeDataType, int8_t>::value && lcm_AK1_BK1 <= 8) ||
+             ((is_same<AComputeDataType, f8_t>::value || is_same<AComputeDataType, bf8_t>::value) &&
+              lcm_AK1_BK1 < 32))
                 ? true
                 : false;
+        constexpr auto is_scale_mfma = false;
 
-        constexpr index_t KPack =
-            math::max(lcm_AK1_BK1,
-                      MfmaSelector<AComputeDataType,
-                                   MPerXdl,
-                                   NPerXdl,
-                                   BComputeDataType,
-                                   is_single_rate_mfma>::selected_mfma.k_per_blk);
+        constexpr index_t KPack = math::max(lcm_AK1_BK1,
+                                            MfmaSelector<AComputeDataType,
+                                                         MPerXdl,
+                                                         NPerXdl,
+                                                         BComputeDataType,
+                                                         is_single_rate_mfma,
+                                                         is_scale_mfma>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,

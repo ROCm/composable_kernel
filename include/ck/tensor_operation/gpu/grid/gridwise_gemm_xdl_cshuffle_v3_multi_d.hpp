@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -183,14 +183,21 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
     static constexpr bool is_single_rate_mfma =
         (((is_same<ComputeTypeA, half_t>::value || is_same<ComputeTypeA, bhalf_t>::value) &&
           lcm_AK1_BK1 <= 4) ||
-         (is_same<ComputeTypeA, int8_t>::value && lcm_AK1_BK1 <= 8))
+         (is_same<ComputeTypeA, int8_t>::value && lcm_AK1_BK1 <= 8) ||
+         // gfx950 double rate mfma16x16 require at least 128 KPerBlock to consume
+         ((is_same<ComputeTypeA, f8_t>::value || is_same<ComputeTypeA, bf8_t>::value) &&
+          KPerBlock < 128 && MPerXdl == 16))
             ? true
             : false;
-
+    static constexpr auto is_scale_mfma = false;
     static constexpr index_t KPack =
         math::max(lcm_AK1_BK1,
-                  MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeB, is_single_rate_mfma>::
-                      selected_mfma.k_per_blk);
+                  MfmaSelector<ComputeTypeA,
+                               MPerXdl,
+                               NPerXdl,
+                               ComputeTypeB,
+                               is_single_rate_mfma,
+                               is_scale_mfma>::selected_mfma.k_per_blk);
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -535,6 +542,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
 
     struct Problem
     {
+        __host__ __device__ Problem() = default;
         __host__ __device__ Problem(index_t M_,
                                     index_t N_,
                                     index_t K_,
@@ -602,6 +610,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
     // Argument
     struct Argument : public tensor_operation::device::BaseArgument, public Problem
     {
+        __host__ Argument() = default;
         __host__ Argument(const ADataType* p_a_grid_,
                           const BDataType* p_b_grid_,
                           std::array<const void*, NumDTensor> p_ds_grid_,
@@ -641,9 +650,9 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         DsGridPointer p_ds_grid;
         CDataType* p_c_grid;
 
-        const AElementwiseOperation a_element_op;
-        const BElementwiseOperation b_element_op;
-        const CElementwiseOperation c_element_op;
+        AElementwiseOperation a_element_op;
+        BElementwiseOperation b_element_op;
+        CElementwiseOperation c_element_op;
     };
 
     struct SplitKBatchOffset

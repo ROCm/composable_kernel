@@ -260,7 +260,8 @@ struct ThreadwiseTensorSliceTransfer_v2
         static_assert(SliceLengths::At(Number<SrcVectorDim>{}) % SrcScalarPerVector == 0,
                       "wrong! Not divisible");
 
-        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
+        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t> ||
+                     is_same_v<remove_cvref_t<SrcData>, f4x2_pk_t>)
         {
             static_assert(SrcScalarPerVector % PackedSize == 0, "pk data N cannot be 1");
         }
@@ -578,11 +579,6 @@ struct ThreadwiseTensorSliceTransfer_v2_gather
                 }
             });
         });
-
-        // printf("blockIdx.y: %d, tid: %d, dst_buf<%f>\n",
-        //        blockIdx.y,
-        //        threadIdx.x,
-        //        dst_buf(Number<0>{}));
 
         // move src coordinate back to slice origin (or not)
         if constexpr(SrcResetCoordinateAfterRun)
@@ -1287,10 +1283,8 @@ struct ThreadwiseTensorSliceTransfer_v4
         static_assert(SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
                       "wrong! SrcDesc and DstDesc need to known at compile-time");
 
-        static_assert(SliceLengths::At(Number<SrcVectorDim>{}) % SrcScalarPerVector == 0,
-                      "wrong! Not divisible");
-
-        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
+        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t> ||
+                     is_same_v<remove_cvref_t<SrcData>, f4x2_pk_t>)
         {
             static_assert(SrcScalarPerVector % PackedSize == 0, "pk data N cannot be 1");
         }
@@ -1470,16 +1464,16 @@ struct ThreadwiseTensorSliceTransfer_v4
             {
                 // copy data from src_tmp_vector to dst_tmp_vector (data cast data from SrcData to
                 // DstData)
-                vector_type_maker_t<DstData, SrcScalarPerVector> dst_tmp_vector;
+                vector_type_maker_t<DstData, SrcScalarPerVector / PackedSize> dst_tmp_vector;
 
                 // TODO: if SrcData and DstData are vetor type, then static_cast may not compile
-                static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
+                static_for<0, SrcScalarPerVector / PackedSize, 1>{}([&](auto i) {
                     dst_tmp_vector.template AsType<DstData>()(i) =
                         type_convert<DstData>(src_tmp_vector.template AsType<SrcData>()[i]);
                 });
 
                 // copy data from dst_tmp_vector into dst_buf
-                static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
+                static_for<0, SrcScalarPerVector / PackedSize, 1>{}([&](auto i) {
                     constexpr index_t dst_offset = dst_desc.CalculateOffset(
                         dst_origin_idx + data_to_origin_disp_idx + i * src_scalar_step_in_vector);
 

@@ -29,24 +29,18 @@ struct BatchedTransposePipeline
     {
         auto inp_win =
             make_tile_window(input_window, Policy::template MakeInputDistribution<Problem>());
+
+        auto input_tile = load_tile(inp_win);
+
+        auto output_tile = make_static_distributed_tensor<InputType>(
+            Policy::template MakeOutputDistribution<Problem>());
+
+        transpose_tile2d(output_tile, input_tile);
+
         auto out_win =
             make_tile_window(out_window, Policy::template MakeOutputDistribution<Problem>());
 
-        auto x = load_tile(inp_win); // x->thread input_win->block
-
-        auto y = make_static_distributed_tensor<InputType>(
-            Policy::template MakeOutputDistribution<Problem>());
-
-        constexpr auto span_2d_x = decltype(x)::get_distributed_spans();
-
-        sweep_tile_span(span_2d_x[number<0>{}], [&](auto idx0) {
-            sweep_tile_span(span_2d_x[number<1>{}], [&](auto idx1) {
-                constexpr auto i_j_idx = make_tuple(idx1, idx0);
-                y(i_j_idx)             = x(i_j_idx);
-            });
-        });
-
-        store_tile(out_win, y);
+        store_tile(out_win, output_tile);
     }
 };
 } // namespace ck_tile

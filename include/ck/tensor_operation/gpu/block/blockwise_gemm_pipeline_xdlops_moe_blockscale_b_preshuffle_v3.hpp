@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -318,7 +318,8 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
             static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
                 // Scale load, 1A
-                if constexpr(imfma == 0){
+                if constexpr(imfma == 0)
+                {
                     __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
                 }
 
@@ -461,7 +462,6 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
         });
 
 
-
         a_scale_thread_copy.Run(a_scale_grid_desc,
                                 a_scale_grid_buf,
                                 a_scale_thread_desc,
@@ -516,7 +516,32 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
             });
         });
 
+#if 0
+        static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
+            c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
+                .template AsType<AccDataType>()(Number<t>{}) = 0;
+        });
 
+        // Fill first mfma buffer
+        static_for<0, KRepeat, 1>{}([&](auto k0) {
+            vector_type<ComputeDataType, KPack> a_thread_vec;
+            vector_type<ComputeDataType, KPack> b_thread_vec;
+
+            static_for<0, KPack, 1>{}([&](auto ik) {
+                a_thread_vec.template AsType<ComputeDataType>()(ik) = a_thread_buf
+                    [Number<a_thread_desc_.CalculateOffset(make_tuple(I0, I0, I0, k0, I0, ik))>{}];
+                b_thread_vec.template AsType<ComputeDataType>()(ik) = b_thread_bufs
+                    [I0][Number<b_thread_desc_.CalculateOffset(make_tuple(I0, I0, k0, ik))>{}];
+            });
+
+            using mfma_input_type =
+                typename vector_type<ComputeDataType, xdlops_gemm.K1PerXdlops>::type;
+
+            xdlops_gemm.template Run<>(a_thread_vec.template AsType<mfma_input_type>(),
+                                       b_thread_vec.template AsType<mfma_input_type>(),
+                                       c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{}));
+        });
+#endif
         __builtin_amdgcn_sched_barrier(0);
 
         // main body
@@ -705,7 +730,8 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
                     });
 
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
-                        c_scale_thread_buf(m0) = a_scale_thread_bufs[mfma_reg_buf][m0] * b_scale_thread_bufs[mfma_reg_buf][I0];
+                        c_scale_thread_buf(m0) = a_scale_thread_bufs[mfma_reg_buf][m0] *
+                                                 b_scale_thread_bufs[mfma_reg_buf][I0];
                     });
 
                     HotLoopScheduler();

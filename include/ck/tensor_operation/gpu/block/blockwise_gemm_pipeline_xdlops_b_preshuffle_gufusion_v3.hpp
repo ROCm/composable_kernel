@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -360,26 +360,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_gufusion_v3<BlockGemmPipelineSch
         }
         else if constexpr(stage.value == 1)
         {
-#if 0
-            constexpr auto staged_num_ds_write_a_per_ds_read_a =
-                num_ds_write_inst_a / staged_num_ds_read_inst_a;
-            constexpr auto staged_num_mfma_per_ds_write_a = staged_num_mfma / num_ds_write_inst_a;
-            // A local write
-            static_for<0, staged_num_ds_read_inst_a, 1>{}([&](auto i_inst) {
-                ignore = i_inst;
-
-                static_for<0, staged_num_ds_write_a_per_ds_read_a, 1>{}([&](auto idswrite_inst) {
-                    ignore = idswrite_inst;
-                    __builtin_amdgcn_sched_group_barrier(
-                        0x008, staged_num_mfma_per_ds_write_a - 1, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                });
-
-                __builtin_amdgcn_sched_group_barrier(
-                    0x008, staged_num_ds_write_a_per_ds_read_a, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0);  // DS read
-            });
-#elif 1
             constexpr auto staged_num_mfma_per_ds_write_a =
                 math::integer_divide_ceil(staged_num_mfma, num_ds_write_inst_a);
 
@@ -423,7 +403,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_gufusion_v3<BlockGemmPipelineSch
                     }
                 }
             });
-#endif
             __builtin_amdgcn_sched_barrier(0);
         }
         else

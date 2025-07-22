@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -48,6 +48,15 @@ enum struct TailNumber
     // prefetchstages
     Full,
 };
+
+enum SchedulerGroup : uint32_t
+{
+    SCHED_GROUP_MFMA      = 0x008, // Matrix FMA instructions
+    SCHED_GROUP_VMEM      = 0x020, // Global memory operations
+    SCHED_GROUP_LDS_READ  = 0x100, // LDS read operations
+    SCHED_GROUP_LDS_WRITE = 0x200  // LDS write operations
+};
+
 template <index_t BlockSize,
           index_t MPerBlock,
           index_t NPerBlock,
@@ -62,7 +71,8 @@ template <index_t BlockSize,
           index_t NRepeat,
           index_t MPerXDL,
           index_t NPerXDL,
-          index_t KPerXDL>
+          index_t KPerXDL,
+          bool IsF4F6 = false>
 struct BlockwiseGemmXdlops_pipeline_hotloop_inst
 {
     static constexpr index_t WaveSize = 64;
@@ -90,14 +100,16 @@ struct BlockwiseGemmXdlops_pipeline_hotloop_inst
     static constexpr index_t C_MFMA_Inst_Num =
         MPerBlock * NPerBlock * KPerBlock / (BlockSize / WaveSize) / (MPerXDL * NPerXDL * KPerXDL);
 
+    static constexpr index_t C_MFMA_SpeedUp = IsF4F6 ? 2 : 1;
+
     static constexpr index_t C_MFMA_Inst_Cycle = []() {
         if constexpr(NPerXDL == 16)
         {
-            return KPerXDL == 128 ? 32 : 16;
+            return KPerXDL == 128 ? 32 / C_MFMA_SpeedUp : 16 / C_MFMA_SpeedUp;
         }
         else if constexpr(NPerXDL == 32)
         {
-            return KPerXDL == 64 ? 64 : 32;
+            return KPerXDL == 64 ? 64 / C_MFMA_SpeedUp : 32 / C_MFMA_SpeedUp;
         }
     }();
 

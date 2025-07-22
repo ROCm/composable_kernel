@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -154,6 +154,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
     using Base::MWaves;
 
     static constexpr index_t PrefetchStages        = 2;
+    static constexpr index_t LocalPrefetchStages   = 2;
     static constexpr index_t PrefillStages         = 1;
     static constexpr index_t GlobalBufferNum       = 1;
     static constexpr index_t HotloopLocalBufSwitch = MRepeat % 2 == 0 ? 0 : 1;
@@ -204,7 +205,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
         constexpr auto num_ds_write_inst_a = HotLoopInstList::A_LDS_Write_Inst_Num;
 
         constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
-        constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num;
+        constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num * MWaves;
 
         static_assert(num_buffer_load_inst_a == num_ds_write_inst_a);
 
@@ -229,18 +230,18 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
         constexpr auto num_ds_read_a_mfma_perstage =
             math::integer_divide_ceil(num_ds_read_a_perstage, ds_read_a_mfma_rate);
 
-        constexpr auto num_ds_read_a_prefetch_stages = 2;
-
-        constexpr auto buffer_load_perstage_more = math::integer_divide_ceil(
-            (num_buffer_load_inst_a + num_buffer_load_inst_b), (num_total_stages - 2));
-        constexpr auto buffer_load_perstage_less = math::integer_divide_floor(
-            (num_buffer_load_inst_a + num_buffer_load_inst_b), (num_total_stages - 2));
+        constexpr auto buffer_load_perstage_more =
+            math::integer_divide_ceil((num_buffer_load_inst_a + num_buffer_load_inst_b),
+                                      (num_total_stages - (LocalPrefetchStages - 1)));
+        constexpr auto buffer_load_perstage_less =
+            math::integer_divide_floor((num_buffer_load_inst_a + num_buffer_load_inst_b),
+                                       (num_total_stages - (LocalPrefetchStages - 1)));
 
         constexpr auto buffer_load_stages_more =
             (num_buffer_load_inst_a + num_buffer_load_inst_b) -
             math::integer_divide_floor((num_buffer_load_inst_a + num_buffer_load_inst_b),
-                                       (num_total_stages - 2)) *
-                ((num_total_stages - 2));
+                                       (num_total_stages - (LocalPrefetchStages - 1))) *
+                ((num_total_stages - (LocalPrefetchStages - 1)));
 
         constexpr auto buffer_load_b_stages =
             buffer_load_perstage_more * buffer_load_stages_more > num_buffer_load_inst_b
@@ -250,13 +251,17 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                        buffer_load_perstage_less);
 
         constexpr auto buffer_load_a_stages =
-            num_total_stages - num_ds_read_a_prefetch_stages - buffer_load_b_stages;
+            num_total_stages - (LocalPrefetchStages - 1) - buffer_load_b_stages;
 
         constexpr auto buffer_load_issue_point_b = 0;
         constexpr auto buffer_load_issue_point_interval_more =
-            num_mfma_perstage / buffer_load_perstage_more ? num_mfma_perstage / buffer_load_perstage_more : 1;
+            num_mfma_perstage / buffer_load_perstage_more
+                ? num_mfma_perstage / buffer_load_perstage_more
+                : 1;
         constexpr auto buffer_load_issue_point_interval_less =
-            num_mfma_perstage / buffer_load_perstage_less ? num_mfma_perstage / buffer_load_perstage_less : 1;
+            num_mfma_perstage / buffer_load_perstage_less
+                ? num_mfma_perstage / buffer_load_perstage_less
+                : 1;
         constexpr auto ds_write_issue_point      = 0;
         constexpr auto buffer_load_issue_point_a = num_mfma_perstage >= 3 ? 1 : 0;
 
@@ -329,7 +334,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
         });
 
         // lds synchronization, prefetch next loop local A
-        static_for<0, num_ds_read_a_prefetch_stages, 1>{}([&](auto i) {
+        static_for<0, (LocalPrefetchStages - 1), 1>{}([&](auto i) {
             ignore = i;
             static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
@@ -532,15 +537,16 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
 
         // Local prefetch A1
         block_sync_lds();
-        static_for<0, 2, 1>{}([&](auto m0) {
+        static_for<0, LocalPrefetchStages, 1>{}([&](auto m0) {
             static_for<0, KRepeat, 1>{}([&](auto k0) {
                 static_for<0, KGroup, 1>{}([&](auto kg0) {
-                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
-                                       make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
-                                       a_block_buf.At(I0),
-                                       a_thread_desc_,
-                                       make_tuple(m0, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
-                                       a_thread_buf);
+                    a_thread_copy_.Run(
+                        a_block_desc_m0_m1_m2_k0_k1_k2,
+                        make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
+                        a_block_buf.At(I0),
+                        a_thread_desc_,
+                        make_tuple(m0, I0, I0, k0, I0, Number<kg0 * KPack / KGroup>{}),
+                        a_thread_buf);
                 });
             });
         });
@@ -697,86 +703,40 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                             });
                         });
 
-                        if constexpr(m0.value == (MRepeat - 2))
+                        // We have to 1 stage early sync the lds for workaround the compiler
+                        // limitation
+                        if constexpr(m0.value == (MRepeat - LocalPrefetchStages - 1))
                         {
                             block_sync_lds();
+                        }
 
-                            static_for<0, KRepeat, 1>{}([&](auto k0) {
-                                static_for<0, KGroup, 1>{}([&](auto kg0) {
-                                    a_thread_copy_.Run(
-                                        a_block_desc_m0_m1_m2_k0_k1_k2,
-                                        make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                                   I0,
-                                                   I0,
-                                                   Number<k0 * KGroup + kg0>{},
-                                                   I0,
-                                                   I0),
-                                        a_block_buf.At(local_read_buf),
-                                        a_thread_desc_,
-                                        make_tuple(
-                                            Number<(m0 + 2 + HotloopLocalBufSwitch * mfma_reg_buf) %
-                                                   2>{},
-                                            I0,
-                                            I0,
-                                            k0,
-                                            I0,
-                                            Number<kg0 * A_K1>{}),
-                                        a_thread_buf);
-                                });
+                        constexpr auto lds_buf = m0.value >= (MRepeat - LocalPrefetchStages)
+                                                     ? local_read_buf
+                                                     : mfma_reg_buf;
+
+                        static_for<0, KRepeat, 1>{}([&](auto k0) {
+                            static_for<0, KGroup, 1>{}([&](auto kg0) {
+                                a_thread_copy_.Run(
+                                    a_block_desc_m0_m1_m2_k0_k1_k2,
+                                    make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                               I0,
+                                               I0,
+                                               Number<k0 * KGroup + kg0>{},
+                                               I0,
+                                               I0),
+                                    a_block_buf.At(Number<lds_buf>{}),
+                                    a_thread_desc_,
+                                    make_tuple(Number<(m0 + LocalPrefetchStages +
+                                                       HotloopLocalBufSwitch * mfma_reg_buf) %
+                                                      2>{},
+                                               I0,
+                                               I0,
+                                               k0,
+                                               I0,
+                                               Number<kg0 * KPack / KGroup>{}),
+                                    a_thread_buf);
                             });
-                        }
-                        else if constexpr(m0.value == (MRepeat - 1))
-                        {
-                            static_for<0, KRepeat, 1>{}([&](auto k0) {
-                                static_for<0, KGroup, 1>{}([&](auto kg0) {
-                                    a_thread_copy_.Run(
-                                        a_block_desc_m0_m1_m2_k0_k1_k2,
-                                        make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                                   I0,
-                                                   I0,
-                                                   Number<k0 * KGroup + kg0>{},
-                                                   I0,
-                                                   I0),
-                                        a_block_buf.At(local_read_buf),
-                                        a_thread_desc_,
-                                        make_tuple(
-                                            Number<(m0 + 2 + HotloopLocalBufSwitch * mfma_reg_buf) %
-                                                   2>{},
-                                            I0,
-                                            I0,
-                                            k0,
-                                            I0,
-                                            Number<kg0 * A_K1>{}),
-                                        a_thread_buf);
-                                });
-                            });
-                        }
-                        else
-                        {
-                            static_for<0, KRepeat, 1>{}([&](auto k0) {
-                                static_for<0, KGroup, 1>{}([&](auto kg0) {
-                                    a_thread_copy_.Run(
-                                        a_block_desc_m0_m1_m2_k0_k1_k2,
-                                        make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                                   I0,
-                                                   I0,
-                                                   Number<k0 * KGroup + kg0>{},
-                                                   I0,
-                                                   I0),
-                                        a_block_buf.At(mfma_reg_buf),
-                                        a_thread_desc_,
-                                        make_tuple(
-                                            Number<(m0 + 2 + HotloopLocalBufSwitch * mfma_reg_buf) %
-                                                   2>{},
-                                            I0,
-                                            I0,
-                                            k0,
-                                            I0,
-                                            Number<kg0 * A_K1>{}),
-                                        a_thread_buf);
-                                });
-                            });
-                        }
+                        });
                     });
 
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
@@ -869,71 +829,37 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                     });
                 });
 
-                if constexpr(m0.value == (MRepeat - 2))
+                if constexpr(m0.value == (MRepeat - LocalPrefetchStages))
                 {
                     block_sync_lds();
+                }
 
-                    static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        static_for<0, KGroup, 1>{}([&](auto kg0) {
-                            a_thread_copy_.Run(
-                                a_block_desc_m0_m1_m2_k0_k1_k2,
-                                make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                           I0,
-                                           I0,
-                                           Number<k0 * KGroup + kg0>{},
-                                           I0,
-                                           I0),
-                                a_block_buf.At(I1),
-                                a_thread_desc_,
-                                make_tuple(
-                                    Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
-                                a_thread_buf);
-                        });
+                constexpr auto lds_buf = m0.value >= (MRepeat - LocalPrefetchStages) ? I1 : I0;
+
+                static_for<0, KRepeat, 1>{}([&](auto k0) {
+                    static_for<0, KGroup, 1>{}([&](auto kg0) {
+                        a_thread_copy_.Run(
+                            a_block_desc_m0_m1_m2_k0_k1_k2,
+                            make_tuple(Number<(m0 + LocalPrefetchStages) % MRepeat>{},
+                                       I0,
+                                       I0,
+                                       Number<k0 * KGroup + kg0>{},
+                                       I0,
+                                       I0),
+                            a_block_buf.At(Number<lds_buf>{}),
+                            a_thread_desc_,
+                            make_tuple(Number<(m0 + LocalPrefetchStages) % 2>{},
+                                       I0,
+                                       I0,
+                                       k0,
+                                       I0,
+                                       Number<kg0 * KPack / KGroup>{}),
+                            a_thread_buf);
                     });
-                }
-                else if constexpr(m0.value == (MRepeat - 1))
-                {
-                    static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        static_for<0, KGroup, 1>{}([&](auto kg0) {
-                            a_thread_copy_.Run(
-                                a_block_desc_m0_m1_m2_k0_k1_k2,
-                                make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                           I0,
-                                           I0,
-                                           Number<k0 * KGroup + kg0>{},
-                                           I0,
-                                           I0),
-                                a_block_buf.At(I1),
-                                a_thread_desc_,
-                                make_tuple(
-                                    Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
-                                a_thread_buf);
-                        });
-                    });
-                }
-                else
-                {
-                    static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        static_for<0, KGroup, 1>{}([&](auto kg0) {
-                            a_thread_copy_.Run(
-                                a_block_desc_m0_m1_m2_k0_k1_k2,
-                                make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                           I0,
-                                           I0,
-                                           Number<k0 * KGroup + kg0>{},
-                                           I0,
-                                           I0),
-                                a_block_buf.At(I0),
-                                a_thread_desc_,
-                                make_tuple(
-                                    Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
-                                a_thread_buf);
-                        });
-                    });
-                }
+                });
             });
 
-            HotLoopScheduler();
+            // HotLoopScheduler();
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 c_scale_thread_buf(m0) = a_scale_thread_bufs[I0][m0] * b_scale_thread_bufs[I0][I0];
@@ -1010,22 +936,28 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                     });
                 });
 
-                if constexpr(m0.value < (MRepeat - 2))
+                if constexpr(m0.value < (MRepeat - LocalPrefetchStages))
                 {
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
                         static_for<0, KGroup, 1>{}([&](auto kg0) {
                             a_thread_copy_.Run(
                                 a_block_desc_m0_m1_m2_k0_k1_k2,
-                                make_tuple(
-                                    Number<m0 + 2>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
+                                make_tuple(Number<m0 + LocalPrefetchStages>{},
+                                           I0,
+                                           I0,
+                                           Number<k0 * KGroup + kg0>{},
+                                           I0,
+                                           I0),
                                 a_block_buf.At(I1),
                                 a_thread_desc_,
-                                make_tuple(Number<(m0 + 2 + HotloopLocalBufSwitch) % 2>{},
-                                           I0,
-                                           I0,
-                                           k0,
-                                           I0,
-                                           Number<kg0 * A_K1>{}),
+                                make_tuple(
+                                    Number<(m0 + LocalPrefetchStages + HotloopLocalBufSwitch) %
+                                           2>{},
+                                    I0,
+                                    I0,
+                                    k0,
+                                    I0,
+                                    Number<kg0 * KPack / KGroup>{}),
                                 a_thread_buf);
                         });
                     });
@@ -1033,7 +965,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
             });
             // Let's leak last MFMA block to epilogue region, cover the potential lds-shuffle
             // latency
-            // // __builtin_amdgcn_sched_barrier(0);
+            // __builtin_amdgcn_sched_barrier(0);
         }
         else
         {
@@ -1103,7 +1035,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                     });
                 });
 
-                if constexpr(m0.value < (MRepeat - 2))
+                if constexpr(m0.value < (MRepeat - LocalPrefetchStages))
                 {
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
                         static_for<0, KGroup, 1>{}([&](auto kg0) {
@@ -1113,8 +1045,12 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                     Number<m0 + 2>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
                                 a_block_buf.At(I0),
                                 a_thread_desc_,
-                                make_tuple(
-                                    Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                                make_tuple(Number<(m0 + LocalPrefetchStages) % 2>{},
+                                           I0,
+                                           I0,
+                                           k0,
+                                           I0,
+                                           Number<kg0 * KPack / KGroup>{}),
                                 a_thread_buf);
                         });
                     });

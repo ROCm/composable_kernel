@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -201,7 +201,7 @@ struct DeviceMoeGemmBlockScale
             index_t K_split = (arg.K + k_grain - 1) / k_grain * KPerBlock;
 
             const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
-            const auto RunKernel = [&](const auto& kernel) {
+            const auto RunKernel             = [&](const auto& kernel) {
                 if(stream_config.flush_cache)
                 {
 

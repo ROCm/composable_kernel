@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -37,8 +37,8 @@ using A0DataType = F8;
 using A1DataType = F32;
 using B0DataType = F8;
 using B1DataType = F32;
-using EDataType        = F16;
-// using EDataType        = BF16;
+// using EDataType        = F16;
+using EDataType        = BF16;
 using AccDataType      = F32;
 using CShuffleDataType = EDataType;
 using D2DataType       = F32;
@@ -341,11 +341,11 @@ int main(int argc, char* argv[])
         d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
         break;
     case 3:
-        a0_t_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{0.5});
-        a1_t_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{0.5});
-        b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{0.5});
-        b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<B1DataType>{0.5});
-        d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{0.5});
+        a0_t_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
+        a1_t_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0.0, 1.0});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
         break;
     case 4:
         a0_t_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{-0.5, 0.5});
@@ -385,10 +385,6 @@ int main(int argc, char* argv[])
     DeviceMem b1_device_buf(sizeof(B1DataType) * b1_e_n_k.mDesc.GetElementSpaceSize());
     DeviceMem d2_device_buf(sizeof(D2DataType) * d2_e_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_t_n_device_result.mDesc.GetElementSpaceSize());
-    // a0_t_k.savetxt("a.txt");
-    // expert_ids.savetxt("expert_ids.txt", "int");
-    // sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
-    // d2_e_n.savetxt("d2_e_n.txt", "int");
     sorted_token_ids_dev.ToDevice(sorted_token_ids.mData.data());
     expert_ids_dev.ToDevice(expert_ids.mData.data());
     max_token_id_dev.ToDevice(max_token_id.mData.data());
@@ -539,28 +535,6 @@ int main(int argc, char* argv[])
 
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
 
-
-#if 0
-        printf("e_t_n_device_result: \n");
-        for(int t = 0; t < 5; ++t)
-        {
-            for(int n = 0; n < 5; ++n)
-            {
-                printf("%.2f ", ck::type_convert<float>(e_t_n_device_result(t, n)));
-            }
-            printf("\n");
-        }
-
-        printf("e_t_n_host_result: \n");
-        for(int t = 0; t < 5; ++t)
-        {
-            for(int n = 0; n < 5; ++n)
-            {
-                printf("%.2f ", ck::type_convert<float>(e_t_n_host_result(t, n)));
-            }
-            printf("\n");
-        }
-#endif
         auto status =
             ck::utils::check_err(
                 e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-1)

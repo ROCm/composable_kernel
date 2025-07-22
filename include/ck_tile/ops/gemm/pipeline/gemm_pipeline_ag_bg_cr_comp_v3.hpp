@@ -20,18 +20,19 @@ namespace ck_tile {
 template <typename Problem>
 struct BaseGemmPipelineAgBgCrCompV3
 {
-    static constexpr index_t PrefetchStages  = 2;
-    static constexpr index_t PrefillStages   = 1;
-    static constexpr index_t GlobalBufferNum = 1;
+    static constexpr index_t PrefetchStages   = 2;
+    static constexpr index_t PrefillStages    = 1;
+    static constexpr index_t GlobalBufferNum  = 1;
+    static constexpr bool UsePersistentKernel = Problem::Traits::UsePersistentKernel;
 
     CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
 
-    CK_TILE_HOST static constexpr bool BlockHasHotloop(index_t num_loop)
+    CK_TILE_HOST_DEVICE static constexpr bool BlockHasHotloop(index_t num_loop)
     {
         return num_loop > PrefetchStages;
     }
 
-    CK_TILE_HOST static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
+    CK_TILE_HOST_DEVICE static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
     {
         if(BlockHasHotloop(num_loop))
         {
@@ -48,6 +49,50 @@ struct BaseGemmPipelineAgBgCrCompV3
                 return TailNumber::Even;
             }
         }
+    }
+
+    template <typename RunFunction>
+    CK_TILE_HOST_DEVICE static auto
+    TailHandler(const RunFunction& run_func, bool has_hot_loop, TailNumber tail_number)
+    {
+        // Handle all the valid cases.
+        if(has_hot_loop)
+        {
+            if(tail_number == TailNumber::Full)
+            {
+                return run_func(bool_constant<true>{},
+                                integral_constant<TailNumber, TailNumber::Full>{});
+            }
+        }
+        else
+        {
+            if(tail_number == TailNumber::Odd)
+            {
+                return run_func(bool_constant<false>{},
+                                integral_constant<TailNumber, TailNumber::Odd>{});
+            }
+            else if(tail_number == TailNumber::Even)
+            {
+                return run_func(bool_constant<false>{},
+                                integral_constant<TailNumber, TailNumber::Even>{});
+            }
+        }
+#if defined(__HIP_DEVICE_COMPILE__)
+        // This path should be unreachable in device code if tail_number is valid.
+        __builtin_unreachable();
+#else
+        // If execution reaches here, it's an invalid combination of arguments.
+        if(has_hot_loop)
+        {
+            throw std::logic_error("Invalid TailNumber: If has_hot_loop is true, tail_number must "
+                                   "be TailNumber::Full.");
+        }
+        else
+        {
+            throw std::logic_error("Invalid TailNumber: If has_hot_loop is false, tail_number must "
+                                   "be TailNumber::Odd or TailNumber::Even.");
+        }
+#endif
     }
 };
 
@@ -67,11 +112,6 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
-    static constexpr index_t APackedSize =
-        ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
-    static constexpr index_t BPackedSize =
-        ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
-
     using ALayout = remove_cvref_t<typename Problem::ALayout>;
     using BLayout = remove_cvref_t<typename Problem::BLayout>;
     using CLayout = remove_cvref_t<typename Problem::CLayout>;
@@ -82,6 +122,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     using I2        = number<2>;
 
     static constexpr index_t BlockSize = Problem::kBlockSize;
+
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
@@ -89,6 +130,11 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     static constexpr index_t GetVectorSizeA() { return Policy::template GetVectorSizeA<Problem>(); }
     static constexpr index_t GetVectorSizeB() { return Policy::template GetVectorSizeB<Problem>(); }
     static constexpr index_t GetVectorSizeC() { return Policy::template GetVectorSizeC<Problem>(); }
+
+    static constexpr index_t APackedSize =
+        ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
+    static constexpr index_t BPackedSize =
+        ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
 
     static constexpr index_t GetSmemPackA() { return Policy::template GetSmemPackA<Problem>(); }
     static constexpr index_t GetSmemPackB() { return Policy::template GetSmemPackB<Problem>(); }
@@ -98,17 +144,23 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     static constexpr bool kPadK = Problem::kPadK;
 
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
+    static constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
+    static constexpr index_t Preshuffle    = Problem::Preshuffle;
 
-    static constexpr bool HasHotLoop = Problem::HasHotLoop;
-    static constexpr auto TailNum    = Problem::TailNum;
-    static constexpr auto Scheduler  = Problem::Scheduler;
+    static constexpr bool HasHotLoop =
+        Problem::HasHotLoop; // Base::BlockHasHotloop(Problem::num_loop);
+    static constexpr auto TailNum =
+        Problem::TailNum; // Base::GetBlockLoopTailNum(Problem::num_loop);
+    static constexpr auto Scheduler = Problem::Scheduler;
 
     using Base::PrefetchStages;
+    using Base::UsePersistentKernel;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
-        return concat('_', "pipeline_AgBgCrCompV3", BlockSize,
+        return concat('_', "pipeline_AgBgCrCompV3", 
+                      concat('x', MPerBlock, NPerBlock, KPerBlock,  BlockSize),
                       concat('x', GetVectorSizeA(), GetVectorSizeB(),  GetVectorSizeC()),
                       concat('x', kPadM, kPadN, kPadK));
         // clang-format on
@@ -554,6 +606,42 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             p_smem);
     }
 
+    /**
+     * @brief This function runs the pipeline by wrapping it with the tail handler.
+     *
+     * @note This is used by the persistent gemm kernel variants that don't determine
+     *       hot loop and tail number on the host side, e.g. grouped gemm kernel.
+     */
+    template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                   index_t num_loop,
+                                   bool has_hot_loop,
+                                   TailNumber tail_number,
+                                   void* p_smem) const
+    {
+        const auto RunPipeline = [&](auto hot_loop_, auto tail_num_) {
+            constexpr bool hot_loop    = hot_loop_.value;
+            constexpr auto tail_num    = tail_num_.value;
+            constexpr auto PassThrough = [](const auto& x) { return x; };
+            return PipelineImpl<Scheduler>{}.template operator()<hot_loop, tail_num>(
+                a_dram_block_window_tmp,
+                PassThrough,
+                b_dram_block_window_tmp,
+                PassThrough,
+                num_loop,
+                p_smem);
+        };
+        return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
+    }
+
+    /**
+     * @brief This function runs the pipeline using compile-time known hot loop and tail number.
+     * @param num_loop The number of loop iterations. This is determined at runtime due to e.g.
+     * SplitK.
+     * @note This is used by the kernel variants that are able to determine
+     *       hot loop and tail number on the host side, e.g. non-persistent gemm kernel.
+     */
     template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,

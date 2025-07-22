@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -195,7 +195,17 @@ struct GridwiseMoeGemmBlockScale
     using mfma_selector = MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeB>;
     static constexpr index_t KPack =
         math::max(math::lcm(AK1Number, BK1Number), mfma_selector::selected_mfma.k_per_blk);
-    static constexpr index_t KGroup = mfma_selector::selected_mfma.k_per_blk == 32 ? 2 : 1;
+    static constexpr index_t KGroup = []() {
+        if constexpr(is_same_v<remove_cvref_t<BDataType>, f8_t>)
+            // On gfx950, we have a mfma that required 32 f8 elements as input,
+            // splited into 2 groups of 16 f8 elements.
+            // the 2 groups is not contiguous in the B preshuffed layout.
+            // and we do not want it to be contiguous in the B preshuffled layout
+            // because a memory instruction can only read 16 f8 elements at a time.
+            return mfma_selector::selected_mfma.k_per_blk == 32 ? 2 : 1;
+        else
+            return 1;
+    }();
     static constexpr index_t KLane =
         mfma_selector::GetKPerXdlops() / mfma_selector::GetK1PerXdlops();
     static constexpr index_t KRepeat = KPerBlock / KLane / (KPack / KGroup);
@@ -441,7 +451,7 @@ struct GridwiseMoeGemmBlockScale
 
     __host__ __device__ static auto MakeBGridDescriptor_Preshuffled(index_t N0, index_t K0)
     {
-        constexpr index_t NkSwizzleNumber = Number<warpSize * KPack / KGroup>{};
+        constexpr index_t NkSwizzleNumber = Number<WarpSize * KPack / KGroup>{};
         return make_naive_tensor_descriptor(
             make_tuple(N0 / NWave, NWave, K0, NkSwizzleNumber),
             make_tuple(NWave * K0 * NkSwizzleNumber, K0 * NkSwizzleNumber, NkSwizzleNumber, I1));
@@ -1374,7 +1384,7 @@ struct GridwiseMoeGemmBlockScale
                   make_multi_index(n_block_data_idx_on_grid,
                                    get_warp_local_1d_id() % NWave,
                                    0,
-                                   KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
+                                   KPack / KGroup * (get_thread_local_1d_id() % WarpSize)));
 
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
@@ -1433,10 +1443,6 @@ struct GridwiseMoeGemmBlockScale
                 token_offset * math::integer_divide_ceil(problem.K, ScaleBlockK);
         });
 
-        // printf("blkid: %d, tid:%d, a_thread_offset: %d, scale_gather_offsets: %d\n", block_m_id,
-        // threadIdx.x, a_thread_offset,
-        //        scale_gather_offsets(Number<0>{}));
-
         auto a_scale_thread_copy =
             ThreadwiseTensorSliceTransfer_v2_gather<AScaleType,
                                                     AScaleType,
@@ -1490,7 +1496,7 @@ struct GridwiseMoeGemmBlockScale
                       make_multi_index(n_block_data_idx_on_grid,
                                        get_warp_local_1d_id() % NWave,
                                        0,
-                                       KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
+                                       KPack / KGroup * (get_thread_local_1d_id() % WarpSize)));
             const BScaleType* p_b_scale_grid_up =
                 p_b_scale_grid + expert_scale_stride / 2 / BPackedSize;
             const auto b_scale_grid_buf_up = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -2117,7 +2123,7 @@ struct GridwiseMoeGemmBlockScale
                   make_multi_index(n_block_data_idx_on_grid,
                                    get_warp_local_1d_id() % NWave,
                                    0,
-                                   KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
+                                   KPack / KGroup * (get_thread_local_1d_id() % WarpSize)));
 
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
@@ -2180,10 +2186,6 @@ struct GridwiseMoeGemmBlockScale
                                        math::integer_divide_ceil(problem.K, ScaleBlockK);
         });
 
-        // printf("blkid: %d, tid:%d, a_thread_offset: %d, scale_gather_offsets: %d\n", block_m_id,
-        // threadIdx.x, a_thread_offset,
-        //        scale_gather_offsets(Number<0>{}));
-
         auto a_scale_thread_copy =
             ThreadwiseTensorSliceTransfer_v2_gather<AScaleType,
                                                     AScaleType,
@@ -2237,7 +2239,7 @@ struct GridwiseMoeGemmBlockScale
                       make_multi_index(n_block_data_idx_on_grid,
                                        get_warp_local_1d_id() % NWave,
                                        0,
-                                       KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
+                                       KPack / KGroup * (get_thread_local_1d_id() % WarpSize)));
             const BScaleType* p_b_scale_grid_up =
                 p_b_scale_grid + expert_scale_stride / 2 / BPackedSize;
             const auto b_scale_grid_buf_up = make_dynamic_buffer<AddressSpaceEnum::Global>(

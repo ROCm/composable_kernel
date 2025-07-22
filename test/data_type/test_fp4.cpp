@@ -5,6 +5,7 @@
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/type_convert.hpp"
 #include "ck/utility/scaled_type_convert.hpp"
+#include "ck/utility/env.hpp"
 
 using ck::e8m0_bexp_t;
 using ck::f4_convert_rne;
@@ -38,6 +39,11 @@ TEST(FP4, ConvertFP32Nearest)
     // convert maximal float to fp4 and back, check if clipped to 6.0
     ASSERT_NEAR(
         max_fp4, type_convert<float>(f4_convert_rne(std::numeric_limits<float>::max())), abs_tol);
+
+    // convert +/-7.0 to fp4 and back, check if clipped to +/-6.0
+    ASSERT_NEAR(-max_fp4, type_convert<float>(f4_convert_rne(-7.0f)), 0.0);
+    ASSERT_NEAR(max_fp4, type_convert<float>(f4_convert_rne(7.0f)), 0.0);
+
     // positive norm float value to fp4 and back, check if holds
     float pos_float = 1.0f;
     ASSERT_NEAR(pos_float, type_convert<float>(f4_convert_rne(pos_float)), abs_tol);
@@ -466,5 +472,56 @@ TEST(FP4, TestAsType32)
                   test_vec.at(i));
         ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<>(Number<1>{}),
                   test_vec.at(i + 1));
+    });
+}
+
+TEST(FP4, TestAllValues)
+{
+    constexpr std::array<float, 16> e2m1ValuesOCP = {
+        // clang-format off
+        0.0000000000, 0.5000000000,
+        1.0000000000, 1.5000000000,
+        2.0000000000, 3.0000000000,
+        4.0000000000, 6.0000000000,
+        -0.0000000000, -0.5000000000,
+        -1.0000000000, -1.5000000000,
+        -2.0000000000, -3.0000000000,
+        -4.0000000000, -6.0000000000
+        // clang-format on
+    };
+
+    constexpr uint8_t e2m1BitsOCP[] = {
+        // clang-format off
+        0b0000, 0b0001,
+        0b0010, 0b0011,
+        0b0100, 0b0101,
+        0b0110, 0b0111,
+        0b1000, 0b1001,
+        0b1010, 0b1011,
+        0b1100, 0b1101,
+        0b1110, 0b1111
+        // clang-format on
+    };
+
+    const bool ck_logging = ck::EnvIsEnabled(CK_ENV(CK_LOGGING));
+
+    if(ck_logging)
+        printf("FP4 Table\n");
+    ck::static_for<0, 16, 1>{}([&](auto i) {
+        float fp = type_convert<float>(f4_t(e2m1BitsOCP[i]));
+        ASSERT_EQ(fp, e2m1ValuesOCP[i]);
+
+        f4_t fp4 = type_convert<f4_t>(e2m1ValuesOCP[i]);
+        ASSERT_EQ(fp4 & 0xF, e2m1BitsOCP[i] & 0xF);
+        if(ck_logging)
+        {
+            // Print the binary representation
+            printf("Bits: 0b");
+            for(int j = 3; j >= 0; --j)
+            {
+                printf("%c", (e2m1BitsOCP[i] & (1 << j)) ? '1' : '0');
+            }
+            printf(", 0x%02X, Value: %f\n", e2m1BitsOCP[i], e2m1ValuesOCP[i]);
+        }
     });
 }
