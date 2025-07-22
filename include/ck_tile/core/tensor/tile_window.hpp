@@ -816,6 +816,28 @@ make_tile_window(const TensorView_& tensor_view,
         tensor_view, window_lengths, origin, tile_distribution};
 }
 
+
+
+// TODO: use strategy
+// template <typename TensorView_,
+//           typename WindowLengths_,
+//           typename StaticTileDistribution_,
+//           index_t NumCoord = 1>
+// CK_TILE_DEVICE constexpr auto
+// make_tile_window_debug(const TensorView_& tensor_view,
+//                  const WindowLengths_& window_lengths,
+//                  const multi_index<TensorView_::get_num_of_dimension()>& origin,
+//                  const StaticTileDistribution_& tile_distribution,
+//                  number<NumCoord> = {})
+// {
+//     return tile_window_with_static_distribution<remove_cvref_t<TensorView_>,
+//                                                 remove_cvref_t<WindowLengths_>,
+//                                                 remove_cvref_t<StaticTileDistribution_>,
+//                                                 NumCoord,
+//                                                 1>{
+//         tensor_view, window_lengths, origin, tile_distribution};
+// }
+
 // this version can't be called in a constexpr context
 template <typename TensorView_,
           typename WindowLengths_,

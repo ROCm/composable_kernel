@@ -215,15 +215,16 @@ int run_flatmm_example_with_layouts(int argc,
     }
     else if(init_method == 3)
     {
-        ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_host);
-        ck_tile::FillUniformDistribution<BDataType>{0.f, .5f}(b_origin_host);
+        ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_host);
+        ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_origin_host);
+        // ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_origin_host);
     }
     else
     {
         a_host.SetZero();
         b_origin_host.SetZero();
     }
-
+    b_origin_host.savetxt("b_origin_host.txt");
     ck_tile::DeviceMem a_dev_buf(a_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_dev_buf(c_rslt_host.get_element_space_size_in_bytes());
 
@@ -278,6 +279,8 @@ int run_flatmm_example_with_layouts(int argc,
             *std::max_element(c_ref_host.mData.begin(), c_ref_host.mData.end());
         const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
             K, kbatch, max_accumulated_value);
+        c_rslt_host.savetxt("out.txt");
+        c_ref_host.savetxt("ref.txt");
         pass = ck_tile::check_err(c_rslt_host,
                                   c_ref_host,
                                   "Error: Incorrect results!",
