@@ -36,10 +36,13 @@ float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile:
         GemmConfig::PermuteA,
         GemmConfig::PermuteB>;
 
+    // using TilePartitioner =
+    //     ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
+    //                                                GemmConfig::TileParitionerGroupNum,
+    //                                                GemmConfig::TileParitionerM01>;
+
     using TilePartitioner =
-        ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
-                                                   GemmConfig::TileParitionerGroupNum,
-                                                   GemmConfig::TileParitionerM01>;
+         ck_tile::GemmTile1DPartitioner<GemmShape>;
 
     using Traits = ck_tile::TileGemmTraits<GemmConfig::kPadM,
                                            GemmConfig::kPadN,
@@ -69,6 +72,7 @@ float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile:
 
     const ck_tile::index_t k_grain     = args.k_batch * GemmConfig::K_Tile;
     const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * GemmConfig::K_Tile;
+    std::cout << "k_grain: " << k_grain << " K_split: " << K_split << std::endl;
     const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
     const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
     const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
@@ -290,5 +294,5 @@ int main(int argc, char* argv[])
         // Return a non-zero code to indicate failure
         return EXIT_FAILURE;
     }
-    return EXIT_SUCCESS;
+    //return EXIT_SUCCESS;
 }
