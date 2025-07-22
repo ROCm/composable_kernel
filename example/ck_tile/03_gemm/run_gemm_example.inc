@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
-
+#include "json_dump.hpp"
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
 {
@@ -232,22 +232,6 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
             args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
     }
 
-    std::size_t flop = std::size_t(2) * M * N * K;
-    std::size_t num_byte =
-        sizeof(ADataType) * M * K + sizeof(BDataType) * N * K + sizeof(CDataType) * M * N;
-    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
-    float gb_per_sec = num_byte / 1.E6 / ave_time;
-
-    std::cout << "Run Gemm kernel with M=" << M << " N=" << N << " K=" << K
-              << " StrideA=" << stride_A << " StrideB=" << stride_B << " StrideC=" << stride_C
-              << " A_Layout=" << ALayout::name << " B_Layout =" << BLayout::name
-              << " C_Layout=" << CLayout::name << " A_Type=" << DataTypeTraits<ADataType>::name
-              << " B_Type=" << DataTypeTraits<BDataType>::name
-              << " C_Type=" << DataTypeTraits<CDataType>::name
-              << " StructuredSparsity=" << (GemmConfig::UseStructuredSparsity ? "on" : "off")
-              << " Persistent=" << (persistent ? "on" : "off") << " : " << ave_time << " ms, "
-              << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
-
     return ave_time;
 }
 
@@ -395,30 +379,48 @@ int run_gemm_example_with_layouts(int argc,
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
-    invoke_gemm<GemmConfig,
-                ADataType,
-                BDataType,
-                ck_tile::tuple<>,
-                AccDataType,
-                CDataType,
-                ALayout,
-                BLayout,
-                ck_tile::tuple<>,
-                CLayout>(a_m_k_dev_buf,
-                         b_k_n_dev_buf,
-                         c_m_n_dev_buf,
-                         M,
-                         N,
-                         K,
-                         stride_A,
-                         stride_B,
-                         stride_C,
-                         kbatch,
-                         n_warmup,
-                         n_repeat,
-                         persistent);
+    float ave_time = invoke_gemm<GemmConfig,
+                                 ADataType,
+                                 BDataType,
+                                 ck_tile::tuple<>,
+                                 AccDataType,
+                                 CDataType,
+                                 ALayout,
+                                 BLayout,
+                                 ck_tile::tuple<>,
+                                 CLayout>(a_m_k_dev_buf,
+                                          b_k_n_dev_buf,
+                                          c_m_n_dev_buf,
+                                          M,
+                                          N,
+                                          K,
+                                          stride_A,
+                                          stride_B,
+                                          stride_C,
+                                          kbatch,
+                                          n_warmup,
+                                          n_repeat,
+                                          persistent);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
+
+    std::size_t flop = std::size_t(2) * M * N * K;
+    std::size_t num_byte =
+        sizeof(ADataType) * M * K + sizeof(BDataType) * N * K + sizeof(CDataType) * M * N;
+    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
+    float gb_per_sec = num_byte / 1.E6 / ave_time;
+
+    std::cout << "Run Gemm kernel with M=" << M << " N=" << N << " K=" << K
+              << " StrideA=" << stride_A << " StrideB=" << stride_B << " StrideC=" << stride_C
+              << " A_Layout=" << ALayout::name << " B_Layout =" << BLayout::name
+              << " C_Layout=" << CLayout::name << " A_Type=" << DataTypeTraits<ADataType>::name
+              << " B_Type=" << DataTypeTraits<BDataType>::name
+              << " C_Type=" << DataTypeTraits<CDataType>::name
+              << " StructuredSparsity=" << (GemmConfig::UseStructuredSparsity ? "on" : "off")
+              << " Persistent=" << (persistent ? "on" : "off") << " : " << ave_time << " ms, "
+              << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
+
+
     bool pass = true;
 
     if(arg_parser.get_int("v") == 1)
@@ -492,6 +494,31 @@ int run_gemm_example_with_layouts(int argc,
                   << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
                   << std::endl;
         std::cout << "The GPU verification result is: " << (pass ? "correct" : "fail") << std::endl;
+    }
+
+    if(arg_parser.get_int("json") == 1)
+    {
+        START_JSON_DUMP_FILE(arg_parser.get_str("jsonfile"));
+        ADD_KEY_VALUE("name", "flatmm_basic");
+        ADD_KEY_VALUE("M", M);
+        ADD_KEY_VALUE("N", N);
+        ADD_KEY_VALUE("K", K);
+        ADD_KEY_VALUE("stride_A", stride_A);
+        ADD_KEY_VALUE("stride_B", stride_B);
+        ADD_KEY_VALUE("stride_C", stride_C);
+        ADD_KEY_VALUE("A_layout", ALayout::name);
+        ADD_KEY_VALUE("B_layout", BLayout::name);
+        ADD_KEY_VALUE("C_layout", CLayout::name);
+        ADD_KEY_VALUE("A_type", DataTypeTraits<ADataType>::name);
+        ADD_KEY_VALUE("B_type", DataTypeTraits<BDataType>::name);
+        ADD_KEY_VALUE("C_type", DataTypeTraits<CDataType>::name);
+        ADD_KEY_VALUE("structured_sparsity", GemmConfig::UseStructuredSparsity
+                                                            ? "on"
+                                                            : "off");
+        ADD_KEY_VALUE("persistent", persistent ? "on" : "off");
+        ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
+        ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec);
+        END_JSON_DUMP_FILE();
     }
 
     return pass;
