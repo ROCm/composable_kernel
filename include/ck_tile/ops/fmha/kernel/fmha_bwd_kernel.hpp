@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -1874,9 +1874,12 @@ struct FmhaBwdConvertQGradKernel
             if (kPadHeadDimQ) n += "d";
             return n.empty() ? n : std::string("p") + n; }();
         return
-            _SS_("fmha_bwd_convert_dq_d") + _TS_(kQKHeaddim) + "_" + _SS_(t2s<QGradDataType>::name) +
-            "_" + (kIsGroupMode ? "group" : "batch") + "_" + ("o" + _TS_(kBlockPerCu)) + (pn.empty() ? "_npad" : "_" + pn) + 
-            (kIsDeterministic ? "_deterministic" : "_ndeterministic") ;
+            _SS_("fmha_bwd_convert_dq_d") + _TS_(kQKHeaddim) + "_"
+            + _SS_(t2s<QGradDataType>::name) + "_"
+            + "b" + _TS_(kM0) + "x" + _TS_(kN0) + "_"
+            + (kIsGroupMode ? "group" : "batch") + "_"
+            + ("o" + _TS_(kBlockPerCu)) + (pn.empty() ? "_npad" : "_" + pn)
+            + (kIsDeterministic ? "_deterministic" : "_ndeterministic") ;
         #undef _SS_
         #undef _TS_
         // clang-format on
