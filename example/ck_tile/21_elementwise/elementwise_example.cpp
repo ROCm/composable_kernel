@@ -82,7 +82,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     x_buf_b.ToDevice(x_host_b.data());
 
     // 3. Configure the kernel execution parameters.
-    // Dividing the problem into blocktile, warptile, and vector
+    // Dividing the problem into blocktile, blockwarp and warptile
     // The blocktile is the size of the tile processed by a single work group (also called thread
     // block). The warptile is the size of the tile processed by a single wavefront (also called
     // warp). The vector is the size of the tile processed by a single work item (also called
@@ -90,7 +90,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // into wavefronts of size WarpTile. Each wavefront is composed of 64 work items (on AMD; 32
     // threads on NVIDIA). Each work item in a wavefront processes one vector's worth of elements.
     // Note that WarpTile/Vector should be 64 for CDNA (because there are 64 work items per
-    // wavefront).
+    // wavefront). Vector size is set to be 16 / sizeof(ComputeDataType), to maximize vectorization.
     using BlockTile = ck_tile::sequence<2048>; // How many elements are handled by a block tile (the
                                                // tensor is divided into blocks of this size)
     using BlockWarps = ck_tile::sequence<8>; // How many concurrent wavefronts are in a block (each
@@ -108,18 +108,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // over multiple times over different set of elements to cover the entire BlockTile.
     using WarpTile = ck_tile::sequence<64>;
 
-    // Vector: Defines the number of elements processed by a single work item in one operation.
-    // If Vector is sequence<1>, each work item handles one element at a time from its assigned
-    // WarpTile portion. If WarpTile is 64 and warpSize is 64 (common), then each work item in the
-    // wavefront processes one element. If Vector is > 1, it implies vectorized load/store/compute
-    // operations per work item.
-    using Vector = ck_tile::sequence<1>;
-
     // 4. Create the kernel
 
     // ElementWiseShape bundles these tiling parameters.
-    // It calculates derived properties like threads per wavefront, repeats, and total block size.
-    using Shape = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, Vector>;
+    // It calculates derived properties like threads per wavefront, repeats, vectorization and total
+    // block size.
+    using Shape = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, ComputeDataType>;
 
     // ElementWisePipelineProblem encapsulates all necessary information for the elementwise kernel:
     // - Data types (input, compute, output).

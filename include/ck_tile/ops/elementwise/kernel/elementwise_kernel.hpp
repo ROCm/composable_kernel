@@ -39,13 +39,14 @@ struct ElementWiseKernel
         const auto x_tiles = ck_tile::generate_tuple(
             [&](auto i) {
                 const auto tensor_view = make_naive_tensor_view<address_space_enum::global>(
-                    input_tensors.get(i), lens, input_strides, number<S::kVectorM>{});
+                    input_tensors.get(i), lens, input_strides, number<S::kVectorM>{}, number<1>{});
 
-                const auto transformed_tensor =
-                    pad_tensor_view(transform_tensor_view(tensor_view,
+                const auto transformed_tensor = pad_tensor_view(
+                    transform_tensor_view(tensor_view,
                                           ck_tile::make_tuple(merge_transform),
                                           ck_tile::make_tuple(make_index_sequence<Dims::size()>{}),
-                                          ck_tile::make_tuple(sequence<0>{})), ck_tile::make_tuple(number<S::kBlockM>{}),
+                                          ck_tile::make_tuple(sequence<0>{})),
+                    ck_tile::make_tuple(number<S::kBlockM>{}),
                     sequence<Problem::kPad>{});
 
                 const auto x_window =
@@ -78,10 +79,13 @@ struct ElementWiseKernel
         const auto y_m_n = make_naive_tensor_view<address_space_enum::global>(
             p_y, lens, output_strides, number<S::kVectorM>{});
 
-        const auto transformed_y_m_n = pad_tensor_view(transform_tensor_view(y_m_n,
-                                                             ck_tile::make_tuple(merge_transform),
-                                                             ck_tile::make_tuple(make_index_sequence<Dims::size()>{}),
-                                                             ck_tile::make_tuple(sequence<0>{})), ck_tile::make_tuple(number<S::kBlockM>{}), sequence<Problem::kPad>{});
+        const auto transformed_y_m_n = pad_tensor_view(
+            transform_tensor_view(y_m_n,
+                                  ck_tile::make_tuple(merge_transform),
+                                  ck_tile::make_tuple(make_index_sequence<Dims::size()>{}),
+                                  ck_tile::make_tuple(sequence<0>{})),
+            ck_tile::make_tuple(number<S::kBlockM>{}),
+            sequence<Problem::kPad>{});
 
         auto y_window = make_tile_window(transformed_y_m_n,
                                          make_tuple(number<S::kBlockM>{}),

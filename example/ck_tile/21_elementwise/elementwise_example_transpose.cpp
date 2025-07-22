@@ -69,12 +69,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
     x_buf_a.ToDevice(x_host_a.data());
 
     // 3. Configure the kernel execution parameters.
-    using BlockTile  = ck_tile::sequence<2048>;
+    using BlockTile  = ck_tile::sequence<1024>;
     using BlockWarps = ck_tile::sequence<8>;
     using WarpTile   = ck_tile::sequence<64>;
-    using Vector     = ck_tile::sequence<1>;
 
-    using Shape = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, Vector>;
+    using Shape = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, ComputeDataType>;
 
     // Problem definition for a single input tensor
     using Problem = ck_tile::ElementWisePipelineProblem<XDataType,

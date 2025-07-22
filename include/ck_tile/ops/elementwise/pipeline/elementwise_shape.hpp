@@ -7,25 +7,24 @@
 
 namespace ck_tile {
 
-template <typename BlockWarps, typename BlockTile, typename WarpTile, typename Vector>
+template <typename BlockWarps, typename BlockTile, typename WarpTile, typename ComputeDataType>
 struct ElementWiseShape
 {
     static constexpr index_t kBlockM = BlockTile::at(number<0>{});
 
     static constexpr index_t kWarpM = WarpTile::at(number<0>{});
 
-    static constexpr index_t kVectorM = Vector::at(number<0>{});
+    static constexpr index_t kVectorM =
+        16 / sizeof(ComputeDataType); // There are 16 32-bits lanes per SIMD
 
     static constexpr index_t kWarpPerBlockM = BlockWarps::at(number<0>{});
 
     static constexpr index_t kThreadPerWarpM = kWarpM / kVectorM;
 
-    static constexpr index_t kRepeatM =
-        kBlockM /
-        (kWarpPerBlockM * kWarpM); // Number of times the warp tile is repeated in the block tile
+    static constexpr index_t kRepeatM = kBlockM / (kWarpPerBlockM * kWarpM);
 
     static constexpr index_t kBlockSize =
-        warpSize * reduce_on_sequence(BlockWarps{}, multiplies{}, number<1>{});
+        ck_tile::get_warp_size() * reduce_on_sequence(BlockWarps{}, multiplies{}, number<1>{});
 };
 
 } // namespace ck_tile
