@@ -778,9 +778,8 @@ struct HstuAttentionFwdKernel
                         number<HstuAttentionPipeline::kAlignmentBias>{},
                         number<1>{});
 
-                    return pad_tensor_view(bias_dram_naive,
-                                           bias_dram_window_lengths,
-                                           sequence<kPadSeqLenQ, kPadSeqLenK>{});
+                    return pad_tensor_view(
+                        bias_dram_naive, bias_dram_window_lengths, sequence<false, kPadSeqLenK>{});
                 }();
 
                 return make_tile_window(bias_dram, bias_dram_window_lengths, {i_m0, 0});
@@ -833,7 +832,7 @@ struct HstuAttentionFwdKernel
             return pad_tensor_view(o_dram_naive,
                                    make_tuple(number<HstuAttentionPipeline::kM0>{},
                                               number<HstuAttentionPipeline::kN1>{}),
-                                   sequence<kPadSeqLenQ, kPadHeadDimV>{});
+                                   sequence<false, kPadHeadDimV>{});
         }();
 
         auto o_dram_window = make_tile_window(
