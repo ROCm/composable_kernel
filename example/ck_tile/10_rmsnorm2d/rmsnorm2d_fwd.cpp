@@ -295,7 +295,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 const int N = acc_.mDesc.get_lengths()[1];
                 for(int n_ = 0; n_ < N; ++n_)
                 {
-                    o_unquant_(m_, n_) = ck_tile::type_convert<OutDataType>(acc_(m_, n_));
+                    o_unquant_(m_, n_) = ck_tile::type_convert<UnquantYDataType>(acc_(m_, n_));
                 }
 
                 dquant_functor(m_, o_, acc_);
@@ -359,6 +359,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
         if(fused_add == 1)
         {
             y_residual_buf.FromDevice(y_residual_host_dev.data());
+        }
+
+        if constexpr(SaveUnquant)
+        {
+            unquant_y_buf.FromDevice(unquant_y_host_dev.data());
         }
 
         auto [rtol, atol] = get_elimit<YDataType>();
