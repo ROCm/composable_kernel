@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 
@@ -13,7 +13,8 @@ using ck::tensor_operation::device::GemmSpecialization;
 template <ck::index_t N>
 using I = ck::Number<N>;
 
-using F16 = ck::half_t;
+using F16  = ck::half_t;
+using BF16 = ck::bhalf_t;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;

@@ -691,6 +691,27 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         return std::make_unique<Invoker>(Invoker{});
     }
 
+    template <typename T>
+    static constexpr const char* DataTypeToString()
+    {
+        if constexpr(std::is_same_v<T, float>)
+        {
+            return "fp32";
+        }
+        else if constexpr(std::is_same_v<T, ck::half_t>)
+        {
+            return "fp16";
+        }
+        else if constexpr(std::is_same_v<T, ck::bhalf_t>)
+        {
+            return "bf16";
+        }
+        else
+        {
+            return "unknown";
+        }
+    }
+
     // polymorphic
     std::string GetTypeString() const override
     {
@@ -714,6 +735,12 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
             << BLayout::name[0]
             << B1Layout::name[0]
             << CLayout::name[0] << ", "
+            << "A " << DataTypeToString<ADataType>() << ", "
+            << "B0 " << DataTypeToString<B0DataType>() << ", "
+            << "B1 " << DataTypeToString<B1DataType>() << ", "
+            << "C " << DataTypeToString<CDataType>() << ", "
+            << "Acc " << DataTypeToString<AccDataType>() << ", "
+            << "Cshuf " << DataTypeToString<CShuffleDataType>() << ", "
             << BlockSize << ", "
             << MPerBlock << ", "
             << LPerBlock << ", "

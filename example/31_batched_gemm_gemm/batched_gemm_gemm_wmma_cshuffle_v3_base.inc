@@ -9,57 +9,18 @@ Gemm + Softmax + Gemm fused operation. Computes C_g_m_n = Softmax(A_g_m_k * B0_g
                                                                           Gemm1
 */
 
-#include <iostream>
-#include <numeric>
-#include <initializer_list>
-#include <cstdlib>
-
-#include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_gemm_wmma_cshuffle_v3.hpp"
-#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-
-#include "ck/library/utility/check_err.hpp"
-#include "ck/library/utility/device_memory.hpp"
-#include "ck/library/utility/host_tensor.hpp"
-#include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/utility/literals.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
-#include "ck/host_utility/device_prop.hpp"
-
-template <ck::index_t... Is>
-using S = ck::Sequence<Is...>;
-
-using F16 = ck::half_t;
-using F32 = float;
-
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-
-using Row = ck::tensor_layout::gemm::RowMajor;
-using Col = ck::tensor_layout::gemm::ColumnMajor;
-
-using ADataType        = F16;
-using B0DataType       = F16;
-using B1DataType       = F16;
-using AccDataType      = F32;
-using CShuffleDataType = F32;
-using CDataType        = F16;
-
-using AElementOp    = PassThrough;
-using B0ElementOp   = PassThrough;
-using Acc0ElementOp = ck::tensor_operation::element_wise::Scale;
-using B1ElementOp   = PassThrough;
-using CElementOp    = PassThrough;
-
-// static constexpr auto GemmPadded = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
-
 static constexpr auto PipeSched   = ck::BlockGemmPipelineScheduler::Interwave;
 static constexpr auto PipelineVer = ck::BlockGemmPipelineVersion::v1;
 static constexpr auto GemmSpec    = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
 
+using Row = ck::tensor_layout::gemm::RowMajor;
+using Col = ck::tensor_layout::gemm::ColumnMajor;
+template <ck::index_t... Is>
+using S = ck::Sequence<Is...>;
+
 // clang-format off
-#define CK_MHA_USE_RCCR_LAYOUT
-// #define CK_MHA_USE_WAVE_1
+// #define CK_MHA_USE_RCCR_LAYOUT
+#define CK_MHA_USE_WAVE_1
 // #define CK_MHA_USE_WAVE_2
 // #define CK_MHA_USE_WAVE_4
 // #define CK_MHA_USE_WAVE_8
@@ -138,7 +99,7 @@ using DeviceMHAFactory =
             S<2, 2, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 8, 1, false,
             // CShuffleBlockTransfer MN
             1, 1, S<1, 16, 1, 2>, 8,
-            PipeSched, PipelineVer>,
+            PipeSched, PipelineVer>
 #endif
 #ifdef CK_MHA_USE_WAVE_2
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
@@ -300,7 +261,7 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
                                                                                 B1ElementOp,
                                                                                 CElementOp>;
 
-#include "run_batched_gemm_scale_gemm_permute_wmma_cshuffle_v3.inc"
+#include "run_batched_gemm_gemm_wmma_cshuffle_v3.inc"
 
 int main(int argc, char* argv[])
 {

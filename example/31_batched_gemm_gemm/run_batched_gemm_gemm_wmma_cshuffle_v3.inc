@@ -284,7 +284,7 @@ int run(int argc, char* argv[])
 
             acc0_g_m_n.ForEach([&](auto& self, auto idx) {
                 // Passthrough instead of softmax, DOES involve data type conversion.
-                a1_g_m_n(idx) = self(idx);
+                a1_g_m_n(idx) = ck::type_convert<ADataType, AccDataType>(self(idx));
             });
 
             // gemm1

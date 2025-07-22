@@ -25,13 +25,10 @@ using S = ck::Sequence<Is...>;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-// static constexpr auto GemmDefault = GemmSpecialization::Default;
 static constexpr auto GemmPadded = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
 
 static constexpr auto Intrawave = BlockGemmPipelineScheduler::Intrawave;
 static constexpr auto Interwave = BlockGemmPipelineScheduler::Interwave;
-
-// TODO: Why CShuffle data type F32?
 
 // gemm0: Acc[g, m, n] = A[g, m, k] * B0[g, k, n]
 // gemm1: C[g, m, o] = Acc[g, m, n] * B1[g, n, o]
