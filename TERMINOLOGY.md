@@ -144,7 +144,7 @@ Number of work-items/threads in a compute unit (CU). Determines work group size 
 SIMT (Single-Instruction, Multi-Thread) allows threads in a warp to diverge, while SIMD (Single-Instruction, Multi-Data) enforces strict lockstep execution within wavefronts. These models define how parallelism is expressed and managed on different architectures.
 
 ### Occupancy
-The ratio of active warps/wavefronts to the maximum supported by a hardware unit, influencing the ability to hide memory latency and maximize throughput.
+The ratio of active warps/wavefronts to the maximum number of warps/wavefronts supported by a hardware unit. Affects the ability to hide memory latency and maximize throughput.
 
 ---
 
