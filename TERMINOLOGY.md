@@ -95,7 +95,7 @@ Per-thread registers that store individual thread data within a wave. Each threa
 ### Scalar General Purpose Register (SGPR)
 Wave-level registers shared by all threads in a wave. Used for constants, addresses, and control flow that are common across the entire wave.
 
-### Shared Memory / LDS (Local Data Share)
+### Shared Memory / Local Data Share (LDS)
 High-bandwidth, low-latency on-chip memory accessible to all threads within a block (CUDA) or work group (ROCm). It enables fast data sharing and synchronization, but is limited in capacity and must be managed to avoid bank conflicts.
 
 ### LDS Banks
