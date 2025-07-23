@@ -842,7 +842,7 @@ def run_aiter_tests(Map conf=[:]){
                     sh "set -ex"
                     sh "python3 -m venv venv"
                     sh "/bin/bash"
-                    sh "./venv/bin/activate"
+                    sh "chmod +x ./venv/bin/activate"
                     sh "pip install --user pandas zmq einops"
                     sh "pip install --user numpy==1.26.2"
                     sh "python3 setup.py develop"
