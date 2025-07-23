@@ -886,19 +886,19 @@ pipeline {
             description: "Run codegen tests (default: ON)")
         booleanParam(
             name: "RUN_CK_TILE_FMHA_TESTS",
-            defaultValue: false,
+            defaultValue: true,
             description: "Run the ck_tile FMHA tests (default: OFF)")
         booleanParam(
             name: "RUN_CK_TILE_TRANSPOSE_TESTS",
-            defaultValue: false,
+            defaultValue: true,
             description: "Run the ck_tile Transpose tests (default: OFF)")
         booleanParam(
             name: "RUN_CK_TILE_GEMM_TESTS",
-            defaultValue: false,
+            defaultValue: true,
             description: "Run the ck_tile GEMM tests (default: OFF)")
         booleanParam(
             name: "RUN_TILE_ENGINE_GEMM_TESTS",
-            defaultValue: false,
+            defaultValue: true,
             description: "Run the tile_engine_gemm tests (default: OFF)")
         booleanParam(
             name: "BUILD_INSTANCES_ONLY",
@@ -934,11 +934,11 @@ pipeline {
             description: "Build CK and run tests on gfx12 (default: ON)")
         booleanParam(
             name: "NINJA_BUILD_TRACE",
-            defaultValue: false,
+            defaultValue: true,
             description: "Generate a ninja build trace (default: OFF)")
         booleanParam(
             name: "NINJA_FTIME_TRACE",
-            defaultValue: false,
+            defaultValue: true,
             description: "Generate a detailed time trace (default: OFF)")
         booleanParam(
             name: "BUILD_LEGACY_OS",

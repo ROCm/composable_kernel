@@ -72,6 +72,8 @@ function(build_gemm_for_datatype datatype layout)
         endforeach()
         set(objlib_name "gemm_objlib_${name}_${datatype}_${layout}")
         add_library(${objlib_name} OBJECT ${trait_sources})
+        target_compile_options(${objlib_name} PRIVATE -Wno-undefined-func-template -Wno-float-equal)
+        target_include_directories(${objlib_name} PRIVATE ${CMAKE_CURRENT_LIST_DIR} "${working_path}")
         set(sub_intermediate_libs ${objlib_name})
 
         # Bundle all object libraries into one static lib for linking
