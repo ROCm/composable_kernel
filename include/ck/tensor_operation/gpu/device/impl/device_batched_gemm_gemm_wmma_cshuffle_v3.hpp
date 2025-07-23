@@ -706,6 +706,26 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         {
             return "bf16";
         }
+        else if constexpr(std::is_same_v<T, ck::f8_t>)
+        {
+            return "fp8";
+        }
+        else if constexpr(std::is_same_v<T, ck::bf8_t>)
+        {
+            return "bf8";
+        }
+        else if constexpr(std::is_same_v<T, int32_t>)
+        {
+            return "int32";
+        }
+        else if constexpr(std::is_same_v<T, int8_t>)
+        {
+            return "int8";
+        }
+        else if constexpr(std::is_same_v<T, ck::int4_t>)
+        {
+            return "int4";
+        }
         else
         {
             return "unknown";
