@@ -140,7 +140,7 @@ The complete collection of all work groups (thread blocks) that execute a kernel
 ### Block Size
 Number of work-items/threads in a compute unit (CU). Determines work group size and memory usage.
 
-### SIMT / SIMD
+### Single-Instruction, Multi-Thread (SIMT) / Single-Instruction, Multi-Data (SIMD)
 SIMT (Single-Instruction, Multi-Thread) allows threads in a warp to diverge, while SIMD (Single-Instruction, Multi-Data) enforces strict lockstep execution within wavefronts. These models define how parallelism is expressed and managed on different architectures.
 
 ### Occupancy
