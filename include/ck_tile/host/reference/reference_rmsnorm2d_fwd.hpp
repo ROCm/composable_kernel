@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/host_tensor.hpp"
+#include "ck_tile/ops/rmsnorm2d/pipeline/rmsnorm2d_fwd_traits.hpp"
 
 namespace ck_tile {
 
@@ -43,8 +44,9 @@ void reference_rmsnorm2d_fwd(const HostTensor<XDataType>& x_m_n,
                              HostTensor<InvRmsDataType>& invRms_m,
                              HostTensor<UnquantYDataType>& unquant_y_m_n,
                              ComputeDataType epsilon,
-                             Epilogue epilogue_functor             = {},
-                             const int use_model_sensitive_rmsnorm = 0)
+                             Epilogue epilogue_functor = {},
+                             const int use_model_sensitive_rmsnorm =
+                                 static_cast<int>(Rmsnorm2dSensitiveEnum::NO_SPECIFIC_MODEL))
 {
     auto rmsnorm2d_fwd_func = [&](auto m) {
         const int N = x_m_n.mDesc.get_lengths()[1];
@@ -67,13 +69,16 @@ void reference_rmsnorm2d_fwd(const HostTensor<XDataType>& x_m_n,
         HostTensor<ComputeDataType> acc(x_m_n.get_lengths(), x_m_n.get_strides());
         for(int n = 0; n < N; ++n)
         {
-            if(use_model_sensitive_rmsnorm == 0) // 0: for no specific model
+            if(use_model_sensitive_rmsnorm ==
+               static_cast<int>(
+                   Rmsnorm2dSensitiveEnum::NO_SPECIFIC_MODEL)) // 0: for no specific model
             {
                 ComputeDataType x     = ck_tile::type_convert<ComputeDataType>(x_m_n(m, n));
                 ComputeDataType gamma = ck_tile::type_convert<ComputeDataType>(gamma_n(n));
                 acc(m, n)             = x * divisor * gamma;
             }
-            else if(use_model_sensitive_rmsnorm == 1) // 1: for T5-like model
+            else if(use_model_sensitive_rmsnorm ==
+                    static_cast<int>(Rmsnorm2dSensitiveEnum::T5_MODEL_LIKE)) // 1: for T5-like model
             {
                 ComputeDataType x = ck_tile::type_convert<ComputeDataType>(x_m_n(m, n));
                 const auto tmp    = type_convert<XDataType>(x * divisor);
