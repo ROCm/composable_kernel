@@ -1,0 +1,100 @@
+{
+  "problem": {
+  },
+  "tile_config": {
+    "tile_m": {
+      "values": [
+        256
+      ]
+    },
+    "tile_n": {
+      "values": [
+        128,
+        256
+      ]
+    },
+    "tile_k": {
+      "values": [
+        32
+      ]
+    },
+    "warp_m": {
+      "values": [
+        1,
+        2,
+        4
+      ]
+    },
+    "warp_n": {
+      "values": [
+        1,
+        2,
+        4
+      ]
+    },
+    "warp_k": {
+      "values": [
+        1
+      ]
+    },
+    "warp_tile_m": {
+      "values": [
+        4,
+        16, 
+        32
+      ]
+    },
+    "warp_tile_n": {
+      "values": [
+        16,
+        32,
+        64
+      ]
+    },
+    "warp_tile_k": {
+      "values": [
+        8,
+        16,
+        32,
+        64,
+        128
+      ]
+    }
+  },
+  "trait_config": {
+    "pipeline": {
+      "values": [
+        "compv3",
+        "compv4",
+        "mem"
+      ]
+    },
+    "scheduler": {
+      "values": [
+        "intrawave",
+        "interwave"
+      ]
+    },
+    "epilogue": {
+      "values": [
+        "cshuffle",
+        "default"
+      ]
+    },
+    "pad_m": {
+      "values": [
+        false
+      ]
+    },
+    "pad_n": {
+      "values": [
+        false
+      ]
+    },
+    "pad_k": {
+      "values": [
+        false
+      ]
+    }
+  }
+}

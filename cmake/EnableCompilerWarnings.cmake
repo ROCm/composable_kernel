@@ -66,7 +66,8 @@ else()
             -Wunreachable-code
             -Wunused
             -Wno-reserved-identifier
-            -Werror
+            # Werror set outside by BUILD_DEV
+            # -Werror
             -Wno-option-ignored
             -Wsign-compare
             -Wno-extra-semi-stmt
@@ -108,7 +109,7 @@ else()
             endif()
             list(APPEND CMAKE_COMPILER_WARNINGS
                 -Wno-missing-field-initializers
-                -Wno-deprecated-declarations
+                -Wno-error=deprecated-declarations
             )
         endif()
         add_definitions(${CMAKE_COMPILER_WARNINGS})

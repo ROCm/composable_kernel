@@ -61,7 +61,7 @@ struct BlockwiseGemmWmmaops_pipeline_base
     static_assert(KPack % (B_K1 * B_KRow) == 0, "wrong!");
 
     static constexpr auto wmma_gemm =
-        WmmaGemm<ADataType, BDataType, AccDataType, MPerWmma, NPerWmma, KPack, TransposeC>{};
+        WmmaGemm<ComputeTypeA, ComputeTypeB, AccDataType, MPerWmma, NPerWmma, KPack, TransposeC>{};
 
     static constexpr index_t KRepeat = KPerBlock / KPack;
 
@@ -198,7 +198,7 @@ struct BlockwiseGemmWmmaops_pipeline_base
                       "wrong! Desc should be known at compile-time");
 
         static_assert(ThisThreadBlock::GetNumOfThread() == MWaves * NWaves * WaveSize,
-                      "ThisThreadBlock::GetNumOfThread() != MWaves * NWaves * WaveSize\n");
+                      "ThisThreadBlock::GetNumOfThread() != MWaves * NWaves * WaveSize");
 
         static_assert(MPerBlock % (MPerWmma * MRepeat) == 0 &&
                           NPerBlock % (NPerWmma * NRepeat) == 0,
@@ -257,10 +257,10 @@ struct BlockwiseGemmWmmaops_pipeline_base
                                                 Number<A_K1>{}),
                                      make_tuple(Number<A_K1>{},
                                                 Number<KPack / A_KRow>{},
-                                                Number<KPack * A_K1>{},
-                                                Number<A_K1>{},
-                                                Number<A_K1>{},
-                                                Number<1>{}));
+                                                Number<KPack / A_KRow * MRepeat>{},
+                                                I0,
+                                                I0,
+                                                I1));
 
     static constexpr auto b_thread_desc_ =
         make_naive_tensor_descriptor(make_tuple(Number<KPack / B_K1 / B_KRow>{},
@@ -271,10 +271,10 @@ struct BlockwiseGemmWmmaops_pipeline_base
                                                 Number<B_K1>{}),
                                      make_tuple(Number<B_K1>{},
                                                 Number<KPack / B_KRow>{},
-                                                Number<KPack * B_K1>{},
-                                                Number<B_K1>{},
-                                                Number<B_K1>{},
-                                                Number<1>{}));
+                                                Number<KPack / B_KRow * NRepeat>{},
+                                                I0,
+                                                I0,
+                                                I1));
 
     // C[M, N, NumRegWmma]
     static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(
@@ -282,10 +282,10 @@ struct BlockwiseGemmWmmaops_pipeline_base
 
     using AThreadCopy =
         ThreadwiseTensorSliceTransfer_v4<ADataType,
-                                         ADataType,
+                                         ComputeTypeA,
                                          decltype(a_block_desc_k0_m0_m1_m2_k1),
                                          decltype(a_thread_desc_),
-                                         Sequence<KPack / A_K1 / A_KRow, 1, 1, 1, 1, A_K1>,
+                                         Sequence<KPack / A_K1 / A_KRow, MRepeat, 1, 1, 1, A_K1>,
                                          Sequence<0, 1, 2, 3, 4, 5>,
                                          5,
                                          A_K1,
@@ -293,10 +293,10 @@ struct BlockwiseGemmWmmaops_pipeline_base
 
     using BThreadCopy =
         ThreadwiseTensorSliceTransfer_v4<BDataType,
-                                         BDataType,
+                                         ComputeTypeB,
                                          decltype(b_block_desc_k0_n0_n1_n2_k1),
                                          decltype(b_thread_desc_),
-                                         Sequence<KPack / B_K1 / B_KRow, 1, 1, 1, 1, B_K1>,
+                                         Sequence<KPack / B_K1 / B_KRow, NRepeat, 1, 1, 1, B_K1>,
                                          Sequence<0, 1, 2, 3, 4, 5>,
                                          5,
                                          B_K1,

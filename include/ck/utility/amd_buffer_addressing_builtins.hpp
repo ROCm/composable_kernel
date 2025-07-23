@@ -80,7 +80,7 @@ __device__ half2_t llvm_amdgcn_raw_buffer_atomic_add_fp16x2(
     int32x4_t rsrc,
     index_t voffset,
     index_t soffset,
-    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.fadd.v2f16.v4i32");
+    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.fadd.v2f16");
 
 // buffer atomic-add i32
 __device__ int32_t llvm_amdgcn_raw_buffer_atomic_add_i32(
@@ -88,7 +88,7 @@ __device__ int32_t llvm_amdgcn_raw_buffer_atomic_add_i32(
     int32x4_t rsrc,
     index_t voffset,
     index_t soffset,
-    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.add.i32.v4i32");
+    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.add.i32");
 
 // buffer atomic-add fp32
 __device__ float llvm_amdgcn_raw_buffer_atomic_add_fp32(
@@ -96,15 +96,15 @@ __device__ float llvm_amdgcn_raw_buffer_atomic_add_fp32(
     int32x4_t rsrc,
     index_t voffset,
     index_t soffset,
-    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.fadd.f32.v4i32");
+    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.fadd.f32");
 
 // buffer atomic-add fp32
-__device__ double llvm_amdgcn_raw_buffer_atomic_max_fp64(
-    double vdata,
-    int32x4_t rsrc, // dst_wave_buffer_resource
-    int voffset,    // dst_thread_addr_offset
-    int soffset,    // dst_wave_addr_offset
-    int glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.fmax.f64.v4i32");
+__device__ double
+llvm_amdgcn_raw_buffer_atomic_max_fp64(double vdata,
+                                       int32x4_t rsrc, // dst_wave_buffer_resource
+                                       int voffset,    // dst_thread_addr_offset
+                                       int soffset,    // dst_wave_addr_offset
+                                       int glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.fmax.f64");
 
 // memory coherency bit for buffer store/load instruction
 // check ISA manual for each GFX target
@@ -402,7 +402,7 @@ __device__ void amd_global_atomic_add_impl(const typename vector_type<T, N>::typ
                                                       tmp.template AsType<half2_t>()[i]);
         });
     }
-#if defined(__gfx942__) || defined(__gfx950__)
+#if defined(__gfx942__) || defined(__gfx950__) || defined(__gfx12__)
     else if constexpr(is_same<T, bhalf_t>::value)
     {
         vector_type<bhalf_t, N> tmp{src_thread_data};
@@ -827,7 +827,7 @@ llvm_amdgcn_raw_buffer_load_lds(int32x4_t rsrc,
                                 index_t voffset,
                                 index_t soffset,
                                 index_t offset,
-                                index_t aux) __asm("llvm.amdgcn.raw.buffer.load.lds.v4i32");
+                                index_t aux) __asm("llvm.amdgcn.raw.buffer.load.lds");
 
 #ifndef __HIPCC_RTC__
 template <typename T, index_t NumElemsPerThread>
@@ -838,19 +838,21 @@ __device__ void amd_direct_load_global_to_lds(const T* global_base_ptr,
                                               const bool is_valid,
                                               const index_t src_element_space_size)
 {
-    // Direct loads require that each thread reads and writes exactly a single DWORD.
-    constexpr auto dword_bytes      = 4;
+    // Direct loads require that each thread reads and writes a multiple of DWORDs (4 bytes).
+    // For gfx950: supports 1, 3, or 4 DWORDs per thread
+    // For gfx942: supports exactly 1 DWORD per thread
     constexpr auto bytes_per_thread = sizeof(T) * NumElemsPerThread;
+#if defined(__gfx950__)
+    constexpr auto dword_bytes = 4;
+    static_assert(bytes_per_thread == dword_bytes || bytes_per_thread == dword_bytes * 3 ||
+                  bytes_per_thread == dword_bytes * 4);
+#elif defined(__gfx942__)
+    constexpr auto dword_bytes = 4;
     static_assert(bytes_per_thread == dword_bytes);
-
-#ifndef CK_CODE_GEN_RTC
-    const uint32_t* global_ptr =
-        reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(global_base_ptr));
-#else
-    const uint32_t* global_ptr =
-        reinterpret_cast<uint32_t*>(reinterpret_cast<size_t>(global_base_ptr));
 #endif
-    const int32x4_t src_resource = make_wave_buffer_resource(global_ptr, src_element_space_size);
+
+    const int32x4_t src_resource =
+        make_wave_buffer_resource(global_base_ptr, src_element_space_size);
     const index_t global_offset_bytes = is_valid ? global_offset * sizeof(T) : 0x80000000;
 
 #if CK_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM
@@ -878,7 +880,7 @@ __device__ void amd_direct_load_global_to_lds(const T* global_base_ptr,
 #endif
 
     llvm_amdgcn_raw_buffer_load_lds(
-        src_resource, lds_ptr, sizeof(uint32_t), global_offset_bytes, 0, 0, 0);
+        src_resource, lds_ptr, bytes_per_thread, global_offset_bytes, 0, 0, 0);
 #endif
 }
 #endif

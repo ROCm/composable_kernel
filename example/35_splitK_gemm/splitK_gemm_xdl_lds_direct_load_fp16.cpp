@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -60,7 +60,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdlSplitKCShu
 //######|      Type|      Type|      Type|        Type|        |        |        | Elementwise| Elementwise| Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |  XDL|  XDL|  Per|  Per|          ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar| AddExtraM|          ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar| AddExtraN| MXdlPerWave| NXdlPerWave| _MBlock_MXdlPerWave_MWaveMPerXdl| ScalarPerVector|
 //######|          |          |          |            |        |        |        |   Operation|   Operation|   Operation|               |    Stage|      |      |      |      |    |     |     | Wave| Wave| Lengths_KBatch_K0_M_K1|               |               |      PerVector|          | Lengths_KBatch_K0_N_K1|               |              |      PerVector|          |  PerShuffle|  PerShuffle| _NBlock_NXdlPerWave_NWaveNPerXdl|   _NWaveNPerXdl|
 //######|          |          |          |            |        |        |        |            |            |            |               |         |      |      |      |      |    |     |     |     |     |                       |               |               |               |          |                       |               |              |               |          |            |            |                                 |                |
-        < ADataType, BDataType, CDataType, AccDataType, ALayout, BLayout, CLayout,  AElementOp,  BElementOp,  CElementOp,    GemmDefault,        2,   128,    32,    16,     4,  16,   16,   16,    1,    1,         S<1, 2, 8, 8>,  S<0, 2, 1, 3>,              3,              2,      true,         S<1, 2, 8, 8>,  S<0, 2, 1, 3>,             3,              2,      true,           1,           1,                   S<1, 32, 1, 4>,               4>;
+        < ADataType, BDataType, CDataType, AccDataType, ALayout, BLayout, CLayout,  AElementOp,  BElementOp,  CElementOp,    GemmDefault,        2,   128,    32,    16,     4,   8,   16,   16,    1,    1,         S<1, 4, 8, 4>,  S<0, 2, 1, 3>,              3,              2,      0,         S<1, 4, 8, 4>,  S<0, 2, 1, 3>,             3,              2,      0,           1,           1,                   S<1, 32, 1, 4>,               4>;
 // clang-format on
 
 #else

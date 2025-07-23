@@ -68,3 +68,6 @@ endif()
 
 target_compile_options(gtest PRIVATE ${GTEST_CXX_FLAGS})
 target_compile_options(gtest_main PRIVATE ${GTEST_CXX_FLAGS})
+target_compile_definitions(gtest PRIVATE GTEST_HAS_SEH=0)
+target_compile_definitions(gtest_main PRIVATE GTEST_HAS_SEH=0)
+

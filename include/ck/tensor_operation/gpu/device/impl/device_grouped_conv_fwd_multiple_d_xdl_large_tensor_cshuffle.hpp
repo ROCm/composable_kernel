@@ -89,7 +89,7 @@ __global__ void
         group_id = index_t((left + right) / 2);
     }
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(
+    GridwiseGemm::template Run<HasMainKBlockLoop, InMemoryDataOperationEnum::Set>(
         gemm_desc_kernel_args[group_id].a_ptr_ + a_group_offset + a_n_offset,
         gemm_desc_kernel_args[group_id].b_ptr_ + b_group_offset,
         Tuple<>{},
@@ -192,6 +192,9 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
 
     static constexpr index_t NumDTensor  = DsDataType::Size();
     static constexpr index_t MaxGemmsNum = 32;
+    static constexpr bool DoElementwiseBeforeCShuffle =
+        NumDTensor == 0 && is_same_v<EDataType, bhalf_t> &&
+        !is_same_v<CDEElementwiseOperation, tensor_operation::element_wise::PassThrough>;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -350,19 +353,18 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
 #define GridwiseGemmTemplateParameters                                                            \
     ADataType, BDataType, AComputeDataType, AccDataType, CShuffleDataType, DsDataType, EDataType, \
         AElementwiseOperation, BElementwiseOperation, CDEElementwiseOperation,                    \
-        InMemoryDataOperationEnum::Set, NumGemmKPrefetchStage, BlockSize, MPerBlock, NPerBlock,   \
-        KPerBlock, AK1, BK1, MPerXDL, NPerXDL, MXdlPerWave, NXdlPerWave,                          \
-        ABlockTransferThreadClusterLengths_AK0_M_AK1, ABlockTransferThreadClusterArrangeOrder,    \
-        ABlockTransferSrcAccessOrder, ABlockTransferSrcVectorDim,                                 \
-        ABlockTransferSrcScalarPerVector, ABlockTransferDstScalarPerVector_AK1, false,            \
-        ABlockLdsExtraM, BBlockTransferThreadClusterLengths_BK0_N_BK1,                            \
-        BBlockTransferThreadClusterArrangeOrder, BBlockTransferSrcAccessOrder,                    \
-        BBlockTransferSrcVectorDim, BBlockTransferSrcScalarPerVector,                             \
-        BBlockTransferDstScalarPerVector_BK1, false, BBlockLdsExtraN,                             \
-        CShuffleMXdlPerWavePerShuffle, CShuffleNXdlPerWavePerShuffle,                             \
+        NumGemmKPrefetchStage, BlockSize, MPerBlock, NPerBlock, KPerBlock, AK1, BK1, MPerXDL,     \
+        NPerXDL, MXdlPerWave, NXdlPerWave, ABlockTransferThreadClusterLengths_AK0_M_AK1,          \
+        ABlockTransferThreadClusterArrangeOrder, ABlockTransferSrcAccessOrder,                    \
+        ABlockTransferSrcVectorDim, ABlockTransferSrcScalarPerVector,                             \
+        ABlockTransferDstScalarPerVector_AK1, false, ABlockLdsExtraM,                             \
+        BBlockTransferThreadClusterLengths_BK0_N_BK1, BBlockTransferThreadClusterArrangeOrder,    \
+        BBlockTransferSrcAccessOrder, BBlockTransferSrcVectorDim,                                 \
+        BBlockTransferSrcScalarPerVector, BBlockTransferDstScalarPerVector_BK1, false,            \
+        BBlockLdsExtraN, CShuffleMXdlPerWavePerShuffle, CShuffleNXdlPerWavePerShuffle,            \
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                         \
         CDEBlockTransferScalarPerVector_NPerBlock, LoopSched, PipelineVersion::v1,                \
-        AComputeDataType
+        AComputeDataType, DoElementwiseBeforeCShuffle
     // Use appropriate gridwise gemm
     using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<GridwiseGemmTemplateParameters>;
 

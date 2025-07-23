@@ -60,6 +60,7 @@ using fmha_bwd_trait_{F_idx} = ck_tile::TileFmhaTraits<{F_spad},
                                                        {F_skpad},
                                                        {F_dpad},
                                                        {F_dvpad},
+                                                       false,
                                                        {F_bias},
                                                        {F_dbias},
                                                        false,
@@ -168,7 +169,7 @@ template <typename dot_do_o_trait_, typename dq_dk_dv_trait_, typename convert_d
 float fmha_bwd_(const ck_tile::stream_config& s, fmha_bwd_args a)
 {{
     if(s.log_level_ > 0)
-        std::cout << ", " << fmha_bwd_dot_do_o_get_name_<dot_do_o_trait_>() << ", " << fmha_bwd_dq_dk_dv_get_name_<dq_dk_dv_trait_>() << ", " << fmha_bwd_convert_dq_get_name_<convert_dq_trait_>() << std::flush;
+        std::cout << ", " << fmha_bwd_dot_do_o_get_name_<dot_do_o_trait_>() << "@" << fmha_bwd_convert_dq_get_name_<convert_dq_trait_>() << "@" << fmha_bwd_dq_dk_dv_get_name_<dq_dk_dv_trait_>() << std::flush;
     return ck_tile::launch_kernel(s,
         [=](const ck_tile::stream_config& s_){{ fmha_bwd_dot_do_o_oneshot_<dot_do_o_trait_>(s_, a); }},
         [=](const ck_tile::stream_config& s_){{ fmha_bwd_dq_dk_dv_oneshot_<dq_dk_dv_trait_>(s_, a); }},
@@ -526,6 +527,7 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                     cond &= bias in ['no', 'bias']
                     cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
                     cond &= dpad == dvpad
+                    cond &= mode == 'batch'
                     cond &= deterministic == "f"
                     if not cond:
                         continue
@@ -534,7 +536,6 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "batch"
                     cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
-                    cond &= dpad == dvpad
                     if not cond:
                         continue
             # Aiter (mha_varlen_bwd) integration
@@ -542,13 +543,11 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "group"
                     cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
-                    cond &= dpad == dvpad
                     if not cond:
                         continue
             # aiter::mha_bwd C++ api integration
             elif receipt == 600:
                     cond = dtype in ['fp16', 'bf16']
-                    cond &= dpad == dvpad
                     if not cond:
                         continue
             api_pool.register_dq_dk_dv_traits(k.api_trait())

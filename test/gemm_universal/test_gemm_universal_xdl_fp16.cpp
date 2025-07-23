@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <tuple>
 
@@ -55,7 +55,7 @@ class TestGemmUniversal_FP16_KM_NK
 // clang-format off
 using KernelTypes_MK_KN = ::testing::Types<
     //         ADataType, BDataType, ComputeDataType, CDataType
-    
+
 #if defined(CK_ENABLE_FP8) && (defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94))
     std::tuple<      F16,        F8,             F16,     F16>,
     std::tuple<       F8,       F16,             F16,     F16>,
@@ -63,9 +63,10 @@ using KernelTypes_MK_KN = ::testing::Types<
 #endif
     std::tuple<      F16,       F16,             F16,     F16>
     >;
+
 using KernelTypes_MK_NK = ::testing::Types<
     //         ADataType, BDataType, ComputeDataType, CDataType
-    
+
 #if defined(CK_ENABLE_FP8) && (defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94))
     std::tuple<      F16,        F8,             F16,     F16>,
     std::tuple<       F8,       F16,             F16,     F16>,
@@ -74,9 +75,20 @@ using KernelTypes_MK_NK = ::testing::Types<
     std::tuple<      F16,       F16,             F16,     F16>
     >;
 
+using KernelTypes_KM_NK = ::testing::Types<
+    //         ADataType, BDataType, ComputeDataType, CDataType
+    std::tuple<      F16,       F16,             F16,     F16>
+    >;
+
+using KernelTypes_KM_KN = ::testing::Types<
+    //         ADataType, BDataType, ComputeDataType, CDataType
+    std::tuple<      F16,       F16,             F16,     F16>
+    >;
 // clang-format on
 
 TYPED_TEST_SUITE(TestGemmUniversal_FP16_MK_KN, KernelTypes_MK_KN);
 TYPED_TEST_SUITE(TestGemmUniversal_FP16_MK_NK, KernelTypes_MK_NK);
+TYPED_TEST_SUITE(TestGemmUniversal_FP16_KM_NK, KernelTypes_KM_NK);
+TYPED_TEST_SUITE(TestGemmUniversal_FP16_KM_KN, KernelTypes_KM_KN);
 
 #include "test_gemm_universal_ut_cases_fp16.inc"
