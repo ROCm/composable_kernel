@@ -49,6 +49,7 @@ This document provides a technical reference for terminology used in the Composa
 - [Processing Units](#processing-units)
 - [Reference Kernel](#reference-kernel)
 - [Regression Test](#regression-test)
+- [ROCm](#rocm)
 - [Scalar General Purpose Register (SGPR)](#scalar-general-purpose-register-sgpr)
 - [Shared Memory / LDS (Local Data Share)](#shared-memory--lds-local-data-share)
 - [SIMT / SIMD](#simt--simd)
@@ -169,10 +170,10 @@ Defines what to compute - input/output shapes, data types, and mathematical oper
 Defines memory access patterns and hardware-specific optimizations.
 
 ### User Customized Tile Pipeline
-User-defined pipeline that combines custom problem and policy components for specialized computations.
+User-defined pipeline that combines custom problem and policy components for specialized computations. CK also provides prebuilt pipelines and policies for common operations that can be used as starting points.
 
 ### User Customized Tile Pipeline Optimization
-Process of tuning tile sizes, memory access patterns, and hardware utilization for specific workloads.
+Process of tuning tile sizes, memory access patterns, and hardware utilization for specific workloads. CK also provides prebuilt pipelines and policies for common operations that can be used as starting points.
 
 ### Tile Programming API
 CK's high-level interface for defining tile-based computations with predefined hardware mapping for data load/store.
@@ -297,11 +298,8 @@ A kernel which calls VGEMMs with different "batches" of data. All batches have t
 ### Split-K GEMM
 A parallelization strategy that partitions the reduction dimension (K) across multiple compute units, increasing parallelism for large matrix multiplications.
 
-### Matrix-Vector Multiplication
-See [GEMV](#gemv).
-
 ### GEMV
-(Matrix-Vector Multiplication) The operation of multiplying a matrix by a vector, producing another vector. GEMV is a core linear algebra primitive, widely used in neural networks and scientific computing.
+The operation of multiplying a matrix by a vector, producing another vector. GEMV (General Matrix Vector Multiplication) is a core linear algebra primitive, widely used in neural networks and scientific computing.
 
 ### Inner Product
 Also known as the dot product, it computes the sum of elementwise products of two vectors, yielding a scalar.
@@ -322,9 +320,6 @@ Tests that are part of CK's ctest suite and explicitly take more than 30s to fin
 ### Smoke Test
 Tests that are part of CK's ctest suite and take less than or equal to 30 seconds to finish on gfx942.
 
-### Benchmark
-Performance tests measuring kernel, model, or library throughput and latency under various conditions.
-
 ---
 
 ## 9. Low-Level Instructions and Optimizations
@@ -341,6 +336,9 @@ AMD's Heterogeneous-Computing Interface for Portability, a C++ runtime API and p
 
 ### CUDA
 NVIDIA's Compute Unified Device Architecture, a parallel computing platform and programming model for NVIDIA GPUs. CUDA provides a C++ extension for writing GPU kernels and managing GPU resources.
+
+### ROCm
+AMD's Radeon Open Compute platform, an open-source software stack for GPU computing that includes [HIP](#hip), libraries, and tools for high-performance computing and machine learning workloads on AMD GPUs.
 
 ---
 
