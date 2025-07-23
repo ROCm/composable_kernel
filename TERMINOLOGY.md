@@ -278,7 +278,7 @@ A common fused operation in ML and linear algebra, where an elementwise addition
 ## 7. Linear Algebra and ML Operations
 
 ### General Matrix Multiply (GEMM)
-A core operation in linear algebra and deep learning, computing C = αAB + βC for matrices A, B, and C. Efficient GEMM implementations are critical for high-performance ML workloads. Core operation C = αA×B + βC, fundamental to deep learning and scientific computing. Optimized by matrix cores for high performance.
+Core matrix operation in linear algebra and deep learning. A GEMM is defined as C = αAB + βC for matrices A, B, and C. 
 
 ### "Vanilla" GEMM (Naive GEMM) Kernel
 The **vanilla GEMM** is the simplest form of GEMM in CK. It:
