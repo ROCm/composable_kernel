@@ -116,8 +116,10 @@ class TestCkTileElementwise : public ::testing::Test
         ck_tile::stream_config s{nullptr, false, 0}; // Default stream, no timing, no log
 
         // Check if the kernel configuration is supported
-        if(!ew_kernel.IsSupportedArgument(lens)) {
-            throw std::runtime_error("The kernel configuration is not supported for the given input size.");
+        if(!ew_kernel.IsSupportedArgument(lens))
+        {
+            throw std::runtime_error(
+                "The kernel configuration is not supported for the given input size.");
         }
 
         ck_tile::launch_kernel(
@@ -199,7 +201,8 @@ TYPED_TEST(TestCkTileElementwise, RunElementwise_1024) { this->RunTest(1024); }
 
 TYPED_TEST(TestCkTileElementwise, RunElementwise_513)
 {
-    EXPECT_THROW((this->RunTest(513)), std::runtime_error); // Test with an input size that's not a multiple of kVectorM
+    EXPECT_THROW((this->RunTest(513)),
+                 std::runtime_error); // Test with an input size that's not a multiple of kVectorM
 }
 
 TYPED_TEST(TestCkTileElementwise, RunElementwise_516)
