@@ -181,7 +181,7 @@ CK's high-level interface for defining tile-based computations with predefined h
 CK utilities for converting between different coordinate systems (logical, physical, memory layouts).
 
 ### Reference Kernel
-A baseline kernel implementation used for correctness and performance comparison. CK has two implementations of reference kernel: one for CPU and one for GPU verification.
+A baseline kernel implementation used to verify correctness and performance. CK has two reference kernel implementations: one for CPU and one for GPU.
 
 ### Launch Parameters
 Configuration values (e.g., grid size, block size) that determine how a kernel is mapped to hardware resources. Proper tuning of these parameters is essential for optimal performance.
