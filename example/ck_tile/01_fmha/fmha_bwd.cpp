@@ -3,6 +3,7 @@
 
 #include "fmha_bwd.hpp"
 #include "ck_tile/host.hpp"
+#include "json_dump.hpp"
 #include "mask.hpp"
 #include "utils.hpp"
 
@@ -95,7 +96,8 @@ auto create_args(int argc, char* argv[])
                 "0",
                 "if set to 1 will use multi-buffer reduction strategy for dq, atomic opeartion "
                 "will not be used")
-        .insert("json", "0", "0: No Json, 1: Dump Results in Json format");
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "fmha_bwd.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -661,18 +663,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 // elementwise bias
                 ck_tile::HostTensor<BiasDataType> bias_host_ref({1, real_seqlen_q, real_seqlen_k});
                 // clang-format off
-            if(i_perm)
-                bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, 0, i[1] + query_offset, i[2]); });
-            else
-                bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, i[1] + query_offset, 0, i[2]); });
+                if(i_perm)
+                    bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, 0, i[1] + query_offset, i[2]); });
+                else
+                    bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, i[1] + query_offset, 0, i[2]); });
                 // clang-format on
 
                 // broadcast from [1, real_seqlen_q, real_seqlen_k] to [nhead, real_seqlen_q,
                 // real_seqlen_k]
                 ck_tile::reference_batched_elementwise<AccDataType,
-                                                       BiasDataType,
-                                                       AccDataType,
-                                                       AccDataType>(
+                                                    BiasDataType,
+                                                    AccDataType,
+                                                    AccDataType>(
                     s_host_ref, bias_host_ref, s_host_ref);
             }
             else if(bias.type == bias_enum::alibi)
@@ -986,7 +988,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(arg_parser.get_int("json") == 1)
     {
-        START_JSON_DUMP_FILE("fmha_bwd.json")
+        START_JSON_DUMP_FILE(arg_parser.get_str("jsonfile"));
         ADD_KEY_VALUE("name", "fmha_bwd");
         ADD_KEY_VALUE("prec", data_type);
         ADD_KEY_VALUE("mode", mode == mode_enum::batch ? "batch" : "group");

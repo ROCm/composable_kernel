@@ -4,6 +4,7 @@
 #include "fmha_fwd.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/ref/naive_attention.hpp"
+#include "json_dump.hpp"
 #include "mask.hpp"
 #include "rotary.hpp"
 #include "utils.hpp"
@@ -139,7 +140,8 @@ auto create_args(int argc, char* argv[])
         .insert("cache_batch_idx", "0", "whether to use index map to the kvcache")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "20", "number of iterations to benchmark the kernel")
-        .insert("json", "0", "0: No Json, 1: Dump Results in Json format");
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "fmha_fwd.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -1597,7 +1599,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(arg_parser.get_int("json") == 1)
     {
-        START_JSON_DUMP_FILE("fmha_fwd.json")
+        START_JSON_DUMP_FILE(arg_parser.get_str("jsonfile"))
         ADD_KEY_VALUE("name", "fmha_fwd");
         ADD_KEY_VALUE("prec", prec);
         ADD_KEY_VALUE("mode", mode == mode_enum::batch ? "batch" : "group");
