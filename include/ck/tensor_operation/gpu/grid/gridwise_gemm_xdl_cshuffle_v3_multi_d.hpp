@@ -1249,11 +1249,11 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
               TailNumber TailNum = TailNumber::Odd>
-    __device__ static void Run(const ADataType* p_a_grid,
-                               const BDataType* p_b_grid,
+    __device__ static void Run(const ADataType* __restrict__ p_a_grid,
+                               const BDataType* __restrict__ p_b_grid,
                                DsGridPointer& p_ds_grid,
-                               CDataType* p_c_grid,
-                               void* p_shared,
+                               CDataType* __restrict__ p_c_grid,
+                               void* __restrict__ p_shared,
                                const Problem& problem,
                                AElementwiseOperation a_element_op,
                                BElementwiseOperation b_element_op,
@@ -1277,11 +1277,11 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
               bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
               TailNumber TailNum = TailNumber::Odd>
-    __device__ static void Run(const ADataType* p_a_grid,
-                               const BDataType* p_b_grid,
+    __device__ static void Run(const ADataType* __restrict__ p_a_grid,
+                               const BDataType* __restrict__ p_b_grid,
                                DsGridPointer& p_ds_grid,
-                               CDataType* p_c_grid,
-                               void* p_shared,
+                               CDataType* __restrict__ p_c_grid,
+                               void* __restrict__ p_shared,
                                const Problem& problem,
                                AElementwiseOperation a_element_op,
                                BElementwiseOperation b_element_op,
@@ -1323,11 +1323,11 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
               typename BGridDesc_BK0_N_K1,
               typename DsGridDesc_M_N,
               typename CGridDesc_M_N>
-    __device__ static void Run(const ADataType* p_a_grid,
-                               const BDataType* p_b_grid,
+    __device__ static void Run(const ADataType* __restrict__ p_a_grid,
+                               const BDataType* __restrict__ p_b_grid,
                                DsGridPointer& p_ds_grid,
-                               CDataType* p_c_grid,
-                               void* p_shared,
+                               CDataType* __restrict__ p_c_grid,
+                               void* __restrict__ p_shared,
                                const Problem& problem,
                                AElementwiseOperation a_element_op,
                                BElementwiseOperation b_element_op,
@@ -1744,12 +1744,12 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
               TailNumber TailNum = TailNumber::Odd>
-    __device__ static void Run_2Lds(const ADataType* p_a_grid,
-                                    const BDataType* p_b_grid,
+    __device__ static void Run_2Lds(const ADataType* __restrict__ p_a_grid,
+                                    const BDataType* __restrict__ p_b_grid,
                                     DsGridPointer& p_ds_grid,
-                                    CDataType* p_c_grid,
-                                    void* p_shared_0,
-                                    void* p_shared_1,
+                                    CDataType* __restrict__ p_c_grid,
+                                    void* __restrict__ p_shared_0,
+                                    void* __restrict__ p_shared_1,
                                     const Problem& problem,
                                     AElementwiseOperation a_element_op,
                                     BElementwiseOperation b_element_op,
@@ -1775,12 +1775,12 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
               bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
               TailNumber TailNum = TailNumber::Odd>
-    __device__ static void Run_2Lds(const ADataType* p_a_grid,
-                                    const BDataType* p_b_grid,
+    __device__ static void Run_2Lds(const ADataType* __restrict__ p_a_grid,
+                                    const BDataType* __restrict__ p_b_grid,
                                     DsGridPointer& p_ds_grid,
-                                    CDataType* p_c_grid,
-                                    void* p_shared_0,
-                                    void* p_shared_1,
+                                    CDataType* __restrict__ p_c_grid,
+                                    void* __restrict__ p_shared_0,
+                                    void* __restrict__ p_shared_1,
                                     const Problem& problem,
                                     AElementwiseOperation a_element_op,
                                     BElementwiseOperation b_element_op,
@@ -1791,8 +1791,53 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
             problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
         const auto b_grid_desc_bk0_n_bk1 = MakeBGridDescriptor_BK0_N_BK1(
             problem.K, problem.KPadded, problem.N, problem.NPadded, problem.StrideB, problem.BK0);
+
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N<CLayout>(
             problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideC);
+        const auto ds_grid_desc_m_n = MakeDsGridDescriptor_M_N(
+            problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideDs);
+
+        Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(p_a_grid,
+                                                                         p_b_grid,
+                                                                         p_ds_grid,
+                                                                         p_c_grid,
+                                                                         p_shared_0,
+                                                                         p_shared_1,
+                                                                         problem,
+                                                                         a_element_op,
+                                                                         b_element_op,
+                                                                         c_element_op,
+                                                                         block_2_ctile_map,
+                                                                         a_grid_desc_ak0_m_ak1,
+                                                                         b_grid_desc_bk0_n_bk1,
+                                                                         ds_grid_desc_m_n,
+                                                                         c_grid_desc_m_n);
+    }
+
+    template <bool HasMainKBlockLoop,
+              InMemoryDataOperationEnum CGlobalMemoryDataOperation,
+              TailNumber TailNum,
+              typename Block2CTileMap,
+              typename AGridDesc_AK0_M_K1,
+              typename BGridDesc_BK0_N_K1,
+              typename DsGridDesc_M_N,
+              typename CGridDesc_M_N>
+    __device__ static void Run_2Lds(const ADataType* __restrict__ p_a_grid,
+                                    const BDataType* __restrict__ p_b_grid,
+                                    DsGridPointer& p_ds_grid,
+                                    CDataType* __restrict__ p_c_grid,
+                                    void* __restrict__ p_shared_0,
+                                    void* __restrict__ p_shared_1,
+                                    const Problem& problem,
+                                    AElementwiseOperation a_element_op,
+                                    BElementwiseOperation b_element_op,
+                                    CElementwiseOperation c_element_op,
+                                    const Block2CTileMap& block_2_ctile_map,
+                                    const AGridDesc_AK0_M_K1& a_grid_desc_ak0_m_ak1,
+                                    const BGridDesc_BK0_N_K1& b_grid_desc_bk0_n_bk1,
+                                    const DsGridDesc_M_N& ds_grid_desc_m_n,
+                                    const CGridDesc_M_N& c_grid_desc_m_n)
+    {
 
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
@@ -2061,9 +2106,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                     ck::tensor_operation::element_wise::PassThrough{}};
 
             using EDataType = CDataType;
-
-            const auto ds_grid_desc_m_n = MakeDsGridDescriptor_M_N(
-                problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideDs);
 
             const auto ds_grid_desc_mblock_mperblock_nblock_nperblock =
                 MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(

@@ -79,7 +79,9 @@ using DeviceConvFwdInstance2 =
         1,
         1,
         S<1, 16, 1, 16>,
-        4>;
+        4,
+        ck::BlockGemmPipelineScheduler::Intrawave,
+        ck::BlockGemmPipelineVersion::v3>;
 // instance for gfx942-
 template <ck::index_t NDimSpatial>
 using DeviceConvFwdInstance =
@@ -127,7 +129,9 @@ using DeviceConvFwdInstance =
         1,
         1,
         S<1, 16, 1, 16>,
-        4>;
+        4,
+        ck::BlockGemmPipelineScheduler::Intrawave,
+        ck::BlockGemmPipelineVersion::v3>;
 
 template <ck::index_t NDimSpatial>
 using HostConvFwdInstance = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
