@@ -321,10 +321,10 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
                index_t K_,
                index_t O_,
                index_t Batch,
-               [[maybe_unused]] index_t StrideA,
-               [[maybe_unused]] index_t StrideB0,
-               [[maybe_unused]] index_t StrideB1,
-               [[maybe_unused]] index_t StrideC, // TODO: actually use user-supplied strides.
+               index_t StrideA,
+               index_t StrideB0,
+               index_t StrideB1,
+               index_t StrideC,
                index_t BatchStrideA,
                index_t BatchStrideB0,
                index_t BatchStrideB1,
@@ -352,18 +352,19 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         {
 
             a_gs_ms_ks_lengths = arr3{batch_count, M, K};
-            a_gs_ms_ks_strides = arr3{M * K, K, 1}; // A layout [batch_count, M, K]
+            a_gs_ms_ks_strides = arr3{BatchStrideA, StrideA, 1}; // A layout [batch_count, M, K]
 
             b0_gs_ns_ks_lengths = arr3{batch_count, N, K};
-            b0_gs_ns_ks_strides = arr3{N * K, K, 1}; // B0 layout [batch_count, N, K]
+            b0_gs_ns_ks_strides = arr3{BatchStrideB0, StrideB0, 1}; // B0 layout [batch_count, N, K]
 
             b1_gs_os_ns_lengths = arr3{batch_count, O, N};
-            b1_gs_os_ns_strides = is_same_v<B1Layout, tensor_layout::gemm::RowMajor>
-                                      ? arr3{N * O, 1, O}  // B1 layout [batch_count, N, O]
-                                      : arr3{N * O, N, 1}; // B1 layout [batch_count, O, N]
+            b1_gs_os_ns_strides =
+                is_same_v<B1Layout, tensor_layout::gemm::RowMajor>
+                    ? arr3{BatchStrideB1, 1, StrideB1}  // B1 layout [batch_count, N, O]
+                    : arr3{BatchStrideB1, StrideB1, 1}; // B1 layout [batch_count, O, N]
 
             c_gs_ms_os_lengths = arr3{batch_count, M, O};
-            c_gs_ms_os_strides = arr3{M * O, O, 1}; // C layout [batch_count, M, O]
+            c_gs_ms_os_strides = arr3{BatchStrideC, StrideC, 1}; // C layout [batch_count, M, O]
 
             a_grid_desc  = MakeAGridDescriptor(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
             b0_grid_desc = MakeB0GridDescriptor(b0_gs_ns_ks_lengths, b0_gs_ns_ks_strides);

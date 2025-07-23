@@ -213,10 +213,14 @@ int run(int argc, char* argv[])
                                      K,
                                      O,
                                      G1,                     // Batch,
-                                     0,                      // StrideA,
-                                     0,                      // StrideB0,
-                                     0,                      // StrideB1,
-                                     0,                      // StrideC,
+                                     a_gs_ms_ks_strides[2],  // StrideA,
+                                     b0_gs_ns_ks_strides[2], // StrideB0,
+#ifdef CK_MHA_USE_RCCR_LAYOUT
+                                     b1_gs_os_ns_strides[2], // StrideB1,
+#else
+                                     b1_gs_os_ns_strides[3],     // StrideB1,
+#endif
+                                     c_gs_ms_os_strides[2],  // StrideC,
                                      a_gs_ms_ks_strides[1],  // BatchStrideA
                                      b0_gs_ns_ks_strides[1], // BatchStrideB0
                                      b1_gs_os_ns_strides[1], // BatchStrideB1
