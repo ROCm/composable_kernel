@@ -5,6 +5,7 @@
 #include <set>
 
 #include "ck_tile/host.hpp"
+#include "json_dump.hpp"
 #include "fused_moe.hpp"
 
 // different threshold for different dtype
@@ -131,7 +132,8 @@ auto create_args(int argc, char* argv[])
         .insert("seed", "11939", "seed used to do random")
         .insert("warmup", "5", "cold iter")
         .insert("repeat", "20", "hot iter")
-        .insert("json", "0", "0: No Json, 1: Dump Results in Json format");
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "fused_moe.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -515,6 +517,31 @@ bool run(const ck_tile::ArgParser& arg_parser)
             std::cout << ", valid:" << (pass ? "y" : "n") << std::flush;
         }
         std::cout << std::flush << std::endl;
+
+        if(arg_parser.get_int("json") == 1)
+        {
+            START_JSON_DUMP_FILE(arg_parser.get_str("jsonfile"));
+            ADD_KEY_VALUE("name", "fused_moe");
+            ADD_KEY_VALUE("api", api_str);
+            ADD_KEY_VALUE("prec", prec_str);
+            ADD_KEY_VALUE("tokens", tokens);
+            if(is_local_token)
+            {
+                ADD_KEY_VALUE("local_tokens", local_tokens);
+            }
+            ADD_KEY_VALUE("experts", experts);
+            ADD_KEY_VALUE("topk", topk);
+            ADD_KEY_VALUE("hidden_size", hidden_size);
+            ADD_KEY_VALUE("intermediate_size", intermediate_size);
+            ADD_KEY_VALUE("stride", stride);
+            ADD_KEY_VALUE("block_m", block_m);
+            ADD_KEY_VALUE("activation", activation);
+            ADD_KEY_VALUE("gate_only", gate_only);
+            ADD_KEY_VALUE("fused_quant", fused_quant);            
+            ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
+            ADD_PERF_TO_JSON(ave_time, cal_tflops(ave_time), cal_tbps(ave_time))
+            END_JSON_DUMP_FILE();
+        }
         return pass;
     }
     else if(api == 1)
@@ -620,6 +647,32 @@ bool run(const ck_tile::ArgParser& arg_parser)
             std::cout << ", valid:" << (pass ? "y" : "n") << std::flush;
         }
         std::cout << std::flush << std::endl;
+
+        if(arg_parser.get_int("json") == 1)
+        {
+            START_JSON_DUMP_FILE(arg_parser.get_str("jsonfile"));
+            ADD_KEY_VALUE("name", "fused_moe");
+            ADD_KEY_VALUE("api", api_str);
+            ADD_KEY_VALUE("prec", prec_str);
+            ADD_KEY_VALUE("tokens", tokens);
+            if(is_local_token)
+            {
+                ADD_KEY_VALUE("local_tokens", local_tokens);
+            }
+            ADD_KEY_VALUE("experts", experts);
+            ADD_KEY_VALUE("topk", topk);
+            ADD_KEY_VALUE("hidden_size", hidden_size);
+            ADD_KEY_VALUE("intermediate_size", intermediate_size);
+            ADD_KEY_VALUE("stride", stride);
+            ADD_KEY_VALUE("block_m", block_m);
+            ADD_KEY_VALUE("activation", activation);
+            ADD_KEY_VALUE("gate_only", gate_only);
+            ADD_KEY_VALUE("fused_quant", fused_quant);            
+            ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
+            ADD_PERF_TO_JSON(ave_time, cal_tflops(ave_time), cal_tbps(ave_time))
+            END_JSON_DUMP_FILE();
+        }
+
 
         return pass;
     }
