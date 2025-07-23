@@ -537,7 +537,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ADD_KEY_VALUE("block_m", block_m);
             ADD_KEY_VALUE("activation", activation);
             ADD_KEY_VALUE("gate_only", gate_only);
-            ADD_KEY_VALUE("fused_quant", fused_quant);            
+            ADD_KEY_VALUE("fused_quant", fused_quant);
             ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
             ADD_PERF_TO_JSON(ave_time, cal_tflops(ave_time), cal_tbps(ave_time))
             END_JSON_DUMP_FILE();
@@ -667,12 +667,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ADD_KEY_VALUE("block_m", block_m);
             ADD_KEY_VALUE("activation", activation);
             ADD_KEY_VALUE("gate_only", gate_only);
-            ADD_KEY_VALUE("fused_quant", fused_quant);            
+            ADD_KEY_VALUE("fused_quant", fused_quant);
             ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
             ADD_PERF_TO_JSON(ave_time, cal_tflops(ave_time), cal_tbps(ave_time))
             END_JSON_DUMP_FILE();
         }
-
 
         return pass;
     }

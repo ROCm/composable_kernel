@@ -994,6 +994,7 @@ pipeline {
                                 -o -iname \'*.cpp.in\' \
                                 -o -iname \'*.cl\' \
                                 | grep -v 'build/' \
+                                | grep -v 'include/rapidjson' \
                                 | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-12 -style=file {} | diff - {}\' && \
                                 /cppcheck/build/bin/cppcheck ../* -v -j \$(nproc) -I ../include -I ../profiler/include -I ../library/include \
                                 -D CK_ENABLE_FP64 -D CK_ENABLE_FP32 -D CK_ENABLE_FP16 -D CK_ENABLE_FP8 -D CK_ENABLE_BF16 -D CK_ENABLE_BF8 -D CK_ENABLE_INT8 \
@@ -1023,6 +1024,7 @@ pipeline {
                                 -o -iname \'*.cpp.in\' \
                                 -o -iname \'*.cl\' \
                                 | grep -v 'build/' \
+                                | grep -v 'include/rapidjson' \
                                 | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-12 -style=file {} | diff - {}\'"
                     }
                     steps{

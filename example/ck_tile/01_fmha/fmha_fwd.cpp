@@ -326,8 +326,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     ck_tile::index_t page_block_size = arg_parser.get_int("page_block_size");
-#if (!(CK_TILE_FMHA_FWD_APPENDKV_API || CK_TILE_FMHA_FWD_SPLITKV_API || \
-       CK_TILE_FMHA_FWD_PAGEDKV_API))
+#if(!(CK_TILE_FMHA_FWD_APPENDKV_API || CK_TILE_FMHA_FWD_SPLITKV_API || \
+      CK_TILE_FMHA_FWD_PAGEDKV_API))
     if(0 < page_block_size)
     {
         std::cerr << "paged-kvcache is not supported. ignoring the 'page_block_size' option"
@@ -1191,7 +1191,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         o_buf.FromDevice(o_host.data()); // TODO: ugly
 
         auto [rtol_, atol_] = get_elimit<DataTypeConfig>(init_method);
-        pass          = ck_tile::check_err(
+        pass                = ck_tile::check_err(
             o_host, o_naive_ref, std::string("OUT Error: Incorrect results!"), rtol_, atol_);
         std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
     }
@@ -1617,8 +1617,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ADD_KEY_VALUE("p_drop", p_drop);
         ADD_KEY_VALUE("lse", lse);
         ADD_KEY_VALUE("squant", squant);
-        ADD_KEY_VALUE("bias", bias.type == bias_enum::elementwise_bias ? "elementwise_bias"
-                                                                        : (bias.type == bias_enum::alibi ? "alibi" : "no_bias"));
+        ADD_KEY_VALUE("bias",
+                      bias.type == bias_enum::elementwise_bias
+                          ? "elementwise_bias"
+                          : (bias.type == bias_enum::alibi ? "alibi" : "no_bias"));
         ADD_KEY_VALUE("vlayout", vlayout);
         ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
         ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec)

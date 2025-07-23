@@ -672,9 +672,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 // broadcast from [1, real_seqlen_q, real_seqlen_k] to [nhead, real_seqlen_q,
                 // real_seqlen_k]
                 ck_tile::reference_batched_elementwise<AccDataType,
-                                                    BiasDataType,
-                                                    AccDataType,
-                                                    AccDataType>(
+                                                       BiasDataType,
+                                                       AccDataType,
+                                                       AccDataType>(
                     s_host_ref, bias_host_ref, s_host_ref);
             }
             else if(bias.type == bias_enum::alibi)
@@ -1002,23 +1002,30 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ADD_KEY_VALUE("hdim_q", hdim_q);
         ADD_KEY_VALUE("hdim_v", hdim_v);
         ADD_KEY_VALUE("scale", scale);
-        ADD_KEY_VALUE("bias", bias.type == bias_enum::elementwise_bias ? "elementwise_bias"
-                                                                        : (bias.type == bias_enum::alibi ? "alibi" : "no_bias"));
+        ADD_KEY_VALUE("bias",
+                      bias.type == bias_enum::elementwise_bias
+                          ? "elementwise_bias"
+                          : (bias.type == bias_enum::alibi ? "alibi" : "no_bias"));
         ADD_KEY_VALUE("use_dbias", use_dbias ? "true" : "false");
         ADD_KEY_VALUE("p_drop", p_drop);
         ADD_KEY_VALUE("s_randval", s_randval ? "true" : "false");
         ADD_KEY_VALUE("deterministic", deterministic ? "true" : "false");
-        ADD_KEY_VALUE("mask", mask.type == mask_enum::no_mask ? "no_mask"
-                                                              : (mask.type == mask_enum::window_generic ? "window_generic"
-                                                                 : (mask.type == mask_enum::mask_top_left ? "mask_top_left"
-                                                                 : (mask.type == mask_enum::mask_bottom_right ? "mask_bottom_right"
-                                                                 : "mask_generic"))));
+        ADD_KEY_VALUE(
+            "mask",
+            mask.type == mask_enum::no_mask
+                ? "no_mask"
+                : (mask.type == mask_enum::window_generic
+                       ? "window_generic"
+                       : (mask.type == mask_enum::mask_top_left
+                              ? "mask_top_left"
+                              : (mask.type == mask_enum::mask_bottom_right ? "mask_bottom_right"
+                                                                           : "mask_generic"))));
         ADD_KEY_VALUE("mask_left", mask.left);
         ADD_KEY_VALUE("mask_right", mask.right);
         ADD_KEY_VALUE("workspace_size", workspace_size);
         ADD_KEY_VALUE("deterministic", deterministic ? "true" : "false");
         ADD_KEY_VALUE("i_perm", i_perm ? "true" : "false");
-        ADD_KEY_VALUE("o_perm", o_perm ? "true" : "false");        
+        ADD_KEY_VALUE("o_perm", o_perm ? "true" : "false");
         ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
         ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec)
         END_JSON_DUMP_FILE();
