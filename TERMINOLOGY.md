@@ -93,7 +93,7 @@ The fastest memory tier, registers are private to each thread/work-item and used
 Per-thread registers that store individual thread data within a wave. Each thread has its own set of VGPRs for private variables and calculations.
 
 ### Scalar General Purpose Register (SGPR)
-Wave-level registers shared by all threads in a wave. Used for constants, addresses, and control flow that are common across the entire wave.
+Wave-level registers shared by all threads in a wave. Used for constants, addresses, and control flow common across the entire wave.
 
 ### Shared Memory / Local Data Share (LDS)
 High-bandwidth, low-latency on-chip memory accessible to all threads within a block (CUDA) or work group (ROCm). It enables fast data sharing and synchronization, but is limited in capacity and must be managed to avoid bank conflicts.
