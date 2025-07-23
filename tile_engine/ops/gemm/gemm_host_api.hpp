@@ -51,6 +51,18 @@ struct DataTypeTraits<ck_tile::bf8_t>
 };
 
 template <>
+struct DataTypeTraits<ck_tile::int8_t>
+{
+    static constexpr const char* name = "int8";
+};
+
+template <>
+struct DataTypeTraits<ck_tile::int32_t>
+{
+    static constexpr const char* name = "int32";
+};
+
+template <>
 struct DataTypeTraits<ck_tile::pk_int4_t>
 {
     static constexpr const char* name = "pk_int4_t";

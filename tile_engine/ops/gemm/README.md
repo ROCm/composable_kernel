@@ -4,7 +4,9 @@ CK Tile Engine GEMM is used to generate and run GEMM kernels with different comb
 
 # Kernel Configurations
 
-User can provide kernel configuration such as tile size, warp size, padding, pipeline, scheduler and epilogue in the config file with limited values. For reference please see `./configs/user_provided_config.json`. 
+Users can specify custom kernel configurations such as tile size, warp size, padding, pipeline, scheduler, and epilogue in the config file. This allows building only for selected configurations, significantly reducing build time.
+For reference please see `./configs/user_provided_config.json`.
+
 
 The Tile engine also has a default kernel configuration for providing range of configuration parameter values, which helps users who lack kernel development experience to benchmark. For reference please see in `./configs/default_config.json`
 
@@ -15,16 +17,30 @@ If user does not provide kernel configuration, the tile engine uses default kern
 # in the root of composable kernel create build directory
 mkdir build && cd build
 # build composable kernel
-sh ../script/cmake-ck-dev.sh  ../ <arch> # replace <arch> with the appropriate architecture (example gfx942) or leave blank
-# generate the executable
-make benchmark_gemm -j
+# replace [Arch] with the appropriate architecture or leave blank and 
+# replace [Datatype1;Datatype2;...] in comma separated datatypes string (possible datatypes are [fp8, bf8, int8, fp16, bf16])
+# replace [Layout1;Layout2;...] in comma separated datatypes string (possible layouts are [rcr, rrr, crr, ccr])
+sh ../script/cmake-ck-dev.sh  ../ [Arch] -DGEMM_DATATYPE="[Datatype1;Datatype2]" -DGEMM_LAYOUT="[Layout1;Layout2]"
+# generate different executable for each passed datatype
+make benchmark_gemm_[Datatype1]_[Layout1] -j
+make benchmark_gemm_[Datatype1]_[Layout2] -j
+make benchmark_gemm_[Datatype2]_[Layout1] -j
+make benchmark_gemm_[Datatype2]_[Layout2] -j
 ```
-`benchmark_gemm` will be located in the `./bin/` directory.
+`benchmark_gemm_[Datatype]_[Layout]` will be located in the `./bin/` directory.
 
-`benchmark_gemm` must be rebuilt everytime if configuration file is modified.
+`benchmark_gemm_[Datatype]_[Layout]` must be rebuilt everytime if configuration file is modified.
 
 ``` bash
-rm -rf tile_engine/ && make benchmark_gemm -j  # rebuild
+rm -rf tile_engine/ && make benchmark_gemm_[Datatypes]_[Layout] -j  # rebuild
+```
+
+## For eaxmple build for gfx942 for fp8 and fp16 datatypes with rcr layout
+``` bash
+mkdir build && cd build
+sh ../script/cmake-ck-dev.sh  ../ gfx942 -DGEMM_DATATYPE="fp8;fp16" -DGEMM_LAYOUT="rcr" 
+make benchmark_gemm_fp8_rcr -j
+make benchmark_gemm_fp16_rcr -j
 ```
 
 ## benchmark_gemm inputs
@@ -91,7 +107,7 @@ The following JSON file specifies parameters used to generate and build GEMM ker
 
 At runtime, a specific subset of the generated kernels can be selected using command-line arguments.
 ``` bash
-./bin/benchmark_gemm -pipeline=compv3 -scheduler=intrawave -epilogue=default 
+./bin/benchmark_gemm_[Datatype]_[Layout] -pipeline=compv3 -scheduler=intrawave -epilogue=default 
 ```
 The above command runs kernels configured with the compv3 pipeline, intrawave scheduler, and default epilogue, while sweeping over different BlockTile sizes, WarpTile sizes, and WarpTile mappings.
 

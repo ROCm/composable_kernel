@@ -542,26 +542,26 @@ namespace detail {
 //
 // e.g
 //       X0           X1
-//       <1, 4, 32> - <4, 1, 4, 2, 4>  | slice origin:<0, 0>, len:<0, 32>, (0 means all length)
+//       <1, 4, 32> - <4, 1, 4, 2, 4>  | slice start:<0, 0>, end:<-1, 32>, (-1 means the last one)
 //        Y  P  P      Y  P  Y  P  Y
 //   =>  <1, 4, 32> - <1, 1, 4, 2, 4> -> OK
 //                     |--> slice along this Y dim, is the first dim of X1, totally 4 slices
 //
 //       X0           X1
-//       <1, 4, 32> - <4, 1, 4, 2, 4>  | slice origin:<0, 0>, len:<0, 8>, (0 means all length)
+//       <1, 4, 32> - <4, 1, 4, 2, 4>  | slice start:<0, 0>, end:<-1, 8>, (-1 means the last one)
 //        Y  P  P      Y  P  Y  P  Y
 //   =>  <1, 4, 32> - <1, 1, 1, 2, 4> -> OK
 //                           |--> slice along this Y dim, the P dim is 1 in the left, so is OK
 //                                 totally 16 slices
 //
 //       X0           X1
-//       <1, 4, 32> - <4, 1, 4, 2, 4>  | slice origin:<0, 0>, len:<0, 4>, (0 means all length)
+//       <1, 4, 32> - <4, 1, 4, 2, 4>  | slice start:<0, 0>, end:<-1, 4>, (-1 means the last one)
 //        Y  P  P      Y  P  Y  P  Y
 //   =>  <1, 4, 32> - <1, 1, 1, 1, 4> -> Fail
 //                              |--> slice along this P dim, will split threads, not supported
 //
 //       X0           X1
-//       <1, 4, 32> - <4, 1, 4, 2, 4>  | slice origin:<0, 0>, len:<0, 16>, (0 means all length)
+//       <1, 4, 32> - <4, 1, 4, 2, 4>  | slice start:<0, 0>, end:<-1, 16>, (-1 means the last one)
 //        Y  P  P      Y  P  Y  P  Y
 //   =>  <1, 4, 32> - <1, 1, 2, 2, 4> -> OK
 //                           |--> slice along this Y dim, but this Y sim need to split into 2
@@ -577,11 +577,39 @@ CK_TILE_HOST_DEVICE constexpr auto slice_distribution_from_x(
     using Encoding = decltype(Distribution::get_static_tile_distribution_encoding());
 
     static_assert(sizeof...(XSliceBegins) == sizeof...(XSliceEnds));
+    static_assert(sizeof...(XSliceBegins) == Encoding::NDimX, "only support slice over h, not r");
 
-    constexpr auto x_slice_lengths = x_slice_ends - x_slice_begins;
+    constexpr auto p_len_over_h = Encoding::detail::get_uniformed_p_dim_lengths_over_h();
+
+    constexpr auto x_slice_ends_ = generate_sequence_v2(
+        [&](auto i) {
+            if constexpr(x_slice_ends[i] == -1)
+            {
+                // -1 means till the end
+                constexpr auto x_length_ =
+                    container_reduce(typename Encoding::HsLengthss{}[i], multiplies{}, number<1>{});
+                return x_length_;
+            }
+            else
+            {
+                return x_slice_ends[i];
+            }
+        },
+        number<x_slice_ends.size()>{});
+
+    constexpr auto x_slice_lengths = x_slice_ends_ - x_slice_begins;
+
+    constexpr auto x_slice_lengths_without_p = generate_sequence_v2(
+        [&](auto i) constexpr {
+            constexpr auto len_ = x_slice_lengths[i];
+            static_assert(len_ % p_len_over_h[i] == 0,
+                          "slice length must be dividable by p_len_over_h");
+            return number<len_ / p_len_over_h[i]>{};
+        },
+        number<x_slice_lengths.size()>{});
 
     constexpr auto src_h_prefix_sum = Encoding::detail::get_h_dim_lengths_prefix_sum();
-    constexpr auto src_y_info       = Encoding::detail::get_sorted_y_info();
+    constexpr auto src_y_info       = Encoding::detail::get_sorted_y_to_h_info();
     constexpr auto src_y_dims       = src_y_info[number<0>{}];
     constexpr auto src_y_maps       = src_y_info[number<1>{}];
     constexpr auto src_y_prefix_sum = src_y_info[number<2>{}];
@@ -590,14 +618,15 @@ CK_TILE_HOST_DEVICE constexpr auto slice_distribution_from_x(
     {
         auto y_slice_sorted_origins = make_zero_multi_index<Encoding::NDimY>();
         auto y_slice_lengths        = Encoding::detail::ys_lengths_;
+        constexpr auto y_to_h_masks = Encoding::detail::get_y_to_h_masks();
 
         // This lambda will modify some value outside, so c++ will not treat return value as
         // constexpr
         // TODO: ugly
         auto new_h_lengths = transform_tuples(
             [&](auto h_len, auto id) {
-                constexpr auto sliced_h =
-                    reverse_slice_sequence(h_len, number<x_slice_lengths[id]>{});
+                constexpr auto sliced_h = reverse_slice_sequence(
+                    h_len, number<x_slice_lengths_without_p[id]>{}, y_to_h_masks[id]);
 
                 constexpr auto sliced_h_lens  = sliced_h[number<0>{}];
                 constexpr auto sliced_h_index = sliced_h[number<2>{}];
@@ -605,26 +634,39 @@ CK_TILE_HOST_DEVICE constexpr auto slice_distribution_from_x(
                 // update y_slice_lengths
                 constexpr auto uniformed_h_index = sliced_h_index + number<src_h_prefix_sum[id]>{};
                 constexpr auto found_y_index     = container_find(src_y_dims, uniformed_h_index);
+                constexpr auto y_to_h_dim_end    = src_y_prefix_sum[id + 1];
 
                 static_assert(found_y_index >= 0 && found_y_index < src_y_dims.size(),
                               "not sliced at y dim, please check");
 
-                static_for<0, sliced_h_index + 1, 1>{}([&](auto i) {
-                    y_slice_lengths(src_y_maps[found_y_index - i]) =
-                        sliced_h_lens[sliced_h_index - i];
-                });
+                {
+                    constexpr auto sliced_y_to_h_lens =
+                        pick_sequence_elements_by_mask(sliced_h_lens, y_to_h_masks[id]);
+                    constexpr auto sliced_y_to_h_dims = sliced_y_to_h_lens.size();
+                    static_for<0, sliced_y_to_h_dims, 1>{}([&](auto i) {
+                        y_slice_lengths(src_y_maps[y_to_h_dim_end - 1 - i]) =
+                            sliced_y_to_h_lens[sliced_y_to_h_dims - 1 - i];
+                    });
+                }
                 // TODO: add validations not across p dim
 
                 // NOTE: this y_origin is for all dims, not only current dim
                 //       will later use pick to select target dim
                 constexpr auto y_origin = [&]() {
-                    constexpr auto h_trans = make_merge_transform_v3_division_mod(h_len);
-                    auto h_origin_         = make_zero_multi_index<h_trans.NDimLow>();
-                    h_trans.calculate_lower_index(h_origin_, sequence<x_slice_begins[id].value>{});
+                    // can't use Encoding::Ys2RHsMajor/Ys2RHsMinor, these are unordered
+                    constexpr auto y_to_h_len =
+                        pick_sequence_elements_by_mask(h_len, y_to_h_masks[id]);
+                    constexpr auto y_to_h_dims = y_to_h_len.size();
+
+                    constexpr auto h_trans  = make_merge_transform_v3_division_mod(y_to_h_len);
+                    auto h_origin_          = make_zero_multi_index<h_trans.NDimLow>();
+                    constexpr auto y_begin_ = x_slice_begins[id] / p_len_over_h[id];
+                    h_trans.calculate_lower_index(h_origin_, sequence<y_begin_.value>{});
 
                     auto y_origin_ = make_zero_multi_index<Encoding::NDimY>();
-                    static_for<0, sliced_h_index + 1, 1>{}([&](auto i) {
-                        y_origin_(found_y_index - i) = h_origin_[sliced_h_index - i];
+
+                    static_for<0, y_to_h_dims, 1>{}([&](auto i) {
+                        y_origin_(y_to_h_dim_end - 1 - i) = h_origin_[y_to_h_dims - 1 - i];
                     });
                     return y_origin_;
                 }();

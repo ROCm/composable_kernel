@@ -186,7 +186,7 @@ struct tile_window_linear
         const typename Base::WindowLengths& window_lengths,
         const typename Base::BottomTensorIndex& window_origin,
         const typename Base::TileDstr& tile_distribution)
-        : cached_coords_{}, cached_flags_{}
+        : cached_coords_{}, cached_window_adaptor_coords_{}, cached_flags_{}
     {
         this->bottom_tensor_view_            = bottom_tensor_view;
         this->window_lengths_                = window_lengths;
@@ -214,7 +214,8 @@ struct tile_window_linear
 
             if constexpr(need_save_non_linear_coord)
             {
-                cached_coords_(non_linear_id) = bottom_tensor_thread_coord_tmp;
+                cached_coords_(non_linear_id)                = bottom_tensor_thread_coord_tmp;
+                cached_window_adaptor_coords_(non_linear_id) = window_adaptor_thread_coord_tmp;
             }
 
             // TODO: need pad_tensor_view to check which dim need use flag to check
@@ -314,8 +315,7 @@ struct tile_window_linear
 
         constexpr auto tile_dstr = typename Base::TileDstr{};
 
-        auto dst_tensor =
-            make_static_distributed_tensor<typename Base::DataTypeDataType>(tile_dstr);
+        auto dst_tensor = make_static_distributed_tensor<typename Base::DataType>(tile_dstr);
 
         auto issue = [&](auto i_access_) {
             constexpr auto IAccess = number<i_access_>{};
@@ -348,8 +348,9 @@ struct tile_window_linear
                 constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
                                       Base::Traits::PackedSize;
 
-                dst_tensor.get_thread_buffer().template at<d>() = vec_value.template get_as<
-                    typename Base::DataTypeDataType>()[j / Base::Traits::PackedSize];
+                dst_tensor.get_thread_buffer().template at<d>() =
+                    vec_value
+                        .template get_as<typename Base::DataType>()[j / Base::Traits::PackedSize];
             });
         };
 
@@ -400,8 +401,9 @@ struct tile_window_linear
                 constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
                                       Base::Traits::PackedSize;
 
-                dst_tensor.get_thread_buffer().template at<d>() = vec_value.template get_as<
-                    typename Base::DataTypeDataType>()[j / Base::Traits::PackedSize];
+                dst_tensor.get_thread_buffer().template at<d>() =
+                    vec_value
+                        .template get_as<typename Base::DataType>()[j / Base::Traits::PackedSize];
             });
         };
 
@@ -553,63 +555,98 @@ struct tile_window_linear
     {
         using LdsTileWindow = remove_cvref_t<LdsTileWindow_>;
         using LdsDataType   = typename LdsTileWindow::DataType;
+        using vector_t      = typename traits::vector_t;
 
-        // currently we only support everything is non linear dim
-        // actually it's not performant if we have linear dim(e.g. fast changing)
-        static_assert(NumAccess_NonLinear == NumAccess);
+        static_assert(NumAccess_NonLinear == NumAccess, "Unsupported configuration");
         static_assert(Base::BottomTensorView::buffer_view::get_address_space() ==
-                      address_space_enum::global);
+                          address_space_enum::global,
+                      "Requires global memory");
 
-        // issues * warps * lanes
-        static_assert(LdsTileWindow::get_num_of_dimension() == 3); // TODO: hard coded
+        // Precompute invariant values outside the lambda
+        const auto window_origin       = lds_tile.get_window_origin();
+        const auto& bottom_tensor_view = lds_tile.get_bottom_tensor_view();
+        const auto& tensor_descriptor  = bottom_tensor_view.get_tensor_descriptor();
+        auto smem_base_ptr             = bottom_tensor_view.get_buffer_view().p_data_;
 
-        // TODO: LDS offset is not good for intrinsic based implementation(compiler can't figure out
-        // dependency) hence avoid use offset based solution. size_per_buf should be zero (how to
-        // check?)
-        constexpr index_t size_per_buf =
-            lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
-                make_tuple(number<0>{}, number<0>{}, number<0>{}));
-
-        constexpr index_t size_per_wave =
-            lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
-                make_tuple(number<0>{}, number<1>{}, number<0>{})) -
-            size_per_buf;
-
-        constexpr index_t size_per_issue =
-            lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
-                make_tuple(number<1>{}, number<0>{}, number<0>{})) -
-            size_per_buf;
-
-        const index_t m0_init_value = size_per_buf + size_per_wave * get_warp_id();
-
-        using vector_t = typename Base::Traits::vector_t;
-
-        // TODO: we force CK_TILE_LDS_ADDR
-        CK_TILE_LDS_ADDR LdsDataType* smem =
-            lds_tile.get_bottom_tensor_view().get_buffer_view().p_data_ + m0_init_value;
-
-        // loop over thread tensor space [y0, y1, ...]
         auto issue = [&](auto i_access_) {
-            constexpr auto IAccess          = number<i_access_>{};
-            constexpr auto non_linear_id    = number<AccessMap_NonLinear{}[IAccess]>{};
+            constexpr auto IAccess       = number<i_access_>{};
+            constexpr auto non_linear_id = number<AccessMap_NonLinear{}[IAccess]>{};
+
+            // Use precomputed values
             auto bottom_tensor_thread_coord = cached_coords_[non_linear_id];
+            auto window_adaptor_coord       = cached_window_adaptor_coords_[non_linear_id];
             auto bottom_tensor_flag         = cached_flags_[IAccess];
 
-            // read from bottom tensor
+            auto lds_bottom_tensor_thread_idx =
+                window_origin + window_adaptor_coord.get_bottom_index();
+            const auto lds_coord =
+                make_tensor_coordinate(tensor_descriptor, lds_bottom_tensor_thread_idx);
+
+            CK_TILE_LDS_ADDR LdsDataType* smem = smem_base_ptr + lds_coord.get_offset();
+
+            // Read from bottom tensor
             this->get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
                 smem,
                 bottom_tensor_thread_coord,
                 0,
                 bottom_tensor_flag,
                 bool_constant<oob_conditional_check>{});
-
-            // move thread coordinate
-            if constexpr(i_access_ != (NumAccess - 1))
-            {
-                smem += size_per_issue; // Note we manually increase the per-issue offset
-            }
         };
 
+        WINDOW_DISPATCH_ISSUE();
+    }
+
+    template <typename Policy, index_t i_access_unsupport_ = -1, bool oob_conditional_check = true>
+    CK_TILE_DEVICE auto load_transpose() const
+    {
+        constexpr auto tile_dstr = typename Base::TileDstr{};
+        auto dst_tensor = make_static_distributed_tensor<typename Base::DataType>(tile_dstr);
+        this->template load_transpose_linear<Policy>(
+            dst_tensor, number<i_access_unsupport_>{}, bool_constant<oob_conditional_check>{});
+        return dst_tensor;
+    }
+
+    template <typename Policy,
+              typename DistributedTensor,
+              index_t i_access           = -1,
+              bool oob_conditional_check = true>
+    CK_TILE_DEVICE auto load_transpose_linear(DistributedTensor& dst_tensor,
+                                              number<i_access>                     = {},
+                                              bool_constant<oob_conditional_check> = {}) const
+    {
+        using vector_t = typename traits::vector_t;
+        using SFC_Ys   = typename traits::SFC_Ys;
+
+        constexpr auto tile_dstr = typename Base::TileDstr{};
+
+        constexpr auto group_func = Policy::group_func;
+
+        auto issue = [&](auto i_access_) {
+            constexpr auto IAccess          = number<i_access_>{};
+            constexpr auto non_linear_id    = number<AccessMap_NonLinear{}[IAccess]>{};
+            auto bottom_tensor_thread_coord = cached_coords_[non_linear_id];
+            auto bottom_tensor_flag         = cached_flags_[IAccess];
+
+            constexpr auto idx_ys_start = SFC_Ys::get_index(IAccess);
+
+            // read from bottom tensor
+            const vector_t vec_value =
+                this->get_bottom_tensor_view().template get_transpose_vectorized_elements<vector_t>(
+                    bottom_tensor_thread_coord, 0);
+            // write into distributed tensor
+            static_for<0, traits::ScalarPerVector, 1>{}([&](auto j) {
+                constexpr auto idx_ys = generate_tuple(
+                    [&](auto jj) {
+                        return jj == traits::VectorDimY ? (idx_ys_start[jj] + j) : idx_ys_start[jj];
+                    },
+                    number<Base::NDimY>{});
+
+                constexpr index_t linear_distributed_index =
+                    tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
+                dst_tensor.get_thread_buffer().template at<linear_distributed_index>() =
+                    vec_value.template get_as<typename Base::DataType>()[j];
+            });
+        };
         WINDOW_DISPATCH_ISSUE();
     }
 
@@ -750,8 +787,7 @@ struct tile_window_linear
                 constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
                                       Base::Traits::PackedSize;
 
-                vec_value.template get_as<typename Base::DataTypeDataType>()(
-                    j / Base::Traits::PackedSize) =
+                vec_value.template get_as<typename Base::DataType>()(j / Base::Traits::PackedSize) =
                     dstr_tensor.get_thread_buffer().template at<d>();
             });
 
@@ -806,8 +842,7 @@ struct tile_window_linear
                 constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
                                       Base::Traits::PackedSize;
 
-                vec_value.template get_as<typename Base::DataTypeDataType>()(
-                    j / Base::Traits::PackedSize) =
+                vec_value.template get_as<typename Base::DataType>()(j / Base::Traits::PackedSize) =
                     dstr_tensor.get_thread_buffer().template at<d>();
             });
 
@@ -875,7 +910,8 @@ struct tile_window_linear
 
             if constexpr(need_save_non_linear_coord)
             {
-                cached_coords_(non_linear_id) = bottom_tensor_thread_coord_tmp;
+                cached_coords_(non_linear_id)                = bottom_tensor_thread_coord_tmp;
+                cached_window_adaptor_coords_(non_linear_id) = window_adaptor_thread_coord_tmp;
             }
 
             if constexpr(i_access != (NumAccess - 1))
@@ -895,6 +931,8 @@ struct tile_window_linear
 
     // this contains:
     array<typename Base::BottomTensorCoord, traits::NumAccess_NonLinear> cached_coords_;
+    array<typename Base::WindowAdaptorCoord, traits::NumAccess_NonLinear>
+        cached_window_adaptor_coords_;
     array<bool, Base::Traits::NumAccess> cached_flags_;
 };
 
