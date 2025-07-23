@@ -70,6 +70,9 @@ int run(int argc, char* argv[])
         exit(0);
     }
 
+    // TODO: Remove G0 and input permute.
+    // TODO: Remove "s" from "gs", "ks" etc.
+
     std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, G1, M, K};
     std::vector<ck::index_t> a_gs_ms_ks_strides =
         input_permute
@@ -209,15 +212,15 @@ int run(int argc, char* argv[])
                                      N,
                                      K,
                                      O,
-                                     G1, // Batch,
-                                     0,  // StrideA,
-                                     0,  // StrideB0,
-                                     0,  // StrideB1,
-                                     0,  // StrideC,
-                                     0,  // BatchStrideA
-                                     0,  // BatchStrideB0
-                                     0,  // BatchStrideB1
-                                     0,  // BatchStrideC
+                                     G1,                     // Batch,
+                                     0,                      // StrideA,
+                                     0,                      // StrideB0,
+                                     0,                      // StrideB1,
+                                     0,                      // StrideC,
+                                     a_gs_ms_ks_strides[1],  // BatchStrideA
+                                     b0_gs_ns_ks_strides[1], // BatchStrideB0
+                                     b1_gs_os_ns_strides[1], // BatchStrideB1
+                                     c_gs_ms_os_strides[1],  // BatchStrideC
                                      a_element_op,
                                      b0_element_op,
                                      acc0_element_op,
