@@ -575,6 +575,8 @@ struct FlatmmPipelineAGmemBGmemCRegV1 : public BaseFlatmmPipelineAGmemBGmemCRegV
 
         using AWarpDstr   = typename WG::AWarpDstr;
         using AWarpTensor = typename WG::AWarpTensor;
+        using BWarpDstr   = typename WG::BWarpDstr;
+        using BWarpTensor = typename WG::BWarpTensor;
         using CWarpDstr   = typename WG::CWarpDstr;
         using CWarpTensor = typename WG::CWarpTensor;
 
@@ -582,9 +584,12 @@ struct FlatmmPipelineAGmemBGmemCRegV1 : public BaseFlatmmPipelineAGmemBGmemCRegV
             to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
         constexpr auto a_warp_y_lengths =
             to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+        constexpr auto b_warp_y_lengths =
+            to_sequence(BWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
         constexpr auto a_warp_y_index_zeros = uniform_sequence_gen_t<AWarpDstr::NDimY, 0>{};
-
+        constexpr auto b_warp_y_index_zeros = uniform_sequence_gen_t<BWarpDstr::NDimY, 0>{};
+        static_assert(BWarpDstr::NDimY==1);
         __builtin_amdgcn_sched_barrier(0);
         
         // A tile in LDS
@@ -647,28 +652,38 @@ struct FlatmmPipelineAGmemBGmemCRegV1 : public BaseFlatmmPipelineAGmemBGmemCRegV
         // B flat DRAM window for load
         auto b_flat_distribution =
             PipelinePolicy::template MakeBFlatDramTileDistribution<Problem>();
+        auto b_flat_distribution1 =
+            PipelinePolicy::template MakeBFlatDramFullTileDistribution<Problem>();
+            
+        // auto b_flat_dram_window = // tile_window_with_static_distribution
+        //     make_tile_window(
+        //         b_flat_dram_block_window_tmp.get_bottom_tensor_view(), // from kernel gemm_pad_views
+        //         make_tuple(number<flatNPerWarp>{}, number<flatKPerWarp>{}),
+        //         b_flat_dram_block_window_tmp.get_window_origin(),
+        //         b_flat_distribution);
         auto b_flat_dram_window = // tile_window_with_static_distribution
-            make_tile_window(
+            make_tile_window_linear(
                 b_flat_dram_block_window_tmp.get_bottom_tensor_view(), // from kernel gemm_pad_views
                 make_tuple(number<flatNPerWarp>{}, number<flatKPerWarp>{}),
                 b_flat_dram_block_window_tmp.get_window_origin(),
-                b_flat_distribution);
+                b_flat_distribution1);
 
         // pingpong buffer for B
-        statically_indexed_array<
-            statically_indexed_array<decltype(b_flat_dram_window), KIterPerWarp>,
-            NIterPerWarp>
-            b_flat_dram_windows;
+        // statically_indexed_array<
+        //     statically_indexed_array<decltype(b_flat_dram_window), KIterPerWarp>,
+        //     NIterPerWarp>
+        //     b_flat_dram_windows;
 
-        statically_indexed_array<
-            statically_indexed_array<decltype(load_tile(b_flat_dram_window)), KIterPerWarp>,
-            NIterPerWarp>
-            b_warp_tensor_ping;
-
-        statically_indexed_array<
-            statically_indexed_array<decltype(load_tile(b_flat_dram_window)), KIterPerWarp>,
-            NIterPerWarp>
-            b_warp_tensor_pong;
+        // statically_indexed_array<
+        //     statically_indexed_array<decltype(load_tile(b_flat_dram_window)), KIterPerWarp>,
+        //     NIterPerWarp>
+        //     b_warp_tensor_ping;
+        // statically_indexed_array<
+        //     statically_indexed_array<decltype(load_tile(b_flat_dram_window)), KIterPerWarp>,
+        //     NIterPerWarp>
+        //     b_warp_tensor_pong;
+        decltype(load_tile(b_flat_dram_window)) b_warp_tensor_ping;
+        decltype(load_tile(b_flat_dram_window)) b_warp_tensor_pong;
 
 
         // Prefetch A0
@@ -677,16 +692,17 @@ struct FlatmmPipelineAGmemBGmemCRegV1 : public BaseFlatmmPipelineAGmemBGmemCRegV
         move_tile_window(a_copy_dram_window, {0, kKPerBlock});
 
         // prefetch B
-        static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-            static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
-                b_flat_dram_windows(nIter)(kIter) = b_flat_dram_window;
+        // static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+        //     static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+        //         b_flat_dram_windows(nIter)(kIter) = b_flat_dram_window;
 
-                move_tile_window(b_flat_dram_windows(nIter)(kIter),
-                                {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
+        //         move_tile_window(b_flat_dram_windows(nIter)(kIter),
+        //                         {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
 
-                b_warp_tensor_ping(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
-            });
-        });
+        //         b_warp_tensor_ping(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+        //     });
+        // });
+        b_warp_tensor_ping = load_tile(b_flat_dram_window);
         // move B window to next flat K
         move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
 
@@ -745,16 +761,18 @@ struct FlatmmPipelineAGmemBGmemCRegV1 : public BaseFlatmmPipelineAGmemBGmemCRegV
             while(iCounter > 0)
             {
                 // prefetch B(2i+1)
-                static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
-                    static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-                        b_flat_dram_windows(nIter)(kIter) = b_flat_dram_window;
+                // static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+                //     static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                //         b_flat_dram_windows(nIter)(kIter) = b_flat_dram_window;
 
-                        move_tile_window(b_flat_dram_windows(nIter)(kIter),
-                                        {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
+                //         move_tile_window(b_flat_dram_windows(nIter)(kIter),
+                //                         {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
 
-                        b_warp_tensor_pong(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
-                    });
-                });
+                //         b_warp_tensor_pong(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+                //     });
+                // });
+                
+                b_warp_tensor_pong = load_tile(b_flat_dram_window);
 
                 // Prefill A(2i+1)
                 a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
@@ -777,10 +795,16 @@ struct FlatmmPipelineAGmemBGmemCRegV1 : public BaseFlatmmPipelineAGmemBGmemCRegV
                             a_warp_tensor.get_thread_buffer() = a_warp_tensor_ping(AwarpIter).get_y_sliced_thread_data(
                                 merge_sequences(sequence<kIter>{}, a_warp_y_index_zeros),
                                 merge_sequences(sequence<1>{}, a_warp_y_lengths));
+                            BWarpTensor b_warp_tensor;
+                            b_warp_tensor.get_thread_buffer() = b_warp_tensor_ping.get_y_sliced_thread_data(
+                                merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
+                                merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
+                            static_assert(b_warp_tensor.get_thread_buffer_size() == 16);
+                            static_assert(b_warp_tensor_ping.get_thread_buffer_size() == 64);
                             c_warp_tensor.get_thread_buffer() = c_block_tile.get_y_sliced_thread_data(
                                 merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
                                 merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
-        
+                    
                             // if constexpr(mIter==0 && nIter ==0)
                             // if(threadIdx.x  % 16== 0 && threadIdx.x<64){
                             //     for(int i=0;i<b_warp_tensor_ping(nIter)(kIter).get_thread_buffer_size();i++) {
@@ -788,7 +812,8 @@ struct FlatmmPipelineAGmemBGmemCRegV1 : public BaseFlatmmPipelineAGmemBGmemCRegV
                             //     }
                             // }
                             // warp GEMM
-                            WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor_ping(nIter)(kIter));
+                            WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
+                            // WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor_ping(nIter)(kIter));
         
                             // write C warp tensor into C block tensor
                             c_block_tile.set_y_sliced_thread_data(
@@ -820,16 +845,18 @@ struct FlatmmPipelineAGmemBGmemCRegV1 : public BaseFlatmmPipelineAGmemBGmemCRegV
                 //Next K
 
                 // prefetch B(2i+2)
-                static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
-                    static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-                        b_flat_dram_windows(nIter)(kIter) = b_flat_dram_window;
+                // static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+                //     static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                //         b_flat_dram_windows(nIter)(kIter) = b_flat_dram_window;
 
-                        move_tile_window(b_flat_dram_windows(nIter)(kIter),
-                                        {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
+                //         move_tile_window(b_flat_dram_windows(nIter)(kIter),
+                //                         {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
 
-                        b_warp_tensor_ping(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
-                    });
-                });
+                //         b_warp_tensor_ping(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+                //     });
+                // });
+                
+                b_warp_tensor_ping = load_tile(b_flat_dram_window);
                                
                 // Prefill A(2i+2)
                 a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
@@ -873,7 +900,12 @@ struct FlatmmPipelineAGmemBGmemCRegV1 : public BaseFlatmmPipelineAGmemBGmemCRegV
                                     
                             //     }
                             // }
-                            WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor_pong(nIter)(kIter));
+                            
+                            BWarpTensor b_warp_tensor;
+                            b_warp_tensor.get_thread_buffer() = b_warp_tensor_pong.get_y_sliced_thread_data(
+                                merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
+                                merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
+                            WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
         
                             // write C warp tensor into C block tensor
                             c_block_tile.set_y_sliced_thread_data(
@@ -1029,7 +1061,11 @@ struct FlatmmPipelineAGmemBGmemCRegV1 : public BaseFlatmmPipelineAGmemBGmemCRegV
                             c_warp_tensor.get_thread_buffer() = c_block_tile.get_y_sliced_thread_data(
                                 merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
                                 merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
-                            WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor_ping(nIter)(kIter));
+                            BWarpTensor b_warp_tensor;
+                            b_warp_tensor.get_thread_buffer() = b_warp_tensor_ping.get_y_sliced_thread_data(
+                                merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
+                                merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
+                            WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
         
                             // write C warp tensor into C block tensor
                             c_block_tile.set_y_sliced_thread_data(

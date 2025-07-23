@@ -23,38 +23,38 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
 
         constexpr index_t MPerXdl = Problem::BlockGemmShape::WarpTile::at(I0);
         constexpr index_t NPerXdl = Problem::BlockGemmShape::WarpTile::at(I1);
-        if constexpr(MPerXdl == 16 && NPerXdl == 16)
-        {
-            /*reduce transform layers,compare with old ck*/
-            constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
-            constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
-            constexpr index_t KPack     = GetSmemPackA<Problem>();
+        // if constexpr(MPerXdl == 16 && NPerXdl == 16)
+        // {
+        //     /*reduce transform layers,compare with old ck*/
+        //     constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
+        //     constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        //     constexpr index_t KPack     = GetSmemPackA<Problem>();
 
-            constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
-                make_tuple(number<KPerBlock / KPack>{}, number<MPerBlock>{}, number<KPack>{}),
-                make_tuple(number<KPack>{}, number<KPerBlock>{}, number<1>{}),
-                number<KPack>{},
-                number<1>{});
+        //     constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
+        //         make_tuple(number<KPerBlock / KPack>{}, number<MPerBlock>{}, number<KPack>{}),
+        //         make_tuple(number<KPack>{}, number<KPerBlock>{}, number<1>{}),
+        //         number<KPack>{},
+        //         number<1>{});
 
-            constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
-                a_lds_block_desc_0,
-                make_tuple(make_xor_transform(
-                               make_tuple(number<MPerBlock>{}, number<KPerBlock / KPack>{})),
-                           make_pass_through_transform(number<KPack>{})),
-                make_tuple(sequence<1, 0>{}, sequence<2>{}),
-                make_tuple(sequence<1, 0>{}, sequence<2>{}));
+        //     constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
+        //         a_lds_block_desc_0,
+        //         make_tuple(make_xor_transform(
+        //                        make_tuple(number<MPerBlock>{}, number<KPerBlock / KPack>{})),
+        //                    make_pass_through_transform(number<KPack>{})),
+        //         make_tuple(sequence<1, 0>{}, sequence<2>{}),
+        //         make_tuple(sequence<1, 0>{}, sequence<2>{}));
 
-            constexpr auto a_lds_block_desc = transform_tensor_descriptor(
-                a_lds_block_desc_permuted,
-                make_tuple(make_pass_through_transform(number<MPerBlock>{}),
-                           make_merge_transform_v3_division_mod(
-                               make_tuple(number<KPerBlock / KPack>{}, number<KPack>{}))),
-                make_tuple(sequence<1>{}, sequence<0, 2>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}));
+        //     constexpr auto a_lds_block_desc = transform_tensor_descriptor(
+        //         a_lds_block_desc_permuted,
+        //         make_tuple(make_pass_through_transform(number<MPerBlock>{}),
+        //                    make_merge_transform_v3_division_mod(
+        //                        make_tuple(number<KPerBlock / KPack>{}, number<KPack>{}))),
+        //         make_tuple(sequence<1>{}, sequence<0, 2>{}),
+        //         make_tuple(sequence<0>{}, sequence<1>{}));
 
-            return a_lds_block_desc;
-        }
-        else
+        //     return a_lds_block_desc;
+        // }
+        // else
         {
             constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
             constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
@@ -406,7 +406,58 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
                 sequence<1, 1, 2, 2>,
                 sequence<0, 3, 0, 3>>{});
     }
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeBFlatDramFullTileDistribution()
+    {
+        using TileShape = typename Problem::BlockGemmShape; // ck_tile::TileFlatmmShape
 
+    //     constexpr index_t BlockSize = Problem::kBlockSize;
+    //     constexpr index_t WaveSize  = get_warp_size();
+    //     constexpr index_t WaveNum   = BlockSize / WaveSize;
+    //     constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+    //     constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
+
+    //     constexpr index_t KBPerLoad   = GetKBPerLoad<Problem>();
+    //     constexpr index_t KThdPerWave = WaveSize; // threads cnt in K dim
+    //     constexpr index_t KWavePerBlk = 1;
+    //     constexpr index_t KRepeat     = 2;
+    //     static_assert(TileShape::flatKPerWarp == KThdPerWave * KBPerLoad, "wrong");
+
+    //     constexpr index_t NBPerLoad   = 1;
+    //     constexpr index_t NThdPerWave = 1;
+    //     constexpr index_t NWavePerBlk = TileShape::BlockWarps::at(number<1>{}); // N_Warp
+    //     constexpr index_t NRepeat     = 2;
+
+    //     constexpr index_t WaveRepeat = WaveNum / TileShape::flatNPerWarp;
+
+    // // static constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WG::kN);
+    // // static constexpr index_t KIterPerWarp = kKPerBlock / WG::kK;
+    //     return make_static_tile_distribution(
+    //         tile_distribution_encoding<
+    //             sequence<WaveRepeat>,                                          // ?
+    //             tuple<sequence<NRepeat, NWavePerBlk, NThdPerWave, NBPerLoad>,  // second direction
+    //                   sequence<KRepeat, KWavePerBlk, KThdPerWave, KBPerLoad>>, // first  direction
+    //             // wave in blk,     // thd in wave
+    //             // <M, K>           // <M, K>
+    //             tuple<sequence<0, 1, 2>, sequence<1, 2>>, // which direction
+    //             tuple<sequence<0, 1, 1>, sequence<2, 2>>, // which index
+    //             // <repeat, vec_load>
+    //             sequence<1, 1, 2, 2>,
+    //             sequence<0, 3, 0, 3>>{});
+    
+        return make_static_tile_distribution(
+            tile_distribution_encoding<
+                sequence<1>,                                          // ?
+                tuple<sequence<2, 4, 1>,  // second direction
+                      sequence<2, 64, 16>>, // first  direction
+                // wave in blk,     // thd in wave
+                // <M, K>           // <M, K>
+                tuple<sequence<1>, sequence<2>>, // which direction
+                tuple<sequence<1>, sequence<1>>, // which index
+                // <repeat, vec_load>
+                sequence<1, 2, 2>,
+                sequence<0, 0, 2>>{});
+    }
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledARegBlockDistribution()
     {

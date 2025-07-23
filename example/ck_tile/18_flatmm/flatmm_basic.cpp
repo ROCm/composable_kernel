@@ -34,6 +34,16 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_c
                           FlatmmConfig::N_Warp_Tile,
                           FlatmmConfig::K_Warp_Tile>>;
 
+    // static constexpr index_t kM = BlockTile::at(number<0>{});
+    // static constexpr index_t kN = BlockTile::at(number<1>{});
+    // static constexpr index_t kK = BlockTile::at(number<2>{});
+
+    // static constexpr bool PermuteA = PermuteA_;
+    // static constexpr bool PermuteB = PermuteB_;
+
+    // static constexpr index_t flatNPerWarp  = BlockWarps::at(number<1>{}); // 4
+    // static constexpr index_t flatKPerWarp  = WarpTile::at(number<2>{}) * WarpTile::at(number<1>{});// 16 * 64
+    // static constexpr index_t flatKPerBlock = flatKPerWarp * kK / WarpTile::at(number<2>{}); // 16 * 128
     using TilePartitioner =
         ck_tile::GemmSpatiallyLocalTilePartitioner<CodegenFlatmmShape,
                                                    FlatmmConfig::TileParitionerGroupNum,
