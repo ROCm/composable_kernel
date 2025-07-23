@@ -329,7 +329,7 @@ Performance tests measuring kernel, model, or library throughput and latency und
 
 ## 9. Low-Level Instructions and Optimizations
 
-### XDL Instructions
+### eXtensible Data Language (XDL) Instructions
 eXtensible Data Language (XDL) instructions are a set of specialized, low-level instructions used to optimize data movement, memory access, and layout in high-performance computing, GPU programming, and deep learning tasks.
 
 ---
