@@ -16,6 +16,7 @@ This document provides a technical reference for terminology used in the Composa
 - [Block Tile](#block-tile)
 - [Compute Unit (CU)](#compute-unit-cu)
 - [Coordinate Transformation Primitives](#coordinate-transformation-primitives)
+- [CUDA](#cuda)
 - [Dense Tensor](#dense-tensor)
 - [Descriptor](#descriptor)
 - [Device](#device)
@@ -28,6 +29,7 @@ This document provides a technical reference for terminology used in the Composa
 - [Global Memory](#global-memory)
 - [Grid](#grid)
 - [Host](#host)
+- [HIP](#hip)
 - [Inner Dimension](#inner-dimension)
 - [Inner Product](#inner-product)
 - [Input/Problem Shape](#inputproblem-shape)
@@ -96,13 +98,13 @@ Per-thread registers that store individual thread data within a wave. Each threa
 Wave-level registers shared by all threads in a wave. Used for constants, addresses, and control flow common across the entire wave.
 
 ### Shared Memory / Local Data Share (LDS)
-High-bandwidth, low-latency on-chip memory accessible to all threads within a block (CUDA) or work group (ROCm). It enables fast data sharing and synchronization, but is limited in capacity and must be managed to avoid bank conflicts.
+AMD's high-bandwidth, low-latency on-chip memory accessible to all threads within a work group. This is equivalent to NVIDIA's shared memory. It enables fast data sharing and synchronization, but is limited in capacity and must be managed to avoid [bank conflicts](#bank-conflict).
 
 ### LDS Banks
-Memory organization where consecutive addresses are distributed across multiple memory banks for parallel access. Prevents memory access conflicts (bank conflicts) and improves bandwidth.
+Memory organization where consecutive addresses are distributed across multiple memory banks for parallel access. Prevents memory access conflicts ([bank conflicts](#bank-conflict)) and improves bandwidth.
 
 ### Global Memory
-The main device memory accessible by all threads, offering high capacity but higher latency than shared memory. Efficient global memory access patterns are critical for high performance.
+The main device memory accessible by all threads, offering high capacity but higher latency than shared memory.
 
 ### Pinned Memory
 Host memory that is page-locked to accelerate transfers between CPU and GPU, reducing overhead for large data movements.
@@ -121,16 +123,16 @@ GPU hardware that executes parallel kernels. Contains compute units, memory hier
 
 ---
 
-## 2. Execution Model
+## 2. GPU Programming Model
 
 ### Thread / Work-item
-The smallest unit of parallel execution, each running an independent instruction stream on a single data element. Threads are grouped for efficient scheduling and resource sharing.
+AMD's work-item is the smallest unit of parallel execution, each running an independent instruction stream on a single data element. This is equivalent to NVIDIA's thread. Work-items/threads are grouped into [wavefronts (AMD)](#warp--wavefront) and [warps (NVIDIA)](#warp--wavefront) for efficient scheduling and resource sharing.
 
 ### Warp / Wavefront
-A group of threads that execute instructions in lockstep, forming the SIMD group. Divergence within these groups can impact performance due to serialization.
+AMD's wavefront is a group of threads that run instructions in lockstep, forming the SIMD group. This is equivalent to NVIDIA's warp.
 
 ### Thread Block / Work Group
-A collection of threads/work-items that can synchronize and share memory. Blocks/groups are scheduled independently and mapped to hardware units for execution.
+AMD's work group is a collection of threads/work-items that can synchronize and share memory. This is equivalent to NVIDIA's thread block. Work groups/thread blocks are scheduled independently and mapped to hardware units for execution.
 
 ### Grid
 The complete collection of all work groups (thread blocks) that execute a kernel. A grid spans the entire computational domain and is organized in 1D, 2D, or 3D dimensions. Each work group within the grid operates independently and can be scheduled on different compute units, enabling massive parallel execution across the entire GPU.
@@ -146,10 +148,10 @@ The ratio of active warps/wavefronts to the maximum supported by a hardware unit
 
 ---
 
-## 3. Programming Model and Kernel Structure
+## 3. Kernel Structure
 
 ### Kernel
-A function executed on the GPU, typically written in HIP or CUDA, that performs parallel computations over input data. Kernels are launched with specific grid and block dimensions to map computation to hardware. In CK, kernels are composed from pipelines and require a pipeline, tile partitioner, and epilogue component.
+A function executed on the GPU, typically written in [HIP](#hip) or [CUDA](#cuda), that performs parallel computations over input data. Kernels are launched with specific grid and block dimensions to map computation to hardware. In CK, kernels are composed from pipelines and require a pipeline, tile partitioner, and epilogue component.
 
 ### Pipeline
 CK abstraction that defines computation flow. Composed of problem (what to compute) and policy (how to move data around) components. Used to define the overall kernel traits, e.g., input/output (IO) tensor data type, layout, workgroup-level tile shapes, and other global flags, e.g., cross-wave scheduler, transposed written, etc.
@@ -329,6 +331,16 @@ Performance tests measuring kernel, model, or library throughput and latency und
 
 ### XDL Instructions
 eXtensible Data Language (XDL) instructions are a set of specialized, low-level instructions used to optimize data movement, memory access, and layout in high-performance computing, GPU programming, and deep learning tasks.
+
+---
+
+## 10. Miscellaneous
+
+### HIP
+AMD's Heterogeneous-Computing Interface for Portability, a C++ runtime API and programming language that enables developers to create portable applications for AMD and NVIDIA GPUs. HIP provides a familiar CUDA-like programming model while maintaining compatibility across different GPU architectures.
+
+### CUDA
+NVIDIA's Compute Unified Device Architecture, a parallel computing platform and programming model for NVIDIA GPUs. CUDA provides a C++ extension for writing GPU kernels and managing GPU resources.
 
 ---
 
