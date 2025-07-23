@@ -495,17 +495,30 @@ struct HstuAttentionFwdKernel
     CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size_,
                                                 ck_tile::index_t nhead_,
                                                 ck_tile::index_t seqlen_,
-                                                ck_tile::index_t hdim_v_)
+                                                ck_tile::index_t hdim_v_,
+                                                bool has_minfull_attn_seqlen)
     {
+        // The Q sequence [0, seqlen) will be split to two parts for allocating workgroups:
+        // 1) [0, seqlen - target - min_full_attn_seqlen)
+        // 2) [seqlen - target - min_full_attn_seqlen, seqlen)
+        ck_tile::index_t num_tile_in_seqlen =
+            ck_tile::integer_divide_ceil(seqlen_, HstuAttentionPipeline::kM0);
+
+        if constexpr(kHasLocalMask)
+        {
+            if(has_minfull_attn_seqlen)
+                num_tile_in_seqlen += 1;
+        };
+
         if constexpr(HstuAttentionPipeline::kN1 < HstuAttentionPipeline::kSubQKHeaddim)
         {
 #if HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM
             return dim3(batch_size_,
                         nhead_,
-                        ck_tile::integer_divide_ceil(seqlen_, HstuAttentionPipeline::kM0) *
+                        num_tile_in_seqlen *
                             ck_tile::integer_divide_ceil(hdim_v_, HstuAttentionPipeline::kN1));
 #else
-            return dim3(ck_tile::integer_divide_ceil(seqlen_, HstuAttentionPipeline::kM0) *
+            return dim3(num_tile_in_seqlen *
                             ck_tile::integer_divide_ceil(hdim_v_, HstuAttentionPipeline::kN1),
                         nhead_,
                         batch_size_);
@@ -514,11 +527,9 @@ struct HstuAttentionFwdKernel
         else
         {
 #if HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM
-            return dim3(batch_size_,
-                        nhead_,
-                        ck_tile::integer_divide_ceil(seqlen_, HstuAttentionPipeline::kM0));
+            return dim3(batch_size_, nhead_, num_tile_in_seqlen);
 #else
-            return dim3(ck_tile::integer_divide_ceil(seqlen_, HstuAttentionPipeline::kM0),
+            return dim3(num_tile_in_seqlen),
                         nhead_,
                         batch_size_);
 #endif
@@ -593,11 +604,7 @@ struct HstuAttentionFwdKernel
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
 
-        // divide problem
         const auto [i_tile_m, i_tile_n, i_nhead, i_batch] = GetTileIndex(kargs);
-
-        const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM0);
-        const index_t i_n1 = __builtin_amdgcn_readfirstlane(i_tile_n * HstuAttentionPipeline::kN1);
 
         long_index_t batch_offset_q    = 0;
         long_index_t batch_offset_k    = 0;
@@ -628,13 +635,6 @@ struct HstuAttentionFwdKernel
             batch_offset_o = query_start * kargs.seq_stride_o;
 
             kargs.seqlen = kargs.seq_offsets_ptr[i_batch + 1] - kargs.seq_offsets_ptr[i_batch];
-
-            // # of required blocks is different in each groups, terminate unnecessary blocks
-            // earlier
-            if(kargs.seqlen <= i_m0)
-            {
-                return;
-            }
         }
         else
         {
@@ -650,9 +650,36 @@ struct HstuAttentionFwdKernel
 
         int num_target = (kargs.num_targets_ptr == nullptr) ? 0 : kargs.num_targets_ptr[i_batch];
 
+        index_t seqlen_in_first_split = kargs.seqlen;
+
+        if constexpr(kHasLocalMask)
+        {
+            if(kargs.min_full_attn_seqlen > 0)
+                seqlen_in_first_split = kargs.seqlen - kargs.min_full_attn_seqlen - num_target;
+        };
+
+        index_t num_tile_in_first_split =
+            ck_tile::integer_divide_ceil(seqlen_in_first_split, HstuAttentionPipeline::kM0);
+
+        bool is_tile_in_first_split = (i_tile_m < num_tile_in_first_split);
+
+        index_t i_m0 = is_tile_in_first_split
+                           ? __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM0)
+                           : __builtin_amdgcn_readfirstlane((i_tile_m - num_tile_in_first_split) *
+                                                            HstuAttentionPipeline::kM0) +
+                                 seqlen_in_first_split;
+
+        const index_t i_n1 = __builtin_amdgcn_readfirstlane(i_tile_n * HstuAttentionPipeline::kN1);
+
+        index_t seqlen_q_in_ctrl = is_tile_in_first_split ? seqlen_in_first_split : kargs.seqlen;
+
+        if(seqlen_q_in_ctrl <= i_m0)
+            return;
+
         HstuMask mask = [&]() {
             if constexpr(kHasLocalMask)
-                return make_hstu_block_mask_with_local<HstuMask>(kargs.seqlen,
+                return make_hstu_block_mask_with_local<HstuMask>(is_tile_in_first_split,
+                                                                 kargs.seqlen,
                                                                  kargs.contextual_seqlen,
                                                                  num_target,
                                                                  kargs.window_size,
@@ -680,7 +707,7 @@ struct HstuAttentionFwdKernel
         const auto q_dram = [&]() {
             const auto q_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 q_ptr,
-                make_tuple(kargs.seqlen, kargs.hdim_qk),
+                make_tuple(seqlen_q_in_ctrl, kargs.hdim_qk),
                 make_tuple(kargs.seq_stride_q, 1),
                 number<HstuAttentionPipeline::kAlignmentQ>{},
                 number<1>{});
@@ -773,7 +800,7 @@ struct HstuAttentionFwdKernel
                 const auto bias_dram = [&]() {
                     const auto bias_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                         bias_ptr,
-                        make_tuple(kargs.seqlen, kargs.seqlen),
+                        make_tuple(seqlen_q_in_ctrl, kargs.seqlen),
                         make_tuple(kargs.seq_stride_bias, 1),
                         number<HstuAttentionPipeline::kAlignmentBias>{},
                         number<1>{});
@@ -824,7 +851,7 @@ struct HstuAttentionFwdKernel
         auto o_dram = [&]() {
             const auto o_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 o_ptr,
-                make_tuple(kargs.seqlen, kargs.hdim_v),
+                make_tuple(seqlen_q_in_ctrl, kargs.hdim_v),
                 make_tuple(kargs.seq_stride_o, 1),
                 number<HstuAttentionPipeline::kAlignmentO>{},
                 number<1>{});
