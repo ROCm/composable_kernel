@@ -283,6 +283,10 @@ FOREACH(subdir_path ${dir_list})
             message(DEBUG "Found gemm_multiply_multiply_f8 instances, but gfx94/gfx95 not on the target list. Skipping.")
             set(add_inst 0)
         endif()
+        if(("${cmake_instance}" MATCHES "gemm_universal_preshuffle" AND "${cmake_instance}" MATCHES "_f8_" ) AND (NOT INST_TARGETS MATCHES "gfx94") AND (NOT INST_TARGETS MATCHES "gfx95") AND (NOT CK_USE_FP8_ON_UNSUPPORTED_ARCH))
+            message(STATUS "Found gemm_universal_preshuffle_f8 instances, but gfx94/gfx95 not on the target list. Skipping.")
+            set(add_inst 0)
+        endif()
         if ("${cmake_instance}" MATCHES "gemm_bilinear")
             set(add_inst 0)
             if((SUPPORTED_GPU_TARGETS MATCHES "gfx9") AND (DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES))
@@ -295,11 +299,8 @@ FOREACH(subdir_path ${dir_list})
 
         if(MIOPEN_REQ_LIBS_ONLY)
             message(STATUS "Removing all sources that are not required for MIOpen")
-            if("${cmake_instance}" MATCHES "gemm" OR 
-               "${cmake_instance}" MATCHES "mha" OR 
-               "${cmake_instance}" MATCHES "contraction" OR 
-               "${cmake_instance}" MATCHES "reduce")
-                    set(add_inst 0)
+            if(NOT "${cmake_instance}" MATCHES "conv")
+                set(add_inst 0)
             endif()
         endif()
 
@@ -328,7 +329,7 @@ ENDFOREACH()
 
 
 
-if(CK_DEVICE_OTHER_INSTANCES)
+if(CK_DEVICE_OTHER_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY)
         add_library(device_other_operations ${CK_DEVICE_OTHER_INSTANCES})
         add_library(composablekernels::device_other_operations ALIAS device_other_operations)
         set_target_properties(device_other_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
