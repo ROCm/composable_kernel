@@ -200,7 +200,7 @@ Ensuring data structures are stored at memory addresses that are multiples of a 
 Occurs when multiple threads in a warp/wavefront access different addresses mapping to the same shared memory bank, causing serialization and reduced bandwidth.
 
 ### Padding
-The addition of extra elements (often zeros) to tensor edges, used to control output size in convolution and pooling, or to align data for efficient memory access.
+The addition of extra elements (often zeros) to tensor edges. This is used to control output size in convolution and pooling, or to align data for efficient memory access.
 
 ### Permute/Transpose
 Operations that rearrange the order of tensor axes, often required to match kernel input formats or optimize memory access patterns.
