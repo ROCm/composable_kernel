@@ -113,8 +113,12 @@ struct reference_hstu_attention
 
             HstuMask mask = [&]() {
                 if constexpr(kHasLocalMask)
-                    return ck_tile::make_hstu_block_mask_with_local<HstuMask>(
-                        seqlen, contextual_seqlen, num_target, max_attn_len, min_full_attn_seqlen);
+                    return ck_tile::make_hstu_block_mask_with_local<HstuMask>(true,
+                                                                              seqlen,
+                                                                              contextual_seqlen,
+                                                                              num_target,
+                                                                              max_attn_len,
+                                                                              min_full_attn_seqlen);
                 else
                     return ck_tile::make_hstu_block_mask_without_local<HstuMask>(
                         seqlen, contextual_seqlen, num_target);
