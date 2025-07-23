@@ -60,7 +60,7 @@ function(build_gemm_for_datatype datatype layout)
             continue()        # nothing for this trait
         endif()
 
-        # Object libraries (chunked) per trait
+        # Create an OBJECT library for each .cpp file (no chunking)
         set(sub_intermediate_libs)
         set(chunk_size 3)
         math(EXPR num_chunks "( ${total_files} + ${chunk_size} - 1 ) / ${chunk_size}")
@@ -85,12 +85,9 @@ function(build_gemm_for_datatype datatype layout)
                 add_library(${sub_intermediate_lib_name} OBJECT ${chunk_files})
                 list(APPEND sub_intermediate_libs ${sub_intermediate_lib_name})
             endif()
-
         endforeach()
 
-        # ------------------ Bundle the object libs into one static lib ---------
-        #list(LENGTH sub_intermediate_libs sub_intermediate_libs_len)
-        #if(sub_intermediate_libs AND sub_intermediate_libs_len GREATER 1)
+        # Bundle all object libraries into one static lib for linking
         if(sub_intermediate_libs)
             set(intermediate_lib_name "gemm_staticlib_${name}_${datatype}_${layout}")
             # Collect the $<TARGET_OBJECTS:...> expressions
@@ -99,7 +96,6 @@ function(build_gemm_for_datatype datatype layout)
             foreach(objlib IN LISTS sub_intermediate_libs)
                 list(APPEND obj_exprs $<TARGET_OBJECTS:${objlib}>)
             endforeach()
-            
             add_library(${intermediate_lib_name} STATIC ${obj_exprs})
             add_dependencies(${intermediate_lib_name} gemm_gen_${datatype}_${layout})
             #foreach(objlib IN LISTS sub_intermediate_libs)
