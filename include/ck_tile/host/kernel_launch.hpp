@@ -233,7 +233,7 @@ CK_TILE_HOST float launch_kernel_preprocess(const stream_config& s,
                 times.push_back(per_iter_time);
                 remove_outliers(times);
                 gpu_time_used = std::accumulate(times.begin(), times.end(), 0.) / times.size();
-                gpu_time_used *= 1000; // ms to us
+                //gpu_time_used *= 1000; // ms to us
             }
         };
 
