@@ -292,7 +292,7 @@ This is the **baseline** or **building block** GEMM that all other complex versi
 A kernel which calls multiple VGEMMs and each call may be with different input shape. Each input shape problem first finds its corresponding kernel and then data is mapped to the work-group (blocks) of that kernel. This is done with the help of kArgs structure in code. 
 
 ### Batched GEMM
-A kernel which calls VGEMMs with different "batches" of data. All batches have the same input shape. At the beginning, inputs (work to be done) are mapped to the various work-groups (blocks) of the kernel. This is done by calculating memory offsets in the input. 
+A kernel which calls VGEMMs with different "batches" of data. All batches have the same input shape. 
 
 ### Split-K GEMM
 A parallelization strategy that partitions the reduction dimension (K) across multiple compute units, increasing parallelism for large matrix multiplications.
