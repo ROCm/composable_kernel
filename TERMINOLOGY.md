@@ -231,7 +231,7 @@ Faster-changing dimension in memory layout.
 ## 5. Tile-Based Computing and Data Structures
 
 ### Tile
-A sub-region of a tensor or matrix processed by a block or thread, used to improve memory locality and enable blocking strategies in kernels. Rectangular data block that represents the unit of computation and memory transfer in CK. Basis for tiled algorithms.
+A sub-region of a tensor or matrix processed by a block or thread. Tiles are used to improve memory locality and enable blocking strategies in kernels. Rectangular data blocks are the unit of computation and memory transfer in CK and the basis for tiled algorithms.
 
 ### Block Tile
 Memory tile processed by a work group (thread block).
