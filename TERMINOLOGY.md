@@ -194,7 +194,7 @@ Configuration values (e.g., grid size, block size) that determine how a kernel i
 An optimization where consecutive threads access consecutive memory addresses, allowing a single memory transaction to serve multiple threads. Proper coalescing is vital for achieving peak memory bandwidth.
 
 ### Alignment
-Ensuring data structures are stored at memory addresses that are multiples of a specific value, which improves access efficiency and avoids misaligned accesses.
+A memory management startegy for efficient memory access where data structures are stored at addresses that are multiples of a specific value.
 
 ### Bank Conflict
 Occurs when multiple threads in a warp/wavefront access different addresses mapping to the same shared memory bank, causing serialization and reduced bandwidth.
