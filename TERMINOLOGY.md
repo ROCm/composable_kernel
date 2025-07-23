@@ -304,7 +304,7 @@ See [GEMV](#gemv).
 (Matrix-Vector Multiplication) The operation of multiplying a matrix by a vector, producing another vector. GEMV is a core linear algebra primitive, widely used in neural networks and scientific computing.
 
 ### Inner Product
-Also known as the dot product, it computes the sum of elementwise products of two vectors, yielding a scalar. Inner products are fundamental to similarity measures and neural computation.
+Also known as the dot product, it computes the sum of elementwise products of two vectors, yielding a scalar.
 
 ### Outer Product
 The result of multiplying a column vector by a row vector, producing a matrix. Outer products are used in rank-1 updates and some ML algorithms.
