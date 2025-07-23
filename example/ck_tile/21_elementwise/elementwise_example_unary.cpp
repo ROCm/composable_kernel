@@ -90,6 +90,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
     std::cout << "Total elements = " << total_elements << std::endl;
 
     auto input_tensors = ck_tile::make_tuple(static_cast<XDataType*>(x_buf_a.GetDeviceBuffer()));
+    auto input_size    = ck_tile::make_tuple(M, N);
+
+    // Check if the kernel configuration is supported
+    if(!Kernel::IsSupportedArgument(input_size))
+    {
+        throw std::runtime_error(
+            "The kernel configuration is not supported for the given input size.");
+    }
 
     // 4. Run the kernel
     float ave_time = launch_kernel(ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
@@ -98,7 +106,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        kGridSize,
                                        kBlockSize,
                                        0,
-                                       ck_tile::make_tuple(M, N),
+                                       input_size,
                                        ck_tile::make_tuple(N, 1), // Input Stride
                                        ck_tile::make_tuple(N, 1), // Output Stride
                                        input_tensors,

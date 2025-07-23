@@ -94,6 +94,30 @@ struct ElementWiseKernel
 
         store_tile(y_window, cast_tile<YDataType>(y_tile));
     }
+
+    template <typename... Ints>
+    CK_TILE_HOST static bool IsSupportedArgument(const ck_tile::tuple<Ints...>& input_sizes)
+    {
+        int total_elements  = 1;
+        const auto kVectorM = Problem_::BlockShape::kVectorM;
+
+        apply([&](auto&&... args) { ((total_elements *= args), ...); }, input_sizes);
+
+        if((total_elements % kVectorM) != 0)
+        {
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR("Conditions not met: total number of input elements (",
+                              total_elements,
+                              ") should be multiple of the vectorization size (",
+                              kVectorM,
+                              ")");
+            }
+            return false;
+        }
+
+        return true;
+    }
 };
 
 } // namespace ck_tile

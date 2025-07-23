@@ -54,10 +54,8 @@ class TestCkTileElementwise : public ::testing::Test
     using BlockWarps_       = std::tuple_element_t<4, Tuple>;
     using BlockTile_        = std::tuple_element_t<5, Tuple>;
     using WarpTile_         = std::tuple_element_t<6, Tuple>;
-    using Vector_           = std::tuple_element_t<7, Tuple>;
-
     using TestElementWiseShape =
-        ck_tile::ElementWiseShape<BlockWarps_, BlockTile_, WarpTile_, Vector_>;
+        ck_tile::ElementWiseShape<BlockWarps_, BlockTile_, WarpTile_, ComputeDataType>;
     static constexpr int NumInputs = elementwise_op_traits<ElementwiseOpType>::num_inputs;
 
     void RunTest(ck_tile::index_t total_m_elements)
@@ -117,6 +115,11 @@ class TestCkTileElementwise : public ::testing::Test
 
         ck_tile::stream_config s{nullptr, false, 0}; // Default stream, no timing, no log
 
+        // Check if the kernel configuration is supported
+        if(!ew_kernel.IsSupportedArgument(lens)) {
+            throw std::runtime_error("The kernel configuration is not supported for the given input size.");
+        }
+
         ck_tile::launch_kernel(
             s,
             ck_tile::make_kernel<TestElementWiseShape::kBlockSize, // MaxThreadPerBlock
@@ -162,7 +165,6 @@ class TestCkTileElementwise : public ::testing::Test
 using Shape1_BlockWarps = ck_tile::sequence<1>;   // 1D warp arrangement in M
 using Shape1_BlockTile  = ck_tile::sequence<256>; // M-dimension of block tile
 using Shape1_WarpTile   = ck_tile::sequence<64>;  // M-dimension of warp tile
-using Shape1_Vector     = ck_tile::sequence<4>;   // Vector load size in M-dim (elements)
 
 // Test configurations
 using TestConfig_F32_Add = std::tuple<float,
@@ -171,8 +173,7 @@ using TestConfig_F32_Add = std::tuple<float,
                                       ck_tile::element_wise::Add,
                                       Shape1_BlockWarps,
                                       Shape1_BlockTile,
-                                      Shape1_WarpTile,
-                                      Shape1_Vector>;
+                                      Shape1_WarpTile>;
 
 using TestConfig_F32_Relu = std::tuple<float,
                                        float,
@@ -180,8 +181,7 @@ using TestConfig_F32_Relu = std::tuple<float,
                                        ck_tile::element_wise::Relu,
                                        Shape1_BlockWarps,
                                        Shape1_BlockTile,
-                                       Shape1_WarpTile,
-                                       Shape1_Vector>;
+                                       Shape1_WarpTile>;
 
 using TestConfig_F16_Add = std::tuple<ck_tile::half_t,
                                       ck_tile::half_t,
@@ -189,8 +189,7 @@ using TestConfig_F16_Add = std::tuple<ck_tile::half_t,
                                       ck_tile::element_wise::Add,
                                       Shape1_BlockWarps,
                                       Shape1_BlockTile,
-                                      Shape1_WarpTile,
-                                      ck_tile::sequence<8>>; // Vector of 8 half_t elements
+                                      Shape1_WarpTile>;
 
 using TestTypes = ::testing::Types<TestConfig_F32_Add, TestConfig_F32_Relu, TestConfig_F16_Add>;
 
@@ -200,7 +199,12 @@ TYPED_TEST(TestCkTileElementwise, RunElementwise_1024) { this->RunTest(1024); }
 
 TYPED_TEST(TestCkTileElementwise, RunElementwise_513)
 {
-    this->RunTest(513); // Test with a size that might not be a multiple of blockM
+    EXPECT_THROW((this->RunTest(513)), std::runtime_error); // Test with an input size that's not a multiple of kVectorM
+}
+
+TYPED_TEST(TestCkTileElementwise, RunElementwise_516)
+{
+    this->RunTest(516); // Test with an input size that's not a multiple of blockM
 }
 
 TYPED_TEST(TestCkTileElementwise, RunElementwise_Small_32)

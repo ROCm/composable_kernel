@@ -103,6 +103,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
     auto strides_tuple =
         ck_tile::make_tuple(host_strides[0], host_strides[1], host_strides[2], host_strides[3]);
 
+    // Check if the kernel configuration is supported
+    if(!Kernel::IsSupportedArgument(problem_shape_tuple))
+    {
+        throw std::runtime_error(
+            "The kernel configuration is not supported for the given input size.");
+    }
+
     // Run the kernel
     float ave_time = launch_kernel(
         ck_tile::stream_config{nullptr, true, 0, warmup, repeat},

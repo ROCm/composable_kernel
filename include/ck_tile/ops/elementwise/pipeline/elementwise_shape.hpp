@@ -14,8 +14,7 @@ struct ElementWiseShape
 
     static constexpr index_t kWarpM = WarpTile::at(number<0>{});
 
-    static constexpr index_t kVectorM =
-        16 / sizeof(ComputeDataType); // There are 16 32-bits lanes per SIMD
+    static constexpr index_t kVectorM = 16 / sizeof(ComputeDataType);
 
     static constexpr index_t kWarpPerBlockM = BlockWarps::at(number<0>{});
 
