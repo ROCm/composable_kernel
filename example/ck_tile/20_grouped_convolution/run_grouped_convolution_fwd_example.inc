@@ -123,13 +123,12 @@ int run_grouped_conv_fwd_example_with_layouts(
     weight_dev_buf.ToDevice(weight.data());
     output_dev_buf.SetZero();
 
-    ck_tile::GroupedConvHostArgs<const void*, const void*, void*> args(
-        conv_param,
-        input_dev_buf.GetDeviceBuffer(),
-        weight_dev_buf.GetDeviceBuffer(),
-        {},
-        output_dev_buf.GetDeviceBuffer(),
-        kbatch);
+    ck_tile::GroupedConvFwdHostArgs args(conv_param,
+                                         input_dev_buf.GetDeviceBuffer(),
+                                         weight_dev_buf.GetDeviceBuffer(),
+                                         {},
+                                         output_dev_buf.GetDeviceBuffer(),
+                                         kbatch);
 
     std::cout << "Run Grouped Conv Fwd kernel" << std::endl;
     std::cout << "input: " << input.mDesc << std::endl;

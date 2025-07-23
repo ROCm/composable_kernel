@@ -56,9 +56,10 @@ struct GroupedConvFwdKernelArgs
 
         k_batch = args.k_batch;
 
-        GemmM = args.N_ * args.output_spatial_lengths_[0];
-        GemmN = args.K_;
-        GemmK = args.C_ * args.filter_spatial_lengths_[0];
+        GemmM     = args.N_ * args.output_spatial_lengths_[0];
+        GemmN     = args.K_;
+        GemmK     = args.C_ * args.filter_spatial_lengths_[0];
+        GemmBatch = args.G_;
 
         in_ptr  = args.in_ptr;
         wei_ptr = args.wei_ptr;
@@ -132,9 +133,10 @@ struct GroupedConvFwdKernelArgs
 
         k_batch = args.k_batch;
 
-        GemmM = args.N_ * args.output_spatial_lengths_[0] * args.output_spatial_lengths_[1];
-        GemmN = args.K_;
-        GemmK = args.C_ * args.filter_spatial_lengths_[0] * args.filter_spatial_lengths_[1];
+        GemmM     = args.N_ * args.output_spatial_lengths_[0] * args.output_spatial_lengths_[1];
+        GemmN     = args.K_;
+        GemmK     = args.C_ * args.filter_spatial_lengths_[0] * args.filter_spatial_lengths_[1];
+        GemmBatch = args.G_;
 
         in_ptr  = args.in_ptr;
         wei_ptr = args.wei_ptr;
@@ -220,6 +222,7 @@ struct GroupedConvFwdKernelArgs
         GemmN = args.K_;
         GemmK = args.C_ * args.filter_spatial_lengths_[0] * args.filter_spatial_lengths_[1] *
                 args.filter_spatial_lengths_[2];
+        GemmBatch = args.G_;
 
         in_ptr  = args.in_ptr;
         wei_ptr = args.wei_ptr;
@@ -280,6 +283,7 @@ struct GroupedConvFwdKernelArgs
     index_t GemmM;
     index_t GemmN;
     index_t GemmK;
+    index_t GemmBatch;
 
     const void* in_ptr;
     const void* wei_ptr;
@@ -366,7 +370,6 @@ struct GroupedConvolutionForwardKernel
     using OutDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
     using GroupedConvFwdKernelArgsSpecialized = GroupedConvFwdKernelArgs<GroupedConvTraitsType>;
-    using GroupedConvFwdHostArgs = GroupedConvHostArgs<const void*, const void*, void*>;
 
     // TODO: Enable this
     static constexpr bool IsSplitKSupported = false;
@@ -389,14 +392,10 @@ struct GroupedConvolutionForwardKernel
         // clang-format on
     }
 
-    CK_TILE_HOST static constexpr auto GridSize(const GroupedConvFwdHostArgs& args)
+    CK_TILE_HOST static constexpr auto GridSize(const GroupedConvFwdKernelArgsSpecialized& kargs)
     {
-        const index_t GemmM = args.N_ * std::accumulate(args.output_spatial_lengths_.begin(),
-                                                        args.output_spatial_lengths_.end(),
-                                                        1,
-                                                        std::multiplies<index_t>());
-        const index_t GemmN = args.K_;
-        return dim3(TilePartitioner::GridSize(GemmM, GemmN), args.G_, args.k_batch);
+        return dim3(
+            TilePartitioner::GridSize(kargs.GemmM, kargs.GemmN), kargs.GemmBatch, kargs.k_batch);
     }
 
     CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
@@ -750,7 +749,7 @@ struct GroupedConvolutionForwardKernel
         auto& c_block_window = gemm_tile_windows.at(I3);
 
         EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
-            c_block_window, c_block_tile, d_block_window, smem_ptr_0, smem_ptr_1);
+            c_block_window, c_block_tile, d_block_window, smem_ptr_0);
     }
 
     CK_TILE_DEVICE void operator()(GroupedConvFwdKernelArgsSpecialized kargs) const

@@ -10,10 +10,6 @@ namespace ck_tile {
 
 template <index_t NDimSpatial,
           ConvolutionSpecialization ConvolutionSpecialization,
-          index_t MPerBlock,
-          index_t NPerBlock,
-          index_t GemmK1Number,
-          index_t K0PerBlock,
           bool SplitN              = false,
           typename ADataType       = float,
           typename CDataType       = float,
@@ -423,8 +419,8 @@ struct TransformConvBwdWeightToGemm
 
         // TODO Add support for NumGroupsToMerge > 1
 
-        return make_naive_tensor_descriptor(make_tuple(N_ * Wo_, K_),
-                                            make_tuple(NDoHoWoStride, KStride));
+        return make_naive_tensor_descriptor(make_tuple(K_, N_ * Wo_),
+                                            make_tuple(KStride, NDoHoWoStride));
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 1, bool>::type = false>
@@ -460,8 +456,8 @@ struct TransformConvBwdWeightToGemm
 
         // TODO Add support for NumGroupsToMerge > 1
 
-        return make_naive_tensor_descriptor(make_tuple(N_ * Ho_ * Wo_, K_),
-                                            make_tuple(NDoHoWoStride, KStride));
+        return make_naive_tensor_descriptor(make_tuple(K_, N_ * Ho_ * Wo_),
+                                            make_tuple(KStride, NDoHoWoStride));
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 2, bool>::type = false>
@@ -499,8 +495,8 @@ struct TransformConvBwdWeightToGemm
 
         // TODO Add support for NumGroupsToMerge > 1
 
-        return make_naive_tensor_descriptor(make_tuple(N_ * Do_ * Ho_ * Wo_, K_),
-                                            make_tuple(NDoHoWoStride, KStride));
+        return make_naive_tensor_descriptor(make_tuple(K_, N_ * Do_ * Ho_ * Wo_),
+                                            make_tuple(KStride, NDoHoWoStride));
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 3, bool>::type = false>
@@ -534,32 +530,11 @@ struct TransformConvBwdWeightToGemm
     // properties
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 1, bool>::type = false>
-    CK_TILE_HOST auto
-    MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(const index_t GemmKBatch) const
+    CK_TILE_HOST auto MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N() const
     {
-        // Assume NumGroupsToMerge == 1 for now
-        const index_t GemmKTotal = N_ * Wo_;
-        const index_t GemmM      = K_ * NumGroupsToMerge;
-        const index_t GemmN      = C_ * X_ * NumGroupsToMerge;
-
-        const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
-        const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
-
-        const index_t GemmK0 =
-            integer_divide_ceil(GemmKTotal, GemmK1Number * K0PerBlock * GemmKBatch) * K0PerBlock;
-        const index_t GemmKPad = GemmKBatch * GemmK0 * GemmK1Number;
-
         const auto out_grid_desc = make_out_grid_desc<NDimSpatial>();
         const auto in_grid_desc  = make_in_grid_desc<NDimSpatial>();
         const auto wei_grid_desc = make_wei_grid_desc<NDimSpatial>();
-
-        // A: output tensor comes in K_M
-        const auto out_gemmkpad_gemmm_grid_desc = transform_tensor_descriptor(
-            out_grid_desc,
-            make_tuple(make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
-                       make_right_pad_transform(GemmM, PadGemmM)),
-            make_tuple(sequence<0>{}, sequence<1>{}),
-            make_tuple(sequence<1>{}, sequence<0>{}));
 
         // B: input tensor comes in K_N
         const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
@@ -579,59 +554,22 @@ struct TransformConvBwdWeightToGemm
             make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
             make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}));
 
-        const auto in_gemmktotal_gemmn_grid_desc =
+        const auto in_gemmn_gemmktotal_grid_desc =
             transform_tensor_descriptor(in_n_y_ho_x_wo_c_grid_desc,
                                         make_tuple(make_merge_transform(make_tuple(X_, C_)),
                                                    make_merge_transform(make_tuple(N_, Wo_))),
                                         make_tuple(sequence<1, 3>{}, sequence<0, 2>{}),
-                                        make_tuple(sequence<1>{}, sequence<0>{}));
-
-        const auto in_gemmkpad_gemmn_grid_desc = transform_tensor_descriptor(
-            in_gemmktotal_gemmn_grid_desc,
-            make_tuple(make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
-                       make_right_pad_transform(GemmN, PadGemmN)),
-            make_tuple(sequence<0>{}, sequence<1>{}),
-            make_tuple(sequence<1>{}, sequence<0>{}));
-
-        const auto wei_gemmm_gemmn_pad_grid_desc =
-            transform_tensor_descriptor(wei_grid_desc,
-                                        make_tuple(make_right_pad_transform(GemmM, PadGemmM),
-                                                   make_right_pad_transform(GemmN, PadGemmN)),
-                                        make_tuple(sequence<0>{}, sequence<1>{}),
                                         make_tuple(sequence<0>{}, sequence<1>{}));
 
-        return make_tuple(out_gemmkpad_gemmm_grid_desc,
-                          in_gemmkpad_gemmn_grid_desc,
-                          wei_gemmm_gemmn_pad_grid_desc);
+        return make_tuple(out_grid_desc, in_gemmn_gemmktotal_grid_desc, wei_grid_desc);
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 2, bool>::type = false>
-    CK_TILE_HOST auto
-    MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(const index_t GemmKBatch) const
+    CK_TILE_HOST auto MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N() const
     {
-        // Assume NumGroupsToMerge == 1 for now
-        const index_t GemmKTotal = N_ * Ho_ * Wo_;
-        const index_t GemmM      = K_ * NumGroupsToMerge;
-        const index_t GemmN      = C_ * Y_ * X_ * NumGroupsToMerge;
-
-        const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
-        const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
-
-        const index_t GemmK0 =
-            integer_divide_ceil(GemmKTotal, GemmK1Number * K0PerBlock * GemmKBatch) * K0PerBlock;
-        const index_t GemmKPad = GemmKBatch * GemmK0 * GemmK1Number;
-
         const auto out_grid_desc = make_out_grid_desc<NDimSpatial>();
         const auto in_grid_desc  = make_in_grid_desc<NDimSpatial>();
         const auto wei_grid_desc = make_wei_grid_desc<NDimSpatial>();
-
-        // A: output tensor comes in K_M
-        const auto out_gemmkpad_gemmm_grid_desc = transform_tensor_descriptor(
-            out_grid_desc,
-            make_tuple(make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
-                       make_right_pad_transform(GemmM, PadGemmM)),
-            make_tuple(sequence<0>{}, sequence<1>{}),
-            make_tuple(sequence<1>{}, sequence<0>{}));
 
         // B: input tensor comes in K_N
         const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
@@ -653,59 +591,22 @@ struct TransformConvBwdWeightToGemm
             make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
             make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3, 4>{}, sequence<5>{}));
 
-        const auto in_gemmktotal_gemmn_grid_desc =
+        const auto in_gemmn_gemmktotal_grid_desc =
             transform_tensor_descriptor(in_n_y_ho_x_wo_c_grid_desc,
                                         make_tuple(make_merge_transform(make_tuple(Y_, X_, C_)),
                                                    make_merge_transform(make_tuple(N_, Ho_, Wo_))),
                                         make_tuple(sequence<1, 3, 5>{}, sequence<0, 2, 4>{}),
-                                        make_tuple(sequence<1>{}, sequence<0>{}));
-
-        const auto in_gemmkpad_gemmn_grid_desc = transform_tensor_descriptor(
-            in_gemmktotal_gemmn_grid_desc,
-            make_tuple(make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
-                       make_right_pad_transform(GemmN, PadGemmN)),
-            make_tuple(sequence<0>{}, sequence<1>{}),
-            make_tuple(sequence<1>{}, sequence<0>{}));
-
-        const auto wei_gemmm_gemmn_pad_grid_desc =
-            transform_tensor_descriptor(wei_grid_desc,
-                                        make_tuple(make_right_pad_transform(GemmM, PadGemmM),
-                                                   make_right_pad_transform(GemmN, PadGemmN)),
-                                        make_tuple(sequence<0>{}, sequence<1>{}),
                                         make_tuple(sequence<0>{}, sequence<1>{}));
 
-        return make_tuple(out_gemmkpad_gemmm_grid_desc,
-                          in_gemmkpad_gemmn_grid_desc,
-                          wei_gemmm_gemmn_pad_grid_desc);
+        return make_tuple(out_grid_desc, in_gemmn_gemmktotal_grid_desc, wei_grid_desc);
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 3, bool>::type = false>
-    CK_TILE_HOST auto
-    MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(const index_t GemmKBatch) const
+    CK_TILE_HOST auto MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N() const
     {
-        // Assume NumGroupsToMerge == 1 for now
-        const index_t GemmKTotal = N_ * Do_ * Ho_ * Wo_;
-        const index_t GemmM      = K_ * NumGroupsToMerge;
-        const index_t GemmN      = C_ * Z_ * Y_ * X_ * NumGroupsToMerge;
-
-        const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
-        const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
-
-        const index_t GemmK0 =
-            integer_divide_ceil(GemmKTotal, GemmK1Number * K0PerBlock * GemmKBatch) * K0PerBlock;
-        const index_t GemmKPad = GemmKBatch * GemmK0 * GemmK1Number;
-
         const auto out_grid_desc = make_out_grid_desc<NDimSpatial>();
         const auto in_grid_desc  = make_in_grid_desc<NDimSpatial>();
         const auto wei_grid_desc = make_wei_grid_desc<NDimSpatial>();
-
-        // A: output tensor comes in K_M
-        const auto out_gemmkpad_gemmm_grid_desc = transform_tensor_descriptor(
-            out_grid_desc,
-            make_tuple(make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
-                       make_right_pad_transform(GemmM, PadGemmM)),
-            make_tuple(sequence<0>{}, sequence<1>{}),
-            make_tuple(sequence<1>{}, sequence<0>{}));
 
         // B: input tensor comes in K_N
         const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
@@ -733,30 +634,14 @@ struct TransformConvBwdWeightToGemm
                        sequence<5, 6>{},
                        sequence<7>{}));
 
-        const auto in_gemmktotal_gemmn_grid_desc = transform_tensor_descriptor(
+        const auto in_gemmn_gemmktotal_grid_desc = transform_tensor_descriptor(
             in_n_y_ho_x_wo_c_grid_desc,
             make_tuple(make_merge_transform(make_tuple(Z_, Y_, X_, C_)),
                        make_merge_transform(make_tuple(N_, Do_, Ho_, Wo_))),
             make_tuple(sequence<1, 3, 5, 7>{}, sequence<0, 2, 4, 6>{}),
-            make_tuple(sequence<1>{}, sequence<0>{}));
+            make_tuple(sequence<0>{}, sequence<1>{}));
 
-        const auto in_gemmkpad_gemmn_grid_desc = transform_tensor_descriptor(
-            in_gemmktotal_gemmn_grid_desc,
-            make_tuple(make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
-                       make_right_pad_transform(GemmN, PadGemmN)),
-            make_tuple(sequence<0>{}, sequence<1>{}),
-            make_tuple(sequence<1>{}, sequence<0>{}));
-
-        const auto wei_gemmm_gemmn_pad_grid_desc =
-            transform_tensor_descriptor(wei_grid_desc,
-                                        make_tuple(make_right_pad_transform(GemmM, PadGemmM),
-                                                   make_right_pad_transform(GemmN, PadGemmN)),
-                                        make_tuple(sequence<0>{}, sequence<1>{}),
-                                        make_tuple(sequence<0>{}, sequence<1>{}));
-
-        return make_tuple(out_gemmkpad_gemmm_grid_desc,
-                          in_gemmkpad_gemmn_grid_desc,
-                          wei_gemmm_gemmn_pad_grid_desc);
+        return make_tuple(out_grid_desc, in_gemmn_gemmktotal_grid_desc, wei_grid_desc);
     }
 
     IndexType G_, N_;
