@@ -161,29 +161,23 @@ struct CShuffleEpilogue
      * - NumNXdlPerWavePerShuffle: Number of XDL tiles in N dimension processed per wave
      */
     static constexpr auto shuffle_tile_tuple = [] {
-        constexpr index_t elem_per_thread = MPerXdl * NPerXdl / get_warp_size();
-        if constexpr(elem_per_thread >= GetVectorSizeC())
+        constexpr index_t memory_friendly_bulk_length = 128 /sizeof(ODataType);
+
+        if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
         {
-            return std::make_tuple(1, 1);
-        }
-        else
-        {
-            constexpr index_t num_xdl_shuffles = GetVectorSizeC() / elem_per_thread;
-            if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
-            {
-                static_assert((kMPerBlock % (MPerXdl * MWave) == 0) &&
-                                  (kMPerBlock % num_xdl_shuffles == 0),
-                              "kMPerBlock must be divisible by MPerXdl*MWave and "
-                              "num_xdl_shuffles for CShuffleEpilogue");
-                return std::make_tuple(min(num_xdl_shuffles, kMPerBlock / (MPerXdl * MWave)), 1);
+            if constexpr((kNPerBlock % memory_friendly_bulk_length) !=0){
+                return std::make_tuple(1, 1);
             }
-            else
-            {
-                static_assert((kNPerBlock % (NPerXdl * NWave) == 0) &&
-                                  (kNPerBlock % num_xdl_shuffles == 0),
-                              "kNPerBlock must be divisible by NPerXdl*NWave and "
-                              "num_xdl_shuffles for CShuffleEpilogue");
-                return std::make_tuple(1, min(num_xdl_shuffles, kNPerBlock / (NPerXdl * NWave)));
+            else{
+                return std::make_tuple(1, max(1, memory_friendly_bulk_length / (NPerXdl * NWave)));
+            }
+        }
+        else{
+            if constexpr((kMPerBlock % memory_friendly_bulk_length) !=0){
+                return std::make_tuple(1, 1);
+            }
+            else{
+                return std::make_tuple(max(1, memory_friendly_bulk_length / (MPerXdl * MWave)), 1);
             }
         }
     }();

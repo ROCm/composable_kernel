@@ -30,7 +30,7 @@ string(REPLACE ";" "," FMHA_FWD_APIS "${FMHA_FWD_ENABLE_APIS}")
 set(FMHA_FWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
   --api ${FMHA_FWD_APIS}
-  # --filter @fmha_fwd_decode_d64_bf16_batch_b16x32x64x64x32x64_r1x1x1_r1x1x1_w16x16x32_w16x16x32_decode_qr_vr_nlogits_nbias_nmask_nlse_nsquant_npagedkv
+  # --filter @fmha_fwd_decode_d128_bf16_batch_b16x32x128x128x32x128_r1x1x1_r1x1x1_w16x16x32_w16x16x32_decode_qr_vr_npad_nlogits_nbias_nmask_nlse_nsquant_npagedkv
 )
 set(FMHA_BWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py

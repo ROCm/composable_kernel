@@ -101,9 +101,30 @@ using fmha_pipeline = {F_pipeline}<
 /// FIXME: use {F_spad}/{F_dvpad} as kPadM/kPadN parameters after solving
 ///        store_tile_raw() data corruption issue
 using fmha_epilogue =
-    ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<typename FmhaFwdTypeConfig<{F_dtype}>::OaccDataType,
+    ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<
+                                           typename FmhaFwdTypeConfig<{F_dtype}>::PDataType,
+                                           typename FmhaFwdTypeConfig<{F_dtype}>::VDataType,
+                                           ck_tile::tuple<>,
+                                           typename FmhaFwdTypeConfig<{F_dtype}>::OaccDataType,
                                            typename FmhaFwdTypeConfig<{F_dtype}>::ODataType,
-                                           false, false>>;
+                                           ck_tile::tuple<>,
+                                           ck_tile::tensor_layout::gemm::RowMajor,
+                                           ck_tile::element_wise::PassThrough,
+                                           {F_rm0}*{F_rn0}*64,
+                                           {F_bm0},
+                                           {F_bn1},
+                                           {F_rm1},
+                                           {F_rn1},
+                                           {F_wm1},
+                                           {F_wn1},
+                                           {F_wk1},
+                                           true,
+                                           ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                              ck_tile::memory_operation_enum::set>{{}}.value,
+                                            1,
+                                            true,
+                                            16/sizeof(typename FmhaFwdTypeConfig<{F_dtype}>::ODataType)>>;
+static_assert(16/sizeof(typename FmhaFwdTypeConfig<{F_dtype}>::ODataType)==8);
 
 using fmha_kernel =
     ck_tile::FmhaFwdDecodeKernel<fmha_pipeline, fmha_epilogue>;

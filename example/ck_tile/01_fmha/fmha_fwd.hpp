@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
+#include "ck_tile/ops/elementwise.hpp"
 #include "ck_tile/ops/fmha.hpp"
 
 #include "bias.hpp"
