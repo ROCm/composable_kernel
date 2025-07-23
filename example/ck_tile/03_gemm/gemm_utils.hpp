@@ -21,7 +21,7 @@
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile()
 {
-#if defined(__gfx950__)
+#if defined(CK_GFX950_SUPPORT)
     constexpr bool is_8bit_float =
         std::is_same_v<PrecType, ck_tile::fp8_t> || std::is_same_v<PrecType, ck_tile::bf8_t>;
     if constexpr(M_Warp_Tile == 32)
@@ -38,7 +38,7 @@ constexpr ck_tile::index_t get_k_warp_tile()
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile_flatmm()
 {
-#if defined(__gfx950__)
+#if defined(CK_GFX950_SUPPORT)
     if constexpr(M_Warp_Tile == 32)
         return sizeof(PrecType) == 2 ? 16 : 64;
     else
@@ -293,7 +293,7 @@ struct GemmConfigPreshuffle_3 : public GemmConfigBase
 
     static constexpr int kBlockPerCu           = 2;
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V3;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V2;
     static constexpr bool Preshuffle           = true;
     static constexpr bool DoubleSmemBuffer     = true;
 };
