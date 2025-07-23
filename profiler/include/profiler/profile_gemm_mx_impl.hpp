@@ -216,12 +216,20 @@ bool profile_gemm_mx_impl(int do_verification,
     auto a_data_element = [](float x) {
         if constexpr(ck::is_same_v<ADataType, ck::f4x2_pk_t>)
             return ck::type_convert<ADataType>(ck::float2_t(x));
+        else if constexpr(ck::packed_size_v<ADataType> == 32)
+            return ck::type_convert<ADataType>(ck::float32_t(x));
+        else if constexpr(ck::packed_size_v<ADataType> == 16)
+            return ck::type_convert<ADataType>(ck::float16_t(x));
         else
             return ck::type_convert<ADataType>(x);
     };
     auto b_data_element = [](float x) {
         if constexpr(ck::is_same_v<BDataType, ck::f4x2_pk_t>)
             return ck::type_convert<BDataType>(ck::float2_t(x));
+        else if constexpr(ck::packed_size_v<BDataType> == 32)
+            return ck::type_convert<BDataType>(ck::float32_t(x));
+        else if constexpr(ck::packed_size_v<BDataType> == 16)
+            return ck::type_convert<BDataType>(ck::float16_t(x));
         else
             return ck::type_convert<BDataType>(x);
     };
@@ -247,15 +255,17 @@ bool profile_gemm_mx_impl(int do_verification,
 
     case 1:
 
-        a_m_k.GenerateTensorDistr(int_distr{-4, 5});  // Z[-4,4]
-        b_k_n->GenerateTensorDistr(int_distr{-4, 5}); // Z[-4,4]
+        a_m_k.GenerateTensorDistr(
+            int_distr{-4, 4}, ck::identity{}, std::minstd_rand(time(nullptr))); // Z[-4,4]
+        b_k_n->GenerateTensorDistr(int_distr{-4, 4});                           // Z[-4,4]
 
-        a_m_k_scale.GenerateTensorDistr(int_distr{125, 129}); // scales: {0.25, 0.5, 1, 2}
-        b_k_n_scale.GenerateTensorDistr(int_distr{125, 129}); // scales: {0.25, 0.5, 1, 2}
+        a_m_k_scale.GenerateTensorDistr(int_distr{125, 128}); // scales: {0.25, 0.5, 1, 2}
+        b_k_n_scale.GenerateTensorDistr(int_distr{125, 128}); // scales: {0.25, 0.5, 1, 2}
         break;
 
     default:
-        a_m_k.GenerateTensorDistr(float_distr{-2.0, 2.0});
+        a_m_k.GenerateTensorDistr(
+            float_distr{-2.0, 2.0}, ck::identity{}, std::minstd_rand(time(nullptr)));
         a_m_k_scale.GenerateTensorDistr(float_distr{powf(2.0f, -125.0f), 1.0f});
 
         b_k_n->GenerateTensorDistr(float_distr{-2.0, 2.0});

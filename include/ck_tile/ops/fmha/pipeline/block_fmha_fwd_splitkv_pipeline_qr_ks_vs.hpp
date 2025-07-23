@@ -320,6 +320,11 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                 store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
                 k_block_tile = load_tile(k_dram_window);
             }
+            auto physical_next_block_id_k =
+                __builtin_amdgcn_readfirstlane(k_page_block_navigator.prefetch_table_id(
+                    i_page_block_k, k_dram_block_window, {kN0, 0}));
+            auto physical_next_block_id_v = __builtin_amdgcn_readfirstlane(
+                v_page_block_navigator.prefetch_table_id(i_page_block_v, v_dram_window, {0, kK1}));
 
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
@@ -600,8 +605,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                 store_tile(v_lds_window,
                            tile_elementwise_in(v_element_func, v_prefetch)); // store the prefetch
             }
-            i_page_block_v =
-                v_page_block_navigator.move_tile_window(i_page_block_v, v_dram_window, {0, kK1});
+            i_page_block_v = v_page_block_navigator.move_tile_window(
+                i_page_block_v, v_dram_window, {0, kK1}, physical_next_block_id_v);
 
             const auto p =
                 cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
@@ -612,6 +617,9 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                 static_for<0, k1_loops - 1, 1>{}([&,
                                                   &i_page_block_v_ = i_page_block_v,
                                                   &v_dram_window_  = v_dram_window](auto i_k1) {
+                    auto physical_next_block_id_v_ =
+                        __builtin_amdgcn_readfirstlane(v_page_block_navigator.prefetch_table_id(
+                            i_page_block_v_, v_dram_window_, {0, kK1}));
                     const auto v = load_tile(v_dram_window_); // load next v
                     block_sync_lds();
                     gemm_1(o_acc,
@@ -634,12 +642,12 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                                    tile_elementwise_in(v_element_func, v)); // store next v
                     }
                     i_page_block_v_ = v_page_block_navigator.move_tile_window(
-                        i_page_block_v_, v_dram_window_, {0, kK1});
+                        i_page_block_v_, v_dram_window_, {0, kK1}, physical_next_block_id_v_);
                 });
             }
             // move K tile windows
             i_page_block_k = k_page_block_navigator.move_tile_window(
-                i_page_block_k, k_dram_block_window, {kN0, 0});
+                i_page_block_k, k_dram_block_window, {kN0, 0}, physical_next_block_id_k);
             // tail
             {
                 block_sync_lds();
