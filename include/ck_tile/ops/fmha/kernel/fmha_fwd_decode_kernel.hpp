@@ -597,8 +597,8 @@ struct FmhaFwdDecodeKernel
         long_index_t batch_offset_bias    = 0;
         long_index_t batch_offset_lse_acc = 0;
         long_index_t batch_offset_o_acc   = 0;
-        index_t kv_l2p_offset =
-            0; // logical-to-physical offset of seqlen_k coordinate. only used for paged-kvcache
+        // index_t kv_l2p_offset =
+        //     0; // logical-to-physical offset of seqlen_k coordinate. only used for paged-kvcache
 
         if constexpr(kIsGroupMode)
         {
@@ -648,7 +648,7 @@ struct FmhaFwdDecodeKernel
                 if(kargs.is_gappy)
                 {
                     // seqstart_k_ptr has different meaning in this case
-                    kv_l2p_offset = kargs.seqstart_k_ptr[i_batch];
+                    // kv_l2p_offset = kargs.seqstart_k_ptr[i_batch];
                 }
             }
         }
@@ -809,66 +809,6 @@ struct FmhaFwdDecodeKernel
             }
         }();
 
-        auto k_page_block_navigator = [&, i_batch_ = i_batch]() {
-            if constexpr(kIsPagedKV)
-            {
-                const auto* block_indices =
-                    reinterpret_cast<const int32_t*>(kargs.block_table_ptr) +
-                    i_batch_ * kargs.batch_stride_block_table;
-                const index_t num_blocks =
-                    integer_divide_ceil(kv_l2p_offset + kargs.seqlen_k, kargs.page_block_size);
-
-                const long_index_t fixed_offset =
-                    static_cast<long_index_t>(i_nhead_k) * kargs.nhead_stride_k;
-
-                return make_page_block_navigator<const KDataType, 0>(
-                    kargs.k_ptr,
-                    kargs.batch_stride_k, // kcache page-block stride/size
-                    fixed_offset,
-                    block_indices,
-                    num_blocks,
-                    kargs.page_block_size,
-                    k_dram,
-                    make_k_dram(nullptr,
-                                (kv_l2p_offset + kargs.seqlen_k) -
-                                    (num_blocks - 1) * kargs.page_block_size));
-            }
-            else
-            {
-                return make_page_block_navigator(k_dram);
-            }
-        }();
-
-        auto v_page_block_navigator = [&, i_batch_ = i_batch]() {
-            if constexpr(kIsPagedKV)
-            {
-                const auto* block_indices =
-                    reinterpret_cast<const int32_t*>(kargs.block_table_ptr) +
-                    i_batch_ * kargs.batch_stride_block_table;
-                const index_t num_blocks =
-                    integer_divide_ceil(kv_l2p_offset + kargs.seqlen_k, kargs.page_block_size);
-
-                const long_index_t fixed_offset =
-                    static_cast<long_index_t>(i_nhead_k) * kargs.nhead_stride_v;
-
-                return make_page_block_navigator<const VDataType, 1>(
-                    kargs.v_ptr,
-                    kargs.batch_stride_v, // vcache page-block stride/size
-                    fixed_offset,
-                    block_indices,
-                    num_blocks,
-                    kargs.page_block_size,
-                    v_dram,
-                    make_v_dram(nullptr,
-                                (kv_l2p_offset + kargs.seqlen_k) -
-                                    (num_blocks - 1) * kargs.page_block_size));
-            }
-            else
-            {
-                return make_page_block_navigator(v_dram);
-            }
-        }();
-
         auto q_dram_window = make_tile_window(
             q_dram,
             [&]() {
@@ -880,10 +820,11 @@ struct FmhaFwdDecodeKernel
             }(),
             {i_m0, 0});
 
-        auto k_dram_window_lengths =
-            make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{});
-        auto v_dram_window_lengths =
-            make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{});
+        auto k_dram_window = make_tile_window(
+            k_dram, make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}), {0, 0});
+
+        auto v_dram_window = make_tile_window(
+            v_dram, make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}), {0, 0});
 
         /// FIXME: Before C++20, capturing structured binding variables are not supported. Remove
         /// following copy capture of the 'i_nhead' if in C++20
@@ -1006,70 +947,24 @@ struct FmhaFwdDecodeKernel
             }
         }();
 
-        AttentionVariant variant;
-        const auto variant_params = [&] {
-            if constexpr(kHasLogitsSoftCap)
-            {
-                return ck_tile::LogitsSoftCapParams<FmhaMask, CK_TILE_FMHA_FWD_FAST_EXP2>{
-                    mask, kargs.scale_s, kargs.logits_soft_cap, kargs.logits_soft_cap_rcp};
-            }
-            else
-            {
-                return ck_tile::StandardAttentionParams<FmhaMask>{mask, kargs.scale_s};
-            }
-        }();
-
-        BlockIndices block_indices{i_batch, i_nhead, i_nhead_k};
-
         auto o_acc_tile = [&, i_split_ = i_split]() {
-            if constexpr(kDoFp8StaticQuant)
-            {
-                return FmhaPipeline{}(q_dram_window,
-                                      identity{}, // q_element_func
-                                      k_dram_window_lengths,
-                                      k_page_block_navigator,
-                                      identity{}, // k_element_func
-                                      v_dram_window_lengths,
-                                      v_page_block_navigator,
-                                      identity{}, // v_element_func
-                                      bias_dram_window,
-                                      identity{}, // bias_element_func
-                                      lse_acc_dram_window,
-                                      identity{},            // lse_element_func
-                                      identity{},            // s_acc_element_func
-                                      scales{kargs.scale_p}, // p_compute_element_func
-                                      identity{},            // o_acc_element_func
-                                      kargs.num_splits,
-                                      i_split_,
-                                      mask,
-                                      position_encoding,
-                                      kargs.scale_s,
-                                      variant,
-                                      variant_params,
-                                      block_indices,
-                                      kv_l2p_offset,
-                                      smem_ptr);
-            }
-            else
-            {
-                return FmhaPipeline{}(q_dram_window,
-                                      k_dram_window_lengths,
-                                      k_page_block_navigator, // Remove it
-                                      v_dram_window_lengths,
-                                      v_page_block_navigator, // Remove it
-                                      bias_dram_window,
-                                      lse_acc_dram_window,
-                                      kargs.num_splits, // Remove it
-                                      i_split_,         // Remove it
-                                      mask,
-                                      position_encoding,
-                                      kargs.scale_s,
-                                      variant,        // Remove it
-                                      variant_params, // Remove it
-                                      block_indices,  // Remove it
-                                      kv_l2p_offset,  // Remove it
-                                      smem_ptr);
-            }
+            return FmhaPipeline{}(q_dram_window,
+                                  k_dram_window,
+                                  //   k_page_block_navigator, // Remove it
+                                  v_dram_window,
+                                  //   v_page_block_navigator, // Remove it
+                                  bias_dram_window,
+                                  lse_acc_dram_window,
+                                  kargs.num_splits, // Remove it
+                                  i_split_,         // Remove it
+                                  mask,
+                                  position_encoding,
+                                  kargs.scale_s,
+                                  //   variant,        // Remove it
+                                  //   variant_params, // Remove it
+                                  //   block_indices,  // Remove it
+                                  //   kv_l2p_offset,  // Remove it
+                                  smem_ptr);
         }();
 
         // Oacc DRAM and Oacc DRAM window

@@ -271,17 +271,22 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm1BlockWarps,
                                            typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
 
-        using WarpGemm =
-            WarpGemmMfmaDispatcher<typename Problem::PDataType,
-                                   typename Problem::VDataType,
-                                   typename Problem::OaccDataType,
-                                   Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
-                                   Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
-                                   Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
-                                   true,
-                                   false,
-                                   false,
-                                   WGAttrNumAccessEnum::Double>;
+        using WarpGemm = WarpGemmMfmaDispatcher<
+            typename Problem::PDataType,
+            typename Problem::VDataType,
+            typename Problem::OaccDataType,
+            Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
+            Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
+            Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
+            true,
+            false,
+            false,
+            ((Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}) == 16 &&
+              Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}) == 32) ||
+             (Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}) == 32 &&
+              Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}) == 16))
+                ? WGAttrNumAccessEnum::Double
+                : WGAttrNumAccessEnum::Single>;
 
         using BlockGemmPolicy =
             BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::PDataType,
