@@ -59,9 +59,9 @@ __global__ void cast(const float input, float* output)
 
 TEST(BHALF_T, CastOnDevice)
 {
-    constexpr int num_vals     = 8;
+    constexpr int num_vals     = 11;
     const float abs_tol        = std::pow(2, -7);
-    float float_vals[num_vals] = {1, 2, 4, 8, 16, 32, 64, 128};
+    float float_vals[num_vals] = {0.5, 0.875, 1.5, 1, 2, 4, 8, 16, 32, 64, 128};
 
     float* float_val_after_cast_dev;
     float float_val_after_cast_host;
