@@ -34,7 +34,7 @@ enum struct GemmDataType
 
 int profile_gemm_universal_streamk(int argc, char* argv[])
 {
-    if(argc != 16 && argc != 19)
+    if(argc != 16 && argc != 19 && argc != 18 && argc != 21)
     {
         printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
         printf("arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8; 4: f8@f16; 5: f16@f8; 6: f16, "
@@ -50,10 +50,15 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
         printf("arg8 to 13: M, N, K, StrideA, StrideB, StrideC\n");
         printf("arg14: Stream-k select strategy 0: all DP, 1: 1-tile SK, 2: 2-tile SK\n");
         printf("arg15: Grid-size, -1 for max persistent kernel occupancy\n");
-        printf("optional:\n");
+        printf("optional (iteration-based):\n");
         printf("arg16: number of warm-up cycles (default 1)\n");
         printf("arg17: number of iterations (default 10)\n");
         printf("arg18: memory for rotating buffer (default 0, size in MB)\n");
+        printf("optional (time-based):\n");
+        printf("arg16: cold_time in seconds (float)\n");
+        printf("arg17: hot_time in seconds (float)\n");
+        printf("arg18: memory for rotating buffer (default 0, size in MB)\n");
+        printf("Note: If cold_time is provided, hot_time must also be provided (time-based mode)\n");
         exit(1);
     }
 
@@ -93,11 +98,55 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
     int n_warmup      = 20;
     int n_iter        = 50;
     uint64_t rotating = 0;
-    if(argc == 19)
+
+    bool time_based = false ;
+    float hot_bench_time = 0.0f ;
+    float cold_bench_time = 0.0f ;
+
+
+    
+
+    if(argc >= 18)
     {
-        n_warmup = std::stoi(argv[16]);
-        n_iter   = std::stoi(argv[17]);
-        rotating = std::stoull(argv[18]) * 1024 * 1024;
+       
+        char* endptr;
+        float potential_cold_time = std::strtof(argv[16], &endptr);
+        
+       
+        if(endptr != argv[16] && (strchr(argv[16], '.') != nullptr || argc >= 19))
+        {
+            // Check if we have hot_time parameter
+            if(argc >= 19)
+            {
+                float potential_hot_time = std::strtof(argv[17], &endptr);
+                if(endptr != argv[17])
+                {
+                    // Both cold_time and hot_time are valid floats - use time-based mode
+                    time_based = true;
+                    cold_bench_time = potential_cold_time;
+                    hot_bench_time = potential_hot_time;
+                    
+                    if(argc >= 20)
+                    {
+                        rotating = std::stoull(argv[18]) * 1024 * 1024;
+                    }
+                }
+            }
+        }
+        
+        // If not time-based mode, use iteration-based mode
+        if(!time_based_mode)
+        {
+            n_warmup = std::stoi(argv[16]);
+            if(argc >= 19)
+            {
+                n_iter = std::stoi(argv[17]);
+                if(argc >= 20)
+                {
+                    rotating = std::stoull(argv[18]) * 1024 * 1024;
+                }
+            }
+        }
     }
 
     using F32  = float;
@@ -118,7 +167,8 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
                        auto c_type,
                        auto a_layout,
                        auto b_layout,
-                       auto c_layout) {
+                       auto c_layout) 
+    {
         using ADataType       = decltype(a_type);
         using BDataType       = decltype(b_type);
         using ComputeDataType = decltype(comp_type);
@@ -133,31 +183,66 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
         const int DefaultStrideB = ck::is_same_v<BLayout, Row> ? N : K;
         const int DefaultStrideC = ck::is_same_v<CLayout, Row> ? N : M;
 
-        bool pass = ck::profiler::profile_gemm_universal_streamk_impl<ADataType,
-                                                                      BDataType,
-                                                                      ComputeDataType,
-                                                                      AccDataType,
-                                                                      CDataType,
-                                                                      ALayout,
-                                                                      BLayout,
-                                                                      CLayout>(
-            do_verification,
-            init_method,
-            do_log,
-            time_kernel,
-            M,
-            N,
-            K,
-            (StrideA < 0) ? DefaultStrideA : StrideA,
-            (StrideB < 0) ? DefaultStrideB : StrideB,
-            (StrideC < 0) ? DefaultStrideC : StrideC,
-            Streamk_sel,
-            Grid_size,
-            n_warmup,
-            n_iter,
-            rotating);
+        bool pass;
+        
+        if(time_based_mode)
+        {
+            // Time-based benchmarking
+            pass = ck::profiler::profile_gemm_universal_streamk_impl<ADataType,
+                                                                        BDataType,
+                                                                        ComputeDataType,
+                                                                        AccDataType,
+                                                                        CDataType,
+                                                                        ALayout,
+                                                                        BLayout,
+                                                                        CLayout>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    M,
+                    N,
+                    K,
+                    (StrideA < 0) ? DefaultStrideA : StrideA,
+                    (StrideB < 0) ? DefaultStrideB : StrideB,
+                    (StrideC < 0) ? DefaultStrideC : StrideC,
+                    Streamk_sel,
+                    Grid_size,
+                    cold_time,
+                    hot_time,
+                    rotating,
+                    true); // time_based flag
+        }
+        else
+        {
+            // Iteration-based benchmarking (original behavior)
+            pass = ck::profiler::profile_gemm_universal_streamk_impl<ADataType,
+                                                                        BDataType,
+                                                                        ComputeDataType,
+                                                                        AccDataType,
+                                                                        CDataType,
+                                                                        ALayout,
+                                                                        BLayout,
+                                                                        CLayout>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    M,
+                    N,
+                    K,
+                    (StrideA < 0) ? DefaultStrideA : StrideA,
+                    (StrideB < 0) ? DefaultStrideB : StrideB,
+                    (StrideC < 0) ? DefaultStrideC : StrideC,
+                    Streamk_sel,
+                    Grid_size,
+                    n_warmup,
+                    n_iter,
+                    rotating,
+                    false); // time_based flag
+        }
 
-        return pass ? 0 : 1;
+            return pass ? 0 : 1;
     };
 
     if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
