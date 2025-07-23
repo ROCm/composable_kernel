@@ -10,22 +10,20 @@ namespace ck_tile {
 
 template <typename DataType_,
           typename BlockTile, // Sequence<...
+          typename WarpLayout,
           bool kPadM_ = false,
           bool kPadN_ = false> // Sequence<...
 struct BatchedTransposeProblem
 {
     using DataType = remove_cvref_t<DataType_>;
 
-    static constexpr index_t kMPerWarp = get_warp_size();
-    static constexpr index_t kNPerWarp = get_warp_size();
+    static constexpr index_t kMPerWarp = WarpLayout::at(number<0>{});
+    static constexpr index_t kNPerWarp = WarpLayout::at(number<1>{});
 
     static constexpr index_t kMPerBlock = BlockTile::at(number<0>{});
     static constexpr index_t kNPerBlock = BlockTile::at(number<1>{});
 
-    static constexpr index_t kMWarpPerBlock = kMPerBlock / kMPerWarp;
-    static constexpr index_t kNWarpPerBlock = kNPerBlock / kNPerWarp;
-
-    static constexpr index_t kBlockSize = get_warp_size();
+    static constexpr index_t kBlockSize = kMPerWarp * kNPerWarp * get_warp_size();
 
     static constexpr bool kPadM = kPadM_;
     static constexpr bool kPadN = kPadN_;
