@@ -240,7 +240,7 @@ Memory tile processed by a work group (thread block).
 Sub-tile processed by a single wave within a work group. Represents the granularity of SIMD execution.
 
 ### Tile Distribution
-Hierarchical data mapping between work-items to data in memory.
+Hierarchical data mapping from work-items to data in memory.
 
 ### Tile Window
 Viewport into a larger tensor that defines the current tile's position and boundaries for computation.
