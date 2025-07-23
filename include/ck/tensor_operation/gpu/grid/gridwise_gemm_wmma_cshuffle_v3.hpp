@@ -362,11 +362,11 @@ struct GridwiseGemm_wmma_cshuffle_v3
             std::cout << "problem {" << "M:" << M << ", " << "N:" << N << ", " << "K:" << K << ", "
                       << "SAs: {";
             static_for<0, NumATensor, 1>{}([&](auto i) {
-                std::cout << StrideAs[i] << (i.value < NumDTensor - 1 ? ", " : "");
+                std::cout << StrideAs[i] << (i.value < NumATensor - 1 ? ", " : "");
             });
             std::cout << "}, " << "SBs: {";
-            static_for<0, NumATensor, 1>{}([&](auto i) {
-                std::cout << StrideBs[i] << (i.value < NumDTensor - 1 ? ", " : "");
+            static_for<0, NumBTensor, 1>{}([&](auto i) {
+                std::cout << StrideBs[i] << (i.value < NumBTensor - 1 ? ", " : "");
             });
             std::cout << "}, ";
             if constexpr(NumDTensor > 0)
