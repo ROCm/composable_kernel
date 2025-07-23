@@ -14,6 +14,10 @@ struct HstuBlockMaskWithLocal
     static constexpr bool kUseLocal = true;
     static constexpr bool IsMasking = true;
 
+    // is_tile_in_first_split is false only when min_full_attn_seqlen > 0 and the current
+    // tile is inside scope [max_uih_len - min_full_attn_seqlen, seqlen); for other cases
+    // and tiles, is_tile_in_first_split is true
+    bool is_tile_in_first_split;
     int seqlen;
     int contextual_seqlen;
 
@@ -23,12 +27,14 @@ struct HstuBlockMaskWithLocal
     int max_uih_len;
     int max_id;
 
-    CK_TILE_HOST_DEVICE HstuBlockMaskWithLocal(int seqlen_,
+    CK_TILE_HOST_DEVICE HstuBlockMaskWithLocal(bool is_tile_in_first_split_,
+                                               int seqlen_,
                                                int contextual_seqlen_,
                                                int max_attn_len_,
                                                int min_full_attn_seqlen_,
                                                int num_target_)
-        : seqlen(seqlen_),
+        : is_tile_in_first_split(is_tile_in_first_split_),
+          seqlen(seqlen_),
           contextual_seqlen(contextual_seqlen_),
           max_attn_len(max_attn_len_),
           min_full_attn_seqlen(min_full_attn_seqlen_)
@@ -48,10 +54,16 @@ struct HstuBlockMaskWithLocal
     CK_TILE_HOST_DEVICE constexpr auto
     GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
     {
-        if(min_full_attn_seqlen > 0 && i_y + YTile > max_uih_len - min_full_attn_seqlen)
+        // handle two special cases first
+        if(!is_tile_in_first_split)
         {
-            index_t x_end = min(i_y + YTile, seqlen);
-            return ck_tile::make_tuple(0, x_end);
+            // the tile is completely inside [max_uih_len - min_full_attn_seqlen, max_uih_len)
+            if(i_y + YTile <= max_uih_len)
+                return ck_tile::make_tuple(0, max_uih_len);
+            // the tils is partially inside [max_uih_len - min_full_attn_seqlen, max_uih_len) and
+            // partially inside [max_uih_len, seqlen)
+            if(i_y < max_uih_len)
+                return ck_tile::make_tuple(0, seqlen);
         };
 
         if constexpr(!kUseCausal)
@@ -204,8 +216,7 @@ struct HstuBlockMaskWithLocal
         // diagonal line are always considerred
         if constexpr(kUseCausal)
         {
-            bool in_min_full_scope =
-                (min_full_attn_seqlen > 0) ? (row_id >= max_id - min_full_attn_seqlen) : false;
+            bool in_min_full_scope = !is_tile_in_first_split;
 
             bool res = (((row_id > col_id) || (row == col)) &&
                         ((row_id - col_id <= max_attn_len) || in_min_full_scope));
@@ -214,8 +225,7 @@ struct HstuBlockMaskWithLocal
         }
         else
         {
-            bool in_min_full_scope =
-                (min_full_attn_seqlen > 0) ? (row_id >= max_id - min_full_attn_seqlen) : false;
+            bool in_min_full_scope = !is_tile_in_first_split;
 
             bool res = (((row_id != col_id) || (row == col)) &&
                         ((abs(row_id - col_id) <= max_attn_len) || in_min_full_scope));
@@ -233,11 +243,7 @@ struct HstuBlockMaskWithLocal
     {
         std::ignore = i_tile_left;
 
-        index_t i_tile_bottom = i_tile_top + (TileHeight - 1);
-
-        // assume num_target > 0 with high probability, don't check whether num_target is 0;
-        // so if num_target is 0, IsTokenPairInsideMask() will be called for the bottom tile
-        if(i_tile_top >= max_uih_len - min_full_attn_seqlen && i_tile_bottom < max_uih_len)
+        if(!is_tile_in_first_split && (i_tile_top + TileHeight <= max_uih_len))
             return true;
 
         return false;
@@ -423,14 +429,19 @@ struct HstuBlockMasking
 };
 
 template <typename HstuBlockMaskType>
-CK_TILE_HOST_DEVICE constexpr auto make_hstu_block_mask_with_local(int seqlen_,
+CK_TILE_HOST_DEVICE constexpr auto make_hstu_block_mask_with_local(bool is_tile_in_first_split_,
+                                                                   int seqlen_,
                                                                    int contextual_seqlen_,
                                                                    int num_target,
                                                                    int max_attn_len_,
                                                                    int min_full_attn_seqlen_)
 {
-    return HstuBlockMaskType{
-        seqlen_, contextual_seqlen_, max_attn_len_, min_full_attn_seqlen_, num_target};
+    return HstuBlockMaskType{is_tile_in_first_split_,
+                             seqlen_,
+                             contextual_seqlen_,
+                             max_attn_len_,
+                             min_full_attn_seqlen_,
+                             num_target};
 };
 
 template <typename HstuBlockMaskType>
