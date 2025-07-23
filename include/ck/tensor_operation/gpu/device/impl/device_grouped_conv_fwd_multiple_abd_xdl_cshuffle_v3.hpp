@@ -454,7 +454,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         BBlockLdsExtraN, CShuffleMXdlPerWavePerShuffle, CShuffleNXdlPerWavePerShuffle,         \
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                      \
         CDEBlockTransferScalarPerVector_NPerBlock, BlkGemmPipeSched, BlkGemmPipelineVer,       \
-        AComputeDataType, BComputeDataType, false, false, DoElementwiseBeforeCShuffle
+        AComputeDataType, BComputeDataType
 
 #define GridwiseGemmV3SplitKTemplateParams                                                     \
     tensor_layout::gemm::RowMajor, tensor_layout::gemm::ColumnMajor,                           \
@@ -473,8 +473,9 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         CDEBlockTransferScalarPerVector_NPerBlock, BlkGemmPipeSched, BlkGemmPipelineVer,       \
         AComputeDataType, BComputeDataType
 
-    using GridwiseGemm       = GridwiseGemm_xdl_cshuffle_v3<GridwiseGemmV3TemplateParams>;
-    using GridwiseGemmSplitK = GridwiseGemm_xdl_cshuffle_v3<GridwiseGemmV3SplitKTemplateParams>;
+    using GridwiseGemm = GridwiseGemm_xdl_cshuffle_conv_v3<GridwiseGemmV3TemplateParams>;
+    using GridwiseGemmSplitK =
+        GridwiseGemm_xdl_cshuffle_conv_v3<GridwiseGemmV3SplitKTemplateParams>;
 
     using Block2TileMapElementwise = BlockToCTileMap_M00_N0_M01Adapt<NPerBlock, NPerBlock>;
 
@@ -941,20 +942,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                         sizeof(BDataType);
             }
 
-            typename GridwiseGemm::Argument gemm_arg{p_a_grid,
-                                                     p_b_grid,
-                                                     p_e_grid,
-                                                     GemmM,
-                                                     GemmN,
-                                                     GemmK,
-                                                     I0,
-                                                     I0,
-                                                     I0,
-                                                     I1,
-                                                     false,
-                                                     arg.a_element_op_,
-                                                     arg.b_element_op_,
-                                                     arg.cde_element_op_};
+            typename GridwiseGemm::Argument gemm_arg{
+                p_a_grid, p_b_grid, p_e_grid, GemmM, GemmN, GemmK, I0, I0, I0, I1};
 
             const auto Run = [&](const auto& kernel) {
                 if(stream_config.flush_cache)
