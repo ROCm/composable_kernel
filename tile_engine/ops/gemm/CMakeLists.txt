@@ -4,6 +4,36 @@ set(GEMM_LAYOUT "rcr" CACHE STRING "List of layout for GEMM (semicolon-separated
 # Option to enable parallel trait compilation
 option(GEMM_PARALLEL_TRAITS "Build separate executables per trait for parallel compilation" ON)
 
+# Pre-generate all kernel lists to avoid blocking during parallel builds
+foreach(dt IN LISTS GEMM_DATATYPE)
+    foreach(l IN LISTS GEMM_LAYOUT)
+        set(working_path "${CMAKE_CURRENT_BINARY_DIR}/${dt}/${l}")
+        file(MAKE_DIRECTORY ${working_path})
+        
+        if(l STREQUAL "rcr")
+            set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_config.json")
+        else()
+            set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/custom_ci_config.json")
+        endif()
+        
+        # Only run if files don't exist
+        if(NOT EXISTS "${working_path}/gemm_instance_blobs.txt")
+            execute_process(
+                COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
+                        --working_path ${working_path}
+                        --datatype ${dt}
+                        --layout ${l}
+                        --config_json ${json_blob}
+                        --list_blobs
+                RESULT_VARIABLE ret
+            )
+            if(NOT ret EQUAL 0)
+                message(FATAL_ERROR "Failed to pre-generate kernel list for ${dt} ${l}")
+            endif()
+        endif()
+    endforeach()
+endforeach()
+
 function(build_gemm_for_datatype datatype layout)
     set(working_path "${CMAKE_CURRENT_BINARY_DIR}/${datatype}/${layout}")
 
@@ -16,21 +46,8 @@ function(build_gemm_for_datatype datatype layout)
 
     # uncomment this if you want to use user_provided_config.json
     # set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/user_provided_config.json")
-     
-    # Generate kernel list
-    execute_process(
-        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
-                --working_path ${working_path}
-                --datatype ${datatype}
-                --layout ${layout}
-                --config_json ${json_blob}
-                --list_blobs
-        RESULT_VARIABLE ret
-    )
-    if(NOT ret EQUAL 0)
-        message(FATAL_ERROR "Failed to list kernels for ${datatype} ${layout}: ${ret}")
-    endif()
-
+    
+    # Read pre-generated kernel lists (already created above)
     file(STRINGS "${working_path}/gemm_instance_blobs.txt" codegen_blobs)
     file(STRINGS "${working_path}/gemm_instance_blobs_range.txt" codegen_blobs_range)
     
@@ -87,7 +104,7 @@ function(build_gemm_for_datatype datatype layout)
             
             if(trait_files)
                 # Create object libraries with improved chunking
-                set(chunk_size 5)  # Balance between parallelism and overhead
+                set(chunk_size 12)  # Increased for better compilation performance
                 list(LENGTH trait_files num_files)
                 math(EXPR num_chunks "( ${num_files} + ${chunk_size} - 1 ) / ${chunk_size}")
                 
@@ -121,7 +138,7 @@ function(build_gemm_for_datatype datatype layout)
                         # Enable unity build for this object library
                         set_target_properties(${obj_lib_name} PROPERTIES
                             UNITY_BUILD ON
-                            UNITY_BUILD_BATCH_SIZE 32
+                            UNITY_BUILD_BATCH_SIZE 6
                         )
                         
                         list(APPEND trait_obj_libs ${obj_lib_name})
@@ -199,7 +216,7 @@ function(build_gemm_for_datatype datatype layout)
             endif()
 
             set(sub_intermediate_libs)
-            set(chunk_size 3)
+            set(chunk_size 12)
             math(EXPR num_chunks "( ${total_files} + ${chunk_size} - 1 ) / ${chunk_size}")
             math(EXPR num_chunks_minus_1 "${num_chunks} - 1")
             
@@ -218,6 +235,19 @@ function(build_gemm_for_datatype datatype layout)
                 if(chunk_files)
                     set(sub_intermediate_lib_name "gemm_objlib_${name}_${i}_${datatype}_${layout}")
                     add_library(${sub_intermediate_lib_name} OBJECT ${chunk_files})
+                    
+                    # Enable unity build and faster compilation
+                    set_target_properties(${sub_intermediate_lib_name} PROPERTIES
+                        UNITY_BUILD ON
+                        UNITY_BUILD_BATCH_SIZE 6
+                    )
+                    
+                    target_compile_options(${sub_intermediate_lib_name} PRIVATE
+                        -O3
+                        -fvisibility=hidden
+                        -fvisibility-inlines-hidden
+                    )
+                    
                     list(APPEND sub_intermediate_libs ${sub_intermediate_lib_name})
                 endif()
             endforeach()
@@ -271,3 +301,24 @@ foreach(dt IN LISTS GEMM_DATATYPE)
         build_gemm_for_datatype(${dt} ${l})
     endforeach()
 endforeach()
+
+# Create master targets for parallel builds
+set(ALL_GEMM_TARGETS)
+foreach(dt IN LISTS GEMM_DATATYPE)
+    foreach(l IN LISTS GEMM_LAYOUT)
+        list(APPEND ALL_GEMM_TARGETS "benchmark_gemm_${dt}_${l}")
+    endforeach()
+endforeach()
+
+add_custom_target(benchmark_gemm_all DEPENDS ${ALL_GEMM_TARGETS})
+
+# Use faster linker if available
+find_program(LLD_LINKER "ld.lld")
+find_program(MOLD_LINKER "mold")
+if(MOLD_LINKER)
+    message(STATUS "Using mold linker for faster linking")
+    add_link_options(-fuse-ld=mold)
+elseif(LLD_LINKER)
+    message(STATUS "Using lld linker for faster linking")
+    add_link_options(-fuse-ld=lld)
+endif()
