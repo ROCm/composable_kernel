@@ -520,7 +520,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
 
     // #undef GridwiseGemmV3TemplateParams
 
-    using Block2TileMapElementwise = typename GridwiseGemm::Block2CTileMapDefault;
+    using Block2TileMapElementwise = BlockToCTileMap_M00_N0_M01Adapt<NPerBlock, NPerBlock>;
 
     using NGCHWTransposeDescType =
         remove_cvref_t<decltype(conv_ngchw_to_nhwgc_transformer
@@ -728,11 +728,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                         e_g_n_k_wos_lengths, e_g_n_k_wos_strides);
 
                 elementwise_block_2_ctile_map_transpose_a_ = Block2TileMapElementwise{
-                    a_in_transpose_desc_.GetLength(I0), a_in_transpose_desc_.GetLength(I1), 4};
+                    a_in_transpose_desc_.GetLength(I0), a_in_transpose_desc_.GetLength(I1)};
                 elementwise_block_2_ctile_map_transpose_b_ = Block2TileMapElementwise{
-                    b_in_transpose_desc_.GetLength(I0), b_in_transpose_desc_.GetLength(I1), 4};
+                    b_in_transpose_desc_.GetLength(I0), b_in_transpose_desc_.GetLength(I1)};
                 elementwise_block_2_ctile_map_transpose_e_ = Block2TileMapElementwise{
-                    e_in_transpose_desc_.GetLength(I0), e_in_transpose_desc_.GetLength(I1), 4};
+                    e_in_transpose_desc_.GetLength(I0), e_in_transpose_desc_.GetLength(I1)};
             }
         }
 
