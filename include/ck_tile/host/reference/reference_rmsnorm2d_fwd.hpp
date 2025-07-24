@@ -69,21 +69,31 @@ void reference_rmsnorm2d_fwd(const HostTensor<XDataType>& x_m_n,
         HostTensor<ComputeDataType> acc(x_m_n.get_lengths(), x_m_n.get_strides());
         for(int n = 0; n < N; ++n)
         {
+            ComputeDataType x     = ck_tile::type_convert<ComputeDataType>(x_m_n(m, n));
+            ComputeDataType gamma = ck_tile::type_convert<ComputeDataType>(gamma_n(n));
             if(use_model_sensitive_rmsnorm ==
                static_cast<int>(
                    Rmsnorm2dSensitiveEnum::NO_SPECIFIC_MODEL)) // 0: for no specific model
             {
-                ComputeDataType x     = ck_tile::type_convert<ComputeDataType>(x_m_n(m, n));
-                ComputeDataType gamma = ck_tile::type_convert<ComputeDataType>(gamma_n(n));
-                acc(m, n)             = x * divisor * gamma;
+                acc(m, n) = x * divisor * gamma;
             }
             else if(use_model_sensitive_rmsnorm ==
                     static_cast<int>(Rmsnorm2dSensitiveEnum::T5_MODEL_LIKE)) // 1: for T5-like model
             {
-                ComputeDataType x = ck_tile::type_convert<ComputeDataType>(x_m_n(m, n));
-                const auto tmp    = type_convert<XDataType>(x * divisor);
-                const auto rmsn_  = type_convert<ComputeDataType>(tmp) * gamma_n(n);
-                acc(m, n)         = rmsn_;
+                if constexpr(std::is_same_v<XDataType, ck_tile::bf16_t>)
+                {
+                    const auto tmp0 = float_to_bf16<bf16_rounding_mode::standard>(x * divisor);
+                    const auto tmp1 = float_to_bf16<bf16_rounding_mode::standard>(
+                        type_convert<ComputeDataType>(tmp0) * gamma);
+                    const auto rmsn_ = type_convert<ComputeDataType>(tmp1);
+                    acc(m, n)        = rmsn_;
+                }
+                else
+                {
+                    const auto tmp   = type_convert<XDataType>(x * divisor);
+                    const auto rmsn_ = type_convert<ComputeDataType>(tmp) * gamma_n(n);
+                    acc(m, n)        = rmsn_;
+                }
             }
         }
 
