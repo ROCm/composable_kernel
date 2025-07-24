@@ -188,12 +188,16 @@ def buildDocker(install_prefix){
     if(params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
         dockerArgs = dockerArgs + " --no-cache --build-arg BASE_DOCKER='${base_image_name}' -f Dockerfile.compiler . "
     }
+    else if(params.RUN_AITER_TESTS){
+        image_name = "rocm/composable_kernel:ck_aiter"
+        dockerArgs = dockerArgs + " --no-cache -f Dockerfile.aiter . "
+    }
     else{
         dockerArgs = dockerArgs + " -f Dockerfile . "
     }
     echo "Build Args: ${dockerArgs}"
     try{
-        if(params.BUILD_DOCKER){
+        if(params.BUILD_DOCKER || params.RUN_AITER_TESTS){
             //force building the new docker if that parameter is true
             echo "Building image: ${image_name}"
             retimage = docker.build("${image_name}", dockerArgs)
@@ -802,6 +806,57 @@ def process_results(Map conf=[:]){
             }
             finally{
                 echo "Finished processing performance test results"
+            }
+        }
+    }
+}
+
+def run_aiter_tests(Map conf=[:]){
+    env.HSA_ENABLE_SDMA=0
+    checkout scm
+    //use the latest pytorch image
+    def image = "rocm/composable_kernel:ck_aiter"
+    def dockerOpts="--cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+    def variant = env.STAGE_NAME
+    def retimage
+
+    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
+        try
+        {
+            echo "Pulling image: ${image}"
+            retimage = docker.image("${image}")
+            withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
+                retimage.pull()
+            }
+        }
+        catch(Exception ex)
+        {
+            error "Unable to locate image: ${image}"
+        }
+    }
+
+    withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
+        timeout(time: 45, unit: 'MINUTES'){
+            try{
+                sh "rm -rf aiter"
+                sh "git clone --recursive https://github.com/ROCm/aiter.git"
+                dir("aiter"){
+                    sh "rm -rf 3rdparty/composable_kernel/"
+                    sh "git clone https://github.com/ROCm/composable_kernel.git 3rdparty/composable_kernel/"
+                    sh "set -ex"
+                    sh "python3 setup.py develop"
+                    sh "set -e"
+                    sh "python3 op_tests/test_gemm_a8w8_blockscale.py"
+                    sh "python3 op_tests/test_mha.py"
+                }
+            }
+            catch(e){
+                echo "Throwing error exception while running AITER tests"
+                echo 'Exception occurred: ' + e.toString()
+                throw e
+            }
+            finally{
+                echo "Finished running AITER tests"
             }
         }
     }
