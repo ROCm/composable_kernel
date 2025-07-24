@@ -48,8 +48,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     constexpr auto reduce_dims = ck_tile::sequence<1, 2>{}; // Which dimensions to reduce
 
     ck_tile::HostTensor<XDataType> x_host(problem_shape, strides);
-    ck_tile::HostTensor<YDataType> y_host_ref({N,C}, {C,1});
-    ck_tile::HostTensor<YDataType> y_host_dev({N,C}, {C,1});
+    ck_tile::HostTensor<YDataType> y_host_ref({N, C}, {C, 1});
+    ck_tile::HostTensor<YDataType> y_host_dev({N, C}, {C, 1});
 
     ck_tile::FillUniformDistribution<XDataType>{-5.f, 5.f}(x_host);
 
@@ -72,10 +72,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     constexpr ck_tile::index_t kBlockSize  = 256;
     constexpr ck_tile::index_t kBlockPerCu = 1;
-    ck_tile::index_t kept_dim_len_prod = N*C;
-    ck_tile::index_t kGridSize =
-        (kept_dim_len_prod + BlockTile::at(ck_tile::number<0>{}) - 1) /
-        BlockTile::at(ck_tile::number<0>{});
+    ck_tile::index_t kept_dim_len_prod     = N * C;
+    ck_tile::index_t kGridSize = (kept_dim_len_prod + BlockTile::at(ck_tile::number<0>{}) - 1) /
+                                 BlockTile::at(ck_tile::number<0>{});
     std::cout << "grid size " << kGridSize << std::endl;
 
     using Shape = ck_tile::Reduce2dShape<BlockWarps, BlockTile, WarpTile, Vector>;
@@ -85,10 +84,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using Kernel = ck_tile::Reduce<Porblem>;
 
     // Create input tensor shape and strides
-    auto input_shape   = ck_tile::make_tuple(problem_shape[0], problem_shape[1], problem_shape[2], problem_shape[3]);
+    auto input_shape =
+        ck_tile::make_tuple(problem_shape[0], problem_shape[1], problem_shape[2], problem_shape[3]);
     auto input_strides = ck_tile::make_tuple(strides[0], strides[1], strides[2], strides[3]);
 
-    if(!Kernel::IsSupportedArgument(C)) //output tensor's continuous dimension
+    if(!Kernel::IsSupportedArgument(C)) // output tensor's continuous dimension
     {
         throw std::runtime_error("Wrong! Arguments not supported!\n");
     }
@@ -106,8 +106,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        kept_dim,
                                        reduce_dims));
 
-    std::size_t num_btype =
-        sizeof(XDataType) * N * C * H * W + sizeof(YDataType) * N * C;
+    std::size_t num_btype = sizeof(XDataType) * N * C * H * W + sizeof(YDataType) * N * C;
 
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
@@ -120,7 +119,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         // reference
         ck_tile::reference_reduce<XDataType, ComputeDataType, YDataType>(
             x_host, y_host_ref, ReduceOp{}, kept_dim, reduce_dims);
-        y_buf.FromDevice(y_host_dev.mData.data());   
+        y_buf.FromDevice(y_host_dev.mData.data());
         pass = ck_tile::check_err(y_host_dev, y_host_ref);
 
         std::cout << "valid:" << (pass ? "y" : "n") << std::flush << std::endl;

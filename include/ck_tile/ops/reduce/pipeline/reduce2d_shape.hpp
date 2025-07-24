@@ -10,7 +10,7 @@ namespace ck_tile {
 template <typename BlockWarps, // num warps along seq<M, N>
           typename BlockTile,  // block size, seq<M, N>
           typename WarpTile,   // warp size, seq<M, N>
-          typename ThreadTile>     // contiguous pixels(vector size) along seq<M, N>
+          typename ThreadTile> // contiguous pixels(vector size) along seq<M, N>
 struct Reduce2dShape
 {
     static constexpr index_t Block_M = BlockTile::at(number<0>{});

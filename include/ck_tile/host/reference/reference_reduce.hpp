@@ -47,7 +47,7 @@ CK_TILE_HOST void reference_reduce(const HostTensor<XDataType>& x_tensor,
     const auto& x_lengths = x_tensor.mDesc.get_lengths();
     const auto& x_strides = x_tensor.mDesc.get_strides();
     const auto& y_strides = y_tensor.mDesc.get_strides();
-    
+
     // Calculate total kept elements (product of all kept dimension lengths)
     index_t total_kept_elements = 1;
     static_for<0, kept_dim.size(), 1>{}(
@@ -66,9 +66,9 @@ CK_TILE_HOST void reference_reduce(const HostTensor<XDataType>& x_tensor,
         index_t temp_kept = linear_kept_idx;
         static_for<0, kept_dim.size(), 1>{}([&](auto i) {
             constexpr auto dim_idx = kept_dim.size() - 1 - i;
-            constexpr auto dim = kept_dim.at(dim_idx);
-            const auto len = x_lengths[dim];
-            kept_indices[dim_idx] = temp_kept % len;
+            constexpr auto dim     = kept_dim.at(dim_idx);
+            const auto len         = x_lengths[dim];
+            kept_indices[dim_idx]  = temp_kept % len;
             temp_kept /= len;
         });
 
@@ -78,21 +78,19 @@ CK_TILE_HOST void reference_reduce(const HostTensor<XDataType>& x_tensor,
             std::vector<index_t> reduce_indices(reduce_dims.size());
             index_t temp_reduce = reduce_idx;
             static_for<0, reduce_dims.size(), 1>{}([&](auto i) {
-                constexpr auto dim_idx = reduce_dims.size() - 1 - i;
-                constexpr auto dim = reduce_dims.at(dim_idx);
-                const auto len = x_lengths[dim];
+                constexpr auto dim_idx  = reduce_dims.size() - 1 - i;
+                constexpr auto dim      = reduce_dims.at(dim_idx);
+                const auto len          = x_lengths[dim];
                 reduce_indices[dim_idx] = temp_reduce % len;
                 temp_reduce /= len;
             });
 
             // Build full input tensor indices by combining kept and reduce indices
             std::vector<index_t> full_indices(x_lengths.size(), 0);
-            static_for<0, kept_dim.size(), 1>{}([&](auto i) {
-                full_indices[kept_dim.at(i)] = kept_indices[i];
-            });
-            static_for<0, reduce_dims.size(), 1>{}([&](auto i) {
-                full_indices[reduce_dims.at(i)] = reduce_indices[i];
-            });
+            static_for<0, kept_dim.size(), 1>{}(
+                [&](auto i) { full_indices[kept_dim.at(i)] = kept_indices[i]; });
+            static_for<0, reduce_dims.size(), 1>{}(
+                [&](auto i) { full_indices[reduce_dims.at(i)] = reduce_indices[i]; });
 
             // Calculate flat input tensor index
             index_t flat_x_idx = 0;
@@ -108,9 +106,8 @@ CK_TILE_HOST void reference_reduce(const HostTensor<XDataType>& x_tensor,
         // Calculate output tensor index using kept indices and output strides
         // The output tensor has the same structure as the kept dimensions
         index_t flat_y_idx = 0;
-        static_for<0, kept_dim.size(), 1>{}([&](auto i) {
-            flat_y_idx += kept_indices[i] * y_strides[i];
-        });
+        static_for<0, kept_dim.size(), 1>{}(
+            [&](auto i) { flat_y_idx += kept_indices[i] * y_strides[i]; });
 
         y_tensor.mData[flat_y_idx] = type_convert<YDataType>(v_acc);
     };

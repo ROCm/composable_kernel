@@ -36,14 +36,13 @@ struct Reduce
         using S       = typename Problem::BlockShape;
         const auto iM = get_block_id() * S::Block_M;
 
-        static_assert(kept_dim.size() + reduce_dims.size() == InputShape::size(), 
+        static_assert(kept_dim.size() + reduce_dims.size() == InputShape::size(),
                       "Size of kept dimensions + reduced dimensions must equal input tensor rank");
 
         // Extract lengths based on kept and reduced dimensions
         const auto kept_lens = [&]() {
-            return generate_tuple(
-                [&](auto I) { return input_shape.at(number<kept_dim.at(I)>{}); },
-                number<kept_dim.size()>{});
+            return generate_tuple([&](auto I) { return input_shape.at(number<kept_dim.at(I)>{}); },
+                                  number<kept_dim.size()>{});
         }();
         const auto reduce_lens = [&]() {
             return generate_tuple(
@@ -82,9 +81,8 @@ struct Reduce
                 [&](auto I) {
                     // Calculate stride for dimension I as product of all following dimensions
                     index_t stride = 1;
-                    static_for<I + 1, kept_dim.size(), 1>{}([&](auto J) {
-                        stride *= kept_lens.at(number<J>{});
-                    });
+                    static_for<I + 1, kept_dim.size(), 1>{}(
+                        [&](auto J) { stride *= kept_lens.at(number<J>{}); });
                     return stride;
                 },
                 number<kept_dim.size()>{});
@@ -153,7 +151,6 @@ struct Reduce
 
         return true;
     }
-
 };
 
 } // namespace ck_tile
