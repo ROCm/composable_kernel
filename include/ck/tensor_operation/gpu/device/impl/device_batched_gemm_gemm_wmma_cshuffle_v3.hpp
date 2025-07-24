@@ -413,7 +413,6 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch;
     };
 
-    // TODO: Check how padding modes are checked against problem dimensions for different layouts.
     static bool IsSupportedArgument([[maybe_unused]] const RawArg& arg)
     {
         if(!(ck::is_gfx11_supported() || ck::is_gfx12_supported()))

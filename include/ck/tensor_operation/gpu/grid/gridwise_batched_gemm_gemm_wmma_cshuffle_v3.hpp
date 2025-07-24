@@ -120,7 +120,6 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
             constexpr auto K0PerBlock    = KPerBlock / AK1;
             constexpr auto max_lds_align = AK1;
 
-            // TODO: Do we really need this?
             if constexpr(ABlockLdsExtraM)
             {
                 return make_naive_tensor_descriptor(
@@ -144,7 +143,6 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
             constexpr auto K0PerBlock    = KPerBlock / BK1;
             constexpr auto max_lds_align = BK1;
 
-            // TODO: Do we really need this?
             if constexpr(B0BlockLdsExtraL)
             {
                 return make_naive_tensor_descriptor(

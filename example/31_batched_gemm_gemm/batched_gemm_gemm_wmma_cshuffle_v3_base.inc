@@ -2,11 +2,11 @@
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /*
-Gemm + Softmax + Gemm fused operation. Computes C_g_m_n = Softmax(A_g_m_k * B0_g_k_l) * B1_g_l_n
-                                                                  |-----------------|
-                                                                          Gemm0
-                                                          |-------------------------------------|
-                                                                          Gemm1
+Gemm + Gemm fused operation. Computes C_g_m_n = (A_g_m_k * B0_g_k_l) * B1_g_l_n
+                                                |------------------|
+                                                        Gemm0
+                                                |-----------------------------|
+                                                             Gemm1
 */
 
 static constexpr auto PipeSched   = ck::BlockGemmPipelineScheduler::Interwave;
@@ -243,7 +243,7 @@ using DeviceMHAFactory =
 #endif
 
 // clang-format on
-// Ref Gemm0: fp16 in, fp32 out
+// Ref Gemm0
 using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
                                                                                 B0DataType,
                                                                                 AccDataType,
@@ -252,7 +252,7 @@ using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
                                                                                 B0ElementOp,
                                                                                 Acc0ElementOp>;
 
-// Ref Gemm1: fp16 in, fp16 out
+// Ref Gemm1
 using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
                                                                                 B1DataType,
                                                                                 CDataType,
