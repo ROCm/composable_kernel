@@ -234,11 +234,6 @@ def cmake_build(Map conf=[:]){
 
     def build_type_debug = (conf.get("build_type",'release') == 'debug')
 
-    // use special compiler for gfx950
-    if ( check_arch() == 7){
-        compiler = "/llvm-project/build/bin/clang++"
-    }
-
     //cmake_env can overwrite default CXX variables.
     def cmake_envs = "CXX=${compiler} CXXFLAGS='-Werror' " + conf.get("cmake_ex_env","")
 
@@ -814,7 +809,7 @@ def process_results(Map conf=[:]){
 
 //launch develop branch daily jobs
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_CK_TILE_TRANSPOSE_TESTS=true;RUN_CK_TILE_GEMM_TESTS=true;RUN_TILE_ENGINE_GEMM_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
-                                              0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX908=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
+                                              0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX908=true;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
@@ -919,8 +914,8 @@ pipeline {
             description: "Build CK and run tests on gfx90a (default: ON)")
         booleanParam(
             name: "BUILD_GFX942",
-            defaultValue: true,
-            description: "Build CK and run tests on gfx942 (default: ON)")
+            defaultValue: false,
+            description: "Build CK and run tests on gfx942 (default: OFF)")
         booleanParam(
             name: "BUILD_GFX950",
             defaultValue: false,
@@ -1234,11 +1229,24 @@ pipeline {
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx90a" \
                                             -D GEMM_DATATYPE="fp8;fp16" \
+                                            -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
-                                           ninja -j64 benchmark_gemm_fp8 && \
-                                           ./bin/benchmark_gemm_fp8 && \
-                                           ninja -j64 benchmark_gemm_fp16 && \
-                                           ./bin/benchmark_gemm_fp16 """
+                                           ninja -j64 benchmark_gemm_fp8_rcr && \
+                                           ./bin/benchmark_gemm_fp8_rcr && \
+                                           ninja -j64 benchmark_gemm_fp16_rcr && \
+                                           ./bin/benchmark_gemm_fp16_rcr && \
+                                           ninja -j64 benchmark_gemm_fp8_crr && \
+                                           ./bin/benchmark_gemm_fp8_crr && \
+                                           ninja -j64 benchmark_gemm_fp16_crr && \
+                                           ./bin/benchmark_gemm_fp16_crr && \
+                                           ninja -j64 benchmark_gemm_fp8_ccr && \
+                                           ./bin/benchmark_gemm_fp8_ccr && \
+                                           ninja -j64 benchmark_gemm_fp16_ccr && \
+                                           ./bin/benchmark_gemm_fp16_ccr && \
+                                           ninja -j64 benchmark_gemm_fp8_rrr && \
+                                           ./bin/benchmark_gemm_fp8_rrr && \
+                                           ninja -j64 benchmark_gemm_fp16_rrr && \
+                                           ./bin/benchmark_gemm_fp16_rrr """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1259,11 +1267,24 @@ pipeline {
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx942" \
                                             -D GEMM_DATATYPE="fp8;fp16" \
+                                            -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
-                                           ninja -j128 benchmark_gemm_fp8 && \
-                                           ./bin/benchmark_gemm_fp8 && \
-                                           ninja -j128 benchmark_gemm_fp16 && \
-                                           ./bin/benchmark_gemm_fp16 """
+                                           ninja -j64 benchmark_gemm_fp8_rcr && \
+                                           ./bin/benchmark_gemm_fp8_rcr && \
+                                           ninja -j64 benchmark_gemm_fp16_rcr && \
+                                           ./bin/benchmark_gemm_fp16_rcr && \
+                                           ninja -j64 benchmark_gemm_fp8_crr && \
+                                           ./bin/benchmark_gemm_fp8_crr && \
+                                           ninja -j64 benchmark_gemm_fp16_crr && \
+                                           ./bin/benchmark_gemm_fp16_crr && \
+                                           ninja -j64 benchmark_gemm_fp8_ccr && \
+                                           ./bin/benchmark_gemm_fp8_ccr && \
+                                           ninja -j64 benchmark_gemm_fp16_ccr && \
+                                           ./bin/benchmark_gemm_fp16_ccr && \
+                                           ninja -j64 benchmark_gemm_fp8_rrr && \
+                                           ./bin/benchmark_gemm_fp8_rrr && \
+                                           ninja -j64 benchmark_gemm_fp16_rrr && \
+                                           ./bin/benchmark_gemm_fp16_rrr """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1352,12 +1373,12 @@ pipeline {
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx950" \
-                                           -DCMAKE_CXX_COMPILER=/llvm-project/build/bin/clang++ \
+                                           -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
                                            -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, docker_name: "${env.CK_DOCKERHUB_PRIVATE}:ck_ub22.04_rocm7.0", config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        Build_CK_and_Reboot(setup_args: setup_args, docker_name: "${env.CK_DOCKERHUB_PRIVATE}:ck_ub24.04_rocm7.0", config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
                         cleanWs()
                     }
                 }

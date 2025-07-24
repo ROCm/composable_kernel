@@ -22,7 +22,7 @@ file(GLOB_RECURSE KERNEL_FILES CONFIGURE_DEPENDS
 
 add_embed_library(ck_headers ${KERNEL_FILES} RELATIVE ${CK_ROOT}/include)
 
-add_compile_options(-std=c++17)
+add_compile_options(-std=c++20)
 
 file(GLOB SOURCES CONFIGURE_DEPENDS src/*.cpp)
 # TODO: Use object library

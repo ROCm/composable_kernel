@@ -220,7 +220,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     auto [result, arg_parser] = create_args(argc, argv);
     bool preshuffle           = GemmConfig::Preshuffle;
 
-    if(preshuffle && a_layout != "R" && b_layout != "C")
+    if(preshuffle && (a_layout != "R" || b_layout != "C"))
     {
         throw std::runtime_error(
             "Preshuffle is supported only for A(Row major), B(column major) input matrices!");
