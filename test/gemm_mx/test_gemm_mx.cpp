@@ -10,8 +10,8 @@
 using E8M0 = ck::e8m0_bexp_t;
 using F8   = ck::f8_t;
 using BF8  = ck::bf8_t;
-using F6   = ck::f6_t;
-using BF6  = ck::bf6_t;
+using F6   = ck::f6x16_pk_t;
+using BF6  = ck::bf6x16_pk_t;
 using F4   = ck::f4x2_pk_t;
 using F16  = ck::half_t;
 using BF16 = ck::bhalf_t;
@@ -58,7 +58,9 @@ using KernelTypes_MK_NK = ::testing::Types<
     std::tuple<       F8,        F8,             F16, ck::Number<32> >,
     std::tuple<       F8,        F8,            BF16, ck::Number<32> >,
 #endif
-    std::tuple<       F4,        F4,             F16, ck::Number<32> >
+    std::tuple<       F4,        F4,             F16, ck::Number<32> >,
+    std::tuple<       F6,        F6,             F16, ck::Number<32> >,
+    std::tuple<      BF6,       BF6,            BF16, ck::Number<32> >
     >;
 
 using KernelTypes_MK_KN = ::testing::Types<

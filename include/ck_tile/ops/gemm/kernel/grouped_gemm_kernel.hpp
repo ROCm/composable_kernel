@@ -57,7 +57,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         // clang-format off
         using P_ = GemmPipeline;
 
-        return concat('_', "gemm_grouped", gemm_prec_str<ADataType, BDataType>,
+        return concat('_', "gemm_grouped", gemm_prec_str<ADataType, BDataType>(),
                       concat('x', P_::MPerBlock, P_::NPerBlock, P_::KPerBlock),
                       concat('x', P_::GetVectorSizeA(), P_::GetVectorSizeB(), P_::GetVectorSizeC()),
                       concat('x', P_::kPadM, P_::kPadN, P_::kPadK),
@@ -95,7 +95,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         return dim3(grid_size, 1, 1);
     }
 
-    CK_TILE_HOST static constexpr auto
+    CK_TILE_HOST static auto
     GridSize(const std::vector<GemmHostArgs</*NumDTensor = 0*/>>& gemm_descs)
     {
         index_t grid_size = 0;
