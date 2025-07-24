@@ -940,17 +940,29 @@ struct GemmKernel
         {
             auto& c_block_window = gemm_tile_windows.at(I3);
 
-            EpiloguePipeline{}
-                .template operator()<decltype(c_block_window),
-                                     decltype(c_block_tile),
-                                     decltype(d_block_window),
-                                     UseZeroing>(
-                    c_block_window,
-                    c_block_tile,
-                    d_block_window,
-                    smem_ptr_0,
-                    kargs.cleared_tile_barrier,     // Pass cleared barrier
-                    kargs.updated_batches_barrier); // Pass updated barrier
+            if constexpr(UseZeroing)
+            {
+                EpiloguePipeline{}
+                    .template operator()<decltype(c_block_window),
+                                         decltype(c_block_tile),
+                                         decltype(d_block_window),
+                                         UseZeroing>(
+                        c_block_window,
+                        c_block_tile,
+                        d_block_window,
+                        smem_ptr_0,
+                        kargs.cleared_tile_barrier,     // Pass cleared barrier
+                        kargs.updated_batches_barrier); // Pass updated barrier
+            }
+            else
+            {
+                EpiloguePipeline{}
+                    .template operator()<decltype(c_block_window),
+                                         decltype(c_block_tile),
+                                         decltype(d_block_window),
+                                         UseZeroing>(
+                        c_block_window, c_block_tile, d_block_window, smem_ptr_0);
+            }
         }
     }
 
@@ -1049,14 +1061,24 @@ struct GemmKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I3);
 
-        EpiloguePipeline{}.template
-        operator()<decltype(c_block_window), decltype(c_block_tile), decltype(d_block_window)>(
-            c_block_window,
-            c_block_tile,
-            d_block_window,
-            smem_ptr_0,
-            kargs.cleared_tile_barrier,     // Pass cleared barrier
-            kargs.updated_batches_barrier); // Pass updated barrier);
+        if constexpr(UseZeroing)
+        {
+            // Use cleared barrier to synchronize the zeroing
+            EpiloguePipeline{}.template
+            operator()<decltype(c_block_window), decltype(c_block_tile), decltype(d_block_window)>(
+                c_block_window,
+                c_block_tile,
+                d_block_window,
+                smem_ptr_0,
+                kargs.cleared_tile_barrier,     // Pass cleared barrier
+                kargs.updated_batches_barrier); // Pass updated barrier
+        }
+        else
+        {
+            EpiloguePipeline{}.template
+            operator()<decltype(c_block_window), decltype(c_block_tile), decltype(d_block_window)>(
+                c_block_window, c_block_tile, d_block_window, smem_ptr_0);
+        }
     }
 
     // Non-persistent kernel entry point
