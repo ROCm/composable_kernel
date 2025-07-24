@@ -11,8 +11,9 @@ template <>
 struct kernel_traits<0>
 {
     template <typename ts_type, typename block_tile, typename warp_layout, bool kPadM, bool kPadN>
-    using Problem = ck_tile::BatchedTransposeProblem<ts_type, block_tile, warp_layout, kPadM, kPadN>;
-    using Policy  = ck_tile::BatchedTransposePolicy;
+    using Problem =
+        ck_tile::BatchedTransposeProblem<ts_type, block_tile, warp_layout, kPadM, kPadN>;
+    using Policy = ck_tile::BatchedTransposePolicy;
     template <typename ts_type, typename block_tile, typename warp_layout, bool kPadM, bool kPadN>
     using Pipeline =
         ck_tile::BatchedTransposePipeline<Problem<ts_type, block_tile, warp_layout, kPadM, kPadN>,
@@ -27,8 +28,9 @@ struct kernel_traits<1>
         ck_tile::BatchedTransposeLdsProblem<ts_type, block_tile, warp_layout, kPadM, kPadN>;
     using Policy = ck_tile::BatchedTransposeLdsPolicy;
     template <typename ts_type, typename block_tile, typename warp_layout, bool kPadM, bool kPadN>
-    using Pipeline =
-        ck_tile::BatchedTransposeLdsPipeline<Problem<ts_type, block_tile, warp_layout, kPadM, kPadN>, Policy>;
+    using Pipeline = ck_tile::BatchedTransposeLdsPipeline<
+        Problem<ts_type, block_tile, warp_layout, kPadM, kPadN>,
+        Policy>;
 };
 } // namespace
 
@@ -62,12 +64,13 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
     a.dim_block_w = Config::kBlockX;
 
     // TODO: this is fragile and slow to compile
-    using kernel = ck_tile::BatchedTransposeKernel<typename kernel_traits<
-        Config::kPipelineId>::template Pipeline<typename Config::InputType,
-                                                ck_tile::sequence<Config::kBlockX, Config::kBlockY>,
-                                                ck_tile::sequence<Config::kNumWarpsX, Config::kNumWarpsY>,
-                                                Config::kPadM,
-                                                Config::kPadN>>;
+    using kernel = ck_tile::BatchedTransposeKernel<
+        typename kernel_traits<Config::kPipelineId>::template Pipeline<
+            typename Config::InputType,
+            ck_tile::sequence<Config::kBlockX, Config::kBlockY>,
+            ck_tile::sequence<Config::kNumWarpsX, Config::kNumWarpsY>,
+            Config::kPadM,
+            Config::kPadN>>;
 
     auto kargs = kernel::MakeKargs(a);
 
