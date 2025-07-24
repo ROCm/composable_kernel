@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <numeric>
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/utility/ignore.hpp"
 #include "ck_tile/host/hip_check_error.hpp"
@@ -76,7 +77,7 @@ typename std::iterator_traits<it>::value_type median(it begin, it end)
     return (n % 2) ? begin[n2] : (*std::max_element(begin, begin + n2) + begin[n2]) / 2.0;
 }
 
-void remove_outliers(std::vector<float>& v)
+inline void remove_outliers(std::vector<float>& v)
 {
     // 1.5x IQR method to detect and remove outliers
     auto n2 = v.size() / 2;
