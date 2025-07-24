@@ -76,7 +76,7 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
     use a semicolon between each; for example, `gfx908;gfx90a;gfx942`.
 
     ```bash
-    cmake                                                                                             \
+    cmake -S .. -B .                                                                                  \
     -D CMAKE_PREFIX_PATH=/opt/rocm                                                                    \
     -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                                                         \
     -D CMAKE_BUILD_TYPE=Release                                                                       \
