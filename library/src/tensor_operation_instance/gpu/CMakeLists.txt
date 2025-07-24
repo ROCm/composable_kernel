@@ -69,7 +69,6 @@ function(add_instance_library INSTANCE_NAME)
             list(REMOVE_ITEM ARGN "${source}")
         endif()
         # Do not build mha instances if gfx94 or gfx90a targets are not on the target list
-        get_filename_component(source_name ${source} NAME)
         if((NOT BUILD_MHA_LIB OR (NOT INST_TARGETS MATCHES "gfx94" AND NOT INST_TARGETS MATCHES "gfx90a" AND NOT INST_TARGETS MATCHES "gfx95")) AND source_name MATCHES "mha")
             message(DEBUG "removing mha instance ${source} ")
             list(REMOVE_ITEM ARGN "${source}")

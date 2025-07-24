@@ -183,6 +183,7 @@ function(add_example_executable_no_testing EXAMPLE_NAME FILE_NAME)
 
     set(EX_TARGETS ${SUPPORTED_GPU_TARGETS})
 
+    set(source_name_list "")
     foreach(source IN LISTS FILE_NAME)
         get_filename_component(source_name ${source} NAME)
         #Do not build any DL examples if DL_KERNELS not set
@@ -200,13 +201,9 @@ function(add_example_executable_no_testing EXAMPLE_NAME FILE_NAME)
             message(DEBUG "removing wmma example ${source} ")
             list(REMOVE_ITEM FILE_NAME "${source}")
         endif()
-    endforeach()
-    #only continue if there are some source files left on the list
-    set(source_name_list "")
-    foreach(source IN LISTS FILE_NAME)
-        get_filename_component(source_name ${source} NAME)
         list(APPEND source_name_list ${source_name})
     endforeach()
+    #only continue if there are some source files left on the list
     if(FILE_NAME)
         if(source_name_list MATCHES "_xdl")
             list(REMOVE_ITEM EX_TARGETS gfx900 gfx906 gfx906:xnack- gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic)
