@@ -2,28 +2,6 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 
-template <typename InDataType, typename WeiDataType, typename AccDataType, typename OutDataType>
-auto calculate_rtol_atol(const ck_tile::index_t GemmK,
-                         const ck_tile::index_t kbatch,
-                         const float max_accumulated_value)
-{
-    using ComputeType =
-        std::conditional_t<sizeof(InDataType) < sizeof(WeiDataType), InDataType, WeiDataType>;
-    // Calculate thresholds
-    const auto rtol = ck_tile::get_relative_threshold<ComputeType, OutDataType, AccDataType>(
-        ck_tile::integer_divide_ceil(GemmK, kbatch));
-    const auto atol = ck_tile::get_absolute_threshold<ComputeType, OutDataType, AccDataType>(
-        max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(GemmK, kbatch));
-    // Calculate error due to split_k accumulation
-    const auto rtol_split_k =
-        ck_tile::get_relative_threshold<OutDataType, OutDataType, OutDataType>(kbatch);
-    const auto atol_split_k =
-        ck_tile::get_absolute_threshold<OutDataType, OutDataType, OutDataType>(
-            max_accumulated_value, kbatch);
-    // Use higher threshold
-    return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
-}
-
 template <ck_tile::index_t NDimSpatial,
           typename InDataType,
           typename WeiDataType,
@@ -32,7 +10,9 @@ template <ck_tile::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout>
-float invoke_grouped_conv_fwd(ck_tile::GroupedConvHostArgs& args, int n_warmup, int n_repeat)
+float invoke_grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args,
+                              int n_warmup,
+                              int n_repeat)
 {
     float ave_time = grouped_conv_fwd<NDimSpatial,
                                       InDataType,
@@ -143,12 +123,12 @@ int run_grouped_conv_fwd_example_with_layouts(
     weight_dev_buf.ToDevice(weight.data());
     output_dev_buf.SetZero();
 
-    ck_tile::GroupedConvHostArgs args(conv_param,
-                                      input_dev_buf.GetDeviceBuffer(),
-                                      weight_dev_buf.GetDeviceBuffer(),
-                                      {},
-                                      output_dev_buf.GetDeviceBuffer(),
-                                      kbatch);
+    ck_tile::GroupedConvFwdHostArgs args(conv_param,
+                                         input_dev_buf.GetDeviceBuffer(),
+                                         weight_dev_buf.GetDeviceBuffer(),
+                                         {},
+                                         output_dev_buf.GetDeviceBuffer(),
+                                         kbatch);
 
     std::cout << "Run Grouped Conv Fwd kernel" << std::endl;
     std::cout << "input: " << input.mDesc << std::endl;
