@@ -51,7 +51,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
         static const ck_tile::index_t K_Warp_Tile = 16;
     };
 
-    using grouped_gemm_kargs = ck_tile::GemmHostArgs</*NumDTensor = 0*/>;
+    using grouped_gemm_kargs = ck_tile::GroupedGemmHostArgs;
     std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gemm_descs)
     {
         return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg);
@@ -437,7 +437,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
             void* p_c       = c_m_n_dev_buf[i]->GetDeviceBuffer();
 
             gemm_descs.push_back(
-                {p_a, p_b, {}, p_c, kbatch, M, N, K, stride_As[i], stride_Bs[i], {}, stride_Cs[i]});
+                {p_a, p_b, p_c, kbatch, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
         }
 
         ck_tile::DeviceMem gemm_workspace;
@@ -451,18 +451,18 @@ class TestCkTileGroupedGemm : public ::testing::Test
             const bool splitk = gemm_descs[0].k_batch > 1;
             for(const auto& arg : gemm_descs)
             {
-                kargs.emplace_back(ck_tile::GemmKernelArgs<>{arg.a_ptr,
-                                                             arg.b_ptr,
-                                                             {},
-                                                             arg.e_ptr,
-                                                             arg.M,
-                                                             arg.N,
-                                                             arg.K,
-                                                             arg.stride_A,
-                                                             arg.stride_B,
-                                                             {},
-                                                             arg.stride_E,
-                                                             arg.k_batch});
+                kargs.emplace_back(ck_tile::UniversalGemmKernelArgs<>{{arg.a_ptr},
+                                                                      {arg.b_ptr},
+                                                                      {/*arg.ds_ptr*/},
+                                                                      arg.e_ptr,
+                                                                      arg.M,
+                                                                      arg.N,
+                                                                      arg.K,
+                                                                      {arg.stride_A},
+                                                                      {arg.stride_B},
+                                                                      {/*arg.stride_Ds*/},
+                                                                      arg.stride_E,
+                                                                      arg.k_batch});
             }
             const auto stream = ck_tile::stream_config{nullptr, false, 1};
             ck_tile::hip_check_error(

@@ -9,7 +9,6 @@
 #include <stdexcept>
 #include <string>
 #include <tuple>
-#include <bit>
 #include <random>
 
 #include "ck_tile/core/config.hpp"

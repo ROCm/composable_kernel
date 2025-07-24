@@ -91,8 +91,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
     // TODO: expose tile size through test t-param ?
 
     template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
-    void invoke_gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args,
-                     const ck_tile::stream_config& s)
+    void invoke_gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     {
         // TODO: This should be parameterized in tests
         constexpr ck_tile::index_t M_Tile = 256;
@@ -324,9 +323,9 @@ class TestCkTileGemmPipeline : public ::testing::Test
                     return stride;
             };
 
-        std::size_t stride_A = f_get_default_stride(M, K, StrideA, ALayout{});
-        std::size_t stride_B = f_get_default_stride(K, N, StrideB, BLayout{});
-        std::size_t stride_C = f_get_default_stride(M, N, StrideC, CLayout{});
+        ck_tile::index_t stride_A = f_get_default_stride(M, K, StrideA, ALayout{});
+        ck_tile::index_t stride_B = f_get_default_stride(K, N, StrideB, BLayout{});
+        ck_tile::index_t stride_C = f_get_default_stride(M, N, StrideC, CLayout{});
 
         ck_tile::HostTensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, stride_A, ALayout{}));
         ck_tile::HostTensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, stride_B, BLayout{}));
@@ -345,17 +344,16 @@ class TestCkTileGemmPipeline : public ::testing::Test
         c_m_n_dev_buf.SetZero();
         c_m_n_dev_result.SetZero();
 
-        ck_tile::GemmHostArgs</*NumDTensor = 0*/> args;
-        args.a_ptr    = a_m_k_dev_buf.GetDeviceBuffer();
-        args.b_ptr    = b_k_n_dev_buf.GetDeviceBuffer();
-        args.e_ptr    = c_m_n_dev_buf.GetDeviceBuffer();
-        args.k_batch  = kbatch;
-        args.M        = M;
-        args.N        = N;
-        args.K        = K;
-        args.stride_A = stride_A;
-        args.stride_B = stride_B;
-        args.stride_E = stride_C;
+        ck_tile::GemmHostArgs args = {a_m_k_dev_buf.GetDeviceBuffer(),
+                                      b_k_n_dev_buf.GetDeviceBuffer(),
+                                      c_m_n_dev_buf.GetDeviceBuffer(),
+                                      kbatch,
+                                      M,
+                                      N,
+                                      K,
+                                      stride_A,
+                                      stride_B,
+                                      stride_C};
 
         invoke_gemm<PadM, PadN, PadK, Preshuffle>(args, ck_tile::stream_config{nullptr, false});
 
