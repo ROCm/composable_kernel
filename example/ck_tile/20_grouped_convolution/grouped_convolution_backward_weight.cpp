@@ -23,7 +23,8 @@ template <ck_tile::index_t NDimSpatial,
           typename DsDataType     = ck_tile::tuple<>,
           typename DsLayout       = ck_tile::tuple<>,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
-float grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args, const ck_tile::stream_config& s)
+float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
+                              const ck_tile::stream_config& s)
 {
     constexpr int kBlockPerCu = 1;
 
@@ -91,10 +92,10 @@ float grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args, const ck_til
                                              true,
                                              VectorSizeC>>;
 
-        using Kernel = ck_tile::GroupedConvolutionForwardKernel<GroupedConvTraitsType,
-                                                                TilePartitioner,
-                                                                CodegenPipeline,
-                                                                ConvEpilogue>;
+        using Kernel = ck_tile::GroupedConvolutionBackwardWeightKernel<GroupedConvTraitsType,
+                                                                       TilePartitioner,
+                                                                       CodegenPipeline,
+                                                                       ConvEpilogue>;
         auto kargs   = Kernel::MakeKernelArgs(args);
 
         const dim3 grids      = Kernel::GridSize(kargs);
@@ -119,20 +120,30 @@ float grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args, const ck_til
                       << ", Vector size C: " << ConvEpilogue::GetVectorSizeC() << std::endl;
         }
 
-        float ave_time = ck_tile::launch_kernel(
-            s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+        float ave_time = ck_tile::launch_kernel_preprocess(
+            s,
+            Kernel::Preprocess(kargs, s),
+            ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 
         return ave_time;
     };
 
-    return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                          ck_tile::memory_operation_enum::set>{});
+    if(args.k_batch == 1)
+    {
+        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                              ck_tile::memory_operation_enum::set>{});
+    }
+    else
+    {
+        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                              ck_tile::memory_operation_enum::atomic_add>{});
+    }
 }
 
-#include "run_grouped_convolution_fwd_example.inc"
+#include "run_grouped_convolution_bwd_weight_example.inc"
 
 template <typename InPrecType, typename WeiPrecType = InPrecType, typename OutPrecType = InPrecType>
-int run_grouped_conv_fwd_example_prec_type(
+int run_grouped_conv_bwd_weight_example_prec_type(
     std::string in_layout, std::string wei_layout, std::string out_layout, int argc, char* argv[])
 {
     using NWGC   = ck_tile::tensor_layout::convolution::NWGC;
@@ -149,26 +160,26 @@ int run_grouped_conv_fwd_example_prec_type(
 
     if(in_layout == "NWGC" && wei_layout == "GKXC" && out_layout == "NWGK")
     {
-        return run_grouped_conv_fwd_example_with_layouts<ck_tile::number<1>{},
-                                                         InPrecType,
-                                                         WeiPrecType,
-                                                         OutPrecType>(
+        return run_grouped_conv_bwd_weight_example_with_layouts<ck_tile::number<1>{},
+                                                                InPrecType,
+                                                                WeiPrecType,
+                                                                OutPrecType>(
             argc, argv, NWGC{}, GKXC{}, NWGK{});
     }
     else if(in_layout == "NHWGC" && wei_layout == "GKYXC" && out_layout == "NHWGK")
     {
-        return run_grouped_conv_fwd_example_with_layouts<ck_tile::number<2>{},
-                                                         InPrecType,
-                                                         WeiPrecType,
-                                                         OutPrecType>(
+        return run_grouped_conv_bwd_weight_example_with_layouts<ck_tile::number<2>{},
+                                                                InPrecType,
+                                                                WeiPrecType,
+                                                                OutPrecType>(
             argc, argv, NHWGC{}, GKYXC{}, NHWGK{});
     }
-    else if(in_layout == "NDHWGC" && wei_layout == "GKZYXC" && out_layout == "GKZYXC")
+    else if(in_layout == "NDHWGC" && wei_layout == "GKZYXC" && out_layout == "NDHWGK")
     {
-        return run_grouped_conv_fwd_example_with_layouts<ck_tile::number<3>{},
-                                                         InPrecType,
-                                                         WeiPrecType,
-                                                         OutPrecType>(
+        return run_grouped_conv_bwd_weight_example_with_layouts<ck_tile::number<3>{},
+                                                                InPrecType,
+                                                                WeiPrecType,
+                                                                OutPrecType>(
             argc, argv, NDHWGC{}, GKZYXC{}, NDHWGK{});
     }
     else
@@ -177,7 +188,7 @@ int run_grouped_conv_fwd_example_prec_type(
     }
 }
 
-int run_grouped_conv_fwd_example(int argc, char* argv[])
+int run_grouped_conv_bwd_weight_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
     if(!result)
@@ -190,18 +201,18 @@ int run_grouped_conv_fwd_example(int argc, char* argv[])
 
     if(data_type == "fp16")
     {
-        return run_grouped_conv_fwd_example_prec_type<ck_tile::half_t>(
+        return run_grouped_conv_bwd_weight_example_prec_type<ck_tile::half_t>(
             in_layout, wei_layout, out_layout, argc, argv);
     }
     else if(data_type == "bf16")
     {
-        return run_grouped_conv_fwd_example_prec_type<ck_tile::bf16_t>(
+        return run_grouped_conv_bwd_weight_example_prec_type<ck_tile::bf16_t>(
             in_layout, wei_layout, out_layout, argc, argv);
     }
     else
     {
-        throw std::runtime_error("Unsupported data type for this operation !!!");
+        throw std::runtime_error("Unsupported data type for this operation!");
     }
 }
 
-int main(int argc, char* argv[]) { return !run_grouped_conv_fwd_example(argc, argv); }
+int main(int argc, char* argv[]) { return !run_grouped_conv_bwd_weight_example(argc, argv); }
