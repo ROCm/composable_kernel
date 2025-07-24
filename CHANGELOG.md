@@ -24,6 +24,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added rotating buffer feature for CK_Tile GEMM.
 * Added int8 support for CK_TILE GEMM.
 * Added Zeroing output window (initial values for output tile) inside the kernel when kbatch is more than 1.
+* Added support for elementwise kernel.
 
 ### Optimized
 
