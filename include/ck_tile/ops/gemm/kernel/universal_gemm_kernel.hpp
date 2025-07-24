@@ -193,7 +193,6 @@ struct UniversalGemmKernel
                            remove_cvref_t<typename EpiloguePipeline::DsDataType>,
                            remove_cvref_t<tuple<typename EpiloguePipeline::DsDataType>>>;
 
-    // Below type is actually accumulation data type - the output of block GEMM
     using ELayout   = remove_cvref_t<typename GemmPipeline::CLayout>;
     using EDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
