@@ -113,7 +113,8 @@ struct cpu_timer
     CK_TILE_HOST void start(const hipStream_t& s)
     {
         HIP_CHECK_ERROR(hipStreamSynchronize(s));
-        start_tick = std::chrono::high_resolution_clock::now();
+        start_tick  = std::chrono::high_resolution_clock::now();
+        time_event0 = std::chrono::high_resolution_clock::now();
     }
     // torch.utils.benchmark.Timer(), there is a sync inside each timer callback
     CK_TILE_HOST void stop(const hipStream_t& s)
@@ -129,9 +130,18 @@ struct cpu_timer
                 .count();
         return static_cast<float>(sec * 1e3);
     }
+    // return in ms
+    CK_TILE_HOST float is_exceed() const
+    {
+        double sec =
+            std::chrono::duration_cast<std::chrono::duration<double>>(stop_tick - time_event0)
+                .count();
+        return static_cast<float>(sec * 1e3);
+    }
 
     private:
     std::chrono::time_point<std::chrono::high_resolution_clock> start_tick;
+    std::chrono::time_point<std::chrono::high_resolution_clock> time_event0;
     std::chrono::time_point<std::chrono::high_resolution_clock> stop_tick;
 };
 

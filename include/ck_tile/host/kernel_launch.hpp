@@ -154,9 +154,8 @@ CK_TILE_HOST float launch_kernel(const stream_config& s, Callables&&... callable
 }
 
 template <typename PreprocessFunc, typename... Callables>
-CK_TILE_HOST float launch_kernel_preprocess(const stream_config& s,
-                                            PreprocessFunc preprocess,
-                                            Callables&&... callables)
+CK_TILE_HOST float
+launch_kernel_time_mask(const stream_config& s, PreprocessFunc preprocess, Callables&&... callables)
 {
     static_assert(sizeof...(callables) > 0, "At least one callable is required!");
 
@@ -167,34 +166,8 @@ CK_TILE_HOST float launch_kernel_preprocess(const stream_config& s,
         return 0;
     }
 
-    auto time_launches = [&](auto timer) {
-        // Warmup
-        for(int i = 0; i < s.cold_niters_; i++)
-        {
-            launch_and_check(s, std::forward<Callables>(callables)...);
-        }
-
-        timer.start(s.stream_id_);
-        for(int i = 0; i < s.nrepeat_; i++)
-        {
-            preprocess();
-            launch_and_check(s, std::forward<Callables>(callables)...);
-        }
-        timer.stop(s.stream_id_);
-
-        hipDeviceProp_t deviceProps;
-        HIP_CHECK_ERROR(hipGetDeviceProperties(&deviceProps, 0));
-
-        float preprocess_offset = (deviceProps.multiProcessorCount >= HIGH_CU_PROCESSORS)
-                                      ? OPTIMAL_LATENCY_HIGH_CU_PROCESSORS
-                                  : (deviceProps.multiProcessorCount == LOW_CU_PROCESSORS)
-                                      ? OPTIMAL_LATENCY_LOW_CU_PROCESSORS
-                                      : OPTIMAL_LATENCY_SAFE_MARGIN;
-        return (timer.duration() - preprocess_offset * s.nrepeat_) / s.nrepeat_;
-    };
-
     auto timing_loop =
-        [&](auto timer, float bench_time_secs, double& gpu_time_used, hipStream_t& stream) {
+        [&](auto timer, float bench_time_ms, double& gpu_time_used, const hipStream_t& stream) {
             for(int i = 0; i < s.cold_niters_; i++)
             {
                 launch_and_check(s, std::forward<Callables>(callables)...);
@@ -202,8 +175,7 @@ CK_TILE_HOST float launch_kernel_preprocess(const stream_config& s,
 
             float per_iter_time = 0.f;
             std::vector<float> times;
-            int i                     = 0;
-            const float bench_time_ms = bench_time_secs * 1000;
+            int i = 0;
             while(i < s.nrepeat_ || per_iter_time < bench_time_ms)
             {
                 preprocess();
@@ -233,22 +205,18 @@ CK_TILE_HOST float launch_kernel_preprocess(const stream_config& s,
                 times.push_back(per_iter_time);
                 remove_outliers(times);
                 gpu_time_used = std::accumulate(times.begin(), times.end(), 0.) / times.size();
-                //gpu_time_used *= 1000; // ms to us
             }
         };
+    double time_used = 0.;
 
     if(s.is_gpu_timer_)
     {
-        double gpu_time_used   = 0.;
-        hipStream_t stream_id  = s.stream_id_;
-        float branch_time_secs = 0.f;
-        timing_loop(gpu_timer_new{stream_id}, branch_time_secs, gpu_time_used, stream_id);
-        return gpu_time_used;
-        // return time_launches(gpu_timer{});
+        timing_loop(gpu_timer_new{s.stream_id_}, s.bench_time_ms_, time_used, s.stream_id_);
     }
     else
     {
-        return time_launches(cpu_timer{});
+        timing_loop(gpu_timer_new{s.stream_id_}, s.bench_time_ms_, time_used, s.stream_id_);
     }
+    return time_used;
 }
 } // namespace ck_tile
