@@ -133,7 +133,7 @@ int run_flatmm_example_with_layouts(int argc,
 
     if(arg_parser.get_int("v") == 1)
     {
-        if (ScaleGranularityM == -1 || ScaleGranularityN == -1)
+        if (ScaleGranularityM != -1 || ScaleGranularityN != -1)
             throw std::runtime_error("ScaleAB is not supported for CPU verification!\n");
         ck_tile::HostTensor<CDataType> c_ref_host(
             ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
