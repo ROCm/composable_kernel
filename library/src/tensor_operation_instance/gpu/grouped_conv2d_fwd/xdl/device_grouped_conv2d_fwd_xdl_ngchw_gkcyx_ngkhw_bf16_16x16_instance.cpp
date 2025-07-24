@@ -25,8 +25,7 @@ void add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_bf16_16x16_instances(
 {
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_xdl_16bt_16x16_instances<BF16,
-                                                         2,
+        device_grouped_conv_fwd_xdl_bf16_16x16_instances<2,
                                                          NGCHW,
                                                          GKCYX,
                                                          Empty_Tuple,
@@ -34,8 +33,7 @@ void add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_bf16_16x16_instances(
                                                          ConvFwdDefault>{});
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_xdl_16bt_16x16_instances<BF16,
-                                                         2,
+        device_grouped_conv_fwd_xdl_bf16_16x16_instances<2,
                                                          NGCHW,
                                                          GKCYX,
                                                          Empty_Tuple,
@@ -43,8 +41,7 @@ void add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_bf16_16x16_instances(
                                                          ConvFwd1x1P0>{});
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_xdl_16bt_16x16_instances<BF16,
-                                                         2,
+        device_grouped_conv_fwd_xdl_bf16_16x16_instances<2,
                                                          NGCHW,
                                                          GKCYX,
                                                          Empty_Tuple,

@@ -27,8 +27,7 @@ void add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f16_instances_shard(
     device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f16_instances& instances)
 {
     add_device_operation_instances(instances,
-                                   ck::util::filter_tuple_by_modulo_t<device_grouped_conv_fwd_xdl_16bt_instances<F16,
-                                                                              2,
+                                   ck::util::filter_tuple_by_modulo_t<device_grouped_conv_fwd_xdl_f16_instances<2,
                                                                               NGCHW,
                                                                               GKCYX,
                                                                               Empty_Tuple,
@@ -37,8 +36,7 @@ void add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f16_instances_shard(
                                    Shards,
                                    ShardIndex>{});
     add_device_operation_instances(instances,
-                                   ck::util::filter_tuple_by_modulo_t<device_grouped_conv_fwd_xdl_16bt_instances<F16,
-                                                                              2,
+                                   ck::util::filter_tuple_by_modulo_t<device_grouped_conv_fwd_xdl_f16_instances<2,
                                                                               NGCHW,
                                                                               GKCYX,
                                                                               Empty_Tuple,
@@ -47,8 +45,7 @@ void add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f16_instances_shard(
                                    Shards,
                                    ShardIndex>{});
     add_device_operation_instances(instances,
-                                   ck::util::filter_tuple_by_modulo_t<device_grouped_conv_fwd_xdl_16bt_instances<F16,
-                                                                              2,
+                                   ck::util::filter_tuple_by_modulo_t<device_grouped_conv_fwd_xdl_f16_instances<2,
                                                                               NGCHW,
                                                                               GKCYX,
                                                                               Empty_Tuple,

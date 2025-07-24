@@ -24,8 +24,7 @@ void add_device_grouped_conv2d_fwd_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_instances(
                                                                 Clamp>>>& instances)
 {
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_xdl_16bt_instances<BF16,
-                                                                              2,
+                                   device_grouped_conv_fwd_xdl_bf16_instances<2,
                                                                               NHWGC,
                                                                               GKYXC,
                                                                               Tuple<>,
@@ -35,8 +34,7 @@ void add_device_grouped_conv2d_fwd_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_instances(
                                                                               Clamp>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_xdl_16bt_instances<BF16,
-                                                                              2,
+                                   device_grouped_conv_fwd_xdl_bf16_instances<2,
                                                                               NHWGC,
                                                                               GKYXC,
                                                                               Tuple<>,
@@ -46,8 +44,7 @@ void add_device_grouped_conv2d_fwd_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_instances(
                                                                               Clamp>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_xdl_16bt_instances<BF16,
-                                                                              2,
+                                   device_grouped_conv_fwd_xdl_bf16_instances<2,
                                                                               NHWGC,
                                                                               GKYXC,
                                                                               Tuple<>,
