@@ -211,9 +211,7 @@ struct GemmKernel
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
-        auto base_name = concat('_', "gemm", gemm_prec_str<ADataType, BDataType>, GemmPipeline::GetName());
-        
-        return base_name;
+        return concat('_', "gemm", gemm_prec_str<ADataType, BDataType>(), GemmPipeline::GetName());
         // clang-format on
     }
 
