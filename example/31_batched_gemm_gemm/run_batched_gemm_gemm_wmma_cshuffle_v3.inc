@@ -11,25 +11,15 @@ int run(int argc, char* argv[])
     // C_g_m_o = A_g_m_k * B0_g_k_n * B1_g_n_o
     ck::index_t M = 113;
 #ifdef CK_MHA_USE_RCCR_LAYOUT
-    ck::index_t N = 480; // Small inaccuracies with unusual size + RCCR layout! TODO
+    ck::index_t N = 480; // Must be multiple of 8 even with padding.
 #else
     ck::index_t N = 477;
 #endif
-    ck::index_t K = 200; // Seems to have to be multiple of 8 even with padding, for v3 must be >=
-                         // 192 = 3 * kPerBlock? Yes, meaning must be at least 136 with padding.
-    ck::index_t O =
-        208; // Seems to have to be multiple of 8 even with padding (small inaccuracies?)
+    ck::index_t K = 200; // Must be multiple of 8 even with padding.
+    ck::index_t O = 208; // Must be multiple of 8 even with padding.
+    ck::index_t G = 91;  // Batch
 
-    // Output shape C[G0, M, G1, O]. Batch dim, outer dim, inner dim must match GEMM shape
-    // C_g0_g1_m_o = reshape(C_g_m_o, [g0, g1, m, o])
-    // C_g0_m_g1_o = permute(C_g0_g1_m_o, [0, 2, 1, 3])
-    ck::index_t G0 = 1;      // Will not be supported in batched gemm gemm
-    ck::index_t G1 = 7 * 13; // Takes the role of "Batch"
-
-    float alpha = 1; // TODO: Not implemented, should be generic elementwise op now.
-
-    bool input_permute  = false; // Not supported in normal batched gemm gemm op
-    bool output_permute = false; // Not supported in normal batched gemm gemm op
+    float alpha = 1;
 
     if(argc == 1)
     {
@@ -41,148 +31,121 @@ int run(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
     }
-    else if(argc == 13)
+    else if(argc == 10)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
 
-        M  = std::stoi(argv[4]);
-        N  = std::stoi(argv[5]);
-        K  = std::stoi(argv[6]);
-        O  = std::stoi(argv[7]);
-        G0 = std::stoi(argv[8]);
-        G1 = std::stoi(argv[9]);
+        M = std::stoi(argv[4]);
+        N = std::stoi(argv[5]);
+        K = std::stoi(argv[6]);
+        O = std::stoi(argv[7]);
+        G = std::stoi(argv[9]);
 
         alpha = std::stof(argv[10]);
-
-        input_permute  = std::stoi(argv[11]);
-        output_permute = std::stoi(argv[12]);
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf("arg4 to 11: M, N, K, O, G0, G1\n");
+        printf("arg4 to 9: M, N, K, O, G\n");
         printf("arg10: scale (alpha)\n");
-        printf("arg11 to 12: input / output permute\n");
         exit(0);
     }
 
-    // TODO: Remove G0 and input permute.
-    // TODO: Remove "s" from "gs", "ks" etc.
-
-    std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, G1, M, K};
-    std::vector<ck::index_t> a_gs_ms_ks_strides =
-        input_permute
-            ? std::vector<ck::index_t>{M * G1 * K, K, G1 * K, 1} // A layout [G0, M, G1, K]
-            : std::vector<ck::index_t>{G1 * M * K, M * K, K, 1}; // A layout [G0, G1, M, K]
-
-    std::vector<ck::index_t> b0_gs_ns_ks_lengths{G0, G1, N, K};
-    std::vector<ck::index_t> b0_gs_ns_ks_strides =
-        input_permute
-            ? std::vector<ck::index_t>{N * G1 * K, K, G1 * K, 1} // B0 layout [G0, N, G1, K]
-            : std::vector<ck::index_t>{G1 * N * K, N * K, K, 1}; // B0 layout [G0, G1, N, K]
-
-    std::vector<ck::index_t> b1_gs_os_ns_lengths{G0, G1, O, N};
+    std::vector<ck::index_t> a_g_m_k_lengths{G, M, K};
+    std::vector<ck::index_t> a_g_m_k_strides{M * K, K, 1}; // A layout [G, M, K]
+    std::vector<ck::index_t> b0_g_n_k_lengths{G, N, K};
+    std::vector<ck::index_t> b0_g_n_k_strides{N * K, K, 1}; // B0 layout [G, N, K]
+    std::vector<ck::index_t> b1_g_o_n_lengths{G, O, N};
 #ifdef CK_MHA_USE_RCCR_LAYOUT
-    std::vector<ck::index_t> b1_gs_os_ns_strides =
-        input_permute
-            ? std::vector<ck::index_t>{N * G1 * O, O, 1, G1 * O} // B1 layout [G0, N, G1, O]
-            : std::vector<ck::index_t>{G1 * N * O, N * O, N, 1}; // B1 layout [G0, G1, O, N]
+    std::vector<ck::index_t> b1_g_o_n_strides{N * O, N, 1}; // B1 layout [G, O, N]
 #else
-    std::vector<ck::index_t> b1_gs_os_ns_strides =
-        input_permute
-            ? std::vector<ck::index_t>{N * G1 * O, O, 1, G1 * O} // B1 layout [G0, N, G1, O]
-            : std::vector<ck::index_t>{G1 * N * O, N * O, 1, O}; // B1 layout [G0, G1, N, O]
+    std::vector<ck::index_t> b1_g_o_n_strides{N * O, 1, O}; // B1 layout [G, N, O]
 #endif
+    std::vector<ck::index_t> c_g_m_o_lengths{G, M, O};
+    std::vector<ck::index_t> c_g_m_o_strides{M * O, O, 1}; // C layout [G, M, O]
 
-    std::vector<ck::index_t> c_gs_ms_os_lengths{G0, G1, M, O};
-    std::vector<ck::index_t> c_gs_ms_os_strides =
-        output_permute
-            ? std::vector<ck::index_t>{M * G1 * O, O, G1 * O, 1} // C layout [G0, M, G1, O]
-            : std::vector<ck::index_t>{G1 * M * O, M * O, O, 1}; // C layout [G0, G1, M, O]
+    Tensor<ADataType> a_g_m_k(a_g_m_k_lengths, a_g_m_k_strides);
+    Tensor<B0DataType> b0_g_n_k(b0_g_n_k_lengths, b0_g_n_k_strides);
+    Tensor<B1DataType> b1_g_o_n(b1_g_o_n_lengths, b1_g_o_n_strides);
+    Tensor<CDataType> c_g_m_o_host_result(c_g_m_o_lengths, c_g_m_o_strides);
+    Tensor<CDataType> c_g_m_o_device_result(c_g_m_o_lengths, c_g_m_o_strides);
 
-    Tensor<ADataType> a_gs_ms_ks(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
-    Tensor<B0DataType> b0_gs_ns_ks(b0_gs_ns_ks_lengths, b0_gs_ns_ks_strides);
-    Tensor<B1DataType> b1_gs_os_ns(b1_gs_os_ns_lengths, b1_gs_os_ns_strides);
-    Tensor<CDataType> c_gs_ms_os_host_result(c_gs_ms_os_lengths, c_gs_ms_os_strides);
-    Tensor<CDataType> c_gs_ms_os_device_result(c_gs_ms_os_lengths, c_gs_ms_os_strides);
-
-    std::cout << "a_gs_ms_ks: " << a_gs_ms_ks.mDesc << std::endl;
-    std::cout << "b0_gs_ns_ks: " << b0_gs_ns_ks.mDesc << std::endl;
-    std::cout << "b1_gs_os_ns: " << b1_gs_os_ns.mDesc << std::endl;
-    std::cout << "c_gs_ms_os: " << c_gs_ms_os_host_result.mDesc << std::endl;
+    std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
+    std::cout << "b0_g_n_k: " << b0_g_n_k.mDesc << std::endl;
+    std::cout << "b1_g_o_n: " << b1_g_o_n.mDesc << std::endl;
+    std::cout << "c_g_m_o: " << c_g_m_o_host_result.mDesc << std::endl;
 
     switch(init_method)
     {
     case 0: break;
     case 1:
-        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
-        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
-        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 2});
+        a_g_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+        b0_g_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
+        b1_g_o_n.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 2});
         break;
     case 2:
-        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_3<B0DataType>{0.0, 1.0});
-        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_3<B1DataType>{-0.5, 0.5});
+        a_g_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+        b0_g_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{0.0, 1.0});
+        b1_g_o_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{-0.5, 0.5});
         break;
     case 3:
-        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
-        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<B0DataType>{});
-        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
+        a_g_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+        b0_g_n_k.GenerateTensorValue(GeneratorTensor_Diagonal<B0DataType>{});
+        b1_g_o_n.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
         break;
     case 4: // A, B0, B1 1
-        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<ADataType>{});
-        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
-        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
+        a_g_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{});
+        b0_g_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
+        b1_g_o_n.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
         break;
     case 5: // Rand: b1 b0; unit: a
-        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<ADataType>{});
-        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
-        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 2});
+        a_g_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{});
+        b0_g_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
+        b1_g_o_n.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 2});
         break;
     case 6: // Rand: a b0 ; unit: B1
-        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
-        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
-        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
+        a_g_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+        b0_g_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
+        b1_g_o_n.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
         break;
     case 7: // Rand: a b1 ; unit: b0
-        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
-        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
-        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 2});
+        a_g_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+        b0_g_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
+        b1_g_o_n.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 2});
         break;
     case 8: // Rand: a ; unit: b0 b1
-        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
-        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
-        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
+        a_g_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+        b0_g_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
+        b1_g_o_n.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
         break;
     case 9: // Rand: b0 ; unit: a b1
-        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<ADataType>{});
-        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
-        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
+        a_g_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{});
+        b0_g_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
+        b1_g_o_n.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
         break;
     case 10: // Rand: b1 ; unit: a b0
-        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<ADataType>{});
-        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
-        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 2});
+        a_g_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{});
+        b0_g_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
+        b1_g_o_n.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 2});
         break;
     default:
-        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_Sequential<ADataType, 2>{});
-        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<B0DataType>{});
-        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
+        a_g_m_k.GenerateTensorValue(GeneratorTensor_Sequential<ADataType, 2>{});
+        b0_g_n_k.GenerateTensorValue(GeneratorTensor_Diagonal<B0DataType>{});
+        b1_g_o_n.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_gs_ms_ks.mDesc.GetElementSpaceSize());
-    DeviceMem b0_device_buf(sizeof(B0DataType) * b0_gs_ns_ks.mDesc.GetElementSpaceSize());
-    DeviceMem b1_device_buf(sizeof(B1DataType) * b1_gs_os_ns.mDesc.GetElementSpaceSize());
-    DeviceMem c_device_buf(sizeof(CDataType) *
-                           c_gs_ms_os_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpaceSize());
+    DeviceMem b0_device_buf(sizeof(B0DataType) * b0_g_n_k.mDesc.GetElementSpaceSize());
+    DeviceMem b1_device_buf(sizeof(B1DataType) * b1_g_o_n.mDesc.GetElementSpaceSize());
+    DeviceMem c_device_buf(sizeof(CDataType) * c_g_m_o_device_result.mDesc.GetElementSpaceSize());
 
-    a_device_buf.ToDevice(a_gs_ms_ks.mData.data());
-    b0_device_buf.ToDevice(b0_gs_ns_ks.mData.data());
-    b1_device_buf.ToDevice(b1_gs_os_ns.mData.data());
+    a_device_buf.ToDevice(a_g_m_k.mData.data());
+    b0_device_buf.ToDevice(b0_g_n_k.mData.data());
+    b1_device_buf.ToDevice(b1_g_o_n.mData.data());
 
     auto a_element_op    = AElementOp{};
     auto b0_element_op   = B0ElementOp{};
@@ -196,7 +159,7 @@ int run(int argc, char* argv[])
     int not_pass            = 0;
     std::string best_kernel = "";
     printf("Verification: %s\n", do_verification ? "ON" : "OFF");
-    // TODO ANT: replace array with vector?
+
     ck::static_for<0, std::tuple_size_v<DeviceMHAFactory>, 1>{}([&](auto i) -> void {
         const auto device_mha_instance = std::get<i>(DeviceMHAFactory{});
 
@@ -212,19 +175,19 @@ int run(int argc, char* argv[])
                                      N,
                                      K,
                                      O,
-                                     G1,                     // Batch,
-                                     a_gs_ms_ks_strides[2],  // StrideA,
-                                     b0_gs_ns_ks_strides[2], // StrideB0,
+                                     G,                   // Batch,
+                                     a_g_m_k_strides[1],  // StrideA,
+                                     b0_g_n_k_strides[1], // StrideB0,
 #ifdef CK_MHA_USE_RCCR_LAYOUT
-                                     b1_gs_os_ns_strides[2], // StrideB1,
+                                     b1_g_o_n_strides[1], // StrideB1,
 #else
-                                     b1_gs_os_ns_strides[3],     // StrideB1,
+                                     b1_g_o_n_strides[2],   // StrideB1,
 #endif
-                                     c_gs_ms_os_strides[2],  // StrideC,
-                                     a_gs_ms_ks_strides[1],  // BatchStrideA
-                                     b0_gs_ns_ks_strides[1], // BatchStrideB0
-                                     b1_gs_os_ns_strides[1], // BatchStrideB1
-                                     c_gs_ms_os_strides[1],  // BatchStrideC
+                                     c_g_m_o_strides[1],  // StrideC,
+                                     a_g_m_k_strides[0],  // BatchStrideA
+                                     b0_g_n_k_strides[0], // BatchStrideB0
+                                     b1_g_o_n_strides[0], // BatchStrideB1
+                                     c_g_m_o_strides[0],  // BatchStrideC
                                      a_element_op,
                                      b0_element_op,
                                      acc0_element_op,
@@ -238,14 +201,12 @@ int run(int argc, char* argv[])
             // return 0;
         }
 
-        ck::index_t BatchCount = G0 * G1;
-
         float ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
-        std::size_t flop      = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * BatchCount;
+        std::size_t flop      = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * G;
         std::size_t num_btype = (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N +
                                  sizeof(B1DataType) * N * O + sizeof(CDataType) * M * O) *
-                                BatchCount;
+                                G;
 
         float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
@@ -261,25 +222,18 @@ int run(int argc, char* argv[])
         }
         if(do_verification)
         {
-            c_device_buf.FromDevice(c_gs_ms_os_device_result.mData.data());
+            c_device_buf.FromDevice(c_g_m_o_device_result.mData.data());
 
-            Tensor<ADataType> a_g_m_k({BatchCount, M, K});
-            Tensor<B0DataType> b0_g_k_n({BatchCount, K, N});
-            Tensor<B1DataType> b1_g_n_o({BatchCount, N, O});
-            Tensor<AccDataType> acc0_g_m_n({BatchCount, M, N}); // scratch object after gemm0
-            Tensor<ADataType> a1_g_m_n({BatchCount, M, N});     // scratch object after conversion
-            Tensor<CDataType> c_g_m_o_host_result({BatchCount, M, O}); // scratch object after gemm1
+            Tensor<B0DataType> b0_g_k_n({G, K, N});
+            Tensor<B1DataType> b1_g_n_o({G, N, O});
+            Tensor<AccDataType> acc0_g_m_n({G, M, N}); // scratch object after gemm0
+            Tensor<ADataType> a1_g_m_n({G, M, N});     // scratch object after conversion
 
             // permute
-            a_gs_ms_ks.ForEach([&](auto& self, auto idx) {
-                a_g_m_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
-            });
-            b0_gs_ns_ks.ForEach([&](auto& self, auto idx) {
-                b0_g_k_n(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
-            });
-            b1_gs_os_ns.ForEach([&](auto& self, auto idx) {
-                b1_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
-            });
+            b0_g_n_k.ForEach(
+                [&](auto& self, auto idx) { b0_g_k_n(idx[0], idx[2], idx[1]) = self(idx); });
+            b1_g_o_n.ForEach(
+                [&](auto& self, auto idx) { b1_g_n_o(idx[0], idx[2], idx[1]) = self(idx); });
 
             // gemm 0
             auto ref_gemm0          = ReferenceGemm0Instance{};
@@ -306,16 +260,6 @@ int run(int argc, char* argv[])
 
             ref_gemm1_invoker.Run(ref_gemm1_argument);
 
-            // permute
-            c_gs_ms_os_host_result.ForEach([&](auto& self, auto idx) {
-                const size_t& g0 = idx[0];
-                const size_t& g1 = idx[1];
-
-                const size_t g = g0 * G1 + g1;
-
-                self(idx) = c_g_m_o_host_result(g, idx[2], idx[3]);
-            });
-
             // default absolute error and relative error is 0.001
             double rtol = 1e-3;
             double atol = 1e-3;
@@ -328,8 +272,8 @@ int run(int argc, char* argv[])
                 atol = 1e-2;
             }
 
-            bool this_run_verification = ck::utils::check_err(c_gs_ms_os_device_result.mData,
-                                                              c_gs_ms_os_host_result.mData,
+            bool this_run_verification = ck::utils::check_err(c_g_m_o_device_result.mData,
+                                                              c_g_m_o_host_result.mData,
                                                               "Error: Incorrect results!",
                                                               rtol,
                                                               atol);
@@ -347,8 +291,8 @@ int run(int argc, char* argv[])
     std::cout << "---------------------------------------------------------------------------------"
                  "-----------"
               << std::endl;
-    std::cout << "Problem Size: BatchCount: " << G0 << ", HeadNum: " << G1 << ", M: " << M
-              << ", N: " << N << ", K: " << K << ", O: " << O << std::endl;
+    std::cout << "Problem Size: G: " << G << ", M: " << M << ", N: " << N << ", K: " << K
+              << ", O: " << O << std::endl;
     std::cout << "---------------------------------------------------------------------------------"
                  "-----------"
               << std::endl;

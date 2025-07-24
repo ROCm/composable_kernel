@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
-// TODO: Remove "s" from "gs", "ks" etc.
-
 #pragma once
 
 #include <iostream>
@@ -166,29 +164,29 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         TensorSpecialization::Default>; // CSpec
 
     __host__ __device__ static auto
-    MakeAGridDescriptor(const std::array<index_t, 3>& a_gs_ms_ks_lengths_vec,
-                        const std::array<index_t, 3>& a_gs_ms_ks_strides_vec)
+    MakeAGridDescriptor(const std::array<index_t, 3>& a_g_m_k_lengths_vec,
+                        const std::array<index_t, 3>& a_g_m_k_strides_vec)
     {
         return Transform::MakeAGridDescriptor_AK0_M_AK1(
-            Transform::MakeAGridDescriptor_M_K(a_gs_ms_ks_lengths_vec, a_gs_ms_ks_strides_vec),
+            Transform::MakeAGridDescriptor_M_K(a_g_m_k_lengths_vec, a_g_m_k_strides_vec),
             Number<AK1>{});
     }
 
     __host__ __device__ static auto
-    MakeB0GridDescriptor(const std::array<index_t, 3>& b0_gs_ls_ks_lengths_vec,
-                         const std::array<index_t, 3>& b0_gs_ls_ks_strides_vec)
+    MakeB0GridDescriptor(const std::array<index_t, 3>& b0_g_l_k_lengths_vec,
+                         const std::array<index_t, 3>& b0_g_l_k_strides_vec)
     {
         return Transform::MakeB0GridDescriptor_BK0_N_BK1(
-            Transform::MakeB0GridDescriptor_N_K(b0_gs_ls_ks_lengths_vec, b0_gs_ls_ks_strides_vec),
+            Transform::MakeB0GridDescriptor_N_K(b0_g_l_k_lengths_vec, b0_g_l_k_strides_vec),
             Number<BK1>{});
     }
 
     __host__ __device__ static auto
-    MakeB1GridDescriptor(const std::array<index_t, 3>& b1_gs_ns_ls_lengths_vec,
-                         const std::array<index_t, 3>& b1_gs_ns_ls_strides_vec)
+    MakeB1GridDescriptor(const std::array<index_t, 3>& b1_g_n_l_lengths_vec,
+                         const std::array<index_t, 3>& b1_g_n_l_strides_vec)
     {
         return Transform::MakeB1GridDescriptor_BK0_N_BK1(
-            Transform::MakeB1GridDescriptor_N_K(b1_gs_ns_ls_lengths_vec, b1_gs_ns_ls_strides_vec),
+            Transform::MakeB1GridDescriptor_N_K(b1_g_n_l_lengths_vec, b1_g_n_l_strides_vec),
             Number<L1>{});
     }
 
@@ -351,26 +349,25 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
               compute_base_ptr_of_batch{BatchStrideA, BatchStrideB0, BatchStrideB1, BatchStrideC}
         {
 
-            a_gs_ms_ks_lengths = arr3{batch_count, M, K};
-            a_gs_ms_ks_strides = arr3{BatchStrideA, StrideA, 1}; // A layout [batch_count, M, K]
+            a_g_m_k_lengths = arr3{batch_count, M, K};
+            a_g_m_k_strides = arr3{BatchStrideA, StrideA, 1}; // A layout [batch_count, M, K]
 
-            b0_gs_ns_ks_lengths = arr3{batch_count, N, K};
-            b0_gs_ns_ks_strides = arr3{BatchStrideB0, StrideB0, 1}; // B0 layout [batch_count, N, K]
+            b0_g_n_k_lengths = arr3{batch_count, N, K};
+            b0_g_n_k_strides = arr3{BatchStrideB0, StrideB0, 1}; // B0 layout [batch_count, N, K]
 
-            b1_gs_os_ns_lengths = arr3{batch_count, O, N};
-            b1_gs_os_ns_strides =
+            b1_g_o_n_lengths = arr3{batch_count, O, N};
+            b1_g_o_n_strides =
                 is_same_v<B1Layout, tensor_layout::gemm::RowMajor>
                     ? arr3{BatchStrideB1, 1, StrideB1}  // B1 layout [batch_count, N, O]
                     : arr3{BatchStrideB1, StrideB1, 1}; // B1 layout [batch_count, O, N]
 
-            c_gs_ms_os_lengths = arr3{batch_count, M, O};
-            c_gs_ms_os_strides = arr3{BatchStrideC, StrideC, 1}; // C layout [batch_count, M, O]
+            c_g_m_o_lengths = arr3{batch_count, M, O};
+            c_g_m_o_strides = arr3{BatchStrideC, StrideC, 1}; // C layout [batch_count, M, O]
 
-            a_grid_desc  = MakeAGridDescriptor(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
-            b0_grid_desc = MakeB0GridDescriptor(b0_gs_ns_ks_lengths, b0_gs_ns_ks_strides);
-            b1_grid_desc = MakeB1GridDescriptor(b1_gs_os_ns_lengths, b1_gs_os_ns_strides);
-            c_grid_desc_m_n =
-                Transform::MakeCGridDescriptor_M_N(c_gs_ms_os_lengths, c_gs_ms_os_strides);
+            a_grid_desc     = MakeAGridDescriptor(a_g_m_k_lengths, a_g_m_k_strides);
+            b0_grid_desc    = MakeB0GridDescriptor(b0_g_n_k_lengths, b0_g_n_k_strides);
+            b1_grid_desc    = MakeB1GridDescriptor(b1_g_o_n_lengths, b1_g_o_n_strides);
+            c_grid_desc_m_n = Transform::MakeCGridDescriptor_M_N(c_g_m_o_lengths, c_g_m_o_strides);
             c_grid_desc_mblock_mperblock_nblock_nperblock =
                 GridwiseOp::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
             block_2_ctile_map = GridwiseOp::MakeDefaultBlock2CTileMap(c_grid_desc_m_n, 1, 1);
@@ -388,14 +385,14 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         index_t O;
         index_t batch_count;
 
-        arr3 a_gs_ms_ks_lengths;
-        arr3 a_gs_ms_ks_strides;
-        arr3 b0_gs_ns_ks_lengths;
-        arr3 b0_gs_ns_ks_strides;
-        arr3 b1_gs_os_ns_lengths;
-        arr3 b1_gs_os_ns_strides;
-        arr3 c_gs_ms_os_lengths;
-        arr3 c_gs_ms_os_strides;
+        arr3 a_g_m_k_lengths;
+        arr3 a_g_m_k_strides;
+        arr3 b0_g_n_k_lengths;
+        arr3 b0_g_n_k_strides;
+        arr3 b1_g_o_n_lengths;
+        arr3 b1_g_o_n_strides;
+        arr3 c_g_m_o_lengths;
+        arr3 c_g_m_o_strides;
 
         AElementwiseOperation a_element_op;
         B0ElementwiseOperation b0_element_op;
@@ -503,12 +500,12 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
 
         // Check vector load/store requirement
         const auto a_stride_lowest =
-            ABlockTransferSrcVectorDim == 2 ? arg.a_gs_ms_ks_strides[2] : arg.a_gs_ms_ks_strides[1];
-        const auto b0_stride_lowest = B0BlockTransferSrcVectorDim == 2 ? arg.b0_gs_ns_ks_strides[2]
-                                                                       : arg.b0_gs_ns_ks_strides[1];
-        const auto b1_stride_lowest = B1BlockTransferSrcVectorDim == 2 ? arg.b1_gs_os_ns_strides[2]
-                                                                       : arg.b1_gs_os_ns_strides[1];
-        const auto c_stride_lowest  = arg.c_gs_ms_os_strides[2];
+            ABlockTransferSrcVectorDim == 2 ? arg.a_g_m_k_strides[2] : arg.a_g_m_k_strides[1];
+        const auto b0_stride_lowest =
+            B0BlockTransferSrcVectorDim == 2 ? arg.b0_g_n_k_strides[2] : arg.b0_g_n_k_strides[1];
+        const auto b1_stride_lowest =
+            B1BlockTransferSrcVectorDim == 2 ? arg.b1_g_o_n_strides[2] : arg.b1_g_o_n_strides[1];
+        const auto c_stride_lowest = arg.c_g_m_o_strides[2];
 
         if(!(a_stride_lowest == 1 || b0_stride_lowest == 1 || b1_stride_lowest == 1 ||
              c_stride_lowest == 1))
