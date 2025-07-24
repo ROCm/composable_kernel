@@ -325,12 +325,50 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                 // Tail number always 1
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
-                    const auto kernel = kernel_moe_gemm<GridwiseGemm,
-                                                        true,
-                                                        InMemoryDataOperationEnum::Set,
-                                                        minimum_occupancy,
-                                                        TailNumber::Odd>;
-                    RunKernel(kernel);
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                    {
+                        const auto kernel = kernel_moe_gemm<GridwiseGemm,
+                                                            false,
+                                                            MemoryDataOp,
+                                                            minimum_occupancy,
+                                                            TailNumber::Odd>;
+                        RunKernel(kernel);
+                    }
+                    else
+                    {
+                        const auto kernel = kernel_moe_gemm<GridwiseGemm,
+                                                            false,
+                                                            MemoryDataOp,
+                                                            minimum_occupancy,
+                                                            TailNumber::Even>;
+                        RunKernel(kernel);
+                    }
+                }
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2 ||
+                                  BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                {
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                    {
+                        const auto kernel = kernel_moe_gemm_2lds<GridwiseGemm,
+                                                                 false,
+                                                                 MemoryDataOp,
+                                                                 minimum_occupancy,
+                                                                 TailNumber::Odd>;
+                        RunKernel(kernel);
+                    }
+                    else
+                    {
+                        const auto kernel = kernel_moe_gemm_2lds<GridwiseGemm,
+                                                                 false,
+                                                                 MemoryDataOp,
+                                                                 minimum_occupancy,
+                                                                 TailNumber::Even>;
+                        RunKernel(kernel);
+                    }
+                }
+                else
+                {
+                    throw std::runtime_error("todo: only v1 & v2 support now");
                 }
             }
 #endif

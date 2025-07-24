@@ -140,8 +140,8 @@ union pixel
 {
     struct __attribute__((packed))
     {
-        unsigned int r : 6;
-        unsigned int c : 10;
+        ushort r : 6;
+        ushort c : 10;
     };
     ushort data;
 };

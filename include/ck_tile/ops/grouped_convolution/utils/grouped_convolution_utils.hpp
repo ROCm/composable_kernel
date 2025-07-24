@@ -14,14 +14,15 @@ namespace ck_tile {
 ///      This structure is passed to Grouped Convolution Kernels when creating kernel
 ///      arguments object. It contain all necessary information required to
 ///      build proper kernel argument and launch kernel on GPU.
+template <typename InPtr, typename WeiPtr, typename OutPtr>
 struct GroupedConvHostArgs : public conv::ConvParam
 {
     CK_TILE_HOST GroupedConvHostArgs() = delete;
     CK_TILE_HOST GroupedConvHostArgs(ConvParam conv_param,
-                                     const void* in_ptr_,
-                                     const void* wei_ptr_,
+                                     InPtr in_ptr_,
+                                     WeiPtr wei_ptr_,
                                      const std::vector<const void*> ds_ptr_,
-                                     void* out_ptr_,
+                                     OutPtr out_ptr_,
                                      index_t k_batch_)
         : conv::ConvParam(conv_param),
           in_ptr(in_ptr_),
@@ -32,12 +33,15 @@ struct GroupedConvHostArgs : public conv::ConvParam
     {
     }
 
-    const void* in_ptr;
-    const void* wei_ptr;
+    InPtr in_ptr;
+    WeiPtr wei_ptr;
     const std::vector<const void*> ds_ptr;
-    void* out_ptr;
+    OutPtr out_ptr;
     index_t k_batch;
 };
+
+using GroupedConvFwdHostArgs       = GroupedConvHostArgs<const void*, const void*, void*>;
+using GroupedConvBwdWeightHostArgs = GroupedConvHostArgs<const void*, void*, const void*>;
 
 template <index_t NDimSpatial_,
           ConvolutionSpecialization ConvSpecialization_,
@@ -55,6 +59,7 @@ struct GroupedConvTraits
     }
 
     public:
+    static constexpr index_t NumGroupsToMerge                     = 1;
     static constexpr index_t NDimSpatial                          = NDimSpatial_;
     static constexpr ConvolutionSpecialization ConvSpecialization = ConvSpecialization_;
     using InLayout                                                = InLayout_;
