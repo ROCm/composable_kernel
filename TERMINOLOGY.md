@@ -155,13 +155,10 @@ The ratio of active warps/wavefronts to the maximum number of warps/wavefronts s
 A function executed on the GPU, typically written in [HIP](#hip) or [CUDA](#cuda), that performs parallel computations over input data. Kernels are launched with specific grid and block dimensions to map computation to hardware. In CK, kernels are composed from pipelines and require a pipeline, tile partitioner, and epilogue component.
 
 ### Pipeline
-CK abstraction that defines computation flow. Composed of problem (what to compute) and policy (how to move data around) components. Used to define the overall kernel traits, e.g., input/output (IO) tensor data type, layout, workgroup-level tile shapes, and other global flags, e.g., cross-wave scheduler, transposed written, etc.
+A CK Pipeline orchestrates the sequence of operations for a kernel, including data loading, computation, and storage phases. It consists of two core components: a [Problem](#problem) component that defines what to compute, and a [Policy](#policy) component that specifies how to move data around. 
 
 ### Tile Partitioner
-Defines constants used to map the problem size to the GPU hierarchy. Given the problem size with M, N, K, the TilePartitioner defines:
-- The workgroup-level GEMM size kM, kN, kK
-- The GridSize along x, y dimension is determined by dividing the problem size M, N into chunks of block-size kM and kN, respectively
-- The K dimension size is used to determine the number of iterations that a single workgroup has to do in order to calculate the dot product of a single output element
+Defines the mapping between problem dimensions (M, N, K) and GPU hierarchy. It specifies workgroup-level tile sizes (kM, kN, kK) and determines grid dimensions by dividing the problem size by tile sizes.
 
 ### Problem
 Defines what to compute - input/output shapes, data types, and mathematical operations (e.g., GEMM, convolution).
