@@ -653,7 +653,7 @@ class FmhaBwdApiTrait:
         return FmhaBwdDQDKDVKernel(F_idx=self.idx, F_hdim=self.hdim, F_dtype=self.dtype, F_tile=self.tile,
             F_spad=self.spad, F_skpad=self.skpad, F_dpad=self.dpad, F_dvpad=self.dvpad, F_bias=self.bias,
             F_dbias=self.dbias, F_dropout=self.dropout, F_mask=self.mask, F_mode=self.mode, F_deterministic=self.deterministic, F_pipeline=self.pipeline, mask_impl=self.mask_impl)
-    
+
     @property
     def convert_dq_kernel(self) -> FmhaBwdConvertQGradKernel:
         # TODO: we don't support tuning yet, so pick up one value for pad/occupancy
@@ -709,7 +709,7 @@ class FmhaBwdApiPool:
             per_dtypes += '    (void)t ; (void)s ; (void)a;'
         return FMHA_BWD_KERNEL_HEADER + FMHA_BWD_API.format(F_dispatch = per_dtypes)
 
-def get_bwd_blobs(filter_list: str, receipt, mask_impl) -> Tuple[FmhaBwdApiPool, List[FmhaBwdOGradDotOKernel], List[FmhaBwdDQDKDVKernel], List[FmhaBwdConvertQGradKernel]]:
+def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[FmhaBwdApiPool, List[FmhaBwdOGradDotOKernel], List[FmhaBwdDQDKDVKernel], List[FmhaBwdConvertQGradKernel]]:
     if filter_list == '':
         filter_list = '*@*@*'
     filter_list = filter_list.split('@')
@@ -743,13 +743,16 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl) -> Tuple[FmhaBwdApiPool,
             if (dpad == "t" or dvpad == "t"):
                 ppl = d[hdim_str][2]
             t = FmhaBwdApiTrait(idx=0, pipeline=ppl, hdim=hdim, dtype=dtype, mode=mode,tile=tile,mask=mask, bias=bias, dbias=dbias, dropout=dropout, spad=spad, spad1=spad1, skpad=skpad, dpad=dpad, dvpad=dvpad, deterministic=deterministic, mask_impl=mask_impl)
-            
+
             if not fnmatch.fnmatch(t.dot_do_o_kernel.name, filter_dot_do_o):
                 continue
             if not fnmatch.fnmatch(t.dq_dk_dv_kernel.name, filter_dq_dk_dv):
                 continue
             if not fnmatch.fnmatch(t.convert_dq_kernel.name, filter_convert_dq):
                 continue
+            if optdim_list != [-1]:
+                if hdim not in optdim_list:
+                    continue
 
             # Flash attention integration
             if receipt == 2:
@@ -803,9 +806,7 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl) -> Tuple[FmhaBwdApiPool,
     return api_pool, list(gen_dot_do_o.keys()), list(gen_dq_dk_dv.keys()), list(gen_convert_dq.keys())
 
 def write_blobs(output_dir : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
-    assert optdim_list == [-1]  # TODO
-
-    api_pool, kernels_dot_do_o,  kernels_dq_dk_dv,  kernels_convert_dq = get_bwd_blobs(filter_list, receipt, mask_impl)
+    api_pool, kernels_dot_do_o,  kernels_dq_dk_dv,  kernels_convert_dq = get_bwd_blobs(filter_list, receipt, mask_impl, optdim_list)
     (output_dir / FMHA_BWD_API_FILENAME).write_text(api_pool.api)
     for k in kernels_dot_do_o:
         (output_dir / k.filename).write_text(k.template)
@@ -816,10 +817,8 @@ def write_blobs(output_dir : Path, filter_list : str, receipt, optdim_list, mask
 
 
 def list_blobs(file_path: Path, filter_list: str, receipt, optdim_list, mask_impl) -> None:
-    assert optdim_list == [-1]  # TODO
-
     _, kernels_dot_do_o, kernels_dq_dk_dv, kernels_convert_dq = get_bwd_blobs(
-        filter_list, receipt, mask_impl
+        filter_list, receipt, mask_impl, optdim_list
     )
     with file_path.open("a") as f:
         for k in kernels_dot_do_o:
