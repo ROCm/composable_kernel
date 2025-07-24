@@ -73,7 +73,7 @@ __global__ void
 //              ^^^^^^ (Acc0)
 //              ^^^^^^^^^^^ (Acc1)
 template <typename ALayout,
-          typename BLayout, // B0Layout
+          typename B0layout,
           typename B1Layout,
           typename CLayout,
           typename ADataType,
@@ -131,7 +131,7 @@ template <typename ALayout,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1>
 struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALayout,
-                                                                            BLayout, // B0Layout
+                                                                            B0layout,
                                                                             B1Layout,
                                                                             CLayout,
                                                                             ADataType,
@@ -148,7 +148,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
 
     static constexpr auto I0 = Number<0>{};
 
-    // To match XDL implementatrion NPerWmma (A.k.a Gemm1 NPerWmma) is set equal
+    // To match XDL implementation NPerWmma (A.k.a Gemm1 NPerWmma) is set equal
     // to LPerWmma (A.k.a Gemm0 NPerWmma).
     static constexpr index_t NPerWmma = LPerWmma;
 
@@ -433,7 +433,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
             return false;
         }
 
-        if constexpr(!(is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>))
+        if constexpr(!(is_same_v<B0layout, tensor_layout::gemm::ColumnMajor>))
         {
             printf("DeviceOp: B layout must be Column\n");
             return false;
@@ -682,7 +682,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         str << "DeviceBatchedGemmGemm_Wmma_CShuffleV3"
             << "<"
             << ALayout::name[0]
-            << BLayout::name[0]
+            << B0layout::name[0]
             << B1Layout::name[0]
             << CLayout::name[0] << ", "
             << "A " << DataTypeToString<ADataType>() << ", "

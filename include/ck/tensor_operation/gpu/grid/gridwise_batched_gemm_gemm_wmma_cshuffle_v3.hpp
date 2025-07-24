@@ -199,11 +199,9 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
         return b1_block_copy_step;
     }
 
-    // Describe how data read from (LDS/VGPR) buffer
     template <typename ABlockDesc_>
     __host__ __device__ static constexpr auto MakeAWaveDescriptor(const ABlockDesc_&)
     {
-
         constexpr auto a_wave_desc = [&]() {
             // AK0_M_AK1 -> AK0_MRepeat_Mwaves_AKRow_MPerWmma_AK1
             constexpr auto A_K0 = ABlockDesc_{}.GetLength(I0);
@@ -229,7 +227,6 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
     template <typename B0BlockDesc_>
     __host__ __device__ static constexpr auto MakeB0WaveDescriptor(const B0BlockDesc_&)
     {
-
         constexpr auto b0_wave_desc = [&]() {
             // BK0_L_BK1 -> BK0_LRepeat_Lwaves_BKRow_LPerWmma_BK1
             constexpr auto B_K0 = B0BlockDesc_{}.GetLength(I0);
@@ -359,7 +356,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                                 KPack,
                                 true>())>; // TransposeC (must be true to work), C' = B' x A'
 
-    // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
+    // block_id to matrix tile idx (m0, n0) mapping is controlled by {M01, N01}
     template <typename Block2CTileMap>
     __host__ __device__ static constexpr bool CheckValidity(const AGridDesc& a_grid_desc,
                                                             const B0GridDesc& b0_grid_desc,

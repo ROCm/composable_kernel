@@ -41,17 +41,17 @@ int run(int argc, char* argv[])
         N = std::stoi(argv[5]);
         K = std::stoi(argv[6]);
         O = std::stoi(argv[7]);
-        G = std::stoi(argv[9]);
+        G = std::stoi(argv[8]);
 
-        alpha = std::stof(argv[10]);
+        alpha = std::stof(argv[9]);
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf("arg4 to 9: M, N, K, O, G\n");
-        printf("arg10: scale (alpha)\n");
+        printf("arg4 to 8: M, N, K, O, G\n");
+        printf("arg9: scale (alpha)\n");
         exit(0);
     }
 
@@ -197,8 +197,6 @@ int run(int argc, char* argv[])
         if(!gemm.IsSupportedArgument(argument_ptr.get()))
         {
             std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
-
-            // return 0;
         }
 
         float ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
