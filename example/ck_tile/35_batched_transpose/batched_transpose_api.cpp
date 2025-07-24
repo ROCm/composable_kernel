@@ -10,32 +10,33 @@ struct kernel_traits;
 template <>
 struct kernel_traits<0>
 {
-    template <typename ts_type, typename block_tile, typename block_warp, bool kPadM, bool kPadN>
-    using Problem = ck_tile::BatchedTransposeProblem<ts_type, block_tile, block_warp, kPadM, kPadN>;
+    template <typename ts_type, typename block_tile, typename warp_layout, bool kPadM, bool kPadN>
+    using Problem = ck_tile::BatchedTransposeProblem<ts_type, block_tile, warp_layout, kPadM, kPadN>;
     using Policy  = ck_tile::BatchedTransposePolicy;
-    template <typename ts_type, typename block_tile, typename block_warp, bool kPadM, bool kPadN>
+    template <typename ts_type, typename block_tile, typename warp_layout, bool kPadM, bool kPadN>
     using Pipeline =
-        ck_tile::BatchedTransposePipeline<Problem<ts_type, block_tile, block_warp, kPadM, kPadN>,
+        ck_tile::BatchedTransposePipeline<Problem<ts_type, block_tile, warp_layout, kPadM, kPadN>,
                                           Policy>;
 };
 
 template <>
 struct kernel_traits<1>
 {
-    using NumWarps = ck_tile::sequence<1, 1>;
-    template <typename ts_type, typename block_tile, bool kPadM, bool kPadN>
+    template <typename ts_type, typename block_tile, typename warp_layout, bool kPadM, bool kPadN>
     using Problem =
-        ck_tile::BatchedTransposeLdsProblem<ts_type, block_tile, NumWarps, kPadM, kPadN>;
+        ck_tile::BatchedTransposeLdsProblem<ts_type, block_tile, warp_layout, kPadM, kPadN>;
     using Policy = ck_tile::BatchedTransposeLdsPolicy;
-    template <typename ts_type, typename block_tile, bool kPadM, bool kPadN>
+    template <typename ts_type, typename block_tile, typename warp_layout, bool kPadM, bool kPadN>
     using Pipeline =
-        ck_tile::BatchedTransposeLdsPipeline<Problem<ts_type, block_tile, kPadM, kPadN>, Policy>;
+        ck_tile::BatchedTransposeLdsPipeline<Problem<ts_type, block_tile, warp_layout, kPadM, kPadN>, Policy>;
 };
 } // namespace
 
 template <typename InputType_,
           ck_tile::index_t BlockX_,
           ck_tile::index_t BlockY_,
+          ck_tile::index_t NumWarpsX_,
+          ck_tile::index_t NumWarpsY_,
           bool PadM_,
           bool PadN_,
           ck_tile::index_t PipelineId_>
@@ -44,6 +45,8 @@ struct BatchedTransposeConfig
     using InputType                               = InputType_;
     static constexpr ck_tile::index_t kBlockX     = BlockX_;
     static constexpr ck_tile::index_t kBlockY     = BlockY_;
+    static constexpr ck_tile::index_t kNumWarpsX  = NumWarpsX_;
+    static constexpr ck_tile::index_t kNumWarpsY  = NumWarpsY_;
     static constexpr bool kPadM                   = PadM_;
     static constexpr bool kPadN                   = PadN_;
     static constexpr ck_tile::index_t kPipelineId = PipelineId_;
@@ -62,6 +65,7 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
     using kernel = ck_tile::BatchedTransposeKernel<typename kernel_traits<
         Config::kPipelineId>::template Pipeline<typename Config::InputType,
                                                 ck_tile::sequence<Config::kBlockX, Config::kBlockY>,
+                                                ck_tile::sequence<Config::kNumWarpsX, Config::kNumWarpsY>,
                                                 Config::kPadM,
                                                 Config::kPadN>>;
 
