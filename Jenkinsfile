@@ -188,12 +188,16 @@ def buildDocker(install_prefix){
     if(params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
         dockerArgs = dockerArgs + " --no-cache --build-arg BASE_DOCKER='${base_image_name}' -f Dockerfile.compiler . "
     }
+    else if(params.RUN_AITER_TESTS){
+        image_name = "rocm/composable_kernel:ck_aiter"
+        dockerArgs = dockerArgs + " --no-cache -f Dockerfile.aiter . "
+    }
     else{
         dockerArgs = dockerArgs + " -f Dockerfile . "
     }
     echo "Build Args: ${dockerArgs}"
     try{
-        if(params.BUILD_DOCKER){
+        if(params.BUILD_DOCKER || params.RUN_AITER_TESTS){
             //force building the new docker if that parameter is true
             echo "Building image: ${image_name}"
             retimage = docker.build("${image_name}", dockerArgs)
@@ -811,7 +815,7 @@ def run_aiter_tests(Map conf=[:]){
     env.HSA_ENABLE_SDMA=0
     checkout scm
     //use the latest pytorch image
-    def image = "rocm/pytorch:latest"
+    def image = "rocm/composable_kernel:ck_aiter"
     def dockerOpts="--cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
     def variant = env.STAGE_NAME
     def retimage
@@ -840,16 +844,10 @@ def run_aiter_tests(Map conf=[:]){
                     sh "rm -rf 3rdparty/composable_kernel/"
                     sh "git clone https://github.com/ROCm/composable_kernel.git 3rdparty/composable_kernel/"
                     sh "set -ex"
-                    sh "python3 -m venv venv"
-                    sh "/bin/bash"
-                    sh "chmod +x ./venv/bin/activate"
-                    sh "pip install --user pandas zmq einops"
-                    sh "pip install --user numpy==1.26.2"
                     sh "python3 setup.py develop"
                     sh "set -e"
                     sh "python3 op_tests/test_gemm_a8w8_blockscale.py"
                     sh "python3 op_tests/test_mha.py"
-                    sh "deactivate"
                 }
             }
             catch(e){
