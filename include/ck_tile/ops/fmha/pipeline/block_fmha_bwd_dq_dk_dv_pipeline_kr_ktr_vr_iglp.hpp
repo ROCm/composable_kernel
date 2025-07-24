@@ -49,15 +49,11 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
     static constexpr index_t kVHeaddim  = BlockFmhaShape::kVHeaddim;
 
     static constexpr bool kIsGroupMode     = Problem::kIsGroupMode;
-    static constexpr bool kPadSeqLenK      = Problem::kPadSeqLenK;
     static constexpr bool kPadHeadDimQ     = Problem::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV     = Problem::kPadHeadDimV;
     static constexpr auto BiasEnum         = Problem::BiasEnum;
     static constexpr bool kHasBiasGrad     = Problem::kHasBiasGrad;
     static constexpr bool kIsDeterministic = Problem::kIsDeterministic;
-    static_assert(!kPadSeqLenK || (BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                                   FmhaDropout::IsStoreRandval),
-                  "kPadSeqLenK only used when BiasEnum is ELEMENTWISE_BIAS");
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
@@ -74,8 +70,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
         kPadHeadDimQ ? 1 : Policy::template GetAlignmentKGrad<Problem>();
     static constexpr index_t kAlignmentVGrad =
         kPadHeadDimV ? 1 : Policy::template GetAlignmentVGrad<Problem>();
-    static constexpr index_t kAlignmentBias =
-        kPadSeqLenK ? 1 : Policy::template GetTransposedAlignmentBias<Problem>();
+    static constexpr index_t kAlignmentBias = 1;
 
     static constexpr const char* name = "kr_ktr_vr_iglp";
 
@@ -592,7 +587,6 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                 });
             }
 
-            if constexpr(FmhaMask::IsMasking)
             {
                 bool need_perpixel_check = mask.IsEdgeTile(
                     seqlen_q_step, k_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
@@ -851,7 +845,6 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             });
         }
 
-        if constexpr(FmhaMask::IsMasking)
         {
             bool need_perpixel_check = mask.IsEdgeTile(
                 seqlen_q_step, k_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});

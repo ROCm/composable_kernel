@@ -361,7 +361,6 @@ template <ck_tile::index_t HDim_,
           typename FmhaDropout_,
           ck_tile::BlockAttentionBiasEnum BiasEnum_,
           bool kHasBiasGrad_,
-          bool kPadSK_,
           bool kPadD_,
           bool kPadDv_,
           bool kIsDeterministic_>
@@ -374,7 +373,6 @@ struct fmha_bwd_dq_dk_dv_traits_
     using FmhaDropout                      = ck_tile::remove_cvref_t<FmhaDropout_>;
     static constexpr auto BiasEnum         = BiasEnum_;
     static constexpr bool kHasBiasGrad     = kHasBiasGrad_;
-    static constexpr bool kPadSK           = kPadSK_;
     static constexpr bool kPadD            = kPadD_;
     static constexpr bool kPadDv           = kPadDv_;
     static constexpr bool kIsDeterministic = kIsDeterministic_;

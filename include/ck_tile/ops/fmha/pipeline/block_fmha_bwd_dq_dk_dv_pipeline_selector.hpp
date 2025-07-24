@@ -12,8 +12,7 @@ namespace ck_tile {
 template <typename Problem>
 class BlockFmhaBwdDQDKDVPipelineSelector
 {
-    static constexpr bool has_dpad =
-        Problem::BlockFmhaShape::kQKHeaddim || Problem::BlockFmhaShape::kVHeaddim;
+    static constexpr bool has_dpad = Problem::Traits::kPadHeadDimQ || Problem::Traits::kPadHeadDimV;
 
     public:
     using type = std::conditional_t<has_dpad,

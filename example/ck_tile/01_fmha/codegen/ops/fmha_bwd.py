@@ -49,7 +49,7 @@ using fmha_bwd_shape_{F_idx} = ck_tile::TileFmhaBwdShape<fmha_block_tile_{F_idx}
                                                          fmha_warp_tile0_{F_idx}>;
 
 using fmha_bwd_trait_{F_idx} = ck_tile::TileFmhaTraits<false,  /* kPadSeqLenQ */
-                                                       {F_skpad},
+                                                       false,  /* kPadSeqLenK */
                                                        {F_dpad},
                                                        {F_dvpad},
                                                        false,
@@ -111,7 +111,6 @@ using dq_dk_dv_trait_{F_idx} = fmha_bwd_dq_dk_dv_traits_<{F_hdim},
                                                          fmha_dropout_{F_idx},
                                                          {F_bias},
                                                          {F_dbias},
-                                                         {F_skpad},
                                                          {F_dpad},
                                                          {F_dvpad},
                                                          {F_deterministic}>;
@@ -185,9 +184,9 @@ FMHA_BWD_API_PER_HDIM_CASE="""        {F_if} (t.hdim_q <= {F_hdim} && t.hdim_v <
 """
 
 FMHA_BWD_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_dbias == {F_dbias}) && ({F_dropout_check}) &&
-                        ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && (t.is_deterministic == {F_deterministic})) {{
+                        ({F_scheck}) && ({F_dcheck}) && ({F_dvcheck}) && (t.is_deterministic == {F_deterministic})) {{
                 using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad1}, {F_dvpad}>;
-                using dq_dk_dv_trait_ = fmha_bwd_dq_dk_dv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_mask}, {F_dropout}, {F_bias}, {F_dbias}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_deterministic}>;
+                using dq_dk_dv_trait_ = fmha_bwd_dq_dk_dv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_mask}, {F_dropout}, {F_bias}, {F_dbias}, {F_dpad}, {F_dvpad}, {F_deterministic}>;
                 using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad1}, {F_dpad}, {F_deterministic}>;
                 r = fmha_bwd_<dot_do_o_trait_, dq_dk_dv_trait_, convert_dq_trait_>(s, a);
                 return r;
@@ -239,7 +238,6 @@ class FmhaBwdDQDKDVKernel:
     F_hdim          : int  # hdim
     F_dtype         : str  # data type
     F_tile          : FmhaBwdDQDKDVTileSize
-    F_skpad         : str  #
     F_dpad          : str  #
     F_dvpad         : str  #
     F_bias          : str  #
@@ -281,7 +279,6 @@ class FmhaBwdDQDKDVKernel:
                 F_wm1           = self.F_tile.F_wm1,
                 F_wn1           = self.F_tile.F_wn1,
                 F_wk1           = self.F_tile.F_wk1,
-                F_skpad         = BOOL_MAP[self.F_skpad],
                 F_dpad          = BOOL_MAP[self.F_dpad],
                 F_dvpad         = BOOL_MAP[self.F_dvpad],
                 F_bias          = BIAS_MAP[self.F_bias],
@@ -297,7 +294,6 @@ class FmhaBwdDQDKDVKernel:
     def name(self) -> str:
         def pad_name() -> str:
             n = ''
-            if self.F_skpad == 't' : n += 'sk'
             if self.F_dpad == 't' : n += 'd'
             if self.F_dvpad == 't' : n += 'dv'
             if n != '' : n = 'p' + n
@@ -571,7 +567,6 @@ class FmhaBwdApiTrait:
     dropout       : str
     spad          : str
     spad1         : str # spad for dot/convert kernel
-    skpad         : str
     dpad          : str
     dvpad         : str
     deterministic : str
@@ -589,10 +584,6 @@ class FmhaBwdApiTrait:
     @property
     def bhdv(self) -> int:
         return self.tile.F_bhdv
-    
-    @property
-    def need_skpad(self) -> bool:
-        return (self.bias == 'bias') or ('storerandval' in self.dropout)
 
     def scheck(self, spad1 : str) -> str:
         if self.mode == 'group':
@@ -601,19 +592,8 @@ class FmhaBwdApiTrait:
             return f'a.seqlen_q % {self.bm0} != 0'
         elif self.spad == 'f' and spad1 == 't':
             return f'a.seqlen_q % {self.bm0} == 0 and a.seqlen_q % 64 != 0'
-        else: # self.skpad == 'f' and skpad1 == 'f'
+        else: # self.spad == 'f' and spad1 == 'f'
             return 'a.seqlen_q % 64 == 0'
-
-    @property
-    def skcheck(self) -> str:
-        if self.mode == 'group':
-            return 'true' # always support
-        elif not self.need_skpad:
-            return 'true'
-        elif self.skpad == 't':
-            return f'a.seqlen_k % {self.bn0} != 0'
-        else:
-            return f'a.seqlen_k % {self.bn0} == 0'
 
     @property
     def dcheck(self) -> str:
@@ -637,9 +617,8 @@ class FmhaBwdApiTrait:
 
     @property
     def dq_dk_dv_kernel(self) -> FmhaBwdDQDKDVKernel:
-        assert self.need_skpad or self.skpad == 'f', "skpad must be 'f' if not needed"
         return FmhaBwdDQDKDVKernel(F_idx=self.idx, F_hdim=self.hdim, F_dtype=self.dtype, F_tile=self.tile,
-            F_skpad=self.skpad, F_dpad=self.dpad, F_dvpad=self.dvpad, F_bias=self.bias, F_dbias=self.dbias, F_dropout=self.dropout,
+            F_dpad=self.dpad, F_dvpad=self.dvpad, F_bias=self.bias, F_dbias=self.dbias, F_dropout=self.dropout,
             F_mask=self.mask, F_mode=self.mode, F_deterministic=self.deterministic, mask_impl=self.mask_impl)
 
     @property
@@ -657,7 +636,6 @@ class FmhaBwdApiTrait:
 class FmhaBwdApiPool:
     def __init__(self, mask_impl):
         self.dq_dk_dv_pool = defaultdict(lambda: defaultdict(list))
-
         self.mask_impl = mask_impl
 
     def register_dq_dk_dv_traits(self, trait : FmhaBwdApiTrait) -> None:
@@ -678,9 +656,9 @@ class FmhaBwdApiPool:
                 inners += FMHA_BWD_API_INNER_DISPATCH.format(F_if=self.if_(i), F_mode=MODE_MAP[trait.mode],
                     F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask], F_mask=get_mask_map(self.mask_impl)[trait.mask], F_bias_check=BIAS_CHECK_MAP[trait.bias],
                     F_bias=BIAS_MAP[trait.bias], F_dbias=BOOL_MAP[trait.dbias], F_dropout_check=DROPOUT_CHECK_MAP[trait.dropout], F_dropout=DROPOUT_MAP[trait.dropout],
-                    F_scheck=trait.scheck(spad1=spad1), F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck, F_hdim=trait.hdim, F_dtype=BWD_DTYPE_MAP[trait.dtype],
-                    F_spad1=BOOL_MAP[spad1], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
-                    F_deterministic=BOOL_MAP[trait.deterministic], F_trload=BOOL_MAP[trait.tr_load])
+                    F_scheck=trait.scheck(spad1=spad1), F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck, F_hdim=trait.hdim, F_dtype=BWD_DTYPE_MAP[trait.dtype],
+                    F_spad1=BOOL_MAP[spad1], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
+                    F_deterministic=BOOL_MAP[trait.deterministic])
                 i += 1
         return inners
 
@@ -718,10 +696,10 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[Fm
         d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype)
         if d is None:
             continue
-        for hdim_str, mode, mask, bias, dbias, dropout, spad, spad1, skpad, dpad, dvpad, deterministic in itertools.product(d.keys(), MODE_MAP.keys(), get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], DROPOUT_MAP.keys(), *([["t", "f"]] * 6)):
+        for hdim_str, mode, mask, bias, dbias, dropout, spad, spad1, dpad, dvpad, deterministic in itertools.product(d.keys(), MODE_MAP.keys(), get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], DROPOUT_MAP.keys(), *([["t", "f"]] * 5)):
             tile = d[hdim_str]
             hdim = int(hdim_str)
-            if (mode == "group") and (spad == "f" or skpad == "f"):
+            if (mode == "group") and (spad == "f"):
                 continue
             if (spad1 == "f") and (spad == "t" or mode == "group"):
                 continue
@@ -729,9 +707,7 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[Fm
                 continue
             if ("wg32" in dropout):
                 continue
-            if skpad == "t" and not (bias == "bias" or ('storerandval' in dropout)):
-                continue  # skpad is only used for additive bias or storerandval dropout
-            t = FmhaBwdApiTrait(idx=0, hdim=hdim, dtype=dtype, mode=mode,tile=tile,mask=mask, bias=bias, dbias=dbias, dropout=dropout, spad=spad, spad1=spad1, skpad=skpad, dpad=dpad, dvpad=dvpad, deterministic=deterministic, mask_impl=mask_impl)
+            t = FmhaBwdApiTrait(idx=0, hdim=hdim, dtype=dtype, mode=mode,tile=tile,mask=mask, bias=bias, dbias=dbias, dropout=dropout, spad=spad, spad1=spad1, dpad=dpad, dvpad=dvpad, deterministic=deterministic, mask_impl=mask_impl)
 
             if not fnmatch.fnmatch(t.dot_do_o_kernel.name, filter_dot_do_o):
                 continue

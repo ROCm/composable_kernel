@@ -49,15 +49,11 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
     static constexpr index_t kVHeaddim  = BlockFmhaShape::kVHeaddim;
 
     static constexpr bool kIsGroupMode     = Problem::kIsGroupMode;
-    static constexpr bool kPadSeqLenK      = Problem::kPadSeqLenK;
     static constexpr bool kPadHeadDimQ     = Problem::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV     = Problem::kPadHeadDimV;
     static constexpr auto BiasEnum         = Problem::BiasEnum;
     static constexpr bool kHasBiasGrad     = Problem::kHasBiasGrad;
     static constexpr bool kIsDeterministic = Problem::kIsDeterministic;
-    static_assert(!kPadSeqLenK || (BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                                   FmhaDropout::IsStoreRandval),
-                  "kPadSeqLenK only used when BiasEnum is ELEMENTWISE_BIAS");
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
@@ -74,8 +70,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
         kPadHeadDimQ ? 1 : Policy::template GetAlignmentKGrad<Problem>();
     static constexpr index_t kAlignmentVGrad =
         kPadHeadDimV ? 1 : Policy::template GetAlignmentVGrad<Problem>();
-    static constexpr index_t kAlignmentBias =
-        kPadSeqLenK ? 1 : Policy::template GetTransposedAlignmentBias<Problem>();
+    static constexpr index_t kAlignmentBias = 1;
 
     static constexpr const char* name = "kr_ktr_vr";
 
@@ -115,10 +110,6 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
                void* smem_ptr,
                FmhaDropout& dropout) const
     {
-        constexpr auto store_randval = !is_null_tile_window_v<RandValDramBlockWindowTmp>;
-        static_assert(!kPadSeqLenK ||
-                          (BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS || store_randval),
-                      "kPadSeqLenK is only used with additive bias and randval operations!");
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
                 std::is_same_v<KDataType, remove_cvref_t<typename KDramBlockWindowTmp::DataType>> &&
@@ -560,7 +551,6 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
                 });
             }
 
-            if constexpr(FmhaMask::IsMasking)
             {
                 bool need_perpixel_check = mask.IsEdgeTile(
                     seqlen_q_step, k_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
