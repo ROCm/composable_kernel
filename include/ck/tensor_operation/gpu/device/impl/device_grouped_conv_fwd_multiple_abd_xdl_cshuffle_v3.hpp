@@ -320,9 +320,9 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
     static constexpr bool isMultiD   = DsDataType::Size() > 0;
     static constexpr bool isMultiABD = isMultiA && isMultiB && isMultiD;
 
-    // static constexpr bool DoElementwiseBeforeCShuffle =
-    //     !isMultiABD && is_same_v<EDataType, bhalf_t> &&
-    //     !is_same_v<CDEElementwiseOperation, tensor_operation::element_wise::PassThrough>;
+    static constexpr bool DoElementwiseBeforeCShuffle =
+        !isMultiD && is_same_v<EDataType, bhalf_t> &&
+        !is_same_v<CDEElementwiseOperation, tensor_operation::element_wise::PassThrough>;
 
     static constexpr index_t NumATensor = GetNumABTensors<isMultiA, ADataType>();
     static constexpr index_t NumBTensor = GetNumABTensors<isMultiB, BDataType>();
@@ -513,7 +513,10 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         BlkGemmPipeSched,
         BlkGemmPipelineVer,
         AComputeDataType,
-        BComputeDataType>;
+        BComputeDataType,
+        ADataType,
+        BDataType,
+        DoElementwiseBeforeCShuffle>;
 
     // #undef GridwiseGemmV3TemplateParams
 
@@ -880,9 +883,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
 
             gdy = arg.num_group_;
             gdz = num_workgroups_per_Conv_N;
-
-            // index_t k_grain = arg.KBatch * KPerBlock;
-            // index_t K_split = (arg.K + k_grain - 1) / k_grain * KPerBlock;
 
             index_t K_split                  = (GemmK + KPerBlock - 1) / KPerBlock * KPerBlock;
             const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
