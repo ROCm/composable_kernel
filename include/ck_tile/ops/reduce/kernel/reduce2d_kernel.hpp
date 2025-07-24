@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -25,53 +25,6 @@ struct Reduce
     using ComputeDataType = ck_tile::remove_cvref_t<typename Problem::ComputeDataType>;
     using YDataType       = ck_tile::remove_cvref_t<typename Problem::YDataType>;
 
-#if 0
-    CK_TILE_DEVICE void operator()(const XDataType* p_x, YDataType* p_y, index_t M, index_t N)
-    const
-    {
-        using S = typename Problem::BlockShape;
-
-        const auto x_m_n = make_naive_tensor_view<address_space_enum::global>(
-            p_x, make_tuple(M, N), make_tuple(N, 1), number<S::Vector_N>{}, number<1>{});
-
-        const auto y_m = make_naive_tensor_view_packed<address_space_enum::global>(
-            p_y, make_tuple(M), number<1>{});
-
-        const auto iM = get_block_id() * S::Block_M;
-
-        auto x_window = make_tile_window(x_m_n,
-                                         make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
-                                         {iM, 0},
-                                         Policy::template MakeXBlockTileDistribution<Problem>());
-
-        auto y_window = make_tile_window(y_m, make_tuple(number<S::Block_M>{}), {iM});
-
-        const auto f_reduce = [](const auto& v0, const auto& v1) { return v0 + v1; };
-
-        const XDataType reduce_init_value = 0;
-
-        constexpr auto reduce_dims = sequence<1>{};
-
-        auto y_compute = decltype(block_tile_reduce<ComputeDataType>(
-            load_tile(x_window), reduce_dims, f_reduce, reduce_init_value)){};
-
-        set_tile(y_compute, reduce_init_value);
-
-        index_t num_n_tile_iteration =
-            __builtin_amdgcn_readfirstlane(integer_divide_ceil(N, S::Block_N));
-
-        for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
-        {
-            const auto x = load_tile(x_window);
-            block_tile_reduce(y_compute, x, reduce_dims, f_reduce);
-            move_tile_window(x_window, {0, S::Block_N});
-        }
-
-        block_tile_reduce_sync(y_compute, f_reduce);
-
-        store_tile(y_window, cast_tile<YDataType>(y_compute));
-    }
-#else
     template <typename InputShape, typename InputStrides, typename KeptDim, typename ReduceDims>
     CK_TILE_DEVICE void operator()(const XDataType* p_x,
                                    YDataType* p_y,
@@ -83,26 +36,31 @@ struct Reduce
         using S       = typename Problem::BlockShape;
         const auto iM = get_block_id() * S::Block_M;
 
+        static_assert(kept_dim.size() + reduce_dims.size() == InputShape::size(), 
+                      "Size of kept dimensions + reduced dimensions must equal input tensor rank");
+
         // Extract lengths based on kept and reduced dimensions
-        const auto kept_len    = input_shape.at(number<kept_dim.at(0)>{});
+        const auto kept_lens = [&]() {
+            return generate_tuple(
+                [&](auto I) { return input_shape.at(number<kept_dim.at(I)>{}); },
+                number<kept_dim.size()>{});
+        }();
         const auto reduce_lens = [&]() {
             return generate_tuple(
                 [&](auto I) { return input_shape.at(number<reduce_dims.at(I)>{}); },
                 number<reduce_dims.size()>{});
         }();
 
-        // Create transforms
-        const auto pass_through_transform = make_pass_through_transform(kept_len);
-        const auto merge_transform        = make_merge_transform(reduce_lens);
+        const auto kept_merge_transform   = make_merge_transform(kept_lens);
+        const auto reduce_merge_transform = make_merge_transform(reduce_lens);
 
         auto reduce_func = typename Problem::ReduceOp{};
         const XDataType custom_padding_value =
             type_convert<XDataType>(reduce_func.template GetIdentityValue<ComputeDataType>());
 
         // Create input tensor view with custom padding value
-        // First create the descriptor
         auto desc = make_naive_tensor_descriptor(
-            input_shape, input_strides, number<S::Vector_N>{}, number<1>{});
+            input_shape, input_strides, number<S::ThreadTile_N>{}, number<1>{});
 
         // Create buffer view with custom padding value
         auto buffer_view = make_buffer_view<address_space_enum::global>(
@@ -112,21 +70,43 @@ struct Reduce
         const auto x_tensor = tensor_view<decltype(buffer_view), decltype(desc)>{buffer_view, desc};
         const auto transformed_x_tensor = pad_tensor_view(
             transform_tensor_view(x_tensor,
-                                  ck_tile::make_tuple(pass_through_transform, merge_transform),
-                                  ck_tile::make_tuple(kept_dim, reduce_dims),
-                                  ck_tile::make_tuple(sequence<0>{}, sequence<1>{})),
+                                  make_tuple(kept_merge_transform, reduce_merge_transform),
+                                  make_tuple(kept_dim, reduce_dims),
+                                  make_tuple(sequence<0>{}, sequence<1>{})),
             make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
             sequence<0, 1>{});
 
-        const auto y_m = make_naive_tensor_view_packed<address_space_enum::global>(
-            p_y, make_tuple(kept_len), number<1>{});
+        // Calculate strides for output tensor based on its own dimensions
+        const auto kept_strides = [&]() {
+            return generate_tuple(
+                [&](auto I) {
+                    // Calculate stride for dimension I as product of all following dimensions
+                    index_t stride = 1;
+                    static_for<I + 1, kept_dim.size(), 1>{}([&](auto J) {
+                        stride *= kept_lens.at(number<J>{});
+                    });
+                    return stride;
+                },
+                number<kept_dim.size()>{});
+        }();
+
+        const auto y_m = make_naive_tensor_view<address_space_enum::global>(
+            p_y, kept_lens, kept_strides, number<16 / sizeof(YDataType)>{}, number<1>{});
+
+        // Transform output tensor to 1D merged view
+        // This creates a view compatible with the 2D reduction pattern
+        const auto y_merged = transform_tensor_view(
+            y_m,
+            make_tuple(kept_merge_transform),
+            make_tuple(typename arithmetic_sequence_gen<0, kept_dim.size(), 1>::type{}),
+            make_tuple(sequence<0>{}));
 
         auto x_window = make_tile_window(transformed_x_tensor,
                                          make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
                                          {iM, 0},
                                          Policy::template MakeXBlockTileDistribution<Problem>());
 
-        auto y_window = make_tile_window(y_m, make_tuple(number<S::Block_M>{}), {iM});
+        auto y_window = make_tile_window(y_merged, make_tuple(number<S::Block_M>{}), {iM});
 
         __shared__ char smem[Policy::template GetSmemSize<Problem>()];
 
@@ -158,22 +138,22 @@ struct Reduce
         store_tile(y_window, cast_tile<YDataType>(y_compute));
     }
 
-    template <typename ArgParser>
-    CK_TILE_HOST static bool IsSupportedArgument(const ArgParser& arg_parser)
+    CK_TILE_HOST static bool IsSupportedArgument(index_t y_continous_dim)
     {
         using S = typename Problem::BlockShape;
-        if(arg_parser.get_int("n") % S::Vector_N != 0)
+
+        if(y_continous_dim % S::ThreadTile_N != 0)
         {
             if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
             {
-                CK_TILE_ERROR("Size of n dimension should be a multiple of Vector_N !");
+                CK_TILE_ERROR("Total reduction size should be a multiple of ThreadTile_N!");
             }
             return false;
         }
+
         return true;
     }
 
-#endif
 };
 
 } // namespace ck_tile
