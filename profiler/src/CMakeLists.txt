@@ -200,8 +200,10 @@ if(SUPPORTED_GPU_TARGETS MATCHES "gfx9")
   list(APPEND DEVICE_INSTANCES device_grouped_convnd_bwd_weight_instance)
   list(APPEND DEVICE_INSTANCES device_grouped_conv3d_fwd_convscale_instance)
   list(APPEND DEVICE_INSTANCES device_grouped_conv3d_fwd_convinvscale_instance)
-  list(APPEND DEVICE_INSTANCES device_grouped_conv2d_fwd_bias_clamp_instance)
   list(APPEND DEVICE_INSTANCES device_grouped_conv2d_fwd_clamp_instance)
+  list(APPEND DEVICE_INSTANCES device_grouped_conv3d_fwd_clamp_instance)
+  list(APPEND DEVICE_INSTANCES device_grouped_conv2d_fwd_bias_clamp_instance)
+  list(APPEND DEVICE_INSTANCES device_grouped_conv3d_fwd_bias_clamp_instance)
 endif()
 
 if((SUPPORTED_GPU_TARGETS MATCHES "gfx9" AND (DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)) OR
