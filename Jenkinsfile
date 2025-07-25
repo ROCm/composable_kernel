@@ -838,14 +838,14 @@ def run_aiter_tests(Map conf=[:]){
     withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
         timeout(time: 45, unit: 'MINUTES'){
             try{
-                sh "rm -rf aiter"
-                sh "git clone --recursive https://github.com/ROCm/aiter.git"
-                dir("aiter"){
-                    sh "rm -rf 3rdparty/composable_kernel/"
-                    sh "git clone https://github.com/ROCm/composable_kernel.git 3rdparty/composable_kernel/"
-                    sh "set -ex"
-                    sh "python3 setup.py develop"
-                    sh "set -e"
+                //sh "rm -rf aiter"
+                //sh "git clone --recursive https://github.com/ROCm/aiter.git"
+                dir("/aiter"){
+                    //sh "rm -rf 3rdparty/composable_kernel/"
+                    //sh "git clone https://github.com/ROCm/composable_kernel.git 3rdparty/composable_kernel/"
+                    //sh "set -ex"
+                    //sh "python3 setup.py develop"
+                    //sh "set -e"
                     sh "python3 op_tests/test_gemm_a8w8_blockscale.py"
                     sh "python3 op_tests/test_mha.py"
                 }
