@@ -357,6 +357,7 @@ struct BlockReduce2dTreeCrossWarpSync
         if(lane_id == 0)
         {
             static_for<0, thread_buf_size, 1>{}([&](auto i) {
+                // Store the i-th element of this warp's thread_buffer into SMEM
                 smem_ptr[smem_offset + i * num_warps] = y_tensor.get_thread_buffer()[i];
             });
         }

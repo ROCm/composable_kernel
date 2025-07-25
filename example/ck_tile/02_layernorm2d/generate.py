@@ -85,7 +85,7 @@ struct layernorm2d_fwd_traits_
         if constexpr(is_warp_per_row)
         {
             static_assert(ck_tile::get_warp_size() % ThreadPerBlock_N_ == 0);
-            return total_warps * (ck_tile::get_warp_size() / ThreadPerBlock_N_);
+            return total_warps;
         }
         else
         {
