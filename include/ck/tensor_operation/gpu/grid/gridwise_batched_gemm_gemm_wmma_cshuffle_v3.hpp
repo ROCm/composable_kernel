@@ -369,8 +369,9 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                                                             const CGridDesc_M_N& c_grid_desc_m_n,
                                                             const Block2CTileMap& block_2_ctile_map)
     {
-        static_assert((MPerBlock % (MPerWmma * MRepeat) == 0) &&
-                          (LPerBlock % (LPerWmma * LRepeat)) == 0,
+        static_assert(MPerBlock % (MPerWmma * MRepeat) == 0 &&
+                          LPerBlock % (LPerWmma * LRepeat) == 0 &&
+                          NPerBlock % (NPerWmma * NRepeat) == 0,
                       "Invalid tuning param!");
 
         const auto M = a_grid_desc.GetLength(I1);
@@ -414,6 +415,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
 
         if(!block_2_ctile_map.CheckValidity(c_grid_desc_m_n))
         {
+            printf("GridwiseOp: invalid block_2_ctile_map\n");
             return false;
         }
 

@@ -313,12 +313,6 @@ bool profile_batched_gemm_gemm_impl(bool do_verification,
 
     std::cout << "found " << num_supported_instances << " supported instances" << std::endl;
 
-    // Fail when no supported instances are found
-    if(num_supported_instances == 0)
-    {
-        return false;
-    }
-
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_op_name << std::endl;
 
