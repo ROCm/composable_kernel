@@ -77,7 +77,7 @@ struct FlatmmConfig16
     static constexpr int TileParitionerM01          = 4;
     static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Default;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
-    static constexpr bool DoubleSmemBuffer          = true;
+    static constexpr bool DoubleSmemBuffer          = false;
 };
 
 template <typename DataType>

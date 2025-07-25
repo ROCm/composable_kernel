@@ -33,7 +33,6 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_c
         ck_tile::sequence<FlatmmConfig::M_Warp_Tile,
                           FlatmmConfig::N_Warp_Tile,
                           FlatmmConfig::K_Warp_Tile>>;
-    std::cout << "CodegenFlatmmShape: " << CodegenFlatmmShape::GetName() << std::endl;
 
     using TilePartitioner =
         ck_tile::GemmSpatiallyLocalTilePartitioner<CodegenFlatmmShape,
@@ -64,7 +63,7 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_c
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenFlatmmShape, Traits>;
 
-    using BaseGemmPipeline = ck_tile::BaseFlatmmPipelineAGmemBGmemCRegV2<GemmPipelineProblem>;
+    using BaseGemmPipeline = ck_tile::BaseFlatmmPipelineAGmemBGmemCRegV1<GemmPipelineProblem>;
 
     const ck_tile::index_t k_grain     = args.k_batch * FlatmmConfig::K_Tile;
     const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * FlatmmConfig::K_Tile;
@@ -91,7 +90,7 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_c
                                                                              tail_number_v>;
 
         using CodegenFlatmmPipeline =
-            ck_tile::FlatmmPipelineAGmemBGmemCRegV2<CodegenPipelineProblem>;
+            ck_tile::FlatmmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
@@ -223,7 +222,6 @@ int run_flatmm_example(int argc, char* argv[])
 
         if(data_type == "fp16")
         {
-            std::cout << "Running with fp16 data type" << std::endl;
             run_flatmm_example_with_layouts<ck_tile::half_t, FlatmmConfig<ck_tile::half_t>>(
                 argc, argv, Row{}, Col{}, Row{});
         }
@@ -265,12 +263,10 @@ int main(int argc, char* argv[])
         int warp_tile = arg_parser.get_int("warp_tile");
         if(warp_tile == 0)
         {
-            std::cout << "Running with warp tile size 16x16" << std::endl;
             return !run_flatmm_example<FlatmmConfig16>(argc, argv);
         }
         else if(warp_tile == 1)
         {
-            std::cout << "Running with 32x32 tile size" << std::endl;
             return !run_flatmm_example<FlatmmConfig32>(argc, argv);
         }
         else if(warp_tile == 2)
