@@ -246,7 +246,7 @@ struct GemmKernel
     {
         return max(GemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
     }
-    
+
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize2ndBuffer()
     {
         return GemmPipeline::GetSmemSize();
@@ -955,7 +955,8 @@ struct GemmKernel
 
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
-            __shared__ char smem_ptr_1[(GemmPipeline::Preshuffle) ? GetSmemSize2ndBuffer() : GetSmemSize()];
+            __shared__ char
+                smem_ptr_1[(GemmPipeline::Preshuffle) ? GetSmemSize2ndBuffer() : GetSmemSize()];
             if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
                            EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                            is_any_of<EDataType, fp16_t, bf16_t>::value))

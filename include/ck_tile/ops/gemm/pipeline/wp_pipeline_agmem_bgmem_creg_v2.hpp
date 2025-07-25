@@ -21,7 +21,7 @@ struct BaseWeightPreshufflePipelineAGmemBGmemCRegV2
 
     CK_TILE_HOST static constexpr bool BlockHasHotloop(index_t num_loop)
     {
-        
+
         std::cout << "BlockHasHotloop: " << num_loop << std::endl;
         return num_loop > PrefetchStages;
     }
@@ -80,13 +80,13 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
     static constexpr index_t flatKPerWarp = BlockGemmShape::flatKPerWarp;
     static constexpr index_t flatNPerWarp = BlockGemmShape::flatNPerWarp;
 
-    static constexpr index_t GetVectorSizeA() { 
-        return PipelinePolicy::template GetVectorSizeA<Problem>(); 
-        //return Problem::VectorSizeA; 
+    static constexpr index_t GetVectorSizeA()
+    {
+        return PipelinePolicy::template GetVectorSizeA<Problem>();
     }
-    static constexpr index_t GetVectorSizeB() { 
-        return PipelinePolicy::template GetVectorSizeB<Problem>(); 
-        //return Problem::VectorSizeB; 
+    static constexpr index_t GetVectorSizeB()
+    {
+        return PipelinePolicy::template GetVectorSizeB<Problem>();
     }
 
     static constexpr bool kPadM = Problem::kPadM;
@@ -238,7 +238,6 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
 #if defined(__gfx950__)
             if constexpr(kMPerBlock == 128 && kNPerBlock == 256 && kKPerBlock == 256)
             {
-                //printf("Inside gfx950, with 16x16  128x256x256 \n");
                 static_for<0, 2, 1>{}([&](auto j) {
                     ignore = j;
                     static_for<0, 3, 1>{}([&](auto i) {
@@ -286,7 +285,6 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
             }
             else
             {
-                //printf("Inside gfx950, with 16x16 otherwise \n");
                 static_for<0, 2, 1>{}([&](auto j) {
                     ignore = j;
                     static_for<0, 3, 1>{}([&](auto i) {
@@ -323,11 +321,10 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                 __builtin_amdgcn_sched_barrier(0);
             }
 // MFMA → MFMA → MFMA → MFMA → DS Read
-// For other device engine we need more agressive MFMA with DS writes interleaved
+// For other device engine we need more aggressive MFMA with DS writes interleaved
 #else
-            if constexpr(kMPerBlock == 128 && kNPerBlock == 256 && kKPerBlock == 256) //TODO :: 128x256x128
+            if constexpr(kMPerBlock == 128 && kNPerBlock == 256 && kKPerBlock == 256)
             {
-                //printf("Inside gfx942, with 16x16  128x256x256 \n");
                 static_for<0, 2, 1>{}([&](auto j) {
                     ignore = j;
                     // Uses loops to amortize scheduling overhead
@@ -403,7 +400,6 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
             }
             else if constexpr(kMPerBlock == 16 && kNPerBlock == 64 && kKPerBlock == 256)
             {
-                //printf("Inside gfx942, with 16x16  16x64x256 \n");
                 static_for<0, 1, 1>{}([&](auto i) {
                     ignore = i;
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
@@ -432,7 +428,6 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
             }
             else if constexpr(kMPerBlock == 128 && kNPerBlock == 128 && kKPerBlock == 128)
             {
-                //printf("Inside gfx942, with 16x16  128x128x128 \n");
                 // prioritize MFMA to avoid LDS write conflicts
                 static_for<0, 2, 1>{}([&](auto j) {
                     ignore = j;
@@ -495,7 +490,6 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
             }
             else
             {
-                //printf("Inside gfx942, with 16x16  otherwise \n");
                 static_for<0, A_Buffer_Load_Inst_Num, 1>{}([&](auto i) {
                     ignore = i;
                     __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
@@ -523,7 +517,6 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
         }
         else
         {
-            //printf("Inside gfx950 or gfx942, with other then 16x16 any block sizes \n");
             if constexpr((A_LDS_Read_Inst_Num / 2 >
                           A_Buffer_Load_Inst_Num + B_Buffer_Load_Inst_Num))
             {
