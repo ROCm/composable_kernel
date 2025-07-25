@@ -76,6 +76,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
     using CDataType                    = std::tuple_element_t<6, Tuple>;
     static constexpr auto Scheduler    = std::tuple_element_t<7, Tuple>::value;
     static constexpr auto PipelineType = std::tuple_element_t<8, Tuple>::value;
+    static constexpr bool SkipALds     = std::tuple_element_t<9, Tuple>::value;
+    static constexpr bool SkipBLds     = std::tuple_element_t<10, Tuple>::value;
     // TODO: expose tile size through test t-param ?
 
     template <bool PadM, bool PadN, bool PadK>
@@ -100,8 +102,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
 
         constexpr bool DoubleSmemBuffer = (PipelineType == GemmPipelineType::CompV4) ? true : false;
 
-        constexpr bool SkipALds = false;
-        constexpr bool SkipBLds = false;
+        constexpr bool kSkipALds = SkipALds;
+        constexpr bool kSkipBLds = SkipBLds;
 
         // TODO: For now - but this should also be a test parameter
         constexpr bool TransposeC = false;
@@ -124,8 +126,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                                      kPadN,
                                                                      kPadK,
                                                                      DoubleSmemBuffer,
-                                                                     SkipALds,
-                                                                     SkipBLds,
+                                                                     kSkipALds,
+                                                                     kSkipBLds,
                                                                      ALayout,
                                                                      BLayout,
                                                                      CLayout,

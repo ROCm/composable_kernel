@@ -163,8 +163,6 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   ck_tile::index_t stride_B,
                   ck_tile::index_t stride_C,
                   ck_tile::index_t kbatch,
-                  bool skip_a_lds,
-                  bool skip_b_lds,
                   int n_warmup,
                   int n_repeat)
 {
@@ -179,8 +177,6 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     args.stride_A = stride_A;
     args.stride_B = stride_B;
     args.stride_C = stride_C;
-    args.skip_a_lds = skip_a_lds;
-    args.skip_b_lds = skip_b_lds;
 
     float ave_time =
         gemm_calc<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
@@ -198,8 +194,6 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
               << " C_Layout=" << CLayout::name << " A_Type=" << DataTypeTraits<ADataType>::name
               << " B_Type=" << DataTypeTraits<BDataType>::name
               << " C_Type=" << DataTypeTraits<CDataType>::name
-              << " SkipALds=" << skip_a_lds
-              << " SkipBLds=" << skip_b_lds
               << " StructuredSparsity=" << (GemmConfig::UseStructuredSparsity ? "on" : "off")
               << " : " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << std::endl;
@@ -237,8 +231,6 @@ int run_gemm_example_with_layouts(int argc,
     int n_warmup                 = arg_parser.get_int("warmup");
     int n_repeat                 = arg_parser.get_int("repeat");
     ck_tile::index_t init_method = arg_parser.get_int("init");
-    bool skip_a_lds              = arg_parser.get_int("skip_a_lds");
-    bool skip_b_lds              = arg_parser.get_int("skip_b_lds");
 
     stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
     stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
@@ -325,8 +317,6 @@ int run_gemm_example_with_layouts(int argc,
         stride_B,
         stride_C,
         kbatch,
-        skip_a_lds,
-        skip_b_lds,
         n_warmup,
         n_repeat);
 

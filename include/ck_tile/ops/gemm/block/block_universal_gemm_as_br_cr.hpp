@@ -19,25 +19,24 @@ struct BlockUniversalGemmAsBrCr : public BlockUniversalGemmBase<Problem_, Policy
 {
     private:
     using Base = BlockUniversalGemmBase<Problem_, Policy_>;
-    using typename Base::ADataType;
-    using typename Base::BDataType;
-    using typename Base::CDataType;
-    using typename Base::ComputeDataType;
-    using typename Base::WarpGemm;
-    using typename Base::AWarpTensor;
-    using typename Base::BWarpTensor;
-    using typename Base::CWarpTensor;
+    using Base::a_warp_y_index_zeros;
+    using Base::a_warp_y_lengths;
+    using Base::b_warp_y_index_zeros;
+    using Base::b_warp_y_lengths;
+    using Base::c_warp_y_index_zeros;
+    using Base::c_warp_y_lengths;
+    using Base::KIterPerWarp;
+    using Base::load_interleaved_pk_type;
     using Base::MIterPerWarp;
     using Base::NIterPerWarp;
-    using Base::KIterPerWarp;
-    using Base::a_warp_y_index_zeros;
-    using Base::b_warp_y_index_zeros;
-    using Base::c_warp_y_index_zeros;
-    using Base::a_warp_y_lengths;
-    using Base::b_warp_y_lengths;
-    using Base::c_warp_y_lengths;
     using Base::Scheduler;
-    using Base::load_interleaved_pk_type;
+    using typename Base::ADataType;
+    using typename Base::AWarpTensor;
+    using typename Base::BDataType;
+    using typename Base::BWarpTensor;
+    using typename Base::CDataType;
+    using typename Base::ComputeDataType;
+    using typename Base::CWarpTensor;
 
     using GemmTraits = typename Base::template GemmTraits_<Problem_, Policy_>;
 
@@ -45,6 +44,7 @@ struct BlockUniversalGemmAsBrCr : public BlockUniversalGemmBase<Problem_, Policy
     using Base::MakeABlockDistributionEncode;
     using Base::MakeBBlockDistributionEncode;
     using Base::MakeCBlockTile;
+    using typename Base::WarpGemm;
 
     private:
     template <GemmPipelineScheduler scheduler, typename GemmTraits_>

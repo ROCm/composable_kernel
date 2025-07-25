@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v1_default_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
 #include "ck_tile/ops/elementwise.hpp"
 
 namespace ck_tile {
@@ -13,7 +14,7 @@ namespace ck_tile {
 template <typename Problem_, typename Policy_>
 struct BlockUniversalGemmBase
 {
-protected:
+    protected:
     // TODO: This should be in Policy - UniversalGemmPolicyBase ?
     template <typename PipelineProblem_, typename GemmPolicy_>
     struct GemmTraits_
@@ -80,7 +81,8 @@ protected:
         static constexpr index_t KPerThread = KIterPerWarp * WarpGemm::kKPerThread;
     };
 
-public:
+    public:
+    // using Traits = UniversalGemmPolicyBase<Problem_, Policy_>::GemmTraits;
     using Traits = GemmTraits_<Problem_, Policy_>;
 
     using ADataType       = remove_cvref_t<typename Traits::ADataType>;
@@ -194,7 +196,7 @@ public:
         return c_block_tensor;
     }
 
-protected:
+    protected:
     template <typename WarpWindow, typename WarpTile>
     CK_TILE_DEVICE static void load_interleaved_pk_type(WarpTile& warp_tile,
                                                         const WarpWindow& warp_window)

@@ -19,33 +19,32 @@ struct BlockUniversalGemmArBrCr : public BlockUniversalGemmBase<Problem_, Policy
 {
     private:
     using Base = BlockUniversalGemmBase<Problem_, Policy_>;
-    using typename Base::ADataType;
-    using typename Base::BDataType;
-    using typename Base::CDataType;
-    using typename Base::WarpGemm;
-    using typename Base::AWarpTensor;
-    using typename Base::BWarpTensor;
-    using typename Base::CWarpTensor;
+    using Base::a_warp_y_index_zeros;
+    using Base::a_warp_y_lengths;
+    using Base::b_warp_y_index_zeros;
+    using Base::b_warp_y_lengths;
+    using Base::c_warp_y_index_zeros;
+    using Base::c_warp_y_lengths;
+    using Base::KIterPerWarp;
     using Base::MIterPerWarp;
     using Base::NIterPerWarp;
-    using Base::KIterPerWarp;
-    using Base::a_warp_y_index_zeros;
-    using Base::b_warp_y_index_zeros;
-    using Base::c_warp_y_index_zeros;
-    using Base::a_warp_y_lengths;
-    using Base::b_warp_y_lengths;
-    using Base::c_warp_y_lengths;
     using Base::Scheduler;
+    using typename Base::ADataType;
+    using typename Base::AWarpTensor;
+    using typename Base::BDataType;
+    using typename Base::BWarpTensor;
+    using typename Base::CDataType;
+    using typename Base::CWarpTensor;
 
     using GemmTraits = typename Base::template GemmTraits_<Problem_, Policy_>;
-    
+
     public:
-    using Base::MakeBBlockDistributionEncode;
     using Base::MakeABlockDistributionEncode;
+    using Base::MakeBBlockDistributionEncode;
     using Base::MakeCBlockTile;
+    using typename Base::WarpGemm;
 
     private:
-
     template <GemmPipelineScheduler scheduler, typename GemmTraits_>
     struct BlockGemmImpl
     {
@@ -113,12 +112,13 @@ struct BlockUniversalGemmArBrCr : public BlockUniversalGemmBase<Problem_, Policy
         // C += A * B
         template <typename CBlockTensor, typename ARegBlockTensor, typename BRegBlockTensor>
         CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
-                                       [[maybe_unused]] ARegBlockTensor& a_block_tensor,
-                                       [[maybe_unused]] BRegBlockTensor& b_block_tensor)
+                                       ARegBlockTensor& a_block_tensor,
+                                       BRegBlockTensor& b_block_tensor)
         {
             static_assert(std::is_same_v<CDataType, typename CBlockTensor::DataType>,
                           "The CDataType as defined in traits should be the same as correspoinding "
                           "C block tensor data type!");
+
             // hot loop:
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
@@ -261,6 +261,7 @@ struct BlockUniversalGemmArBrCr : public BlockUniversalGemmBase<Problem_, Policy
                                    const ARegBlockTensor& a_block_tensor,
                                    const BRegBlockTensor& b_block_tensor)
     {
+
         block_gemm_impl_(c_block_tensor, a_block_tensor, b_block_tensor);
     }
 

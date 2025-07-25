@@ -23,40 +23,45 @@ using CompV4    = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType:
 
 // clang-format off
 using KernelTypesMem = ::testing::Types<
-    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem>,
-    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem>,
-    std::tuple<    Row,     Row,     Row,       F8,       F8,         F32,       F16,             Interwave,         Mem>,
-    std::tuple<    Row,     Row,     Row,       F8,       F8,         F32,       F16,             Intrawave,         Mem>,
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem>,
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem>,
-    std::tuple<    Row,     Col,     Row,       F8,       F8,         F32,       F16,             Interwave,         Mem>,
-    std::tuple<    Row,     Col,     Row,       F8,       F8,         F32,       F16,             Intrawave,         Mem>,
-    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem>,
-    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem>,
-    std::tuple<    Col,     Row,     Row,       F8,       F8,         F32,       F16,             Intrawave,         Mem>,
-    std::tuple<    Col,     Row,     Row,       F8,       F8,         F32,       F16,             Interwave,         Mem>,
-    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem>,
-    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem>,
-    std::tuple<    Col,     Col,     Row,       F8,       F8,         F32,       F16,             Intrawave,         Mem>,
-    std::tuple<    Col,     Col,     Row,       F8,       F8,         F32,       F16,             Interwave,         Mem>
+//               ALayout   BLayout  CLayout  ADataType   BDataType  AccDataType  CDataType          Scheduler       PipelineType        SkipALds               SkipBLds
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem,          std::false_type,      std::false_type>,
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem,          std::false_type,      std::false_type>,
+    std::tuple<    Row,     Row,     Row,       F8,        F8,          F32,       F16,             Interwave,         Mem,          std::false_type,      std::false_type>,
+    std::tuple<    Row,     Row,     Row,       F8,        F8,          F32,       F16,             Intrawave,         Mem,          std::false_type,      std::false_type>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem,          std::false_type,      std::false_type>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem,          std::false_type,      std::false_type>,
+    std::tuple<    Row,     Col,     Row,       F8,        F8,          F32,       F16,             Interwave,         Mem,          std::false_type,      std::false_type>,
+    std::tuple<    Row,     Col,     Row,       F8,        F8,          F32,       F16,             Intrawave,         Mem,          std::false_type,      std::false_type>,
+    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem,          std::false_type,      std::false_type>,
+    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem,          std::false_type,      std::false_type>,
+    std::tuple<    Col,     Row,     Row,       F8,        F8,          F32,       F16,             Intrawave,         Mem,          std::false_type,      std::false_type>,
+    std::tuple<    Col,     Row,     Row,       F8,        F8,          F32,       F16,             Interwave,         Mem,          std::false_type,      std::false_type>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem,          std::false_type,      std::false_type>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem,          std::false_type,      std::false_type>,
+    std::tuple<    Col,     Col,     Row,       F8,        F8,          F32,       F16,             Intrawave,         Mem,          std::false_type,      std::false_type>,
+    std::tuple<    Col,     Col,     Row,       F8,        F8,          F32,       F16,             Interwave,         Mem,          std::false_type,      std::false_type>,
+    // SkipALds/SkipBLds
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem,          std::false_type,      std::true_type>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem,          std::true_type,       std::false_type>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem,          std::true_type,       std::true_type>
 >;
 
 using KernelTypesCompV3 = ::testing::Types<
-    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV3>,
-    std::tuple<    Row,     Row,     Row,       F8,       F8,         F32,       F16,             Intrawave,         CompV3>,
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV3>,
-    std::tuple<    Row,     Col,     Row,       F8,       F8,         F32,       F16,             Intrawave,         CompV3>,
-    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV3>,
-    std::tuple<    Col,     Row,     Row,       F8,       F8,         F32,       F16,             Intrawave,         CompV3>,
-    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV3>,
-    std::tuple<    Col,     Col,     Row,       F8,       F8,         F32,       F16,             Intrawave,        CompV3>
+    std::tuple<    Row,     Row,     Row,       F16,      F16,         F32,       F16,             Intrawave,         CompV3,        std::false_type,      std::false_type>,
+    std::tuple<    Row,     Row,     Row,       F8,       F8,          F32,       F16,             Intrawave,         CompV3,        std::false_type,      std::false_type>,
+    std::tuple<    Row,     Col,     Row,       F16,      F16,         F32,       F16,             Intrawave,         CompV3,        std::false_type,      std::false_type>,
+    std::tuple<    Row,     Col,     Row,       F8,       F8,          F32,       F16,             Intrawave,         CompV3,        std::false_type,      std::false_type>,
+    std::tuple<    Col,     Row,     Row,       F16,      F16,         F32,       F16,             Intrawave,         CompV3,        std::false_type,      std::false_type>,
+    std::tuple<    Col,     Row,     Row,       F8,       F8,          F32,       F16,             Intrawave,         CompV3,        std::false_type,      std::false_type>,
+    std::tuple<    Col,     Col,     Row,       F16,      F16,         F32,       F16,             Intrawave,         CompV3,        std::false_type,      std::false_type>,
+    std::tuple<    Col,     Col,     Row,       F8,       F8,          F32,       F16,             Intrawave,         CompV3,        std::false_type,      std::false_type>
 >;
 
 using KernelTypesCompV4 = ::testing::Types<
-    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV4>,
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV4>,
-    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV4>,
-    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV4>
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV4,        std::false_type,      std::false_type>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV4,        std::false_type,      std::false_type>,
+    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV4,        std::false_type,      std::false_type>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV4,        std::false_type,      std::false_type>
 >;
 
 // clang-format on

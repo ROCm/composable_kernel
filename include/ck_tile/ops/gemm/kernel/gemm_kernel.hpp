@@ -188,8 +188,7 @@ struct GemmKernel
                               hostArgs.stride_C,
                               hostArgs.k_batch,
                               hostArgs.skip_a_lds,
-                              hostArgs.skip_b_lds
-                            };
+                              hostArgs.skip_b_lds};
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
@@ -378,6 +377,7 @@ struct GemmKernel
                 return false;
             }
         }
+
         return true;
     }
 

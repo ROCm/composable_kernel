@@ -7,7 +7,7 @@
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_default_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/elementwise.hpp"
-#include "block_universal_gemm_base.hpp"
+#include "ck_tile/ops/gemm/block/block_universal_gemm_base.hpp"
 
 namespace ck_tile {
 
@@ -19,25 +19,24 @@ struct BlockUniversalGemmAsBsCr : public BlockUniversalGemmBase<Problem_, Policy
 {
     private:
     using Base = BlockUniversalGemmBase<Problem_, Policy_>;
-    using typename Base::ADataType;
-    using typename Base::BDataType;
-    using typename Base::CDataType;
-    using typename Base::ComputeDataType;
-    using typename Base::WarpGemm;
-    using typename Base::AWarpTensor;
-    using typename Base::BWarpTensor;
-    using typename Base::CWarpTensor;
+    using Base::a_warp_y_index_zeros;
+    using Base::a_warp_y_lengths;
+    using Base::b_warp_y_index_zeros;
+    using Base::b_warp_y_lengths;
+    using Base::c_warp_y_index_zeros;
+    using Base::c_warp_y_lengths;
+    using Base::KIterPerWarp;
+    using Base::load_interleaved_pk_type;
     using Base::MIterPerWarp;
     using Base::NIterPerWarp;
-    using Base::KIterPerWarp;
-    using Base::a_warp_y_index_zeros;
-    using Base::b_warp_y_index_zeros;
-    using Base::c_warp_y_index_zeros;
-    using Base::a_warp_y_lengths;
-    using Base::b_warp_y_lengths;
-    using Base::c_warp_y_lengths;
     using Base::Scheduler;
-    using Base::load_interleaved_pk_type;
+    using typename Base::ADataType;
+    using typename Base::AWarpTensor;
+    using typename Base::BDataType;
+    using typename Base::BWarpTensor;
+    using typename Base::CDataType;
+    using typename Base::ComputeDataType;
+    using typename Base::CWarpTensor;
 
     using GemmTraits = typename Base::template GemmTraits_<Problem_, Policy_>;
 
@@ -45,6 +44,7 @@ struct BlockUniversalGemmAsBsCr : public BlockUniversalGemmBase<Problem_, Policy
     using Base::MakeABlockDistributionEncode;
     using Base::MakeBBlockDistributionEncode;
     using Base::MakeCBlockTile;
+    using typename Base::WarpGemm;
 
     private:
     template <GemmPipelineScheduler scheduler, typename GemmTraits_>
@@ -296,8 +296,6 @@ struct BlockUniversalGemmAsBsCr : public BlockUniversalGemmBase<Problem_, Policy
             static_assert(std::is_same_v<CDataType, typename CBlockTensor::DataType>,
                           "The CDataType as defined in traits should be the same as correspoinding "
                           "C block tensor data type!");
-
-            printf("AS_BS_CR\n");
 
             // hot loop:
             static_for<0, KRepeat, 1>{}([&](auto kIter) {
