@@ -22,7 +22,7 @@ __device__ constexpr index_t get_warp_size()
 
 inline __host__ index_t get_warp_size()
 {
-    return 64;
+    return 32;
 }
 
 __device__ index_t get_thread_local_1d_id() { return threadIdx.x; }

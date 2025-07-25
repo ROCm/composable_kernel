@@ -35,7 +35,10 @@ __global__ void
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3(typename GridwiseGemm::Argument karg)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__) || defined(__gfx12__))
+#if defined(__gfx9__) || defined(__gfx12__)
+    if constexpr(GridwiseGemm::IsValidCompilationParameter())
+    {
+        static_assert(0);
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
@@ -46,6 +49,7 @@ __global__ void
         karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
         p_shared,
         karg);
+    }
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -291,8 +295,17 @@ struct GridwiseGemm_xdl_cshuffle_v3
     {
         // TODO: properly implement this check
         constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
-        return  BlockSize / get_warp_size() / MWave > 0;
+        constexpr index_t NWave = BlockSize / (get_warp_size() * MWave);
+        if constexpr(NWave > 0)
+        {
+            return NPerBlock / (NWave * NPerXdl) > 0;
+        }
+        else
+        {
+            return false;
+        }
     }
+
     static constexpr index_t APackedSize = []() {
         if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t>)
             return 2;
