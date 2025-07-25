@@ -158,7 +158,7 @@ template <typename GemmConfig,
           typename CLayout,
           bool Persistent,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
-float gemm(const ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& s);
+float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s);
 
 template <typename GemmConfig,
           typename ADataType,
@@ -186,18 +186,16 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   bool persistent,
                   int bench_time_ms)
 {
-    ck_tile::GemmHostArgs</*NumDTensor = 0*/> args = {a_m_k_dev_buf.GetDeviceBuffer(),
-                                                      b_k_n_dev_buf.GetDeviceBuffer(),
-                                                      {},
-                                                      c_m_n_dev_buf.GetDeviceBuffer(),
-                                                      kbatch,
-                                                      M,
-                                                      N,
-                                                      K,
-                                                      stride_A,
-                                                      stride_B,
-                                                      {},
-                                                      stride_C};
+    ck_tile::GemmHostArgs args = {a_m_k_dev_buf.GetDeviceBuffer(),
+                                  b_k_n_dev_buf.GetDeviceBuffer(),
+                                  c_m_n_dev_buf.GetDeviceBuffer(),
+                                  kbatch,
+                                  M,
+                                  N,
+                                  K,
+                                  stride_A,
+                                  stride_B,
+                                  stride_C};
 
     float ave_time;
     if(persistent)
