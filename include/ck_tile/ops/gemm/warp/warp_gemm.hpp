@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_impl.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_attribute_mfma.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_attribute_wmma.hpp"
 
 #include "ck_tile/ops/gemm/warp/warp_gemm_smfmac_impl.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_attribute_smfmac.hpp"
@@ -17,6 +18,9 @@ namespace ck_tile {
 using WarpGemmMfmaF16F16F32M32N32K8 = WarpGemmImpl<
     WarpGemmAttributeMfma<WarpGemmAttributeMfmaImplF16F16F32M32N32K8<WGAttrCtlEnum::Default_>>>;
 
+using WarpGemmWmmaF16F16F32M32N32K8 = WarpGemmImpl<
+    WarpGemmAtrributeWmma<WarpGemmAttributeWmmaImplF16F16F32M32N32K8<WGAttrCtlEnum::Default_>>>;
+    
 using WarpGemmMfmaF16F16F32M16N16K16 = WarpGemmImpl<
     WarpGemmAttributeMfma<WarpGemmAttributeMfmaImplF16F16F32M16N16K16<WGAttrCtlEnum::Default_>>>;
 
@@ -57,6 +61,10 @@ using WarpGemmMfmaF16F16F32M32N32K16SwizzleA = WarpGemmImpl<WarpGemmAttributeMfm
 using WarpGemmMfmaF16F16F32M32N32K8TransposedCDistribution =
     WarpGemmImpl<WarpGemmAttributeMfmaTransposedCDistribution<
         WarpGemmAttributeMfmaImplF16F16F32M32N32K8<WGAttrCtlEnum::Default_>>>;
+
+using WarpGemmWmmaF16F16F32M32N32K8TransposedCDistribution =
+    WarpGemmImpl<WarpGemmAtrributeWmmaTransposedCDistribution<
+        WarpGemmAttributeWmmaImplF16F16F32M32N32K8<WGAttrCtlEnum::Default_>>>;
 
 using WarpGemmMfmaF16F16F32M16N16K16TransposedCDistribution =
     WarpGemmImpl<WarpGemmAttributeMfmaTransposedCDistribution<
