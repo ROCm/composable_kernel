@@ -18,109 +18,6 @@
 
 namespace ck {
 
-/// @brief \"Universal\" GEMM kernel with SplitK support.
-///
-/// @par Overview
-///         This GEMM kernel is carrying out following mathematical equation:
-///         C{M,N} = C_op(A_op(A{M,K}) * B_op(B{K,N}))
-///         Where A, B are input tensors and C is the output tensor. The A/B/C_op are
-///         elementwise operations that could be applied on each tensor respectively.
-///         The \"universal\" gemm comes with multiple pipelines optimized for different usage
-///         scenarios. That's why it's called \"universal\". It's universal through it's design
-///         and versatilty.
-///
-/// @note   This Kernel implementation supports SplitK algorithm. It can be configured
-///         to split the dot product accumulated over the K dimension into multiple working groups.
-///         The partial products of different workgroups are then reduced using the AtomicAdd
-///         operation.
-///
-/// @tparam ALayout     A tensor data layout.
-/// @tparam BLayout     B tensor data layout.
-/// @tparam CLayout     C tensor data layout.
-/// @tparam ADataType   A tensor data type.
-/// @tparam BDataType   B tensor data type.
-/// @tparam AccDataType The accumulation data type related to the hardware
-///                         matrix-multiplication instruction.
-/// @tparam CShuffleDataType The data type used to store matrix-multiplication results into
-///                          LDS memory during \"CShuffle\" data layout optimization.
-/// @tparam CDataType   C tensor data type.
-/// @tparam AElementwiseOperation Elementwise operation applied to the A input tensor elements.
-/// @tparam BElementwiseOperation Elementwise operation applied to the B input tensor elements.
-/// @tparam CElementwiseOperation Elementwise operation applied to the C output tensor
-///                               (after GEMM).
-/// @tparam GemmSpec    Determines used "padding" version.
-/// @tparam BlockSize   The number of threads within workgroup.
-/// @tparam MPerBlock   The input/output data tile size in the M dimension.
-/// @tparam NPerBlock   The input/output data tile size in the N dimension.
-/// @tparam KPerBlock   The input data tile size in the K dimension.
-/// @tparam AK1Value    The vector load size from global memory for A tensor.
-/// @tparam BK1Value    The vector load size from global memory for B tensor.
-/// @tparam MPerWmma    M size of Wave Matrix Multiply Accumulate (WMMA) instruction.
-/// @tparam NPerWmma    N size of Wave Matrix Multiply Accumulate (WMMA) instruction.
-/// @tparam MRepeat     The number of iterations in the M dimension over output tile per wavefront.
-/// @tparam NRepeat     The number of iterations in the N dimension over output tile per wavefront.
-/// @tparam ABlockTransferThreadClusterLengths_AK0_M_AK1 Spatial thread distribution over the input
-///                                                      data. Can be interpreted as the answer
-///                                                      to the question, "How many threads can be
-///                                                      arranged on each input data axis?"
-/// @tparam ABlockTransferThreadClusterArrangeOrder The order of thread spatial distribution over
-///                                                 the input tensor dimension. Can be interpreted
-///                                                 as the answer to the question: "In which
-///                                                 order to spread threads through tensor axes?".
-/// @tparam ABlockTransferSrcAccessOrder The order of accessing input tensor axes. Can be
-///                                      interpreted as the answer to the question "Which dimension
-///                                      to read first? And which next?" etc.
-/// @tparam ABlockTransferSrcVectorDim   The index of axis on which we could do vectorized memory
-///                                      access - the one with contiguous memory.
-/// @tparam ABlockTransferSrcScalarPerVector The size of vector access instruction - the number of
-///                                          elements accessed per thread per instruction.
-/// @tparam ABlockTransferDstScalarPerVector_AK1 The size of vectorized store into LDS memory.
-/// @tparam AThreadTransferSrcResetCoordinateAfterRun   Decides whether we reset thread coordinate
-///                          (return back to the window origin) after all thread finish data copy.
-/// @tparam ABlockLdsExtraM                      Whether to use padding for LDS or not. With
-///                                              universal GEMM there's no need for padding.
-/// @tparam BBlockTransferThreadClusterLengths_BK0_N_BK1 Spatial thread distribution over the input
-///                                                      data. Can be interpreted as the answer
-///                                                      to the question: "How many threads to
-///                                                      arrange on each input data axis?"
-/// @tparam BBlockTransferThreadClusterArrangeOrder The order of thread spatial distribution over
-///                                                 the input tensor dimension. Can be interpreted
-///                                                 as the answer to the question: "In which
-///                                                 order to spread threads through tensor axes?".
-/// @tparam BBlockTransferSrcAccessOrder he order of accessing input tensor axes. Can be
-///                                      interpreted as the answer to the question "Which dimension
-///                                      to read first? And which next?" etc.
-/// @tparam BBlockTransferSrcVectorDim  The index of axis on which we could do vectorized memory
-///                                      access - the one with contiguous memory.
-/// @tparam BBlockTransferSrcScalarPerVector The size of vector access instruction - the number of
-///                                          elements accessed per thread per instruction.
-/// @tparam BBlockTransferDstScalarPerVector_BK1 The size of vectorized store into LDS memory.
-/// @tparam BThreadTransferSrcResetCoordinateAfterRun   Decides whether we reset thread coordinate
-///                          (return back to the window origin) after all thread finish data copy.
-/// @tparam BBlockLdsExtraN             Whether to use padding for LDS or not. With universal GEMM
-///                                         there's no need for padding.
-/// @tparam CShuffleMRepeatPerShuffle   The number of matrix-multiplication instructions
-///                                         results to process per wave per iteration of CShuffle
-///                                         in M dimension.
-/// @tparam CShuffleNRepeatPerShuffle   The number of matrix-multiplication instructions
-///                                         results to process per wave per iteration of CShuffle
-///                                         in N dimension.
-/// @tparam CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock The spatial
-///                                         thread distribution used for storing data into output
-///                                         tensor across output data layout dimensions.
-/// @tparam CShuffleBlockTransferScalarPerVector_NPerBlock The size of vectorized memory access.
-///                                         Used when storing data to output tensor.
-/// @tparam BlkGemmPipeSched    The version of blockwise-gemm pipeline scheduler (interwave or
-///                             intrawave).
-/// @tparam BlkGemmPipelineVer  The version of blockwise-gemm pipeline.
-/// @tparam ComputeTypeA    Data type used for A input of hardware matrix-multiplication
-///                         instructions.
-/// @tparam ComputeTypeB    Data type used for B input of hardware matrix-multiplication
-///                         instructions.
-/// @tparam PermuteA            Whether the A input tensor has gridwise-gemm friendly data layout
-///                             in global memory. Currently not supported!
-/// @tparam PermuteB            Whether the B input tensor has gridwise-gemm friendly data layout
-///                             in global memory (pre-shuffled).
 template <typename ALayout,
           typename BLayout,
           typename CLayout,
@@ -134,6 +31,8 @@ template <typename ALayout,
           typename CElementwiseOperation,
           tensor_operation::device::GemmSpecialization GemmSpec,
           index_t BlockSize,
+          index_t ScaleBlockN, // scale N
+          index_t ScaleBlockK, // scale K
           index_t MPerBlock,
           index_t NPerBlock,
           index_t KPerBlock,
@@ -163,13 +62,13 @@ template <typename ALayout,
           index_t CShuffleNRepeatPerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
-          BlockGemmPipelineScheduler BlkGemmPipeSched,
-          BlockGemmPipelineVersion BlkGemmPipelineVer,
-          typename ComputeTypeA,
-          typename ComputeTypeB,
-          bool PermuteA,
-          bool PermuteB>
-struct GridwiseGemm_wmma_cshuffle_v3
+          BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
+          BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v4,
+          typename ComputeTypeA                       = CDataType,
+          typename ComputeTypeB                       = ComputeTypeA,
+          bool PermuteA                               = false,
+          bool PermuteB                               = false>
+struct GridwiseGemm_wmma_cshuffle_v3_b_scale
     : GridwiseGemm_wmma_cshuffle_v3_base<
           ALayout,
           BLayout,
@@ -220,6 +119,8 @@ struct GridwiseGemm_wmma_cshuffle_v3
           PermuteA,
           PermuteB>
 {
+    using BScaleType = ck::half_t;
+
     using Base = GridwiseGemm_wmma_cshuffle_v3_base<
         ALayout,
         BLayout,
@@ -316,6 +217,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
                          index_t StrideA_,
                          index_t StrideB_,
                          index_t StrideC_,
+                         index_t StrideScaleB_,
                          index_t KBatch_)
             : M{M_},
               N{N_},
@@ -323,6 +225,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
               StrideA{StrideA_},
               StrideB{StrideB_},
               StrideC{StrideC_},
+              StrideScaleB{StrideScaleB_},
               KBatch{KBatch_},
               MPadded{CalculateMPadded(M_)},
               NPadded{CalculateNPadded(N_)},
@@ -344,6 +247,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
                       << "SA:" << StrideA << ", "
                       << "SB:" << StrideB << ", "
                       << "SC:" << StrideC << ", "
+                      << "SScaleB:" << StrideScaleB << ", "
                       << "MP:" << MPadded << ", "
                       << "NP:" << NPadded << ", "
                       << "KRead:" << KRead << ", "
@@ -360,6 +264,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
         index_t StrideA;
         index_t StrideB;
         index_t StrideC;
+        index_t StrideScaleB;
         index_t KBatch;
         index_t MPadded;
         index_t NPadded;
@@ -383,12 +288,21 @@ struct GridwiseGemm_wmma_cshuffle_v3
                           index_t StrideA_,
                           index_t StrideB_,
                           index_t StrideC_,
+                          index_t StrideScaleB_,
+                          const BScaleType* p_b_scale_grid_,
                           index_t k_batch_,
+                          AElementwiseOperation a_element_op_,
+                          BElementwiseOperation b_element_op_,
+                          CElementwiseOperation c_element_op_,
                           bool is_reduce_ = false)
-            : Problem{M_, N_, K_, StrideA_, StrideB_, StrideC_, k_batch_},
+            : Problem{M_, N_, K_, StrideA_, StrideB_, StrideC_, StrideScaleB_, k_batch_},
               p_a_grid{p_a_grid_},
               p_b_grid{p_b_grid_},
               p_c_grid{p_c_grid_},
+              p_b_scale_grid{p_b_scale_grid_},
+              a_element_op{a_element_op_},
+              b_element_op{b_element_op_},
+              c_element_op{c_element_op_},
               is_reduce(is_reduce_)
         {
         }
@@ -406,6 +320,11 @@ struct GridwiseGemm_wmma_cshuffle_v3
         const ADataType* p_a_grid;
         const BDataType* p_b_grid;
         CDataType* p_c_grid;
+
+        const BScaleType* p_b_scale_grid;
+        const AElementwiseOperation a_element_op;
+        const BElementwiseOperation b_element_op;
+        const CElementwiseOperation c_element_op;
         bool is_reduce;
     };
 
@@ -440,6 +359,16 @@ struct GridwiseGemm_wmma_cshuffle_v3
                 }
             }
 
+            // Calculate B scale offset
+            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
+            {
+                scale_k_split_offset = blockIdx.z * (karg.KRead / ScaleBlockK) * karg.StrideB;
+            }
+            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
+            {
+                scale_k_split_offset = blockIdx.z * (karg.KRead / ScaleBlockK);
+            }
+
             if(blockIdx.z < static_cast<uint32_t>(karg.KBatch - 1))
             {
                 karg.K = karg.KRead;
@@ -461,6 +390,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
 
         index_t a_k_split_offset;
         index_t b_k_split_offset;
+        index_t scale_k_split_offset; // New member for scale matrix offset
         index_t c_reduce_offset;
     };
 
@@ -471,7 +401,67 @@ struct GridwiseGemm_wmma_cshuffle_v3
     using Block2CTileMap = BlockToCTileMap_Grouped_M00_N0_M01Adapt<8, MPerBlock, NPerBlock>;
     // using Block2CTileMap = BlockToCTileMap_3DGrid_KSplit<MPerBlock, NPerBlock>;
 
-    __device__ static index_t GetKBlockPerScale() { return 1; }
+    template <index_t NumberOfBuffers, typename BScaleGridDesc_BN_AK, typename BScaleType>
+    __device__ static auto MakeBScale(const BScaleGridDesc_BN_AK& b_scale_grid_desc_bn_ak,
+                                      const BScaleType* p_b_scale_grid,
+                                      index_t block_n_id)
+    {
+        const auto b_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_b_scale_grid, b_scale_grid_desc_bn_ak.GetElementSpaceSize());
+
+        static constexpr auto wmma =
+            WmmaSelector<ComputeTypeA, ComputeTypeB, AccDataType, MPerWmma, NPerWmma>{};
+        static constexpr auto KPerThread = wmma.selected_wmma.k_per_wmma;
+
+        static constexpr auto ScaleSliceSizeN = NRepeat;
+        static constexpr auto ScaleSliceSizeK = (KPerThread + ScaleBlockK - 1) / ScaleBlockK;
+
+        constexpr auto b_scale_thread_desc = make_naive_tensor_descriptor_packed(
+            make_tuple(Number<ScaleSliceSizeN>{}, Number<ScaleSliceSizeK>{}));
+
+        constexpr index_t NWaves = NPerBlock / (NRepeat * NPerWmma);
+
+        auto b_thread_offset_n = get_thread_local_1d_id() % NPerWmma +
+                                 (get_thread_local_1d_id() / 32) % NWaves * NPerWmma;
+        auto b_thread_offset_k = (get_thread_local_1d_id() % 32) / NPerWmma * KPerThread;
+
+        auto b_scale_thread_copy =
+            ThreadwiseTensorSliceTransfer_v2<BScaleType,
+                                             BScaleType,
+                                             decltype(b_scale_grid_desc_bn_ak),
+                                             decltype(b_scale_thread_desc),
+                                             Sequence<1, ScaleSliceSizeK>,
+                                             Sequence<0, 1>,
+                                             1,
+                                             ScaleSliceSizeK,
+                                             1,
+                                             false>(
+                b_scale_grid_desc_bn_ak,
+                make_multi_index(block_n_id * NPerBlock / ScaleBlockN + b_thread_offset_n,
+                                 b_thread_offset_k / ScaleBlockK));
+
+        auto b_scale_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeB>(
+            b_scale_thread_desc.GetElementSpaceSize());
+
+        using BScale =
+            typename BlockwiseGemmPipe::template BScale<ScaleSliceSizeN,
+                                                        ScaleSliceSizeK,
+                                                        NWaves,
+                                                        ScaleBlockK,
+                                                        NumberOfBuffers,
+                                                        decltype(b_scale_grid_desc_bn_ak),
+                                                        decltype(b_scale_thread_copy),
+                                                        decltype(b_scale_grid_buf),
+                                                        decltype(b_scale_thread_buf),
+                                                        decltype(b_scale_thread_desc)>;
+
+        return BScale{b_scale_grid_desc_bn_ak, b_scale_thread_copy, b_scale_grid_buf};
+    }
+
+    __device__ static index_t GetKBlockPerScale()
+    {
+        return (ScaleBlockK + KPerBlock - 1) / KPerBlock;
+    }
 
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
@@ -479,6 +469,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
     __device__ static void Run(const ADataType* p_a_grid,
                                const BDataType* p_b_grid,
                                CDataType* p_c_grid,
+                               const BScaleType* p_b_scale_grid,
                                void* p_shared,
                                const Problem& problem)
     {
@@ -491,6 +482,12 @@ struct GridwiseGemm_wmma_cshuffle_v3
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 c_grid_desc_m_n, problem.MBlock, problem.NBlock);
+
+        // B Scale grid
+        const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(
+            make_tuple(math::integer_divide_ceil(problem.N, ScaleBlockN),
+                       math::integer_divide_ceil(problem.K, ScaleBlockK)),
+            make_tuple(problem.StrideScaleB, 1));
 
         // divide block work by [M, N]
         const auto block_2_ctile_map = Block2CTileMap{problem.M, problem.N, 4};
@@ -509,9 +506,8 @@ struct GridwiseGemm_wmma_cshuffle_v3
         const index_t block_m_id = __builtin_amdgcn_readfirstlane(block_work_idx[I0]);
         const index_t block_n_id = __builtin_amdgcn_readfirstlane(block_work_idx[I1]);
 
-        // BScale struct (Empty)
-        using BScale        = typename BlockwiseGemmPipe::Empty;
-        auto b_scale_struct = BScale{};
+        // BScale struct
+        auto b_scale_struct = MakeBScale<1>(b_scale_grid_desc_bn_ak, p_b_scale_grid, block_n_id);
 
         const index_t num_k_block_per_scale = GetKBlockPerScale();
 
@@ -534,7 +530,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
                                     b_scale_struct);
     }
 
-    // Wrapper function to have __global__ function in common
+    // NOTE: Wrapper function to have __global__ function in common
     // between gemm_universal, b_scale, ab_scale, etc.
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
@@ -546,6 +542,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
             karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
             karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
             karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
+            karg.p_b_scale_grid + splitk_batch_offset.scale_k_split_offset,
             p_shared,
             karg);
     }

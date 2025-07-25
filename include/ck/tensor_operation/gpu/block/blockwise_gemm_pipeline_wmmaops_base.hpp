@@ -91,6 +91,78 @@ struct BlockwiseGemmWmmaops_pipeline_base
                               true>
         c_thread_buf_;
 
+    struct Empty
+    {
+        __device__ Empty(){};
+        template <index_t NBuffer>
+        __device__ void GlobalLoad(bool cond)
+        {
+            ignore = NBuffer;
+            ignore = cond;
+        }
+    };
+
+    template <index_t ScaleSliceSizeN,
+              index_t ScaleSliceSizeK,
+              index_t NWaves,
+              index_t ScaleBlockK,
+              index_t NumberOfBuffers,
+              typename GridDesc,
+              typename ThreadCopy,
+              typename GridBuffer,
+              typename ThreadStaticBuffer,
+              typename BScaleThreadDesc>
+    struct BScale
+    {
+        __device__ BScale(GridDesc b_scale_grid_desc_,
+                          ThreadCopy b_scale_thread_copy_,
+                          GridBuffer b_scale_grid_buf_)
+            : b_scale_thread_copy(b_scale_thread_copy_),
+              b_scale_grid_desc(b_scale_grid_desc_),
+              b_scale_grid_buf(b_scale_grid_buf_){};
+
+        static constexpr index_t num_scale_k_block = BScaleThreadDesc{}.GetLength(Number<1>{});
+        static constexpr index_t num_scale_krepeat = KRepeat / num_scale_k_block;
+
+        static constexpr auto b_scale_thread_desc = BScaleThreadDesc{};
+
+        static constexpr auto b_scale_thread_copy_step =
+            make_tuple(make_multi_index(NWaves * NPerWmma, 0),
+                       make_multi_index(-NPerBlock, 0),
+                       make_multi_index(-NPerBlock, (KPerBlock + ScaleBlockK - 1) / ScaleBlockK));
+
+        template <index_t NBuffer>
+        __device__ void GlobalLoad(bool cond)
+        {
+            static_for<0, NRepeat, 1>{}([&](auto n0) {
+                b_scale_thread_copy.Run(b_scale_grid_desc,
+                                        b_scale_grid_buf,
+                                        b_scale_thread_desc,
+                                        make_tuple(n0, Number<0>{}),
+                                        b_scale_thread_bufs(Number<NBuffer>{}));
+
+                b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
+                                                       b_scale_thread_copy_step.At(Number<0>{}));
+            });
+
+            if(cond)
+            {
+                b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
+                                                       b_scale_thread_copy_step.At(Number<2>{}));
+            }
+            else
+            {
+                b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
+                                                       b_scale_thread_copy_step.At(Number<1>{}));
+            }
+        }
+
+        ThreadCopy b_scale_thread_copy;
+        GridDesc b_scale_grid_desc;
+        GridBuffer b_scale_grid_buf;
+        StaticallyIndexedArray<ThreadStaticBuffer, Number<NumberOfBuffers>{}> b_scale_thread_bufs;
+    };
+
     __host__ __device__ constexpr auto& GetCThreadBuffer() { return c_thread_buf_; }
 
     __device__ static auto GetWaveIdx()
@@ -285,7 +357,7 @@ struct BlockwiseGemmWmmaops_pipeline_base
                                          ComputeTypeA,
                                          decltype(a_block_desc_k0_m0_m1_m2_k1),
                                          decltype(a_thread_desc_),
-                                         Sequence<KPack / A_K1 / A_KRow, MRepeat, 1, 1, 1, A_K1>,
+                                         Sequence<KPack / A_K1 / A_KRow, 1, 1, 1, 1, A_K1>,
                                          Sequence<0, 1, 2, 3, 4, 5>,
                                          5,
                                          A_K1,
@@ -296,7 +368,7 @@ struct BlockwiseGemmWmmaops_pipeline_base
                                          ComputeTypeB,
                                          decltype(b_block_desc_k0_n0_n1_n2_k1),
                                          decltype(b_thread_desc_),
-                                         Sequence<KPack / B_K1 / B_KRow, NRepeat, 1, 1, 1, B_K1>,
+                                         Sequence<KPack / B_K1 / B_KRow, 1, 1, 1, 1, B_K1>,
                                          Sequence<0, 1, 2, 3, 4, 5>,
                                          5,
                                          B_K1,
