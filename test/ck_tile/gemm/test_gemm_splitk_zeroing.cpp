@@ -325,11 +325,6 @@ class TestCkTileGemmSplitKZeroing : public ::testing::Test
         a_device_buf.ToDevice(a_m_k.data());
         b_device_buf.ToDevice(b_k_n.data());
 
-        std::cout << "Matrix dimensions: M=" << M << " N=" << N << " K=" << K
-                  << " k_batch=" << k_batch << std::endl;
-        std::cout << "Strides: A=" << stride_A << " B=" << stride_B << " C=" << stride_C
-                  << std::endl;
-
         // Create host args structure exactly like universal_gemm.cpp
         ck_tile::GemmHostArgs</*NumDTensor = 0*/> args;
         args.a_ptr    = a_device_buf.GetDeviceBuffer();
@@ -346,7 +341,6 @@ class TestCkTileGemmSplitKZeroing : public ::testing::Test
         if(test_kernel_zeroing)
         {
             // Test 1: Kernel should zero C before computing (ZeroingKernel + non-zero C)
-            std::cout << "=== Testing Kernel Zeroing Capability ===" << std::endl;
             ck_tile::FillUniformDistribution<CDataType>{-2.f, 2.f}(c_m_n_device_result);
             c_device_buf.ToDevice(c_m_n_device_result.data());
 
@@ -357,9 +351,6 @@ class TestCkTileGemmSplitKZeroing : public ::testing::Test
         else
         {
             // Test 2: Normal operation with pre-zeroed C (NonZeroingKernel + zero C)
-            std::cout << "=== Testing Normal Operation with non-zeroed C ===" << std::endl;
-            // c_m_n_device_result.SetZero();
-            // c_device_buf.ToDevice(c_m_n_device_result.data());
 
             using TestKernel       = typename KTypes::NonZeroingKernel;
             bool use_preprocessing = false; //(k_batch > 1); // Clear C for split-K
@@ -403,10 +394,6 @@ class TestCkTileGemmSplitKZeroing : public ::testing::Test
         const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
         constexpr dim3 blocks = Kernel::BlockSize();
 
-        std::cout << "Grid: (" << grids.x << "," << grids.y << "," << grids.z << ")" << std::endl;
-        std::cout << "Block: (" << blocks.x << "," << blocks.y << "," << blocks.z << ")"
-                  << std::endl;
-
         // Create proper stream config
         ck_tile::stream_config stream_cfg{nullptr, true, 0};
 
@@ -424,12 +411,7 @@ class TestCkTileGemmSplitKZeroing : public ::testing::Test
                     throw std::runtime_error("Failed to clear C buffer: " +
                                              std::string(hipGetErrorString(hip_err)));
                 }
-                std::cout << "Cleared device C buffer for pre-zeroed test (k_batch=" << args.k_batch
-                          << ")" << std::endl;
             };
-
-            std::cout << "Launching kernel with preprocessing (k_batch=" << args.k_batch
-                      << ", Test=" << test_name << ")" << std::endl;
 
             // Launch with preprocessing (like universal_gemm.cpp)
             kernel_time = ck_tile::launch_kernel_preprocess(
@@ -441,8 +423,6 @@ class TestCkTileGemmSplitKZeroing : public ::testing::Test
         else
         {
             // Normal launch without preprocessing (like universal_gemm.cpp else branch)
-            std::cout << "Launching kernel without preprocessing (k_batch=" << args.k_batch
-                      << ", Test=" << test_name << ")" << std::endl;
 
             kernel_time = ck_tile::launch_kernel(
                 stream_cfg,
@@ -488,14 +468,6 @@ class TestCkTileGemmSplitKZeroing : public ::testing::Test
                                        rtol_atol.at(ck_tile::number<0>{}),
                                        rtol_atol.at(ck_tile::number<1>{}));
 
-        // Debug output
-        std::cout << "Test: " << test_name << " -> " << (pass ? "PASS" : "FAIL")
-                  << " (time: " << kernel_time << "ms)" << std::endl;
-
-        std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
-                  << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
-                  << std::endl;
-
         // EXPECT_TRUE(pass) << "Test failed: " << test_name;
         if(expect_pass)
         {
@@ -504,12 +476,6 @@ class TestCkTileGemmSplitKZeroing : public ::testing::Test
         else
         {
             EXPECT_FALSE(pass) << "Test was expected to fail but passed: " << test_name;
-            if(!pass)
-            {
-                std::cout << "Expected failure confirmed! NonZeroingKernel correctly failed with "
-                             "non-zero C"
-                          << std::endl;
-            }
         }
     }
 };
@@ -580,10 +546,6 @@ class TestCkTileGemmArgumentValidation : public ::testing::Test
                       const std::string& test_description)
     {
         bool actual_support = TestKernel::IsSupportedArgument(kargs);
-        std::cout << "Test: " << test_description
-                  << " -> Expected: " << (expected_support ? "SUPPORTED" : "NOT_SUPPORTED")
-                  << ", Actual: " << (actual_support ? "SUPPORTED" : "NOT_SUPPORTED") << " ["
-                  << (actual_support == expected_support ? "PASS" : "FAIL") << "]" << std::endl;
 
         EXPECT_EQ(actual_support, expected_support) << "Failed test: " << test_description;
     }
@@ -621,12 +583,6 @@ TYPED_TEST(TestCkTileGemmSplitKZeroing, NormalOperationTest)
     this->RunZeroingTest(256, 256, 512, 2, false); // test_kernel_zeroing = false
 }
 
-TYPED_TEST(TestCkTileGemmSplitKZeroing, KernelComparisonTest)
-{
-    // Test that both kernels give same result when C is properly initialized
-    // This would run both kernels and compare results
-}
-
 // =============================================================================
 // ARGUMENT VALIDATION TESTS
 // =============================================================================
@@ -657,9 +613,6 @@ TYPED_TEST(TestCkTileGemmArgumentValidation, InvalidDimensionsTest)
     constexpr auto N_per_block = TestKernel::TilePartitioner::NPerBlock;
     constexpr auto K_per_block = TestKernel::TilePartitioner::KPerBlock;
 
-    std::cout << "Block sizes: M=" << M_per_block << " N=" << N_per_block << " K=" << K_per_block
-              << std::endl;
-
     // Test dimensions that don't align to block sizes (when padding disabled)
     // Note: M dimension may have more flexible alignment requirements due to vectorization
     if constexpr(!TestKernel::GemmPipeline::kPadM)
@@ -688,37 +641,7 @@ TYPED_TEST(TestCkTileGemmArgumentValidation, InvalidDimensionsTest)
 
 TYPED_TEST(TestCkTileGemmArgumentValidation, ComprehensiveValidationSuite)
 {
-    std::cout << "\n=== Comprehensive Argument Validation Test Suite ===" << std::endl;
-
     using TestKernel = typename TestFixture::TestKernel;
-
-    // Print configuration for debugging
-    std::cout << "Configuration:" << std::endl;
-    std::cout << "  MPerBlock: " << TestKernel::TilePartitioner::MPerBlock << std::endl;
-    std::cout << "  NPerBlock: " << TestKernel::TilePartitioner::NPerBlock << std::endl;
-    std::cout << "  KPerBlock: " << TestKernel::TilePartitioner::KPerBlock << std::endl;
-    std::cout << "  PadM: " << TestKernel::GemmPipeline::kPadM << std::endl;
-    std::cout << "  PadN: " << TestKernel::GemmPipeline::kPadN << std::endl;
-    std::cout << "  PadK: " << TestKernel::GemmPipeline::kPadK << std::endl;
-    std::cout
-        << "  ALayout: "
-        << (std::is_same_v<typename TestFixture::ALayout, ck_tile::tensor_layout::gemm::RowMajor>
-                ? "RowMajor"
-                : "ColumnMajor")
-        << std::endl;
-    std::cout
-        << "  BLayout: "
-        << (std::is_same_v<typename TestFixture::BLayout, ck_tile::tensor_layout::gemm::RowMajor>
-                ? "RowMajor"
-                : "ColumnMajor")
-        << std::endl;
-    std::cout
-        << "  CLayout: "
-        << (std::is_same_v<typename TestFixture::CLayout, ck_tile::tensor_layout::gemm::RowMajor>
-                ? "RowMajor"
-                : "ColumnMajor")
-        << std::endl;
-    std::cout << std::endl;
 
     // Test a range of configurations
     std::vector<std::tuple<ck_tile::index_t,
@@ -755,6 +678,4 @@ TYPED_TEST(TestCkTileGemmArgumentValidation, ComprehensiveValidationSuite)
 
         this->TestArgument(args, adjusted_expected, desc);
     }
-
-    std::cout << "=== Validation Test Suite Complete ===" << std::endl;
 }

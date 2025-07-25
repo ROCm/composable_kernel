@@ -9,11 +9,6 @@
 
 namespace ck_tile {
 
-// Global static barrier array - initialized once at program startup
-// constexpr index_t MAX_STATIC_TILES = 4;  // Adjust based on max grid size
-// __device__ static uint32_t global_static_barriers[MAX_STATIC_TILES] = {0};  // Initialize to
-// zeros
-
 template <typename ADataType_,
           typename BDataType_,
           typename DsDataType_,
@@ -375,6 +370,11 @@ struct CShuffleEpilogue
                 constexpr auto step = SFC::get_forward_step(iAccess);
 
                 move_tile_window(out_dram_window, {step.at(number<0>{}), step.at(number<1>{})});
+
+                static_for<0, NumDTensor, 1>{}([&](auto idx) {
+                    move_tile_window(d_dram_windows[idx],
+                                     {step.at(number<0>{}), step.at(number<1>{})});
+                });
             }
         });
 
@@ -394,7 +394,6 @@ struct CShuffleEpilogue
                 if(completed >= static_cast<uint32_t>(gridDim.z))
                 {
                     // Reset barriers for next iteration
-
                     cleared_tile_barrier[blockIdx.x]    = 0; // Reset cleared barrier
                     updated_batches_barrier[blockIdx.x] = 0; // Reset updated batches
                 }

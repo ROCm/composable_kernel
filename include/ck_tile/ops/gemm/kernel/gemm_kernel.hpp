@@ -13,8 +13,6 @@
 #include "ck_tile/host/stream_utils.hpp"
 #include "ck_tile/core/utility/env.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
-#include "ck_tile/core/tensor/static_distributed_tensor.hpp"
-#include "ck_tile/core/arch/workgroup_barrier.hpp"
 
 namespace ck_tile {
 
@@ -832,20 +830,48 @@ struct GemmKernel
         return make_tuple(a_block_window, b_block_window, ds_block_window, e_block_window);
     }
 
-    template <typename GemmPipeline_Type>
-    struct GemmProblemForPolicy
+    template <typename TileWindows>
+    CK_TILE_DEVICE static void ZeroTile(TileWindows& gemm_tile_windows, const KernelArgs& kargs)
     {
-        using ADataType                             = typename GemmPipeline_Type::ADataType;
-        using BDataType                             = typename GemmPipeline_Type::BDataType;
-        using CDataType                             = typename GemmPipeline_Type::CDataType;
-        using ALayout                               = typename GemmPipeline_Type::ALayout;
-        using BLayout                               = typename GemmPipeline_Type::BLayout;
-        using CLayout                               = typename GemmPipeline_Type::CLayout;
-        using BlockGemmShape                        = typename GemmPipeline_Type::BlockGemmShape;
-        static constexpr index_t kBlockSize         = GemmPipeline_Type::BlockSize;
-        static constexpr bool TransposeC            = GemmPipeline_Type::TransposeC;
-        static constexpr bool UseStructuredSparsity = false;
-    };
+        // Check if this is the first k_batch
+        if(blockIdx.z == 0)
+        {
+            // Output tile in global memory
+            auto& c_block_window = gemm_tile_windows.at(I3);
+
+            constexpr index_t BlockSize = GemmPipeline::BlockSize;
+            constexpr index_t MPerBlock = TilePartitioner::MPerBlock;
+            constexpr index_t NPerBlock = TilePartitioner::NPerBlock;
+
+            constexpr index_t VecSize =
+                GetThreadVectorLoadSize<EDataType, ELayout, MPerBlock, NPerBlock, BlockSize>();
+
+            using TilePattern = typename std::conditional_t<
+                std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
+                TileDistributionEncodingPattern2D<BlockSize,
+                                                  MPerBlock,
+                                                  NPerBlock,
+                                                  VecSize,
+                                                  tile_distribution_pattern::thread_raked>,
+                TileDistributionEncodingPattern2D<BlockSize,
+                                                  NPerBlock,
+                                                  MPerBlock,
+                                                  VecSize,
+                                                  tile_distribution_pattern::thread_raked>>;
+
+            auto zero_tile = make_static_distributed_tensor<EDataType>(
+                TilePattern::Make2DStaticTileDistribution());
+            clear_tile(zero_tile);
+
+            // Store the zero tile to global memory
+            store_tile(c_block_window, zero_tile);
+
+            workgroup_barrier cleared_barrier(kargs.cleared_tile_barrier);
+
+            // Signal that C tile has been zeroed
+            cleared_barrier.inc(blockIdx.x);
+        }
+    }
 
     /**
      * @brief Runs single GEMM problem cooperatively by whole workgroup.
@@ -884,45 +910,7 @@ struct GemmKernel
         // --- Per-tile zeroing for split-K ---
         if constexpr(UseZeroing)
         {
-
-            if(blockIdx.z == 0)
-            {
-
-                // output tile in global memory
-                auto& c_block_window = gemm_tile_windows.at(I3);
-
-                constexpr index_t BlockSize = GemmPipeline::BlockSize;
-                constexpr index_t MPerBlock = TilePartitioner::MPerBlock;
-                constexpr index_t NPerBlock = TilePartitioner::NPerBlock;
-
-                constexpr index_t VecSize =
-                    GetThreadVectorLoadSize<EDataType, ELayout, MPerBlock, NPerBlock, BlockSize>();
-
-                using TilePattern = typename std::conditional_t<
-                    std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
-                    TileDistributionEncodingPattern2D<BlockSize,
-                                                      MPerBlock,
-                                                      NPerBlock,
-                                                      VecSize,
-                                                      tile_distribution_pattern::thread_raked>,
-                    TileDistributionEncodingPattern2D<BlockSize,
-                                                      NPerBlock,
-                                                      MPerBlock,
-                                                      VecSize,
-                                                      tile_distribution_pattern::thread_raked>>;
-
-                auto zero_tile = make_static_distributed_tensor<EDataType>(
-                    TilePattern::Make2DStaticTileDistribution());
-                clear_tile(zero_tile);
-
-                // Store the zero tile to global memory
-                store_tile(c_block_window, zero_tile);
-
-                workgroup_barrier cleared_barrier(kargs.cleared_tile_barrier);
-
-                // Signal that C tile has been zeroed
-                cleared_barrier.inc(blockIdx.x);
-            }
+            ZeroTile(gemm_tile_windows, kargs);
         }
 
         const index_t num_loop = __builtin_amdgcn_readfirstlane(
@@ -1006,45 +994,7 @@ struct GemmKernel
         // --- Per-tile zeroing for split-K ---
         if constexpr(UseZeroing)
         {
-
-            if(blockIdx.z == 0)
-            {
-
-                // output tile in global memory
-                auto& c_block_window = gemm_tile_windows.at(I3);
-
-                constexpr index_t BlockSize = GemmPipeline::BlockSize;
-                constexpr index_t MPerBlock = TilePartitioner::MPerBlock;
-                constexpr index_t NPerBlock = TilePartitioner::NPerBlock;
-
-                constexpr index_t VecSize =
-                    GetThreadVectorLoadSize<EDataType, ELayout, MPerBlock, NPerBlock, BlockSize>();
-
-                using TilePattern = typename std::conditional_t<
-                    std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
-                    TileDistributionEncodingPattern2D<BlockSize,
-                                                      MPerBlock,
-                                                      NPerBlock,
-                                                      VecSize,
-                                                      tile_distribution_pattern::thread_raked>,
-                    TileDistributionEncodingPattern2D<BlockSize,
-                                                      NPerBlock,
-                                                      MPerBlock,
-                                                      VecSize,
-                                                      tile_distribution_pattern::thread_raked>>;
-
-                auto zero_tile = make_static_distributed_tensor<EDataType>(
-                    TilePattern::Make2DStaticTileDistribution());
-                clear_tile(zero_tile);
-
-                // Store the zero tile to global memory
-                store_tile(c_block_window, zero_tile);
-
-                workgroup_barrier cleared_barrier(kargs.cleared_tile_barrier);
-
-                // Signal that C tile has been zeroed
-                cleared_barrier.inc(blockIdx.x);
-            }
+            ZeroTile(gemm_tile_windows, kargs);
         }
 
         const index_t num_loop = __builtin_amdgcn_readfirstlane(
