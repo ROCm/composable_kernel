@@ -34,7 +34,7 @@ struct GroupedConvFwdKernelArgs
                                     std::is_same_v<WeiLay, tensor_layout::convolution::GKXC> &&
                                     std::is_same_v<OutLay, tensor_layout::convolution::NWGK>,
                                 bool>::type = false>
-    CK_TILE_HOST GroupedConvFwdKernelArgs(const GroupedConvHostArgs& args)
+    CK_TILE_HOST GroupedConvFwdKernelArgs(const GroupedConvFwdHostArgs& args)
     {
         in_g_n_c_wis_lengths  = {static_cast<index_t>(args.G_),
                                 static_cast<index_t>(args.N_),
@@ -56,9 +56,10 @@ struct GroupedConvFwdKernelArgs
 
         k_batch = args.k_batch;
 
-        GemmM = args.N_ * args.output_spatial_lengths_[0];
-        GemmN = args.K_;
-        GemmK = args.C_ * args.filter_spatial_lengths_[0];
+        GemmM     = args.N_ * args.output_spatial_lengths_[0];
+        GemmN     = args.K_;
+        GemmK     = args.C_ * args.filter_spatial_lengths_[0];
+        GemmBatch = args.G_;
 
         in_ptr  = args.in_ptr;
         wei_ptr = args.wei_ptr;
@@ -103,7 +104,7 @@ struct GroupedConvFwdKernelArgs
                                     std::is_same_v<WeiLay, tensor_layout::convolution::GKYXC> &&
                                     std::is_same_v<OutLay, tensor_layout::convolution::NHWGK>,
                                 bool>::type = false>
-    CK_TILE_HOST GroupedConvFwdKernelArgs(const GroupedConvHostArgs& args)
+    CK_TILE_HOST GroupedConvFwdKernelArgs(const GroupedConvFwdHostArgs& args)
     {
         in_g_n_c_wis_lengths  = {static_cast<index_t>(args.G_),
                                 static_cast<index_t>(args.N_),
@@ -132,9 +133,10 @@ struct GroupedConvFwdKernelArgs
 
         k_batch = args.k_batch;
 
-        GemmM = args.N_ * args.output_spatial_lengths_[0] * args.output_spatial_lengths_[1];
-        GemmN = args.K_;
-        GemmK = args.C_ * args.filter_spatial_lengths_[0] * args.filter_spatial_lengths_[1];
+        GemmM     = args.N_ * args.output_spatial_lengths_[0] * args.output_spatial_lengths_[1];
+        GemmN     = args.K_;
+        GemmK     = args.C_ * args.filter_spatial_lengths_[0] * args.filter_spatial_lengths_[1];
+        GemmBatch = args.G_;
 
         in_ptr  = args.in_ptr;
         wei_ptr = args.wei_ptr;
@@ -179,7 +181,7 @@ struct GroupedConvFwdKernelArgs
                                     std::is_same_v<WeiLay, tensor_layout::convolution::GKZYXC> &&
                                     std::is_same_v<OutLay, tensor_layout::convolution::NDHWGK>,
                                 bool>::type = false>
-    CK_TILE_HOST GroupedConvFwdKernelArgs(const GroupedConvHostArgs& args)
+    CK_TILE_HOST GroupedConvFwdKernelArgs(const GroupedConvFwdHostArgs& args)
     {
         in_g_n_c_wis_lengths  = {static_cast<index_t>(args.G_),
                                 static_cast<index_t>(args.N_),
@@ -220,6 +222,7 @@ struct GroupedConvFwdKernelArgs
         GemmN = args.K_;
         GemmK = args.C_ * args.filter_spatial_lengths_[0] * args.filter_spatial_lengths_[1] *
                 args.filter_spatial_lengths_[2];
+        GemmBatch = args.G_;
 
         in_ptr  = args.in_ptr;
         wei_ptr = args.wei_ptr;
@@ -280,6 +283,7 @@ struct GroupedConvFwdKernelArgs
     index_t GemmM;
     index_t GemmN;
     index_t GemmK;
+    index_t GemmBatch;
 
     const void* in_ptr;
     const void* wei_ptr;
@@ -354,8 +358,7 @@ struct GroupedConvolutionForwardKernel
     using OutLayout = remove_cvref_t<typename GroupedConvTraitsType::OutLayout>;
     using DsLayout  = remove_cvref_t<typename GroupedConvTraitsType::DsLayout>;
 
-    using GemmDsLayout = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
-
+    using GemmDsLayout                  = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
     static constexpr index_t NumDTensor = GroupedConvTraitsType::NumDTensor;
 
     static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
@@ -389,20 +392,16 @@ struct GroupedConvolutionForwardKernel
         // clang-format on
     }
 
-    CK_TILE_HOST static constexpr auto GridSize(const GroupedConvHostArgs& args)
+    CK_TILE_HOST static constexpr auto GridSize(const GroupedConvFwdKernelArgsSpecialized& kargs)
     {
-        const index_t GemmM = args.N_ * std::accumulate(args.output_spatial_lengths_.begin(),
-                                                        args.output_spatial_lengths_.end(),
-                                                        1,
-                                                        std::multiplies<index_t>());
-        const index_t GemmN = args.K_;
-        return dim3(TilePartitioner::GridSize(GemmM, GemmN), args.G_, args.k_batch);
+        return dim3(
+            TilePartitioner::GridSize(kargs.GemmM, kargs.GemmN), kargs.GemmBatch, kargs.k_batch);
     }
 
     CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
 
     CK_TILE_HOST static constexpr GroupedConvFwdKernelArgsSpecialized
-    MakeKernelArgs(const GroupedConvHostArgs& hostArgs)
+    MakeKernelArgs(const GroupedConvFwdHostArgs& hostArgs)
     {
         return GroupedConvFwdKernelArgsSpecialized(hostArgs);
     }
@@ -750,7 +749,7 @@ struct GroupedConvolutionForwardKernel
         auto& c_block_window = gemm_tile_windows.at(I3);
 
         EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
-            c_block_window, c_block_tile, d_block_window, smem_ptr_0, smem_ptr_1);
+            c_block_window, c_block_tile, d_block_window, smem_ptr_0);
     }
 
     CK_TILE_DEVICE void operator()(GroupedConvFwdKernelArgsSpecialized kargs) const

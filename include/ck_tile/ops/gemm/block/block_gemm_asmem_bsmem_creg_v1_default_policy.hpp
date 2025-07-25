@@ -47,11 +47,11 @@ struct BlockGemmASmemBSmemCRegV1DefaultPolicy
             if constexpr(NumWarp == 4 && kMPerBlock % 128 == 0 &&
                          kNPerBlock % 128 == 0 % kKPerBlock % 16 == 0)
             {
-                return make_tuple(WarpGemmMfmaF16F16F32M32N32K16{}, 2, 2);
+                return make_tuple(WarpGemmMfmaF16F16F32M32N32K16<>{}, 2, 2);
             }
             else
             {
-                return make_tuple(WarpGemmMfmaF16F16F32M32N32K16{}, 2, 2);
+                return make_tuple(WarpGemmMfmaF16F16F32M32N32K16<>{}, 2, 2);
             }
 #else
             using WG = WarpGemmMfmaDispatcher<ck_tile::half_t,
