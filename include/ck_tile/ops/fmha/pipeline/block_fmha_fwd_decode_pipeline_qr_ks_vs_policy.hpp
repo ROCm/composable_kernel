@@ -113,7 +113,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kSubQKHeaddim;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
 
         constexpr index_t MaxVectorSize = 16 / sizeof(KDataType);
         constexpr index_t ElemPerThread = (kNPerBlock * kKPerBlock) / kBlockSize;
@@ -144,7 +144,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
 
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kSubQKHeaddim;
 
         constexpr index_t MIterPerWarp = kMPerBlock / (MWarp * WarpGemm::kM);
         constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
@@ -194,7 +194,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
     {
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kSubQKHeaddim;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
 
         constexpr index_t kKPack = GetSmemKPackK<Problem>();
 
@@ -529,8 +529,10 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        return max(GetSmemSizeQ<Problem>(), GetSmemSizeK<Problem>()) + GetSmemSizeS<Problem>() +
-               GetSmemSizeV<Problem>();
+        // Alignment on gfx950 is 1280 Bytes
+        // Alignment before gfx950 is 512 Bytes.
+        return max(GetSmemSizeQ<Problem>(),
+                   GetSmemSizeK<Problem>() + GetSmemSizeS<Problem>() + GetSmemSizeV<Problem>());
     }
 };
 
