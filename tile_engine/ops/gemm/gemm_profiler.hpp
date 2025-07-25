@@ -218,10 +218,8 @@ class GemmProfiler
                 {
                     file << "rocm_version,device_name,"
                          << "split_k,m,n,k,stride_a,stride_b,stride_c,"
-                         << "dtype_a,dtype_b,dtype_acc,dtype_c,"
-                         << "layout_a,layout_b,layout_c,"
-                         << "structured_sparsity,"
-                         << "name,"
+                         << "dtype_a,dtype_b,dtype_acc,dtype_c," << "layout_a,layout_b,layout_c,"
+                         << "structured_sparsity," << "name,"
                          << "latency(ms),tflops(TFlops),bandwidth(GB/s),metric\n";
                 }
 
@@ -251,7 +249,7 @@ class GemmProfiler
         return kernel_instance;
     }
 
-    GemmProfiler(const GemmProfiler&) = delete;
+    GemmProfiler(const GemmProfiler&)            = delete;
     GemmProfiler& operator=(const GemmProfiler&) = delete;
 
     private:

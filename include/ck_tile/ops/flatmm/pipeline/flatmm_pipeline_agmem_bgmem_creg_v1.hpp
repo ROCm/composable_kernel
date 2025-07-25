@@ -458,7 +458,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1 : public BaseFlatmmPipelineAGmemBGmemCRegV
     {
         return operator()(
             a_dram_block_window_tmp,
-            [](const ADataType& a) { return a; },
+            [](const ADataType & a) { return a; },
             b_flat_dram_block_window_tmp,
             num_loop,
             p_smem);

@@ -19,14 +19,14 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
     a.dim_block_w = dim_block_w;
 
     using ts_problem  = ck_tile::TransposePipelineProblem<ts_type,
-                                                         ck_tile::tensor_layout::gemm::RowMajor,
-                                                         64,
-                                                         1,
-                                                         1,
-                                                         block_y,
-                                                         block_x,
-                                                         warp_y,
-                                                         warp_x>;
+                                                          ck_tile::tensor_layout::gemm::RowMajor,
+                                                          64,
+                                                          1,
+                                                          1,
+                                                          block_y,
+                                                          block_x,
+                                                          warp_y,
+                                                          warp_x>;
     using ts_pipeline = ck_tile::BlockTranspose<ts_problem>;
 
     using kernel = ck_tile::BatchedTransposeKernel<ts_pipeline>;
