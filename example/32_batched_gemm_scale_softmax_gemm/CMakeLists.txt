@@ -4,6 +4,12 @@ add_example_executable(example_self_attention_forward_wmma_fp16 self_attention_f
 add_example_executable(example_cross_attention_forward_wmma_fp16 cross_attention_forward_wmma_fp16.cpp)
 add_example_executable(example_multi_query_attention_forward_wmma_fp16 multi_query_attention_forward_wmma_fp16.cpp)
 add_example_executable(example_grouped_query_attention_forward_wmma_fp16 grouped_query_attention_forward_wmma_fp16.cpp)
+target_compile_options(example_batched_gemm_lower_triangle_scale_softmax_gemm_permute_wmma_fp16 PRIVATE -save-temps=obj -Wno-gnu-line-marker)
+target_compile_options(example_batched_gemm_scale_softmax_gemm_permute_wmma_fp16 PRIVATE -save-temps=obj -Wno-gnu-line-marker)
+target_compile_options(example_self_attention_forward_wmma_fp16 PRIVATE -save-temps=obj -Wno-gnu-line-marker)
+target_compile_options(example_cross_attention_forward_wmma_fp16 PRIVATE -save-temps=obj -Wno-gnu-line-marker)
+target_compile_options(example_multi_query_attention_forward_wmma_fp16 PRIVATE -save-temps=obj -Wno-gnu-line-marker)
+target_compile_options(example_grouped_query_attention_forward_wmma_fp16 PRIVATE -save-temps=obj -Wno-gnu-line-marker)
 
 add_custom_target(example_gemm_scale_softmax_gemm)
 
