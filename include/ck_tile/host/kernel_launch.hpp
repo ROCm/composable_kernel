@@ -127,31 +127,82 @@ CK_TILE_HOST float launch_kernel(const stream_config& s, Callables&&... callable
         return 0;
     }
 
-    auto time_launches = [&](auto timer) {
-        // Warmup
-        for(int i = 0; i < s.cold_niters_; i++)
-        {
-            launch_and_check(s, std::forward<Callables>(callables)...);
-        }
+    // auto time_launches = [&](auto timer) {
+    //     // Warmup
+    //     for(int i = 0; i < s.cold_niters_; i++)
+    //     {
+    //         launch_and_check(s, std::forward<Callables>(callables)...);
+    //     }
 
-        timer.start(s.stream_id_);
-        for(int i = 0; i < s.nrepeat_; i++)
-        {
-            launch_and_check(s, std::forward<Callables>(callables)...);
-        }
-        timer.stop(s.stream_id_);
+    //     timer.start(s.stream_id_);
+    //     for(int i = 0; i < s.nrepeat_; i++)
+    //     {
+    //         launch_and_check(s, std::forward<Callables>(callables)...);
+    //     }
+    //     timer.stop(s.stream_id_);
 
-        return timer.duration() / s.nrepeat_;
-    };
+    //     return timer.duration() / s.nrepeat_;
+    // };
+
+    // if(s.is_gpu_timer_)
+    // {
+    //     return time_launches(gpu_timer{});
+    // }
+    // else
+    // {
+    //     return time_launches(cpu_timer{});
+    // }
+    auto timing_loop =
+        [&](auto timer, float bench_time_ms, double& gpu_time_used, const hipStream_t& stream) {
+            for(int i = 0; i < s.cold_niters_; i++)
+            {
+                launch_and_check(s, std::forward<Callables>(callables)...);
+            }
+            printf("New Timer \n");
+            float per_iter_time = 0.f;
+            std::vector<float> times;
+            int i = 0;
+            while(i < s.nrepeat_ || per_iter_time < bench_time_ms)
+            {
+                timer.start(i, stream);
+                launch_and_check(s, std::forward<Callables>(callables)...);
+                timer.stop(i, stream);
+
+                if(i > 0)
+                {
+                    // while iteration i is ongoing, wait for iteration i-1 to end
+                    per_iter_time = timer.duration(i - 1);
+                    // record time for iteration i-1
+                    times.push_back(per_iter_time);
+                    // if iterations 0 to i-1 took more than the required runtime, we can stop
+                    per_iter_time = timer.is_exceed(i - 1);
+                }
+                i++;
+            }
+            if(!i)
+            {
+                gpu_time_used = 0.;
+            }
+            else
+            {
+                // wait for the final iteration
+                per_iter_time = timer.duration(i - 1);
+                times.push_back(per_iter_time);
+                remove_outliers(times);
+                gpu_time_used = std::accumulate(times.begin(), times.end(), 0.) / times.size();
+            }
+        };
+    double time_used = 0.;
 
     if(s.is_gpu_timer_)
     {
-        return time_launches(gpu_timer{});
+        timing_loop(gpu_timer_new{s.stream_id_}, s.bench_time_ms_, time_used, s.stream_id_);
     }
     else
     {
-        return time_launches(cpu_timer{});
+        timing_loop(gpu_timer_new{s.stream_id_}, s.bench_time_ms_, time_used, s.stream_id_);
     }
+    return time_used;
 }
 
 template <typename PreprocessFunc, typename... Callables>
@@ -173,7 +224,7 @@ launch_kernel_time_mask(const stream_config& s, PreprocessFunc preprocess, Calla
             {
                 launch_and_check(s, std::forward<Callables>(callables)...);
             }
-
+            printf("New Timer with rotating buffer\n");
             float per_iter_time = 0.f;
             std::vector<float> times;
             int i = 0;
