@@ -2,7 +2,7 @@
 
 Documentation for Composable Kernel available at [https://rocm.docs.amd.com/projects/composable_kernel/en/latest/](https://rocm.docs.amd.com/projects/composable_kernel/en/latest/).
 
-## Composable Kernel 1.1.0 for ROCm 6.5.0
+## Composable Kernel 1.1.0 for ROCm 7.0.0
 
 ### Added
 
@@ -23,6 +23,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added Ping-pong scheduler support for GEMM operation along the K dimension.
 * Added rotating buffer feature for CK_Tile GEMM.
 * Added int8 support for CK_TILE GEMM.
+* Added support for elementwise kernel.
 
 ### Optimized
 
