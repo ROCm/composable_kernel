@@ -22,58 +22,49 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
 
         constexpr index_t MPerXdl = Problem::BlockGemmShape::WarpTile::at(I0);
         constexpr index_t NPerXdl = Problem::BlockGemmShape::WarpTile::at(I1);
-        if constexpr(MPerXdl == 16 && NPerXdl == 16)
-        {
-            /*reduce transform layers,compare with old ck*/
-            constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
-            constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
-            constexpr index_t KPack     = GetSmemPackA<Problem>();
+        constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
+        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t kKPack     = GetSmemPackA<Problem>();
+        using ADataType = remove_cvref_t<typename Problem::ADataType>;
 
-            constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
-                make_tuple(number<KPerBlock / KPack>{}, number<MPerBlock>{}, number<KPack>{}),
-                make_tuple(number<KPack>{}, number<KPerBlock>{}, number<1>{}),
-                number<KPack>{},
-                number<1>{});
+        constexpr auto DataTypeSize = sizeof(ADataType);
+        constexpr auto MLdsLayer =
+            (32 * 4 / kKPerBlock / DataTypeSize) < 1 ? 1 : (32 * 4 / kKPerBlock / DataTypeSize);
 
-            constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
-                a_lds_block_desc_0,
-                make_tuple(make_xor_transform(
-                               make_tuple(number<MPerBlock>{}, number<KPerBlock / KPack>{})),
-                           make_pass_through_transform(number<KPack>{})),
-                make_tuple(sequence<1, 0>{}, sequence<2>{}),
-                make_tuple(sequence<1, 0>{}, sequence<2>{}));
+        constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
+            make_tuple(number<kKPerBlock / kKPack * MLdsLayer>{},
+                    number<kMPerBlock / MLdsLayer>{},
+                    number<kKPack>{}),
+            make_tuple(number<kKPack>{}, number<kKPerBlock * MLdsLayer>{}, number<1>{}),
+            number<kKPack>{},
+            number<1>{});
 
-            constexpr auto a_lds_block_desc = transform_tensor_descriptor(
-                a_lds_block_desc_permuted,
-                make_tuple(make_pass_through_transform(number<MPerBlock>{}),
-                           make_merge_transform_v3_division_mod(
-                               make_tuple(number<KPerBlock / KPack>{}, number<KPack>{}))),
-                make_tuple(sequence<1>{}, sequence<0, 2>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}));
+        constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
+            a_lds_block_desc_0,
+            make_tuple(make_xor_transform(make_tuple(number<kMPerBlock / MLdsLayer>{},
+                                                    number<kKPerBlock / kKPack * MLdsLayer>{})),
+                    make_pass_through_transform(number<kKPack>{})),
+            make_tuple(sequence<1, 0>{}, sequence<2>{}),
+            make_tuple(sequence<1, 0>{}, sequence<2>{}));
 
-            return a_lds_block_desc;
-        }
-        else
-        {
-            constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
-            constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
-            constexpr index_t kKPack     = GetSmemPackA<Problem>();
+        constexpr auto a_lds_block_desc_xk0_mnldslayer_mn_xk1 = transform_tensor_descriptor(
+            a_lds_block_desc_permuted,
+            make_tuple(make_unmerge_transform(
+                        make_tuple(number<MLdsLayer>{}, number<kKPerBlock / kKPack>{})),
+                        make_pass_through_transform(number<kMPerBlock / MLdsLayer>{}),
+                        make_pass_through_transform(number<kKPack>{})),
+            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
+            make_tuple(sequence<0, 2>{}, sequence<1>{}, sequence<3>{}));
 
-            constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
-                make_tuple(number<kKPerBlock / kKPack>{}, number<kMPerBlock>{}, number<kKPack>{}),
-                make_tuple(number<(kMPerBlock + 1) * kKPack>{}, number<kKPack>{}, number<1>{}),
-                number<kKPack>{},
-                number<1>{});
-
-            constexpr auto a_lds_block_desc = transform_tensor_descriptor(
-                a_lds_block_desc_0,
-                make_tuple(make_pass_through_transform(kMPerBlock),
-                           make_merge_transform(make_tuple(kKPerBlock / kKPack, kKPack))),
-                make_tuple(sequence<1>{}, sequence<0, 2>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}));
-
-            return a_lds_block_desc;
-        }
+        constexpr auto a_lds_block_desc = transform_tensor_descriptor(
+            a_lds_block_desc_xk0_mnldslayer_mn_xk1,
+            make_tuple(make_merge_transform(
+                        make_tuple(number<kMPerBlock / MLdsLayer>{}, number<MLdsLayer>{})),
+                        make_merge_transform(
+                        make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
+            make_tuple(sequence<1, 0>{}, sequence<2, 3>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+        return a_lds_block_desc;
     }
 
     /**
