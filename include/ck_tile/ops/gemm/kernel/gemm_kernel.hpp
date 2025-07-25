@@ -40,9 +40,7 @@ struct GemmHostArgs
                               index_t stride_A_,
                               index_t stride_B_,
                               const std::array<index_t, NumDTensor>& stride_Ds_,
-                              index_t stride_E_,
-                              uint32_t* cleared_tile_barrier_    = nullptr,
-                              uint32_t* updated_batches_barrier_ = nullptr)
+                              index_t stride_E_)
         : a_ptr(a_ptr_),
           b_ptr(b_ptr_),
           ds_ptr(ds_ptr_),
@@ -54,9 +52,7 @@ struct GemmHostArgs
           stride_B(stride_B_),
           stride_Ds(stride_Ds_),
           stride_E(stride_E_),
-          k_batch(k_batch_),
-          cleared_tile_barrier(cleared_tile_barrier_),
-          updated_batches_barrier(updated_batches_barrier_)
+          k_batch(k_batch_)
     {
     }
 
@@ -81,8 +77,6 @@ struct GemmHostArgs
     };
 
     index_t k_batch;
-    uint32_t* cleared_tile_barrier;
-    uint32_t* updated_batches_barrier;
 };
 
 /// @brief The GEMM kernel device arguments.
@@ -116,8 +110,10 @@ struct GemmKernelArgs
     ///        (in memory) of E tensor.
     index_t stride_E;
     index_t k_batch;
-    uint32_t* cleared_tile_barrier;    // Signals C tile is zeroed   0 - > 1
-    uint32_t* updated_batches_barrier; // counts completed k_batches  0 - > k_batch
+    /// @brief The workspace memory pointer.
+    // workspace_barriers layout [0:gridDim.x] -> cleared_barrier [gridDim.x:2*gridDim.x] ->
+    // updated_barrier
+    uint32_t* workspace_barriers = nullptr; // Single pointer to the workspace memory
 };
 
 /// @brief The GEMM kernel template.
@@ -238,7 +234,7 @@ struct GemmKernel
     CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
 
     CK_TILE_HOST static constexpr KernelArgs
-    MakeKernelArgs(const GemmHostArgs<NumDTensor>& hostArgs)
+    MakeKernelArgs(const GemmHostArgs<NumDTensor>& hostArgs, uint32_t* workspace_barriers)
     {
 
         return KernelArgs{hostArgs.a_ptr,
@@ -253,8 +249,7 @@ struct GemmKernel
                           hostArgs.stride_Ds,
                           hostArgs.stride_E,
                           hostArgs.k_batch,
-                          hostArgs.cleared_tile_barrier,
-                          hostArgs.updated_batches_barrier};
+                          workspace_barriers};
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
@@ -834,7 +829,7 @@ struct GemmKernel
     CK_TILE_DEVICE static void ZeroTile(TileWindows& gemm_tile_windows, const KernelArgs& kargs)
     {
         // Check if this is the first k_batch
-        if(blockIdx.z == 0)
+        if(blockIdx.z == 0 && kargs.workspace_barriers != nullptr)
         {
             // Output tile in global memory
             auto& c_block_window = gemm_tile_windows.at(I3);
@@ -866,7 +861,7 @@ struct GemmKernel
             // Store the zero tile to global memory
             store_tile(c_block_window, zero_tile);
 
-            workgroup_barrier cleared_barrier(kargs.cleared_tile_barrier);
+            workgroup_barrier cleared_barrier(kargs.workspace_barriers);
 
             // Signal that C tile has been zeroed
             cleared_barrier.inc(blockIdx.x);
@@ -933,22 +928,19 @@ struct GemmKernel
                 EpiloguePipeline{}
                     .template operator()<decltype(c_block_window),
                                          decltype(c_block_tile),
-                                         decltype(d_block_window),
-                                         UseZeroing>(
+                                         decltype(d_block_window)>(
                         c_block_window,
                         c_block_tile,
                         d_block_window,
                         smem_ptr_0,
-                        kargs.cleared_tile_barrier,     // Pass cleared barrier
-                        kargs.updated_batches_barrier); // Pass updated barrier
+                        kargs.workspace_barriers); // Pass workspace barriers
             }
             else
             {
                 EpiloguePipeline{}
                     .template operator()<decltype(c_block_window),
                                          decltype(c_block_tile),
-                                         decltype(d_block_window),
-                                         UseZeroing>(
+                                         decltype(d_block_window)>(
                         c_block_window, c_block_tile, d_block_window, smem_ptr_0);
             }
         }
@@ -1020,8 +1012,7 @@ struct GemmKernel
                 c_block_tile,
                 d_block_window,
                 smem_ptr_0,
-                kargs.cleared_tile_barrier,     // Pass cleared barrier
-                kargs.updated_batches_barrier); // Pass updated barrier
+                kargs.workspace_barriers); // Pass workspace barriers
         }
         else
         {

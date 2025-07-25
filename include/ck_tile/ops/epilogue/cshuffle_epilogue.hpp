@@ -29,7 +29,8 @@ template <typename ADataType_,
           memory_operation_enum MemoryOperation_,
           index_t kNumWaveGroups_ = 1,
           bool FixedVectorSize_   = false,
-          index_t VectorSizeC_    = 1>
+          index_t VectorSizeC_    = 1,
+          bool UseZeroing_        = false>
 struct CShuffleEpilogueProblem
 {
     using ADataType                                        = remove_cvref_t<ADataType_>;
@@ -54,6 +55,7 @@ struct CShuffleEpilogueProblem
     static constexpr index_t VectorSizeC                   = VectorSizeC_;
     static constexpr index_t kNumWaveGroups                = kNumWaveGroups_;
     static constexpr index_t NumDTensor                    = DsDataType::size();
+    static constexpr bool UseZeroing                       = UseZeroing_;
 
     static_assert(NumDTensor == DsLayout::size(),
                   "The size of DsDataType and DsLayout should be the same");
@@ -91,6 +93,7 @@ struct CShuffleEpilogue
     static constexpr index_t MPerIteration                 = MPerXdl * MWave;
     static constexpr index_t NPerIteration                 = NPerXdl * NWave;
     static constexpr index_t NumDTensor                    = Problem::NumDTensor;
+    static constexpr bool UseZeroing                       = Problem::UseZeroing;
 
     static_assert(NumDTensor == DsLayout::size(),
                   "The size of DsDataType and DsLayout should be the same");
@@ -258,16 +261,12 @@ struct CShuffleEpilogue
         return MPerIterationShuffle * NPerIterationShuffle * sizeof(ODataType);
     }
 
-    template <typename ODramWindow,
-              typename OAccTile,
-              typename DsDramWindows,
-              bool UseZeroing = false>
+    template <typename ODramWindow, typename OAccTile, typename DsDramWindows>
     CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window,
                                    const OAccTile& o_acc_tile,
                                    const DsDramWindows& ds_dram_windows,
                                    void* p_smem,
-                                   uint32_t* cleared_tile_barrier    = nullptr,
-                                   uint32_t* updated_batches_barrier = nullptr)
+                                   uint32_t* workspace_barriers = nullptr)
     {
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
 
@@ -318,7 +317,7 @@ struct CShuffleEpilogue
         ////////////////////////////////////////////////////////////
         if constexpr(UseZeroing)
         {
-            workgroup_barrier cleared_barrier(cleared_tile_barrier);
+            workgroup_barrier cleared_barrier(workspace_barriers);
 
             // Wait for C tile to be zeroed before first access
             cleared_barrier.wait_lt(1, blockIdx.x);
@@ -381,8 +380,8 @@ struct CShuffleEpilogue
         // Update barriers and reset if needed
         if constexpr(UseZeroing)
         {
-            workgroup_barrier cleared_barrier(cleared_tile_barrier);
-            workgroup_barrier updated_barrier(updated_batches_barrier);
+            workgroup_barrier cleared_barrier(workspace_barriers);
+            workgroup_barrier updated_barrier(workspace_barriers + gridDim.x);
 
             // After moving tile, increment completed batches counter
             updated_barrier.inc(blockIdx.x); // Increment completion counter
@@ -394,8 +393,8 @@ struct CShuffleEpilogue
                 if(completed >= static_cast<uint32_t>(gridDim.z))
                 {
                     // Reset barriers for next iteration
-                    cleared_tile_barrier[blockIdx.x]    = 0; // Reset cleared barrier
-                    updated_batches_barrier[blockIdx.x] = 0; // Reset updated batches
+                    workspace_barriers[blockIdx.x]             = 0; // Reset cleared barrier
+                    workspace_barriers[gridDim.x + blockIdx.x] = 0; // Reset updated batches
                 }
             }
         }
