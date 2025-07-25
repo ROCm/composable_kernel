@@ -54,13 +54,10 @@ struct HstuBlockMaskWithLocal
     CK_TILE_HOST_DEVICE constexpr auto
     GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
     {
-        if constexpr(kUseCausal)
+        if(!is_tile_in_first_split)
         {
-            if(!is_tile_in_first_split)
-            {
-                index_t x_end = min(i_y + YTile, seqlen);
-                return ck_tile::make_tuple(0, x_end);
-            };
+            index_t x_end = min(i_y + YTile, seqlen);
+            return ck_tile::make_tuple(0, x_end);
         };
 
         if constexpr(!kUseCausal)
