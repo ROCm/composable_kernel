@@ -456,7 +456,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         CDEBlockTransferScalarPerVector_NPerBlock, BlkGemmPipeSched, BlkGemmPipelineVer,       \
         AComputeDataType, BComputeDataType
 
-#define GridwiseGemmV3SplitKTemplateParams                                                     \
+#define GridwiseGemmV3TwoStageTemplateParams                                                   \
     tensor_layout::gemm::RowMajor, tensor_layout::gemm::ColumnMajor,                           \
         tensor_layout::gemm::RowMajor, ADataType, BDataType, AccDataType, AccDataType,         \
         AccDataType, AElementwiseOperation, BElementwiseOperation, CDEElementwiseOperation,    \
@@ -474,8 +474,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         AComputeDataType, BComputeDataType
 
     using GridwiseGemm = GridwiseGemm_xdl_cshuffle_conv_v3<GridwiseGemmV3TemplateParams>;
-    using GridwiseGemmSplitK =
-        GridwiseGemm_xdl_cshuffle_conv_v3<GridwiseGemmV3SplitKTemplateParams>;
+    using GridwiseGemmTwoStage =
+        GridwiseGemm_xdl_cshuffle_conv_v3<GridwiseGemmV3TwoStageTemplateParams>;
 
     using Block2TileMapElementwise = BlockToCTileMap_M00_N0_M01Adapt<NPerBlock, NPerBlock>;
 
@@ -594,15 +594,15 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             e_grid_desc_m_n, GridwiseGemm::CalculateMBlock(M), GridwiseGemm::CalculateNBlock(N));
     }
 
-    static auto MakeEGridDescriptorSplitK_MBlock_MPerBlock_NBlock_NPerBlock(
+    static auto MakeEGridDescriptorTwoStage_MBlock_MPerBlock_NBlock_NPerBlock(
         const EGridDesc_M_N& e_grid_desc_m_n)
     {
         const index_t M = e_grid_desc_m_n.GetLength(I0);
         const index_t N = e_grid_desc_m_n.GetLength(I1);
-        return GridwiseGemmSplitK::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+        return GridwiseGemmTwoStage::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
             e_grid_desc_m_n,
-            GridwiseGemmSplitK::CalculateMBlock(M),
-            GridwiseGemmSplitK::CalculateNBlock(N));
+            GridwiseGemmTwoStage::CalculateMBlock(M),
+            GridwiseGemmTwoStage::CalculateNBlock(N));
     }
 
     // desc for blockwise copy
@@ -613,8 +613,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
     using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
         remove_cvref_t<decltype(MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
             EGridDesc_M_N{}))>;
-    using EGridDescSplitK_MBlock_MPerBlock_NBlock_NPerBlock =
-        remove_cvref_t<decltype(MakeEGridDescriptorSplitK_MBlock_MPerBlock_NBlock_NPerBlock(
+    using EGridDescTwoStage_MBlock_MPerBlock_NBlock_NPerBlock =
+        remove_cvref_t<decltype(MakeEGridDescriptorTwoStage_MBlock_MPerBlock_NBlock_NPerBlock(
             EGridDesc_M_N{}))>;
 
     // Argument
@@ -698,7 +698,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             if(k_batch_ > 1)
             {
                 e_grid_desc_splitk_mblock_mperblock_nblock_nperblock_ =
-                    MakeEGridDescriptorSplitK_MBlock_MPerBlock_NBlock_NPerBlock(e_grid_desc_m_n_);
+                    MakeEGridDescriptorTwoStage_MBlock_MPerBlock_NBlock_NPerBlock(e_grid_desc_m_n_);
             }
             else
             {
@@ -869,7 +869,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         EGridDesc_M_N e_grid_desc_m_n_;
         CElementwiseGridDesc_M_N ce_elementwise_grid_desc_m_n_;
         EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock e_grid_desc_mblock_mperblock_nblock_nperblock_;
-        EGridDescSplitK_MBlock_MPerBlock_NBlock_NPerBlock
+        EGridDescTwoStage_MBlock_MPerBlock_NBlock_NPerBlock
             e_grid_desc_splitk_mblock_mperblock_nblock_nperblock_;
 
         // for computing batch offset
@@ -897,7 +897,70 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
     {
         using Argument = DeviceOp::Argument;
 
-        float RunGemm(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        struct LaunchConfig
+        {
+            static constexpr bool needs_transpose =
+                is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>() ||
+                is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>();
+
+            EDataType* p_e_grid       = nullptr;
+            AccDataType* p_acc_grid   = nullptr;
+            const ADataType* p_a_grid = nullptr;
+            const BDataType* p_b_grid = nullptr;
+
+            index_t e_grid_size = 0;
+            index_t a_grid_size = 0;
+            index_t b_grid_size = 0;
+
+            LaunchConfig(const Argument& arg)
+            {
+                const bool multi_k_batch = arg.k_batch_ > 1;
+
+                if(multi_k_batch)
+                {
+                    p_acc_grid  = type_convert<AccDataType*>(arg.p_workspace_);
+                    e_grid_size = arg.elementwise_block_2_ctile_map_.CalculateGridSize(
+                                      arg.ce_elementwise_grid_desc_m_n_) *
+                                  arg.num_group_;
+                }
+
+                if constexpr(needs_transpose)
+                {
+                    a_grid_size = arg.elementwise_block_2_ctile_map_transpose_a_.CalculateGridSize(
+                        arg.a_in_transpose_desc_);
+                    b_grid_size = arg.elementwise_block_2_ctile_map_transpose_b_.CalculateGridSize(
+                        arg.b_in_transpose_desc_);
+
+                    if(!multi_k_batch)
+                    {
+                        e_grid_size = arg.elementwise_block_2_ctile_map_.CalculateGridSize(
+                            arg.e_in_transpose_desc_);
+                        p_e_grid = type_convert<EDataType*>(arg.p_workspace_);
+                    }
+
+                    p_a_grid = type_convert<ADataType*>(arg.p_workspace_) +
+                               arg.GetWorkspaceETensorSizeBytes() / sizeof(ADataType);
+                    p_b_grid =
+                        type_convert<BDataType*>(arg.p_workspace_) +
+                        (arg.GetWorkspaceETensorSizeBytes() + arg.GetWorkspaceATensorSizeBytes()) /
+                            sizeof(BDataType);
+                }
+                else
+                {
+                    p_a_grid = arg.p_a_grid_;
+                    p_b_grid = arg.p_b_grid_;
+                    if(!multi_k_batch)
+                    {
+                        p_e_grid = arg.p_e_grid_;
+                    }
+                }
+            }
+        };
+
+        template <typename GridwiseGemmType, InMemoryDataOperationEnum InMemoryDataOperation>
+        float RunGemm(const Argument& arg,
+                      const typename GridwiseGemmType::Argument& gemm_arg,
+                      const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
             {
@@ -908,402 +971,43 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
 
             constexpr index_t minimum_occupancy =
                 BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;
-
-            const index_t GemmM = arg.a_grid_desc_ak0_m_ak1_.GetLength(I1);
-            const index_t GemmN = arg.b_grid_desc_bk0_n_bk1_.GetLength(I1);
-            const index_t GemmK =
-                arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
-
-            const index_t num_workgroups_per_Conv_N =
-                arg.a_g_n_c_wis_lengths_[I1] / arg.conv_N_per_block_;
-
-            index_t gdx, gdy, gdz;
-            std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(
-                GemmM, GemmN, I1, arg.num_group_ * num_workgroups_per_Conv_N);
-
-            const auto num_k_per_block = arg.a_grid_desc_ak0_m_ak1_.GetLength(I0);
-
-            index_t K_split                  = (GemmK + KPerBlock - 1) / KPerBlock * KPerBlock;
-            const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
-
-            const ADataType* p_a_grid = arg.p_a_grid_;
-            const BDataType* p_b_grid = arg.p_b_grid_;
-            EDataType* p_e_grid       = arg.p_e_grid_;
-
-            if constexpr(is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>() ||
-                         is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>())
-            {
-                p_e_grid = type_convert<EDataType*>(arg.p_workspace_);
-                p_a_grid = type_convert<const ADataType*>(arg.p_workspace_) +
-                           arg.GetWorkspaceETensorSizeBytes() / sizeof(ADataType);
-                p_b_grid =
-                    type_convert<const BDataType*>(arg.p_workspace_) +
-                    (arg.GetWorkspaceETensorSizeBytes() + arg.GetWorkspaceATensorSizeBytes()) /
-                        sizeof(BDataType);
-            }
-
-            typename GridwiseGemm::Argument gemm_arg{
-                p_a_grid, p_b_grid, p_e_grid, GemmM, GemmN, GemmK, I0, I0, I0, I1};
-
-            const auto Run = [&](const auto& kernel) {
-                if(stream_config.flush_cache)
-                {
-                    typename GridwiseGemm::Argument gemm_arg_ = gemm_arg;
-                    ck::utility::RotatingMemWrapper<typename GridwiseGemm::Argument> rotating_mem(
-                        gemm_arg_,
-                        stream_config.rotating_count,
-                        gemm_arg_.M * gemm_arg_.K * sizeof(ADataType),
-                        gemm_arg_.K * gemm_arg_.N * sizeof(BDataType));
-                    rotating_mem.Print();
-
-                    auto run_flush_cache = [&]() {
-                        // flush icache
-                        ck::utility::flush_icache();
-                        // rotating mem
-                        rotating_mem.Next();
-                    };
-
-                    ave_time += ck::utility::launch_and_time_kernel_with_preprocess<false>(
-                        stream_config,
-                        run_flush_cache,
-                        kernel,
-                        dim3(gdx, gdy, gdz),
-                        dim3(BlockSize),
-                        0,
-                        gemm_arg_,
-                        arg.a_grid_desc_ak0_m_ak1_,
-                        arg.b_grid_desc_bk0_n_bk1_,
-                        arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
-                        arg.compute_ptr_offset_of_groups_,
-                        arg.compute_ptr_offset_of_n_,
-                        num_k_per_block,
-                        arg.num_group_);
-                }
-                else
-                {
-                    ave_time +=
-                        launch_and_time_kernel(stream_config,
-                                               kernel,
-                                               dim3(gdx, gdy, gdz),
-                                               dim3(BlockSize),
-                                               0,
-                                               gemm_arg,
-                                               arg.a_grid_desc_ak0_m_ak1_,
-                                               arg.b_grid_desc_bk0_n_bk1_,
-                                               arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                               arg.compute_ptr_offset_of_groups_,
-                                               arg.compute_ptr_offset_of_n_,
-                                               num_k_per_block,
-                                               arg.num_group_);
-                }
-            };
-
-            if(has_main_k_block_loop)
-            {
-                // Tail number always full
-                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ||
-                             BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
-                {
-                    const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
-                        GridwiseGemm,
-                        DeviceOp::AGridDesc_AK0_M_AK1,
-                        DeviceOp::BGridDesc_BK0_N_BK1,
-                        DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                        ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                        true,
-                        InMemoryDataOperationEnum::Set,
-                        minimum_occupancy>;
-                    Run(kernel);
-                }
-                // Tail number could be One to Seven
-                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
-                {
-                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::One)
-                    {
-                        const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
-                            GridwiseGemm,
-                            DeviceOp::AGridDesc_AK0_M_AK1,
-                            DeviceOp::BGridDesc_BK0_N_BK1,
-                            DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                            ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                            true,
-                            InMemoryDataOperationEnum::Set,
-                            minimum_occupancy,
-                            TailNumber::One>;
-                        Run(kernel);
-                    }
-                    else if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Full)
-                    {
-                        const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
-                            GridwiseGemm,
-                            DeviceOp::AGridDesc_AK0_M_AK1,
-                            DeviceOp::BGridDesc_BK0_N_BK1,
-                            DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                            ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                            true,
-                            InMemoryDataOperationEnum::Set,
-                            minimum_occupancy,
-                            TailNumber::Full>;
-                        Run(kernel);
-                    }
-
-                    if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 2)
-                    {
-                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Two)
-                        {
-                            const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
-                                GridwiseGemm,
-                                DeviceOp::AGridDesc_AK0_M_AK1,
-                                DeviceOp::BGridDesc_BK0_N_BK1,
-                                DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                                ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                true,
-                                InMemoryDataOperationEnum::Set,
-                                minimum_occupancy,
-                                TailNumber::Two>;
-                            Run(kernel);
-                        }
-                    }
-
-                    if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 3)
-                    {
-                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Three)
-                        {
-                            const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
-                                GridwiseGemm,
-                                DeviceOp::AGridDesc_AK0_M_AK1,
-                                DeviceOp::BGridDesc_BK0_N_BK1,
-                                DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                                ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                true,
-                                InMemoryDataOperationEnum::Set,
-                                minimum_occupancy,
-                                TailNumber::Three>;
-                            Run(kernel);
-                        }
-                    }
-
-                    if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 4)
-                    {
-                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Four)
-                        {
-                            const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
-                                GridwiseGemm,
-                                DeviceOp::AGridDesc_AK0_M_AK1,
-                                DeviceOp::BGridDesc_BK0_N_BK1,
-                                DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                                ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                true,
-                                InMemoryDataOperationEnum::Set,
-                                minimum_occupancy,
-                                TailNumber::Four>;
-                            Run(kernel);
-                        }
-                    }
-
-                    if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 5)
-                    {
-                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Five)
-                        {
-                            const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
-                                GridwiseGemm,
-                                DeviceOp::AGridDesc_AK0_M_AK1,
-                                DeviceOp::BGridDesc_BK0_N_BK1,
-                                DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                                ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                true,
-                                InMemoryDataOperationEnum::Set,
-                                minimum_occupancy,
-                                TailNumber::Five>;
-                            Run(kernel);
-                        }
-                    }
-
-                    if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 6)
-                    {
-                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Six)
-                        {
-                            const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
-                                GridwiseGemm,
-                                DeviceOp::AGridDesc_AK0_M_AK1,
-                                DeviceOp::BGridDesc_BK0_N_BK1,
-                                DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                                ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                true,
-                                InMemoryDataOperationEnum::Set,
-                                minimum_occupancy,
-                                TailNumber::Six>;
-                            Run(kernel);
-                        }
-                    }
-
-                    if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 7)
-                    {
-                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Seven)
-                        {
-                            const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
-                                GridwiseGemm,
-                                DeviceOp::AGridDesc_AK0_M_AK1,
-                                DeviceOp::BGridDesc_BK0_N_BK1,
-                                DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                                ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                true,
-                                InMemoryDataOperationEnum::Set,
-                                minimum_occupancy,
-                                TailNumber::Seven>;
-                            Run(kernel);
-                        }
-                    }
-                }
-                // Tail number could be Odd or Even
-                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
-                {
-                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
-                    {
-                        const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3_2lds<
-                            GridwiseGemm,
-                            DeviceOp::AGridDesc_AK0_M_AK1,
-                            DeviceOp::BGridDesc_BK0_N_BK1,
-                            DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                            ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                            true,
-                            InMemoryDataOperationEnum::Set,
-                            minimum_occupancy,
-                            TailNumber::Odd>;
-                        Run(kernel);
-                    }
-                    else
-                    {
-                        const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3_2lds<
-                            GridwiseGemm,
-                            DeviceOp::AGridDesc_AK0_M_AK1,
-                            DeviceOp::BGridDesc_BK0_N_BK1,
-                            DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                            ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                            true,
-                            InMemoryDataOperationEnum::Set,
-                            minimum_occupancy,
-                            TailNumber::Even>;
-                        Run(kernel);
-                    }
-                }
-                else
-                {
-                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
-                    {
-                        const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
-                            GridwiseGemm,
-                            DeviceOp::AGridDesc_AK0_M_AK1,
-                            DeviceOp::BGridDesc_BK0_N_BK1,
-                            DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                            ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                            true,
-                            InMemoryDataOperationEnum::Set,
-                            minimum_occupancy,
-                            TailNumber::Odd>;
-                        Run(kernel);
-                    }
-                    else
-                    {
-                        const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
-                            GridwiseGemm,
-                            DeviceOp::AGridDesc_AK0_M_AK1,
-                            DeviceOp::BGridDesc_BK0_N_BK1,
-                            DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                            ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                            true,
-                            InMemoryDataOperationEnum::Set,
-                            minimum_occupancy,
-                            TailNumber::Even>;
-                        Run(kernel);
-                    }
-                }
-            }
-            else
-            {
-                // Tail number always 1
-                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
-                {
-                    const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
-                        GridwiseGemm,
-                        DeviceOp::AGridDesc_AK0_M_AK1,
-                        DeviceOp::BGridDesc_BK0_N_BK1,
-                        DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                        ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                        false,
-                        InMemoryDataOperationEnum::Set,
-                        minimum_occupancy>;
-                    Run(kernel);
-                }
-            }
-
-            return ave_time;
-        }
-
-        float RunGemmSplitK(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
-        {
-            if(stream_config.log_level_ > 0)
-            {
-                arg.Print();
-            }
-
-            float ave_time = 0;
-
-            constexpr index_t minimum_occupancy =
-                BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;
-
-            const index_t GemmM = arg.a_grid_desc_ak0_m_ak1_.GetLength(I1);
-            const index_t GemmN = arg.b_grid_desc_bk0_n_bk1_.GetLength(I1);
-            const index_t GemmK =
-                arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
-
-            const ADataType* p_a_grid = arg.p_a_grid_;
-            const BDataType* p_b_grid = arg.p_b_grid_;
-            AccDataType* p_acc_grid   = type_convert<AccDataType*>(arg.p_workspace_);
-
-            if constexpr(is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>() ||
-                         is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>())
-            {
-                p_a_grid = type_convert<const ADataType*>(arg.p_workspace_) +
-                           arg.GetWorkspaceETensorSizeBytes() / sizeof(ADataType);
-                p_b_grid =
-                    type_convert<BDataType*>(arg.p_workspace_) +
-                    (arg.GetWorkspaceETensorSizeBytes() + arg.GetWorkspaceATensorSizeBytes()) /
-                        sizeof(BDataType);
-            }
-
-            typename GridwiseGemmSplitK::Argument gemm_arg{
-                p_a_grid, p_b_grid, p_acc_grid, GemmM, GemmN, GemmK, I0, I0, I0, arg.k_batch_};
 
             const index_t num_workgroups_per_Conv_N =
                 arg.a_g_n_c_wis_lengths_[I1] / arg.conv_N_per_block_;
 
             index_t gdx, gdy, gdz;
             std::tie(gdx, gdy, gdz) =
-                GridwiseGemmSplitK::CalculateGridSize(gemm_arg.M,
-                                                      gemm_arg.N,
-                                                      gemm_arg.KBatch,
-                                                      arg.num_group_ * num_workgroups_per_Conv_N);
+                GridwiseGemmType::CalculateGridSize(gemm_arg.M,
+                                                    gemm_arg.N,
+                                                    gemm_arg.KBatch,
+                                                    arg.num_group_ * num_workgroups_per_Conv_N);
 
             const auto num_k_per_block = arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) / gemm_arg.KBatch;
 
             index_t k_grain = gemm_arg.KBatch * KPerBlock;
             index_t K_split = (gemm_arg.K + k_grain - 1) / k_grain * KPerBlock;
             const bool has_main_k_block_loop =
-                GridwiseGemmSplitK::CalculateHasMainKBlockLoop(K_split);
+                GridwiseGemmType::CalculateHasMainKBlockLoop(K_split);
 
             const auto clear_workspace = [&]() {
-                hip_check_error(hipMemsetAsync(gemm_arg.p_c_grid,
-                                               0,
-                                               arg.GetWorkspaceETensorSizeBytes(),
-                                               stream_config.stream_id_));
+                if(arg.k_batch_ > 1)
+                {
+                    hip_check_error(hipMemsetAsync(gemm_arg.p_c_grid,
+                                                   0,
+                                                   arg.GetWorkspaceETensorSizeBytes(),
+                                                   stream_config.stream_id_));
+                }
             };
 
             const auto Run = [&](const auto& kernel) {
+                auto e_grid_desc_mblock_mperblock_nblock_nperblock =
+                    (arg.k_batch_ > 1) ? arg.e_grid_desc_splitk_mblock_mperblock_nblock_nperblock_
+                                       : arg.e_grid_desc_mblock_mperblock_nblock_nperblock_;
+
                 if(stream_config.flush_cache)
                 {
-                    typename GridwiseGemmSplitK::Argument gemm_arg_ = gemm_arg;
-                    ck::utility::RotatingMemWrapper<typename GridwiseGemmSplitK::Argument>
+                    typename GridwiseGemmType::Argument gemm_arg_ = gemm_arg;
+                    ck::utility::RotatingMemWrapper<typename GridwiseGemmType::Argument>
                         rotating_mem(gemm_arg_,
                                      stream_config.rotating_count,
                                      gemm_arg_.M * gemm_arg_.K * sizeof(ADataType),
@@ -1328,7 +1032,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                         gemm_arg_,
                         arg.a_grid_desc_ak0_m_ak1_,
                         arg.b_grid_desc_bk0_n_bk1_,
-                        arg.e_grid_desc_splitk_mblock_mperblock_nblock_nperblock_,
+                        e_grid_desc_mblock_mperblock_nblock_nperblock,
                         arg.compute_ptr_offset_of_groups_,
                         arg.compute_ptr_offset_of_n_,
                         num_k_per_block,
@@ -1346,7 +1050,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                         gemm_arg,
                         arg.a_grid_desc_ak0_m_ak1_,
                         arg.b_grid_desc_bk0_n_bk1_,
-                        arg.e_grid_desc_splitk_mblock_mperblock_nblock_nperblock_,
+                        e_grid_desc_mblock_mperblock_nblock_nperblock,
                         arg.compute_ptr_offset_of_groups_,
                         arg.compute_ptr_offset_of_n_,
                         num_k_per_block,
@@ -1361,157 +1065,155 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                              BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
                     const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
-                        GridwiseGemmSplitK,
+                        GridwiseGemmType,
                         DeviceOp::AGridDesc_AK0_M_AK1,
                         DeviceOp::BGridDesc_BK0_N_BK1,
                         DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                         ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
                         true,
-                        InMemoryDataOperationEnum::AtomicAdd,
+                        InMemoryDataOperation,
                         minimum_occupancy>;
                     Run(kernel);
                 }
                 // Tail number could be One to Seven
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
                 {
-                    if(GridwiseGemmSplitK::CalculateKBlockLoopTailNum(K_split) == TailNumber::One)
+                    if(GridwiseGemmType::CalculateKBlockLoopTailNum(K_split) == TailNumber::One)
                     {
                         const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
-                            GridwiseGemmSplitK,
+                            GridwiseGemmType,
                             DeviceOp::AGridDesc_AK0_M_AK1,
                             DeviceOp::BGridDesc_BK0_N_BK1,
                             DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                             ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
                             true,
-                            InMemoryDataOperationEnum::AtomicAdd,
+                            InMemoryDataOperation,
                             minimum_occupancy,
                             TailNumber::One>;
                         Run(kernel);
                     }
-                    else if(GridwiseGemmSplitK::CalculateKBlockLoopTailNum(K_split) ==
+                    else if(GridwiseGemmType::CalculateKBlockLoopTailNum(K_split) ==
                             TailNumber::Full)
                     {
                         const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
-                            GridwiseGemmSplitK,
+                            GridwiseGemmType,
                             DeviceOp::AGridDesc_AK0_M_AK1,
                             DeviceOp::BGridDesc_BK0_N_BK1,
                             DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                             ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
                             true,
-                            InMemoryDataOperationEnum::AtomicAdd,
+                            InMemoryDataOperation,
                             minimum_occupancy,
                             TailNumber::Full>;
                         Run(kernel);
                     }
 
-                    if constexpr(GridwiseGemmSplitK::BlockwiseGemmPipe::PrefetchStages > 2)
+                    if constexpr(GridwiseGemmType::BlockwiseGemmPipe::PrefetchStages > 2)
                     {
-                        if(GridwiseGemmSplitK::CalculateKBlockLoopTailNum(K_split) ==
-                           TailNumber::Two)
+                        if(GridwiseGemmType::CalculateKBlockLoopTailNum(K_split) == TailNumber::Two)
                         {
                             const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
-                                GridwiseGemmSplitK,
+                                GridwiseGemmType,
                                 DeviceOp::AGridDesc_AK0_M_AK1,
                                 DeviceOp::BGridDesc_BK0_N_BK1,
                                 DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                                 ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
                                 true,
-                                InMemoryDataOperationEnum::AtomicAdd,
+                                InMemoryDataOperation,
                                 minimum_occupancy,
                                 TailNumber::Two>;
                             Run(kernel);
                         }
                     }
 
-                    if constexpr(GridwiseGemmSplitK::BlockwiseGemmPipe::PrefetchStages > 3)
+                    if constexpr(GridwiseGemmType::BlockwiseGemmPipe::PrefetchStages > 3)
                     {
-                        if(GridwiseGemmSplitK::CalculateKBlockLoopTailNum(K_split) ==
+                        if(GridwiseGemmType::CalculateKBlockLoopTailNum(K_split) ==
                            TailNumber::Three)
                         {
                             const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
-                                GridwiseGemmSplitK,
+                                GridwiseGemmType,
                                 DeviceOp::AGridDesc_AK0_M_AK1,
                                 DeviceOp::BGridDesc_BK0_N_BK1,
                                 DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                                 ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
                                 true,
-                                InMemoryDataOperationEnum::AtomicAdd,
+                                InMemoryDataOperation,
                                 minimum_occupancy,
                                 TailNumber::Three>;
                             Run(kernel);
                         }
                     }
 
-                    if constexpr(GridwiseGemmSplitK::BlockwiseGemmPipe::PrefetchStages > 4)
+                    if constexpr(GridwiseGemmType::BlockwiseGemmPipe::PrefetchStages > 4)
                     {
-                        if(GridwiseGemmSplitK::CalculateKBlockLoopTailNum(K_split) ==
+                        if(GridwiseGemmType::CalculateKBlockLoopTailNum(K_split) ==
                            TailNumber::Four)
                         {
                             const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
-                                GridwiseGemmSplitK,
+                                GridwiseGemmType,
                                 DeviceOp::AGridDesc_AK0_M_AK1,
                                 DeviceOp::BGridDesc_BK0_N_BK1,
                                 DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                                 ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
                                 true,
-                                InMemoryDataOperationEnum::AtomicAdd,
+                                InMemoryDataOperation,
                                 minimum_occupancy,
                                 TailNumber::Four>;
                             Run(kernel);
                         }
                     }
 
-                    if constexpr(GridwiseGemmSplitK::BlockwiseGemmPipe::PrefetchStages > 5)
+                    if constexpr(GridwiseGemmType::BlockwiseGemmPipe::PrefetchStages > 5)
                     {
-                        if(GridwiseGemmSplitK::CalculateKBlockLoopTailNum(K_split) ==
+                        if(GridwiseGemmType::CalculateKBlockLoopTailNum(K_split) ==
                            TailNumber::Five)
                         {
                             const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
-                                GridwiseGemmSplitK,
+                                GridwiseGemmType,
                                 DeviceOp::AGridDesc_AK0_M_AK1,
                                 DeviceOp::BGridDesc_BK0_N_BK1,
                                 DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                                 ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
                                 true,
-                                InMemoryDataOperationEnum::AtomicAdd,
+                                InMemoryDataOperation,
                                 minimum_occupancy,
                                 TailNumber::Five>;
                             Run(kernel);
                         }
                     }
 
-                    if constexpr(GridwiseGemmSplitK::BlockwiseGemmPipe::PrefetchStages > 6)
+                    if constexpr(GridwiseGemmType::BlockwiseGemmPipe::PrefetchStages > 6)
                     {
-                        if(GridwiseGemmSplitK::CalculateKBlockLoopTailNum(K_split) ==
-                           TailNumber::Six)
+                        if(GridwiseGemmType::CalculateKBlockLoopTailNum(K_split) == TailNumber::Six)
                         {
                             const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
-                                GridwiseGemmSplitK,
+                                GridwiseGemmType,
                                 DeviceOp::AGridDesc_AK0_M_AK1,
                                 DeviceOp::BGridDesc_BK0_N_BK1,
                                 DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                                 ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
                                 true,
-                                InMemoryDataOperationEnum::AtomicAdd,
+                                InMemoryDataOperation,
                                 minimum_occupancy,
                                 TailNumber::Six>;
                             Run(kernel);
                         }
                     }
 
-                    if constexpr(GridwiseGemmSplitK::BlockwiseGemmPipe::PrefetchStages > 7)
+                    if constexpr(GridwiseGemmType::BlockwiseGemmPipe::PrefetchStages > 7)
                     {
-                        if(GridwiseGemmSplitK::CalculateKBlockLoopTailNum(K_split) ==
+                        if(GridwiseGemmType::CalculateKBlockLoopTailNum(K_split) ==
                            TailNumber::Seven)
                         {
                             const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
-                                GridwiseGemmSplitK,
+                                GridwiseGemmType,
                                 DeviceOp::AGridDesc_AK0_M_AK1,
                                 DeviceOp::BGridDesc_BK0_N_BK1,
                                 DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                                 ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
                                 true,
-                                InMemoryDataOperationEnum::AtomicAdd,
+                                InMemoryDataOperation,
                                 minimum_occupancy,
                                 TailNumber::Seven>;
                             Run(kernel);
@@ -1521,16 +1223,16 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                 // Tail number could be Odd or Even
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
                 {
-                    if(GridwiseGemmSplitK::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                    if(GridwiseGemmType::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                     {
                         const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3_2lds<
-                            GridwiseGemmSplitK,
+                            GridwiseGemmType,
                             DeviceOp::AGridDesc_AK0_M_AK1,
                             DeviceOp::BGridDesc_BK0_N_BK1,
                             DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                             ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
                             true,
-                            InMemoryDataOperationEnum::AtomicAdd,
+                            InMemoryDataOperation,
                             minimum_occupancy,
                             TailNumber::Odd>;
                         Run(kernel);
@@ -1538,13 +1240,13 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                     else
                     {
                         const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3_2lds<
-                            GridwiseGemmSplitK,
+                            GridwiseGemmType,
                             DeviceOp::AGridDesc_AK0_M_AK1,
                             DeviceOp::BGridDesc_BK0_N_BK1,
                             DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                             ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
                             true,
-                            InMemoryDataOperationEnum::AtomicAdd,
+                            InMemoryDataOperation,
                             minimum_occupancy,
                             TailNumber::Even>;
                         Run(kernel);
@@ -1552,16 +1254,16 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                 }
                 else
                 {
-                    if(GridwiseGemmSplitK::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                    if(GridwiseGemmType::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                     {
                         const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
-                            GridwiseGemmSplitK,
+                            GridwiseGemmType,
                             DeviceOp::AGridDesc_AK0_M_AK1,
                             DeviceOp::BGridDesc_BK0_N_BK1,
                             DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                             ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
                             true,
-                            InMemoryDataOperationEnum::AtomicAdd,
+                            InMemoryDataOperation,
                             minimum_occupancy,
                             TailNumber::Odd>;
                         Run(kernel);
@@ -1569,13 +1271,13 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                     else
                     {
                         const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
-                            GridwiseGemmSplitK,
+                            GridwiseGemmType,
                             DeviceOp::AGridDesc_AK0_M_AK1,
                             DeviceOp::BGridDesc_BK0_N_BK1,
                             DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                             ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
                             true,
-                            InMemoryDataOperationEnum::AtomicAdd,
+                            InMemoryDataOperation,
                             minimum_occupancy,
                             TailNumber::Even>;
                         Run(kernel);
@@ -1588,13 +1290,13 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
                     const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
-                        GridwiseGemmSplitK,
+                        GridwiseGemmType,
                         DeviceOp::AGridDesc_AK0_M_AK1,
                         DeviceOp::BGridDesc_BK0_N_BK1,
                         DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                         ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
                         false,
-                        InMemoryDataOperationEnum::AtomicAdd,
+                        InMemoryDataOperation,
                         minimum_occupancy>;
                     Run(kernel);
                 }
@@ -1604,27 +1306,12 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
+            LaunchConfig launch_config(arg);
             float avg_time = 0.f;
             if constexpr(!isMultiABD)
             {
-                if constexpr(is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>() ||
-                             is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>())
+                if constexpr(launch_config.needs_transpose)
                 {
-                    const index_t a_grid_size =
-                        arg.elementwise_block_2_ctile_map_transpose_a_.CalculateGridSize(
-                            arg.a_in_transpose_desc_);
-                    const index_t b_grid_size =
-                        arg.elementwise_block_2_ctile_map_transpose_b_.CalculateGridSize(
-                            arg.b_in_transpose_desc_);
-
-                    ADataType* p_a_out_grid =
-                        type_convert<ADataType*>(arg.p_workspace_) +
-                        arg.GetWorkspaceETensorSizeBytes() / sizeof(ADataType);
-                    BDataType* p_b_out_grid =
-                        type_convert<BDataType*>(arg.p_workspace_) +
-                        (arg.GetWorkspaceETensorSizeBytes() + arg.GetWorkspaceATensorSizeBytes()) /
-                            sizeof(BDataType);
-
                     auto kernel_transpose =
                         kernel_elementwise_dual<GridwiseElementwiseInputTranspose,
                                                 GridwiseElementwiseWeightTranspose,
@@ -1640,43 +1327,52 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                                                 Block2TileMapElementwise,
                                                 element_wise::PassThrough>;
 
-                    avg_time +=
-                        launch_and_time_kernel(stream_config,
-                                               kernel_transpose,
-                                               dim3(a_grid_size + b_grid_size),
-                                               dim3(ElementwiseBlocksize),
-                                               0,
-                                               make_tuple(arg.a_in_transpose_desc_),
-                                               make_tuple(arg.b_in_transpose_desc_),
-                                               make_tuple(arg.a_out_transpose_desc_),
-                                               make_tuple(arg.b_out_transpose_desc_),
-                                               make_tuple(arg.p_a_grid_),
-                                               make_tuple(arg.p_b_grid_),
-                                               make_tuple(p_a_out_grid),
-                                               make_tuple(p_b_out_grid),
-                                               arg.elementwise_block_2_ctile_map_transpose_a_,
-                                               arg.elementwise_block_2_ctile_map_transpose_b_,
-                                               element_wise::PassThrough{},
-                                               a_grid_size);
+                    avg_time += launch_and_time_kernel(
+                        stream_config,
+                        kernel_transpose,
+                        dim3(launch_config.a_grid_size + launch_config.b_grid_size),
+                        dim3(ElementwiseBlocksize),
+                        0,
+                        make_tuple(arg.a_in_transpose_desc_),
+                        make_tuple(arg.b_in_transpose_desc_),
+                        make_tuple(arg.a_out_transpose_desc_),
+                        make_tuple(arg.b_out_transpose_desc_),
+                        make_tuple(arg.p_a_grid_),
+                        make_tuple(arg.p_b_grid_),
+                        make_tuple(const_cast<ADataType*>(launch_config.p_a_grid)),
+                        make_tuple(const_cast<BDataType*>(launch_config.p_b_grid)),
+                        arg.elementwise_block_2_ctile_map_transpose_a_,
+                        arg.elementwise_block_2_ctile_map_transpose_b_,
+                        element_wise::PassThrough{},
+                        launch_config.a_grid_size);
                 }
+
+                const index_t GemmM = arg.a_grid_desc_ak0_m_ak1_.GetLength(I1);
+                const index_t GemmN = arg.b_grid_desc_bk0_n_bk1_.GetLength(I1);
+                const index_t GemmK = arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) *
+                                      arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
 
                 if(arg.k_batch_ > 1)
                 {
-                    avg_time += RunGemmSplitK(arg, stream_config);
+                    typename GridwiseGemmTwoStage::Argument gemm_arg{launch_config.p_a_grid,
+                                                                     launch_config.p_b_grid,
+                                                                     launch_config.p_acc_grid,
+                                                                     GemmM,
+                                                                     GemmN,
+                                                                     GemmK,
+                                                                     I0,
+                                                                     I0,
+                                                                     I0,
+                                                                     arg.k_batch_};
 
-                    const AccDataType* p_c_grid =
-                        type_convert<const AccDataType*>(arg.p_workspace_);
+                    avg_time += RunGemm<GridwiseGemmTwoStage, InMemoryDataOperationEnum::AtomicAdd>(
+                        arg, gemm_arg, stream_config);
 
                     std::array<index_t, I1> in_out_batch_strides = {
                         static_cast<index_t>(arg.compute_ptr_offset_of_groups_.BatchStrideE_)};
 
-                    if constexpr(is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>() ||
-                                 is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>())
+                    if constexpr(launch_config.needs_transpose)
                     {
-                        const index_t grid_size =
-                            arg.elementwise_block_2_ctile_map_.CalculateGridSize(
-                                arg.e_in_transpose_desc_);
-
                         const auto kernel =
                             kernel_elementwise<GridwiseElementwiseOutputTransposeCast,
                                                ck::Tuple<NHWGCTransposeDescType>,
@@ -1686,25 +1382,21 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                                                Block2TileMapElementwise,
                                                CDEElementwiseOperation>;
 
-                        avg_time += launch_and_time_kernel(stream_config,
-                                                           kernel,
-                                                           dim3(grid_size),
-                                                           dim3(BlockSize),
-                                                           0,
-                                                           make_tuple(arg.e_in_transpose_desc_),
-                                                           make_tuple(arg.e_out_transpose_desc_),
-                                                           make_tuple(p_c_grid),
-                                                           make_tuple(arg.p_e_grid_),
-                                                           arg.elementwise_block_2_ctile_map_,
-                                                           arg.cde_element_op_);
+                        avg_time += launch_and_time_kernel(
+                            stream_config,
+                            kernel,
+                            dim3(launch_config.e_grid_size),
+                            dim3(BlockSize),
+                            0,
+                            make_tuple(arg.e_in_transpose_desc_),
+                            make_tuple(arg.e_out_transpose_desc_),
+                            make_tuple(const_cast<const AccDataType*>(launch_config.p_acc_grid)),
+                            make_tuple(arg.p_e_grid_),
+                            arg.elementwise_block_2_ctile_map_,
+                            arg.cde_element_op_);
                     }
                     else
                     {
-                        const index_t grid_size =
-                            arg.elementwise_block_2_ctile_map_.CalculateGridSize(
-                                arg.ce_elementwise_grid_desc_m_n_) *
-                            arg.num_group_;
-
                         const auto kernel =
                             kernel_batched_elementwise<GridwiseElementwiseOutputCast,
                                                        Tuple<CElementwiseGridDesc_M_N>,
@@ -1716,38 +1408,41 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                                                        I1,
                                                        I1>;
 
-                        avg_time +=
-                            launch_and_time_kernel(stream_config,
-                                                   kernel,
-                                                   dim3(grid_size),
-                                                   dim3(BlockSize),
-                                                   0,
-                                                   make_tuple(arg.ce_elementwise_grid_desc_m_n_),
-                                                   make_tuple(arg.ce_elementwise_grid_desc_m_n_),
-                                                   make_tuple(p_c_grid),
-                                                   make_tuple(arg.p_e_grid_),
-                                                   arg.elementwise_block_2_ctile_map_,
-                                                   arg.cde_element_op_,
-                                                   arg.num_group_,
-                                                   in_out_batch_strides,
-                                                   in_out_batch_strides);
+                        avg_time += launch_and_time_kernel(
+                            stream_config,
+                            kernel,
+                            dim3(launch_config.e_grid_size),
+                            dim3(BlockSize),
+                            0,
+                            make_tuple(arg.ce_elementwise_grid_desc_m_n_),
+                            make_tuple(arg.ce_elementwise_grid_desc_m_n_),
+                            make_tuple(const_cast<const AccDataType*>(launch_config.p_acc_grid)),
+                            make_tuple(arg.p_e_grid_),
+                            arg.elementwise_block_2_ctile_map_,
+                            arg.cde_element_op_,
+                            arg.num_group_,
+                            in_out_batch_strides,
+                            in_out_batch_strides);
                     }
                 }
                 else
                 {
-                    avg_time += RunGemm(arg, stream_config);
+                    typename GridwiseGemm::Argument gemm_arg{launch_config.p_a_grid,
+                                                             launch_config.p_b_grid,
+                                                             launch_config.p_e_grid,
+                                                             GemmM,
+                                                             GemmN,
+                                                             GemmK,
+                                                             I0,
+                                                             I0,
+                                                             I0,
+                                                             arg.k_batch_};
 
-                    if constexpr(is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>() ||
-                                 is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>())
+                    avg_time += RunGemm<GridwiseGemm, InMemoryDataOperationEnum::Set>(
+                        arg, gemm_arg, stream_config);
+
+                    if constexpr(launch_config.needs_transpose)
                     {
-                        const index_t grid_size =
-                            arg.elementwise_block_2_ctile_map_transpose_e_.CalculateGridSize(
-                                arg.e_in_transpose_desc_);
-
-                        const EDataType* p_e_in_grid = type_convert<EDataType*>(arg.p_workspace_);
-
-                        EDataType* p_e_out_grid = arg.p_e_grid_;
-
                         auto kernel_transpose =
                             kernel_elementwise<GridwiseElementwiseOutputTranspose,
                                                ck::Tuple<NHWGCTransposeDescType>,
@@ -1757,18 +1452,18 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                                                Block2TileMapElementwise,
                                                element_wise::PassThrough>;
 
-                        avg_time +=
-                            launch_and_time_kernel(stream_config,
-                                                   kernel_transpose,
-                                                   dim3(grid_size),
-                                                   dim3(ElementwiseBlocksize),
-                                                   0,
-                                                   make_tuple(arg.e_in_transpose_desc_),
-                                                   make_tuple(arg.e_out_transpose_desc_),
-                                                   make_tuple(p_e_in_grid),
-                                                   make_tuple(p_e_out_grid),
-                                                   arg.elementwise_block_2_ctile_map_transpose_e_,
-                                                   element_wise::PassThrough{});
+                        avg_time += launch_and_time_kernel(
+                            stream_config,
+                            kernel_transpose,
+                            dim3(launch_config.e_grid_size),
+                            dim3(ElementwiseBlocksize),
+                            0,
+                            make_tuple(arg.e_in_transpose_desc_),
+                            make_tuple(arg.e_out_transpose_desc_),
+                            make_tuple(const_cast<const EDataType*>(launch_config.p_e_grid)),
+                            make_tuple(arg.p_e_grid_),
+                            arg.elementwise_block_2_ctile_map_transpose_e_,
+                            element_wise::PassThrough{});
                     }
                 }
             }
@@ -1978,13 +1673,13 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             }
         }
 
-        typename GridwiseGemmSplitK::Argument gemm_arg{
+        typename GridwiseGemmTwoStage::Argument gemm_arg{
             nullptr, nullptr, nullptr, GemmM, GemmN, GemmK, I0, I0, I0, arg.k_batch_};
 
         const auto num_k_loop = gemm_arg.AK0 / (KPerBlock / AK1);
         if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1)
         {
-            if(num_k_loop <= GridwiseGemmSplitK::BlockwiseGemmPipe::PrefetchStages)
+            if(num_k_loop <= GridwiseGemmTwoStage::BlockwiseGemmPipe::PrefetchStages)
             {
                 return false;
             }
