@@ -64,7 +64,7 @@ auto create_args(int argc, char* argv[])
     return std::make_tuple(result, arg_parser);
 }
 
-using gemm_multi_d_kargs = ck_tile::GemmHostArgs<DsDataType::size()>;
+using gemm_multi_d_kargs = ck_tile::GemmMultiDHostArgs<DsDataType::size()>;
 
 template <typename ADataType,
           typename BDataType,
