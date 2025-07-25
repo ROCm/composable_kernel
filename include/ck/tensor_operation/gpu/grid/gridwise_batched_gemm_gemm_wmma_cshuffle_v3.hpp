@@ -778,6 +778,10 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
         StaticBuffer<AddressSpaceEnum::Vgpr, Acc1DataType, acc1_thread_buf.Size(), true> c_thread_buf;
         c_thread_buf.Clear();
 
+        // Empty BScale struct for the blockwise pipeline.
+        using BScale        = typename BlockwiseGemmPipe::Empty;
+        auto b_scale_struct = BScale{};
+
 /*******************************************************************************/
         // 
         // Kernel Main Stage
@@ -787,7 +791,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
         index_t gemm1_l_block_outer_index = 0;
         // Outer loop, along GEMM_L
         // Inner loop, along GEMM_K
-        do {            
+        do {
             blockwise_gemm0_pipeline.template Run<HasMainKBlockLoop, TailNumber::Full>(a_grid_desc, 
                                                                                        a_block_desc, 
                                                                                        a_blockwise_copy, 
@@ -801,7 +805,9 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                                                                                        b0_block_buf,
                                                                                        b0_block_slice_copy_step,
                                                                                        acc0_thread_buf,
-                                                                                       KBlockMainLoop);
+                                                                                       b_scale_struct,
+                                                                                       KBlockMainLoop,
+                                                                                       1); // num_k_block_per_scale
 
             static_for<0, acc0_thread_buf.Size(), 1>{}(
                     [&](auto i) { acc_element_op(acc0_thread_buf(i), acc0_thread_buf[i]); });
