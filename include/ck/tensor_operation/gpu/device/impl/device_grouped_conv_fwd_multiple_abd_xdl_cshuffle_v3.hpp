@@ -82,7 +82,7 @@ __global__ void
             [[maybe_unused]] const ComputePtrOffset compute_ptr_offset_of_groups,
             [[maybe_unused]] const ComputePtrOffset compute_ptr_offset_of_n)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if defined(__gfx9__)
     // offset base pointer for each work-group
     const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
     const index_t n_idx = __builtin_amdgcn_readfirstlane(blockIdx.z);
@@ -141,7 +141,7 @@ __global__ void
             [[maybe_unused]] const ComputePtrOffset compute_ptr_offset_of_groups,
             [[maybe_unused]] const ComputePtrOffset compute_ptr_offset_of_n)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if defined(__gfx9__)
     // offset base pointer for each work-group
     const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
     const index_t n_idx = __builtin_amdgcn_readfirstlane(blockIdx.z);

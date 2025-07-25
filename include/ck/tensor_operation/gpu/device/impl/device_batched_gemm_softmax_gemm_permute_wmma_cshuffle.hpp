@@ -56,7 +56,7 @@ __global__ void
                                                        bool input_permute,
                                                        bool output_permute)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
+#if(defined(__gfx11__) || defined(__gfx12__))
 
     // clang-format off
 // ***************************************************
@@ -188,7 +188,7 @@ __global__ void
                                            index_t head_size,
                                            float alpha)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
+#if(defined(__gfx11__) || defined(__gfx12__))
 
     // clang-format off
 // ***************************************************
@@ -322,7 +322,7 @@ __global__ void
                                             index_t head_size,
                                             float alpha)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
+#if(defined(__gfx11__) || defined(__gfx12__))
 
     // clang-format off
 // ***************************************************
