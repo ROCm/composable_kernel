@@ -83,18 +83,18 @@ float invoke_gemm(int n_warmup,
         const bool splitk = args[0].k_batch > 1;
         for(const auto& arg : args)
         {
-            kargs.emplace_back(ck_tile::GemmKernelArgs<>{arg.a_ptr,
-                                                         arg.b_ptr,
-                                                         {},
-                                                         arg.e_ptr,
-                                                         arg.M,
-                                                         arg.N,
-                                                         arg.K,
-                                                         arg.stride_A,
-                                                         arg.stride_B,
-                                                         {},
-                                                         arg.stride_E,
-                                                         arg.k_batch});
+            kargs.emplace_back(ck_tile::UniversalGemmKernelArgs<>{{arg.a_ptr},
+                                                                  {arg.b_ptr},
+                                                                  {/*arg.ds_ptr*/},
+                                                                  arg.e_ptr,
+                                                                  arg.M,
+                                                                  arg.N,
+                                                                  arg.K,
+                                                                  {arg.stride_A},
+                                                                  {arg.stride_B},
+                                                                  {/*arg.stride_Ds*/},
+                                                                  arg.stride_E,
+                                                                  arg.k_batch});
         }
         const auto stream = ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat};
         HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
@@ -240,7 +240,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
         void* p_c       = c_m_n_dev_buf[i]->GetDeviceBuffer();
 
         gemm_descs.push_back(
-            {p_a, p_b, {}, p_c, kbatch, M, N, K, stride_As[i], stride_Bs[i], {}, stride_Cs[i]});
+            {p_a, p_b, p_c, kbatch, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
     }
 
     invoke_gemm<ADataType,

@@ -54,7 +54,7 @@ using BDataType   = Types::BDataType;
 using AccDataType = Types::AccDataType;
 using CDataType   = Types::CDataType;
 
-using grouped_gemm_kargs = ck_tile::GemmHostArgs</*NumDTensor = 0*/>;
+using grouped_gemm_kargs = ck_tile::GroupedGemmHostArgs;
 
 auto create_args(int argc, char* argv[])
 {
