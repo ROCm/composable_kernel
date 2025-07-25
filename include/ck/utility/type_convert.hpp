@@ -39,6 +39,7 @@ namespace details {
 } // namespace details
 } // namespace
 
+#if defined(__gfx950__)
 inline __device__ bhalf_t static_cast_float_to_bf16(float x)
 {
     union
@@ -49,6 +50,7 @@ inline __device__ bhalf_t static_cast_float_to_bf16(float x)
     out.bf16 = static_cast<__bf16>(x);
     return out.uint16;
 }
+#endif
 
 // Declare a template function for bf16 conversion using RTN
 template <typename Y, typename X>
