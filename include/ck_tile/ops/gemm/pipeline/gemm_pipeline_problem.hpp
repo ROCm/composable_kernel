@@ -118,9 +118,6 @@ struct GemmPipelineProblemBase
     }
 
     static constexpr index_t VectorSizeA = []() {
-        // std::cout << "FixedVectorSize: " << FixedVectorSize << std::endl;
-        // std::cout << "kPadK: " << kPadK << std::endl;
-        // std::cout << "kPadM: " << kPadM << std::endl;
         if constexpr(FixedVectorSize)
         {
             return VectorSizeA_;
@@ -136,9 +133,6 @@ struct GemmPipelineProblemBase
     }();
 
     static constexpr index_t VectorSizeB = []() {
-        // std::cout << "FixedVectorSize: " << FixedVectorSize << std::endl;
-        // std::cout << "kPadK: " << kPadK << std::endl;
-        // std::cout << "kPadN: " << kPadN << std::endl;
         if constexpr(FixedVectorSize)
         {
             return VectorSizeB_;
