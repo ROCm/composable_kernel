@@ -39,6 +39,17 @@ namespace details {
 } // namespace details
 } // namespace
 
+inline __device__ bhalf_t static_cast_float_to_bf16(float x)
+{
+    union
+    {
+        uint16_t uint16;
+        __bf16 bf16;
+    } out;
+    out.bf16 = static_cast<__bf16>(x);
+    return out.uint16;
+}
+
 // Declare a template function for bf16 conversion using RTN
 template <typename Y, typename X>
 __host__ __device__ constexpr Y bf16_convert_rtn(X x);
@@ -48,7 +59,7 @@ template <>
 inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(float x)
 {
 #if defined(__gfx950__)
-    return amd_assembly_cvt_bf16_f32(x);
+    return static_cast_float_to_bf16(x);
 #else
     // Nan check
     if(x != x)

@@ -11,19 +11,6 @@
 
 namespace ck {
 
-inline __device__ bhalf_t amd_assembly_cvt_bf16_f32(float x)
-{
-    uint32_t result;
-    union
-    {
-        float fp32;
-        uint32_t int32;
-    } u = {x};
-
-    asm volatile("v_cvt_pk_bf16_f32 %0, %1, %1" : "=v"(result) : "v"(u.int32));
-    return static_cast<uint16_t>(result);
-}
-
 inline __device__ int amd_assembly_and_b32(int a, int b)
 {
     int c;
