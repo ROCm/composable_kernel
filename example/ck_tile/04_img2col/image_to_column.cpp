@@ -149,7 +149,7 @@ int main(int argc, char* argv[])
     float ave_time =
         image_to_column(traits, args, ck_tile::stream_config{nullptr, config.time_kernel});
 
-    if (config.time_kernel)
+    if(config.time_kernel)
     {
         std::size_t num_btype = G * NHoWo * CYX * (sizeof(OutDataType) + sizeof(InDataType));
         float gb_per_sec      = num_btype / 1.E6 / ave_time;
@@ -157,7 +157,8 @@ int main(int argc, char* argv[])
     }
     else
     {
-        std::cout << "image_to_column: pass, No Perf generated due to config.time_kernel=0" << std::endl;
+        std::cout << "image_to_column: pass, No Perf generated due to config.time_kernel=0"
+                  << std::endl;
     }
 
     bool pass = true;
