@@ -33,6 +33,20 @@ void add_device_batched_gemm_gemm_wmma_cshuffle_v3_f16_f16_f16_f16_gmk_gnk_gno_g
                                                       PassThrough,
                                                       PassThrough,
                                                       PassThrough>>>& instances);
+void add_device_batched_gemm_gemm_wmma_cshuffle_v3_f16_f16_f16_f16_gmk_gnk_gon_gmo_instance(
+    std::vector<std::unique_ptr<DeviceBatchedGemmGemm<Row,
+                                                      Col,
+                                                      Col,
+                                                      Row,
+                                                      F16,
+                                                      F16,
+                                                      F16,
+                                                      F16,
+                                                      PassThrough,
+                                                      PassThrough,
+                                                      PassThrough,
+                                                      PassThrough,
+                                                      PassThrough>>>& instances);
 #endif // CK_ENABLE_FP16
 #endif // CK_USE_WMMA
 #ifdef CK_USE_XDL
@@ -122,7 +136,8 @@ struct DeviceOperationInstanceFactory<
             else if constexpr(is_same_v<ALayout, Row> && is_same_v<B0Layout, Col> &&
                               is_same_v<B1Layout, Col> && is_same_v<CLayout, Row>)
             {
-                // TODO: Add RCCR instances
+                add_device_batched_gemm_gemm_wmma_cshuffle_v3_f16_f16_f16_f16_gmk_gnk_gon_gmo_instance(
+                    op_ptrs);
             }
         }
 #endif // CK_ENABLE_FP16

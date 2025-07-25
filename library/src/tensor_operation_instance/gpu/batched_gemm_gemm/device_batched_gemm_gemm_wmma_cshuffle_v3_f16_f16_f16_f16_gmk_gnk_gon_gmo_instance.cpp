@@ -33,7 +33,7 @@ static constexpr auto GemmPadded = ck::tensor_operation::device::GemmSpecializat
 // gemm1: C[g, m, o] = Acc[g, m, n] * B1[g, n, o]
 // Note that in some cases the "m, o, n" dimensions are referred to as the "gemm1 m, n, k"
 // dimensions instead!
-using device_batched_gemm_gemm_wmma_cshuffle_v3_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances =
+using device_batched_gemm_gemm_wmma_cshuffle_v3_f16_f16_f16_f16_gmk_gnk_gon_gmo_instances =
     std::tuple<
         // clang-format off
         //################################| ALayout| B0Layout| B1Layout| CLayout| AData| B0Data| B1Data| CData| AccData| CShuffle|           A|          B0|        Acc0|          B1|           C|           GEMM| NumGemmK| Block| Gemm01| Gemm0| Gemm0| Gemm1| Gemm1| AK1| BK1| B1K1| MPer| NPer| Gemm0| Gemm0| Gemm1|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  B0BlockTransfer| B0BlockTransfer| B0BlockTransfer| B0BlockTransfer| B0BlockTransfer| B0BlockTransfer| B0BlockLds|  B1BlockTransfer| B1BlockTransfer| B1BlockTransfer| B1BlockTransfer| B1BlockTransfer| B1BlockTransfer| B1BlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
@@ -41,15 +41,14 @@ using device_batched_gemm_gemm_wmma_cshuffle_v3_f16_f16_f16_f16_gmk_gnk_gno_gmo_
         //################################|        |         |         |        |      |       |       |      |        |         |   Operation|   Operation|   Operation|   Operation|   Operation|               |    Stage|      |  Block| Block| Block| Block| Block|    |    |     |     |     |   Per|   Per|   Per| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          |  Lengths_K0_N_K1|    ArrangeOrder|                |                |       PerVector|    PerVector_K1|           |  Lengths_K0_N_K1|    ArrangeOrder|                |                |       PerVector|    PerVector_K1|           |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
         //################################|        |         |         |        |      |       |       |      |        |         |            |            |            |            |            |               |         |      |       |      |      |      |      |    |    |     |     |     |  Wave|  Wave|  Wave|                |               |               |               |               |               |          |                 |                |                |                |                |                |           |                 |                |                |                |                |                |           |            |            |                             |                |
         //################################|        |         |         |        |      |       |       |      |        |         |            |            |            |            |            |               |         |      |       |      |      |      |      |    |    |     |     |     |  Wave|  Wave|  Wave|                |               |               |               |               |               |          |                 |                |                |                |                |                |           |                 |                |                |                |                |                |           |            |            |                             |                |
-        DeviceBatchedGemmGemm_Wmma_CShuffleV3<  Row,      Col,      Row,     Row,   F16,    F16,    F16,   F16,     F32,      F32, PassThrough, PassThrough, PassThrough, PassThrough, PassThrough,     GemmPadded,        1,    32,     16,    64,    64,    64,    64,   8,   8,    8,   16,   16,     1,     4,     4,     S<2, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<2, 16, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,       S<2, 2, 8>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               8,               1,      false,           1,           1,               S<1, 16, 1, 2>,               8>,
-        DeviceBatchedGemmGemm_Wmma_CShuffleV3<  Row,      Col,      Row,     Row,   F16,    F16,    F16,   F16,     F32,      F32, PassThrough, PassThrough, PassThrough, PassThrough, PassThrough,     GemmPadded,        1,    32,     16,   128,    64,    64,    64,   8,   8,    8,   16,   16,     1,     8,     4,     S<2, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<2, 16, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,       S<2, 2, 8>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               8,               1,      false,           1,           1,               S<1, 16, 1, 2>,               8>
+        DeviceBatchedGemmGemm_Wmma_CShuffleV3<  Row,      Col,      Col,     Row,   F16,    F16,    F16,   F16,     F32,      F32, PassThrough, PassThrough, PassThrough, PassThrough, PassThrough,     GemmPadded,        1,    32,     16,    64,    64,    64,    64,   8,   8,    8,   16,   16,     1,     4,     4,     S<2, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,     false,      S<2, 16, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,      false,      S<2, 16, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,           1,           1,               S<1, 16, 1, 2>,               8>
         // clang-format on
         >;
 
-void add_device_batched_gemm_gemm_wmma_cshuffle_v3_f16_f16_f16_f16_gmk_gnk_gno_gmo_instance(
+void add_device_batched_gemm_gemm_wmma_cshuffle_v3_f16_f16_f16_f16_gmk_gnk_gon_gmo_instance(
     std::vector<std::unique_ptr<DeviceBatchedGemmGemm<Row,
                                                       Col,
-                                                      Row,
+                                                      Col,
                                                       Row,
                                                       F16,
                                                       F16,
@@ -63,7 +62,7 @@ void add_device_batched_gemm_gemm_wmma_cshuffle_v3_f16_f16_f16_f16_gmk_gnk_gno_g
 {
     add_device_operation_instances(
         instances,
-        device_batched_gemm_gemm_wmma_cshuffle_v3_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances{});
+        device_batched_gemm_gemm_wmma_cshuffle_v3_f16_f16_f16_f16_gmk_gnk_gon_gmo_instances{});
 }
 
 } // namespace instance
