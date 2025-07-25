@@ -1613,7 +1613,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ADD_KEY_VALUE("hdim_q", hdim_q);
         ADD_KEY_VALUE("hdim_v", hdim_v);
         ADD_KEY_VALUE("scale_s", scale_s);
-        ADD_KEY_VALUE("bias", arg_parser.get_str("bias"));
         ADD_KEY_VALUE("p_drop", p_drop);
         ADD_KEY_VALUE("lse", lse);
         ADD_KEY_VALUE("squant", squant);

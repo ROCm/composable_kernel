@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
-#include "json_dump.hpp"
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
 {
@@ -498,27 +497,24 @@ int run_gemm_example_with_layouts(int argc,
 
     if(arg_parser.get_int("json") == 1)
     {
-        START_JSON_DUMP_FILE(arg_parser.get_str("jsonfile"));
-        ADD_KEY_VALUE("name", "flatmm_basic");
-        ADD_KEY_VALUE("M", M);
-        ADD_KEY_VALUE("N", N);
-        ADD_KEY_VALUE("K", K);
-        ADD_KEY_VALUE("stride_A", stride_A);
-        ADD_KEY_VALUE("stride_B", stride_B);
-        ADD_KEY_VALUE("stride_C", stride_C);
-        ADD_KEY_VALUE("A_layout", ALayout::name);
-        ADD_KEY_VALUE("B_layout", BLayout::name);
-        ADD_KEY_VALUE("C_layout", CLayout::name);
-        ADD_KEY_VALUE("A_type", DataTypeTraits<ADataType>::name);
-        ADD_KEY_VALUE("B_type", DataTypeTraits<BDataType>::name);
-        ADD_KEY_VALUE("C_type", DataTypeTraits<CDataType>::name);
-        ADD_KEY_VALUE("structured_sparsity", GemmConfig::UseStructuredSparsity
-                                                            ? "on"
-                                                            : "off");
-        ADD_KEY_VALUE("persistent", persistent ? "on" : "off");
-        ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
-        ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec);
-        END_JSON_DUMP_FILE();
+        dump_gemm_json_results<ALayout,
+                               BLayout,
+                               CLayout,
+                               ADataType,
+                               BDataType,
+                               CDataType,
+                               GemmConfig>(arg_parser.get_str("jsonfile"),
+                                           M,
+                                           N,
+                                           K,
+                                           stride_A,
+                                           stride_B,
+                                           stride_C,
+                                           persistent,
+                                           pass,
+                                           ave_time,
+                                           tflops,
+                                           gb_per_sec);
     }
 
     return pass;
