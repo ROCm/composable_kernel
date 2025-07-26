@@ -221,6 +221,7 @@ __global__ void
     ignore = cde_element_op;
     ignore = compute_ptr_offset_of_batch;
     ignore = compute_ptr_offset_of_n;
+    ignore = KBatch;
 #endif
 }
 
