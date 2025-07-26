@@ -357,6 +357,7 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ||
                              BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
+                    #if 0
                     if(arg.KBatch > 1)
                     {
                         const auto kernel =
@@ -367,6 +368,7 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                         Run(kernel);
                     }
                     else
+                    #endif
                     {
                         const auto kernel =
                             kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
@@ -379,6 +381,7 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                 // Tail number could be One to Seven
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
                 {
+                    #if 0
                     if(arg.KBatch > 1)
                     {
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::One)
@@ -492,6 +495,7 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                         }
                     }
                     else
+                    #endif
                     {
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::One)
                         {
@@ -709,6 +713,7 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                 // Tail number always 1
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
+                    #if 0
                     if(arg.KBatch > 1)
                     {
                         const auto kernel =
@@ -719,6 +724,7 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                         Run(kernel);
                     }
                     else
+                    #endif
                     {
                         const auto kernel =
                             kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,

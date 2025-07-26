@@ -78,6 +78,7 @@ enum struct MfmaInstr
     mfma_f32_16x16x128f8f6f4,
     mfma_scale_f32_32x32x64f8f6f4,
     mfma_scale_f32_16x16x128f8f6f4,
+    // gfx12
     wmma_f32_16x16x16_f16_gfx12,
     wmma_f32_16x16x16_bf16_gfx12,
     wmma_i32_16x16x16_iu8_gfx12,
@@ -85,6 +86,13 @@ enum struct MfmaInstr
     wmma_f32_16x16x16_f8bf8_gfx12,
     wmma_f32_16x16x16_bf8f8_gfx12,
     wmma_f32_16x16x16_bf8bf8_gfx12,
+    // gfx11
+    wmma_f32_16x16x16_f16,
+    wmma_f32_16x16x16_bf16,
+    wmma_f16_16x16x16_f16,
+    wmma_bf16_16x16x16_bf16,
+    wmma_i32_16x16x16_iu8,
+    wmma_i32_16x16x16_iu4,
 };
 
 template <MfmaInstr instr>
@@ -940,6 +948,41 @@ struct mfma_type<MfmaInstr::mfma_scale_f32_16x16x128f8f6f4>
     }
 };
 
+// gfx11
+template <>
+struct mfma_type<MfmaInstr::wmma_f32_16x16x16_f16>
+{
+    static constexpr index_t group_size          = 8;
+    static constexpr index_t num_groups_per_blk  = 1;
+    static constexpr index_t num_regs_per_blk    = 8;
+    static constexpr index_t num_threads_per_blk = 16;
+    static constexpr index_t wave_size           = 32;
+    static constexpr index_t num_input_blks      = 1;
+    static constexpr index_t num_output_blks     = 1;
+    static constexpr index_t m_per_blk           = 16;
+    static constexpr index_t n_per_blk           = 16;
+    static constexpr index_t k_per_blk           = 16;
+    static constexpr bool is_k_reduction         = true;
+
+    template <index_t MPerWmma, index_t NPerWmma, class FloatA, class FloatB, class FloatC>
+    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    {
+#if 0
+        using uint32x8_t  = typename vector_type<uint32_t, 8>::type;
+        //if (threadIdx.x == 0)
+    
+        {
+            uint32x8_t a_copy = bit_cast<uint32x8_t>(a);
+            uint32x8_t b_copy = bit_cast<uint32x8_t>(b);
+            printf("threadIdx=%u, a: %08x %08x %08x %08x %08x %08x %08x %08x\nb:  %08x %08x %08x %08x %08x %08x %08x %08x\n", 
+                threadIdx.x,
+                a_copy[0],a_copy[1],a_copy[2],a_copy[3],a_copy[4],a_copy[5],a_copy[6],a_copy[7],
+                b_copy[0],b_copy[1],b_copy[2],b_copy[3],b_copy[4],b_copy[5],b_copy[6],b_copy[7]);
+        }
+#endif
+        intrin_wmma_f32_16x16x16_f16_w32<MPerWmma, NPerWmma>::Run(a, b, reg_c);
+    }
+};
 
 // gfx12
 template <>
@@ -1001,11 +1044,18 @@ struct mfma_type<MfmaInstr::wmma_i32_16x16x16_iu8_gfx12>
     static constexpr index_t k_per_blk           = 8;
     static constexpr bool is_k_reduction         = true;
 
-    template <index_t MPerWmma, index_t NPerWmma, class FloatA, class FloatB, class FloatC, bool neg_a=true, bool neg_b=true, bool clamp=false>
+    template <index_t MPerWmma,
+              index_t NPerWmma,
+              class FloatA,
+              class FloatB,
+              class FloatC,
+              bool neg_a = true,
+              bool neg_b = true,
+              bool clamp = false>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
         intrin_wmma_i32_16x16x16_iu8_w32_gfx12<MPerWmma, NPerWmma, neg_a, neg_b, clamp>::Run(
-                a, b, reg_c);
+            a, b, reg_c);
     }
 };
 
@@ -1191,10 +1241,12 @@ struct MfmaSelector
     template <>
     constexpr auto GetMfma<half_t, 16, 16, half_t, false>()
     {
-#if defined(__gfx950__)
-        return MfmaInstr::mfma_f32_16x16x32f16;
-#elif defined(__gfx12__)
+#if defined(__gfx12__)
         return MfmaInstr::wmma_f32_16x16x16_f16_gfx12;
+#elif defined(__gfx11__)
+        return MfmaInstr::wmma_f32_16x16x16_f16;
+#elif defined(__gfx950__)
+        return MfmaInstr::mfma_f32_16x16x32f16;
 #else
         return MfmaInstr::mfma_f32_16x16x16f16;
 #endif
@@ -1205,6 +1257,8 @@ struct MfmaSelector
     {
 #if defined(__gfx12__)
         return MfmaInstr::wmma_f32_16x16x16_f16_gfx12;
+#elif defined(__gfx11__)
+        return MfmaInstr::wmma_f32_16x16x16_f16;
 #else
         return MfmaInstr::mfma_f32_16x16x16f16;
 #endif
@@ -1253,12 +1307,12 @@ struct MfmaSelector
     template <>
     constexpr auto GetMfma<bhalf_t, 16, 16, bhalf_t, false>()
     {
-#if defined(__gfx950__)
+#if defined(__gfx12__)
+        return MfmaInstr::wmma_f32_16x16x16_bf16_gfx12;
+#elif defined(__gfx950__)
         return MfmaInstr::mfma_f32_16x16x32bf16;
 #elif defined(CK_USE_AMD_MFMA_BF16_1K_OP)
         return MfmaInstr::mfma_f32_16x16x16bf16_1k;
-#elif defined(__gfx12__)
-        return MfmaInstr::wmma_f32_16x16x16_bf16_gfx12;
 #else
         return MfmaInstr::mfma_f32_16x16x8bf16;
 #endif
@@ -1267,10 +1321,10 @@ struct MfmaSelector
     template <>
     constexpr auto GetMfma<bhalf_t, 16, 16, bhalf_t, true>()
     {
-#if defined(CK_USE_AMD_MFMA_BF16_1K_OP)
-        return MfmaInstr::mfma_f32_16x16x16bf16_1k;
-#elif defined(__gfx12__)
+#if defined(__gfx12__)
         return MfmaInstr::wmma_f32_16x16x16_bf16_gfx12;
+#elif defined(CK_USE_AMD_MFMA_BF16_1K_OP)
+        return MfmaInstr::mfma_f32_16x16x16bf16_1k;
 #else
         return MfmaInstr::mfma_f32_16x16x8bf16;
 #endif
@@ -1301,12 +1355,12 @@ struct MfmaSelector
     template <>
     constexpr auto GetMfma<int8_t, 16, 16, int8_t, false>()
     {
-#if defined(__gfx950__)
+#if defined(__gfx12__)
+        return MfmaInstr::wmma_i32_16x16x16_iu8_gfx12;
+#elif defined(__gfx950__)
         return MfmaInstr::mfma_i32_16x16x64i8;
 #elif defined(__gfx942__)
         return MfmaInstr::mfma_i32_16x16x32i8;
-#elif defined(__gfx12__)
-        return MfmaInstr::wmma_i32_16x16x16_iu8_gfx12;
 #else
         return MfmaInstr::mfma_i32_16x16x16i8;
 #endif
@@ -1315,10 +1369,10 @@ struct MfmaSelector
     template <>
     constexpr auto GetMfma<int8_t, 16, 16, int8_t, true>()
     {
-#if defined(__gfx942__) || defined(__gfx950__)
-        return MfmaInstr::mfma_i32_16x16x32i8;
-#elif defined(__gfx12__)
+#if defined(__gfx12__)
         return MfmaInstr::wmma_i32_16x16x16_iu8_gfx12;
+#elif defined(__gfx942__) || defined(__gfx950__)
+        return MfmaInstr::mfma_i32_16x16x32i8;
 #else
         return MfmaInstr::mfma_i32_16x16x16i8;
 #endif
@@ -1558,10 +1612,15 @@ struct MfmaSelector
 
         static_assert(selected_mfma.num_threads_per_blk == selected_mfma.n_per_blk,
                       "n_per_blk != num_threads_per_blk");
-
+#if defined(__gfx11__)
+        static_assert(selected_mfma.num_regs_per_blk * selected_mfma.num_input_blks * 2 ==
+                          selected_mfma.m_per_blk,
+                      "m_per_blk != num_input_blks * num_regs_per_blk");
+#else
         static_assert(selected_mfma.num_regs_per_blk * selected_mfma.num_input_blks ==
                           selected_mfma.m_per_blk,
                       "m_per_blk != num_input_blks * num_regs_per_blk");
+#endif
 
         static_assert(selected_mfma.num_output_blks == selected_mfma.num_input_blks ||
                           selected_mfma.num_output_blks == 1,
@@ -1637,10 +1696,11 @@ struct XdlopsGemm
     __host__ __device__ static constexpr auto
     MakeCDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(const CDesc_M0_N0_M1_N1_M2_N2& c_desc_m0_n0_m1_n1_m2_n2)
     {
-        const auto M0 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I0);
-        const auto N0 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I1);
-        const auto M1 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I2);
-        const auto N1 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I3);
+        const auto M0           = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I0);
+        const auto N0           = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I1);
+        const auto M1           = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I2);
+        const auto N1           = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I3);
+        constexpr auto num_blks = mfma_instr.m_per_blk / mfma_instr.num_regs_per_blk;
 
         return transform_tensor_descriptor(
             c_desc_m0_n0_m1_n1_m2_n2,
@@ -1649,7 +1709,7 @@ struct XdlopsGemm
                        make_pass_through_transform(M1),
                        make_pass_through_transform(N1),
                        make_unmerge_transform(make_tuple(Number<mfma_instr.num_groups_per_blk>{},
-                                                         Number<mfma_instr.num_input_blks>{},
+                                                         Number<num_blks>{},
                                                          Number<mfma_instr.group_size>{})),
                        make_pass_through_transform(Number<mfma_instr.num_threads_per_blk>{})),
             make_tuple(Sequence<0>{},
@@ -1672,12 +1732,13 @@ struct XdlopsGemm
     __host__ __device__ static constexpr auto MakeCDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3(
         const CDesc_M0_N0_M1_N1_M2_N2& c_desc_m0_n0_m1_n1_m2_n2)
     {
-        const auto M0 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I0);
-        const auto N0 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I1);
-        const auto M1 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I2);
-        const auto N1 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I3);
-        const auto M2 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I4);
-        const auto N2 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I5);
+        const auto M0           = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I0);
+        const auto N0           = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I1);
+        const auto M1           = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I2);
+        const auto N1           = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I3);
+        const auto M2           = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I4);
+        const auto N2           = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I5);
+        constexpr auto num_blks = mfma_instr.m_per_blk / mfma_instr.num_regs_per_blk;
 
         return transform_tensor_descriptor(
             c_desc_m0_n0_m1_n1_m2_n2,
@@ -1688,7 +1749,7 @@ struct XdlopsGemm
                        make_pass_through_transform(M2),
                        make_pass_through_transform(N2),
                        make_unmerge_transform(make_tuple(Number<mfma_instr.num_groups_per_blk>{},
-                                                         Number<mfma_instr.num_input_blks>{},
+                                                         Number<num_blks>{},
                                                          Number<mfma_instr.group_size>{})),
                        make_pass_through_transform(Number<mfma_instr.num_threads_per_blk>{})),
             make_tuple(Sequence<0>{},
@@ -1715,10 +1776,11 @@ struct XdlopsGemm
     __host__ __device__ static constexpr auto
     MakeCDescriptor_M0_N0_M1_N1_M2_N2_N3_N4(const CDesc_M0_N0_M1_N1_M2_N2& c_desc_m0_n0_m1_n1_m2_n2)
     {
-        const auto M0 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I0);
-        const auto N0 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I1);
-        const auto M1 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I2);
-        const auto N1 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I3);
+        const auto M0           = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I0);
+        const auto N0           = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I1);
+        const auto M1           = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I2);
+        const auto N1           = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I3);
+        constexpr auto num_blks = mfma_instr.m_per_blk / mfma_instr.num_regs_per_blk;
 
         return transform_tensor_descriptor(
             c_desc_m0_n0_m1_n1_m2_n2,
@@ -1728,7 +1790,7 @@ struct XdlopsGemm
                        make_pass_through_transform(N1),
                        make_pass_through_transform(Number<mfma_instr.num_threads_per_blk>{}),
                        make_unmerge_transform(make_tuple(Number<mfma_instr.num_groups_per_blk>{},
-                                                         Number<mfma_instr.num_input_blks>{},
+                                                         Number<num_blks>{},
                                                          Number<mfma_instr.group_size>{}))),
             make_tuple(Sequence<0>{},
                        Sequence<1>{},
@@ -1748,11 +1810,12 @@ struct XdlopsGemm
     __host__ __device__ static constexpr auto MakeCDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2(
         const CDesc_G_M0_N0_M1_N1_M2_N2& c_desc_g_m0_n0_m1_n1_m2_n2)
     {
-        const auto G  = c_desc_g_m0_n0_m1_n1_m2_n2.GetLength(I0);
-        const auto M0 = c_desc_g_m0_n0_m1_n1_m2_n2.GetLength(I1);
-        const auto N0 = c_desc_g_m0_n0_m1_n1_m2_n2.GetLength(I2);
-        const auto M1 = c_desc_g_m0_n0_m1_n1_m2_n2.GetLength(I3);
-        const auto N1 = c_desc_g_m0_n0_m1_n1_m2_n2.GetLength(I4);
+        const auto G            = c_desc_g_m0_n0_m1_n1_m2_n2.GetLength(I0);
+        const auto M0           = c_desc_g_m0_n0_m1_n1_m2_n2.GetLength(I1);
+        const auto N0           = c_desc_g_m0_n0_m1_n1_m2_n2.GetLength(I2);
+        const auto M1           = c_desc_g_m0_n0_m1_n1_m2_n2.GetLength(I3);
+        const auto N1           = c_desc_g_m0_n0_m1_n1_m2_n2.GetLength(I4);
+        constexpr auto num_blks = mfma_instr.m_per_blk / mfma_instr.num_regs_per_blk;
 
         return transform_tensor_descriptor(
             c_desc_g_m0_n0_m1_n1_m2_n2,
@@ -1761,9 +1824,8 @@ struct XdlopsGemm
                        make_pass_through_transform(N0),
                        make_pass_through_transform(M1),
                        make_pass_through_transform(N1),
-                       make_unmerge_transform(make_tuple(mfma_instr.num_groups_per_blk,
-                                                         mfma_instr.num_input_blks,
-                                                         mfma_instr.group_size)),
+                       make_unmerge_transform(make_tuple(
+                           mfma_instr.num_groups_per_blk, num_blks, mfma_instr.group_size)),
                        make_pass_through_transform(mfma_instr.num_threads_per_blk)),
             make_tuple(Sequence<0>{},
                        Sequence<1>{},
@@ -1845,7 +1907,27 @@ struct XdlopsGemm
 
     __device__ static auto GetBlkIdx()
     {
-        const auto laneId = GetLaneId();
+        const auto laneId       = GetLaneId();
+        constexpr auto num_blks = mfma_instr.m_per_blk / mfma_instr.num_regs_per_blk;
+
+        constexpr auto threadidx_to_blk_idx_adaptor = make_single_stage_tensor_adaptor(
+            make_tuple(
+                make_merge_transform(make_tuple(1, num_blks, mfma_instr.num_threads_per_blk))),
+            make_tuple(Sequence<0, 1, 2>{}),
+            make_tuple(Sequence<0>{}));
+
+        const auto blk_idx =
+            threadidx_to_blk_idx_adaptor.CalculateBottomIndex(make_multi_index(laneId));
+
+        const auto blk_id = blk_idx[I1];
+        const auto blk_td = blk_idx[I2];
+
+        return make_tuple(blk_id, blk_td);
+    }
+
+    __device__ static auto GetGfx11InputBlkIdx()
+    {
+        const auto laneId = GetLaneId() % mfma_instr.num_threads_per_blk;
 
         constexpr auto threadidx_to_blk_idx_adaptor = make_single_stage_tensor_adaptor(
             make_tuple(make_merge_transform(
@@ -1864,8 +1946,12 @@ struct XdlopsGemm
 
     __host__ __device__ static auto CalculateAThreadOriginDataIndex()
     {
-        const auto laneId  = GetLaneId();
+        const auto laneId = GetLaneId();
+#if defined(__gfx11__)
+        const auto blk_idx = GetGfx11InputBlkIdx();
+#else
         const auto blk_idx = GetBlkIdx();
+#endif
 
         const auto blk_id = blk_idx[I0];
         const auto blk_td = blk_idx[I1];
@@ -1882,8 +1968,12 @@ struct XdlopsGemm
 
     __host__ __device__ static auto CalculateBThreadOriginDataIndex()
     {
-        const auto laneId  = GetLaneId();
+        const auto laneId = GetLaneId();
+#if defined(__gfx11__)
+        const auto blk_idx = GetGfx11InputBlkIdx();
+#else
         const auto blk_idx = GetBlkIdx();
+#endif
 
         const auto blk_id = blk_idx[I0];
         const auto blk_td = blk_idx[I1];
@@ -1940,6 +2030,7 @@ struct XdlopsGemm
                                               is_scale_mfma>{};
 
     static constexpr auto mfma_instr = mfma.selected_mfma;
+    // Debug<decltype(mfma_instr)> xx1;
 
     static constexpr auto KPerXdlops  = mfma.GetKPerXdlops();
     static constexpr auto K1PerXdlops = mfma.GetK1PerXdlops();

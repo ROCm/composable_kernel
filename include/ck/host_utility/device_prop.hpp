@@ -57,11 +57,19 @@ inline bool is_gfx12_supported()
     return ck::get_device_name() == "gfx1200" || ck::get_device_name() == "gfx1201";
 }
 
+inline bool is_gfx11_supported()
+{
+    return ck::get_device_name() == "gfx1100" || ck::get_device_name() == "gfx1101" ||
+           ck::get_device_name() == "gfx1102" || ck::get_device_name() == "gfx1103" ||
+           ck::get_device_name() == "gfx1150" || ck::get_device_name() == "gfx1151" ||
+           ck::get_device_name() == "gfx1152";
+}
+
 inline bool is_xdl_supported()
 {
     return ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
            ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950" ||
-           is_gfx12_supported();
+           is_gfx12_supported() || is_gfx11_supported();
 }
 
 inline bool is_lds_direct_load_supported()
@@ -90,13 +98,6 @@ inline bool is_gfx103_supported()
            ck::get_device_name() == "gfx1035" || ck::get_device_name() == "gfx1036";
 }
 
-inline bool is_gfx11_supported()
-{
-    return ck::get_device_name() == "gfx1100" || ck::get_device_name() == "gfx1101" ||
-           ck::get_device_name() == "gfx1102" || ck::get_device_name() == "gfx1103" ||
-           ck::get_device_name() == "gfx1150" || ck::get_device_name() == "gfx1151" ||
-           ck::get_device_name() == "gfx1152";
-}
 
 } // namespace ck
 #endif

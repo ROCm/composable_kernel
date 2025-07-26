@@ -35,10 +35,9 @@ __global__ void
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3(typename GridwiseGemm::Argument karg)
 {
-#if defined(__gfx9__) || defined(__gfx12__)
+#if defined(__gfx9__) || defined(__gfx12__) || defined(__gfx11__)
     if constexpr(GridwiseGemm::IsValidCompilationParameter())
     {
-        static_assert(0);
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
@@ -67,7 +66,7 @@ __global__ void
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3_2lds(typename GridwiseGemm::Argument karg)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__) || defined(__gfx12__))
+#if(defined(__gfx9__) || defined(__gfx12__) || defined(__gfx11__))
     // Pass two lds pointer is the key to tell compiler that ds_read/write
     // operate on different lds chunk at same time without order dependecy
     if constexpr(GridwiseGemm::IsValidCompilationParameter())
