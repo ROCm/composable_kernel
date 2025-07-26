@@ -161,8 +161,7 @@ int run_grouped_conv_bwd_weight_example_with_layouts(
                 conv_param.conv_filter_dilations_,
                 conv_param.input_left_pads_,
                 conv_param.input_right_pads_);
-        const ck_tile::index_t GemmK =
-            weight.get_element_size() / (conv_param.G_ * conv_param.K_);
+        const ck_tile::index_t GemmK = weight.get_element_size() / (conv_param.G_ * conv_param.K_);
         const float max_accumulated_value =
             *std::max_element(weight_host_ref.mData.begin(), weight_host_ref.mData.end());
         const auto rtol_atol =

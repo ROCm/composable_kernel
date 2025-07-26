@@ -147,7 +147,7 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
         if(s.flush_cache_)
         {
             std::cout << "Flushing cache..." << std::endl;
-           
+
             ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
                 args.M, args.K, args.stride_A, is_row_major(ALayout{})));
             ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
