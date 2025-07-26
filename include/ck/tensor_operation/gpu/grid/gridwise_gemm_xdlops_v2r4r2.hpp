@@ -36,7 +36,7 @@ __global__ void
                                              const BElementwiseOperation b_element_op,
                                              const CElementwiseOperation c_element_op)
 {
-#if (defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__))
+#if(defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__))
     constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
 
     __shared__ uint8_t p_shared[shared_size];

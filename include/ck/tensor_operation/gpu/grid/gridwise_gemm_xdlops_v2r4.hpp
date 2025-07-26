@@ -42,7 +42,7 @@ __global__ void
                                 const CElementwiseOperation c_element_op,
                                 const CBlockClusterAdaptor c_block_cluster_adaptor)
 {
-#if (defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__))
+#if(defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__))
     constexpr index_t shared_block_size =
         GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
 

@@ -38,7 +38,7 @@ __global__ void
                                 const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
                                 const CGridDesc_M_N c_grid_desc_m_n)
 {
-#if (defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__))
+#if(defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
@@ -68,7 +68,7 @@ __global__ void
 #endif
         kernel_gemm_xdlops_v2r3(const typename GridwiseGemm::Argument karg)
 {
-#if (defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__))
+#if(defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const auto a_grid_desc_k0_m_k1 =

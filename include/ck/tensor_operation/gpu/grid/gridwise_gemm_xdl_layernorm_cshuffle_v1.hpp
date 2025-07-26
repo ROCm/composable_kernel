@@ -57,7 +57,7 @@ __global__ void
             const C0GridDescriptor_NBlock_NPerBlock c0_grid_desc_nblock_nperblock,
             const Block2CTileMap block_2_ctile_map)
 {
-#if (defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__))
+#if(defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     // TODO ANT: separate into MMA + Epilogue
