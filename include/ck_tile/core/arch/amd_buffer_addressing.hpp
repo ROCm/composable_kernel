@@ -2765,8 +2765,12 @@ CK_TILE_DEVICE void amd_direct_load_global_to_lds(const T* global_base_ptr,
     // Direct loads require that each thread reads and writes exactly a single DWORD.
     constexpr auto dword_bytes      = 4;
     constexpr auto bytes_per_thread = sizeof(T) * NumElemsPerThread;
+#if defined(__gfx950__)
+    static_assert(bytes_per_thread == dword_bytes || bytes_per_thread == dword_bytes * 3 ||
+                  bytes_per_thread == dword_bytes * 4);
+#elif defined(__gfx942__)
     static_assert(bytes_per_thread == dword_bytes);
-
+#endif
     const uint32_t* global_ptr =
         reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(global_base_ptr));
     const int32x4_t src_resource =
@@ -2788,7 +2792,7 @@ CK_TILE_DEVICE void amd_direct_load_global_to_lds(const T* global_base_ptr,
         reinterpret_cast<as3_uint32_ptr>(reinterpret_cast<uintptr_t>(lds_base_ptr + lds_offset));
 
     llvm_amdgcn_raw_buffer_load_lds(
-        src_resource, lds_ptr, sizeof(uint32_t), global_offset_bytes, 0, 0, 0);
+        src_resource, lds_ptr, bytes_per_thread, global_offset_bytes, 0, 0, 0);
 #endif
 }
 
