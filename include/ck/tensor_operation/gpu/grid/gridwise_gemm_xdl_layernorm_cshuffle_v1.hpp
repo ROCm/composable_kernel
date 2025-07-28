@@ -57,8 +57,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         const C0GridDescriptor_NBlock_NPerBlock c0_grid_desc_nblock_nperblock,
         const Block2CTileMap block_2_ctile_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
+#if(defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     // TODO ANT: separate into MMA + Epilogue

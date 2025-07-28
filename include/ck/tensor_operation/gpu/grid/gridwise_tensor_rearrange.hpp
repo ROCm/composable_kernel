@@ -35,9 +35,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                             const Block2ETileMap block_2_tile_map,
                             const ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx908__) ||         \
-    defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx103__) || defined(__gfx11__) || \
-    defined(__gfx12__))
+#if(defined(__gfx906__) || defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) || \
+    defined(__gfx103__) || defined(__gfx11__) || defined(__gfx12__))
     GridwiseTensorRearrangeKernel::Run(in_grid_desc,
                                        p_in_global,
                                        out_grid_desc,
