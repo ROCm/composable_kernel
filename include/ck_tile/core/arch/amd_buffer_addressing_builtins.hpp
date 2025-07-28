@@ -2532,8 +2532,10 @@ CK_TILE_DEVICE void amd_direct_load_global_to_lds(const T* global_base_ptr,
                                                   const bool is_valid,
                                                   const index_t src_element_space_size)
 {
-    // Direct loads require that each thread reads and writes exactly a single DWORD.
+// Direct loads require that each thread reads and writes exactly a single DWORD.
+#if defined(__gfx950__) || defined(__gfx942__)
     constexpr auto bytes_per_thread = sizeof(T) * NumElemsPerThread;
+#endif
     // Direct loads require that each thread reads and writes a multiple of DWORDs (4 bytes).
     // For gfx950: supports 1, 3, or 4 DWORDs per thread
     // For gfx942: supports exactly 1 DWORD per thread
