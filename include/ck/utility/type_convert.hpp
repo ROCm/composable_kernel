@@ -39,6 +39,19 @@ namespace details {
 } // namespace details
 } // namespace
 
+#if defined(__gfx950__)
+inline __device__ bhalf_t static_cast_float_to_bf16(float x)
+{
+    union
+    {
+        uint16_t uint16;
+        __bf16 bf16;
+    } out;
+    out.bf16 = static_cast<__bf16>(x);
+    return out.uint16;
+}
+#endif
+
 // Declare a template function for bf16 conversion using RTN
 template <typename Y, typename X>
 __host__ __device__ constexpr Y bf16_convert_rtn(X x);
@@ -47,6 +60,9 @@ __host__ __device__ constexpr Y bf16_convert_rtn(X x);
 template <>
 inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(float x)
 {
+#if defined(__gfx950__)
+    return static_cast_float_to_bf16(x);
+#else
     // Nan check
     if(x != x)
     {
@@ -63,6 +79,7 @@ inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(fl
     constexpr uint32_t rounding_bias      = uint32_t((1 << 15) - 1);
 
     return uint16_t((u.int32 + first_bf16_mantisa_bit + rounding_bias) >> 16);
+#endif
 }
 
 // convert fp16 to bfp16 via fp32 with RTN if higher precision is needed
