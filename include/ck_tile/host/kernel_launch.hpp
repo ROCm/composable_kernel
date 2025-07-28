@@ -89,6 +89,48 @@ inline void remove_outliers(std::vector<float>& v)
     auto ub  = q3 + 1.5 * iqr;
     v.erase(std::remove_if(v.begin(), v.end(), [&](float f) { return f < lb || f > ub; }), v.end());
 }
+
+template <typename TimerType, typename CallablesFunc>
+CK_TILE_HOST double timing_loop_impl(TimerType timer,
+                                     const stream_config& s,
+                                     CallablesFunc&& callables_func,
+                                     std::function<void()> preprocess = nullptr)
+{
+    for(int i = 0; i < s.cold_niters_; i++)
+    {
+        callables_func();
+    }
+
+    float per_iter_time = 0.f;
+    std::vector<float> times;
+    int i = 0;
+    while(i < s.nrepeat_ || per_iter_time < s.bench_time_ms_)
+    {
+        if(preprocess)
+            preprocess();
+
+        timer.start(s.stream_id_, i);
+        callables_func();
+        timer.stop(s.stream_id_, i);
+
+        if(i > 0)
+        {
+            per_iter_time = timer.duration(i - 1);
+            times.push_back(per_iter_time);
+            per_iter_time = timer.is_exceed(i - 1);
+        }
+        i++;
+    }
+
+    if(!i)
+        return 0.;
+
+    per_iter_time = timer.duration(i - 1);
+    times.push_back(per_iter_time);
+    remove_outliers(times);
+    return std::accumulate(times.begin(), times.end(), 0.) / times.size();
+}
+
 // clang-format off
 /*
  * launch_kernel()
@@ -127,82 +169,16 @@ CK_TILE_HOST float launch_kernel(const stream_config& s, Callables&&... callable
         return 0;
     }
 
-    // auto time_launches = [&](auto timer) {
-    //     // Warmup
-    //     for(int i = 0; i < s.cold_niters_; i++)
-    //     {
-    //         launch_and_check(s, std::forward<Callables>(callables)...);
-    //     }
-
-    //     timer.start(s.stream_id_);
-    //     for(int i = 0; i < s.nrepeat_; i++)
-    //     {
-    //         launch_and_check(s, std::forward<Callables>(callables)...);
-    //     }
-    //     timer.stop(s.stream_id_);
-
-    //     return timer.duration() / s.nrepeat_;
-    // };
-
-    // if(s.is_gpu_timer_)
-    // {
-    //     return time_launches(gpu_timer{});
-    // }
-    // else
-    // {
-    //     return time_launches(cpu_timer{});
-    // }
-    auto timing_loop =
-        [&](auto timer, float bench_time_ms, double& gpu_time_used, const hipStream_t& stream) {
-            for(int i = 0; i < s.cold_niters_; i++)
-            {
-                launch_and_check(s, std::forward<Callables>(callables)...);
-            }
-
-            float per_iter_time = 0.f;
-            std::vector<float> times;
-            int i = 0;
-            while(i < s.nrepeat_ || per_iter_time < bench_time_ms)
-            {
-                timer.start(i, stream);
-                launch_and_check(s, std::forward<Callables>(callables)...);
-                timer.stop(i, stream);
-
-                if(i > 0)
-                {
-                    // while iteration i is ongoing, wait for iteration i-1 to end
-                    per_iter_time = timer.duration(i - 1);
-                    // record time for iteration i-1
-                    times.push_back(per_iter_time);
-                    // if iterations 0 to i-1 took more than the required runtime, we can stop
-                    per_iter_time = timer.is_exceed(i - 1);
-                }
-                i++;
-            }
-            if(!i)
-            {
-                gpu_time_used = 0.;
-            }
-            else
-            {
-                // wait for the final iteration
-                per_iter_time = timer.duration(i - 1);
-                times.push_back(per_iter_time);
-                remove_outliers(times);
-                gpu_time_used = std::accumulate(times.begin(), times.end(), 0.) / times.size();
-            }
-        };
-    double time_used = 0.;
+    auto callables_func = [&]() { launch_and_check(s, std::forward<Callables>(callables)...); };
 
     if(s.is_gpu_timer_)
     {
-        timing_loop(gpu_timer_new{s.stream_id_}, s.bench_time_ms_, time_used, s.stream_id_);
+        return timing_loop_impl(gpu_timer_new{s.stream_id_}, s, callables_func);
     }
     else
     {
-        timing_loop(cpu_timer{}, s.bench_time_ms_, time_used, s.stream_id_);
+        return timing_loop_impl(cpu_timer{}, s, callables_func);
     }
-    return time_used;
 }
 
 template <typename PreprocessFunc, typename... Callables>
@@ -218,57 +194,15 @@ launch_kernel_time_mask(const stream_config& s, PreprocessFunc preprocess, Calla
         return 0;
     }
 
-    auto timing_loop =
-        [&](auto timer, float bench_time_ms, double& gpu_time_used, const hipStream_t& stream) {
-            for(int i = 0; i < s.cold_niters_; i++)
-            {
-                launch_and_check(s, std::forward<Callables>(callables)...);
-            }
-
-            float per_iter_time = 0.f;
-            std::vector<float> times;
-            int i = 0;
-            while(i < s.nrepeat_ || per_iter_time < bench_time_ms)
-            {
-                preprocess();
-                timer.start(i, stream);
-                launch_and_check(s, std::forward<Callables>(callables)...);
-                timer.stop(i, stream);
-
-                if(i > 0)
-                {
-                    // while iteration i is ongoing, wait for iteration i-1 to end
-                    per_iter_time = timer.duration(i - 1);
-                    // record time for iteration i-1
-                    times.push_back(per_iter_time);
-                    // if iterations 0 to i-1 took more than the required runtime, we can stop
-                    per_iter_time = timer.is_exceed(i - 1);
-                }
-                i++;
-            }
-            if(!i)
-            {
-                gpu_time_used = 0.;
-            }
-            else
-            {
-                // wait for the final iteration
-                per_iter_time = timer.duration(i - 1);
-                times.push_back(per_iter_time);
-                remove_outliers(times);
-                gpu_time_used = std::accumulate(times.begin(), times.end(), 0.) / times.size();
-            }
-        };
-    double time_used = 0.;
+    auto callables_func = [&]() { launch_and_check(s, std::forward<Callables>(callables)...); };
 
     if(s.is_gpu_timer_)
     {
-        timing_loop(gpu_timer_new{s.stream_id_}, s.bench_time_ms_, time_used, s.stream_id_);
+        return timing_loop_impl(gpu_timer_new{s.stream_id_}, s, callables_func, preprocess);
     }
     else
     {
-        timing_loop(cpu_timer{}, s.bench_time_ms_, time_used, s.stream_id_);
+        return timing_loop_impl(cpu_timer{}, s, callables_func, preprocess);
     }
-    return time_used;
 }
 } // namespace ck_tile

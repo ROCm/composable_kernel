@@ -77,24 +77,24 @@ struct gpu_timer_new
         HIP_CHECK_ERROR(hipEventDestroy(event0));
     }
 
-    CK_TILE_HOST void start(int idx, const hipStream_t& s)
+    CK_TILE_HOST void start(const hipStream_t& s, int idx = 0)
     {
         HIP_CHECK_ERROR(hipEventRecord(start_event[idx % 2], s));
     }
 
-    CK_TILE_HOST void stop(int idx, const hipStream_t& s)
+    CK_TILE_HOST void stop(const hipStream_t& s, int idx = 0)
     {
         HIP_CHECK_ERROR(hipEventRecord(stop_event[idx % 2], s));
     }
     // return in ms
-    CK_TILE_HOST float duration(int idx) const
+    CK_TILE_HOST float duration(int idx = 0) const
     {
         float ms;
         HIP_CHECK_ERROR(hipEventSynchronize(stop_event[idx % 2]));
         HIP_CHECK_ERROR(hipEventElapsedTime(&ms, start_event[idx % 2], stop_event[idx % 2]));
         return ms;
     }
-    CK_TILE_HOST float is_exceed(int idx) const
+    CK_TILE_HOST float is_exceed(int idx = 0) const
     {
         float ms;
         HIP_CHECK_ERROR(hipEventElapsedTime(&ms, event0, stop_event[idx % 2]));
@@ -102,28 +102,28 @@ struct gpu_timer_new
     }
 
     private:
-    std::vector<hipEvent_t> start_event{2};
-    std::vector<hipEvent_t> stop_event{2};
+    std::array<hipEvent_t, 2> start_event;
+    std::array<hipEvent_t, 2> stop_event;
     hipEvent_t event0;
 };
 
 struct cpu_timer
 {
     // torch.utils.benchmark.Timer(), there is a sync inside each timer callback
-    CK_TILE_HOST void start([[maybe_unused]] int idx, const hipStream_t& s)
+    CK_TILE_HOST void start(const hipStream_t& s, [[maybe_unused]] int idx = 0)
     {
         HIP_CHECK_ERROR(hipStreamSynchronize(s));
         start_tick  = std::chrono::high_resolution_clock::now();
         time_event0 = std::chrono::high_resolution_clock::now();
     }
     // torch.utils.benchmark.Timer(), there is a sync inside each timer callback
-    CK_TILE_HOST void stop([[maybe_unused]] int idx, const hipStream_t& s)
+    CK_TILE_HOST void stop(const hipStream_t& s, [[maybe_unused]] int idx = 0)
     {
         HIP_CHECK_ERROR(hipStreamSynchronize(s));
         stop_tick = std::chrono::high_resolution_clock::now();
     }
     // return in ms
-    CK_TILE_HOST float duration([[maybe_unused]] int idx) const
+    CK_TILE_HOST float duration([[maybe_unused]] int idx = 0) const
     {
         double sec =
             std::chrono::duration_cast<std::chrono::duration<double>>(stop_tick - start_tick)
@@ -131,7 +131,7 @@ struct cpu_timer
         return static_cast<float>(sec * 1e3);
     }
     // return in ms
-    CK_TILE_HOST float is_exceed([[maybe_unused]] int idx) const
+    CK_TILE_HOST float is_exceed([[maybe_unused]] int idx = 0) const
     {
         double sec =
             std::chrono::duration_cast<std::chrono::duration<double>>(stop_tick - time_event0)
