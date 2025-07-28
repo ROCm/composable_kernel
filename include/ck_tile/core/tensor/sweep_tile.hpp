@@ -303,6 +303,6 @@ struct tile_sweeper
 template <typename T,
           typename F,
           typename U = typename uniform_sequence_gen<T::get_num_of_dimension(), 1>::type>
-CK_TILE_HOST_DEVICE_EXTERN tile_sweeper(const T&, const F&, U = {})->tile_sweeper<T, F, U>;
+CK_TILE_HOST_DEVICE_EXTERN tile_sweeper(const T&, const F&, U = {}) -> tile_sweeper<T, F, U>;
 
 } // namespace ck_tile

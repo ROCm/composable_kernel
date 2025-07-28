@@ -302,12 +302,12 @@ struct buffer_load_if<16, pre_nop>
                                    index_t v_offset,
                                    index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
-                                   index_t flag = 0,
+                                   index_t flag           = 0,
                                    bool_constant<pre_nop> = {})
     {
         static_assert(sizeof(T) == 16);
         auto saved_exec = __builtin_amdgcn_read_exec();
-        using mbuf_t = typename impl::buffer_load_trait<16, T>::payload_t;
+        using mbuf_t    = typename impl::buffer_load_trait<16, T>::payload_t;
         static_assert(sizeof(mbuf_t) == sizeof(T));
         if constexpr(pre_nop)
             asm volatile("s_nop 4\n"
@@ -336,12 +336,12 @@ struct buffer_load_if<8, pre_nop>
                                    index_t v_offset,
                                    index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
-                                   index_t flag = 0,
+                                   index_t flag           = 0,
                                    bool_constant<pre_nop> = {})
     {
         static_assert(sizeof(T) == 8);
         auto saved_exec = __builtin_amdgcn_read_exec();
-        using mbuf_t = typename impl::buffer_load_trait<8, T>::payload_t;
+        using mbuf_t    = typename impl::buffer_load_trait<8, T>::payload_t;
         if constexpr(pre_nop)
             asm volatile("s_nop 4\n"
                          "v_cmpx_le_u32 exec, 1, %4\n"
@@ -369,12 +369,12 @@ struct buffer_load_if<4, pre_nop>
                                    index_t v_offset,
                                    index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
-                                   index_t flag = 0,
+                                   index_t flag           = 0,
                                    bool_constant<pre_nop> = {})
     {
         static_assert(sizeof(T) == 4);
         auto saved_exec = __builtin_amdgcn_read_exec();
-        using mbuf_t = typename impl::buffer_load_trait<4, T>::payload_t;
+        using mbuf_t    = typename impl::buffer_load_trait<4, T>::payload_t;
         if constexpr(pre_nop)
             asm volatile("s_nop 4\n"
                          "v_cmpx_le_u32 exec, 1, %4\n"
@@ -402,12 +402,12 @@ struct buffer_load_if<2, pre_nop>
                                    index_t v_offset,
                                    index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
-                                   index_t flag = 0,
+                                   index_t flag           = 0,
                                    bool_constant<pre_nop> = {})
     {
         static_assert(sizeof(T) == 4);
         auto saved_exec = __builtin_amdgcn_read_exec();
-        using mbuf_t = typename impl::buffer_load_trait<2, T>::payload_t;
+        using mbuf_t    = typename impl::buffer_load_trait<2, T>::payload_t;
         if constexpr(pre_nop)
             asm volatile("s_nop 4\n"
                          "v_cmpx_le_u32 exec, 1, %4\n"
@@ -435,12 +435,12 @@ struct buffer_load_if<1, pre_nop>
                                    index_t v_offset,
                                    index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
-                                   index_t flag = 0,
+                                   index_t flag           = 0,
                                    bool_constant<pre_nop> = {})
     {
         static_assert(sizeof(T) == 4);
         auto saved_exec = __builtin_amdgcn_read_exec();
-        using mbuf_t = typename impl::buffer_load_trait<1, T>::payload_t;
+        using mbuf_t    = typename impl::buffer_load_trait<1, T>::payload_t;
         if constexpr(pre_nop)
             asm volatile("s_nop 4\n"
                          "v_cmpx_le_u32 exec, 1, %4\n"
@@ -624,7 +624,7 @@ struct buffer_store_if<16>
     {
         static_assert(sizeof(T) == 16);
         auto save_exec = __builtin_amdgcn_read_exec();
-        using mbuf_t = fp32x4_t;
+        using mbuf_t   = fp32x4_t;
         asm volatile("v_cmpx_le_u32 exec, 1, %4\n"
                      "buffer_store_dwordx4 %0, %1, %2, 0 offen offset:%3\n"
                      "s_mov_b64 exec %5"
@@ -681,7 +681,7 @@ struct buffer_store_if<4>
     {
         static_assert(sizeof(T) == 4);
         auto save_exec = __builtin_amdgcn_read_exec();
-        using mbuf_t = float;
+        using mbuf_t   = float;
         asm volatile("v_cmpx_le_u32 exec, 1, %4\n"
                      "buffer_store_dword %0, %1, %2, 0 offen offset:%3\n"
                      "s_mov_b64 exec %5"
@@ -709,7 +709,7 @@ struct buffer_store_if<2>
     {
         static_assert(sizeof(T) == 2);
         auto save_exec = __builtin_amdgcn_read_exec();
-        using mbuf_t = short;
+        using mbuf_t   = short;
         asm volatile("v_cmpx_le_u32 exec, 1, %4\n"
                      "buffer_store_short %0, %1, %2, 0 offen offset:%3\n"
                      "s_mov_b64 exec %5"
@@ -737,7 +737,7 @@ struct buffer_store_if<1>
     {
         static_assert(sizeof(T) == 4);
         auto save_exec = __builtin_amdgcn_read_exec();
-        using mbuf_t = float;
+        using mbuf_t   = float;
         asm volatile("v_cmpx_le_u32 exec, 1, %4\n"
                      "buffer_store_byte %0, %1, %2, 0 offen offset:%3\n"
                      "s_mov_b64 exec %5"

@@ -41,18 +41,18 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_conv_fwd_multiple_d_grouped_gemm_xdl_cshuffle(
-            Array<GemmArgs, MaxGemmsNum> gemm_desc_kernel_args,
-            const index_t gemms_count,
-            const AElementwiseOperation a_element_op,
-            const BElementwiseOperation b_element_op,
-            const CDEElementwiseOperation c_element_op,
-            const ComputePtrOffset compute_ptr_offset_of_groups,
-            const ComputePtrOffset compute_ptr_offset_of_n)
+    kernel_grouped_conv_fwd_multiple_d_grouped_gemm_xdl_cshuffle(
+        Array<GemmArgs, MaxGemmsNum> gemm_desc_kernel_args,
+        const index_t gemms_count,
+        const AElementwiseOperation a_element_op,
+        const BElementwiseOperation b_element_op,
+        const CDEElementwiseOperation c_element_op,
+        const ComputePtrOffset compute_ptr_offset_of_groups,
+        const ComputePtrOffset compute_ptr_offset_of_n)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if defined(__gfx9__)
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const index_t block_id_x = __builtin_amdgcn_readfirstlane(blockIdx.x);

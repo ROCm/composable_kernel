@@ -117,7 +117,7 @@ int reduce_blockwise_impl(bool do_verification,
     using InOutDataTypeInDevice = typename std::
         conditional<std::is_same<InOutDataType, int4_t>::value, int8_t, InOutDataType>::type;
 #else
-    using InOutDataTypeInDevice   = InOutDataType;
+    using InOutDataTypeInDevice = InOutDataType;
 #endif
 
     using DeviceReduceInstance =
