@@ -40,7 +40,6 @@ struct BlockUniversalGemmArBsCr : public BlockUniversalGemmBase<Problem_, Policy
     using GemmTraits = typename Base::template GemmTraits_<Problem_, Policy_>;
 
     public:
-    using Base::MakeABlockDistributionEncode;
     using Base::MakeBBlockDistributionEncode;
     using Base::MakeCBlockTile;
     using typename Base::WarpGemm;
