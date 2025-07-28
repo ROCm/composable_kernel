@@ -236,6 +236,8 @@ endif()
 if (SUPPORTED_GPU_TARGETS MATCHES "gfx950")
     add_definitions(-DCK_USE_NATIVE_MX_SUPPORT)
     set(CK_USE_NATIVE_MX_SUPPORT "ON")
+    add_definitions(-DCK_GFX950_SUPPORT)
+    set(CK_GFX950_SUPPORT "ON")
 endif()
 
 option(CK_USE_FP8_ON_UNSUPPORTED_ARCH "Enable FP8 GEMM instances on older architectures" OFF)
