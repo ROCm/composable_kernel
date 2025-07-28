@@ -78,9 +78,9 @@ struct BatchedTransposeKernel
         static constexpr ck_tile::index_t VectorSizeInput  = Problem::VectorSizeInput;
         static constexpr ck_tile::index_t VectorSizeOutput = Problem::VectorSizeOutput;
 
-        const auto iM   = __builtin_amdgcn_readfirstlane(blockIdx.x * kMPerBlock);
-        const auto iN   = __builtin_amdgcn_readfirstlane(blockIdx.y * kNPerBlock);
-        const auto iDim = blockIdx.z;
+        const auto iM   = __builtin_amdgcn_readfirstlane(static_cast<ck_tile::index_t>(blockIdx.x * kMPerBlock));
+        const auto iN   = __builtin_amdgcn_readfirstlane(static_cast<ck_tile::index_t>(blockIdx.y * kNPerBlock));
+        const auto iDim = __builtin_amdgcn_readfirstlane(static_cast<ck_tile::index_t>(blockIdx.z));
 
         const auto x_m_n = [&]() {
             const auto x_dram_naive = make_naive_tensor_view<address_space_enum::global>(
@@ -111,12 +111,12 @@ struct BatchedTransposeKernel
         auto x_block_window = make_tile_window(
             x_m_n,
             make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
-            {static_cast<ck_tile::index_t>(iM), static_cast<ck_tile::index_t>(iN)});
+            {iM, iN});
 
         auto y_block_window = make_tile_window(
             y_n_m,
             make_tuple(number<kNPerBlock>{}, number<kMPerBlock>{}),
-            {static_cast<ck_tile::index_t>(iN), static_cast<ck_tile::index_t>(iM)});
+            {iN, iM});
 
         Pipeline{}(x_block_window, y_block_window);
     }
