@@ -91,7 +91,7 @@ void reference_rmsnorm2d_fwd(const HostTensor<XDataType>& x_m_n,
                 else
                 {
                     const auto tmp   = type_convert<XDataType>(x * divisor);
-                    const auto rmsn_ = type_convert<ComputeDataType>(tmp) * gamma_n(n);
+                    const auto rmsn_ = type_convert<ComputeDataType>(tmp) * gamma;
                     acc(m, n)        = rmsn_;
                 }
             }
