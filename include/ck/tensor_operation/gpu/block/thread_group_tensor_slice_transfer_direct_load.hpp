@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -42,10 +42,12 @@ namespace ck {
 template <typename ThreadGroup,
           typename BlockSliceLengths,
           typename ThreadClusterLengths,
+          typename ThreadClusterArrangeOrder,
           typename SrcData,
           typename DstData,
           typename SrcDesc,
           typename DstDesc,
+          typename SrcDimAccessOrder,
           index_t SrcVectorDim,
           index_t DstVectorDim,
           index_t ScalarPerVector>
@@ -61,6 +63,7 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
     using DstCoordStep = decltype(make_tensor_coordinate_step(DstDesc{}, Index{}));
 
     static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
 
     static constexpr auto block_slice_lengths    = BlockSliceLengths{};
     static constexpr auto thread_cluster_lengths = ThreadClusterLengths{};
@@ -96,8 +99,12 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
         //    VALID: ThreadClusterLengths = [4, 16, 4] or [2, 32, 4] or [1, 64, 4] since in the
         //           first iteration, threads 0-63 write [0, 0, 0] -  [0, 15, 7] -> 128 consecutive
         //           elements = 64 consecutive DWORDs.
+#if defined(__gfx950__)
+        int num_contiguous_dwords = 4;
+#else
         int num_contiguous_dwords = 1;
-        bool is_contiguous        = true;
+#endif
+        bool is_contiguous = true;
         static_for<0, nDim, 1>{}([&](auto i) {
             if(is_contiguous)
             {
@@ -141,11 +148,11 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
                       "When loading more than one element per thread at once, the contiguous "
                       "dimension must be the same between source and destination.");
 
-        constexpr auto dword_bytes           = 4;
-        constexpr auto bytes_per_thread_load = ScalarPerVector * sizeof(SrcData);
-        static_assert(bytes_per_thread_load == dword_bytes,
-                      "Direct load transfer requires each thread to load exactly a single "
-                      "DWORD of data.");
+        // constexpr auto dword_bytes           = 4;
+        // constexpr auto bytes_per_thread_load = ScalarPerVector * sizeof(SrcData);
+        // static_assert(bytes_per_thread_load == dword_bytes,
+        //               "Direct load transfer requires each thread to load exactly a single "
+        //               "DWORD of data.");
 
         static_assert(nDim == remove_cvref_t<SrcDesc>::GetNumOfDimension() &&
                           nDim == remove_cvref_t<DstDesc>::GetNumOfDimension() &&
@@ -156,18 +163,45 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
                       "The number of threads cannot be less than the number of elements in "
                       "thread cluster lengths.");
 
-        static_assert(
-            AreThreadClusterLengthsValid(),
-            "Thread cluster lengths are incorrect. They must be set in a way that allows a single "
-            "wavefront to write contiguous DWORDs into LDS memory. ");
+        // static_assert(
+        //     AreThreadClusterLengthsValid(),
+        //     "Thread cluster lengths are incorrect. They must be set in a way that allows a single
+        //     " "wavefront to write contiguous DWORDs into LDS memory. ");
 
         const auto thread_cluster_idx =
             thread_cluster_desc_.CalculateBottomIndex(make_multi_index(ThreadGroup::GetThreadId()));
 
+        constexpr auto wave_cluster_lengths = generate_sequence_v2(
+            [&](auto i) {
+                // FIXME: wave parallelism is not always in that dimension.
+                // The ThreadClusterLengths{} must be bigger than wave_num;
+                if constexpr(ThreadClusterArrangeOrder{}.At(i) == (nDim - 3))
+                {
+                    return Number<ThreadGroup::GetNumOfThread() / 64>{};
+                }
+                else
+                {
+                    return I1;
+                }
+            },
+            Number<nDim>{});
+
+        constexpr auto wave_thread_cluster_lengths = ThreadClusterLengths{} / wave_cluster_lengths;
+        constexpr auto wave_single_load_size =
+            wave_thread_cluster_lengths * thread_single_load_size;
+        constexpr auto wave_cluster_desc_ =
+            make_cluster_descriptor(wave_cluster_lengths, ThreadClusterArrangeOrder{});
+
+        const auto wave_cluster_idx = wave_cluster_desc_.CalculateBottomIndex(
+            make_multi_index(ThreadGroup::GetThreadId() / 64));
+
         const auto thread_data_idx_begin = thread_cluster_idx * thread_single_load_size;
+        const auto wave_data_idx_begin   = wave_cluster_idx * wave_single_load_size;
 
         SetSrcSliceOrigin(src_desc, src_block_slice_origin + thread_data_idx_begin);
-        SetDstSliceOrigin(dst_desc, dst_block_slice_origin + thread_data_idx_begin);
+        // We don't need threadwise offset for lds since it was calculate by HW
+        // We still need input the wavewise offset.
+        SetDstSliceOrigin(dst_desc, dst_block_slice_origin + wave_data_idx_begin);
     }
 
     __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
@@ -215,7 +249,7 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
         // Loop over the destination block and copy data.
         static_ford<decltype(dst_access_lengths)>{}([&](auto ordered_dst_access_idx) {
             const auto src_offset = src_coord_.GetOffset();
-            const auto dst_offset = dst_coord_.GetOffset();
+            const auto dst_offset = __builtin_amdgcn_readfirstlane(dst_coord_.GetOffset());
 
             // Check if src data is not in the logic padding area.
             const bool is_src_valid =
@@ -303,7 +337,8 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
     }
 
     private:
-    static constexpr auto thread_cluster_desc_ = make_cluster_descriptor(ThreadClusterLengths{});
+    static constexpr auto thread_cluster_desc_ =
+        make_cluster_descriptor(ThreadClusterLengths{}, ThreadClusterArrangeOrder{});
 
     SrcCoord src_coord_;
     DstCoord dst_coord_;

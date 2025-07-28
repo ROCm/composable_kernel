@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "fmha_fwd.hpp"
 #include "ck_tile/host.hpp"
@@ -178,50 +178,30 @@ auto get_elimit<FmhaFwdFp8>(std::string init_method)
     }
 }
 
-int num_splits_heuristic(int batch_nhead_mblocks, int num_SMs, int num_n_blocks, int max_splits)
+int num_splits_heuristic(int batch_nhead_mblocks, int num_SMs, int max_splits)
 {
     // If we have enough to almost fill the SMs, then just use 1 split
     if(batch_nhead_mblocks >= 0.8f * num_SMs)
     {
         return 1;
     }
-    max_splits           = std::min({max_splits, num_SMs, num_n_blocks});
+    max_splits           = std::min({max_splits, num_SMs});
     float max_efficiency = 0.f;
     std::vector<float> efficiency;
     efficiency.reserve(max_splits);
-    auto ceildiv = [](int a, int b) { return (a + b - 1) / b; };
-    // Some splits are not eligible. For example, if we have 64 blocks and choose 11 splits,
-    // we'll have 6 * 10 + 4 blocks. If we choose 12 splits, we'll have 6 * 11 + (-2) blocks
-    // (i.e. it's 11 splits anyway).
-    // So we check if the number of blocks per split is the same as the previous num_splits.
-    auto is_split_eligible = [&ceildiv, &num_n_blocks](int num_splits) {
-        return num_splits == 1 ||
-               ceildiv(num_n_blocks, num_splits) != ceildiv(num_n_blocks, num_splits - 1);
-    };
     for(int num_splits = 1; num_splits <= max_splits; num_splits++)
     {
-        if(!is_split_eligible(num_splits))
+        float n_waves = float(batch_nhead_mblocks * num_splits) / num_SMs;
+        float eff     = n_waves / ceil(n_waves);
+        // printf("num_splits = %d, eff = %f\n", num_splits, eff);
+        if(eff > max_efficiency)
         {
-            efficiency.push_back(0.f);
+            max_efficiency = eff;
         }
-        else
-        {
-            float n_waves = float(batch_nhead_mblocks * num_splits) / num_SMs;
-            float eff     = n_waves / ceil(n_waves);
-            // printf("num_splits = %d, eff = %f\n", num_splits, eff);
-            if(eff > max_efficiency)
-            {
-                max_efficiency = eff;
-            }
-            efficiency.push_back(eff);
-        }
+        efficiency.push_back(eff);
     }
     for(int num_splits = 1; num_splits <= max_splits; num_splits++)
     {
-        if(!is_split_eligible(num_splits))
-        {
-            continue;
-        }
         if(efficiency[num_splits - 1] >= 0.85 * max_efficiency)
         {
             // printf("num_splits chosen = %d\n", num_splits);
@@ -234,6 +214,7 @@ int num_splits_heuristic(int batch_nhead_mblocks, int num_SMs, int num_n_blocks,
 int override_num_splits_if_necessary(
     int batch, int nhead, int max_seqlen_q, int hdim_v, float p_drop, int num_splits)
 {
+    (void)hdim_v;
     int device;
     auto status = hipGetDevice(&device);
     if(status != hipSuccess)
@@ -250,15 +231,13 @@ int override_num_splits_if_necessary(
 
     // tile size should match the generate.py
     const int kM0 = 64;
-    const int kN1 = hdim_v;
 
     const int num_m_blocks = ck_tile::integer_divide_ceil(max_seqlen_q, kM0);
-    const int num_n_blocks = ck_tile::integer_divide_ceil(hdim_v, kN1);
 
     if(num_splits < 1 && p_drop == 0.0f)
     {
         return num_splits_heuristic(
-            batch * nhead * num_m_blocks, props.multiProcessorCount * 2, num_n_blocks, 128);
+            batch * nhead * num_m_blocks, props.multiProcessorCount * 2, 128);
     }
 
     return num_splits;
@@ -344,7 +323,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     ck_tile::index_t page_block_size = arg_parser.get_int("page_block_size");
-#if !CK_TILE_FMHA_FWD_APPENDKV_API && !CK_TILE_FMHA_FWD_SPLITKV_API
+#if(!(CK_TILE_FMHA_FWD_APPENDKV_API || CK_TILE_FMHA_FWD_SPLITKV_API || \
+      CK_TILE_FMHA_FWD_PAGEDKV_API))
     if(0 < page_block_size)
     {
         std::cerr << "paged-kvcache is not supported. ignoring the 'page_block_size' option"
@@ -360,7 +340,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     bool use_cache_batch_idx = arg_parser.get_bool("cache_batch_idx");
-#if !CK_TILE_FMHA_FWD_APPENDKV_API && !CK_TILE_FMHA_FWD_SPLITKV_API
+#if !(CK_TILE_FMHA_FWD_APPENDKV_API || CK_TILE_FMHA_FWD_SPLITKV_API || CK_TILE_FMHA_FWD_PAGEDKV_API)
     if(use_cache_batch_idx)
     {
         std::cerr << "split-kv is not supported. ignoring the 'cache_batch_idx' option"
@@ -542,8 +522,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 max_seqlen_k = real_seqlen_k;
             }
 
-            flop += nhead * (static_cast<std::size_t>(2) * real_seqlen_q * real_seqlen_k * hdim_q +
-                             static_cast<std::size_t>(2) * real_seqlen_q * hdim_v * real_seqlen_k);
+            flop += nhead * (static_cast<std::size_t>(2) * mask.get_unmaskarea() * hdim_q +
+                             static_cast<std::size_t>(2) * mask.get_unmaskarea() * hdim_v);
 
             num_byte += nhead * (sizeof(QDataType) * real_seqlen_q * hdim_q +
                                  sizeof(KDataType) * real_seqlen_k * hdim_q +
@@ -568,7 +548,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         std::cerr << "num_splits greater than 128 is not supported" << std::endl;
         return false;
     }
-#if CK_TILE_FMHA_FWD_SPLITKV_API
+#if CK_TILE_FMHA_FWD_SPLITKV_API || CK_TILE_FMHA_FWD_PAGEDKV_API
     if(0 < p_drop && (1 < num_splits || use_kvcache))
     {
         std::cerr << "dropout is not supoprted by split-kv kernels. ignoring the 'p_drop' option"
@@ -823,7 +803,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                   << (is_rotary_interleaved ? "inter" : "half") << ")";
     }
 #endif
-#if CK_TILE_FMHA_FWD_SPLITKV_API
+#if CK_TILE_FMHA_FWD_SPLITKV_API || CK_TILE_FMHA_FWD_PAGEDKV_API
     if(1 < num_splits)
     {
         std::cout << ", num_splits:" << num_splits;
@@ -863,6 +843,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
             if constexpr(std::is_same_v<fmha_fwd_traits, std::decay_t<decltype(traits)>>)
             {
                 traits.has_dropout = (p_drop > 0.0f);
+            }
+            else if constexpr(std::is_same_v<fmha_fwd_pagedkv_traits,
+                                             std::decay_t<decltype(traits)>>)
+            {
+                traits.use_pagedkv = use_kvcache;
             }
         }
     };
@@ -1072,6 +1057,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 args.split_stride_lse_acc = split_stride_lse_acc;
                 args.split_stride_o_acc   = split_stride_o_acc;
             }
+            else if constexpr(std::is_same_v<fmha_fwd_pagedkv_args, std::decay_t<decltype(args)>>)
+            {
+                args.block_table_ptr =
+                    (0 < page_block_size ? block_table_buf.GetDeviceBuffer() : nullptr);
+                args.batch_stride_block_table = batch_stride_block_table;
+                args.page_block_size          = page_block_size;
+                args.is_gappy = false; // use 'false' for flash-attention integration
+
+                args.cache_batch_idx =
+                    (use_cache_batch_idx ? cache_batch_idx_buf.GetDeviceBuffer() : nullptr);
+            }
         }
     };
 
@@ -1093,7 +1089,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     const float fwd_ave_time = [&] {
 #if CK_TILE_FMHA_FWD_SPLITKV_API
-        if(1 < num_splits || use_kvcache)
+        if(1 < num_splits && use_kvcache)
         {
             fmha_fwd_splitkv_traits fmha_splitkv_traits;
             init_traits(fmha_splitkv_traits);
@@ -1102,6 +1098,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
             init_args(fmha_splitkv_args);
 
             return fmha_fwd_splitkv(fmha_splitkv_traits, fmha_splitkv_args, stream_config);
+        }
+#endif
+#if CK_TILE_FMHA_FWD_PAGEDKV_API
+        if(use_kvcache)
+        {
+            fmha_fwd_pagedkv_traits fmha_pagedkv_traits;
+            init_traits(fmha_pagedkv_traits);
+
+            fmha_fwd_pagedkv_args fmha_pagedkv_args;
+            init_args(fmha_pagedkv_args);
+
+            return fmha_fwd_pagedkv(fmha_pagedkv_traits, fmha_pagedkv_args, stream_config);
         }
 #endif
         fmha_fwd_traits fmha_traits;
@@ -1258,7 +1266,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host_ref_ro(i); });
         }
 #endif
-#if CK_TILE_FMHA_FWD_SPLITKV_API
+#if CK_TILE_FMHA_FWD_SPLITKV_API || CK_TILE_FMHA_FWD_PAGEDKV_API
         if(0 < page_block_size) {
             if(i_perm) {
                 k_host_ref.ForEach([&](auto& self, auto i) {
@@ -1309,7 +1317,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             });
         }
 #endif
-#if CK_TILE_FMHA_FWD_SPLITKV_API
+#if CK_TILE_FMHA_FWD_SPLITKV_API || CK_TILE_FMHA_FWD_PAGEDKV_API
         if(0 < page_block_size) {
             if(is_v_rowmajor) {
                 if(i_perm) {

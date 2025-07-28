@@ -332,6 +332,12 @@ def get_fwd_appendkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                     cond &= pipeline.F_vlayout == 'row'
                     if not cond:
                         continue
+                # PyTorch integration
+                elif receipt == 4:
+                    cond = dtype in ['fp16, bf16']
+                    cond &= pipeline.F_vlayout == 'row'
+                    if not cond:
+                        continue
                 api_pool.register_traits(k.api_trait())
                 gen.append(k)
 

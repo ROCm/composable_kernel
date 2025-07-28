@@ -379,10 +379,10 @@ struct AddClamp
     __host__ __device__ constexpr void
     operator()<half_t, half_t, half_t>(half_t& y, const half_t& x0, const half_t& x1) const
     {
-        const half_t a = x0 + x1;
-        y              = a > type_convert<half_t>(floor_)
-                             ? (a < type_convert<half_t>(ceil_) ? a : type_convert<half_t>(ceil_))
-                             : type_convert<half_t>(floor_);
+        const half_t floor = type_convert<half_t>(floor_);
+        const half_t ceil  = type_convert<half_t>(ceil_);
+        const half_t a     = x0 + x1;
+        y                  = a > floor ? (a < ceil ? a : ceil) : floor;
     };
 
     template <>

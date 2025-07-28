@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -100,7 +100,7 @@ struct FmhaFwdKernel
             (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) + _SS_(FmhaPipeline::name) + "_" +
             "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "_npad" : "_" + pn) +
             (kHasLogitsSoftCap ? "_logits" : "_nlogits" ) + (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("_nbias") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) +
-            (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kStoreLSE ? "_lse" : "_nlse" ) + (kHasDropout ? "_dropout" : "_ndropout" ) + (kDoFp8StaticQuant ? "_squant" : "_nsquant" );
+            (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kStoreLSE ? "_lse" : "_nlse" ) + (kHasDropout ? "_dropout" : "_ndropout" ) + (kSkipMinSeqlenQ ? "_skip" : "_nskip" ) + (kDoFp8StaticQuant ? "_squant" : "_nsquant" );
         #undef _SS_
         #undef _TS_
         // clang-format on
@@ -808,6 +808,7 @@ struct FmhaFwdKernel
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
               ck_tile::index_t mask_type,
+              ck_tile::index_t min_seqlen_q,
               float p_drop,
               bool s_randval,
               const std::tuple<uint64_t, uint64_t>& drop_seed_offset)
@@ -847,6 +848,7 @@ struct FmhaFwdKernel
             window_size_left,
             window_size_right,
             mask_type,
+            min_seqlen_q,
             p_drop,
             s_randval,
             std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
@@ -889,6 +891,7 @@ struct FmhaFwdKernel
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
               ck_tile::index_t mask_type,
+              ck_tile::index_t min_seqlen_q,
               float p_drop,
               bool s_randval,
               const std::tuple<const void*, const void*>& drop_seed_offset)
@@ -928,6 +931,7 @@ struct FmhaFwdKernel
             window_size_left,
             window_size_right,
             mask_type,
+            min_seqlen_q,
             p_drop,
             s_randval,
             std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
@@ -951,9 +955,9 @@ struct FmhaFwdKernel
         else
         {
             // TODO: this may need tuning
-            return dim3(ck_tile::integer_divide_ceil(seqlen_q_, FmhaPipeline::kM0) *
+            return dim3(nhead_,
+                        ck_tile::integer_divide_ceil(seqlen_q_, FmhaPipeline::kM0) *
                             ck_tile::integer_divide_ceil(hdim_v_, FmhaPipeline::kN1),
-                        nhead_,
                         batch_size_);
         }
     }
@@ -999,8 +1003,8 @@ struct FmhaFwdKernel
             const index_t num_tile_n1 =
                 ck_tile::integer_divide_ceil(kargs.hdim_v, FmhaPipeline::kN1);
 
-            const index_t i_block = blockIdx.x;
-            const index_t i_nhead = blockIdx.y;
+            const index_t i_block = blockIdx.y; // blockIdx.x
+            const index_t i_nhead = blockIdx.x; // blockIdx.y
             const index_t i_batch = blockIdx.z;
 
             const auto f = [](index_t dividend, index_t divisor) {
@@ -1014,7 +1018,7 @@ struct FmhaFwdKernel
             if constexpr(kHasMask)
             {
                 // assume that num_tile_n1 is always 1
-                return ck_tile::make_tuple(gridDim.x - 1 - i_tile_m, i_tile_n, i_nhead, i_batch);
+                return ck_tile::make_tuple(gridDim.y - 1 - i_tile_m, i_tile_n, i_nhead, i_batch);
             }
             else
             {

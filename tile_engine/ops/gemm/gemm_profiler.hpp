@@ -89,17 +89,18 @@ class GemmProfiler
         c_m_n_dev_buf.SetZero();
         c_m_n_dev_result.SetZero();
 
-        ck_tile::GemmHostArgs gemm_args;
-        gemm_args.a_ptr    = a_m_k_dev_buf.GetDeviceBuffer();
-        gemm_args.b_ptr    = b_k_n_dev_buf.GetDeviceBuffer();
-        gemm_args.c_ptr    = c_m_n_dev_buf.GetDeviceBuffer();
-        gemm_args.k_batch  = gemm_problem.split_k_;
-        gemm_args.M        = gemm_problem.m_;
-        gemm_args.N        = gemm_problem.n_;
-        gemm_args.K        = gemm_problem.k_;
-        gemm_args.stride_A = gemm_problem.stride_a_;
-        gemm_args.stride_B = gemm_problem.stride_b_;
-        gemm_args.stride_C = gemm_problem.stride_c_;
+        ck_tile::GemmHostArgs gemm_args = {
+            a_m_k_dev_buf.GetDeviceBuffer(),
+            b_k_n_dev_buf.GetDeviceBuffer(),
+            c_m_n_dev_buf.GetDeviceBuffer(),
+            gemm_problem.split_k_,
+            gemm_problem.m_,
+            gemm_problem.n_,
+            gemm_problem.k_,
+            gemm_problem.stride_a_,
+            gemm_problem.stride_b_,
+            gemm_problem.stride_c_,
+        };
 
         ck_tile::HostTensor<CDataType> c_m_n_host_result(ck_tile::host_tensor_descriptor(
             gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_c_, is_row_major(layout_c)));
@@ -169,7 +170,8 @@ class GemmProfiler
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
         bool verified_correct =
             !setting_.verify_ ||
-            compare(gemm_problem.k_, gemm_problem.split_k_, c_m_n_dev_result, c_m_n_host_result);
+            compare(
+                name, gemm_problem.k_, gemm_problem.split_k_, c_m_n_dev_result, c_m_n_host_result);
 
         if(verified_correct)
         {
