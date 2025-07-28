@@ -158,7 +158,7 @@ CK_TILE_HOST float launch_kernel(const stream_config& s, Callables&&... callable
             {
                 launch_and_check(s, std::forward<Callables>(callables)...);
             }
-            printf("New Timer \n");
+
             float per_iter_time = 0.f;
             std::vector<float> times;
             int i = 0;
@@ -200,7 +200,7 @@ CK_TILE_HOST float launch_kernel(const stream_config& s, Callables&&... callable
     }
     else
     {
-        timing_loop(gpu_timer_new{s.stream_id_}, s.bench_time_ms_, time_used, s.stream_id_);
+        timing_loop(cpu_timer{}, s.bench_time_ms_, time_used, s.stream_id_);
     }
     return time_used;
 }
@@ -224,7 +224,7 @@ launch_kernel_time_mask(const stream_config& s, PreprocessFunc preprocess, Calla
             {
                 launch_and_check(s, std::forward<Callables>(callables)...);
             }
-            printf("New Timer with rotating buffer\n");
+
             float per_iter_time = 0.f;
             std::vector<float> times;
             int i = 0;
@@ -267,7 +267,7 @@ launch_kernel_time_mask(const stream_config& s, PreprocessFunc preprocess, Calla
     }
     else
     {
-        timing_loop(gpu_timer_new{s.stream_id_}, s.bench_time_ms_, time_used, s.stream_id_);
+        timing_loop(cpu_timer{}, s.bench_time_ms_, time_used, s.stream_id_);
     }
     return time_used;
 }
