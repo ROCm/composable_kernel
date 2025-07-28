@@ -152,10 +152,7 @@ struct GemmKernelArgs
 ///                             multiplication implementation. It is responsible for storing
 ///                             results calculated by @ref GemmPipeline_ "GemmPipeline" to
 ///                             the output E tensor in global memory.
-template <typename TilePartitioner_,
-          typename GemmPipeline_,
-          typename EpiloguePipeline_,
-          bool UseZeroing_ = false>
+template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
 struct GemmKernel
 {
     using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
@@ -168,6 +165,8 @@ struct GemmKernel
     using DsLayout   = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
     using DsDataType = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
     static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
+
+    static constexpr bool UseZeroing = EpiloguePipeline::UseZeroing;
 
     // Get the persistent kernel if the pipeline has it available
     struct has_persistent_kernel
@@ -183,8 +182,6 @@ struct GemmKernel
         }();
     };
     static constexpr bool PersistentKernel = has_persistent_kernel::value;
-
-    static constexpr bool UseZeroing = UseZeroing_;
 
     using ADataType = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
@@ -234,7 +231,7 @@ struct GemmKernel
     CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
 
     CK_TILE_HOST static constexpr KernelArgs
-    MakeKernelArgs(const GemmHostArgs<NumDTensor>& hostArgs, uint32_t* workspace_barriers)
+    MakeKernelArgs(const GemmHostArgs<NumDTensor>& hostArgs, uint32_t* workspace_barriers = nullptr)
     {
 
         return KernelArgs{hostArgs.a_ptr,
