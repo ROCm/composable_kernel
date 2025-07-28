@@ -40,21 +40,21 @@ template <typename DeviceOp,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_batched_gemm_softmax_gemm_wmma_cshuffle(const ADataType* __restrict__ p_a_grid,
-                                                       const B0DataType* __restrict__ p_b0_grid,
-                                                       const B1DataType* __restrict__ p_b1_grid,
-                                                       CDataType* __restrict__ p_c_grid,
-                                                       index_t M,
-                                                       index_t N,
-                                                       index_t K,
-                                                       index_t O,
-                                                       index_t G0,
-                                                       index_t G1,
-                                                       float alpha,
-                                                       bool input_permute,
-                                                       bool output_permute)
+    kernel_batched_gemm_softmax_gemm_wmma_cshuffle(const ADataType* __restrict__ p_a_grid,
+                                                   const B0DataType* __restrict__ p_b0_grid,
+                                                   const B1DataType* __restrict__ p_b1_grid,
+                                                   CDataType* __restrict__ p_c_grid,
+                                                   index_t M,
+                                                   index_t N,
+                                                   index_t K,
+                                                   index_t O,
+                                                   index_t G0,
+                                                   index_t G1,
+                                                   float alpha,
+                                                   bool input_permute,
+                                                   bool output_permute)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
 
@@ -178,15 +178,15 @@ template <typename DeviceOp,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_wmma_self_attention_forward(const QKVDataType* __restrict__ p_qkv_grid,
-                                           ODataType* __restrict__ p_out_grid,
-                                           index_t batch_size,
-                                           index_t sequence_length,
-                                           index_t head_count,
-                                           index_t head_size,
-                                           float alpha)
+    kernel_wmma_self_attention_forward(const QKVDataType* __restrict__ p_qkv_grid,
+                                       ODataType* __restrict__ p_out_grid,
+                                       index_t batch_size,
+                                       index_t sequence_length,
+                                       index_t head_count,
+                                       index_t head_size,
+                                       float alpha)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
 
@@ -310,17 +310,17 @@ template <typename DeviceOp,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_wmma_cross_attention_forward(const QDataType* __restrict__ p_q_grid,
-                                            const KVDataType* __restrict__ p_kv_grid,
-                                            ODataType* __restrict__ p_out_grid,
-                                            index_t batch_size,
-                                            index_t q_sequence_length,
-                                            index_t kv_sequence_length,
-                                            index_t head_count,
-                                            index_t head_size,
-                                            float alpha)
+    kernel_wmma_cross_attention_forward(const QDataType* __restrict__ p_q_grid,
+                                        const KVDataType* __restrict__ p_kv_grid,
+                                        ODataType* __restrict__ p_out_grid,
+                                        index_t batch_size,
+                                        index_t q_sequence_length,
+                                        index_t kv_sequence_length,
+                                        index_t head_count,
+                                        index_t head_size,
+                                        float alpha)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
 

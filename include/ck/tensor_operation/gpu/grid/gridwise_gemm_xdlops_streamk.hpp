@@ -23,19 +23,19 @@ namespace ck {
 template <typename GridwiseGemm>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_xdlops_streamk(const typename GridwiseGemm::FloatAB* p_a_grid,
-                                   const typename GridwiseGemm::FloatAB* p_b_grid,
-                                   typename GridwiseGemm::FloatC* p_c_grid,
-                                   void* p_workspace,
-                                   index_t M,
-                                   index_t N,
-                                   index_t K,
-                                   index_t StrideA,
-                                   index_t StrideB,
-                                   index_t StrideC,
-                                   typename GridwiseGemm::Block2CTileMap block_mapping)
+    kernel_gemm_xdlops_streamk(const typename GridwiseGemm::FloatAB* p_a_grid,
+                               const typename GridwiseGemm::FloatAB* p_b_grid,
+                               typename GridwiseGemm::FloatC* p_c_grid,
+                               void* p_workspace,
+                               index_t M,
+                               index_t N,
+                               index_t K,
+                               index_t StrideA,
+                               index_t StrideB,
+                               index_t StrideC,
+                               typename GridwiseGemm::Block2CTileMap block_mapping)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx94__))
@@ -174,13 +174,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
 
         void Print() const
         {
-            std::cout << "arg {"
-                      << "M:" << M << ", "
-                      << "N:" << N << ", "
-                      << "K:" << K << ", "
-                      << "SA:" << StrideA << ", "
-                      << "SB:" << StrideB << ", "
-                      << "SC:" << StrideC << std::endl;
+            std::cout << "arg {" << "M:" << M << ", " << "N:" << N << ", " << "K:" << K << ", "
+                      << "SA:" << StrideA << ", " << "SB:" << StrideB << ", " << "SC:" << StrideC
+                      << std::endl;
         }
     };
 

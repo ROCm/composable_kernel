@@ -90,7 +90,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
 
     template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
     __device__ static auto
-        CalculateCThreadOriginDataIndex(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
+    CalculateCThreadOriginDataIndex(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
     {
         const auto wave_idx = GetWaveIdx();
 

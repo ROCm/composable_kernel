@@ -1,24 +1,17 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "batched_transpose_common_policy.hpp"
 
 namespace ck_tile {
 
-struct TransposePolicy
+struct BatchedTransposeLdsPolicy : public BatchedTransposeCommonPolicy
 {
-    static constexpr auto TileAccessPattern = tile_distribution_pattern::thread_raked;
-
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSize()
-    {
-        return 16 / sizeof(typename Problem::DataType);
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
+    CK_TILE_DEVICE static constexpr index_t GetSmemSize()
     {
         return integer_least_multiple(
             sizeof(typename Problem::DataType) *
@@ -27,23 +20,7 @@ struct TransposePolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeInputDistribution()
-    {
-        constexpr index_t BlockSize         = Problem::kBlockSize;
-        constexpr index_t LeadDimPerBlock   = Problem::kLeadSizePerBlock;
-        constexpr index_t SecondDimPerBlock = Problem::kSecondSizePerBlock;
-        constexpr index_t VecLoadSize       = 16 / sizeof(typename Problem::DataType);
-
-        using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
-                                                                      SecondDimPerBlock,
-                                                                      LeadDimPerBlock,
-                                                                      VecLoadSize,
-                                                                      TileAccessPattern>;
-        return TileEncodingPattern::Make2DStaticTileDistribution();
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeOutputDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeOutputDistribution()
     {
         constexpr auto input_dstr = MakeLdsLoadTileDistribution<Problem>();
 
@@ -56,11 +33,11 @@ struct TransposePolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeLdsStoreBlockDescriptor()
+    CK_TILE_DEVICE static constexpr auto MakeLdsStoreBlockDescriptor()
     {
         constexpr index_t kLeadDimPerBlock   = Problem::kLeadSizePerBlock;
         constexpr index_t kSecondDimPerBlock = Problem::kSecondSizePerBlock;
-        constexpr index_t kVectorSize        = 16 / sizeof(typename Problem::DataType);
+        constexpr index_t kVectorSize        = Problem::LDSVectorSize;
 
         constexpr auto lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kSecondDimPerBlock>{},
@@ -82,12 +59,11 @@ struct TransposePolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeLdsLoadBlockDescriptor()
+    CK_TILE_DEVICE static constexpr auto MakeLdsLoadBlockDescriptor()
     {
         constexpr index_t kLeadDimPerBlock   = Problem::kLeadSizePerBlock;
         constexpr index_t kSecondDimPerBlock = Problem::kSecondSizePerBlock;
-
-        constexpr index_t kVectorSize = 8 / sizeof(typename Problem::DataType);
+        constexpr index_t kVectorSize        = Problem::LDSVectorSize;
 
         constexpr auto lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kSecondDimPerBlock>{},
@@ -109,25 +85,19 @@ struct TransposePolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeLdsLoadTileDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeLdsLoadTileDistribution()
     {
         using DataType = typename Problem::DataType;
 
-        // Extract base dimensions from the traits
-        constexpr index_t kBaseLeadDim   = LaneGroupTransposeTraits<DataType>::kleadDim;
-        constexpr index_t kBaseSecondDim = LaneGroupTransposeTraits<DataType>::ksecondDim;
-
         // Calculate block-level dimensions
-        constexpr index_t kLead              = Problem::kLeadSizePerXdl;
-        constexpr index_t kSecond            = Problem::kSecondSizePerXdl;
-        constexpr index_t kLeadIterPerWarp   = Problem::kLeadXdlNumPerWarp;
-        constexpr index_t kSecondIterPerWarp = Problem::kSecondXdlNumPerWarp;
+        constexpr index_t kLeadIterPerWarp   = 1;
+        constexpr index_t kSecondIterPerWarp = 1;
         constexpr index_t kLeadNumWarps      = Problem::kLeadNumWarps;
         constexpr index_t kSecondNumWarps    = Problem::kSecondNumWarps;
 
         // Calculate repetitions of base pattern
-        constexpr index_t kLeadRepetitions     = kLead / kBaseLeadDim;
-        constexpr index_t kSecondRepetitions   = kSecond / kBaseSecondDim;
+        constexpr index_t kLeadRepetitions     = Problem::kQuadNumPerLeadDim;
+        constexpr index_t kSecondRepetitions   = Problem::kQuadNumPerSecondDim;
         constexpr index_t kSecondDimIterations = Problem::kIterationsInSecondDim;
         constexpr index_t kSecondDimStrSub     = kSecondRepetitions / kSecondDimIterations;
 

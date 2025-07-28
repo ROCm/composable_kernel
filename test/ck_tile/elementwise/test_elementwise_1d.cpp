@@ -36,11 +36,9 @@ struct elementwise_op_traits<ck_tile::element_wise::Relu>
 template <std::size_t D, typename F>
 auto make_uniform_array_with_factory(F&& factory)
 {
-    return [&]<std::size_t... Is>(std::index_sequence<Is...>)
-    {
+    return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
         return std::array<std::invoke_result_t<F, std::size_t>, D>{factory(Is)...};
-    }
-    (std::make_index_sequence<D>{});
+    }(std::make_index_sequence<D>{});
 }
 
 template <typename Tuple>
@@ -87,12 +85,10 @@ class TestCkTileElementwise : public ::testing::Test
         ck_tile::DeviceMem d_y_mem(h_y);
         d_y_mem.SetZero();
 
-        auto d_x_ptrs_tuple = [&]<std::size_t... Is>(std::index_sequence<Is...>)
-        {
+        auto d_x_ptrs_tuple = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
             return ck_tile::make_tuple(
                 static_cast<const XDataType*>(d_xs_mems_owner[Is].GetDeviceBuffer())...);
-        }
-        (std::make_index_sequence<NumInputs>{});
+        }(std::make_index_sequence<NumInputs>{});
 
         YDataType* p_y_device = static_cast<YDataType*>(d_y_mem.GetDeviceBuffer());
 
@@ -142,11 +138,9 @@ class TestCkTileElementwise : public ::testing::Test
         ElementwiseOpType op_host;
         for(ck_tile::index_t i = 0; i < total_m_elements; ++i)
         {
-            auto get_host_op_args = [&]<std::size_t... Is>(std::index_sequence<Is...>)
-            {
+            auto get_host_op_args = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
                 return ck_tile::make_tuple(static_cast<ComputeDataType>(h_xs[Is](i))...);
-            }
-            (std::make_index_sequence<NumInputs>{});
+            }(std::make_index_sequence<NumInputs>{});
 
             YDataType temp_y_val;
             ck_tile::apply(

@@ -648,9 +648,8 @@ struct
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
                 std::cout << DeviceOp{}.GetTypeString() << std::endl;
-                std::cout << "N " << arg.Conv_N_ << ", "
-                          << "K " << arg.Conv_K_ << ", "
-                          << "C " << arg.Conv_C_ << ", " << std::endl;
+                std::cout << "N " << arg.Conv_N_ << ", " << "K " << arg.Conv_K_ << ", " << "C "
+                          << arg.Conv_C_ << ", " << std::endl;
                 std::cout << "Y X " << arg.filter_spatial_lengths_[0] << ", "
                           << arg.filter_spatial_lengths_[1] << ", " << std::endl;
                 std::cout << "Hi Wi " << arg.input_spatial_lengths_[0] << ", "

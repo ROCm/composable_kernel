@@ -81,25 +81,25 @@ template <typename GridwiseGemm,
           bool CTranspose>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
-            AsPointer p_as_grid,
-            BsPointer p_bs_grid,
-            DsPointer p_ds_grid,
-            EDataType* __restrict__ p_e_grid,
-            AElementwiseOperation a_element_op,
-            BElementwiseOperation b_element_op,
-            CDEElementwiseOperation cde_element_op,
-            const AGridDesc_AK0_M_AK1 a_grid_desc_k0_m_k1,
-            const BGridDesc_BK0_N_BK1 b_grid_desc_k0_n_k1,
-            const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                ds_grid_desc_mblock_mperblock_nblock_nperblock,
-            const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-                e_grid_desc_mblock_mperblock_nblock_nperblock_,
-            const Block2ETileMap block_2_ctile_map,
-            const ComputePtrOffsetOfG compute_ptr_offset_of_groups,
-            const ComputePtrOffsetOfN compute_ptr_offset_of_n)
+    kernel_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
+        AsPointer p_as_grid,
+        BsPointer p_bs_grid,
+        DsPointer p_ds_grid,
+        EDataType* __restrict__ p_e_grid,
+        AElementwiseOperation a_element_op,
+        BElementwiseOperation b_element_op,
+        CDEElementwiseOperation cde_element_op,
+        const AGridDesc_AK0_M_AK1 a_grid_desc_k0_m_k1,
+        const BGridDesc_BK0_N_BK1 b_grid_desc_k0_n_k1,
+        const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+            ds_grid_desc_mblock_mperblock_nblock_nperblock,
+        const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+            e_grid_desc_mblock_mperblock_nblock_nperblock_,
+        const Block2ETileMap block_2_ctile_map,
+        const ComputePtrOffsetOfG compute_ptr_offset_of_groups,
+        const ComputePtrOffsetOfN compute_ptr_offset_of_n)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
 
@@ -383,11 +383,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     {
         namespace ctc = tensor_layout::convolution;
         using Layout  = std::conditional_t<
-            is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() && NeedTransposeKernel,
-            ctc::NHWGC,
-            std::conditional_t<is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>() && NeedTransposeKernel,
-                               ctc::NDHWGC,
-                               ALay>>;
+             is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() && NeedTransposeKernel,
+             ctc::NHWGC,
+             std::conditional_t<is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>() && NeedTransposeKernel,
+                                ctc::NDHWGC,
+                                ALay>>;
 
         const auto in_gemmmraw_gemmkraw_desc =
             conv_to_gemm_transformer.template MakeADescriptor_M_K<Layout>();
@@ -403,11 +403,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     {
         namespace ctc = tensor_layout::convolution;
         using Layout  = std::conditional_t<
-            is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() && NeedTransposeKernel,
-            ctc::GKYXC,
-            std::conditional_t<is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>() && NeedTransposeKernel,
-                               ctc::GKZYXC,
-                               BLay>>;
+             is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() && NeedTransposeKernel,
+             ctc::GKYXC,
+             std::conditional_t<is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>() && NeedTransposeKernel,
+                                ctc::GKZYXC,
+                                BLay>>;
 
         const auto wei_gemmnraw_gemmkraw_desc =
             conv_to_gemm_transformer.template MakeBDescriptor_N_K<Layout>();
@@ -423,11 +423,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     {
         namespace ctc = tensor_layout::convolution;
         using Layout  = std::conditional_t<
-            is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() && NeedTransposeKernel,
-            ctc::NHWGK,
-            std::conditional_t<is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>() && NeedTransposeKernel,
-                               ctc::NDHWGK,
-                               ELay>>;
+             is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() && NeedTransposeKernel,
+             ctc::NHWGK,
+             std::conditional_t<is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>() && NeedTransposeKernel,
+                                ctc::NDHWGK,
+                                ELay>>;
 
         const auto out_gemmmraw_gemmnraw_desc =
             conv_to_gemm_transformer.template MakeCDescriptor_M_N<Layout>();

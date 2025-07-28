@@ -232,7 +232,7 @@ struct DynamicBuffer
 #if CK_USE_AMD_BUFFER_LOAD
         bool constexpr use_amd_buffer_addressing = sizeof(IndexType) <= sizeof(int32_t);
 #else
-        bool constexpr use_amd_buffer_addressing      = false;
+        bool constexpr use_amd_buffer_addressing = false;
 #endif
 
 #if CK_WORKAROUND_SWDEV_XXXXXX_INT8_DS_WRITE_ISSUE

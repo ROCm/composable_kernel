@@ -67,11 +67,11 @@ struct GroupedConvTraits
     using DsLayout                                                = DsLayout_;
     using OutLayout                                               = OutLayout_;
     using GroupedConvImplicitGemmTraits                           = TileGemmTraits<true,
-                                                         true,
-                                                         true,
-                                                         ck_tile::tensor_layout::gemm::RowMajor,
-                                                         ck_tile::tensor_layout::gemm::ColumnMajor,
-                                                         ck_tile::tensor_layout::gemm::RowMajor>;
+                                                                                   true,
+                                                                                   true,
+                                                                                   ck_tile::tensor_layout::gemm::RowMajor,
+                                                                                   ck_tile::tensor_layout::gemm::ColumnMajor,
+                                                                                   ck_tile::tensor_layout::gemm::RowMajor>;
     static constexpr index_t NumDTensor                           = DsLayout::size();
     using ImplicitGemmDsLayout = decltype(generate_implicit_gemm_layout());
 };
