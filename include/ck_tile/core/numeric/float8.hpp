@@ -43,19 +43,19 @@ enum class fp8_interpretation
 };
 
 /*
- *                ______________FNUZ_________________    |   ______________OCP________________
+ *                 ______________FNUZ_________________    |   ______________OCP________________
  *                   e4m3               e5m2              |    e4m3                e5m2
  *      bias :        8                  16               |     7                   15
- *      inf  :  1.0000.000           1.00000.00           |    N/A              s.11111.00
+ *      inf  :       N/A                 N/A              |    N/A              s.11111.00
  *      Nan  :  1.0000.000           1.00000.00           | s.1111.111          s.11111.{01, 10, 11}
  *      zero :  0.0000.000           0.00000.00           | s.0000.000          s.00000.00
  * Max(norm) :  s.1111.111 (240)     s.11111.11(57344)    | s.1111.110(448)     s.11110.11(57344)
  * Max(snorm):  s.0000.111           s.00000.11           | s.0000.111          s.00000.11
- *                0.0068359375         2.288818e-05       |   0.013671875         4.57763671875e-05
+ *                0.0068359375         2.288818e-05       | 0.013671875         4.57763671875e-05
  * Min(norm) :  s.0001.000           s.00001.00           | s.0001.000          s.00001.00
- *                2^-7(0.00078125)     2^-15(3.05176e-05) |   2^-6(0.015625)      2^-14(6.10352e-05)
+ *                2^-7(0.0078125)      2^-15(3.05176e-05) |   2^-6(0.015625) 2^-14(6.10352e-05)
  * Min(snorm):  s.0000.001           s.00000.01           | s.0000.001          s.00000.01
- *                2^-10(0.00097656)    2^-17(7.629395e-06)|   2^-9(0.001953125)   2^-16(1.52588e-05)
+ *                2^-10(0.0009765625)  2^-17(7.62939e-06) |   2^-9(0.001953125) 2^-16(1.52588e-05)
  */
 
 template <fp8_rounding_mode rounding = static_cast<fp8_rounding_mode>(CK_TILE_FLOAT_TO_FP8_DEFAULT)>
@@ -269,10 +269,10 @@ CK_TILE_HOST_DEVICE DstT run_cast_to_f8(SrcT src, unsigned int rng = 0)
     using SrcT_bitwise       = typename numeric_traits<SrcT>::bitwise_type;
     SrcT_bitwise src_bitwise = bit_cast<SrcT_bitwise>(src);
 
-    unsigned long long head, mantissa;
+    unsigned int head, mantissa;
     int exponent, bias;
     unsigned int sign;
-    unsigned long long fInf, abs_mask;
+    unsigned int fInf, abs_mask;
 
     head     = src_bitwise & numeric_traits<SrcT>::head_mask;
     mantissa = src_bitwise & numeric_traits<SrcT>::mant_mask;
@@ -302,7 +302,7 @@ CK_TILE_HOST_DEVICE DstT run_cast_to_f8(SrcT src, unsigned int rng = 0)
         nan = (sign << 7) + 0x7f;
     }
     // Max values
-    unsigned long long ifmax = 0;
+    unsigned int ifmax = 0;
     if constexpr(is_float)
     {
         if constexpr(DstT_exp == 5)
@@ -343,20 +343,12 @@ CK_TILE_HOST_DEVICE DstT run_cast_to_f8(SrcT src, unsigned int rng = 0)
     // Deal with inf and NaNs
     if((src_bitwise & fInf) == fInf)
     {
-        if constexpr(is_fnuz)
-            return signed_inf;
-
         return mantissa != 0 ? nan : signed_inf;
     }
 
     if((src_bitwise & abs_mask) > ifmax)
     {
         return signed_inf;
-    }
-
-    if(src_bitwise == 0)
-    {
-        return 0;
     }
 
     // First need to check if it is normal or denorm as there is a difference of
@@ -406,11 +398,16 @@ CK_TILE_HOST_DEVICE DstT run_cast_to_f8(SrcT src, unsigned int rng = 0)
                                // for this case, act_exponent could be larger. Just
                                // that it does not need shift mantissa
         }
-        mantissa += (1ull << SrcT_mant); // Add the implicit 1 into mantissa
+        mantissa += (1u << SrcT_mant); // Add the implicit 1 into mantissa
     }
-
-    bool midpoint = (mantissa & ((1ull << (SrcT_mant - DstT_mant + exponent_diff)) - 1)) ==
-                    (1ull << (SrcT_mant - DstT_mant + exponent_diff - 1));
+    // The value is smaller than min f8 denormal and results in zero (the early exit also prevents
+    // an undefined behavior of bit shifts >= type width).
+    if(exponent_diff > DstT_mant)
+    {
+        return is_fnuz ? 0 : (sign << 7);
+    }
+    bool midpoint = (mantissa & ((1u << (SrcT_mant - DstT_mant + exponent_diff)) - 1)) ==
+                    (1u << (SrcT_mant - DstT_mant + exponent_diff - 1));
     /* This part is a bit tricky. The judgment of whether it is a tie needs to be
   done before we shift right as shift right could rip off some residual part and
   make something not midpoint look like midpoint. For example, the fp16 number
@@ -422,31 +419,31 @@ CK_TILE_HOST_DEVICE DstT run_cast_to_f8(SrcT src, unsigned int rng = 0)
         mantissa >>= exponent_diff;
     else if(exponent_diff == -1)
         mantissa <<= -exponent_diff;
-    bool implicit_one = mantissa & (1ull << SrcT_mant);
+    bool implicit_one = mantissa & (1u << SrcT_mant);
     // if there is no implicit 1, it  means the f8 is denormal and need to adjust
     // to denorm exponent
     f8_exponent =
         (act_exponent + exponent_diff) /*actual f8 exponent*/ + f8_bias - (implicit_one ? 0 : 1);
 
     // Now we have the exponent and mantissa adjusted
-    unsigned long long drop_mask = (1ull << (SrcT_mant - DstT_mant)) - 1;
+    unsigned int drop_mask = (1u << (SrcT_mant - DstT_mant)) - 1;
     bool odd =
-        mantissa & (1ull << (SrcT_mant -
-                             DstT_mant)); // if the least significant bit that is not truncated is 1
+        mantissa &
+        (1u << (SrcT_mant - DstT_mant)); // if the least significant bit that is not truncated is 1
     mantissa +=
-        (stoch ? rng : (midpoint ? (odd ? mantissa : mantissa - 1ull) : mantissa)) & drop_mask;
+        (stoch ? rng : (midpoint ? (odd ? mantissa : mantissa - 1u) : mantissa)) & drop_mask;
 
     // Now we deal with overflow
     if(f8_exponent == 0)
     {
-        if((1ull << SrcT_mant) & mantissa)
+        if((1u << SrcT_mant) & mantissa)
         {
             f8_exponent = 1; // denormal overflow to become normal, promote exponent
         }
     }
     else
     {
-        if((1ull << (SrcT_mant + 1)) & mantissa)
+        if((1u << (SrcT_mant + 1)) & mantissa)
         {
             mantissa >>= 1;
             f8_exponent++;
@@ -518,9 +515,9 @@ CK_TILE_HOST_DEVICE DstT run_cast_from_f8(SrcT x)
         return 0;
     }
 
-    unsigned long long sign     = x >> 7;
-    unsigned long long mantissa = x & ((1 << SrcT_mant) - 1);
-    int exponent                = (x & 0x7F) >> SrcT_mant;
+    unsigned int sign     = x >> 7;
+    unsigned int mantissa = x & ((1 << SrcT_mant) - 1);
+    int exponent          = (x & 0x7F) >> SrcT_mant;
     if constexpr(is_fnuz)
     {
         if((x & 0xff) == 0x80)
@@ -559,7 +556,7 @@ CK_TILE_HOST_DEVICE DstT run_cast_from_f8(SrcT x)
 
     if constexpr(SrcT_exp == 5 && is_half && !is_fnuz)
     {
-        retval = x << 8;
+        retval = static_cast<typename numeric_traits<DstT>::bitwise_type>(x) << 8;
         return bit_cast<DstT>(retval);
     }
 
