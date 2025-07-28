@@ -88,13 +88,15 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     const index_t n_idx = __builtin_amdgcn_readfirstlane(blockIdx.z);
 
     const auto& ds_group_offset = compute_ptr_offset_of_groups.GetDsPtrOffset(g_idx);
+    const auto& ds_n_offset     = compute_ptr_offset_of_n.GetDsPtrOffset(n_idx);
 
     static constexpr index_t NumDTensor = GridwiseGemm::NumDTensor;
     using DsGridPointer                 = typename GridwiseGemm::DsGridPointer;
     DsGridPointer p_ds_grid_grp{};
 
-    static_for<0, NumDTensor, 1>{}(
-        [&](auto i) { p_ds_grid_grp(i) = karg.p_ds_grid[i] + ds_group_offset[i]; });
+    static_for<0, NumDTensor, 1>{}([&](auto i) {
+        p_ds_grid_grp(i) = karg.p_ds_grid[i] + ds_n_offset[i] + ds_group_offset[i];
+    });
 
     const long_index_t a_group_offset =
         amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetAPtrOffset(g_idx));
@@ -168,13 +170,15 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     const index_t n_idx = __builtin_amdgcn_readfirstlane(blockIdx.z);
 
     const auto& ds_group_offset = compute_ptr_offset_of_groups.GetDsPtrOffset(g_idx);
+    const auto& ds_n_offset     = compute_ptr_offset_of_n.GetDsPtrOffset(n_idx);
 
     static constexpr index_t NumDTensor = GridwiseGemm::NumDTensor;
     using DsGridPointer                 = typename GridwiseGemm::DsGridPointer;
     DsGridPointer p_ds_grid_grp{};
 
-    static_for<0, NumDTensor, 1>{}(
-        [&](auto i) { p_ds_grid_grp(i) = karg.p_ds_grid[i] + ds_group_offset[i]; });
+    static_for<0, NumDTensor, 1>{}([&](auto i) {
+        p_ds_grid_grp(i) = karg.p_ds_grid[i] + ds_n_offset[i] + ds_group_offset[i];
+    });
 
     const long_index_t a_group_offset =
         amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetAPtrOffset(g_idx));
