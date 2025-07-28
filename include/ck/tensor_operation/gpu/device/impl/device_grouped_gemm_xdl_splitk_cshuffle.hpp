@@ -33,13 +33,13 @@ template <typename GridwiseGemm,
           typename CElementwiseOperation = ck::tensor_operation::element_wise::PassThrough>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_gemm_xdl_splitk(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
-                                       const index_t group_count,
-                                       const AElementwiseOperation a_element_op,
-                                       const BElementwiseOperation b_element_op,
-                                       const CElementwiseOperation c_element_op)
+    kernel_grouped_gemm_xdl_splitk(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
+                                   const index_t group_count,
+                                   const AElementwiseOperation a_element_op,
+                                   const BElementwiseOperation b_element_op,
+                                   const CElementwiseOperation c_element_op)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
@@ -416,8 +416,8 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 if(not_all_have_kbatch_value_same)
                 {
                     std::ostringstream err;
-                    err << "Not all gemms have same kbatch value (=1 or >1)! "
-                        << "group [" << i << "], kbatch: " << kbatch
+                    err << "Not all gemms have same kbatch value (=1 or >1)! " << "group [" << i
+                        << "], kbatch: " << kbatch
                         << ", group [0], kbatch: " << arg.gemm_kernel_args_[0].karg_.k_batch
                         << " in " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
                     throw std::runtime_error(err.str());
