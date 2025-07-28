@@ -144,8 +144,8 @@ struct GroupedGemmKernel
         // clang-format on
     }
 
-    CK_TILE_HOST static auto GetWorkSpaceSize(const std::vector<GroupedGemmHostArgs>& gemm_descs)
-        -> std::size_t
+    CK_TILE_HOST static auto
+    GetWorkSpaceSize(const std::vector<GroupedGemmHostArgs>& gemm_descs) -> std::size_t
     {
         return gemm_descs.size() * sizeof(GemmTransKernelArg);
     }
@@ -185,8 +185,8 @@ struct GroupedGemmKernel
         return dim3(grid_size, 1, 1);
     }
 
-    CK_TILE_HOST static auto MakeKargs(const std::vector<GroupedGemmHostArgs>& gemm_descs)
-        -> std::vector<GemmTransKernelArg>
+    CK_TILE_HOST static auto
+    MakeKargs(const std::vector<GroupedGemmHostArgs>& gemm_descs) -> std::vector<GemmTransKernelArg>
     {
         std::vector<GemmTransKernelArg> gemm_kernel_args_;
         index_t group_count = ck_tile::type_convert<ck_tile::index_t>(gemm_descs.size());

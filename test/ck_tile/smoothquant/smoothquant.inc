@@ -96,9 +96,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     x_buf.ToDevice(x_host.data());
     smscale_buf.ToDevice(smscale_host.data());
 
-    std::cout << "[" << data_type << "]"
-              << " m:" << m << ", n:" << n << ", x_stride:" << x_stride << ", y_stride:" << y_stride
-              << std::flush;
+    std::cout << "[" << data_type << "]" << " m:" << m << ", n:" << n << ", x_stride:" << x_stride
+              << ", y_stride:" << y_stride << std::flush;
 
     smoothquant_traits traits{data_type};
 

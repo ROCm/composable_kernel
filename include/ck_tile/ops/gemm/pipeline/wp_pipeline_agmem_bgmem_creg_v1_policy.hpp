@@ -430,12 +430,12 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
         using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
         using WarpGemm   = WarpGemmMfmaDispatcher<typename Problem::ADataType,
-                                                typename Problem::BDataType,
-                                                typename Problem::CDataType,
-                                                WarpTile::at(I0),
-                                                WarpTile::at(I1),
-                                                WarpTile::at(I2),
-                                                Problem::TransposeC>;
+                                                  typename Problem::BDataType,
+                                                  typename Problem::CDataType,
+                                                  WarpTile::at(I0),
+                                                  WarpTile::at(I1),
+                                                  WarpTile::at(I2),
+                                                  Problem::TransposeC>;
 
         using BlockWeightPreshufflePolicy =
             BlockWeightPreshuffleASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,

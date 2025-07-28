@@ -26,17 +26,17 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
 #if CK_USE_WAVES_PER_EU
-        __attribute__((amdgpu_waves_per_eu(CK_MIN_WAVES_PER_EU, CK_MAX_WAVES_PER_EU)))
+    __attribute__((amdgpu_waves_per_eu(CK_MIN_WAVES_PER_EU, CK_MAX_WAVES_PER_EU)))
 #endif
-        kernel_gemm_xdlops_v2r3(const FloatAB* __restrict__ p_a_grid,
-                                const FloatAB* __restrict__ p_b_grid,
-                                FloatC* __restrict__ p_c_grid,
-                                const AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1,
-                                const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
-                                const CGridDesc_M_N c_grid_desc_m_n)
+    kernel_gemm_xdlops_v2r3(const FloatAB* __restrict__ p_a_grid,
+                            const FloatAB* __restrict__ p_b_grid,
+                            FloatC* __restrict__ p_c_grid,
+                            const AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1,
+                            const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
+                            const CGridDesc_M_N c_grid_desc_m_n)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx94__))
@@ -50,24 +50,24 @@ __global__ void
                                                   b_grid_desc_k0_n_k1,
                                                   c_grid_desc_m_n);
 #else
-    ignore                = p_a_grid;
-    ignore                = p_b_grid;
-    ignore                = p_c_grid;
-    ignore                = a_grid_desc_k0_m_k1;
-    ignore                = b_grid_desc_k0_n_k1;
-    ignore                = c_grid_desc_m_n;
+    ignore = p_a_grid;
+    ignore = p_b_grid;
+    ignore = p_c_grid;
+    ignore = a_grid_desc_k0_m_k1;
+    ignore = b_grid_desc_k0_n_k1;
+    ignore = c_grid_desc_m_n;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
 template <typename GridwiseGemm, bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
 #if CK_USE_WAVES_PER_EU
-        __attribute__((amdgpu_waves_per_eu(CK_MIN_WAVES_PER_EU, CK_MAX_WAVES_PER_EU)))
+    __attribute__((amdgpu_waves_per_eu(CK_MIN_WAVES_PER_EU, CK_MAX_WAVES_PER_EU)))
 #endif
-        kernel_gemm_xdlops_v2r3(const typename GridwiseGemm::Argument karg)
+    kernel_gemm_xdlops_v2r3(const typename GridwiseGemm::Argument karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx94__))
@@ -90,7 +90,7 @@ __global__ void
                                                   b_grid_desc_k0_n_k1,
                                                   c_grid_desc_m_n);
 #else
-    ignore                = karg;
+    ignore = karg;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
@@ -200,16 +200,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
 
         __host__ void Print() const
         {
-            std::cout << "problem {"
-                      << "M:" << M << ", "
-                      << "N:" << N << ", "
-                      << "K:" << K << ", "
-                      << "SA:" << StrideA << ", "
-                      << "SB:" << StrideB << ", "
-                      << "SC:" << StrideC << ", "
-                      << "MP:" << MPadded << ", "
-                      << "NP:" << NPadded << ", "
-                      << "K0:" << K0 << "}" << std::endl;
+            std::cout << "problem {" << "M:" << M << ", " << "N:" << N << ", " << "K:" << K << ", "
+                      << "SA:" << StrideA << ", " << "SB:" << StrideB << ", " << "SC:" << StrideC
+                      << ", " << "MP:" << MPadded << ", " << "NP:" << NPadded << ", " << "K0:" << K0
+                      << "}" << std::endl;
         }
 
         index_t M;

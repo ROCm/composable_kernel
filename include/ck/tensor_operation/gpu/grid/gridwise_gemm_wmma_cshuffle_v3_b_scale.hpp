@@ -240,22 +240,12 @@ struct GridwiseGemm_wmma_cshuffle_v3_b_scale
 
         __host__ void Print() const
         {
-            std::cout << "problem {"
-                      << "M:" << M << ", "
-                      << "N:" << N << ", "
-                      << "K:" << K << ", "
-                      << "SA:" << StrideA << ", "
-                      << "SB:" << StrideB << ", "
-                      << "SC:" << StrideC << ", "
-                      << "SScaleB:" << StrideScaleB << ", "
-                      << "MP:" << MPadded << ", "
-                      << "NP:" << NPadded << ", "
-                      << "KRead:" << KRead << ", "
-                      << "KP:" << KPadded << ", "
-                      << "AK0:" << AK0 << ", "
-                      << "BK0:" << BK0 << ", "
-                      << "MBlock: " << MBlock << ", "
-                      << "NBlock: " << NBlock << "}" << std::endl;
+            std::cout << "problem {" << "M:" << M << ", " << "N:" << N << ", " << "K:" << K << ", "
+                      << "SA:" << StrideA << ", " << "SB:" << StrideB << ", " << "SC:" << StrideC
+                      << ", " << "SScaleB:" << StrideScaleB << ", " << "MP:" << MPadded << ", "
+                      << "NP:" << NPadded << ", " << "KRead:" << KRead << ", " << "KP:" << KPadded
+                      << ", " << "AK0:" << AK0 << ", " << "BK0:" << BK0 << ", "
+                      << "MBlock: " << MBlock << ", " << "NBlock: " << NBlock << "}" << std::endl;
         }
 
         index_t M;
