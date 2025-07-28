@@ -42,8 +42,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                             const CElementwiseOperation c_element_op,
                             const CBlockClusterAdaptor c_block_cluster_adaptor)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
+#if(defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__))
     constexpr index_t shared_block_size =
         GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
 

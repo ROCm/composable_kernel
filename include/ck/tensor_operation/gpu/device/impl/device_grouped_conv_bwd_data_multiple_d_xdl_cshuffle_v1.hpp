@@ -96,7 +96,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         const ComputePtrOffsetOfN compute_ptr_offset_of_n,
         const index_t KBatch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if defined(__gfx9__)
     // offset base pointer for each work-group
     const index_t block_args_id = __builtin_amdgcn_readfirstlane(blockIdx.x);
     const index_t g_idx         = __builtin_amdgcn_readfirstlane(blockIdx.y);
@@ -221,6 +221,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
     ignore = cde_element_op;
     ignore = compute_ptr_offset_of_batch;
     ignore = compute_ptr_offset_of_n;
+    ignore = KBatch;
 #endif
 }
 
