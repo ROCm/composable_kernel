@@ -735,9 +735,13 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             Policy::template SGradTFromGemm2CToGemm3A<Problem,
                                                       decltype(dst_reg_tensor),
                                                       decltype(ds_gemm)>(dst_reg_tensor, ds_gemm);
-
             gemm_3(dk_acc, dst_reg_tensor, qt_reg_tensor);
 
+            if constexpr(kHasBiasGrad)
+            {
+                // SGrad and BiasGrad use the same address in LDS.
+                block_sync_lds();
+            }
             store_tile(ds_lds_window, ds_gemm);
 
             block_sync_lds();
@@ -976,6 +980,12 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                                                   decltype(ds_gemm)>(dst_reg_tensor, ds_gemm);
 
         gemm_3(dk_acc, dst_reg_tensor, qt_reg_tensor);
+
+        if constexpr(kHasBiasGrad)
+        {
+            // SGrad and BiasGrad use same addr in LDS.
+            block_sync_lds();
+        }
         store_tile(ds_lds_window, ds_gemm);
 
         block_sync_lds();
