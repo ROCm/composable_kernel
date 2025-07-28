@@ -110,20 +110,20 @@ struct gpu_timer_new
 struct cpu_timer
 {
     // torch.utils.benchmark.Timer(), there is a sync inside each timer callback
-    CK_TILE_HOST void start([[maybe_unused]]int idx, const hipStream_t& s)
+    CK_TILE_HOST void start([[maybe_unused]] int idx, const hipStream_t& s)
     {
         HIP_CHECK_ERROR(hipStreamSynchronize(s));
         start_tick  = std::chrono::high_resolution_clock::now();
         time_event0 = std::chrono::high_resolution_clock::now();
     }
     // torch.utils.benchmark.Timer(), there is a sync inside each timer callback
-    CK_TILE_HOST void stop([[maybe_unused]]int idx, const hipStream_t& s)
+    CK_TILE_HOST void stop([[maybe_unused]] int idx, const hipStream_t& s)
     {
         HIP_CHECK_ERROR(hipStreamSynchronize(s));
         stop_tick = std::chrono::high_resolution_clock::now();
     }
     // return in ms
-    CK_TILE_HOST float duration([[maybe_unused]]int idx) const
+    CK_TILE_HOST float duration([[maybe_unused]] int idx) const
     {
         double sec =
             std::chrono::duration_cast<std::chrono::duration<double>>(stop_tick - start_tick)
@@ -131,7 +131,7 @@ struct cpu_timer
         return static_cast<float>(sec * 1e3);
     }
     // return in ms
-    CK_TILE_HOST float is_exceed([[maybe_unused]]int idx) const
+    CK_TILE_HOST float is_exceed([[maybe_unused]] int idx) const
     {
         double sec =
             std::chrono::duration_cast<std::chrono::duration<double>>(stop_tick - time_event0)
