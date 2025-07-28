@@ -8,6 +8,7 @@
 #include <cstring>
 #include <string>
 #include <string_view>
+#include <map>
 
 namespace ck {
 namespace internal {

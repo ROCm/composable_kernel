@@ -49,7 +49,7 @@ struct composes<F>
 
 /// FIXME: create macro to replace '__host__ __device__' and nothing more
 template <typename... Ts>
-__host__ __device__ composes(Ts&&...)->composes<remove_cvref_t<Ts>...>;
+__host__ __device__ composes(Ts&&...) -> composes<remove_cvref_t<Ts>...>;
 
 template <typename SaturateType>
 struct saturates
@@ -57,8 +57,8 @@ struct saturates
     // NOTE: this function does not return SaturateType value
     // it is user's responsiblity to do further cast or not
     template <typename AccType>
-    CK_TILE_HOST_DEVICE constexpr auto operator()(const AccType& a_) const
-        -> std::enable_if_t<std::is_arithmetic_v<AccType>, AccType>
+    CK_TILE_HOST_DEVICE constexpr auto
+    operator()(const AccType& a_) const -> std::enable_if_t<std::is_arithmetic_v<AccType>, AccType>
     {
         return clamp(a_,
                      type_convert<AccType>(numeric<SaturateType>::lowest()),
