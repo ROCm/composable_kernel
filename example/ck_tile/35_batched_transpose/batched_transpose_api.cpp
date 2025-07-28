@@ -106,18 +106,18 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
 
 // Param Comb: type_size, block_x & y, WarpNum_x & y
 #define FOREACH_TRANSPOSE_PARAM(F)                          \
-    F(fp8, ck_tile::fp8_t, 64, 64, 1, 1, true, true, 0)     \
-    F(fp8, ck_tile::fp8_t, 64, 64, 1, 1, false, false, 0)   \
-    F(fp16, ck_tile::fp16_t, 64, 64, 1, 1, true, true, 0)   \
-    F(fp16, ck_tile::fp16_t, 64, 64, 1, 1, false, false, 0) \
-    F(bf16, ck_tile::bf16_t, 64, 64, 1, 1, true, true, 0)   \
-    F(bf16, ck_tile::bf16_t, 64, 64, 1, 1, false, false, 0) \
-    F(fp8, ck_tile::fp8_t, 64, 64, 1, 1, true, true, 1)     \
-    F(fp8, ck_tile::fp8_t, 64, 64, 1, 1, false, false, 1)   \
-    F(fp16, ck_tile::fp16_t, 64, 64, 1, 1, true, true, 1)   \
-    F(fp16, ck_tile::fp16_t, 64, 64, 1, 1, false, false, 1) \
-    F(bf16, ck_tile::bf16_t, 64, 64, 1, 1, true, true, 1)   \
-    F(bf16, ck_tile::bf16_t, 64, 64, 1, 1, false, false, 1)
+    F(fp8, ck_tile::fp8_t, 64, 64, 2, 2, true, true, 0)     \
+    F(fp8, ck_tile::fp8_t, 64, 64, 2, 2, false, false, 0)   \
+    F(fp16, ck_tile::fp16_t, 64, 64, 2, 2, true, true, 0)   \
+    F(fp16, ck_tile::fp16_t, 64, 64, 2, 2, false, false, 0) \
+    F(bf16, ck_tile::bf16_t, 64, 64, 2, 2, true, true, 0)   \
+    F(bf16, ck_tile::bf16_t, 64, 64, 2, 2, false, false, 0) \
+    F(fp8, ck_tile::fp8_t, 64, 64, 2, 2, true, true, 1)     \
+    F(fp8, ck_tile::fp8_t, 64, 64, 2, 2, false, false, 1)   \
+    F(fp16, ck_tile::fp16_t, 64, 64, 2, 2, true, true, 1)   \
+    F(fp16, ck_tile::fp16_t, 64, 64, 2, 2, false, false, 1) \
+    F(bf16, ck_tile::bf16_t, 64, 64, 2, 2, true, true, 1)   \
+    F(bf16, ck_tile::bf16_t, 64, 64, 2, 2, false, false, 1)
 
 // Macro that defines one static function per line
 #define GEN_TRANSPOSE_FN(SHORT_NAME, REAL_TYPE, BX, BY, WX, WY, PADM, PADN, PIPE)          \
@@ -141,33 +141,33 @@ float batched_transpose(batched_transpose_trait t,
         {
             if(a.height % 64 == 0 && a.width % 64 == 0)
             {
-                return transpose_fn_fp8_64_64_1_1_false_false_v0(a, s);
+                return transpose_fn_fp8_64_64_2_2_false_false_v0(a, s);
             }
             else
             {
-                return transpose_fn_fp8_64_64_1_1_true_true_v0(a, s);
+                return transpose_fn_fp8_64_64_2_2_true_true_v0(a, s);
             }
         }
         else if(t.type == "fp16")
         {
             if(a.height % 64 == 0 && a.width % 64 == 0)
             {
-                return transpose_fn_fp16_64_64_1_1_false_false_v0(a, s);
+                return transpose_fn_fp16_64_64_2_2_false_false_v0(a, s);
             }
             else
             {
-                return transpose_fn_fp16_64_64_1_1_true_true_v0(a, s);
+                return transpose_fn_fp16_64_64_2_2_true_true_v0(a, s);
             }
         }
         else if(t.type == "bf16")
         {
             if(a.height % 64 == 0 && a.width % 64 == 0)
             {
-                return transpose_fn_bf16_64_64_1_1_false_false_v0(a, s);
+                return transpose_fn_bf16_64_64_2_2_false_false_v0(a, s);
             }
             else
             {
-                return transpose_fn_bf16_64_64_1_1_true_true_v0(a, s);
+                return transpose_fn_bf16_64_64_2_2_true_true_v0(a, s);
             }
         }
     }
@@ -177,33 +177,33 @@ float batched_transpose(batched_transpose_trait t,
         {
             if(a.height % 64 == 0 && a.width % 64 == 0)
             {
-                return transpose_fn_fp8_64_64_1_1_false_false_v1(a, s);
+                return transpose_fn_fp8_64_64_2_2_false_false_v1(a, s);
             }
             else
             {
-                return transpose_fn_fp8_64_64_1_1_true_true_v1(a, s);
+                return transpose_fn_fp8_64_64_2_2_true_true_v1(a, s);
             }
         }
         else if(t.type == "fp16")
         {
             if(a.height % 64 == 0 && a.width % 64 == 0)
             {
-                return transpose_fn_fp16_64_64_1_1_false_false_v1(a, s);
+                return transpose_fn_fp16_64_64_2_2_false_false_v1(a, s);
             }
             else
             {
-                return transpose_fn_fp16_64_64_1_1_true_true_v1(a, s);
+                return transpose_fn_fp16_64_64_2_2_true_true_v1(a, s);
             }
         }
         else if(t.type == "bf16")
         {
             if(a.height % 64 == 0 && a.width % 64 == 0)
             {
-                return transpose_fn_bf16_64_64_1_1_false_false_v1(a, s);
+                return transpose_fn_bf16_64_64_2_2_false_false_v1(a, s);
             }
             else
             {
-                return transpose_fn_bf16_64_64_1_1_true_true_v1(a, s);
+                return transpose_fn_bf16_64_64_2_2_true_true_v1(a, s);
             }
         }
     }
