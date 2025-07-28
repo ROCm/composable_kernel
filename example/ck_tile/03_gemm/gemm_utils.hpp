@@ -466,48 +466,6 @@ auto create_args(int argc, char* argv[])
     return std::make_tuple(result, arg_parser);
 }
 
-template <typename ALayout,
-          typename BLayout,
-          typename CLayout,
-          typename ADataType,
-          typename BDataType,
-          typename CDataType,
-          typename GemmConfig>
-void dump_gemm_json_results(const std::string& json_filename,
-                            int M,
-                            int N,
-                            int K,
-                            int stride_A,
-                            int stride_B,
-                            int stride_C,
-                            bool persistent,
-                            bool pass,
-                            float ave_time,
-                            float tflops,
-                            float gb_per_sec,
-                            const std::string& kernel_name = "gemm_basic")
-{
-    START_JSON_DUMP_FILE(json_filename);
-    ADD_KEY_VALUE("name", kernel_name);
-    ADD_KEY_VALUE("M", M);
-    ADD_KEY_VALUE("N", N);
-    ADD_KEY_VALUE("K", K);
-    ADD_KEY_VALUE("stride_A", stride_A);
-    ADD_KEY_VALUE("stride_B", stride_B);
-    ADD_KEY_VALUE("stride_C", stride_C);
-    ADD_KEY_VALUE("A_layout", ALayout::name);
-    ADD_KEY_VALUE("B_layout", BLayout::name);
-    ADD_KEY_VALUE("C_layout", CLayout::name);
-    ADD_KEY_VALUE("A_type", DataTypeTraits<ADataType>::name);
-    ADD_KEY_VALUE("B_type", DataTypeTraits<BDataType>::name);
-    ADD_KEY_VALUE("C_type", DataTypeTraits<CDataType>::name);
-    ADD_KEY_VALUE("structured_sparsity", GemmConfig::UseStructuredSparsity ? "on" : "off");
-    ADD_KEY_VALUE("persistent", persistent ? "on" : "off");
-    ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
-    ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec);
-    END_JSON_DUMP_FILE();
-}
-
 // host API
 template <typename ADataType,
           typename BDataType,

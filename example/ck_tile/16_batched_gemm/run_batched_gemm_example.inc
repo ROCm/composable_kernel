@@ -2,7 +2,6 @@
 // Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-#include "json_dump.hpp"
 auto calculate_rtol_atol(const ck_tile::index_t K,
                          const ck_tile::index_t kbatch,
                          const float max_accumulated_value)
@@ -314,24 +313,25 @@ int run_batched_gemm_example_with_layouts(int argc,
 
     if(arg_parser.get_int("json") == 1)
     {
-        START_JSON_DUMP_FILE(arg_parser.get_str("jsonfile"));
-        ADD_KEY_VALUE("name", "batched_gemm");
-        ADD_KEY_VALUE("op_name", op_name);
-        ADD_KEY_VALUE("M", M);
-        ADD_KEY_VALUE("N", N);
-        ADD_KEY_VALUE("K", K);
-        ADD_KEY_VALUE("stride_A", stride_A);
-        ADD_KEY_VALUE("stride_B", stride_B);
-        ADD_KEY_VALUE("stride_C", stride_C);
-        ADD_KEY_VALUE("batch_stride_A", batch_stride_A);
-        ADD_KEY_VALUE("batch_stride_B", batch_stride_B);
-        ADD_KEY_VALUE("batch_stride_C", batch_stride_C);
-        ADD_KEY_VALUE("batch_count", batch_count);
-        ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
-        ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec)
-        END_JSON_DUMP_FILE();
+        dump_batched_gemm_json_results(arg_parser.get_str("jsonfile"),
+                                       op_name,
+                                       M,
+                                       N,
+                                       K,
+                                       stride_A,
+                                       stride_B,
+                                       stride_C,
+                                       batch_stride_A,
+                                       batch_stride_B,
+                                       batch_stride_C,
+                                       batch_count,
+                                       pass,
+                                       ave_time,
+                                       tflops,
+                                       gb_per_sec,
+                                       "batched_gemm");
     }
-    
+
     return pass;
 }
 
