@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -7,6 +7,7 @@
 
 namespace ck_tile {
 
+#if 0
 // TODO: refactor warp-gemm
 // currently there is a discrepency for vav/vva if we need transpose C/D
 // e.g. if we want A:agpr, B:vgpr, we have to use vva in WGAttrEnum
@@ -14,15 +15,13 @@ namespace ck_tile {
 enum class WGAttrCtlEnum
 {
     Default_ = 0,
-#if 0    
     Raw_vvv  = 1, // c-vgpr, a-vgpr, b-vgpr
     Raw_vaa  = 2, // c-vgpr, a-agpr, b-agpr
     Raw_vav  = 3, // c-vgpr, a-agpr, b-vgpr
     Raw_vva  = 4, // c-vgpr, a-vgpr, b-agpr
     Raw_avv  = 5, // c-agpr, a-vgpr, b-vgpr
-    raw_a_a_a = 3,  // c-agpr, a-agpr, b-agpr
-#endif    
 };
+#endif
 
 #if 0
 
@@ -69,32 +68,32 @@ enum class WGAttrCtlEnum
 
 // FP16
 template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
-struct WarpGemmAttributeWmmaImplF16F16F32M32N32K8
+struct WarpGemmAttributeWmmaImplF16F16F32M16N16K16
 {
     static constexpr WGAttrCtlEnum Ctrl = Ctrl_;
     using ADataType                     = fp16_t;
     using BDataType                     = fp16_t;
     using CDataType                     = float;
 
-    using AVecType = ext_vector_t<fp16_t, 4>;
-    using BVecType = ext_vector_t<fp16_t, 4>;
-    using CVecType = ext_vector_t<float, 16>;
+    using AVecType = ext_vector_t<fp16_t, 8>;
+    using BVecType = ext_vector_t<fp16_t, 8>;
+    using CVecType = ext_vector_t<float, 8>;
 
-    static constexpr index_t kM = 32;
-    static constexpr index_t kN = 32;
-    static constexpr index_t kK = 8;
+    static constexpr index_t kM = 16;
+    static constexpr index_t kN = 16;
+    static constexpr index_t kK = 16;
 
     static constexpr index_t kAMBlock = 1;
     static constexpr index_t kBNBlock = 1;
 
-    static constexpr index_t kAMLane     = 32;
-    static constexpr index_t kBNLane     = 32;
-    static constexpr index_t kABKLane    = 2;
+    static constexpr index_t kAMLane     = 16;
+    static constexpr index_t kBNLane     = 16;
+    static constexpr index_t kABKLane    = 4;
     static constexpr index_t kABKPerLane = 4;
 
-    static constexpr index_t kCMLane     = 2;
-    static constexpr index_t kCNLane     = 32;
-    static constexpr index_t kCM0PerLane = 4;
+    static constexpr index_t kCMLane     = 4;
+    static constexpr index_t kCNLane     = 16;
+    static constexpr index_t kCM0PerLane = 1;
     static constexpr index_t kCM1PerLane = 4;
 
     // c_vec += a_vec * b_vec
@@ -104,13 +103,13 @@ struct WarpGemmAttributeWmmaImplF16F16F32M32N32K8
                                    const BVecType& b_vec,
                                    bool_constant<post_nop_> = {}) const
     {
-#if 0        
-        DISPATCH_MFMA_CTRL_("v_mfma_f32_32x32x8f16", Ctrl)
+#if 0
+        DISPATCH_MFMA_CTRL_("v_mfma_f32_16x16x16f16", Ctrl)
         else
-#endif        
+#endif
         {
 #if defined(__gfx12__)
-            c_vec = __builtin_amdgcn_wmma_f32_32x32x8f16_w32_gfx12(a_vec, b_vec, c_vec, 0, 0, 0);
+            c_vec = __builtin_amdgcn_wmma_f32_16x16x16_f16_w32_gfx12(a_vec, b_vec, c_vec);
 #else
             ck_tile::ignore = c_vec;
             ck_tile::ignore = a_vec;
@@ -124,7 +123,7 @@ struct WarpGemmAttributeWmmaImplF16F16F32M32N32K8
     {
 #if defined(__gfx12__)
         return bit_cast<CVecType>(
-            __builtin_amdgcn_wmma_f32_32x32x8f16_w32_gfx12(a_vec, b_vec, fp32x16_t{0.f}, 0, 0, 0));
+            __builtin_amdgcn_wmma_f32_16x16x16_f16_w32_gfx12(a_vec, b_vec, fp32x8_t{0.f}));
 #else
         ck_tile::ignore = a_vec;
         ck_tile::ignore = b_vec;
