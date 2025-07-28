@@ -45,7 +45,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_moe_gemm(typename GridwiseGemm::Argument karg)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if defined(__gfx9__)
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
@@ -80,7 +80,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_moe_gemm_2lds(typename GridwiseGemm::Argument karg)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if defined(__gfx9__)
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
     __shared__ char p_shared1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
