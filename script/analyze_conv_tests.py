@@ -573,7 +573,7 @@ def plot_performance(fixed_split_k_tflops, best_occupancy_split_k_tflops, gemm_m
                 norm=plt.Normalize(vmin=0, vmax=200))  # Normalize colors: blue (<100%), red (>100%)
     plt.colorbar(label='Performance (%)')
     plt.title(title, fontsize=title_size)
-    plt.xlabel('log(K)', fontsize=14)
+    plt.xlabel('$\\log(K_{\\mathrm{gemm}})$', fontsize=14)
     plt.ylabel('log(Arithmetic Intensity)', fontsize=14)
     plt.grid(True, linestyle='--', alpha=0.7)
     plt.tight_layout()
@@ -582,6 +582,14 @@ def plot_performance(fixed_split_k_tflops, best_occupancy_split_k_tflops, gemm_m
     fp32_ridge_point = np.log10(653.7 / 5.3) 
     plt.axhline(y=fp16_ridge_point, color='green', linestyle='--', label='FP16/BF16 Ridge Point')
     plt.axhline(y=fp32_ridge_point, color='black', linestyle='--', label='FP32 Ridge Point')
+    plt.legend()
+
+    plt.text(0.05, 0.05, "Memory bound", transform=plt.gca().transAxes, 
+             fontsize=12, color='black', verticalalignment='bottom', 
+             bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+    plt.text(0.05, 0.95, "Compute bound", transform=plt.gca().transAxes, 
+             fontsize=12, color='black', verticalalignment='top', 
+             bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
 
     file_name = os.path.join(output_dir, f'performance_heatmap_k_ai{suffix}.png')
     plt.savefig(file_name, dpi=150)
@@ -806,11 +814,11 @@ def plot_perf_for_all_solvers(solvers_per_conv_shape, output_dir, suffix, op_nam
     plt.ylabel('Count', fontsize=12)
     
     # Add explanation text middle top
-    y_loc = 0.9*max(counts)
-    explanation = "Candidate split-K values ['best occupancy', 1, 2, 4, 8, 16, 32, 64, 128].\n" \
-                  "Ranking of 'best occupancy' value for each solver instance\n" \
-                  "Rank 1 is the best, rank 2 is second best, etc."
-    plt.text(2.5, y_loc, explanation)
+    # y_loc = 0.9*max(counts)
+    # explanation = "Candidate split-K values ['best occupancy', 1, 2, 4, 8, 16, 32, 64, 128].\n" \
+    #               "Ranking of 'best occupancy' value for each solver instance\n" \
+    #               "Rank 1 is the best, rank 2 is second best, etc."
+    # plt.text(2.5, y_loc, explanation)
 
     # Set x-ticks at the center of each bar
     plt.xticks(bin_centers, range(1, max(ranking) + 1))
