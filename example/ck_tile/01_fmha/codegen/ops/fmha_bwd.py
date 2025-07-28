@@ -775,7 +775,6 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[Fm
                 cond &= bias in ['no', 'bias']
                 cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
                 cond &= dpad == dvpad
-                cond &= mode == 'batch'
                 cond &= deterministic == "f"
                 if not cond:
                     continue
