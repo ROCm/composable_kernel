@@ -2538,11 +2538,11 @@ CK_TILE_DEVICE void amd_direct_load_global_to_lds(const T* global_base_ptr,
     // For gfx950: supports 1, 3, or 4 DWORDs per thread
     // For gfx942: supports exactly 1 DWORD per thread
 #if defined(__gfx950__)
-    constexpr auto dword_bytes      = 4;
+    constexpr auto dword_bytes = 4;
     static_assert(bytes_per_thread == dword_bytes || bytes_per_thread == dword_bytes * 3 ||
                   bytes_per_thread == dword_bytes * 4);
 #elif defined(__gfx942__)
-    constexpr auto dword_bytes      = 4;
+    constexpr auto dword_bytes = 4;
     static_assert(bytes_per_thread == dword_bytes);
 #endif
     const uint32_t* global_ptr =
