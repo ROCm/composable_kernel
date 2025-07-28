@@ -233,8 +233,8 @@ struct GemmConfigComputeV5 : public GemmConfigBase
 template <typename PrecType>
 struct GemmConfigPreshufle_1 : public GemmConfigBase
 {
-    static constexpr ck_tile::index_t M_Tile = 64;
-    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
     static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
 
     static constexpr ck_tile::index_t M_Warp = 1;
@@ -444,13 +444,14 @@ auto create_args(int argc, char* argv[])
     arg_parser.insert("m", "3840", "m dimension")
         .insert("n", "4096", "n dimension")
         .insert("k", "2048", "k dimension")
+        .insert("topk", "8", "topk")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
         .insert("b_layout", "C", "B tensor data layout - Column by default")
         .insert("c_layout", "R", "C tensor data layout - Row by default")
         .insert("stride_a", "0", "Tensor A stride")
         .insert("stride_b", "0", "Tensor B stride")
         .insert("stride_c", "0", "Tensor C stride")
-        .insert("v", "2", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
+        .insert("v", "1", "0. No validation, 1. Validation on CPU")
         .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")

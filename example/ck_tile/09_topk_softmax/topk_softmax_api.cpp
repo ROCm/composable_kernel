@@ -53,6 +53,10 @@ float topk_softmax(topk_softmax_trait t, topk_softmax_kargs a, ck_tile::stream_c
         {
             TOPK_SOFTMAX_DISPATCH(192)
         }
+        else if(t.experts <= 256)
+        {
+            TOPK_SOFTMAX_DISPATCH(256)
+        }
 #else
         if(t.experts <= 128)
         {
@@ -89,6 +93,10 @@ float topk_softmax(topk_softmax_trait t, topk_softmax_kargs a, ck_tile::stream_c
         else if(t.experts <= 192)
         {
             TOPK_SOFTMAX_DISPATCH(192)
+        }
+        else if(t.experts <= 256)
+        {
+            TOPK_SOFTMAX_DISPATCH(256)
         }
 #endif
     }

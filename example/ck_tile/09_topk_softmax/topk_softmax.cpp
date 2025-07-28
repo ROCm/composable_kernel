@@ -217,7 +217,7 @@ bool test_topk_softmax(ck_tile::ArgParser args)
                               /* log_level = */ (kname ? 1 : 0),
                               warmup,
                               repeat};
-    auto ms = topk_softmax(trait, karg, sc);
+    auto ms = topk_softTopkSoftmaxWarpPerRowPipelinemax(trait, karg, sc);
     printf("[%s|%s]tokens:%d, experts:%d, topk:%d, st_i:%d, st_o:%d, ms:%f, ",
            input_prec.c_str(),
            weight_prec.c_str(),
