@@ -58,7 +58,7 @@ struct BlockGemmPipelineAGmemBGmemCReg
         constexpr index_t NPerXDL = BlockGemm::WarpGemm::kN;
         constexpr index_t KPerXDL = BlockGemm::WarpGemm::WarpGemmAttribute::Impl::kK;
 
-        constexpr index_t WaveSize = 64;
+        constexpr index_t WaveSize = 32;
         constexpr index_t WaveNumM = BlockGemm::MWarp;
         constexpr index_t WaveNumN = BlockGemm::NWarp;
 

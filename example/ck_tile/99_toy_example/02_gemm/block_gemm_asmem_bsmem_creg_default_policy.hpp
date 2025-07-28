@@ -25,6 +25,7 @@ struct BlockGemmASmemBSmemCRegDefaultPolicy
         constexpr index_t kNWarp = 1;
 #endif
 
+#if 0
 #if defined(NAIVE_IMPLEMENTATION)
 #pragma message("mfma m32 n32 k8")
         if constexpr(std::is_same_v<typename Problem::ADataType, half_t> &&
@@ -90,6 +91,15 @@ struct BlockGemmASmemBSmemCRegDefaultPolicy
                 WarpGemmMfmaBf16Bf16F32M16N16K32TransposedCDistribution{}, kMWarp, kNWarp);
         }
 #endif
+#endif
+#pragma message("wmma m16 n16 k16")
+        if constexpr(std::is_same_v<typename Problem::ADataType, half_t> &&
+                     std::is_same_v<typename Problem::BDataType, half_t> &&
+                     std::is_same_v<typename Problem::CDataType, float>)
+        {
+            return make_tuple(
+                WarpGemmWmmaF16F16F32M16N16K16TransposedCDistribution{}, kMWarp, kNWarp);
+        }
         else
         {
             static_assert(false, "Unsupported data type configuration for GEMM warp execution.");
