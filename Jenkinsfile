@@ -595,7 +595,7 @@ def Build_CK(Map conf=[:]){
                         if (params.RUN_FULL_QA && arch == 2 ){
                             // build deb packages
                             echo "Build packages"
-                            sh 'make -j package'
+                            sh 'ninja package'
                             archiveArtifacts artifacts: 'composablekernel*.deb'
                             sh 'mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.1.0_amd64.deb'
                             sh 'mv composablekernel-dev_*.deb composablekernel-dev_1.1.0_amd64.deb'
