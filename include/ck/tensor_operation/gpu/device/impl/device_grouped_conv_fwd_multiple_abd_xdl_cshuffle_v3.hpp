@@ -72,15 +72,15 @@ template <typename GridwiseGemm,
           TailNumber TailNum       = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
-        kernel_grouped_conv_fwd_xdl_cshuffle_v3(typename GridwiseGemm::Argument karg,
-                                                const AGridDesc_AK0_M_K1 a_grid_desc_ak0_m_ak1,
-                                                const BGridDesc_BK0_N_K1 b_grid_desc_bk0_n_bk1,
-                                                const DsGridDesc_M_N ds_grid_desc_m_n,
-                                                const EGridDesc_M_N c_grid_desc_m_n,
-                                                const ComputePtrOffset compute_ptr_offset_of_groups,
-                                                const ComputePtrOffset compute_ptr_offset_of_n)
+    kernel_grouped_conv_fwd_xdl_cshuffle_v3(typename GridwiseGemm::Argument karg,
+                                            const AGridDesc_AK0_M_K1 a_grid_desc_ak0_m_ak1,
+                                            const BGridDesc_BK0_N_K1 b_grid_desc_bk0_n_bk1,
+                                            const DsGridDesc_M_N ds_grid_desc_m_n,
+                                            const EGridDesc_M_N c_grid_desc_m_n,
+                                            const ComputePtrOffset compute_ptr_offset_of_groups,
+                                            const ComputePtrOffset compute_ptr_offset_of_n)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     // offset base pointer for each work-group
@@ -151,16 +151,16 @@ template <typename GridwiseGemm,
           TailNumber TailNum       = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
-        kernel_grouped_conv_fwd_xdl_cshuffle_v3_2lds(
-            typename GridwiseGemm::Argument karg,
-            const AGridDesc_AK0_M_K1 a_grid_desc_ak0_m_ak1,
-            const BGridDesc_BK0_N_K1 b_grid_desc_bk0_n_bk1,
-            const DsGridDesc_M_N ds_grid_desc_m_n,
-            const EGridDesc_M_N c_grid_desc_m_n,
-            const ComputePtrOffset compute_ptr_offset_of_groups,
-            const ComputePtrOffset compute_ptr_offset_of_n)
+    kernel_grouped_conv_fwd_xdl_cshuffle_v3_2lds(
+        typename GridwiseGemm::Argument karg,
+        const AGridDesc_AK0_M_K1 a_grid_desc_ak0_m_ak1,
+        const BGridDesc_BK0_N_K1 b_grid_desc_bk0_n_bk1,
+        const DsGridDesc_M_N ds_grid_desc_m_n,
+        const EGridDesc_M_N c_grid_desc_m_n,
+        const ComputePtrOffset compute_ptr_offset_of_groups,
+        const ComputePtrOffset compute_ptr_offset_of_n)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     // offset base pointer for each work-group
@@ -369,11 +369,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
     {
         namespace ctc = tensor_layout::convolution;
         using Layout  = std::conditional_t<
-            is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>(),
-            ctc::NHWGC,
-            std::conditional_t<is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>(),
-                               ctc::NDHWGC,
-                               ALay>>;
+             is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>(),
+             ctc::NHWGC,
+             std::conditional_t<is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>(),
+                                ctc::NDHWGC,
+                                ALay>>;
 
         const auto in_gemmmraw_gemmkraw_desc =
             conv_to_gemm_transformer.template MakeADescriptor_M_K<Layout>();
@@ -399,11 +399,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
     {
         namespace ctc = tensor_layout::convolution;
         using Layout  = std::conditional_t<
-            is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>(),
-            ctc::GKYXC,
-            std::conditional_t<is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>(),
-                               ctc::GKZYXC,
-                               BLay>>;
+             is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>(),
+             ctc::GKYXC,
+             std::conditional_t<is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>(),
+                                ctc::GKZYXC,
+                                BLay>>;
 
         const auto wei_gemmnraw_gemmkraw_desc =
             conv_to_gemm_transformer.template MakeBDescriptor_N_K<Layout>();
@@ -429,11 +429,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
     {
         namespace ctc = tensor_layout::convolution;
         using Layout  = std::conditional_t<
-            is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>(),
-            ctc::NHWGK,
-            std::conditional_t<is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>(),
-                               ctc::NDHWGK,
-                               ELay>>;
+             is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>(),
+             ctc::NHWGK,
+             std::conditional_t<is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>(),
+                                ctc::NDHWGK,
+                                ELay>>;
 
         const auto out_gemmmraw_gemmnraw_desc =
             conv_to_gemm_transformer.template MakeCDescriptor_M_N<Layout>();
@@ -1347,9 +1347,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             return false;
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-                std::cout << "The MultiABD is not supported!"
-                          << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
-                          << std::endl;
+                std::cout << "The MultiABD is not supported!" << " In " << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
             }
         }
 
@@ -1374,8 +1373,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-                std::cout << "Current device does not support xdl instructions!"
-                          << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                std::cout << "Current device does not support xdl instructions!" << " In "
+                          << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
                           << std::endl;
             }
             return false;
@@ -1455,9 +1454,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-                std::cout << "Unsupported A Layout!"
-                          << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
-                          << std::endl;
+                std::cout << "Unsupported A Layout!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
             }
             return false;
         }
@@ -1488,9 +1486,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-                std::cout << "Unsupported A Layout!"
-                          << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
-                          << std::endl;
+                std::cout << "Unsupported A Layout!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
             }
             return false;
         }
@@ -1602,9 +1599,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-                std::cout << "Unsupported E Layout!"
-                          << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
-                          << std::endl;
+                std::cout << "Unsupported E Layout!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
             }
             return false;
         }

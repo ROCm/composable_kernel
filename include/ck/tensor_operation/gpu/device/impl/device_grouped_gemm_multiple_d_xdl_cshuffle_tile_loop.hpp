@@ -60,13 +60,13 @@ template <typename GridwiseGemm,
           BlockGemmPipelineVersion BlkGemmPipelineVer>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_gemm_multiple_d_xdl(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
-                                           const index_t group_count,
-                                           const AElementwiseOperation a_element_op,
-                                           const BElementwiseOperation b_element_op,
-                                           const CDEElementwiseOperation cde_element_op)
+    kernel_grouped_gemm_multiple_d_xdl(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
+                                       const index_t group_count,
+                                       const AElementwiseOperation a_element_op,
+                                       const BElementwiseOperation b_element_op,
+                                       const CDEElementwiseOperation cde_element_op)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
 
@@ -600,8 +600,8 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
             if(dev_gemm_args == nullptr)
             {
                 std::ostringstream err;
-                err << "The gemm arguments device buffer is not allocated!"
-                    << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
+                err << "The gemm arguments device buffer is not allocated!" << " In " << __FILE__
+                    << ":" << __LINE__ << ", in function: " << __func__;
                 throw std::runtime_error(err.str());
             }
 
@@ -629,8 +629,8 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
             if(arg.p_dev_gemm_args_ == nullptr)
             {
                 std::ostringstream err;
-                err << "The gemm arguments device buffer is not allocated!"
-                    << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
+                err << "The gemm arguments device buffer is not allocated!" << " In " << __FILE__
+                    << ":" << __LINE__ << ", in function: " << __func__;
                 throw std::runtime_error(err.str());
             }
 

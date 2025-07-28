@@ -193,8 +193,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         return base_str;
     }();
 
-    std::cout << "[" << prec_str << "]"
-              << " m:" << m << ", n:" << n << ", x_stride:" << x_stride
+    std::cout << "[" << prec_str << "]" << " m:" << m << ", n:" << n << ", x_stride:" << x_stride
               << ", xr_stride:" << xr_stride << ", y_stride:" << y_stride
               << ", yr_stride:" << yr_stride << ", s:" << use_model_sensitive_rmsnorm << std::flush;
 
