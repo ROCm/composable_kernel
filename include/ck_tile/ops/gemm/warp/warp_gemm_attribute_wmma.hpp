@@ -9,7 +9,7 @@
 namespace ck_tile {
 
 template <typename WarpGemmAttributeWmmaImpl_>
-struct WarpGemmAtrributeWmma
+struct WarpGemmAttributeWmma
 {
     using Impl = remove_cvref_t<WarpGemmAttributeWmmaImpl_>;
 
@@ -74,7 +74,7 @@ struct WarpGemmAtrributeWmma
 };
 
 template <typename WarpGemmAttributeWmmaImpl_, index_t kKIter>
-struct WarpGemmAtrributeWmmaIterateK
+struct WarpGemmAttributeWmmaIterateK
 {
     static_assert(kKIter > 0, "wrong!");
 
@@ -290,7 +290,7 @@ struct WarpGemmAtrributeWmmaIterateK
 };
 
 template <typename WarpGemmAttributeWmmaImpl_>
-struct WarpGemmAtrributeWmmaTransposedCDistribution
+struct WarpGemmAttributeWmmaTransposedCDistribution
 {
     using Impl = remove_cvref_t<WarpGemmAttributeWmmaImpl_>;
 
