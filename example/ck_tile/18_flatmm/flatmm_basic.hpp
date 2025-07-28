@@ -129,6 +129,16 @@ struct GemmBasicTypeConfig<ck_tile::bf8_t>
     using CDataType   = ck_tile::half_t;
 };
 
+template <>
+struct GemmBasicTypeConfig<ck_tile::pk_fp4_t>
+{
+    using ADataType   = ck_tile::pk_fp4_t;
+    using BDataType   = ck_tile::pk_fp4_t;
+    using AccDataType = float;
+    using XDataType   = ck_tile::e8m0_bexp_t; // scale data type
+    using CDataType   = ck_tile::half_t;
+}
+
 template <typename T>
 struct DataTypeTraits;
 

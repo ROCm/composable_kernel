@@ -13,7 +13,6 @@
 #include "flatmm_basic.hpp"
 #include <type_traits>
 
-
 template <typename T>
 constexpr const char* DataTypeToString()
 {
@@ -83,7 +82,6 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     // Use higher threshold
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
-
 
 template <typename FlatmmConfig,
           typename ADataType,
@@ -434,6 +432,14 @@ int run_flatmm_example(int argc, char* argv[])
                     argc, argv, Row{}, Col{}, Row{});
             }
         }
+        else if(data_type == "fp4")
+        {
+            run_flatmm_example_with_layouts<ck_tile::pk_fp4_t,
+                                            FlatmmConfig<ck_tile::pk_fp4_t>,
+                                            32,
+                                            32>(argc, argv, Row{}, Col{}, Row{});
+        }
+
         else
         {
             throw std::runtime_error("Unsupported data_type!");
