@@ -16,37 +16,116 @@
 
 namespace ck_tile {
 
+/// @brief The Grouped GEMM kernel host arguments.
+///
+/// @par Overview
+///      This structure is passed to @ref GroupedGemmKernel "GroupedGemmKernel" when creating kernel
+///      arguments object. It contain all necessary information required to build proper kernel
+///      argument and launch kernel on GPU. This structure defines the GEMM problem configuration by
+///      stating all required information like M,N,K sizes and respective strides.
+struct GroupedGemmHostArgs
+{
+    CK_TILE_HOST GroupedGemmHostArgs(const void* a_ptr_,
+                                     const void* b_ptr_,
+                                     void* e_ptr_,
+                                     index_t k_batch_,
+                                     index_t M_,
+                                     index_t N_,
+                                     index_t K_,
+                                     index_t stride_A_,
+                                     index_t stride_B_,
+                                     index_t stride_E_)
+        : a_ptr(a_ptr_),
+          b_ptr(b_ptr_),
+          e_ptr(e_ptr_),
+          M(M_),
+          N(N_),
+          K(K_),
+          stride_A(stride_A_),
+          stride_B(stride_B_),
+          stride_E(stride_E_),
+          k_batch(k_batch_)
+    {
+    }
+
+    const void* a_ptr;
+    const void* b_ptr;
+    union
+    {
+        void* e_ptr;
+        void* c_ptr;
+    };
+
+    index_t M;
+    index_t N;
+    index_t K;
+    index_t stride_A;
+    index_t stride_B;
+
+    union
+    {
+        index_t stride_E;
+        index_t stride_C;
+    };
+
+    index_t k_batch;
+};
+
 struct GemmTransKernelArg
 {
-    GemmKernelArgs<> group_karg;
+    UniversalGemmKernelArgs<> group_karg;
     ck_tile::index_t block_start;
     ck_tile::index_t block_end;
 
     GemmTransKernelArg() = delete;
-    GemmTransKernelArg(GemmKernelArgs<>&& karg, index_t bl_start, index_t bl_end)
+    GemmTransKernelArg(UniversalGemmKernelArgs<>&& karg, index_t bl_start, index_t bl_end)
         : group_karg{karg}, block_start{bl_start}, block_end{bl_end}
     {
     }
 
-    GemmTransKernelArg(GemmKernelArgs<>&& karg) : group_karg{karg}, block_start{0}, block_end{0} {}
+    GemmTransKernelArg(UniversalGemmKernelArgs<>&& karg)
+        : group_karg{karg}, block_start{0}, block_end{0}
+    {
+    }
 };
 
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
-struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>
+struct GroupedGemmKernel
 {
+    /// @brief Inject the UniversalGemmKernel base class to support execution of all necessary
+    /// functions.
+    using Base = UniversalGemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
+
     using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
     using GemmPipeline     = remove_cvref_t<GemmPipeline_>;
     using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
-    using ALayout          = remove_cvref_t<typename GemmPipeline::ALayout>;
-    using BLayout          = remove_cvref_t<typename GemmPipeline::BLayout>;
-    using ELayout          = remove_cvref_t<typename GemmPipeline::CLayout>;
 
+    //// @brief Specify the layout configurations for A, B, C/E
+    using ALayout = remove_cvref_t<typename GemmPipeline::ALayout>;
+    using BLayout = remove_cvref_t<typename GemmPipeline::BLayout>;
+    using CLayout = remove_cvref_t<typename GemmPipeline::CLayout>;
+
+    /// @brief Specify the data type configurations for A, B, C/E
     using ADataType = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
     using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
+    /// @brief ALayout and ADataType are expected to be scalars, not a tuple.
+    static_assert(
+        !is_detected<is_tuple, ALayout>::value && !is_detected<is_tuple, ADataType>::value,
+        "ALayout and ADataType must be scalars. Multiple parameters are not currently supported.");
+
+    /// @brief  BLayout and BDataType are expected to be scalars, not a tuple.
+    static_assert(
+        !is_detected<is_tuple, BLayout>::value && !is_detected<is_tuple, BDataType>::value,
+        "BLayout and BDataType must be scalars. Multiple parameters are not currently supported.");
+
+    /// @brief  C/ELayout and C/EDataType are expected to be scalars, not a tuple.
+    static_assert(!is_detected<is_tuple, CLayout>::value &&
+                      !is_detected<is_tuple, CDataType>::value,
+                  "C/ELayout and C/EDataType must be scalars.");
+
     using OffsetTile1DPartitioner = OffsettedTile1DPartitioner<TilePartitioner>;
-    using Base                    = GemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
     using Kernel = GroupedGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline>;
 
     static constexpr index_t KernelBlockSize  = GemmPipeline::BlockSize;
@@ -65,8 +144,8 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         // clang-format on
     }
 
-    CK_TILE_HOST static auto
-    GetWorkSpaceSize(const std::vector<GemmHostArgs</*NumDTensor = 0*/>>& gemm_descs) -> std::size_t
+    CK_TILE_HOST static auto GetWorkSpaceSize(const std::vector<GroupedGemmHostArgs>& gemm_descs)
+        -> std::size_t
     {
         return gemm_descs.size() * sizeof(GemmTransKernelArg);
     }
@@ -95,8 +174,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         return dim3(grid_size, 1, 1);
     }
 
-    CK_TILE_HOST static auto
-    GridSize(const std::vector<GemmHostArgs</*NumDTensor = 0*/>>& gemm_descs)
+    CK_TILE_HOST static auto GridSize(const std::vector<GroupedGemmHostArgs>& gemm_descs)
     {
         index_t grid_size = 0;
         for(const auto& it_desc : gemm_descs)
@@ -107,8 +185,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         return dim3(grid_size, 1, 1);
     }
 
-    CK_TILE_HOST static auto
-    MakeKargs(const std::vector<GemmHostArgs</*NumDTensor = 0*/>>& gemm_descs)
+    CK_TILE_HOST static auto MakeKargs(const std::vector<GroupedGemmHostArgs>& gemm_descs)
         -> std::vector<GemmTransKernelArg>
     {
         std::vector<GemmTransKernelArg> gemm_kernel_args_;
@@ -138,18 +215,19 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
             grid_size += grid_size_grp;
 
-            auto karg = GemmKernelArgs<>{type_convert<const ADataType*>(gemm_descs[i].a_ptr),
-                                         type_convert<const BDataType*>(gemm_descs[i].b_ptr),
-                                         {},
-                                         type_convert<CDataType*>(gemm_descs[i].e_ptr),
-                                         M,
-                                         N,
-                                         K,
-                                         stride_a,
-                                         stride_b,
-                                         {},
-                                         stride_e,
-                                         gemm_descs[i].k_batch};
+            auto karg =
+                UniversalGemmKernelArgs<>{{type_convert<const ADataType*>(gemm_descs[i].a_ptr)},
+                                          {type_convert<const BDataType*>(gemm_descs[i].b_ptr)},
+                                          {/*ds_ptr*/},
+                                          type_convert<CDataType*>(gemm_descs[i].e_ptr),
+                                          M,
+                                          N,
+                                          K,
+                                          {stride_a},
+                                          {stride_b},
+                                          {/*stride_ds*/},
+                                          stride_e,
+                                          gemm_descs[i].k_batch};
 
             gemm_kernel_args_.emplace_back(std::move(karg), block_start, block_end);
         }
@@ -181,7 +259,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         Run(kargs.group_karg, block_idx_2d, block_idx_z);
     }
 
-    CK_TILE_DEVICE void Run(const GemmKernelArgs<>& kargs,
+    CK_TILE_DEVICE void Run(const UniversalGemmKernelArgs<>& kargs,
                             const tuple<index_t, index_t>& block_idx_2d,
                             const index_t block_idx_z) const
     {
@@ -192,10 +270,10 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
         const typename Base::SplitKBatchOffset splitk_batch_offset(kargs, block_idx_z);
 
-        const ADataType* a_ptr =
-            static_cast<const ADataType*>(kargs.a_ptr) + splitk_batch_offset.a_k_split_offset;
-        const BDataType* b_ptr =
-            static_cast<const BDataType*>(kargs.b_ptr) + splitk_batch_offset.b_k_split_offset;
+        const ADataType* a_ptr = static_cast<const ADataType*>(kargs.as_ptr[0]) +
+                                 splitk_batch_offset.as_k_split_offset[0];
+        const BDataType* b_ptr = static_cast<const BDataType*>(kargs.bs_ptr[0]) +
+                                 splitk_batch_offset.bs_k_split_offset[0];
         CDataType* c_ptr = static_cast<CDataType*>(kargs.e_ptr);
 
         // allocate LDS
@@ -208,7 +286,15 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         }
         else
         {
-            this->RunGemm(a_ptr, b_ptr, {}, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+            Base::RunGemm({a_ptr},
+                          {b_ptr},
+                          {/*ds_ptr*/},
+                          c_ptr,
+                          smem_ptr,
+                          kargs,
+                          splitk_batch_offset,
+                          i_m,
+                          i_n);
         }
     }
 
@@ -224,7 +310,8 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
      * @param c_ptr output C pointer
      * @param smem_ptr_0 The start memory pointer of the shared memory block.
      * @param kargs GEMM kernel arguments
-     * @param splitk_batch_offset splitk_batch_offset Utility structure used to calculate k batch.
+     * @param splitk_batch_offset splitk_batch_offset Utility structure used to calculate k
+     * batch.
      * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
      * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
      *
@@ -234,7 +321,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
                                  const BDataType* b_ptr,
                                  CDataType* c_ptr,
                                  void* smem_ptr_0,
-                                 const GemmKernelArgs<>& kargs,
+                                 const UniversalGemmKernelArgs<>& kargs,
                                  const typename Base::SplitKBatchOffset& splitk_batch_offset,
                                  const index_t block_idx_m,
                                  const index_t block_idx_n)
@@ -242,7 +329,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
             Base::template MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-                a_ptr, b_ptr, {}, c_ptr, kargs, splitk_batch_offset);
+                {a_ptr}, {b_ptr}, {/*ds_ptr*/}, c_ptr, kargs, splitk_batch_offset);
 
         const auto& gemm_pad_views = Base::MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows =
@@ -258,8 +345,12 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
 
         // Run GEMM pipeline
-        const auto& c_block_tile = GemmPipeline{}.template operator()(
-            a_block_window, b_block_window, num_loop, has_hot_loop, tail_num, smem_ptr_0);
+        const auto& c_block_tile = GemmPipeline{}.template operator()(a_block_window[Base::I0],
+                                                                      b_block_window[Base::I0],
+                                                                      num_loop,
+                                                                      has_hot_loop,
+                                                                      tail_num,
+                                                                      smem_ptr_0);
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(Base::I3);
         EpiloguePipeline{}.template

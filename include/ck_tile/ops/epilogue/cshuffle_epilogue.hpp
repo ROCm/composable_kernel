@@ -69,6 +69,8 @@ struct CShuffleEpilogue
     using ODataType   = remove_cvref_t<typename Problem::ODataType>;
     using DsDataType  = remove_cvref_t<typename Problem::DsDataType>;
     using DsLayout    = remove_cvref_t<typename Problem::DsLayout>;
+    using ATypeToUse =
+        std::conditional_t<std::is_same_v<ADataType, pk_int4_t>, BDataType, ADataType>;
     // Used for weight-only quantization kernel, B would be dequantized to the same data type as A
     using BTypeToUse =
         std::conditional_t<std::is_same_v<BDataType, pk_int4_t>, ADataType, BDataType>;
@@ -201,7 +203,7 @@ struct CShuffleEpilogue
     static constexpr index_t MPerIterationShuffle = std::get<0>(MNPerIterationShuffle);
     static constexpr index_t NPerIterationShuffle = std::get<1>(MNPerIterationShuffle);
 
-    using WG = WarpGemmMfmaDispatcher<ADataType,
+    using WG = WarpGemmMfmaDispatcher<ATypeToUse,
                                       BTypeToUse,
                                       AccDataType,
                                       MPerXdl,
