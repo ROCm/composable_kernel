@@ -32,5 +32,6 @@ struct stream_config
     bool is_gpu_timer_     = true; // keep compatible
     bool flush_cache_      = false;
     int rotating_count_    = 1;
+    int bench_time_ms_     = 0;
 };
 } // namespace ck_tile

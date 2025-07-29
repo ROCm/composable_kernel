@@ -16,14 +16,6 @@ void add_device_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_mem_v1_kpadding_instances
     add_device_operation_instances(
         instances,
         device_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_mem_instances<Intrawave, GemmKPadding>{});
-
-    if(ck::get_device_name() == "gfx950")
-    {
-        add_device_operation_instances(
-            instances,
-            device_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_mem_instances_dr<Intrawave,
-                                                                           GemmKPadding>{});
-    }
 }
 
 } // namespace instance

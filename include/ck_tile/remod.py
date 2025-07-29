@@ -1,8 +1,14 @@
-from datetime import datetime import pathlib from pathlib import Path import subprocess import os
-    import copy
+from datetime import datetime
+import pathlib
+from pathlib import Path
+import subprocess
+import os
+import copy
 
-        NS = 'ck_tile' OPS = 'ops' REF = 'ref' OPS_COMMON =
-            'common' #common header will be duplicated into ops/* other module
+NS = 'ck_tile'
+OPS = 'ops'
+REF = 'ref'
+OPS_COMMON = 'common' #common header will be duplicated into ops/* other module
 
 HEADER_COMMON = f"""// SPDX-License-Identifier: MIT
 // Copyright (c) 2018-{datetime.now().year}, Advanced Micro Devices, Inc. All rights reserved.\n
@@ -70,7 +76,7 @@ class submodule_t:
                     gen_header(Path(k) / (f'{km}.hpp'), kv)
             else:
                 gen_header(Path(f'{k}.hpp'), v)
-            
+
 
 submodule = submodule_t()
 # formatting

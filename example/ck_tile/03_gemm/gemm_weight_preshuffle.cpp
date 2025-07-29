@@ -146,18 +146,14 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
         if(s.flush_cache_)
         {
             std::cout << "Flushing cache..." << std::endl;
-            static constexpr ck_tile::index_t APackedSize =
-                std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
-            static constexpr ck_tile::index_t BPackedSize =
-                std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
 
             ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
                 args.M, args.K, args.stride_A, is_row_major(ALayout{})));
             ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
                 args.K, args.N, args.stride_B, is_row_major(BLayout{})));
 
-            auto size_a_buffer = a_m.get_element_space_size_in_bytes() / APackedSize;
-            auto size_b_buffer = b_n.get_element_space_size_in_bytes() / BPackedSize;
+            auto size_a_buffer = a_m.get_element_space_size_in_bytes();
+            auto size_b_buffer = b_n.get_element_space_size_in_bytes();
 
             ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
                 kargs.as_ptr[0], kargs.bs_ptr[0], s.rotating_count_, size_a_buffer, size_b_buffer);
@@ -173,7 +169,7 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                     hipGetErrorString(hipMemsetAsync(
                         args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
             };
-            ave_time = ck_tile::launch_kernel_preprocess(
+            ave_time = ck_tile::launch_kernel_time_mask(
                 s,
                 run_flush_cache,
                 ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(
