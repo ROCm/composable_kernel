@@ -137,10 +137,11 @@ template <typename Arch,
 struct has_wmma_traits
 {
     template <typename T>
-    static auto test(int) -> decltype(
-        std::declval<
-            typename WmmaTraits<T, AType, BType, CType, warp_m, warp_n, warp_k>::ADataType>(),
-        std::true_type{});
+    static auto
+    test(int) -> decltype(std::declval<
+                              typename WmmaTraits<T, AType, BType, CType, warp_m, warp_n, warp_k>::
+                                  ADataType>(),
+                          std::true_type{});
 
     template <typename>
     static std::false_type test(...);
