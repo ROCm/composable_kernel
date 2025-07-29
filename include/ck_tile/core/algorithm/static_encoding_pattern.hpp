@@ -214,7 +214,8 @@ struct TileDistributionEncodingPattern2D<BlockSize,
 
     CK_TILE_HOST_DEVICE static auto print()
     {
-        printf("TileDistributionEncodingPattern2D<BlockSize:%d, YPerTile:%d, XPerTile:%d, VecSize:%d, thread_raked>: ",
+        printf("TileDistributionEncodingPattern2D<BlockSize:%d, YPerTile:%d, XPerTile:%d, "
+               "VecSize:%d, thread_raked>: ",
                BlockSize,
                YPerTile,
                XPerTile,

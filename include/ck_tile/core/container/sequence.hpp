@@ -10,6 +10,7 @@
 #include "ck_tile/core/utility/to_sequence.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/core/utility/functional.hpp"
+#include "ck_tile/core/utility/print.hpp"
 
 namespace ck_tile {
 
@@ -196,21 +197,19 @@ struct sequence
     {
         return sequence<f(Is)...>{};
     }
-
-    CK_TILE_HOST_DEVICE static void print()
-    {
-        // printf("sequence{size: %d, data: [", size());
-        // ((printf("%d ", Is)), ...);
-        // printf("]}");
-        printf("sequence<");
-        static_for<0, size(), 1>{}([&](auto i) {
-            if (i != 0)
-                printf(", ");
-            printf("%d", at(i).value);
-        });
-        printf(">");
-    }
 };
+
+template <index_t... Is>
+CK_TILE_HOST_DEVICE static void print(const sequence<Is...>& seq)
+{
+    printf("sequence<");
+    static_for<0, sizeof...(Is), 1>{}([&](auto i) {
+        if(i != 0)
+            printf(", ");
+        printf("%d", seq.at(i).value);
+    });
+    printf(">");
+}
 
 namespace impl {
 template <typename T, T... Ints>

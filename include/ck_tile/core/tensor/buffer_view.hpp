@@ -210,28 +210,6 @@ struct buffer_view<address_space_enum::generic,
 
     // FIXME: remove
     CK_TILE_DEVICE static constexpr bool is_dynamic_buffer() { return true; }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("buffer_view{");
-
-        // AddressSpace
-        printf("AddressSpace: generic, ");
-
-        // p_data_
-        printf("p_data_: %p, ", static_cast<void*>(const_cast<remove_cvref_t<T>*>(p_data_)));
-
-        // buffer_size_
-        printf("buffer_size_: ");
-        print(buffer_size_);
-        printf(", ");
-
-        // invalid_element_value_
-        printf("invalid_element_value_: ");
-        print(invalid_element_value_);
-
-        printf("}");
-    }
 };
 
 // Address Space: Global
@@ -757,28 +735,6 @@ struct buffer_view<address_space_enum::global,
 
     // FIXME: remove
     CK_TILE_DEVICE static constexpr bool is_dynamic_buffer() { return true; }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("buffer_view{");
-
-        // AddressSpace
-        printf("AddressSpace: Global, ");
-
-        // p_data_
-        printf("p_data_: %p, ", static_cast<void*>(const_cast<remove_cvref_t<T>*>(p_data_)));
-
-        // buffer_size_
-        printf("buffer_size_: ");
-        print(buffer_size_);
-        printf(", ");
-
-        // invalid_element_value_
-        printf("invalid_element_value_: ");
-        print(invalid_element_value_);
-
-        printf("}");
-    }
 };
 
 // Address Space: LDS
@@ -1138,28 +1094,6 @@ struct buffer_view<address_space_enum::lds,
 
     // FIXME: remove
     CK_TILE_DEVICE static constexpr bool is_dynamic_buffer() { return true; }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("buffer_view{");
-
-        // AddressSpace
-        printf("AddressSpace: Lds, ");
-
-        // p_data_
-        printf("p_data_: %p, ", static_cast<void*>(const_cast<remove_cvref_t<T>*>(p_data_)));
-
-        // buffer_size_
-        printf("buffer_size_: ");
-        print(buffer_size_);
-        printf(", ");
-
-        // invalid_element_value_
-        printf("invalid_element_value_: ");
-        print(invalid_element_value_);
-
-        printf("}");
-    }
 };
 
 // Address Space: Vgpr
@@ -1313,28 +1247,6 @@ struct buffer_view<address_space_enum::vgpr,
 
     // FIXME: remove
     CK_TILE_DEVICE static constexpr bool is_dynamic_buffer() { return true; }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("buffer_view{");
-
-        // AddressSpace
-        printf("AddressSpace: Vgpr, ");
-
-        // p_data_
-        printf("p_data_: %p, ", static_cast<void*>(const_cast<remove_cvref_t<T>*>(p_data_)));
-
-        // buffer_size_
-        printf("buffer_size_: ");
-        print(buffer_size_);
-        printf(", ");
-
-        // invalid_element_value_
-        printf("invalid_element_value_: ");
-        print(invalid_element_value_);
-
-        printf("}");
-    }
 };
 
 template <address_space_enum BufferAddressSpace,
@@ -1358,6 +1270,73 @@ make_buffer_view(T* p, BufferSizeType buffer_size, X invalid_element_value)
 {
     return buffer_view<BufferAddressSpace, T, BufferSizeType, false, Coherence>{
         p, buffer_size, invalid_element_value};
+}
+
+// Free print functions for all buffer_view variants
+template <typename T, typename BufferSizeType, bool InvalidElementUseNumericalZeroValue>
+CK_TILE_HOST_DEVICE static void
+print(const buffer_view<address_space_enum::generic,
+                        T,
+                        BufferSizeType,
+                        InvalidElementUseNumericalZeroValue,
+                        amd_buffer_coherence_enum::coherence_default>& bv)
+{
+    printf("buffer_view{AddressSpace: generic, p_data_: %p, buffer_size_: ",
+           static_cast<void*>(const_cast<remove_cvref_t<T>*>(bv.p_data_)));
+    print(bv.buffer_size_);
+    printf(", invalid_element_value_: ");
+    print(bv.invalid_element_value_);
+    printf("}");
+}
+
+template <typename T,
+          typename BufferSizeType,
+          bool InvalidElementUseNumericalZeroValue,
+          amd_buffer_coherence_enum Coherence>
+CK_TILE_HOST_DEVICE static void print(const buffer_view<address_space_enum::global,
+                                                        T,
+                                                        BufferSizeType,
+                                                        InvalidElementUseNumericalZeroValue,
+                                                        Coherence>& bv)
+{
+    printf("buffer_view{AddressSpace: Global, p_data_: %p, buffer_size_: ",
+           static_cast<void*>(const_cast<remove_cvref_t<T>*>(bv.p_data_)));
+    print(bv.buffer_size_);
+    printf(", invalid_element_value_: ");
+    print(bv.invalid_element_value_);
+    printf("}");
+}
+
+template <typename T, typename BufferSizeType, bool InvalidElementUseNumericalZeroValue>
+CK_TILE_HOST_DEVICE static void
+print(const buffer_view<address_space_enum::lds,
+                        T,
+                        BufferSizeType,
+                        InvalidElementUseNumericalZeroValue,
+                        amd_buffer_coherence_enum::coherence_default>& bv)
+{
+    printf("buffer_view{AddressSpace: Lds, p_data_: %p, buffer_size_: ",
+           static_cast<void*>(const_cast<remove_cvref_t<T>*>(bv.p_data_)));
+    print(bv.buffer_size_);
+    printf(", invalid_element_value_: ");
+    print(bv.invalid_element_value_);
+    printf("}");
+}
+
+template <typename T, typename BufferSizeType, bool InvalidElementUseNumericalZeroValue>
+CK_TILE_HOST_DEVICE static void
+print(const buffer_view<address_space_enum::vgpr,
+                        T,
+                        BufferSizeType,
+                        InvalidElementUseNumericalZeroValue,
+                        amd_buffer_coherence_enum::coherence_default>& bv)
+{
+    printf("buffer_view{AddressSpace: Vgpr, p_data_: %p, buffer_size_: ",
+           static_cast<void*>(const_cast<remove_cvref_t<T>*>(bv.p_data_)));
+    print(bv.buffer_size_);
+    printf(", invalid_element_value_: ");
+    print(bv.invalid_element_value_);
+    printf("}");
 }
 
 } // namespace ck_tile

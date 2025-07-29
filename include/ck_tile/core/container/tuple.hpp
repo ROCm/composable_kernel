@@ -261,12 +261,6 @@ struct tuple : impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>
 
         return flag;
     }
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        static_for<0, sizeof...(T), 1>{}([this](auto i) {
-            get(i).print();
-        });
-    }
 
     CK_TILE_HOST_DEVICE static constexpr bool IsTuple() { return true; }
 
@@ -305,6 +299,12 @@ struct tuple : impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>
     // clang-format on
 #undef TP_COM_
 };
+
+template <typename... T>
+CK_TILE_HOST_DEVICE static void print(const tuple<T...>& t)
+{
+    static_for<0, sizeof...(T), 1>{}([&t](auto i) { print(t.get(i)); });
+}
 
 template <typename, typename = void>
 struct vector_traits;

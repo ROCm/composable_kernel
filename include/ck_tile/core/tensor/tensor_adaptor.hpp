@@ -305,65 +305,44 @@ struct tensor_adaptor
                           get_container_subset(vector_strides, top_dims));
     }
 
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("tensor_adaptor{\n");
-
-        //
-        printf("  transforms: [");
-        // print(transforms_);
-        // transforms_.print();
-        static_for<0, ntransform_, 1>{}([&](auto itran) {
-            if (itran != 0)
-                printf(", ");
-            Transforms{}.at(itran).print();
-        });
-
-        printf("],\n");
-
-        //
-        printf("  LowerDimensionHiddenIds: [");
-        // LowerDimensionHiddenIdss{}.print();
-        static_for<0, LowerDimensionHiddenIdss::size(), 1>{}([&](auto itran) {
-            if (itran != 0)
-                printf(", ");
-            LowerDimensionHiddenIdss{}.at(itran).print();
-        });
-        printf("],\n");
-
-        //
-        printf("  UpperDimensionHiddenIds: [");
-        // print(UpperDimensionHiddenIdss{});
-        static_for<0, UpperDimensionHiddenIdss::size(), 1>{}([&](auto itran) {
-            if (itran != 0)
-                printf(", ");
-            UpperDimensionHiddenIdss{}.at(itran).print();
-        });
-        printf("],\n");
-
-        printf("  BottomDimensionHiddenIds: [");
-        // print(BottomDimensionHiddenIds{});
-        static_for<0, BottomDimensionHiddenIds::size(), 1>{}([&](auto idim) {
-            if (idim != 0)
-                printf(", ");
-            printf("%d", BottomDimensionHiddenIds::at(idim).value);
-        });
-        printf("],\n");
-
-        //
-        printf("  TopDimensionHiddenIds: [");
-        static_for<0, TopDimensionHiddenIds::size(), 1>{}([&](auto idim) {
-            if (idim != 0)
-                printf(", ");
-            printf("%d", TopDimensionHiddenIds::at(idim).value);
-        });
-        printf("]");
-    }
-
     private:
     Transforms transforms_;
     ElementSize element_size_;
 };
+
+template <typename Transforms,
+          typename LowerDimensionHiddenIdss,
+          typename UpperDimensionHiddenIdss,
+          typename BottomDimensionHiddenIds,
+          typename TopDimensionHiddenIds>
+CK_TILE_HOST_DEVICE static void print(const tensor_adaptor<Transforms,
+                                                           LowerDimensionHiddenIdss,
+                                                           UpperDimensionHiddenIdss,
+                                                           BottomDimensionHiddenIds,
+                                                           TopDimensionHiddenIds>& adaptor)
+{
+    printf("tensor_adaptor{\n");
+    printf("    transforms: [");
+    print(adaptor.get_transforms());
+    printf("],\n");
+
+    printf("    LowerDimensionHiddenIds: [");
+    print(LowerDimensionHiddenIdss{});
+    printf("],\n");
+
+    printf("    UpperDimensionHiddenIds: [");
+    print(UpperDimensionHiddenIdss{});
+    printf("],\n");
+
+    printf("    BottomDimensionHiddenIds: [");
+    print(BottomDimensionHiddenIds{});
+    printf("],\n");
+
+    //
+    printf("    TopDimensionHiddenIds: [");
+    print(TopDimensionHiddenIds{});
+    printf("]\n}\n");
+}
 
 // Transforms: Tuple<transforms...>
 // LowerDimensionOldTopIdss: Tuple<Sequence<...>, ...>
