@@ -174,7 +174,7 @@ static const auto kTestingValues = ::testing::Values(
     std::tuple{1, 2048, 1, 1, true},
     std::tuple{1, 2048, 1, 1, false},
     std::tuple{1, 1, 1024, 1024, true},
-    std::tuple{1, 1, 1024, 1024, true},
+    std::tuple{1, 1, 1024, 1024, false},
     std::tuple{8, 16, 8, 16, true},
     std::tuple{8, 16, 8, 16, false},
     std::tuple{1, 64, 1, 1024, true},
