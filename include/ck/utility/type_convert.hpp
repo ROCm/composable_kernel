@@ -39,6 +39,19 @@ namespace details {
 } // namespace details
 } // namespace
 
+#if defined(__gfx950__)
+inline __device__ bhalf_t static_cast_float_to_bf16(float x)
+{
+    union
+    {
+        uint16_t uint16;
+        __bf16 bf16;
+    } out;
+    out.bf16 = static_cast<__bf16>(x);
+    return out.uint16;
+}
+#endif
+
 // Declare a template function for bf16 conversion using RTN
 template <typename Y, typename X>
 __host__ __device__ constexpr Y bf16_convert_rtn(X x);
@@ -47,6 +60,9 @@ __host__ __device__ constexpr Y bf16_convert_rtn(X x);
 template <>
 inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(float x)
 {
+#if defined(__gfx950__)
+    return static_cast_float_to_bf16(x);
+#else
     // Nan check
     if(x != x)
     {
@@ -63,6 +79,7 @@ inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(fl
     constexpr uint32_t rounding_bias      = uint32_t((1 << 15) - 1);
 
     return uint16_t((u.int32 + first_bf16_mantisa_bit + rounding_bias) >> 16);
+#endif
 }
 
 // convert fp16 to bfp16 via fp32 with RTN if higher precision is needed
@@ -242,7 +259,7 @@ inline __host__ __device__ f8_fnuz_t f8_convert_sr<f8_fnuz_t, float>(float x)
 #else
     constexpr int seed = 1254739;
 #ifndef CK_CODE_GEN_RTC
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
 #else
     uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
 #endif // #ifndef CK_CODE_GEN_RTC
@@ -310,7 +327,7 @@ inline __host__ __device__ bf8_fnuz_t f8_convert_sr<bf8_fnuz_t, float>(float x)
 #else
     constexpr int seed = 1254739;
 #ifndef CK_CODE_GEN_RTC
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
 #else
     uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
 #endif // #ifndef CK_CODE_GEN_RTC
@@ -1478,7 +1495,7 @@ inline __host__ __device__ f4_t f4_convert_sr(float x, float scale = 1.0f)
 #else
     constexpr int seed = 1254739;
 #ifndef CK_CODE_GEN_RTC
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
 #else
     uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
 #endif
@@ -1503,7 +1520,7 @@ inline __host__ __device__ f4x2_t f4_convert_sr(float2_t x, float scale = 1.0f)
 #else
     constexpr int seed = 1254739;
 #ifndef CK_CODE_GEN_RTC
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x[0]);
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x[0]);
 #else
     uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x[0]);
 #endif
@@ -1548,7 +1565,7 @@ inline __host__ __device__ f4x32_t f4_convert_sr(float32_t x, float scale = 1.0f
 #else
     constexpr int seed = 1254739;
 #ifndef CK_CODE_GEN_RTC
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x[0]);
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x[0]);
 #else
     uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x[0]);
 #endif
@@ -1800,7 +1817,7 @@ inline __host__ __device__ f6_t f6_convert_sr(float x, float scale = 1.0f)
 #else
     constexpr int seed = 1254739;
 #ifndef CK_CODE_GEN_RTC
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
 #else
     uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
 #endif
@@ -2138,7 +2155,7 @@ inline __host__ __device__ bf6_t bf6_convert_sr(float x, float scale = 1.0f)
 #else
     constexpr int seed = 1254739;
 #ifndef CK_CODE_GEN_RTC
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
 #else
     uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
 #endif
