@@ -43,24 +43,23 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_batched_gemm_xdlops_bwd_weight(
-            const FloatA* __restrict__ p_a_grid,
-            const FloatB* __restrict__ p_b_grid,
-            FloatC* __restrict__ p_c_grid,
-            const AElementwiseOperation a_element_op,
-            const BElementwiseOperation b_element_op,
-            const CElementwiseOperation c_element_op,
-            const index_t batch_count,
-            const AGridDesc_B_K0_M_K1 a_b_k0_m_k1_grid_desc,
-            const BGridDesc_B_K0_N_K1 b_b_k0_n_k1_grid_desc,
-            const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-                c_grid_desc_mblock_mperblock_nblock_nperblock,
-            const Block2CTileMap block_2_ctile_map,
-            const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
+    kernel_batched_gemm_xdlops_bwd_weight(const FloatA* __restrict__ p_a_grid,
+                                          const FloatB* __restrict__ p_b_grid,
+                                          FloatC* __restrict__ p_c_grid,
+                                          const AElementwiseOperation a_element_op,
+                                          const BElementwiseOperation b_element_op,
+                                          const CElementwiseOperation c_element_op,
+                                          const index_t batch_count,
+                                          const AGridDesc_B_K0_M_K1 a_b_k0_m_k1_grid_desc,
+                                          const BGridDesc_B_K0_N_K1 b_b_k0_n_k1_grid_desc,
+                                          const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+                                              c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                          const Block2CTileMap block_2_ctile_map,
+                                          const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if defined(__gfx9__)
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);

@@ -128,9 +128,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     smscale_buf.ToDevice(smscale_host.data());
     topk_ids_buf.ToDevice(topk_ids_host.data());
 
-    std::cout << "[" << prec_i << "-" << prec_o << "]"
-              << " tokens:" << tokens << ", hidden_size:" << hidden_size << ", stride:" << stride
-              << ", experts:" << experts << ", topk:" << topk << std::flush;
+    std::cout << "[" << prec_i << "-" << prec_o << "]" << " tokens:" << tokens
+              << ", hidden_size:" << hidden_size << ", stride:" << stride << ", experts:" << experts
+              << ", topk:" << topk << std::flush;
 
     moe_smoothquant_traits traits{prec_i, prec_o};
 

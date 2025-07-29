@@ -77,21 +77,21 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
     using CElementwiseGridDesc     = remove_cvref_t<decltype(GetElementwiseCGridDesc(I1))>;
     using Block2TileMapElementwise = BlockToCTileMap_M00_N0_M01Adapt<1, ElemsPerBlock>;
     using GridwiseElementwiseCast  = GridwiseElementwise<Tuple<CElementwiseGridDesc>,
-                                                        Tuple<CElementwiseGridDesc>,
-                                                        Tuple<const float*>,
-                                                        Tuple<WeiDataType*>,
-                                                        Block2TileMapElementwise,
-                                                        WeiElementwiseOperation,
-                                                        ElementwiseBlockSize,
-                                                        I1,
-                                                        ElemsPerBlock,
-                                                        I1,
-                                                        ElemsPerBlock / ElementwiseBlockSize,
-                                                        Sequence<0, 1>,
-                                                        Sequence<1>,
-                                                        Sequence<1>,
-                                                        I1,
-                                                        I1>;
+                                                         Tuple<CElementwiseGridDesc>,
+                                                         Tuple<const float*>,
+                                                         Tuple<WeiDataType*>,
+                                                         Block2TileMapElementwise,
+                                                         WeiElementwiseOperation,
+                                                         ElementwiseBlockSize,
+                                                         I1,
+                                                         ElemsPerBlock,
+                                                         I1,
+                                                         ElemsPerBlock / ElementwiseBlockSize,
+                                                         Sequence<0, 1>,
+                                                         Sequence<1>,
+                                                         Sequence<1>,
+                                                         I1,
+                                                         I1>;
 
     struct Argument : public BaseArgument
     {

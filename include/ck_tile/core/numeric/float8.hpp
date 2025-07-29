@@ -75,7 +75,7 @@ struct alignas(1) float8_e4m3_t
 #if CK_TILE_USE_OCP_FP8
     static constexpr int bias = 7; // OCP
 #else
-    static constexpr int bias = 8;  // FNUZ
+    static constexpr int bias = 8; // FNUZ
 #endif
     using raw_type = uint8_t;
     raw_type data;
