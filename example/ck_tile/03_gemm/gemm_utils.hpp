@@ -232,7 +232,7 @@ struct GemmConfigComputeV5 : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigPreshufle_1 : public GemmConfigBase
+struct GemmConfigPreshuffle_1 : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 128;
@@ -254,7 +254,7 @@ struct GemmConfigPreshufle_1 : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigPreshufle_2 : public GemmConfigBase
+struct GemmConfigPreshuffle_2 : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 128;

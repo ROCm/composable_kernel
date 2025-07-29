@@ -280,7 +280,7 @@ int main(int argc, char* argv[])
 {
     try
     {
-        return !run_gemm_example<GemmConfigPreshufle_2>(argc, argv);
+        return !run_gemm_example<GemmConfigPreshuffle_2>(argc, argv);
     }
     catch(const std::runtime_error& e)
     {
