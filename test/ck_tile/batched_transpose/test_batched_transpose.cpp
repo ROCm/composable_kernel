@@ -10,6 +10,36 @@
 
 #include "ck_tile/ops/batched_transpose.hpp"
 
+template <ck_tile::index_t kPipelineId_>
+struct PipelineSelector
+{
+};
+
+template <>
+struct PipelineSelector<0>
+{
+    template <typename DataType, typename BlockTile, typename WarpLayout, bool kPadM, bool kPadN>
+    using Problem = ck_tile::BatchedTransposeProblem<DataType, BlockTile, WarpLayout, kPadM, kPadN>;
+
+    using Policy = ck_tile::BatchedTransposePolicy;
+
+    template <typename Problem_>
+    using Pipeline = ck_tile::BatchedTransposePipeline<Problem_, Policy>;
+};
+
+template <>
+struct PipelineSelector<1>
+{
+    template <typename DataType, typename BlockTile, typename WarpLayout, bool kPadM, bool kPadN>
+    using Problem =
+        ck_tile::BatchedTransposeLdsProblem<DataType, BlockTile, WarpLayout, kPadM, kPadN>;
+
+    using Policy = ck_tile::BatchedTransposeLdsPolicy;
+
+    template <typename Problem_>
+    using Pipeline = ck_tile::BatchedTransposeLdsPipeline<Problem_, Policy>;
+};
+
 template <typename DataType_,
           ck_tile::index_t kPipelineId_ = 0,
           ck_tile::index_t kBlockX_     = 64,
@@ -25,8 +55,9 @@ struct PipelineConfig
     using WarpLayout            = ck_tile::sequence<kNumWarpsX_, kNumWarpsY_>;
     static constexpr bool kPadM = kPadM_;
     static constexpr bool kPadN = kPadN_;
-    using Problem = ck_tile::BatchedTransposeProblem<DataType, BlockTile, WarpLayout, kPadM, kPadN>;
-    using Pipeline = ck_tile::BatchedTransposePipeline<Problem>;
+    using Problem               = PipelineSelector<
+                      kPipelineId_>::template Problem<DataType, BlockTile, WarpLayout, kPadM, kPadN>;
+    using Pipeline = PipelineSelector<kPipelineId_>::template Pipeline<Problem>;
     using Kernel   = ck_tile::BatchedTransposeKernel<Pipeline>;
 };
 
@@ -118,30 +149,34 @@ static const auto kTestingValues = ::testing::Values(
 );
 // clang-format on
 
-class TestCkTileBatchedTransposeHalf
-    : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t>>
+class CaseHalf : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t>>
 {
 };
 
-class TestCkTileBatchedTransposeByte
-    : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::fp8_t>>
+class CaseByte : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::fp8_t>>
 {
 };
 
-class TestCkTileBatchedTransposeWord : public TestCkTileBatchedTranspose<PipelineConfig<float>>
+class CaseWord : public TestCkTileBatchedTranspose<PipelineConfig<float>>
 {
 };
 
-TEST_P(TestCkTileBatchedTransposeHalf, TestCorrectness) { this->Run(GetParam()); }
-TEST_P(TestCkTileBatchedTransposeByte, TestCorrectness) { this->Run(GetParam()); }
-TEST_P(TestCkTileBatchedTransposeWord, TestCorrectness) { this->Run(GetParam()); }
+class CaseHalfLoadTranspose : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t, 1>>
+{
+};
 
-INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite,
-                         TestCkTileBatchedTransposeHalf,
-                         kTestingValues);
-INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite,
-                         TestCkTileBatchedTransposeByte,
-                         kTestingValues);
-INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite,
-                         TestCkTileBatchedTransposeWord,
-                         kTestingValues);
+class CaseByteLoadTranspose : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::fp8_t, 1>>
+{
+};
+
+TEST_P(CaseHalf, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(CaseByte, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(CaseWord, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(CaseHalfLoadTranspose, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(CaseByteLoadTranspose, TestCorrectness) { this->Run(GetParam()); }
+
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalf, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseByte, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseWord, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfLoadTranspose, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseByteLoadTranspose, kTestingValues);
