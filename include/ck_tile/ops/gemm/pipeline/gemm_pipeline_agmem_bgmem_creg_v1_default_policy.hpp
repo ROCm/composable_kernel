@@ -401,6 +401,15 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
                                                        WarpTile::at(I1),
                                                        WarpTile::at(I2),
                                                        Problem::TransposeC>;
+#endif                                                       
+        using WarpGemm        = WarpGemmWmmaDispatcher<typename Problem::ComputeDataType,
+                                                       typename Problem::ComputeDataType,
+                                                       AccDataType,
+                                                       WarpTile::at(I0),
+                                                       WarpTile::at(I1),
+                                                       WarpTile::at(I2),
+                                                       Problem::TransposeC>;
+
         using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
                                                                       typename Problem::BDataType,
                                                                       typename Problem::CDataType,
