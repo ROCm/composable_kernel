@@ -131,7 +131,8 @@ class GemmProfiler
                                                                      setting_.n_repeat_,
                                                                      setting_.is_gpu_timer_,
                                                                      setting_.flush_cache_,
-                                                                     setting_.rotating_count_});
+                                                                     setting_.rotating_count_,
+                                                                     setting_.bench_time_ms_});
             process_result(gemm_problem,
                            c_m_n_dev_buf,
                            c_m_n_host_result,
