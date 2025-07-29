@@ -248,7 +248,7 @@ struct GemmConfigPreshufle_1 : public GemmConfigBase
 
     static constexpr int kBlockPerCu           = 2;
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V2;
     static constexpr bool Preshuffle           = true;
     static constexpr bool DoubleSmemBuffer     = false;
 };
