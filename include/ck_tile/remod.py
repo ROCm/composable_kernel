@@ -8,7 +8,7 @@ import copy
 NS = 'ck_tile'
 OPS = 'ops'
 REF = 'ref'
-OPS_COMMON = 'common' # common header will be duplicated into ops/* other module
+OPS_COMMON = 'common' #common header will be duplicated into ops/* other module
 
 HEADER_COMMON = f"""// SPDX-License-Identifier: MIT
 // Copyright (c) 2018-{datetime.now().year}, Advanced Micro Devices, Inc. All rights reserved.\n

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -182,7 +182,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
 
         auto k_lds_read_window =
             make_tile_window(k_lds_write_window.get_bottom_tensor_view(),
-                             make_tuple(number<kN0>{}, number<kK0>{}),
+                             make_tuple(number<kN0>{}, number<kQKHeaddim>{}),
                              k_lds_write_window.get_window_origin(),
                              Policy::template MakeKRegBlockDescriptor<Problem>());
 
@@ -208,7 +208,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
 
         auto v_lds_read_window =
             make_tile_window(v_lds_write_window.get_bottom_tensor_view(),
-                             make_tuple(number<kN0>{}, number<kK2>{}),
+                             make_tuple(number<kN0>{}, number<kVHeaddim>{}),
                              v_lds_write_window.get_window_origin(),
                              Policy::template MakeVRegBlockDescriptor<Problem>());
 
