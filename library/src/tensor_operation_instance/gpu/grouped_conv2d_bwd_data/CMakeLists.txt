@@ -40,4 +40,10 @@ add_instance_library(
        wmma/device_grouped_conv2d_bwd_data_wmma_nhwgc_gkyxc_nhwgk_f16_instance.cpp
        wmma/device_grouped_conv2d_bwd_data_wmma_gnhwc_gkyxc_gnhwk_i8_instance.cpp
        wmma/device_grouped_conv2d_bwd_data_wmma_nhwgc_gkyxc_nhwgk_i8_instance.cpp
+
+	   wmma/device_grouped_conv2d_bwd_data_wmma_v3_gnhwc_gkyxc_gnhwk_f16_instance.cpp
 )
+
+
+add_compile_options(-Wfatal-errors)
+add_executable(device_grouped_conv2d_bwd_data_wmma_v3_gnhwc_gkyxc_gnhwk_f16_instance wmma/device_grouped_conv2d_bwd_data_wmma_v3_gnhwc_gkyxc_gnhwk_f16_instance.cpp)
