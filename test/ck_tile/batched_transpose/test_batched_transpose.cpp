@@ -10,13 +10,34 @@
 
 #include "ck_tile/ops/batched_transpose.hpp"
 
-template <typename DataType>
-class TestCkTileBatchedTranspose //              N    C    H    W    is_nchw
+template <typename DataType_,
+          ck_tile::index_t kPipelineId_ = 0,
+          ck_tile::index_t kBlockX_     = 64,
+          ck_tile::index_t kBlockY_     = 64,
+          ck_tile::index_t kNumWarpsX_  = 1,
+          ck_tile::index_t kNumWarpsY_  = 1,
+          bool kPadM_                   = true,
+          bool kPadN_                   = true>
+struct PipelineConfig
+{
+    using DataType              = DataType_;
+    using BlockTile             = ck_tile::sequence<kBlockX_, kBlockY_>;
+    using WarpLayout            = ck_tile::sequence<kNumWarpsX_, kNumWarpsY_>;
+    static constexpr bool kPadM = kPadM_;
+    static constexpr bool kPadN = kPadN_;
+    using Problem = ck_tile::BatchedTransposeProblem<DataType, BlockTile, WarpLayout, kPadM, kPadN>;
+    using Pipeline = ck_tile::BatchedTransposePipeline<Problem>;
+    using Kernel   = ck_tile::BatchedTransposeKernel<Pipeline>;
+};
+
+template <typename Config>
+class TestCkTileBatchedTranspose //              N    C    H    W    layout_in==NCHW
     : public ::testing::TestWithParam<std::tuple<int, int, int, int, bool>>
 {
     protected:
     void Run(std::tuple<int, int, int, int, bool> param)
     {
+        using DataType                     = typename Config::DataType;
         const auto [N, C, H, W, nchw2nhwc] = param;
         const std::string layout_in        = nchw2nhwc ? "NCHW" : "NHWC";
         const std::string layout_out       = nchw2nhwc ? "NHWC" : "NCHW";
@@ -36,15 +57,7 @@ class TestCkTileBatchedTranspose //              N    C    H    W    is_nchw
         ck_tile::DeviceMem y_dev(y_host.get_element_space_size_in_bytes());
         x_dev.ToDevice(x_host.data());
 
-        using block_tile     = ck_tile::sequence<64, 64>;
-        using warp_layout    = ck_tile::sequence<1, 1>;
-        constexpr bool kPadM = true;
-        constexpr bool kPadN = true;
-
-        using Problem =
-            ck_tile::BatchedTransposeProblem<DataType, block_tile, warp_layout, kPadM, kPadN>;
-        using Pipeline = ck_tile::BatchedTransposePipeline<Problem>;
-        using Kernel   = ck_tile::BatchedTransposeKernel<Pipeline>;
+        using Kernel = Config::Kernel;
 
         const ck_tile::index_t height = nchw2nhwc ? C : H * W;
         const ck_tile::index_t width  = nchw2nhwc ? H * W : C;
@@ -55,8 +68,8 @@ class TestCkTileBatchedTranspose //              N    C    H    W    is_nchw
                                                                  height,
                                                                  width,
                                                                  height * width,
-                                                                 block_tile::at(1),
-                                                                 block_tile::at(0)};
+                                                                 Config::BlockTile::at(1),
+                                                                 Config::BlockTile::at(0)};
         auto kargs           = Kernel::MakeKargs(host_args);
 
         auto sc                   = ck_tile::stream_config{};
@@ -81,6 +94,7 @@ class TestCkTileBatchedTranspose //              N    C    H    W    is_nchw
 // clang-format off
 // the default indent is not sane
 static const auto kTestingValues = ::testing::Values(
+//             N  C   H  W   layout_in==NCHW    
     std::tuple{1, 32, 1, 32, true},
     std::tuple{1, 64, 1, 64, true},
     std::tuple{2, 12, 1, 32, false},
@@ -104,12 +118,30 @@ static const auto kTestingValues = ::testing::Values(
 );
 // clang-format on
 
-class TestCkTileBatchedTransposeHalf : public TestCkTileBatchedTranspose<ck_tile::half_t>
+class TestCkTileBatchedTransposeHalf
+    : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t>>
+{
+};
+
+class TestCkTileBatchedTransposeByte
+    : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::fp8_t>>
+{
+};
+
+class TestCkTileBatchedTransposeWord : public TestCkTileBatchedTranspose<PipelineConfig<float>>
 {
 };
 
 TEST_P(TestCkTileBatchedTransposeHalf, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(TestCkTileBatchedTransposeByte, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(TestCkTileBatchedTransposeWord, TestCorrectness) { this->Run(GetParam()); }
 
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite,
                          TestCkTileBatchedTransposeHalf,
+                         kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite,
+                         TestCkTileBatchedTransposeByte,
+                         kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite,
+                         TestCkTileBatchedTransposeWord,
                          kTestingValues);
