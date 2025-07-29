@@ -898,7 +898,7 @@ pipeline {
             description: "Run the ck_tile GEMM tests (default: OFF)")
         booleanParam(
             name: "RUN_TILE_ENGINE_GEMM_TESTS",
-            defaultValue: true,
+            defaultValue: false,
             description: "Run the tile_engine_gemm tests (default: OFF)")
         booleanParam(
             name: "BUILD_INSTANCES_ONLY",
