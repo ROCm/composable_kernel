@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -184,7 +184,7 @@ namespace impl {
 template <typename OutDataType, typename InTensor>
 CK_TILE_DEVICE auto cast_tile_pk_fp8_fp32(const InTensor& in_dstr_tensors)
 {
-#if defined(__gfx94__)
+#if defined(__gfx94__) || defined(__gfx12__)
     // This API is designed to use the _pk_ serious of function
     constexpr auto in_tile_dstr = InTensor::get_tile_distribution();
 
@@ -195,7 +195,7 @@ CK_TILE_DEVICE auto cast_tile_pk_fp8_fp32(const InTensor& in_dstr_tensors)
     auto out_dstr_tensor = make_static_distributed_tensor<OutDataType>(in_tile_dstr);
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wuninitialized"
-    // __builtin_amdgcn_cvt_pk_fp8_f32() this builtin require the old value, and
+    // __builtin_amdgcn_cvt_pk_fp8_f32() this builtin requires the old value, and
     // will generate a v_mov_b32 vxxx [old] before cvt, which result in unwanted ISA
     // so we prepare an uninitialized variable purposely, and turn off the warning
     int dummy_old;
@@ -209,13 +209,12 @@ CK_TILE_DEVICE auto cast_tile_pk_fp8_fp32(const InTensor& in_dstr_tensors)
         uint32_t y = __builtin_amdgcn_cvt_pk_fp8_f32(
             in_dstr_tensors.get_thread_buffer()[number<4 * i + 2>{}],
             in_dstr_tensors.get_thread_buffer()[number<4 * i + 3>{}],
-            dummy_old,
-            false); // false -> WORD0
+            x,
+            true); // true -> WORD1
 
-        constexpr int32_t m0 = 0x05040100;
-        using vec_t          = array<OutDataType, 4>;
+        using vec_t = array<OutDataType, 4>;
 
-        vec_t d = bit_cast<vec_t>(__builtin_amdgcn_perm(y, x, m0));
+        vec_t d = bit_cast<vec_t>(y);
         out_dstr_tensor.get_thread_buffer().template set_as<vec_t>(number<i>{}, d);
     });
 #pragma clang diagnostic pop
