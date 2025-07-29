@@ -115,16 +115,16 @@ template <typename PrecType>
 struct GemmConfigComputeV3 : public GemmConfigBase
 {
     // Compute V3 only support Intrawave scheduler
-    static constexpr ck_tile::index_t M_Tile = 256;
-    static constexpr ck_tile::index_t N_Tile = 256;
-    static constexpr ck_tile::index_t K_Tile = 64 / sizeof(PrecType);
+    static constexpr ck_tile::index_t M_Tile = 16;
+    static constexpr ck_tile::index_t N_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 256 / sizeof(PrecType);
 
-    static constexpr ck_tile::index_t M_Warp = 2;
-    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
     static constexpr ck_tile::index_t K_Warp = 1;
 
-    static constexpr ck_tile::index_t M_Warp_Tile = 32;
-    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
 
     static constexpr bool DoubleSmemBuffer     = false;
@@ -232,7 +232,7 @@ struct GemmConfigComputeV5 : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigPreshuffle_1 : public GemmConfigBase
+struct GemmConfigPreshufle_1 : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 128;
@@ -244,6 +244,28 @@ struct GemmConfigPreshuffle_1 : public GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile_flatmm<PrecType, M_Warp_Tile>();
+
+    static constexpr int kBlockPerCu           = 2;
+    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE;
+    static constexpr bool Preshuffle           = true;
+    static constexpr bool DoubleSmemBuffer     = false;
+};
+
+template <typename PrecType>
+struct GemmConfigPreshufle_2 : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile_flatmm<PrecType, M_Warp_Tile>();
 
     static constexpr int kBlockPerCu           = 2;
@@ -251,28 +273,6 @@ struct GemmConfigPreshuffle_1 : public GemmConfigBase
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V1;
     static constexpr bool Preshuffle           = true;
     static constexpr bool DoubleSmemBuffer     = false;
-};
-
-template <typename PrecType>
-struct GemmConfigPreshuffle_2 : public GemmConfigBase
-{
-    static constexpr ck_tile::index_t M_Tile = 128;
-    static constexpr ck_tile::index_t N_Tile = 128;
-    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
-
-    static constexpr ck_tile::index_t M_Warp = 1;
-    static constexpr ck_tile::index_t N_Warp = 4;
-    static constexpr ck_tile::index_t K_Warp = 1;
-
-    static constexpr ck_tile::index_t M_Warp_Tile = 16;
-    static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile_flatmm<PrecType, M_Warp_Tile>();
-
-    static constexpr int kBlockPerCu           = 2;
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V2;
-    static constexpr bool Preshuffle           = true;
-    static constexpr bool DoubleSmemBuffer     = true;
 };
 
 template <typename PrecType>
@@ -508,4 +508,4 @@ template <typename ADataType,
           typename CLayout,
           bool Persistent = false,
           typename CDEElementWise>
-float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile::stream_config& s);
+float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s);

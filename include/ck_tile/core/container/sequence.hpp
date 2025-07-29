@@ -1236,9 +1236,8 @@ constexpr auto reverse_slice_sequence(Seq,
 template <typename Seq,
           index_t SliceSize,
           typename Mask = typename uniform_sequence_gen<Seq::size(), 1>::type>
-constexpr auto slice_sequence(Seq,
-                              number<SliceSize>,
-                              Mask = typename uniform_sequence_gen<Seq::size(), 1>::type{})
+constexpr auto
+slice_sequence(Seq, number<SliceSize>, Mask = typename uniform_sequence_gen<Seq::size(), 1>::type{})
 {
     constexpr auto r =
         reverse_slice_sequence(Seq{}.reverse(), number<SliceSize>{}, Mask{}.reverse());
