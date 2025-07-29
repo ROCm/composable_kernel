@@ -84,6 +84,18 @@ using WarpGemmWmmaF16F16F32M16N16K16TransposedCDistribution =
     WarpGemmImpl<WarpGemmAttributeWmmaTransposedCDistribution<
         WarpGemmAttributeWmmaImplF16F16F32M16N16K16<WGAttrCtlEnum::Default_>>>;
 
+#endif
+
+using WarpGemmMfmaF16F16F32M16N16K16TransposedCDistribution =
+    WarpGemmImpl<WarpGemmAttributeGenericTransposedCDistribution<
+        WarpGemmAttributeGenericImplF16F16F32M16N16K16<900, WGAttrCtlEnum::Default_>>>;
+
+using WarpGemmWmmaF16F16F32M16N16K16TransposedCDistribution =
+    WarpGemmImpl<WarpGemmAttributeGenericTransposedCDistribution<
+        WarpGemmAttributeGenericImplF16F16F32M16N16K16<1200, WGAttrCtlEnum::Default_>>>;
+
+#if 0
+
 #if defined(__gfx950__)
 template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
 using WarpGemmMfmaF16F16F32M32N32K16TransposedCDistribution =

@@ -57,8 +57,8 @@ struct BlockGemmASmemBSmemCRegV1DefaultPolicy
             using WG = WarpGemmMfmaDispatcher<ck_tile::half_t,
                                               ck_tile::half_t,
                                               float,
-                                              32,
-                                              32,
+                                              16,
+                                              16,
                                               16,
                                               true,
                                               false,
@@ -67,6 +67,7 @@ struct BlockGemmASmemBSmemCRegV1DefaultPolicy
             return make_tuple(WG{}, 4, 1);
 #endif
         }
+#if 0
         else if constexpr(std::is_same_v<typename Problem::ADataType, bf16_t> &&
                           std::is_same_v<typename Problem::BDataType, bf16_t> &&
                           std::is_same_v<typename Problem::CDataType, float>)
@@ -83,6 +84,7 @@ struct BlockGemmASmemBSmemCRegV1DefaultPolicy
                                               wg_attr_num_access>;
             return make_tuple(WG{}, 4, 1);
         }
+#endif
         else
         {
             static_assert(false, "Unsupported data type configuration for GEMM warp execution.");

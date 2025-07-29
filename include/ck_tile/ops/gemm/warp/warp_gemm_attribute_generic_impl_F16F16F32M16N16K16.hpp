@@ -130,3 +130,5 @@ struct WarpGemmAttributeGenericImplF16F16F32M16N16K16
 #endif
     }
 };
+
+} // namespace ck_tile
