@@ -76,7 +76,7 @@ class submodule_t:
                     gen_header(Path(k) / (f'{km}.hpp'), kv)
             else:
                 gen_header(Path(f'{k}.hpp'), v)
-            
+
 
 submodule = submodule_t()
 # formatting
