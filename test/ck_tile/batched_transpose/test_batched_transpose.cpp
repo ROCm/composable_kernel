@@ -10,13 +10,19 @@
 
 #include "ck_tile/ops/batched_transpose.hpp"
 
-template <ck_tile::index_t kPipelineId_>
+enum class PipelineTag : ck_tile::index_t
+{
+    Universal,
+    LDSLoadTranspose,
+};
+
+template <PipelineTag kPipelineId_>
 struct PipelineSelector
 {
 };
 
 template <>
-struct PipelineSelector<0>
+struct PipelineSelector<PipelineTag::Universal>
 {
     template <typename DataType, typename BlockTile, typename WarpLayout, bool kPadM, bool kPadN>
     using Problem = ck_tile::BatchedTransposeProblem<DataType, BlockTile, WarpLayout, kPadM, kPadN>;
@@ -28,7 +34,7 @@ struct PipelineSelector<0>
 };
 
 template <>
-struct PipelineSelector<1>
+struct PipelineSelector<PipelineTag::LDSLoadTranspose>
 {
     template <typename DataType, typename BlockTile, typename WarpLayout, bool kPadM, bool kPadN>
     using Problem =
@@ -41,25 +47,25 @@ struct PipelineSelector<1>
 };
 
 template <typename DataType_,
-          ck_tile::index_t kPipelineId_ = 0,
-          ck_tile::index_t kBlockX_     = 64,
-          ck_tile::index_t kBlockY_     = 64,
-          ck_tile::index_t kNumWarpsX_  = 1,
-          ck_tile::index_t kNumWarpsY_  = 1,
-          bool kPadM_                   = true,
-          bool kPadN_                   = true>
+          PipelineTag kPipelineId_     = PipelineTag::Universal,
+          ck_tile::index_t kBlockX_    = 64,
+          ck_tile::index_t kBlockY_    = 64,
+          ck_tile::index_t kNumWarpsX_ = 1,
+          ck_tile::index_t kNumWarpsY_ = 1,
+          bool kPadM_                  = true,
+          bool kPadN_                  = true>
 struct PipelineConfig
 {
-    using DataType                                = DataType_;
-    using BlockTile                               = ck_tile::sequence<kBlockX_, kBlockY_>;
-    using WarpLayout                              = ck_tile::sequence<kNumWarpsX_, kNumWarpsY_>;
-    static constexpr bool kPadM                   = kPadM_;
-    static constexpr bool kPadN                   = kPadN_;
-    static constexpr ck_tile::index_t kPipelineId = kPipelineId_;
-    static constexpr ck_tile::index_t kBlockX     = kBlockX_;
-    static constexpr ck_tile::index_t kBlockY     = kBlockY_;
-    static constexpr ck_tile::index_t kNumWarpsX  = kNumWarpsX_;
-    static constexpr ck_tile::index_t kNumWarpsY  = kNumWarpsY_;
+    using DataType                               = DataType_;
+    using BlockTile                              = ck_tile::sequence<kBlockX_, kBlockY_>;
+    using WarpLayout                             = ck_tile::sequence<kNumWarpsX_, kNumWarpsY_>;
+    static constexpr bool kPadM                  = kPadM_;
+    static constexpr bool kPadN                  = kPadN_;
+    static constexpr PipelineTag kPipelineId     = kPipelineId_;
+    static constexpr ck_tile::index_t kBlockX    = kBlockX_;
+    static constexpr ck_tile::index_t kBlockY    = kBlockY_;
+    static constexpr ck_tile::index_t kNumWarpsX = kNumWarpsX_;
+    static constexpr ck_tile::index_t kNumWarpsY = kNumWarpsY_;
 
     using Problem = PipelineSelector<
         kPipelineId_>::template Problem<DataType, BlockTile, WarpLayout, kPadM, kPadN>;
@@ -113,7 +119,8 @@ class TestCkTileBatchedTranspose //              N    C    H    W    layout_in==
 
         const auto device_name = ck_tile::get_device_name();
 
-        if(Config::kPipelineId == 1 && device_name.find("gfx950") == std::string::npos)
+        if(Config::kPipelineId == PipelineTag::LDSLoadTranspose &&
+           device_name.find("gfx950") == std::string::npos)
         {
             GTEST_SKIP_("LDS Load Transpose cannot be launched on this hardware");
         }
@@ -186,21 +193,31 @@ class CaseWord : public TestCkTileBatchedTranspose<PipelineConfig<float>>
 {
 };
 
-class CaseHalfLoadTranspose : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t, 1>>
+class CaseHalfLoadTranspose : public TestCkTileBatchedTranspose<
+                                  PipelineConfig<ck_tile::half_t, PipelineTag::LDSLoadTranspose>>
 {
 };
 
-class CaseByteLoadTranspose : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::fp8_t, 1>>
+class CaseByteLoadTranspose : public TestCkTileBatchedTranspose<
+                                  PipelineConfig<ck_tile::fp8_t, PipelineTag::LDSLoadTranspose>>
 {
 };
 
-class CaseHalfPad : public TestCkTileBatchedTranspose<
-                        PipelineConfig<ck_tile::half_t, 0, 64, 64, 1, 1, false, false>>
+class CaseHalfPad
+    : public TestCkTileBatchedTranspose<
+          PipelineConfig<ck_tile::half_t, PipelineTag::Universal, 64, 64, 1, 1, false, false>>
 {
 };
 
-class CaseHalfPadLoadTranspose : public TestCkTileBatchedTranspose<
-                                     PipelineConfig<ck_tile::half_t, 1, 64, 64, 1, 1, false, false>>
+class CaseHalfPadLoadTranspose
+    : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t,
+                                                       PipelineTag::LDSLoadTranspose,
+                                                       64,
+                                                       64,
+                                                       1,
+                                                       1,
+                                                       false,
+                                                       false>>
 {
 };
 
