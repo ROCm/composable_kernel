@@ -886,7 +886,7 @@ pipeline {
             description: "Run codegen tests (default: ON)")
         booleanParam(
             name: "RUN_CK_TILE_FMHA_TESTS",
-            defaultValue: true,
+            defaultValue: false,
             description: "Run the ck_tile FMHA tests (default: OFF)")
         booleanParam(
             name: "RUN_CK_TILE_TRANSPOSE_TESTS",
