@@ -4,6 +4,7 @@
 #pragma once
 
 #include <numeric>
+#include <functional>
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/utility/ignore.hpp"
 #include "ck_tile/host/hip_check_error.hpp"
