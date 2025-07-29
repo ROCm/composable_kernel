@@ -8,26 +8,66 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 
-template<typename DataType>
-class TestCkTileBatchedTranspose : public ::testing::TestWithParam<std::tuple<int, int, int, int>>
+#include "ck_tile/ops/batched_transpose.hpp"
+
+template <typename DataType>
+class TestCkTileBatchedTranspose
+    : public ::testing::TestWithParam<std::tuple<int, int, int, int, bool>>
 {
     protected:
-    void Run(std::tuple<int, int, int, int> param)
+    void Run(std::tuple<int, int, int, int, bool> param)
     {
-        auto [N, H, W, C] = param;
-        ck_tile::HostTensor<DataType> x_host(
-        {N, H, W, C},
-        {H * W * C, W * C, C, 1});
-        ck_tile::HostTensor<DataType> y_host(
-            {N, C, H, W},
-            {C * H * W, H * W, W, 1});
+        const auto [N, C, H, W, nchw2nhwc] = param;
+        const std::string layout_in        = nchw2nhwc ? "NCHW" : "NHWC";
+        const std::string layout_out       = nchw2nhwc ? "NHWC" : "NCHW";
+        const auto X_dim = nchw2nhwc ? std::array{N, C, H, W} : std::array{N, H, W, C};
+        const auto X_stride =
+            nchw2nhwc ? std::array{C * H * W, H * W, W, 1} : std::array{C * H * W, C * W, W, 1};
+        ck_tile::HostTensor<DataType> x_host(X_dim, X_stride);
+        const auto Y_dim = nchw2nhwc ? std::array{N, H, W, C} : std::array{N, C, H, W};
+        const auto Y_stride =
+            nchw2nhwc ? std::array{C * H * W, C * W, W, 1} : std::array{C * H * W, H * W, W, 1};
+        ck_tile::HostTensor<DataType> y_host(Y_dim, Y_stride);
+        ck_tile::HostTensor<DataType> y_ref(Y_dim, Y_stride);
 
         ck_tile::FillUniformDistribution<DataType>{-.5f, .5f}(x_host);
 
         ck_tile::DeviceMem x_dev(x_host.get_element_space_size_in_bytes());
         ck_tile::DeviceMem y_dev(y_host.get_element_space_size_in_bytes());
+        x_dev.ToDevice(x_host.data());
 
-        bool pass = ck_tile::check_err(y_host, y_host);
+        using block_tile     = ck_tile::sequence<64, 64>;
+        using warp_layout    = ck_tile::sequence<1, 1>;
+        constexpr bool kPadM = true;
+        constexpr bool kPadN = true;
+
+        using Problem =
+            ck_tile::BatchedTransposeProblem<DataType, block_tile, warp_layout, kPadM, kPadN>;
+        using Pipeline = ck_tile::BatchedTransposePipeline<Problem>;
+        using Kernel   = ck_tile::BatchedTransposeKernel<Pipeline>;
+
+        const ck_tile::index_t height = nchw2nhwc ? C : H * W;
+        const ck_tile::index_t width  = nchw2nhwc ? H * W : C;
+
+        const auto host_args = ck_tile::BatchedTransposeHostArgs{x_dev.GetDeviceBuffer(),
+                                                                 y_dev.GetDeviceBuffer(),
+                                                                 N,
+                                                                 height,
+                                                                 width,
+                                                                 height * width,
+                                                                 block_tile::at(1),
+                                                                 block_tile::at(0)};
+        auto kargs           = Kernel::MakeKargs(host_args);
+
+        auto sc                   = ck_tile::stream_config{};
+        const dim3 grid_size      = Kernel::GridSize(host_args);
+        constexpr dim3 block_size = Kernel::BlockSize();
+        ck_tile::launch_kernel(
+            sc, ck_tile::make_kernel<block_size.x, 1>(Kernel{}, grid_size, block_size, 0, kargs));
+        y_dev.FromDevice(y_host.data());
+        ck_tile::reference_batched_transpose<DataType>(x_host, y_ref, layout_in, layout_out);
+
+        bool pass = ck_tile::check_err(y_ref, y_host);
 
         EXPECT_TRUE(pass);
     }
@@ -37,12 +77,8 @@ class TestCkTileBatchedTransposeHalf : public TestCkTileBatchedTranspose<ck_tile
 {
 };
 
-TEST_P(TestCkTileBatchedTransposeHalf, TestCorrectness)
-{
-    auto [N, H, W, C] = GetParam();
-    this->Run({N, H, W, C});
-}
+TEST_P(TestCkTileBatchedTransposeHalf, TestCorrectness) { this->Run(GetParam()); }
 
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite,
                          TestCkTileBatchedTransposeHalf,
-                         ::testing::Values(std::tuple{1, 64, 1, 64}));
+                         ::testing::Values(std::tuple{1, 64, 1, 64, true}));
