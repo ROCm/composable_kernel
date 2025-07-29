@@ -16,7 +16,7 @@ namespace ck_tile {
 
 /**
  * @brief Tile copy shape configuration
- * 
+ *
  * @tparam BlockWaves Number of warps along seq<M, N>
  * @tparam BlockTile Block size, seq<M, N>
  * @tparam WaveTile Warp size, seq<M, N>
@@ -42,9 +42,9 @@ struct TileCopyShape
     static constexpr index_t Warps_Per_Block_N = BlockWaves::at(number<1>{});
 
     // Calculate warp repetition to cover entire block tile
-    static constexpr index_t WarpRepetitionPerBlock_M = 
+    static constexpr index_t WarpRepetitionPerBlock_M =
         Block_Tile_M / (Warps_Per_Block_M * Warp_Tile_M);
-    static constexpr index_t WarpRepetitionPerBlock_N = 
+    static constexpr index_t WarpRepetitionPerBlock_N =
         Block_Tile_N / (Warps_Per_Block_N * Warp_Tile_N);
 
     // Hardware configuration
@@ -52,21 +52,18 @@ struct TileCopyShape
     static constexpr index_t BlockSize = 256;
 
     // Configuration validation
-    static_assert(Block_Tile_M > 0 && Block_Tile_N > 0, 
-                  "Block tile dimensions must be positive");
-    static_assert(Warp_Tile_M > 0 && Warp_Tile_N > 0, 
-                  "Warp tile dimensions must be positive");
-    static_assert(Vector_M > 0 && Vector_N > 0, 
-                  "Vector dimensions must be positive");
-    static_assert(Warps_Per_Block_M > 0 && Warps_Per_Block_N > 0, 
+    static_assert(Block_Tile_M > 0 && Block_Tile_N > 0, "Block tile dimensions must be positive");
+    static_assert(Warp_Tile_M > 0 && Warp_Tile_N > 0, "Warp tile dimensions must be positive");
+    static_assert(Vector_M > 0 && Vector_N > 0, "Vector dimensions must be positive");
+    static_assert(Warps_Per_Block_M > 0 && Warps_Per_Block_N > 0,
                   "Warps per block must be positive");
-    static_assert(Warps_Per_Block_M * Warp_Tile_M > 0, 
+    static_assert(Warps_Per_Block_M * Warp_Tile_M > 0,
                   "Invalid warp configuration for M dimension");
-    static_assert(Warps_Per_Block_N * Warp_Tile_N > 0, 
+    static_assert(Warps_Per_Block_N * Warp_Tile_N > 0,
                   "Invalid warp configuration for N dimension");
-    
+
     // Ensure warp tile dimensions align with warp size
-    static_assert(Warp_Tile_M/Vector_M * Warp_Tile_N/Vector_N == WarpSize, 
+    static_assert(Warp_Tile_M / Vector_M * Warp_Tile_N / Vector_N == WarpSize,
                   "(Warp_Tile_M/Vector_M) * (Warp_Tile_N/Vector_N) != WarpSize");
 };
 
@@ -104,8 +101,8 @@ struct TileCopyPolicy
         constexpr index_t N1 = S::Vector_N;          // Elements per thread along N
         constexpr index_t N0 = S::Block_Tile_N / N1; // Threads needed along N
 
-        constexpr index_t M2 = warp_size / N0;       // Threads per warp along M
-        constexpr index_t M1 = block_size / warp_size; // Warps possible along M
+        constexpr index_t M2 = warp_size / N0;              // Threads per warp along M
+        constexpr index_t M1 = block_size / warp_size;      // Warps possible along M
         constexpr index_t M0 = S::Block_Tile_M / (M1 * M2); // Warp iterations along M
 
         // Validate complete coverage
@@ -139,7 +136,8 @@ struct TileCopyKernel
 
         // Calculate block origin and validate bounds
         const auto iM = __builtin_amdgcn_readfirstlane(get_block_id() * S::Block_Tile_M);
-        if (iM >= M) {
+        if(iM >= M)
+        {
             return; // Early exit for out-of-bounds blocks
         }
 
@@ -151,22 +149,24 @@ struct TileCopyKernel
             p_y, make_tuple(M, N), make_tuple(N, 1), number<S::Vector_N>{}, number<1>{});
 
         // Create tile windows with DRAM distribution
-        auto x_window = make_tile_window(x_m_n,
-                                        make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                                        {iM, 0},
-                                        Policy::template MakeDRAMDistribution<Problem>());
+        auto x_window =
+            make_tile_window(x_m_n,
+                             make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
+                             {iM, 0},
+                             Policy::template MakeDRAMDistribution<Problem>());
 
-        auto y_window = make_tile_window(y_m_n,
-                                        make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                                        {iM, 0},
-                                        Policy::template MakeDRAMDistribution<Problem>());
+        auto y_window =
+            make_tile_window(y_m_n,
+                             make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
+                             {iM, 0},
+                             Policy::template MakeDRAMDistribution<Problem>());
 
         // Calculate iterations needed to cover N dimension
-        index_t num_n_tile_iteration = __builtin_amdgcn_readfirstlane(
-            integer_divide_ceil(N, S::Block_Tile_N));
+        index_t num_n_tile_iteration =
+            __builtin_amdgcn_readfirstlane(integer_divide_ceil(N, S::Block_Tile_N));
 
         // Get tile distribution for register tensor
-        auto DramTileDist = x_window.get_tile_distribution();
+        auto DramTileDist   = x_window.get_tile_distribution();
         using dram_reg_tile = decltype(make_static_distributed_tensor<XDataType>(DramTileDist));
 
         // Main copy loop
@@ -176,7 +176,7 @@ struct TileCopyKernel
 
 #if ELEMENT_WISE_COPY == 1
             // Element-wise copy implementation for data transformation
-            const auto xa = load_tile(x_window);
+            const auto xa  = load_tile(x_window);
             auto y_compute = load_tile(y_window);
 
             constexpr auto spans = decltype(xa)::get_distributed_spans();
@@ -184,8 +184,8 @@ struct TileCopyKernel
             sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
                 sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = ck_tile::make_tuple(idx0, idx1);
-                    const auto x = ck_tile::type_convert<XDataType>(xa[i_j_idx]);
-                    y_compute(i_j_idx) = x;
+                    const auto x           = ck_tile::type_convert<XDataType>(xa[i_j_idx]);
+                    y_compute(i_j_idx)     = x;
                 });
             });
 
@@ -205,7 +205,7 @@ struct TileCopyKernel
 
 /**
  * @brief LDS-based copy kernel for data processing scenarios
- * 
+ *
  * This kernel copies data from global memory to LDS and then to global memory,
  * useful when data needs to be processed or transformed during the copy operation.
  */
@@ -222,31 +222,32 @@ struct TileCopyKernel_LDS
 
         // Calculate block origin and validate bounds
         const auto iM = __builtin_amdgcn_readfirstlane(get_block_id() * S::Block_Tile_M);
-        if (iM >= M) {
+        if(iM >= M)
+        {
             return; // Early exit for out-of-bounds blocks
         }
 
         // LDS buffer allocation
         __shared__ XDataType x_lds_buffer[S::Block_Tile_M * S::Block_Tile_N];
-        
+
         // LDS tensor descriptor and view
-        const auto x_lds_descriptor = make_naive_tensor_descriptor(
-            make_tuple(S::Block_Tile_M, S::Block_Tile_N),
-            make_tuple(S::Block_Tile_N, 1),
-            number<S::Vector_N>{},
-            number<1>{});
-        
+        const auto x_lds_descriptor =
+            make_naive_tensor_descriptor(make_tuple(S::Block_Tile_M, S::Block_Tile_N),
+                                         make_tuple(S::Block_Tile_N, 1),
+                                         number<S::Vector_N>{},
+                                         number<1>{});
+
         auto x_lds_view = make_tensor_view<address_space_enum::lds>(x_lds_buffer, x_lds_descriptor);
 
         // LDS windows with different distributions for optimal access patterns
-        auto x_lds_write_window = make_tile_window(x_lds_view,
-                                                  make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                                                  {0, 0});
+        auto x_lds_write_window = make_tile_window(
+            x_lds_view, make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}), {0, 0});
 
-        auto x_lds_read_window = make_tile_window(x_lds_view,
-                                                 make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                                                 {0, 0},
-                                                 Policy::template MakeDRAMDistribution<Problem>());
+        auto x_lds_read_window =
+            make_tile_window(x_lds_view,
+                             make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
+                             {0, 0},
+                             Policy::template MakeDRAMDistribution<Problem>());
 
         // Global memory tensor views
         const auto x_m_n = make_naive_tensor_view<address_space_enum::global>(
@@ -256,18 +257,18 @@ struct TileCopyKernel_LDS
             p_y, make_tuple(M, N), make_tuple(N, 1), number<S::Vector_N>{}, number<1>{});
 
         // Global memory tile windows
-        auto x_window = make_tile_window(x_m_n,
-                                        make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                                        {iM, 0},
-                                        Policy::template MakeDRAMDistribution<Problem>());
+        auto x_window =
+            make_tile_window(x_m_n,
+                             make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
+                             {iM, 0},
+                             Policy::template MakeDRAMDistribution<Problem>());
 
-        auto y_window = make_tile_window(y_m_n,
-                                        make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                                        {iM, 0});
+        auto y_window = make_tile_window(
+            y_m_n, make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}), {iM, 0});
 
         // Calculate iterations needed to cover N dimension
-        index_t num_n_tile_iteration = __builtin_amdgcn_readfirstlane(
-            integer_divide_ceil(N, S::Block_Tile_N));
+        index_t num_n_tile_iteration =
+            __builtin_amdgcn_readfirstlane(integer_divide_ceil(N, S::Block_Tile_N));
 
         // Main copy loop with LDS staging
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
@@ -275,14 +276,14 @@ struct TileCopyKernel_LDS
             // Global memory to LDS
             auto dram_tile = load_tile(x_window);
             store_tile(x_lds_write_window, dram_tile);
-            
+
             // Synchronize LDS access
             block_sync_lds();
-            
+
             // LDS to global memory
             auto lds_tile = load_tile(x_lds_read_window);
             store_tile(y_window, lds_tile);
-            
+
             // Move to next N tile
             move_tile_window(x_window, {0, S::Block_Tile_N});
             move_tile_window(y_window, {0, S::Block_Tile_N});

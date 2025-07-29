@@ -54,11 +54,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     x_buf.ToDevice(x_host.data());
 
     // Define tile configuration
-    using Vector     = ck_tile::sequence<1, 4>;  // vector size along M and N dimension
-    using WaveTile   = ck_tile::sequence<32, 8>; // warp size along M and N dimension
-    using BlockWaves = ck_tile::sequence<4, 1>;  // number of warps along M dimension
+    using Vector     = ck_tile::sequence<1, 4>;   // vector size along M and N dimension
+    using WaveTile   = ck_tile::sequence<32, 8>;  // warp size along M and N dimension
+    using BlockWaves = ck_tile::sequence<4, 1>;   // number of warps along M dimension
     using BlockTile  = ck_tile::sequence<512, 8>; // block size along M and N dimension
-    
 
     // Calculate grid size
     ck_tile::index_t kGridSize = (m / BlockTile::at(ck_tile::number<0>{}));
@@ -69,23 +68,27 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using Problem = ck_tile::TileCopyProblem<XDataType, Shape>;
     using Policy  = ck_tile::TileCopyPolicy<Problem>;
     using Kernel  = ck_tile::TileCopyKernel<Problem, Policy>;
-    //using LDSKernel = ck_tile::TileCopyKernel_LDS<Problem, Policy>;
+    // using LDSKernel = ck_tile::TileCopyKernel_LDS<Problem, Policy>;
 
     constexpr ck_tile::index_t kBlockSize = Shape::BlockSize;
 
     // Print configuration information
     std::cout << "block size (number of threads per block) " << kBlockSize << std::endl;
     std::cout << "warp size (number of threads per warp) " << ck_tile::get_warp_size() << std::endl;
-    std::cout << "block waves (number of warps per block) " << BlockWaves::at(ck_tile::number<0>{}) << " "
-              << BlockWaves::at(ck_tile::number<1>{}) << std::endl;
-    std::cout << "block tile (number of elements per block) " << BlockTile::at(ck_tile::number<0>{}) << " "
-              << BlockTile::at(ck_tile::number<1>{}) << std::endl;
-    std::cout << "wave tile (number of elements per wave) " << WaveTile::at(ck_tile::number<0>{}) << " "
-              << WaveTile::at(ck_tile::number<1>{}) << std::endl;
-    std::cout << "vector (number of elements per thread) " << Vector::at(ck_tile::number<0>{}) << " "
-              << Vector::at(ck_tile::number<1>{}) << std::endl;
-    std::cout << "WarpRepetitionPerBlock_M =  " << Shape::WarpRepetitionPerBlock_M << " --> (" << Shape::Block_Tile_M << "/" << Shape::Warps_Per_Block_M << "*" << Shape::Warp_Tile_M << ")" << std::endl;
-    std::cout << "WarpRepetitionPerBlock_N =  " << Shape::WarpRepetitionPerBlock_N << " --> (" << Shape::Block_Tile_N << "/" << Shape::Warps_Per_Block_N << "*" << Shape::Warp_Tile_N << ")" << std::endl;
+    std::cout << "block waves (number of warps per block) " << BlockWaves::at(ck_tile::number<0>{})
+              << " " << BlockWaves::at(ck_tile::number<1>{}) << std::endl;
+    std::cout << "block tile (number of elements per block) " << BlockTile::at(ck_tile::number<0>{})
+              << " " << BlockTile::at(ck_tile::number<1>{}) << std::endl;
+    std::cout << "wave tile (number of elements per wave) " << WaveTile::at(ck_tile::number<0>{})
+              << " " << WaveTile::at(ck_tile::number<1>{}) << std::endl;
+    std::cout << "vector (number of elements per thread) " << Vector::at(ck_tile::number<0>{})
+              << " " << Vector::at(ck_tile::number<1>{}) << std::endl;
+    std::cout << "WarpRepetitionPerBlock_M =  " << Shape::WarpRepetitionPerBlock_M << " --> ("
+              << Shape::Block_Tile_M << "/" << Shape::Warps_Per_Block_M << "*" << Shape::Warp_Tile_M
+              << ")" << std::endl;
+    std::cout << "WarpRepetitionPerBlock_N =  " << Shape::WarpRepetitionPerBlock_N << " --> ("
+              << Shape::Block_Tile_N << "/" << Shape::Warps_Per_Block_N << "*" << Shape::Warp_Tile_N
+              << ")" << std::endl;
 
     // Launch kernel
     float ave_time = launch_kernel(
