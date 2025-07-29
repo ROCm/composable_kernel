@@ -1120,7 +1120,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
             }
         }
 
-        return true;
+        return GridwiseGemm::CheckValidity(gemm_arg);
     }
 
     bool IsSupportedArgument(const BaseArgument* p_arg) override
