@@ -854,6 +854,16 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                         op_ptrs);
                 }
 #endif
+#ifdef CK_ENABLE_BF16
+                if constexpr(is_same_v<InDataType, ck::bhalf_t> && is_same_v<WeiDataType, float> &&
+                             is_same_v<OutDataType, ck::bhalf_t> &&
+                             is_same_v<ComputeTypeA, ck::bhalf_t> &&
+                             is_same_v<ComputeTypeB, ck::bhalf_t>)
+                {
+                    add_device_grouped_conv2d_bwd_weight_wmma_gnhwc_gkyxc_gnhwk_bf16_f32_bf16_instances(
+                        op_ptrs);
+                }
+#endif
             }
             if constexpr(is_same_v<InLayout, NHWGC> && is_same_v<WeiLayout, GKYXC> &&
                          is_same_v<OutLayout, NHWGK>)
@@ -973,6 +983,16 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                              is_same_v<ComputeTypeB, half_t>)
                 {
                     add_device_grouped_conv3d_bwd_weight_wmma_gndhwc_gkzyxc_gndhwk_f16_instances(
+                        op_ptrs);
+                }
+#endif
+#ifdef CK_ENABLE_BF16
+                if constexpr(is_same_v<InDataType, ck::bhalf_t> && is_same_v<WeiDataType, float> &&
+                             is_same_v<OutDataType, ck::bhalf_t> &&
+                             is_same_v<ComputeTypeA, ck::bhalf_t> &&
+                             is_same_v<ComputeTypeB, ck::bhalf_t>)
+                {
+                    add_device_grouped_conv3d_bwd_weight_wmma_gndhwc_gkzyxc_gndhwk_bf16_f32_bf16_instances(
                         op_ptrs);
                 }
 #endif

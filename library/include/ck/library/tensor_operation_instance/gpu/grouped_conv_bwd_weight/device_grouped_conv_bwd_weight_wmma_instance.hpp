@@ -91,6 +91,22 @@ template <ck::index_t NDimSpatial,
           typename ALayout,
           typename BLayout,
           typename ELayout,
+          ConvolutionBackwardWeightSpecialization ConvSpec>
+using device_grouped_conv_bwd_weight_wmma_c_shuffle_bf16_f32_bf16_generic_instances = std::tuple<
+    // clang-format off
+    //#########################################|        Num| InLayout| WeiLayout| OutLayout| InData| WeiData| OutData| AccData|          In|         Wei|         Out|   ConvBackward| Block|  MPer|  NPer|  KPer| ABK1| MPer| NPer| MRepeat| NRepeat|    ABlockTransfer|   ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|    BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CShuffleBlockTransfer|  CShuffleBlockTransfer|                             BlockGemm|                    BlockGemm|
+    //#########################################|        Dim|         |          |          |   Type|    Type|    Type|    Type| Elementwise| Elementwise| Elementwise|         Weight|  Size| Block| Block| Block|     | Wmma| Wmma|        |        |     ThreadCluster|    ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|     ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN|     MRepeat|     NRepeat|        ClusterLengths|        ScalarPerVector|                              Pipeline|                     Pipeline|
+    //#########################################|    Spatial|         |          |          |       |        |        |        |   Operation|   Operation|   Operation| Specialization|      |      |      |      |     |     |     |        |        | Lengths_AK0_M_AK1|     ArrangeOrder|               |               |      PerVector|  PerVector_AK1|          | Lengths_BK0_N_BK1|   ArrangeOrder|               |              |      PerVector|  PerVector_BK1|          |  PerShuffle|  PerShuffle|      MBlock_MPerBlock|             _NPerBlock|                             Scheduler|                      Version|
+    //#########################################|           |         |          |          |       |        |        |        |            |            |            |               |      |      |      |      |     |     |     |        |        |                  |                 |               |               |               |               |          |                  |               |               |              |               |               |          |            |            |      NBlock_NPerBlock|                       |                                      |                             |
+    // generic instance
+    DeviceGroupedConvBwdWeight_Wmma_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,   BF16,     F32,    BF16,     F32, PassThrough, PassThrough, PassThrough,       ConvSpec,    64,    64,    64,    32,    8,   16,   16,       4,       2,        S<4, 8, 1>,       S<2, 0, 1>,     S<1, 0, 2>,              1,              1,              4,      true,        S<4, 8, 1>,     S<2, 0, 1>,     S<1, 0, 2>,             1,              1,              4,      true,           1,           1,        S<1, 16, 1, 4>,                      1, BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v1>
+    // clang-format on
+    >;
+
+template <ck::index_t NDimSpatial,
+          typename ALayout,
+          typename BLayout,
+          typename ELayout,
           ConvolutionBackwardWeightSpecialization ConvSpec,
           index_t TransposeTransferSrcScalarPerVector = 1,
           index_t TransposeTransferDstScalarPerVector = 1>

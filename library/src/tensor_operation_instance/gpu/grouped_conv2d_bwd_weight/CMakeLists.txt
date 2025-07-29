@@ -65,6 +65,7 @@ if(DL_KERNELS)
 endif()
 
 list(APPEND GROUPED_CONV2D_BWD_WEIGHT
+        wmma/gnhwc_gkyxc_gnhwk/device_grouped_conv2d_bwd_weight_wmma_gnhwc_gkyxc_gnhwk_bf16_f32_bf16_instance.cpp
         wmma/gnhwc_gkyxc_gnhwk/device_grouped_conv2d_bwd_weight_wmma_gnhwc_gkyxc_gnhwk_f16_default_pipev1_instance.cpp
         wmma/gnhwc_gkyxc_gnhwk/device_grouped_conv2d_bwd_weight_wmma_gnhwc_gkyxc_gnhwk_f16_pad0_pipev1_instance.cpp
 
