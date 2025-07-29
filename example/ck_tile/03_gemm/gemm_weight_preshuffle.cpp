@@ -36,7 +36,9 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
         GemmConfig::PermuteA,
         GemmConfig::PermuteB>;
 
-    using TilePartitioner = ck_tile::GemmTile1DPartitioner<GemmShape>;
+        using TilePartitioner = ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
+                                                   GemmConfig::TileParitionerGroupNum,
+                                                   GemmConfig::TileParitionerM01>;
 
     using Traits = ck_tile::TileGemmTraits<GemmConfig::kPadM,
                                            GemmConfig::kPadN,
@@ -281,7 +283,7 @@ int main(int argc, char* argv[])
 {
     try
     {
-        return !run_gemm_example<GemmConfigPreshuffle_3>(argc, argv);
+        return !run_gemm_example<GemmConfigPreshufle_2>(argc, argv);
     }
     catch(const std::runtime_error& e)
     {
