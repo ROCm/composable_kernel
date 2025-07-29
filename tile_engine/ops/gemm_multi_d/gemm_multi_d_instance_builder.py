@@ -53,6 +53,7 @@ class GemmCodeGenerator:
             )
             self.config = GemmConfig.from_json(config_path)
 
+        #self.problem. = TO DO
         self.valid_trait_names: List[str] = []
         self.valid_trait_tile_combinations: map[str, list[tuple[int]]] = {}
 
