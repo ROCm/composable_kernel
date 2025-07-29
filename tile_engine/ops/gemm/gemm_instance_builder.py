@@ -348,7 +348,7 @@ struct GemmKernel {{
                         hipGetErrorString(hipMemsetAsync(
                             args.e_ptr, 0, args.M * args.N * sizeof(CDataType), stream.stream_id_));
                 }};
-                ave_time = ck_tile::launch_kernel_preprocess(
+                ave_time = ck_tile::launch_kernel_time_mask(
                     stream,
                     run_flush_cache,
                     ck_tile::make_kernel<blocks.x, kBlockPerCu>(
