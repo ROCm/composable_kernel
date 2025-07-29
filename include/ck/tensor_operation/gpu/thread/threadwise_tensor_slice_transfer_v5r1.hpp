@@ -198,8 +198,7 @@ struct ThreadwiseTensorSliceTransfer_v5r1
                     src_vector.template AsType<SrcData>()[Number<src_vector_offset>{}];
             });
 
-            constexpr auto move_on_dim = [&]() constexpr
-            {
+            constexpr auto move_on_dim = [&]() constexpr {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
 
                 static_for<0, nDim, 1>{}([&](auto i) {
@@ -212,8 +211,7 @@ struct ThreadwiseTensorSliceTransfer_v5r1
                 });
 
                 return move_on_dim_;
-            }
-            ();
+            }();
 
             // move
             static_for<0, nDim, 1>{}([&](auto i) {
@@ -368,8 +366,7 @@ struct ThreadwiseTensorSliceTransfer_v5r1
                 is_dst_valid,
                 dst_vector.template AsType<dst_vector_t>()[Number<0>{}]);
 
-            constexpr auto move_on_dim = [&]() constexpr
-            {
+            constexpr auto move_on_dim = [&]() constexpr {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
 
                 static_for<0, nDim, 1>{}([&](auto i) {
@@ -382,8 +379,7 @@ struct ThreadwiseTensorSliceTransfer_v5r1
                 });
 
                 return move_on_dim_;
-            }
-            ();
+            }();
 
             // move
             static_for<0, nDim, 1>{}([&](auto i) {

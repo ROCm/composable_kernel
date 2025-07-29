@@ -955,9 +955,9 @@ struct FmhaFwdKernel
         else
         {
             // TODO: this may need tuning
-            return dim3(ck_tile::integer_divide_ceil(seqlen_q_, FmhaPipeline::kM0) *
+            return dim3(nhead_,
+                        ck_tile::integer_divide_ceil(seqlen_q_, FmhaPipeline::kM0) *
                             ck_tile::integer_divide_ceil(hdim_v_, FmhaPipeline::kN1),
-                        nhead_,
                         batch_size_);
         }
     }
@@ -1003,8 +1003,8 @@ struct FmhaFwdKernel
             const index_t num_tile_n1 =
                 ck_tile::integer_divide_ceil(kargs.hdim_v, FmhaPipeline::kN1);
 
-            const index_t i_block = blockIdx.x;
-            const index_t i_nhead = blockIdx.y;
+            const index_t i_block = blockIdx.y; // blockIdx.x
+            const index_t i_nhead = blockIdx.x; // blockIdx.y
             const index_t i_batch = blockIdx.z;
 
             const auto f = [](index_t dividend, index_t divisor) {
@@ -1018,7 +1018,7 @@ struct FmhaFwdKernel
             if constexpr(kHasMask)
             {
                 // assume that num_tile_n1 is always 1
-                return ck_tile::make_tuple(gridDim.x - 1 - i_tile_m, i_tile_n, i_nhead, i_batch);
+                return ck_tile::make_tuple(gridDim.y - 1 - i_tile_m, i_tile_n, i_nhead, i_batch);
             }
             else
             {
