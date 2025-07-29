@@ -6,6 +6,7 @@
 #include <iostream>
 #include <numeric>
 #include <sstream>
+#include <string>
 
 #include "ck/utility/common_header.hpp"
 
@@ -443,14 +444,14 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
 
     std::string GetTypeString() const override
     {
-        auto str = std::stringstream();
+        std::string gemm_type_string = DeviceGemmV3Op{}.GetTypeString();
+        gemm_type_string             = std::regex_replace(gemm_type_string,
+                                              std::regex("DeviceBatchedGemmXdlUniversal"),
+                                              "DeviceGroupedConvBwdWeight_Explicit_Xdl");
+        gemm_type_string             = std::regex_replace(gemm_type_string, std::regex(">"), ",");
+        gemm_type_string.append(">");
 
-        // clang-format off
-        str << "DeviceGroupedConvBwdWeight_Explicit_Xdl"
-            << "<" << DeviceGemmV3Op{}.GetTypeString() << ">";
-        // clang-format on
-
-        return str.str();
+        return gemm_type_string;
     }
     size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override
     {
