@@ -48,7 +48,7 @@ struct str_literal
 
 template <size_t... Idx>
 constexpr std::tuple<std::integral_constant<size_t, Idx>...>
-    makeTuple(std::index_sequence<Idx...>) noexcept
+makeTuple(std::index_sequence<Idx...>) noexcept
 {
     return {};
 }
@@ -113,8 +113,8 @@ struct CK_PRINTF<ConvertTo,
                                   std::integer_sequence<index_t, Is...>) const
     {
         using FMT1                = std::conditional_t<sizeof...(FMTChars) == 0,
-                                        decltype(default_format<Y>()),
-                                        str_literal<FMTChars...>>;
+                                                       decltype(default_format<Y>()),
+                                                       str_literal<FMTChars...>>;
         constexpr auto fmt_v      = FMT1::template duplicate_n<N>(make_str_literal(" "));
         constexpr auto fmt_wrap_v = get_prefix() + fmt_v + get_suffix();
 

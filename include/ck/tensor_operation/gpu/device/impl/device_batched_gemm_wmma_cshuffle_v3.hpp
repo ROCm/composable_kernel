@@ -29,16 +29,15 @@ template <typename GridwiseGemm,
           TailNumber TailNum       = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
-        kernel_batched_gemm_wmma_cshuffle_v3(
-            typename GridwiseGemm::Argument
-                karg, // This works for now but it actually receives a
-                      // DeviceBatchedGemm_Wmma_CShuffleV3::Argument
-                      // argument through implicit conversion to base class!
-            const ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch)
+    kernel_batched_gemm_wmma_cshuffle_v3(
+        typename GridwiseGemm::Argument karg, // This works for now but it actually receives a
+                                              // DeviceBatchedGemm_Wmma_CShuffleV3::Argument
+                                              // argument through implicit conversion to base class!
+        const ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
+#if(defined(__gfx11__) || defined(__gfx12__))
 #if defined(__gfx11__)
     // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
     using c_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_c_grid)>>;
