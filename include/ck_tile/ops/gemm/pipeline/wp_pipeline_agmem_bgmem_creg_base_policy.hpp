@@ -18,9 +18,6 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
         using namespace ck_tile;
-
-        // constexpr index_t MPerXdl = Problem::BlockGemmShape::WarpTile::at(I0);
-        // constexpr index_t NPerXdl = Problem::BlockGemmShape::WarpTile::at(I1);
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
         constexpr index_t kKPack     = GetSmemPackA<Problem>();
