@@ -18,15 +18,16 @@ struct BatchedTransposeCommonPolicy
         constexpr index_t BlockSize         = Problem::kBlockSize;
         constexpr index_t LeadDimPerBlock   = Problem::kMPerBlock;
         constexpr index_t SecondDimPerBlock = Problem::kNPerBlock;
-        constexpr index_t kWarpSize = get_warp_size();
+        constexpr index_t kWarpSize         = get_warp_size();
 
         constexpr index_t kVectorSize = Problem::VectorSizeOutput;
 
-        using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
-                                                                      min(SecondDimPerBlock, kWarpSize),
-                                                                      min(LeadDimPerBlock, kWarpSize),
-                                                                      kVectorSize,
-                                                                      TileAccessPattern>;
+        using TileEncodingPattern =
+            TileDistributionEncodingPattern2D<BlockSize,
+                                              min(SecondDimPerBlock, kWarpSize),
+                                              min(LeadDimPerBlock, kWarpSize),
+                                              kVectorSize,
+                                              TileAccessPattern>;
         return TileEncodingPattern::Make2DStaticTileDistribution();
     }
 };
