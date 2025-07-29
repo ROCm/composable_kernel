@@ -891,11 +891,11 @@ pipeline {
         booleanParam(
             name: "RUN_CK_TILE_TRANSPOSE_TESTS",
             defaultValue: true,
-            description: "Run the ck_tile Transpose tests (default: OFF)")
+            description: "Run the ck_tile Transpose tests (default: ON)")
         booleanParam(
             name: "RUN_CK_TILE_GEMM_TESTS",
             defaultValue: true,
-            description: "Run the ck_tile GEMM tests (default: OFF)")
+            description: "Run the ck_tile GEMM tests (default: ON)")
         booleanParam(
             name: "RUN_TILE_ENGINE_GEMM_TESTS",
             defaultValue: false,
