@@ -28,9 +28,6 @@ if(GPU_TARGETS MATCHES "gfx94" OR GPU_TARGETS MATCHES "gfx95" OR GPU_TARGETS MAT
     add_gtest_executable(test_ck_tile_gemm_pipeline_persistent test_gemm_pipeline_persistent.cpp)
     target_compile_options(test_ck_tile_gemm_pipeline_persistent PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
 
-    add_gtest_executable(test_ck_tile_gemm_instance_validation test_gemm_instance_validation.cpp)
-    target_compile_options(test_ck_tile_gemm_instance_validation PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
-
     function(generate_ck_tile_test_instances datatype)
         set(working_path "${CMAKE_CURRENT_BINARY_DIR}/test_instances_${datatype}/")
         set(json_config "${CMAKE_CURRENT_LIST_DIR}/configs/default_config_sample.json")
@@ -127,27 +124,33 @@ if(GPU_TARGETS MATCHES "gfx94" OR GPU_TARGETS MATCHES "gfx95" OR GPU_TARGETS MAT
         # Create interface library for test instances
         add_library(test_gemm_instances_${datatype} INTERFACE)
         add_dependencies(test_gemm_instances_${datatype} ck_tile_test_gen_${datatype})
-        target_link_libraries(test_gemm_instances_${datatype} INTERFACE ${test_intermediate_libs})
         target_include_directories(test_gemm_instances_${datatype} INTERFACE
             ${PROJECT_SOURCE_DIR}/tile_engine/ops/gemm
             "${working_path}"
         )
         set_target_properties(test_gemm_instances_${datatype} PROPERTIES LINKER_LANGUAGE CXX)
-        
-        # Link test executable with generated instances
-        add_dependencies(test_ck_tile_gemm_instance_validation ck_tile_test_gen_${datatype})
-        target_link_libraries(test_ck_tile_gemm_instance_validation PRIVATE 
-            test_gemm_instances_${datatype}
-        )
-        
-        target_include_directories(test_ck_tile_gemm_instance_validation PRIVATE 
-            ${working_path}
-            ${PROJECT_SOURCE_DIR}/tile_engine/ops/gemm
-        )
     endfunction()
     
     # Generate test instances
     generate_ck_tile_test_instances(fp16)
     generate_ck_tile_test_instances(bf16)
+
+
+    # Add test executables for each datatype
+    add_gtest_executable(test_ck_tile_gemm_instance_validation_fp16 test_gemm_instance_validation_fp16.cpp)
+    target_link_libraries(test_ck_tile_gemm_instance_validation_fp16 PRIVATE test_gemm_instances_fp16)
+    target_compile_options(test_ck_tile_gemm_instance_validation_fp16 PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+    target_include_directories(test_ck_tile_gemm_instance_validation_fp16 PRIVATE
+        ${CMAKE_CURRENT_BINARY_DIR}/test_instances_fp16
+        ${PROJECT_SOURCE_DIR}/tile_engine/ops/gemm
+    )
+
+    add_gtest_executable(test_ck_tile_gemm_instance_validation_bf16 test_gemm_instance_validation_bf16.cpp)
+    target_link_libraries(test_ck_tile_gemm_instance_validation_bf16 PRIVATE test_gemm_instances_bf16)
+    target_compile_options(test_ck_tile_gemm_instance_validation_bf16 PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+    target_include_directories(test_ck_tile_gemm_instance_validation_bf16 PRIVATE
+        ${CMAKE_CURRENT_BINARY_DIR}/test_instances_bf16
+        ${PROJECT_SOURCE_DIR}/tile_engine/ops/gemm
+)
 
 endif()

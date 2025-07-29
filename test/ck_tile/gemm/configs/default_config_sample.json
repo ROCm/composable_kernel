@@ -19,14 +19,12 @@
   "tile_config": {
     "tile_m": {
       "values": [
-        128,
-        256
+        128
       ]
     },
     "tile_n": {
       "values": [
-        128,
-        256
+        128
       ]
     },
     "tile_k": {
@@ -88,7 +86,6 @@
     },
     "pad_n": {
       "values": [
-        true,
         false
       ]
     },
