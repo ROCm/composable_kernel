@@ -67,9 +67,9 @@ struct PipelineConfig
     static constexpr ck_tile::index_t kNumWarpsX = kNumWarpsX_;
     static constexpr ck_tile::index_t kNumWarpsY = kNumWarpsY_;
 
-    using Problem = PipelineSelector<
+    using Problem = typename PipelineSelector<
         kPipelineId_>::template Problem<DataType, BlockTile, WarpLayout, kPadM, kPadN>;
-    using Pipeline = PipelineSelector<kPipelineId_>::template Pipeline<Problem>;
+    using Pipeline = typename PipelineSelector<kPipelineId_>::template Pipeline<Problem>;
     using Kernel   = ck_tile::BatchedTransposeKernel<Pipeline>;
 };
 
@@ -100,7 +100,7 @@ class TestCkTileBatchedTranspose //              N    C    H    W    layout_in==
         ck_tile::DeviceMem y_dev(y_host.get_element_space_size_in_bytes());
         x_dev.ToDevice(x_host.data());
 
-        using Kernel = Config::Kernel;
+        using Kernel = typename Config::Kernel;
 
         const ck_tile::index_t height = nchw2nhwc ? C : H * W;
         const ck_tile::index_t width  = nchw2nhwc ? H * W : C;
@@ -122,7 +122,8 @@ class TestCkTileBatchedTranspose //              N    C    H    W    layout_in==
         if(Config::kPipelineId == PipelineTag::LDSLoadTranspose &&
            device_name.find("gfx950") == std::string::npos)
         {
-            GTEST_SKIP_("LDS Load Transpose cannot be launched on this hardware");
+            GTEST_SKIP_(
+                std::format("LDS Load Transpose cannot be launched with {}", device_name).c_str());
         }
 
         const auto host_args = ck_tile::BatchedTransposeHostArgs{x_dev.GetDeviceBuffer(),
@@ -221,6 +222,24 @@ class CaseHalfPadLoadTranspose
 {
 };
 
+class CaseHalfPadMultiWarp
+    : public TestCkTileBatchedTranspose<
+          PipelineConfig<ck_tile::half_t, PipelineTag::Universal, 64, 64, 2, 2, false, false>>
+{
+};
+
+class CaseHalfPadMultiWarpLoadTranspose
+    : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t,
+                                                       PipelineTag::LDSLoadTranspose,
+                                                       64,
+                                                       64,
+                                                       2,
+                                                       2,
+                                                       false,
+                                                       false>>
+{
+};
+
 TEST_P(CaseHalf, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseByte, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseWord, TestCorrectness) { this->Run(GetParam()); }
@@ -228,7 +247,10 @@ TEST_P(CaseHalfLoadTranspose, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseByteLoadTranspose, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseHalfPad, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseHalfPadLoadTranspose, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(CaseHalfPadMultiWarp, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(CaseHalfPadMultiWarpLoadTranspose, TestCorrectness) { this->Run(GetParam()); }
 
+// clang-format off
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalf, kTestingValues);
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseByte, kTestingValues);
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseWord, kTestingValues);
@@ -236,3 +258,6 @@ INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfLoadTranspose,
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseByteLoadTranspose, kTestingValues);
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPad, kTestingValues);
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadLoadTranspose, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadMultiWarp, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadMultiWarpLoadTranspose, kTestingValues);
+// clang-format on
