@@ -50,13 +50,19 @@ template <typename DataType_,
           bool kPadN_                   = true>
 struct PipelineConfig
 {
-    using DataType              = DataType_;
-    using BlockTile             = ck_tile::sequence<kBlockX_, kBlockY_>;
-    using WarpLayout            = ck_tile::sequence<kNumWarpsX_, kNumWarpsY_>;
-    static constexpr bool kPadM = kPadM_;
-    static constexpr bool kPadN = kPadN_;
-    using Problem               = PipelineSelector<
-                      kPipelineId_>::template Problem<DataType, BlockTile, WarpLayout, kPadM, kPadN>;
+    using DataType                                = DataType_;
+    using BlockTile                               = ck_tile::sequence<kBlockX_, kBlockY_>;
+    using WarpLayout                              = ck_tile::sequence<kNumWarpsX_, kNumWarpsY_>;
+    static constexpr bool kPadM                   = kPadM_;
+    static constexpr bool kPadN                   = kPadN_;
+    static constexpr ck_tile::index_t kPipelineId = kPipelineId_;
+    static constexpr ck_tile::index_t kBlockX     = kBlockX_;
+    static constexpr ck_tile::index_t kBlockY     = kBlockY_;
+    static constexpr ck_tile::index_t kNumWarpsX  = kNumWarpsX_;
+    static constexpr ck_tile::index_t kNumWarpsY  = kNumWarpsY_;
+
+    using Problem = PipelineSelector<
+        kPipelineId_>::template Problem<DataType, BlockTile, WarpLayout, kPadM, kPadN>;
     using Pipeline = PipelineSelector<kPipelineId_>::template Pipeline<Problem>;
     using Kernel   = ck_tile::BatchedTransposeKernel<Pipeline>;
 };
@@ -93,6 +99,25 @@ class TestCkTileBatchedTranspose //              N    C    H    W    layout_in==
         const ck_tile::index_t height = nchw2nhwc ? C : H * W;
         const ck_tile::index_t width  = nchw2nhwc ? H * W : C;
 
+        if(height % Config::kBlockX != 0 && !Config::kPadM)
+        {
+            GTEST_SKIP_("Input cannot be covered with block tiles and Kernel does not force height "
+                        "padding");
+        }
+
+        if(width % Config::kBlockY != 0 && !Config::kPadN)
+        {
+            GTEST_SKIP_(
+                "Input cannot be covered with block tiles and Kernel does not force width padding");
+        }
+
+        const auto device_name = ck_tile::get_device_name();
+
+        if(Config::kPipelineId == 1 && device_name.find("gfx950") == std::string::npos)
+        {
+            GTEST_SKIP_("LDS Load Transpose cannot be launched on this hardware");
+        }
+
         const auto host_args = ck_tile::BatchedTransposeHostArgs{x_dev.GetDeviceBuffer(),
                                                                  y_dev.GetDeviceBuffer(),
                                                                  N,
@@ -113,7 +138,7 @@ class TestCkTileBatchedTranspose //              N    C    H    W    layout_in==
 
         std::ostringstream message;
         message << "N=" << N << " C=" << C << " H=" << H << " W=" << W << " layout_in=" << layout_in
-                << " layout_out=" << layout_out;
+                << " layout_out=" << layout_out << " device_name=" << device_name;
 
         bool pass = ck_tile::check_err(
             y_ref, y_host, message.str(), /* rtol */ 0, /* atol */ 0, /* allow inf */ false);
@@ -169,14 +194,28 @@ class CaseByteLoadTranspose : public TestCkTileBatchedTranspose<PipelineConfig<c
 {
 };
 
+class CaseHalfPad : public TestCkTileBatchedTranspose<
+                        PipelineConfig<ck_tile::half_t, 0, 64, 64, 1, 1, false, false>>
+{
+};
+
+class CaseHalfPadLoadTranspose : public TestCkTileBatchedTranspose<
+                                     PipelineConfig<ck_tile::half_t, 1, 64, 64, 1, 1, false, false>>
+{
+};
+
 TEST_P(CaseHalf, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseByte, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseWord, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseHalfLoadTranspose, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseByteLoadTranspose, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(CaseHalfPad, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(CaseHalfPadLoadTranspose, TestCorrectness) { this->Run(GetParam()); }
 
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalf, kTestingValues);
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseByte, kTestingValues);
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseWord, kTestingValues);
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfLoadTranspose, kTestingValues);
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseByteLoadTranspose, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPad, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadLoadTranspose, kTestingValues);
