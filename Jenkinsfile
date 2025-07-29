@@ -1088,13 +1088,13 @@ pipeline {
         {
             parallel
             {
-                stage("Run AITER Tests on gfx942")
+                stage("Run AITER Tests on gfx90a")
                 {
                     when {
                         beforeAgent true
                         expression { params.RUN_AITER_TESTS.toBoolean() }
                     }
-                    agent{ label rocmnode("gfx942")}
+                    agent{ label rocmnode("gfx90a")}
                     steps{
                         run_aiter_tests()
                         cleanWs()

@@ -8,4 +8,5 @@ RUN pip install pandas zmq einops && \
     cd aiter && \
     rm -rf 3rdparty/composable_kernel/ && \
     git clone https://github.com/ROCm/composable_kernel.git 3rdparty/composable_kernel/ && \
-    python3 setup.py develop
+    python3 setup.py develop && \
+    chown -R jenkins /var/lib/jenkins/aiter
