@@ -21,8 +21,7 @@ class HandlerId(IntEnum):
 ops = []
 for importer, module_name, _ in pkgutil.iter_modules(codegen.ops.__path__):
     full_module_name = '%s.%s' % (codegen.ops.__name__, module_name)
-    if full_module_name not in sys.modules:
-        ops.append(importer.find_spec(module_name).loader.load_module(module_name))
+    ops.append(importer.find_spec(module_name).loader.load_module(module_name))
 unwanted_prefix = 'fmha_'
 handlers = dict(
     [(op.__name__[len(unwanted_prefix):] if op.__name__.startswith(unwanted_prefix) else op.__name__,
@@ -126,9 +125,6 @@ if __name__ == "__main__":
     filter_list = args.filter.split(',')
     filter_list.extend([''] * (len(api_list) - len(filter_list)))
     optdim_list = [int(hdim) for hdim in args.optdim.split(',')]
-
-    if len(api_list) > 1:
-        assert optdim_list == [-1]
 
     if args.list_blobs is not None:
         list_blobs(args.list_blobs, api_list, filter_list, optdim_list, int(args.receipt), mask_impl=args.mask)

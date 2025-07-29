@@ -34,7 +34,8 @@ static constexpr auto Intrawave = BlockGemmPipelineScheduler::Intrawave;
 static constexpr auto Interwave = BlockGemmPipelineScheduler::Interwave;
 
 template <GemmSpecialization GemmSpec>
-using device_gemm_xdl_universal_streamk_f8_f16_f16_mk_kn_mn_comp_instances = std::tuple<
+using device_gemm_xdl_universal_streamk_f8_f16_f16_mk_kn_mn_comp_instances =
+    std::tuple<
 // clang-format off
     #if defined(__gfx94__) || defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH)
         //#########################| ALayout| BLayout| CLayout|AData| BData| CData| AccData| Cshuffle|           A|           B|           C|          GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1|MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|                         Block-wiseGemm|               Block-wiseGemm|
@@ -52,8 +53,8 @@ using device_gemm_xdl_universal_streamk_f8_f16_f16_mk_kn_mn_comp_instances = std
         // DeviceGemm_Xdl_CShuffle_Streamk_V3<  Row,     Row,     Row,     F8,  F16,  F16,   F32,     F16,      PassThrough, PassThrough, PassThrough,       GemmSpec,   256,   128,   128,    64,    16,   4,  32,   32,    2,    2,     S<4, 64, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,              16,          0,    S<16, 16, 1>,    S<0, 2, 1>,     S<0, 2, 1>,             1,              8,              4,          0,          1,           1,                   S<1, 32, 1, 8>,               8,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v5>,
         DeviceGemm_Xdl_CShuffle_Streamk_V3<  Row,     Row,     Row,     F8,  F16,  F16,   F32,     F16,      PassThrough, PassThrough, PassThrough,       GemmSpec,   256,   128,   128,    64,    16,   4,  32,   32,    2,    2,     S<4, 64, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,              16,          0,    S<16, 16, 1>,    S<0, 2, 1>,     S<0, 2, 1>,             1,              8,              4,          0,          1,           1,                   S<1, 32, 1, 8>,               8,  BlockGemmPipelineScheduler::Interwave, BlockGemmPipelineVersion::v1>
         #endif
-    // clang-format on
-    >;
+        // clang-format on
+        >;
 
 template <BlockGemmPipelineScheduler BlkGemmPipeSched, GemmSpecialization GemmSpec>
 using device_gemm_xdl_universal_streamk_f8_f16_f16_mk_kn_mn_mem_instances = std::tuple<

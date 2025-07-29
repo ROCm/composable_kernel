@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -43,24 +43,23 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_batched_gemm_xdlops_bwd_weight(
-            const FloatA* __restrict__ p_a_grid,
-            const FloatB* __restrict__ p_b_grid,
-            FloatC* __restrict__ p_c_grid,
-            const AElementwiseOperation a_element_op,
-            const BElementwiseOperation b_element_op,
-            const CElementwiseOperation c_element_op,
-            const index_t batch_count,
-            const AGridDesc_B_K0_M_K1 a_b_k0_m_k1_grid_desc,
-            const BGridDesc_B_K0_N_K1 b_b_k0_n_k1_grid_desc,
-            const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-                c_grid_desc_mblock_mperblock_nblock_nperblock,
-            const Block2CTileMap block_2_ctile_map,
-            const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
+    kernel_batched_gemm_xdlops_bwd_weight(const FloatA* __restrict__ p_a_grid,
+                                          const FloatB* __restrict__ p_b_grid,
+                                          FloatC* __restrict__ p_c_grid,
+                                          const AElementwiseOperation a_element_op,
+                                          const BElementwiseOperation b_element_op,
+                                          const CElementwiseOperation c_element_op,
+                                          const index_t batch_count,
+                                          const AGridDesc_B_K0_M_K1 a_b_k0_m_k1_grid_desc,
+                                          const BGridDesc_B_K0_N_K1 b_b_k0_n_k1_grid_desc,
+                                          const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+                                              c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                          const Block2CTileMap block_2_ctile_map,
+                                          const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if defined(__gfx9__)
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
@@ -393,8 +392,10 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                 {
                     const index_t GemmM = K;
                     const index_t GemmN = C * X;
-                    const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
-                    const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
+                    const auto PadGemmM =
+                        GemmM % MPerBlock == 0 ? 0 : MPerBlock - GemmM % MPerBlock;
+                    const auto PadGemmN =
+                        GemmN % NPerBlock == 0 ? 0 : NPerBlock - GemmN % NPerBlock;
 
                     return transform_tensor_descriptor(
                         wei_grid_desc,
@@ -432,8 +433,10 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                 {
                     const index_t GemmM = K;
                     const index_t GemmN = C * X * Y;
-                    const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
-                    const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
+                    const auto PadGemmM =
+                        GemmM % MPerBlock == 0 ? 0 : MPerBlock - GemmM % MPerBlock;
+                    const auto PadGemmN =
+                        GemmN % NPerBlock == 0 ? 0 : NPerBlock - GemmN % NPerBlock;
 
                     return transform_tensor_descriptor(
                         wei_grid_desc,
@@ -472,8 +475,10 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                 {
                     const index_t GemmM = K;
                     const index_t GemmN = C * X * Y * Z;
-                    const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
-                    const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
+                    const auto PadGemmM =
+                        GemmM % MPerBlock == 0 ? 0 : MPerBlock - GemmM % MPerBlock;
+                    const auto PadGemmN =
+                        GemmN % NPerBlock == 0 ? 0 : NPerBlock - GemmN % NPerBlock;
 
                     return transform_tensor_descriptor(
                         wei_grid_desc,
@@ -589,6 +594,11 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
               input_right_pads_{input_right_pads},
               k_batch_{split_k}
         {
+            c_space_size_bytes =
+                ck::accumulate_n<long_index_t>(
+                    e_g_k_c_xs_lengths.begin(), NDimSpatial + I3, 1, std::multiplies<>()) *
+                sizeof(AccDataType);
+
             constexpr index_t spatial_offset = 3;
             std::copy(begin(b_g_n_c_wis_lengths) + spatial_offset,
                       end(b_g_n_c_wis_lengths),
@@ -703,6 +713,7 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
         const std::array<ck::index_t, NDimSpatial>& input_left_pads_;
         const std::array<ck::index_t, NDimSpatial>& input_right_pads_;
         const index_t k_batch_;
+        long_index_t c_space_size_bytes;
     };
 
     // Invoker
@@ -751,7 +762,7 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
 
                 auto preprocess = [&]() {
                     hip_check_error(hipMemsetAsync(
-                        p_c_grid, 0, arg.GetWorkspaceSizeBytes(), stream_config.stream_id_));
+                        p_c_grid, 0, arg.c_space_size_bytes, stream_config.stream_id_));
                 };
 
                 const auto kernel = kernel_batched_gemm_xdlops_bwd_weight<

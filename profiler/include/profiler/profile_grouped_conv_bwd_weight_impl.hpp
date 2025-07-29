@@ -11,7 +11,6 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_conv_fwd.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_backward_weight.hpp"
@@ -93,12 +92,12 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     if(do_verification)
     {
         auto ref_conv     = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
-                                                                           InDataType,
-                                                                           WeiDataType,
-                                                                           OutDataType,
-                                                                           InElementOp,
-                                                                           WeiElementOp,
-                                                                           OutElementOp>{};
+                                                                               InDataType,
+                                                                               WeiDataType,
+                                                                               OutDataType,
+                                                                               InElementOp,
+                                                                               WeiElementOp,
+                                                                               OutElementOp>{};
         auto ref_invoker  = ref_conv.MakeInvoker();
         auto ref_argument = ref_conv.MakeArgument(input,
                                                   weight_host_result,
@@ -207,8 +206,6 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
 
             if(op_ptr->IsSupportedArgument(argument_ptr.get()))
             {
-                // using atomic add, so need to reset input
-                wei_device_buf.SetZero();
 
                 std::string op_name = op_ptr->GetTypeString();
 
@@ -264,8 +261,9 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                         ck::utils::get_absolute_threshold<WeiDataType, WeiDataType, WeiDataType>(
                             max_accumulated_value, num_accums_split_k);
                     // Use higher threshold
-                    rtol      = std::max(rtol, rtol_split_k);
-                    atol      = std::max(atol, atol_split_k);
+                    rtol = std::max(rtol, rtol_split_k);
+                    atol = std::max(atol, atol_split_k);
+                    // Use default atol for splitK == 1
                     bool pass = ck::utils::check_err(weight_device_result,
                                                      weight_host_result,
                                                      "Error: Incorrect results!",
@@ -304,10 +302,9 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
         }
     }
 
-    std::cout << "Best configuration parameters:"
-              << "\nname: " << best_op_name << "\navg_time: " << best_avg_time
-              << "\ntflops: " << best_tflops << "\nGB/s: " << best_gb_per_sec << ", SplitK "
-              << best_split_k << std::endl;
+    std::cout << "Best configuration parameters:" << "\nname: " << best_op_name
+              << "\navg_time: " << best_avg_time << "\ntflops: " << best_tflops
+              << "\nGB/s: " << best_gb_per_sec << ", SplitK " << best_split_k << std::endl;
 
     return all_pass;
 }

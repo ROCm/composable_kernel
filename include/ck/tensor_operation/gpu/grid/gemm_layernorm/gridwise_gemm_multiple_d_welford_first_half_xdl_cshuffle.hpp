@@ -519,13 +519,19 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
         constexpr bool is_single_rate_mfma =
             (((is_same<ABDataType, half_t>::value || is_same<ABDataType, bhalf_t>::value) &&
               lcm_AK1_BK1 <= 4) ||
-             (is_same<ABDataType, int8_t>::value && lcm_AK1_BK1 <= 8))
+             (is_same<ABDataType, int8_t>::value && lcm_AK1_BK1 <= 8) ||
+             ((is_same<ABDataType, f8_t>::value || is_same<ABDataType, bf8_t>::value) &&
+              lcm_AK1_BK1 < 32))
                 ? true
                 : false;
-        constexpr index_t KPack =
-            math::max(lcm_AK1_BK1,
-                      MfmaSelector<ABDataType, MPerXdl, NPerXdl, ABDataType, is_single_rate_mfma>::
-                          selected_mfma.k_per_blk);
+        constexpr auto is_scale_mfma = false;
+        constexpr index_t KPack      = math::max(lcm_AK1_BK1,
+                                            MfmaSelector<ABDataType,
+                                                              MPerXdl,
+                                                              NPerXdl,
+                                                              ABDataType,
+                                                              is_single_rate_mfma,
+                                                              is_scale_mfma>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,
@@ -991,9 +997,8 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
                 static_for<0, post_shuffle_thread_desc_m_n.GetElementSize(), 1>{}([&](auto i) {
                     const auto c_ds_src_data_refs = concat_tuple_of_reference(
                         tie(e_thread_buf[i]),
-                        generate_tie(
-                            [&](auto Id) -> const auto& { return ds_thread_buf[Id][i]; },
-                            Number<NumDTensor>{}));
+                        generate_tie([&](auto Id) -> const auto& { return ds_thread_buf[Id][i]; },
+                                     Number<NumDTensor>{}));
                     auto e_dst_data_refs = tie(e_thread_buf(i));
                     unpack2(cde_element_op, e_dst_data_refs, c_ds_src_data_refs);
                 });
@@ -1118,7 +1123,7 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
             });
 
         } // shuffle C + Ds + welford + write out
-    }     // run
+    } // run
 };
 
 } // namespace ck

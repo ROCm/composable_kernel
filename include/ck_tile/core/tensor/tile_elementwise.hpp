@@ -59,6 +59,38 @@ CK_TILE_DEVICE auto tile_elementwise_in(const InElementFunc& in_element_func,
     return out_dstr_tensor;
 }
 
+/**
+ * @brief  Template function that "unpacks" a tuple and applies an element-wise operation.
+ *
+ * @param in_element_func    Function to apply element-wise.
+ * @param t                  Any container containing elements to process, with known size and
+ * tuple-like semantic.
+ * @return Calls tile_elementwise_inout with unpacked tuple elements.
+ */
+template <typename InElementFunc, typename Tuple, size_t... I>
+CK_TILE_DEVICE auto tile_elementwise_inout_unpack(const InElementFunc& in_element_func,
+                                                  const Tuple& t,
+                                                  std::index_sequence<I...>)
+{
+    return tile_elementwise_inout(in_element_func, t[number<I>{}]...);
+}
+
+/**
+ * @brief  Template function that "unpacks" a tuple and applies an element-wise operation.
+ *
+ * @param in_element_func   Function to apply element-wise.
+ * @param t                 Any container containing elements to process, with known size and
+ * tuple-like semantic.
+ * @return Calls the overloaded function, passing an index sequence.
+ */
+template <typename InElementFunc, typename Tuple>
+CK_TILE_DEVICE auto tile_elementwise_inout_unpack(const InElementFunc& in_element_func,
+                                                  const Tuple& t)
+{
+    static constexpr auto size = Tuple::size();
+    return tile_elementwise_inout_unpack(in_element_func, t, std::make_index_sequence<size>{});
+}
+
 template <typename DstrTensors, typename T>
 CK_TILE_DEVICE void set_tile(DstrTensors& dstr_tensor, const T& value)
 {
@@ -295,9 +327,8 @@ CK_TILE_DEVICE auto cast_tile_opt_subdword(const InTensor& in_dstr_tensors)
 template <typename DstType, typename SrcTensor>
 CK_TILE_DEVICE auto cast_tile(const SrcTensor& src_tensor)
 {
-    if constexpr((std::is_same_v<DstType, fp8_t> ||
-                  std::is_same_v<DstType, bf8_t>)&&std::is_same_v<typename SrcTensor::DataType,
-                                                                  float> &&
+    if constexpr((std::is_same_v<DstType, fp8_t> || std::is_same_v<DstType, bf8_t>) &&
+                 std::is_same_v<typename SrcTensor::DataType, float> &&
                  (SrcTensor::get_thread_buffer_size() % 4 == 0))
     {
         return impl::cast_tile_pk_fp8_fp32<DstType, SrcTensor>(src_tensor);
