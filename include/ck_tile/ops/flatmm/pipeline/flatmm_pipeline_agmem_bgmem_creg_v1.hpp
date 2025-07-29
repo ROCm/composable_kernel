@@ -82,7 +82,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1 : public BaseFlatmmPipelineAGmemBGmemCRegV
     using BlockWarps = remove_cvref_t<typename BlockGemmShape::BlockWarps>;
     using WarpTile   = remove_cvref_t<typename BlockGemmShape::WarpTile>;
 
-    static constexpr bool DoubleSmemBuffer = false;
+    static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
     static constexpr index_t Preshuffle    = Problem::Preshuffle;
     using Base::UsePersistentKernel;
 
