@@ -11,7 +11,7 @@
 #include "ck_tile/ops/batched_transpose.hpp"
 
 template <typename DataType>
-class TestCkTileBatchedTranspose
+class TestCkTileBatchedTranspose //              N    C    H    W    is_nchw
     : public ::testing::TestWithParam<std::tuple<int, int, int, int, bool>>
 {
     protected:
@@ -22,11 +22,11 @@ class TestCkTileBatchedTranspose
         const std::string layout_out       = nchw2nhwc ? "NHWC" : "NCHW";
         const auto X_dim = nchw2nhwc ? std::array{N, C, H, W} : std::array{N, H, W, C};
         const auto X_stride =
-            nchw2nhwc ? std::array{C * H * W, H * W, W, 1} : std::array{C * H * W, C * W, W, 1};
+            nchw2nhwc ? std::array{C * H * W, H * W, W, 1} : std::array{C * H * W, C * W, C, 1};
         ck_tile::HostTensor<DataType> x_host(X_dim, X_stride);
         const auto Y_dim = nchw2nhwc ? std::array{N, H, W, C} : std::array{N, C, H, W};
         const auto Y_stride =
-            nchw2nhwc ? std::array{C * H * W, C * W, W, 1} : std::array{C * H * W, H * W, W, 1};
+            nchw2nhwc ? std::array{C * H * W, C * W, C, 1} : std::array{C * H * W, H * W, W, 1};
         ck_tile::HostTensor<DataType> y_host(Y_dim, Y_stride);
         ck_tile::HostTensor<DataType> y_ref(Y_dim, Y_stride);
 
@@ -67,11 +67,42 @@ class TestCkTileBatchedTranspose
         y_dev.FromDevice(y_host.data());
         ck_tile::reference_batched_transpose<DataType>(x_host, y_ref, layout_in, layout_out);
 
-        bool pass = ck_tile::check_err(y_ref, y_host);
+        std::ostringstream message;
+        message << "N=" << N << " C=" << C << " H=" << H << " W=" << W << " layout_in=" << layout_in
+                << " layout_out=" << layout_out;
+
+        bool pass = ck_tile::check_err(
+            y_ref, y_host, message.str(), /* rtol */ 0, /* atol */ 0, /* allow inf */ false);
 
         EXPECT_TRUE(pass);
     }
 };
+
+// clang-format off
+// the default indent is not sane
+static const auto kTestingValues = ::testing::Values(
+    std::tuple{1, 32, 1, 32, true},
+    std::tuple{1, 64, 1, 64, true},
+    std::tuple{2, 12, 1, 32, false},
+    std::tuple{3, 1334, 1, 37, false},
+    std::tuple{4, 27, 1, 32, true},
+    std::tuple{5, 1234, 1, 12, true},
+    std::tuple{1, 1, 1, 1, true},
+    std::tuple{1, 1, 1, 1, false},
+    std::tuple{128, 1024, 64, 64, true},
+    std::tuple{128, 1024, 64, 64, false},
+    std::tuple{16, 64, 32, 128, true},
+    std::tuple{16, 64, 128, 32, false},
+    std::tuple{1, 2048, 1, 1, true},
+    std::tuple{1, 2048, 1, 1, false},
+    std::tuple{1, 1, 1024, 1024, true},
+    std::tuple{1, 1, 1024, 1024, true},
+    std::tuple{8, 16, 8, 16, true},
+    std::tuple{8, 16, 8, 16, false},
+    std::tuple{1, 64, 1, 1024, true},
+    std::tuple{1, 64, 1024, 1, false}, 
+);
+// clang-format on
 
 class TestCkTileBatchedTransposeHalf : public TestCkTileBatchedTranspose<ck_tile::half_t>
 {
@@ -81,4 +112,4 @@ TEST_P(TestCkTileBatchedTransposeHalf, TestCorrectness) { this->Run(GetParam());
 
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite,
                          TestCkTileBatchedTransposeHalf,
-                         ::testing::Values(std::tuple{1, 64, 1, 64, true}));
+                         kTestingValues);
