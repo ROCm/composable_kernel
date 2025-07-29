@@ -24,12 +24,13 @@ struct GemmPipelineAgBgCrCompV5DefaultPolicy
         using BlockWarps      = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile        = typename Problem::BlockGemmShape::WarpTile;
         using WarpGemm        = WarpGemmDispatcher<typename Problem::ADataType,
-                                            typename Problem::BDataType,
-                                            typename Problem::CDataType, // AccDataType
-                                            WarpTile::at(I0),
-                                            WarpTile::at(I1),
-                                            WarpTile::at(I2),
-                                            Problem::TransposeC>;
+                                                   typename Problem::BDataType,
+                                                   typename Problem::CDataType, // AccDataType
+                                                   WarpTile::at(I0),
+                                                   WarpTile::at(I1),
+                                                   WarpTile::at(I2),
+                                                   Problem::TransposeC>;
+
         using BlockGemmPolicy = BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::ADataType,
                                                                     typename Problem::BDataType,
                                                                     typename Problem::CDataType,

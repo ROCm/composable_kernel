@@ -37,13 +37,13 @@ struct GroupedConvFwdKernelArgs
     CK_TILE_HOST GroupedConvFwdKernelArgs(const GroupedConvFwdHostArgs& args)
     {
         in_g_n_c_wis_lengths  = {static_cast<index_t>(args.G_),
-                                static_cast<index_t>(args.N_),
-                                static_cast<index_t>(args.C_),
-                                static_cast<index_t>(args.input_spatial_lengths_[0])};
+                                 static_cast<index_t>(args.N_),
+                                 static_cast<index_t>(args.C_),
+                                 static_cast<index_t>(args.input_spatial_lengths_[0])};
         wei_g_k_c_xs_lengths  = {static_cast<index_t>(args.G_),
-                                static_cast<index_t>(args.K_),
-                                static_cast<index_t>(args.C_),
-                                static_cast<index_t>(args.filter_spatial_lengths_[0])};
+                                 static_cast<index_t>(args.K_),
+                                 static_cast<index_t>(args.C_),
+                                 static_cast<index_t>(args.filter_spatial_lengths_[0])};
         out_g_n_k_wos_lengths = {static_cast<index_t>(args.G_),
                                  static_cast<index_t>(args.N_),
                                  static_cast<index_t>(args.K_),
@@ -107,15 +107,15 @@ struct GroupedConvFwdKernelArgs
     CK_TILE_HOST GroupedConvFwdKernelArgs(const GroupedConvFwdHostArgs& args)
     {
         in_g_n_c_wis_lengths  = {static_cast<index_t>(args.G_),
-                                static_cast<index_t>(args.N_),
-                                static_cast<index_t>(args.C_),
-                                static_cast<index_t>(args.input_spatial_lengths_[0]),
-                                static_cast<index_t>(args.input_spatial_lengths_[1])};
+                                 static_cast<index_t>(args.N_),
+                                 static_cast<index_t>(args.C_),
+                                 static_cast<index_t>(args.input_spatial_lengths_[0]),
+                                 static_cast<index_t>(args.input_spatial_lengths_[1])};
         wei_g_k_c_xs_lengths  = {static_cast<index_t>(args.G_),
-                                static_cast<index_t>(args.K_),
-                                static_cast<index_t>(args.C_),
-                                static_cast<index_t>(args.filter_spatial_lengths_[0]),
-                                static_cast<index_t>(args.filter_spatial_lengths_[1])};
+                                 static_cast<index_t>(args.K_),
+                                 static_cast<index_t>(args.C_),
+                                 static_cast<index_t>(args.filter_spatial_lengths_[0]),
+                                 static_cast<index_t>(args.filter_spatial_lengths_[1])};
         out_g_n_k_wos_lengths = {static_cast<index_t>(args.G_),
                                  static_cast<index_t>(args.N_),
                                  static_cast<index_t>(args.K_),
@@ -123,13 +123,13 @@ struct GroupedConvFwdKernelArgs
                                  static_cast<index_t>(args.output_spatial_lengths_[1])};
 
         conv_filter_strides   = {static_cast<index_t>(args.conv_filter_strides_[0]),
-                               static_cast<index_t>(args.conv_filter_strides_[1])};
+                                 static_cast<index_t>(args.conv_filter_strides_[1])};
         conv_filter_dilations = {static_cast<index_t>(args.conv_filter_dilations_[0]),
                                  static_cast<index_t>(args.conv_filter_dilations_[1])};
         input_left_pads       = {static_cast<index_t>(args.input_left_pads_[0]),
-                           static_cast<index_t>(args.input_left_pads_[1])};
+                                 static_cast<index_t>(args.input_left_pads_[1])};
         input_right_pads      = {static_cast<index_t>(args.input_right_pads_[0]),
-                            static_cast<index_t>(args.input_right_pads_[1])};
+                                 static_cast<index_t>(args.input_right_pads_[1])};
 
         k_batch = args.k_batch;
 
@@ -184,17 +184,17 @@ struct GroupedConvFwdKernelArgs
     CK_TILE_HOST GroupedConvFwdKernelArgs(const GroupedConvFwdHostArgs& args)
     {
         in_g_n_c_wis_lengths  = {static_cast<index_t>(args.G_),
-                                static_cast<index_t>(args.N_),
-                                static_cast<index_t>(args.C_),
-                                static_cast<index_t>(args.input_spatial_lengths_[0]),
-                                static_cast<index_t>(args.input_spatial_lengths_[1]),
-                                static_cast<index_t>(args.input_spatial_lengths_[2])};
+                                 static_cast<index_t>(args.N_),
+                                 static_cast<index_t>(args.C_),
+                                 static_cast<index_t>(args.input_spatial_lengths_[0]),
+                                 static_cast<index_t>(args.input_spatial_lengths_[1]),
+                                 static_cast<index_t>(args.input_spatial_lengths_[2])};
         wei_g_k_c_xs_lengths  = {static_cast<index_t>(args.G_),
-                                static_cast<index_t>(args.K_),
-                                static_cast<index_t>(args.C_),
-                                static_cast<index_t>(args.filter_spatial_lengths_[0]),
-                                static_cast<index_t>(args.filter_spatial_lengths_[1]),
-                                static_cast<index_t>(args.filter_spatial_lengths_[2])};
+                                 static_cast<index_t>(args.K_),
+                                 static_cast<index_t>(args.C_),
+                                 static_cast<index_t>(args.filter_spatial_lengths_[0]),
+                                 static_cast<index_t>(args.filter_spatial_lengths_[1]),
+                                 static_cast<index_t>(args.filter_spatial_lengths_[2])};
         out_g_n_k_wos_lengths = {static_cast<index_t>(args.G_),
                                  static_cast<index_t>(args.N_),
                                  static_cast<index_t>(args.K_),
@@ -203,17 +203,17 @@ struct GroupedConvFwdKernelArgs
                                  static_cast<index_t>(args.output_spatial_lengths_[2])};
 
         conv_filter_strides   = {static_cast<index_t>(args.conv_filter_strides_[0]),
-                               static_cast<index_t>(args.conv_filter_strides_[1]),
-                               static_cast<index_t>(args.conv_filter_strides_[2])};
+                                 static_cast<index_t>(args.conv_filter_strides_[1]),
+                                 static_cast<index_t>(args.conv_filter_strides_[2])};
         conv_filter_dilations = {static_cast<index_t>(args.conv_filter_dilations_[0]),
                                  static_cast<index_t>(args.conv_filter_dilations_[1]),
                                  static_cast<index_t>(args.conv_filter_dilations_[2])};
         input_left_pads       = {static_cast<index_t>(args.input_left_pads_[0]),
-                           static_cast<index_t>(args.input_left_pads_[1]),
-                           static_cast<index_t>(args.input_left_pads_[2])};
+                                 static_cast<index_t>(args.input_left_pads_[1]),
+                                 static_cast<index_t>(args.input_left_pads_[2])};
         input_right_pads      = {static_cast<index_t>(args.input_right_pads_[0]),
-                            static_cast<index_t>(args.input_right_pads_[1]),
-                            static_cast<index_t>(args.input_right_pads_[2])};
+                                 static_cast<index_t>(args.input_right_pads_[1]),
+                                 static_cast<index_t>(args.input_right_pads_[2])};
 
         k_batch = args.k_batch;
 
@@ -259,15 +259,15 @@ struct GroupedConvFwdKernelArgs
         group_stride_c = args.K_;
     }
 
-    using AGridDescMK = remove_cvref_t<decltype(
-        ConvToGemmFwdTransformer{}
-            .template MakeADescriptor_M_K<typename GroupedConvTraitsType::InLayout>())>;
-    using BGridDescNK = remove_cvref_t<decltype(
-        ConvToGemmFwdTransformer{}
-            .template MakeBDescriptor_N_K<typename GroupedConvTraitsType::WeiLayout>())>;
-    using CGridDescMN = remove_cvref_t<decltype(
-        ConvToGemmFwdTransformer{}
-            .template MakeCDescriptor_M_N<typename GroupedConvTraitsType::OutLayout>())>;
+    using AGridDescMK = remove_cvref_t<
+        decltype(ConvToGemmFwdTransformer{}
+                     .template MakeADescriptor_M_K<typename GroupedConvTraitsType::InLayout>())>;
+    using BGridDescNK = remove_cvref_t<
+        decltype(ConvToGemmFwdTransformer{}
+                     .template MakeBDescriptor_N_K<typename GroupedConvTraitsType::WeiLayout>())>;
+    using CGridDescMN = remove_cvref_t<
+        decltype(ConvToGemmFwdTransformer{}
+                     .template MakeCDescriptor_M_N<typename GroupedConvTraitsType::OutLayout>())>;
 
     static constexpr index_t NonSpatialDims = 3;
     array<index_t, NonSpatialDims + GroupedConvTraitsType::NDimSpatial> in_g_n_c_wis_lengths;

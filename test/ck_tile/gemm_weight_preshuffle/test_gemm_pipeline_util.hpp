@@ -215,10 +215,9 @@ class TestCkTileGemmPipeline : public ::testing::Test
 
             if(s.log_level_ > 0)
             {
-                std::cout << "Launching kernel with args:"
-                          << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                          << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
-                          << "}" << std::endl;
+                std::cout << "Launching kernel with args:" << " grid: {" << grids.x << ", "
+                          << grids.y << ", " << grids.z << "}" << ", blocks: {" << blocks.x << ", "
+                          << blocks.y << ", " << blocks.z << "}" << std::endl;
             }
 
             ck_tile::launch_kernel(

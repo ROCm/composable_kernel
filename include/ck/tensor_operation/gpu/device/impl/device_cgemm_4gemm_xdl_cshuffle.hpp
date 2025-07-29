@@ -610,8 +610,8 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
         if(!parg)
         {
             std::ostringstream err;
-            err << "Provided argument pointer is not of an Argument class!"
-                << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
+            err << "Provided argument pointer is not of an Argument class!" << " In " << __FILE__
+                << ":" << __LINE__ << ", in function: " << __func__;
             throw std::runtime_error(err.str());
         }
 

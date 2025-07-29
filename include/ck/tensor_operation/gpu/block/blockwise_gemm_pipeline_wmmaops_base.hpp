@@ -93,7 +93,7 @@ struct BlockwiseGemmWmmaops_pipeline_base
 
     struct Empty
     {
-        __device__ Empty(){};
+        __device__ Empty() {};
         template <index_t NBuffer>
         __device__ void GlobalLoad(bool cond)
         {
@@ -119,7 +119,7 @@ struct BlockwiseGemmWmmaops_pipeline_base
                           GridBuffer b_scale_grid_buf_)
             : b_scale_thread_copy(b_scale_thread_copy_),
               b_scale_grid_desc(b_scale_grid_desc_),
-              b_scale_grid_buf(b_scale_grid_buf_){};
+              b_scale_grid_buf(b_scale_grid_buf_) {};
 
         static constexpr index_t num_scale_k_block = BScaleThreadDesc{}.GetLength(Number<1>{});
         static constexpr index_t num_scale_krepeat = KRepeat / num_scale_k_block;
