@@ -36,7 +36,8 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
         GemmConfig::PermuteA,
         GemmConfig::PermuteB>;
 
-        using TilePartitioner = ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
+    using TilePartitioner =
+        ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
                                                    GemmConfig::TileParitionerGroupNum,
                                                    GemmConfig::TileParitionerM01>;
 
