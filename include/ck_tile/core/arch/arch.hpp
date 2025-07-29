@@ -234,4 +234,44 @@ CK_TILE_HOST_DEVICE constexpr index_t get_smem_capacity()
 #endif
 }
 
+// ============================================================================
+// Architecture-specific parameter definitions
+// We'll define all parameters for all supported architectures here.
+// ============================================================================
+
+// Parameters for gfx120x (using a namespace for organization or just global constexpr)
+namespace Gfx120x {
+constexpr ck_tile::index_t WarpTile = 32;
+constexpr ck_tile::index_t VecLen   = 8;
+}
+
+// Parameters for gfx90x (example values, adjust as needed)
+namespace Gfx90x {
+constexpr ck_tile::index_t WarpTile = 64;
+constexpr ck_tile::index_t VecLen   = 4;
+}
+
+// Generic Parameters - should never be used in this example
+// templated run function should only be instantiated for Gfx120x and Gfx90x
+namespace Generic {
+constexpr ck_tile::index_t WarpTile = -1;
+}
+
+// Helper to get VecLen based on GfxId
+template <int GfxId>
+struct GfxConfig
+{
+    static constexpr int get_vec_len()
+    {
+        if constexpr (GfxId == 1200)
+        {
+            return Gfx120x::VecLen;
+        }
+        else if constexpr (GfxId == 900)
+        {
+            return Gfx90x::VecLen;
+        }
+    }
+};
+
 } // namespace ck_tile

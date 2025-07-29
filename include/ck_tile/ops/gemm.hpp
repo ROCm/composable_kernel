@@ -51,8 +51,12 @@
 #include "ck_tile/ops/gemm/pipeline/wp_pipeline_agmem_bgmem_creg_v1.hpp"
 #include "ck_tile/ops/gemm/pipeline/wp_pipeline_agmem_bgmem_creg_v1_policy.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
+#if 0
 #include "ck_tile/ops/gemm/warp/warp_gemm_attribute_mfma.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_attribute_mfma_impl.hpp"
+#endif
+#include "ck_tile/ops/gemm/warp/warp_gemm_attribute_generic.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_attribute_generic_impl.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_attribute_smfmac.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_attribute_smfmac_impl.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"

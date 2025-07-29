@@ -5,16 +5,22 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_impl.hpp"
+
+#if 0
 #include "ck_tile/ops/gemm/warp/warp_gemm_attribute_mfma.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_attribute_wmma.hpp"
-
 #include "ck_tile/ops/gemm/warp/warp_gemm_smfmac_impl.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_attribute_smfmac.hpp"
+#endif
+
+#include "ck_tile/ops/gemm/warp/warp_gemm_attribute_generic.hpp"
+
 
 namespace ck_tile {
 
 // fp16
 
+#if 0
 using WarpGemmMfmaF16F16F32M32N32K8 = WarpGemmImpl<
     WarpGemmAttributeMfma<WarpGemmAttributeMfmaImplF16F16F32M32N32K8<WGAttrCtlEnum::Default_>>>;
 
@@ -23,7 +29,15 @@ using WarpGemmMfmaF16F16F32M16N16K16 = WarpGemmImpl<
 
 using WarpGemmWmmaF16F16F32M16N16K16 = WarpGemmImpl<
     WarpGemmAttributeWmma<WarpGemmAttributeWmmaImplF16F16F32M16N16K16<WGAttrCtlEnum::Default_>>>;
+#endif
 
+using WarpGemmMfmaF16F16F32M16N16K16 = WarpGemmImpl<
+    WarpGemmAttributeGeneric<WarpGemmAttributeGenericImplF16F16F32M16N16K16<900, WGAttrCtlEnum::Default_>>>;
+
+using WarpGemmWmmaF16F16F32M16N16K16 = WarpGemmImpl<
+    WarpGemmAttributeGeneric<WarpGemmAttributeGenericImplF16F16F32M16N16K16<1200, WGAttrCtlEnum::Default_>>>;
+
+#if 0
 #if defined(__gfx950__)
 template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
 using WarpGemmMfmaF16F16F32M32N32K16 = WarpGemmImpl<
@@ -342,5 +356,7 @@ using WarpGemmMfma_i32_16x16x32_i8_i8 = WarpGemmImpl<
 using WarpGemmMfma_i32_16x16x32_i8_i8_CTransposed =
     WarpGemmImpl<WarpGemmAttributeMfmaTransposedCDistribution<
         WarpGemmAttributeMfmaImpl_i32_16x16x32_i8<WGAttrCtlEnum::Default_>>>;
+
+#endif
 
 } // namespace ck_tile
