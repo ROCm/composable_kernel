@@ -13,6 +13,8 @@
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_elementwise_2d.hpp"
 #include <ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp>
+#include "ck/tensor_operation/gpu/device/impl/split_k_utils.hpp"
+#include "ck/tensor_operation/gpu/device/impl/split_k_arg.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -118,8 +120,7 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
               conv_filter_strides_{conv_filter_strides},
               input_left_pads_{input_left_pads},
               input_right_pads_{input_right_pads},
-              p_wei_grid_{p_wei_grid},
-              split_k_{split_k}
+              p_wei_grid_{p_wei_grid}
         {
             constexpr index_t spatial_offset = 3;
             const index_t DoHoWo = std::accumulate(begin(a_g_n_k_wos_lengths) + spatial_offset,
@@ -142,6 +143,19 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
             std::copy(begin(e_g_k_c_xs_lengths) + spatial_offset,
                       end(e_g_k_c_xs_lengths),
                       begin(filter_spatial_lengths_));
+
+            if (split_k < 0)
+            {
+                const auto max_occupancy = DeviceGemmV3Op::GetMaxOccupancy();
+                index_t gdx, gdy, gdz;
+                std::tie(gdx, gdy, gdz) =
+                    DeviceGemmV3Op::GridwiseGemm::CalculateGridSize(M, N, BatchSize);
+                const index_t grid_size = gdx * gdy * gdz;
+                split_k_ = get_best_occupancy_k_batch_value(max_occupancy, grid_size);
+            }
+            else {
+                split_k_ = split_k;
+            }
 
             if constexpr(IsTwoStageNeeded)
             {
@@ -237,7 +251,7 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
         bool is_filter_data_packed;
         CElementwiseGridDesc elementwise_desc_;
         Block2TileMapElementwise elementwise_block_2_ctile_map_;
-        const ck::index_t split_k_;
+        ck::index_t split_k_;
     };
 
     // Invoker
@@ -303,15 +317,6 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(arg.split_k_ < 0)
-        {
-            // TODO: Add split-K autodeduction.
-            // This will probably require adding interface to the GEMM operation for
-            // querying the optimal split-K value, as we cannot easily access the actual GEMM kernel
-            // from here.
-            return false;
-        }
-
         if constexpr(NDimSpatial == 2)
         {
             if constexpr(!is_NHWGC_GKYXC_NHWGK<InLayout, WeiLayout, OutLayout>())
