@@ -71,6 +71,10 @@ int run_flatmm_example_with_layouts(int argc,
         using AscaleDataType = typename GemmBasicTypeConfig<PrecType>::XDataType;
         using BscaleDataType = typename GemmBasicTypeConfig<PrecType>::XDataType;
 
+        // B shuffled tensor
+        ck_tile::HostTensor<BDataType> b_shuffle_host(
+            ck_tile::host_tensor_descriptor(K, N, stride_B, is_row_major(b_layout)));
+
         // A, B scale tensors
         ck_tile::HostTensor<AscaleDataType> a_m_k_scale(ck_tile::host_tensor_descriptor(
             Scale_Padded_M, K / ScaleGranularityK, Scale_stride_AM, is_row_major(a_layout)));
@@ -90,8 +94,62 @@ int run_flatmm_example_with_layouts(int argc,
             ck_tile::FillUniformDistribution<AscaleDataType>{-1.f, 1.f}(a_m_k_scale);
             ck_tile::FillUniformDistribution<BscaleDataType>{-1.f, 1.f}(b_k_n_scale);
         }
+        else if(init_method == 1)
+        {
+            ck_tile::FillMonotonicSeq<ADataType>{}(a_host);
+            ck_tile::FillMonotonicSeq<BDataType>{}(b_origin_host);
+            ck_tile::FillUniformDistribution<AscaleDataType>{1.f, 1.f}(a_m_k_scale);
+            ck_tile::FillUniformDistribution<BscaleDataType>{1.f, 1.f}(b_k_n_scale);
+        }
+        else if(init_method == 2)
+        {
+            ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_host);
+            ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_origin_host);
+            ck_tile::FillUniformDistribution<AscaleDataType>{1.f, 1.f}(a_m_k_scale);
+            ck_tile::FillUniformDistribution<BscaleDataType>{1.f, 1.f}(b_k_n_scale);
+        }
+        else
+        {
+            a_host.SetZero();
+            b_origin_host.SetZero();
+            a_m_k_scale.SetZero();
+            b_k_n_scale.SetZero();
+        }
+
+        if(arg_parser.get_int("v") == 1)
+            std::cout << "do shuffle for B, and A/B scale..." << std::endl;
+        // do B pre-shuffle
+        preShuffleBuffer(b_origin_host.mData.data(),
+                         b_shuffle_host.mData.data(),
+                         N,
+                         K,
+                         FlatmmConfig::N_Warp_Tile);
+
+        // do A, B scale pre-shuffle
+        preShuffleScaleBuffer<ck_tile::is_same_v<a_layout, ck_tile::tensor_layout::gemm::RowMajor>>(
+            a_m_k_scale.data(), a_m_k_scale_shuffle.data(), Scale_Padded_M, K / ScaleGranularityK);
+        preShuffleScaleBuffer<
+            ck_tile::is_same_v<b_layout, ck_tile::tensor_layout::gemm::ColumnMajor>>(
+            b_k_n_scale.data(), b_k_n_scale_shuffle.data(), N, K / ScaleGranularityK);
+
+        if(arg_parser.get_int("v") == 1)
+            std::cout << "Device memory allocation..." << std::endl;
+        ck_tile::DeviceMem a_dev_buf(a_host.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem c_dev_buf(c_rslt_host.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem b_shuffle_dev_buf(b_shuffle_host.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem a_scale_dev_buf(a_m_k_scale.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem b_scale_dev_buf(b_k_n_scale.get_element_space_size_in_bytes());
+
+        if(arg_parser.get_int("v") == 1)
+            std::cout << "Uploading tensors to device..." << std::endl;
+        a_dev_buf.ToDevice(a_host.data());
+        a_scale_dev_buf.ToDevice(a_m_k_scale_shuffle.data());
+        b_shuffle_dev_buf.ToDevice(b_shuffle_host.data());
+        b_scale_dev_buf.ToDevice(b_k_n_scale_shuffle.data());
+        if(arg_parser.get_int("v") == 1)
+            std::cout << "Upload tensors done." << std::endl;
     }
-    else // PTPC unversal flat gemm
+    else // PTPC universal flat gemm
     {
         ck_tile::HostTensor<AccDataType> per_token_scale(ck_tile::HostTensorDescriptor({M}, {1}));
         ck_tile::HostTensor<AccDataType> per_channel_scale(ck_tile::HostTensorDescriptor({N}, {1}));

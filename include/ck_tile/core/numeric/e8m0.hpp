@@ -64,6 +64,39 @@ struct e8m0_bexp_t
     __host__ __device__ constexpr bool is_nan() const { return data == nan_mask; }
 };
 
+// limits
+template <class T>
+struct numeric;
+
+template <>
+struct numeric<e8m0_bexp_t>
+{
+    static constexpr e8m0_bexp_t binary_min  = 0x00; // 0b00000000
+    static constexpr e8m0_bexp_t binary_max  = 0xFE; // 0b11111110
+    static constexpr e8m0_bexp_t binary_qnan = 0xFF; // 0b11111111
+    static constexpr e8m0_bexp_t binary_1    = 0x7F; // 0b01111111
+    static constexpr e8m0_bexp_t binary_2    = 0x80; // 0b10000000
+    static constexpr e8m0_bexp_t binary_3    = 0x82; // 0b10000010
+    static constexpr e8m0_bexp_t binary_135  = 0x87; // 0b10000111
+    static constexpr e8m0_bexp_t binary_142  = 0x8E; // 0b10001110
+
+    CK_TILE_HOST_DEVICE static constexpr e8m0_bexp_t Min() { return e8m0_bexp_t(binary_min); }
+    CK_TILE_HOST_DEVICE static constexpr e8m0_bexp_t Max() { return e8m0_bexp_t(binary_max); }
+    CK_TILE_HOST_DEVICE static constexpr e8m0_bexp_t QuietNaN() { return e8m0_bexp_t(binary_qnan); }
+    CK_TILE_HOST_DEVICE static constexpr e8m0_bexp_t Binary_1() { return e8m0_bexp_t(binary_1); }
+    CK_TILE_HOST_DEVICE static constexpr e8m0_bexp_t Binary_2() { return e8m0_bexp_t(binary_2); }
+    CK_TILE_HOST_DEVICE static constexpr e8m0_bexp_t Binary_3() { return e8m0_bexp_t(binary_3); }
+    CK_TILE_HOST_DEVICE static constexpr e8m0_bexp_t Binary_135()
+    {
+        return e8m0_bexp_t(binary_135);
+    }
+    CK_TILE_HOST_DEVICE static constexpr e8m0_bexp_t Binary_142()
+    {
+        return e8m0_bexp_t(binary_142);
+    }
+};
+}
+
 template <>
 struct numeric_traits<e8m0_bexp_t>
 {
