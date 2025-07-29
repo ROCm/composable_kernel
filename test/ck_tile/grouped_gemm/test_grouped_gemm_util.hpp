@@ -30,6 +30,9 @@ class TestCkTileGroupedGemm : public ::testing::Test
         static const bool kPadN = false;
         static const bool kPadK = false;
 
+        static const bool SkipALds = false;
+        static const bool SkipBLds = false;
+
         static const int kBlockPerCu         = 1;
         static const ck_tile::index_t M_Tile = 128;
         static const ck_tile::index_t N_Tile = 128;
@@ -74,20 +77,23 @@ class TestCkTileGroupedGemm : public ::testing::Test
         using TilePartitioner = ck_tile::
             GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
-        using Traits              = ck_tile::TileGemmTraits<GroupedGemKernelParam::kPadM,
+        using Traits = ck_tile::TileGemmTraits<GroupedGemKernelParam::kPadM,
                                                GroupedGemKernelParam::kPadN,
                                                GroupedGemKernelParam::kPadK,
                                                ALayout,
                                                BLayout,
                                                CLayout>;
-        using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GroupedGemKernelParam::kPadM,
-                                                                     GroupedGemKernelParam::kPadN,
-                                                                     GroupedGemKernelParam::kPadK,
-                                                                     DoubleSmemBuffer,
-                                                                     ALayout,
-                                                                     BLayout,
-                                                                     CLayout,
-                                                                     TransposeC>;
+        using GemmUniversalTraits =
+            ck_tile::TileGemmUniversalTraits<GroupedGemKernelParam::kPadM,
+                                             GroupedGemKernelParam::kPadN,
+                                             GroupedGemKernelParam::kPadK,
+                                             DoubleSmemBuffer,
+                                             GroupedGemKernelParam::SkipALds,
+                                             GroupedGemKernelParam::SkipBLds,
+                                             ALayout,
+                                             BLayout,
+                                             CLayout,
+                                             TransposeC>;
         using GemmPipelineProblem =
             ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
@@ -317,8 +323,19 @@ class TestCkTileGroupedGemm : public ::testing::Test
 
             // TODO add support for kbatch > 1
             static constexpr ck_tile::index_t k_batch = 1;
-            gemm_descs.push_back(
-                {p_a, p_b, p_c, k_batch, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
+
+            gemm_descs.push_back({p_a,
+                                  p_b,
+                                  p_c,
+                                  k_batch,
+                                  M,
+                                  N,
+                                  K,
+                                  stride_As[i],
+                                  stride_Bs[i],
+                                  stride_Cs[i],
+                                  GroupedGemKernelParam::SkipALds,
+                                  GroupedGemKernelParam::SkipBLds});
         }
 
         ck_tile::DeviceMem gemm_workspace;

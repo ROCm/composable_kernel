@@ -42,6 +42,9 @@ class TestCkTileBatchedGemm : public ::testing::Test
 
         constexpr bool DoubleSmemBuffer = false;
 
+        constexpr bool kSkipALds = false;
+        constexpr bool kSkipBLds = false;
+
         constexpr bool kPadM = false;
         constexpr bool kPadN = false;
         constexpr bool kPadK = false;
@@ -64,6 +67,8 @@ class TestCkTileBatchedGemm : public ::testing::Test
                                                                      kPadN,
                                                                      kPadK,
                                                                      DoubleSmemBuffer,
+                                                                     kSkipALds,
+                                                                     kSkipBLds,
                                                                      ALayout,
                                                                      BLayout,
                                                                      CLayout,
