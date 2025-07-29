@@ -1,0 +1,4 @@
+# Combined 2D Convolution Test Cases
+# Generated on 20250728_165352
+2,1,16,32,3,3,3,224,224,112,112,2,2,1,1,1,1,1,1,MIOpen_2D_fwd_line_1
+
