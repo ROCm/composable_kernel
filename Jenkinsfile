@@ -842,7 +842,7 @@ def run_aiter_tests(Map conf=[:]){
                 sh "python3 --version"
                 sh "pwd"
                 sh "ls -ltr"
-                dir("/var/lib/jenkins/aiter"){
+                dir("/home/jenkins/workspace/aiter"){
                     sh "ls -ltr"
                     sh "python3 --version"
                     sh "python3 op_tests/test_gemm_a8w8_blockscale.py"
