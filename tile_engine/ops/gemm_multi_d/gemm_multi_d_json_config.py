@@ -54,30 +54,32 @@ class RangeConfigParam:
         return candidates
 
 
-# @dataclass
-# class ProblemConfig:
-#     """configuration class for problem parameter."""
+@dataclass
+class ProblemConfig:
+    """configuration class for problem parameter."""
 
-#     datatypes: Tuple[EnumConfigParam, ...]
-#     layouts: Tuple[EnumConfigParam, ...]
+    datatypes: Tuple[EnumConfigParam, ...]
+    layouts: Tuple[EnumConfigParam, ...]
 
-#     @property
-#     def datatype_map(self) -> Dict[str, str]:
-#         """Get datatype as a key-value map."""
-#         return {
-#             "matrix_a": self.datatypes[0].values[0],
-#             "matrix_b": self.datatypes[1].values[0],
-#             "matrix_c": self.datatypes[2].values[0],
-#         }
+    @property
+    def datatype_map(self) -> Dict[str, str]:
+        """Get datatype as a key-value map."""
+        return {
+            "matrix_a": self.datatypes[0].values[0],
+            "matrix_b": self.datatypes[1].values[0],
+            "matrix_d": self.datatypes[2].values[0], # Dth Dimension
+            "matrix_e": self.datatypes[3].values[0], # Result Matrix
+        }
 
-#     @property
-#     def layout_map(self) -> Dict[str, str]:
-#         """Get layout as a key-value map."""
-#         return {
-#             "matrix_a": self.layouts[0].values[0],
-#             "matrix_b": self.layouts[1].values[0],
-#             "matrix_c": self.layouts[2].values[0],
-#         }
+    @property
+    def layout_map(self) -> Dict[str, str]:
+        """Get layout as a key-value map."""
+        return {
+            "matrix_a": self.layouts[0].values[0],
+            "matrix_b": self.layouts[1].values[0],
+            "matrix_d": self.layouts[2].values[0], # Dth Dimension
+            "matrix_e": self.layouts[3].values[0], # Result Matrix
+        }
 
 
 @dataclass
@@ -113,14 +115,14 @@ class TraitConfig:
 class GemmConfig:
     """Main configuration class for GEMM operations"""
 
-    # problem: ProblemConfig
+    problem: ProblemConfig
     tile_config: TileConfig
     trait_config: TraitConfig
 
     @classmethod
     def from_json(
         cls: Type["GemmConfig"], filepath: str, datatype: str, layout: str
-    ) -> "    ":
+    ) -> "GemmConfig":
         """JSON configuration loader with validation controls"""
         config_path = Path(filepath)
 
@@ -131,45 +133,48 @@ class GemmConfig:
             with config_path.open("r") as f:
                 config_dict = json.load(f)
 
-            # a_type = datatype
-            # b_type = datatype
-            # c_type = datatype
-            # if b_type == "int4":
-            #     a_type = "fp16"
-            # if b_type in ["bf8", "fp8", "int4"]:
-            #     c_type = "fp16"
+            a_type = datatype
+            b_type = datatype
+            d_type = datatype
+            e_type = datatype
 
-            # layout_parts = layout.lower()
-            # assert len(layout_parts) == 3, (
-            #     f"Invalid layout string: {layout} (must be 3 characters like 'rcr' where r stands for row major and c stands for column major)"
-            # )
-            # assert layout_parts[0] in ("r", "c"), (
-            #     f"Invalid matrix_a layout: {layout_parts[0]} (must be 'r' for row major or or 'c' for column major)"
-            # )
-            # assert layout_parts[1] in ("r", "c"), (
-            #     f"Invalid matrix_a layout: {layout_parts[1]} (must be 'r' for row major or or 'c' for column major)"
-            # )
-            # assert layout_parts[2] == "r", (
-            #     f"Invalid matrix_c layout: {layout_parts[2]} (must be 'r' only as currently we are supporting only row major)"
-            # )
-            # a_layout = layout_parts[0]
-            # b_layout = layout_parts[1]
-            # c_layout = layout_parts[2]
+            layout_parts = layout.lower()
+            assert len(layout_parts) == 4, (
+                f"Invalid layout string: {layout} (must be 3 characters like 'rcr' where r stands for row major and c stands for column major)"
+            )
+            assert layout_parts[0] in ("r", "c"), (
+                f"Invalid matrix_a layout: {layout_parts[0]} (must be 'r' for row major or or 'c' for column major)"
+            )
+            assert layout_parts[1] in ("r", "c"), (
+                f"Invalid matrix_a layout: {layout_parts[1]} (must be 'r' for row major or or 'c' for column major)"
+            )
+            assert layout_parts[2] == "r", (
+                f"Invalid matrix_c layout: {layout_parts[2]} (must be 'r' only as currently we are supporting only row major)"
+            )
+            assert layout_parts[3] == "r", (
+                f"Invalid matrix_c layout: {layout_parts[2]} (must be 'r' only as currently we are supporting only row major)"
+            )
+            a_layout = layout_parts[0]
+            b_layout = layout_parts[1]
+            d_layout = layout_parts[2]
+            e_layout = layout_parts[3]
 
             # Parse problem config
-            # TODO: Not reading datatype information from json file.
-            # problem = ProblemConfig(
-            #     datatypes=(
-            #         EnumConfigParam(values=[a_type]),
-            #         EnumConfigParam(values=[b_type]),
-            #         EnumConfigParam(values=[c_type]),
-            #     ),
-            #     layouts=(
-            #         EnumConfigParam(values=[a_layout]),
-            #         EnumConfigParam(values=[b_layout]),
-            #         EnumConfigParam(values=[c_layout]),
-            #     ),
-            # )
+            # TODO: Not reading datatype and layout information from json file.
+            problem = ProblemConfig(
+                datatypes=(
+                    EnumConfigParam(values=[a_type]),
+                    EnumConfigParam(values=[b_type]),
+                    EnumConfigParam(values=[d_type]),
+                    EnumConfigParam(values=[e_type]),
+                ),
+                layouts=(
+                    EnumConfigParam(values=[a_layout]),
+                    EnumConfigParam(values=[b_layout]),
+                    EnumConfigParam(values=[d_layout]),
+                    EnumConfigParam(values=[e_layout]),
+                ),
+            )
 
             # Parse tile config
             def create_param(param_dict):
@@ -218,7 +223,7 @@ class GemmConfig:
             )
 
             return cls(
-                tile_config=tile_config, trait_config=trait_config
+                problem=problem, tile_config=tile_config, trait_config=trait_config
             )
 
         except json.JSONDecodeError as e:
