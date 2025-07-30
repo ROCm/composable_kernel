@@ -506,9 +506,9 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
         decltype(GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
             CGridDesc_M_N{}, 1, 1));
 
-    struct MaximumActiveBlocksPerMultiprocessor
+    struct ActiveWorkgroupsPerCU
     {
-        MaximumActiveBlocksPerMultiprocessor()
+        ActiveWorkgroupsPerCU()
         {
             constexpr int dynamic_smem_size = 0;
             constexpr index_t minimum_occupancy =
@@ -549,9 +549,9 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                     BlockSize,
                     dynamic_smem_size));
             }
-            value_ = std::max(1, max_occupancy);
+            max_occupancy_ = std::max(1, max_occupancy);
         }
-        int value_;
+        int max_occupancy_;
     };
 
     struct Argument : public BaseArgument, public ArgumentSplitK
@@ -599,7 +599,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
               input_left_pads_{input_left_pads},
               input_right_pads_{input_right_pads}
         {
-            static MaximumActiveBlocksPerMultiprocessor max_occupancy;
+            static ActiveWorkgroupsPerCU active_workgroups_per_cu;
 
             c_space_size_bytes =
                 ck::accumulate_n<long_index_t>(
@@ -656,7 +656,8 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                 const auto grid_size =
                     GridwiseGemm::Block2CTileMap::CalculateGridSize(gemmM, gemmN) * Conv_G_ /
                     NumGroupsToMerge;
-                k_batch_ = get_best_occupancy_k_batch_value(max_occupancy.value_, grid_size);
+                k_batch_ = get_best_occupancy_k_batch_value(active_workgroups_per_cu.max_occupancy_,
+                                                            grid_size);
 
                 // Ensure that k_batch_ does not exceed the maximum value
                 // for the GEMM pipeline
