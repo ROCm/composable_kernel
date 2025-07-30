@@ -416,6 +416,8 @@ struct DeviceOperationInstanceFactory<
                              is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
                              is_same_v<ComputeTypeB, F16>)
                 {
+                    add_device_grouped_conv2d_bwd_data_wmma_v3_gnhwk_gkyxc_gnhwc_f16_instances(
+                        op_ptrs);
                     add_device_grouped_conv2d_bwd_data_wmma_gnhwk_gkyxc_gnhwc_f16_instances(
                         op_ptrs);
                     add_device_grouped_conv2d_bwd_data_wmma_gnhwk_gkyxc_gnhwc_f16_1x1s1p0_instances(
@@ -441,6 +443,8 @@ struct DeviceOperationInstanceFactory<
                              is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
                              is_same_v<ComputeTypeB, F16>)
                 {
+                    add_device_grouped_conv2d_bwd_data_wmma_v3_nhwgk_gkyxc_nhwgc_f16_instances(
+                        op_ptrs);
                     add_device_grouped_conv2d_bwd_data_wmma_nhwgk_gkyxc_nhwgc_f16_instances(
                         op_ptrs);
                     add_device_grouped_conv2d_bwd_data_wmma_nhwgk_gkyxc_nhwgc_f16_1x1s1p0_instances(
@@ -454,6 +458,34 @@ struct DeviceOperationInstanceFactory<
                 {
                     add_device_grouped_conv2d_bwd_data_wmma_nhwgk_gkyxc_nhwgc_i8_instances(op_ptrs);
                     add_device_grouped_conv2d_bwd_data_wmma_nhwgk_gkyxc_nhwgc_i8_1x1s1p0_instances(
+                        op_ptrs);
+                }
+#endif
+            }
+            if constexpr(is_same_v<InLayout, NGCHW> && is_same_v<WeiLayout, GKCYX> &&
+                         is_same_v<OutLayout, NGKHW>)
+            {
+#ifdef CK_ENABLE_FP16
+                if constexpr(is_same_v<InDataType, F16> && is_same_v<WeiDataType, F16> &&
+                             is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
+                             is_same_v<ComputeTypeB, F16>)
+                {
+                    add_device_grouped_conv2d_bwd_data_wmma_v3_ngkhw_gkcyx_ngchw_f16_instances(
+                        op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_wmma_v3_ngkhw_gkcyx_ngchw_f16_vec_transpose_instances(
+                        op_ptrs);
+                }
+#endif
+            }
+            if constexpr(is_same_v<InLayout, NGCHW> && is_same_v<WeiLayout, GKYXC> &&
+                         is_same_v<OutLayout, NGKHW>)
+            {
+#ifdef CK_ENABLE_FP16
+                if constexpr(is_same_v<InDataType, F16> && is_same_v<WeiDataType, F16> &&
+                             is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
+                             is_same_v<ComputeTypeB, F16>)
+                {
+                    add_device_grouped_conv2d_bwd_data_wmma_v3_ngkhw_gkyxc_ngchw_f16_instances(
                         op_ptrs);
                 }
 #endif
