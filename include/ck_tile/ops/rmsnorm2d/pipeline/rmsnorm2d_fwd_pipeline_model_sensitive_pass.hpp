@@ -102,8 +102,8 @@ struct Rmsnorm2dFwdPipelineModelSensitiveT5Pass
         auto reduce_sum_func        = ReduceOp::Add{};
         auto block_reduce2d         = Policy::template GetBlockReduce2d<Problem>();
         auto block_reduce2d_sync    = Policy::template GetBlockReduce2dSync<Problem>();
-        auto block_reduce2d_tree_cross_warp_sync =
-            Policy::template GetBlockReduce2dTreeCrossWarpSync<Problem>();
+        auto block_reduce2d_cross_warp_sync =
+            Policy::template GetBlockReduce2dCrossWarpSync<Problem>();
 
         auto x      = load_tile(x_window);
         auto x_resi = load_tile(x_residual_window);
@@ -162,7 +162,7 @@ struct Rmsnorm2dFwdPipelineModelSensitiveT5Pass
                                         reduce_square_sum_func);
         }
         block_reduce2d_sync(square_sum, reduce_sum_func);
-        block_reduce2d_tree_cross_warp_sync(square_sum, smem, reduce_sum_func);
+        block_reduce2d_cross_warp_sync(square_sum, smem, reduce_sum_func);
 
         // compute inv-rms
         auto inv_rms = tile_elementwise_in(
