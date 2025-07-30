@@ -1,5 +1,6 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -24,33 +25,31 @@ class TestGroupedConvndBwdDataWmma : public ::testing::Test
     using InLayout  = std::tuple_element_t<3, Tuple>;
 
     std::vector<ck::utils::conv::ConvParam> conv_params;
+    std::vector<ck::index_t> split_ks{1, 2};
 
     template <ck::index_t NDimSpatial>
     void Run()
     {
         EXPECT_FALSE(conv_params.empty());
         bool pass = true;
-        for(size_t i = 0; i < conv_params.size(); i++)
+        for(auto split_k : split_ks)
         {
-            if((param_mask & (1 << i)) == 0)
+            for(auto& param : conv_params)
             {
-                continue;
+                pass = pass && ck::profiler::profile_grouped_conv_bwd_data_impl<NDimSpatial,
+                                                                                OutLayout,
+                                                                                WeiLayout,
+                                                                                InLayout,
+                                                                                DataType,
+                                                                                DataType,
+                                                                                DataType>(
+                                   true,  // do_verification
+                                   1,     // init_method: integer value
+                                   false, // do_log
+                                   false, // time_kernel
+                                   param,
+                                   split_k);
             }
-            auto& param = conv_params[i];
-            pass        = pass && ck::profiler::profile_grouped_conv_bwd_data_impl<NDimSpatial,
-                                                                                   OutLayout,
-                                                                                   WeiLayout,
-                                                                                   InLayout,
-                                                                                   DataType,
-                                                                                   DataType,
-                                                                                   DataType>(
-                               true,  // do_verification
-                               1,     // init_method: integer value
-                               false, // do_log
-                               false, // time_kernel
-                               param,
-                               1, // splitK
-                               instance_index);
         }
         EXPECT_TRUE(pass);
     }
@@ -61,7 +60,9 @@ using namespace ck::tensor_layout::convolution;
 using KernelTypes2d = ::testing::Types<std::tuple<ck::half_t, GNHWK, GKYXC, GNHWC>,
                                        std::tuple<int8_t, GNHWK, GKYXC, GNHWC>,
                                        std::tuple<ck::half_t, NHWGK, GKYXC, NHWGC>,
-                                       std::tuple<int8_t, NHWGK, GKYXC, NHWGC>>;
+                                       std::tuple<int8_t, NHWGK, GKYXC, NHWGC>,
+                                       std::tuple<ck::half_t, NGKHW, GKCYX, NGCHW>,
+                                       std::tuple<ck::half_t, NGKHW, GKYXC, NGCHW>>;
 
 using KernelTypes3d = ::testing::Types<std::tuple<ck::half_t, GNDHWK, GKZYXC, GNDHWC>,
                                        std::tuple<int8_t, GNDHWK, GKZYXC, GNDHWC>,
