@@ -34,6 +34,12 @@ struct TileGemmTraits
     static constexpr index_t NumWaveGroups      = NumWaveGroups_;
 };
 
+/**
+ * @brief Traits for a universal GEMM pipeline.
+ *
+ * @details This struct holds compile-time parameters that configure the behavior of a
+ * general-purpose tile-based GEMM kernel
+ */
 template <bool kPadM_,
           bool kPadN_,
           bool kPadK_,
@@ -60,16 +66,17 @@ struct TileGemmUniversalTraits
     using BLayout = BLayout_;
     using CLayout = CLayout_;
 
-    static constexpr bool TransposeC            = TransposeC_;
-    static constexpr bool SkipALds              = SkipALds_;
+    static constexpr bool TransposeC = TransposeC_;
+    /// @brief SkipALds_ Parameterize the data flow for matrix A: if true, global memory ->
+    /// registers; if false, global memory -> LDS -> registers.
+    static constexpr bool SkipALds = SkipALds_;
+    /// @brief SkipBLds_ Parameterize the data flow for matrix B: if true, global memory ->
+    /// registers; if false, global memory -> LDS -> registers.
     static constexpr bool SkipBLds              = SkipBLds_;
     static constexpr bool UseStructuredSparsity = UseStructuredSparsity_;
     static constexpr bool UsePersistentKernel   = UsePersistentKernel_;
     static constexpr index_t NumWaveGroups      = NumWaveGroups_;
     static constexpr bool Preshuffle            = Preshuffle_;
-
-    static constexpr bool kSkipALds = SkipALds_;
-    static constexpr bool kSkipBLds = SkipBLds_;
 };
 
 template <bool kPadM_,

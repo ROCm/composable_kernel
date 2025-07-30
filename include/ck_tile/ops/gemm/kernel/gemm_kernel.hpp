@@ -37,9 +37,7 @@ struct GemmHostArgs
                               index_t K_,
                               index_t stride_A_,
                               index_t stride_B_,
-                              index_t stride_E_,
-                              bool skip_a_lds_ = false,
-                              bool skip_b_lds_ = false)
+                              index_t stride_E_)
         : a_ptr(a_ptr_),
           b_ptr(b_ptr_),
           e_ptr(e_ptr_),
@@ -49,9 +47,7 @@ struct GemmHostArgs
           stride_A(stride_A_),
           stride_B(stride_B_),
           stride_E(stride_E_),
-          k_batch(k_batch_),
-          skip_a_lds(skip_a_lds_),
-          skip_b_lds(skip_b_lds_)
+          k_batch(k_batch_)
     {
     }
 
@@ -76,8 +72,6 @@ struct GemmHostArgs
     };
 
     index_t k_batch;
-    bool skip_a_lds;
-    bool skip_b_lds;
 };
 
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
