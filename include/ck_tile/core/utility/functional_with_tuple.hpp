@@ -170,4 +170,20 @@ struct static_uford
     }
 };
 
+namespace detail {
+template <std::size_t Begin, std::size_t... Is, typename Tuple>
+auto tuple_slice_impl(Tuple&& t, std::index_sequence<Is...>)
+{
+    return std::forward_as_tuple(std::get<Begin + Is>(std::forward<Tuple>(t))...);
+}
+}
+
+template <std::size_t Begin, std::size_t End, typename Tuple>
+auto tuple_slice(Tuple&& t)
+{
+    return detail::tuple_slice_impl<Begin>(
+        std::forward<Tuple>(t),
+        std::make_index_sequence<End - Begin>{});
+}
+
 } // namespace ck_tile

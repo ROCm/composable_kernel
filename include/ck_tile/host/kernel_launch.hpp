@@ -5,6 +5,7 @@
 
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/utility/ignore.hpp"
+#include "ck_tile/core/utility/functional_with_tuple.hpp"
 #include "ck_tile/host/hip_check_error.hpp"
 #include "ck_tile/host/stream_config.hpp"
 #include "ck_tile/host/timer.hpp"
@@ -62,6 +63,13 @@ CK_TILE_HOST void launch_and_check(const stream_config& sc, Callables&&... calla
         HIP_CHECK_ERROR(hipGetLastError());
     }
 }
+template <typename Callables>
+CK_TILE_HOST void launch_and_check_tuple(const stream_config& sc, Callables&& callables)
+{
+    std::apply([&](auto&&... fs) {
+            launch_and_check(sc, std::forward<decltype(fs)>(fs)...);
+            }, std::forward<Callables>(callables));
+}
 
 // clang-format off
 /*
@@ -90,10 +98,14 @@ CK_TILE_HOST void launch_and_check(const stream_config& sc, Callables&&... calla
  *                       ...);
  **/
 // clang-format on
-template <typename... Callables>
+template <size_t TimerStart, size_t TimerEnd, typename... Callables>
 CK_TILE_HOST float launch_kernel(const stream_config& s, Callables&&... callables)
 {
-    static_assert(sizeof...(callables) > 0, "At least one callable is required!");
+    constexpr auto N_callables = sizeof...(callables);
+
+    static_assert(N_callables > 0, "At least one callable is required!");
+    static_assert(N_callables >= TimerEnd, "Wrong timer range.");
+    static_assert(TimerEnd >= TimerStart, "Wrong timer range.");
 
     if(!s.time_kernel_)
     {
@@ -102,20 +114,41 @@ CK_TILE_HOST float launch_kernel(const stream_config& s, Callables&&... callable
     }
 
     auto time_launches = [&](auto timer) {
+
+        auto callables_all = std::forward_as_tuple(std::forward<Callables>(callables)...);
+        auto callables_start = tuple_slice<0, TimerStart>(callables_all);
+        auto callables_timed = tuple_slice<TimerStart, TimerEnd>(callables_all);
+        auto callables_end = tuple_slice<TimerEnd, N_callables>(callables_all);
+
         // Warmup
         for(int i = 0; i < s.cold_niters_; i++)
         {
-            launch_and_check(s, std::forward<Callables>(callables)...);
+            launch_and_check_tuple(s, callables_all);
         }
 
-        timer.start(s.stream_id_);
+        float times = 0.f;
+
         for(int i = 0; i < s.nrepeat_; i++)
         {
-            launch_and_check(s, std::forward<Callables>(callables)...);
-        }
-        timer.stop(s.stream_id_);
+            if constexpr (std::tuple_size_v<decltype(callables_start)> > 0)
+            {
+                launch_and_check_tuple(s, callables_start);
+            }
 
-        return timer.duration() / s.nrepeat_;
+            if constexpr (std::tuple_size_v<decltype(callables_timed)> > 0)
+            {
+                timer.start(s.stream_id_);
+                launch_and_check_tuple(s, callables_timed);
+                timer.stop(s.stream_id_);
+                times += timer.duration();
+            }
+            if constexpr (std::tuple_size_v<decltype(callables_end)> > 0)
+            {
+                launch_and_check_tuple(s, callables_end);
+            }
+        }
+
+        return times / s.nrepeat_;
     };
 
     if(s.is_gpu_timer_)
@@ -126,6 +159,13 @@ CK_TILE_HOST float launch_kernel(const stream_config& s, Callables&&... callable
     {
         return time_launches(cpu_timer{});
     }
+}
+
+template <size_t TimerStart = 0, typename... Callables>
+CK_TILE_HOST float launch_kernel(const stream_config& s, Callables&&... callables)
+{
+    return launch_kernel<TimerStart, sizeof...(Callables)>(
+        s, std::forward<Callables>(callables)...);
 }
 
 template <typename PreprocessFunc, typename... Callables>
