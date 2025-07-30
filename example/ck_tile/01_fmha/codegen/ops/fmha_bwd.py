@@ -376,7 +376,12 @@ class FmhaBwdDQDKDVKernel:
 # TODO: design a more practical way to do it
 # this is current supported tile size.
 def get_dq_dk_dv_tiles(dtype : str, tr_load: str) -> List[FmhaBwdDQDKDVTileSize]:
-    if (dtype == 'fp16' or dtype == 'bf16') and tr_load == 'f':
+    if dtype == 'fp32' and tr_load == 'f':
+        return [
+            FmhaBwdDQDKDVTileSize( 32, 128,  64, 32,  64, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 16, 16, 16, 16, 1),
+            FmhaBwdDQDKDVTileSize( 16,  64, 128, 16, 128, 16, 32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 16, 16, 16, 16, 1),
+        ]
+    elif (dtype == 'fp16' or dtype == 'bf16') and tr_load == 'f':
         return [
             FmhaBwdDQDKDVTileSize( 32, 128,  32, 32,  32, 32, 64,  32,  32, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 32, 16, 16, 16, 1),
             FmhaBwdDQDKDVTileSize( 32, 128,  64, 32,  64, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),

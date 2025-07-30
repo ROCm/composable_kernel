@@ -36,6 +36,14 @@ auto get_elimit(ck_tile::index_t /*hdim_q*/, ck_tile::index_t /*hdim_v*/)
 }
 
 template <>
+auto get_elimit<FmhaBwdFp32>(ck_tile::index_t /*hdim_q*/, ck_tile::index_t /*hdim_v*/)
+{
+    double rtol = 1e-4;
+    double atol = 1e-4;
+    return ck_tile::make_tuple(rtol, atol);
+}
+
+template <>
 auto get_elimit<FmhaBwdBf16>(ck_tile::index_t hdim_q, ck_tile::index_t hdim_v)
 {
     double rtol = 1e-2;
@@ -77,7 +85,9 @@ bwd_result fmha_bwd_run(mode_enum mode,
                         std::optional<std::string> json = std::nullopt)
 {
     const std::string data_type = []() {
-        if constexpr(std::is_same_v<DataTypeConfig, FmhaBwdFp16>)
+        if constexpr(std::is_same_v<DataTypeConfig, FmhaBwdFp32>)
+            return "fp32";
+        else if constexpr(std::is_same_v<DataTypeConfig, FmhaBwdFp16>)
             return "fp16";
         else if constexpr(std::is_same_v<DataTypeConfig, FmhaBwdBf16>)
             return "bf16";
