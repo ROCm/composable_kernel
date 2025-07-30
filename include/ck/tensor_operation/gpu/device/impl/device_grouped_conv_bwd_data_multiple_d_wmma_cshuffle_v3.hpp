@@ -161,8 +161,6 @@ template <index_t NDimSpatial,
           BlockGemmPipelineVersion BlkGemmPipelineVer    = BlockGemmPipelineVersion::v1,
           typename AComputeType                          = ADataType,
           typename BComputeType                          = AComputeType,
-          bool PermuteA                                  = false,
-          bool PermuteB                                  = false,
           index_t MaxTransposeTransferInScalarPerVector  = 1,
           index_t MaxTransposeTransferOutScalarPerVector = 1>
 struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
