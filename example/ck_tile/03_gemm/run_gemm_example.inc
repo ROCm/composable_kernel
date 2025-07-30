@@ -158,7 +158,7 @@ template <typename GemmConfig,
           typename CLayout,
           bool Persistent,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
-float gemm(const ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& s);
+float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s);
 
 template <typename GemmConfig,
           typename ADataType,
@@ -183,20 +183,19 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   ck_tile::index_t kbatch,
                   int n_warmup,
                   int n_repeat,
-                  bool persistent)
+                  bool persistent,
+                  int bench_time_ms)
 {
-    ck_tile::GemmHostArgs</*NumDTensor = 0*/> args = {a_m_k_dev_buf.GetDeviceBuffer(),
-                                                      b_k_n_dev_buf.GetDeviceBuffer(),
-                                                      {},
-                                                      c_m_n_dev_buf.GetDeviceBuffer(),
-                                                      kbatch,
-                                                      M,
-                                                      N,
-                                                      K,
-                                                      stride_A,
-                                                      stride_B,
-                                                      {},
-                                                      stride_C};
+    ck_tile::GemmHostArgs args = {a_m_k_dev_buf.GetDeviceBuffer(),
+                                  b_k_n_dev_buf.GetDeviceBuffer(),
+                                  c_m_n_dev_buf.GetDeviceBuffer(),
+                                  kbatch,
+                                  M,
+                                  N,
+                                  K,
+                                  stride_A,
+                                  stride_B,
+                                  stride_C};
 
     float ave_time;
     if(persistent)
@@ -213,7 +212,9 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                         CLayout,
                         true,
                         CDEElementWise>(
-            args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
+            args,
+            ck_tile::stream_config{
+                nullptr, true, 1, n_warmup, n_repeat, true, true, 50, bench_time_ms});
     }
     else
     {
@@ -229,7 +230,9 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                         CLayout,
                         false,
                         CDEElementWise>(
-            args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
+            args,
+            ck_tile::stream_config{
+                nullptr, true, 1, n_warmup, n_repeat, true, true, 50, bench_time_ms});
     }
 
     std::size_t flop = std::size_t(2) * M * N * K;
@@ -238,15 +241,16 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_byte / 1.E6 / ave_time;
 
-    std::cout << "Run Gemm kernel with M=" << M << " N=" << N << " K=" << K
+    std::cout << "Run Gemm kernel with \n M=" << M << " N=" << N << " K=" << K
               << " StrideA=" << stride_A << " StrideB=" << stride_B << " StrideC=" << stride_C
               << " A_Layout=" << ALayout::name << " B_Layout =" << BLayout::name
               << " C_Layout=" << CLayout::name << " A_Type=" << DataTypeTraits<ADataType>::name
               << " B_Type=" << DataTypeTraits<BDataType>::name
               << " C_Type=" << DataTypeTraits<CDataType>::name
               << " StructuredSparsity=" << (GemmConfig::UseStructuredSparsity ? "on" : "off")
-              << " Persistent=" << (persistent ? "on" : "off") << " : " << ave_time << " ms, "
-              << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
+              << " Persistent=" << (persistent ? "on" : "off") << " : \n"
+              << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
+              << std::endl;
 
     return ave_time;
 }
@@ -299,6 +303,7 @@ int run_gemm_example_with_layouts(int argc,
     int n_repeat                 = arg_parser.get_int("repeat");
     ck_tile::index_t init_method = arg_parser.get_int("init");
     bool persistent              = arg_parser.get_int("persistent");
+    int bench_time_ms            = arg_parser.get_int("bench_time_ms");
 
     const bool preshuffle = GemmConfig::Preshuffle;
 
@@ -315,8 +320,16 @@ int run_gemm_example_with_layouts(int argc,
 
     if(init_method == 0)
     {
-        ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k);
-        ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n);
+        if constexpr(preshuffle)
+        {
+            ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_m_k);
+            ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_k_n);
+        }
+        else
+        {
+            ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k);
+            ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n);
+        }
     }
     else if(init_method == 1)
     {
@@ -408,7 +421,8 @@ int run_gemm_example_with_layouts(int argc,
                          kbatch,
                          n_warmup,
                          n_repeat,
-                         persistent);
+                         persistent,
+                         bench_time_ms);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass = true;

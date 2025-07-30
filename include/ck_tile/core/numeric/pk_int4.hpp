@@ -116,6 +116,24 @@ CK_TILE_HOST_DEVICE fp32x2_t pk_int4_t_to_fp32x2_t(const pk_int4_t& x)
     return res;
 }
 
+CK_TILE_HOST_DEVICE fp32x2_t pk_int4_t_to_fp32x2_t_signed_conversion(const pk_int4_t& x)
+{
+    uint8_t x_u8 = ck_tile::bit_cast<uint8_t>(x);
+
+    float x_l = ((x_u8 & 0x0f) >> 0);
+    float x_h = ((x_u8 & 0xf0) >> 4);
+
+    x_l = x_l > 7 ? x_l - 16 : x_l;
+    x_h = x_l > 7 ? x_l - 16 : x_l;
+
+#ifdef CK_TILE_USE_PK4_LAYOUT_SHUFFLE
+    fp32x2_t res = {x_h, x_l};
+#elif
+    fp32x2_t res = {x_l, x_h};
+#endif
+    return res;
+}
+
 CK_TILE_HOST_DEVICE fp16x2_t pk_int4_t_to_halfx2_t(const pk_int4_t& x)
 {
     uint8_t x_u8 = ck_tile::bit_cast<uint8_t>(x);
