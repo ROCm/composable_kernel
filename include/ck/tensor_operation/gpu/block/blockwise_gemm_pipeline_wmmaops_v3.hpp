@@ -133,6 +133,8 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
     using Base::GetCThreadBuffer;
     using Base::
         GetCThreadDescriptor_MRepeat_MWave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs;
+    using Base::
+        GetCThreadDescriptor_MRepeat_MWave_MThreadPerSubGroup_NRepeat_NWave_NSubGroup_NAccVgprs;
 
     using Base::a_block_desc_k0_m0_m1_m2_k1;
     using Base::b_block_desc_k0_n0_n1_n2_k1;

@@ -30,8 +30,7 @@ template <index_t BlockSize,
           index_t MRepeat,
           index_t NRepeat,
           index_t KPack,
-          bool TransposeC =
-              false> // TODO: the TransposeC case should have different C descriptor calculators?
+          bool TransposeC = false>
 struct BlockwiseGemmWmmaops_pipeline_base
 {
     static constexpr auto I0 = Number<0>{};
@@ -276,6 +275,21 @@ struct BlockwiseGemmWmmaops_pipeline_base
         static_assert(MPerBlock % (MPerWmma * MRepeat) == 0 &&
                           NPerBlock % (NPerWmma * NRepeat) == 0,
                       "wrong!");
+    }
+
+    // transposed WMMA output C' = B' * A'
+    __host__ __device__ static constexpr auto
+    GetCThreadDescriptor_MRepeat_MWave_MThreadPerSubGroup_NRepeat_NWave_NSubGroup_NAccVgprs()
+    {
+        constexpr auto c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens =
+            wmma_gemm.GetCMSubGroupNThreadPerSubGroupMAccVgprsThreadBlkLengths();
+
+        constexpr auto NAccVgprs = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I2];
+
+        return make_naive_tensor_descriptor_packed(
+            //        |MRepeat            |MWave |MSubGroup |NRepeat           |NWave
+            //        |NThreadPerSubGroup |MAccVgprs
+            make_tuple(Number<MRepeat>{}, I1, I1, Number<NRepeat>{}, I1, I1, NAccVgprs));
     }
 
     __host__ __device__ static constexpr auto

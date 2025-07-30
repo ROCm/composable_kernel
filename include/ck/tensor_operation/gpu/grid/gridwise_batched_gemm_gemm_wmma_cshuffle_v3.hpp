@@ -629,9 +629,9 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
         auto blockwise_gemm0_pipeline = BlockwiseGemmPipe{};
         auto acc0_thread_buf          = blockwise_gemm0_pipeline.GetCThreadBuffer();
 
-        // TODO: Not sure why we were able to just replace the CThreadDescriptor with the untransposed layout but it seems to work.
+        // Note that we are using the transposeC version of GetCThreadDescriptor.
         constexpr auto acc0_thread_desc_mrepeat_mwave_mthreadpersubgroup_nrepeat_nwave_nsubgroup_naccvgprs = 
-            blockwise_gemm0_pipeline.GetCThreadDescriptor_MRepeat_MWave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs();
+            blockwise_gemm0_pipeline.GetCThreadDescriptor_MRepeat_MWave_MThreadPerSubGroup_NRepeat_NWave_NSubGroup_NAccVgprs();
         
         constexpr auto mrepeat            = acc0_thread_desc_mrepeat_mwave_mthreadpersubgroup_nrepeat_nwave_nsubgroup_naccvgprs.GetLength(I0);
         constexpr auto mwave              = acc0_thread_desc_mrepeat_mwave_mthreadpersubgroup_nrepeat_nwave_nsubgroup_naccvgprs.GetLength(I1);
