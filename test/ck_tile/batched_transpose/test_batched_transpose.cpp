@@ -263,9 +263,15 @@ class YYY
 {
 };
 
-class ZZZ
+class ZZZU
     : public TestCkTileBatchedTranspose<
-          PipelineConfig<ck_tile::half_t, PipelineTag::Universal, 64, 128, 1, 1, false, false>>
+          PipelineConfig<ck_tile::half_t, PipelineTag::Universal, 32, 64, 1, 1, false, false>>
+{
+};
+
+class ZZZL
+    : public TestCkTileBatchedTranspose<
+          PipelineConfig<ck_tile::half_t, PipelineTag::LDSLoadTranspose, 32, 64, 1, 1, false, false>>
 {
 };
 
@@ -280,7 +286,8 @@ TEST_P(CaseHalfPadMultiWarp, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseHalfPadMultiWarpLoadTranspose, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(XXX, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(YYY, TestCorrectness) { this->Run(GetParam()); }
-TEST_P(ZZZ, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(ZZZU, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(ZZZL, TestCorrectness) { this->Run(GetParam()); }
 
 // clang-format off
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalf, kTestingValues);
@@ -294,6 +301,7 @@ INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadMultiWarp, 
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadMultiWarpLoadTranspose, kTestingValues);
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, XXX, kTestingValues);
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, YYY, kTestingValues);
-INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, ZZZ, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, ZZZU, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, ZZZL, kTestingValues);
 
 // clang-format on
