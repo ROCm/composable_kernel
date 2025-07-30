@@ -494,40 +494,17 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
 
             if(split_k < 0)
             {
-                constexpr int k_batch_initial = 1;
-                const auto descs_initial =
-                    conv_to_gemm_transformer
-                        .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
-                            Conv_N_,
-                            Conv_K_,
-                            Conv_C_,
-                            input_spatial_lengths_,
-                            filter_spatial_lengths_,
-                            output_spatial_lengths_,
-                            b_g_n_c_wis_strides,
-                            e_g_k_c_xs_strides,
-                            a_g_n_k_wos_strides,
-                            conv_filter_strides,
-                            conv_filter_dilations,
-                            input_left_pads,
-                            input_right_pads,
-                            k_batch_initial);
-
-                const auto& a_grid_desc_kbatch_k0_m_k1 = descs_initial[I0];
-                const auto& b_grid_desc_kbatch_k0_n_k1 = descs_initial[I1];
-                const auto gemmM                       = a_grid_desc_kbatch_k0_m_k1.GetLength(I1);
-                const auto gemmN                       = b_grid_desc_kbatch_k0_n_k1.GetLength(I1);
+                ck::index_t gemmM, gemmN, gemmK;
+                std::tie(gemmM, gemmN, gemmK) =
+                    get_bwd_weight_gemm_sizes<NDimSpatial>(a_g_n_k_wos_lengths, e_g_k_c_xs_lengths);
 
                 const auto grid_size =
-                    GridwiseGemm::Block2CTileMap::CalculateGridSize(gemmM, gemmN) * Conv_G_;
+                    calculate_mn_grid_size<MPerBlock, NPerBlock>(gemmM, gemmN) * Conv_G_;
                 k_batch_ = get_best_occupancy_k_batch_value(active_workgroups_per_cu.max_occupancy_,
                                                             grid_size);
 
                 // Ensure that k_batch_ does not exceed the maximum value
-                // for the GEMM pipeline
-                ck::index_t gemmK;
-                std::tie(std::ignore, std::ignore, gemmK) =
-                    get_bwd_weight_gemm_sizes<NDimSpatial>(a_g_n_k_wos_lengths, e_g_k_c_xs_lengths);
+                // for the GEMM pipeline.
                 const auto k_batch_max = static_cast<index_t>((gemmK - 1) / K0PerBlock);
                 k_batch_               = std::min(k_batch_, k_batch_max);
 

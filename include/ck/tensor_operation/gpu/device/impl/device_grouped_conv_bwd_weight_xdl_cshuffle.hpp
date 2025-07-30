@@ -528,31 +528,12 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
 
             if(split_k < 0)
             {
-                constexpr int k_batch_initial = 1;
-                const auto descs_initial =
-                    conv_to_gemm_transformer
-                        .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
-                            Conv_N_,
-                            Conv_K_,
-                            Conv_C_,
-                            input_spatial_lengths_,
-                            filter_spatial_lengths_,
-                            output_spatial_lengths_,
-                            b_g_n_c_wis_strides_transposed,
-                            e_g_k_c_xs_strides_transposed,
-                            a_g_n_k_wos_strides_transposed,
-                            conv_filter_strides,
-                            conv_filter_dilations,
-                            input_left_pads,
-                            input_right_pads,
-                            k_batch_initial);
-
-                const auto& c_grid_desc_m_n   = descs_initial[I2];
-                const auto& block_2_ctile_map = GridwiseGemm::MakeCBlockClusterAdaptor(
-                    c_grid_desc_m_n, M01, N01, k_batch_initial);
+                ck::index_t gemmM, gemmN;
+                std::tie(gemmM, gemmN, std::ignore) =
+                    get_bwd_weight_gemm_sizes<NDimSpatial>(a_g_n_k_wos_lengths, e_g_k_c_xs_lengths);
 
                 const auto grid_size =
-                    block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n) * Conv_G_;
+                    calculate_mn_grid_size<MPerBlock, NPerBlock>(gemmM, gemmN) * Conv_G_;
                 k_batch_ = get_best_occupancy_k_batch_value(active_workgroups_per_cu.max_occupancy_,
                                                             grid_size);
             }

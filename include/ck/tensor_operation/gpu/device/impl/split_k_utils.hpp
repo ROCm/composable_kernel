@@ -80,6 +80,14 @@ get_bwd_weight_gemm_sizes(const std::array<index_t, NDimSpatial + 3>& a_g_n_k_wo
     return std::make_tuple(gemmM, gemmN, gemmK);
 }
 
+template <ck::index_t MPerBlock, ck::index_t NPerBlock>
+inline ck::index_t calculate_mn_grid_size(ck::index_t gemmM, ck::index_t gemmN)
+{
+    const auto M0 = math::integer_divide_ceil(gemmM, MPerBlock);
+    const auto N0 = math::integer_divide_ceil(gemmN, NPerBlock);
+    return M0 * N0;
+}
+
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
