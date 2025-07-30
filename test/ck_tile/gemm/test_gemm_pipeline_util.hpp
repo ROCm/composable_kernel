@@ -101,11 +101,9 @@ class TestCkTileGemmPipeline : public ::testing::Test
     template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
     void invoke_gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     {
-        // TODO: Set IterPerWarp to 4 for now to avoid register overflow
-        constexpr ck_tile::index_t IterPerWarp = 4;
-        constexpr ck_tile::index_t M_Warp      = M_Tile / (IterPerWarp * M_Warp_Tile);
-        constexpr ck_tile::index_t N_Warp      = N_Tile / (IterPerWarp * N_Warp_Tile);
-        constexpr ck_tile::index_t K_Warp      = 1;
+        constexpr ck_tile::index_t M_Warp = 2;
+        constexpr ck_tile::index_t N_Warp = 2;
+        constexpr ck_tile::index_t K_Warp = 1;
 
         constexpr bool kPadM      = PadM;
         constexpr bool kPadN      = PadN;
