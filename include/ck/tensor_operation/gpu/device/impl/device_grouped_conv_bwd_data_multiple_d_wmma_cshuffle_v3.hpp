@@ -7,6 +7,7 @@
 #include <numeric>
 #include <sstream>
 
+#include "ck/library/utility/numeric.hpp"
 #include "ck/utility/common_header.hpp"
 #include "ck/utility/env.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -32,7 +33,6 @@ namespace device {
 namespace {
 
 template <typename GridwiseGemm,
-
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
           typename DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -40,7 +40,7 @@ template <typename GridwiseGemm,
           typename ComputePtrOffsetOfBatch,
           typename ComputePtrOffsetOfN,
           bool HasMainKBlockLoop,
-          InMemoryDataOperationEnum OutElementOp,
+          InMemoryDataOperationEnum EGlobalMemoryDataOperation,
           index_t MinimumOccupancy = 1,
           TailNumber TailNum       = TailNumber::Full>
 __global__ void
@@ -54,62 +54,43 @@ __global__ void
             const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
                 ds_grid_desc_mblock_mperblock_nblock_nperblock,
             const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-                e_grid_desc_mblock_mperblock_nblock_nperblock_,
-
+                e_grid_desc_mblock_mperblock_nblock_nperblock,
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
             const ComputePtrOffsetOfN compute_ptr_offset_of_n,
             const index_t num_k_per_block)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
-    // offset base pointer for each work-group
-    const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
-    const index_t n_idx = __builtin_amdgcn_readfirstlane(blockIdx.z / KBatch);
-    const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.z - n_idx * KBatch);
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
+#if defined(__gfx11__)
+    // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
+    using e_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_e_grid)>>;
+    if constexpr(!(EGlobalMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd &&
+                   (std::is_same_v<e_data_type, ck::half_t> ||
+                    std::is_same_v<e_data_type, ck::bhalf_t>)))
+    {
+#endif
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    const long_index_t a_batch_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
-    const long_index_t b_batch_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx));
-    const long_index_t e_batch_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx));
-
-    const auto ds_batch_offset = compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
-
-    const long_index_t a_n_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_n.GetAPtrOffset(n_idx));
-    const long_index_t e_n_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_n.GetEPtrOffset(n_idx));
-
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-
-    DsPointer p_ds_grid_grp;
-
-    static constexpr index_t NumDTensor =
-        DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock::Size();
-
-    static_for<0, NumDTensor, 1>{}(
-        [&](auto i) { p_ds_grid_grp(i) = p_ds_grid[i] + ds_batch_offset[i]; });
-
-    GridwiseGemm::template Run(AGridDesc_AK0_M_K1,
-                               BGridDesc_BK0_N_K1,
-                               DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                               EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                               ComputePtrOffsetOfBatch,
-                               1,
-                               HasMainKBlockLoop,
-                               OutElementOp,
-                               TailNum > (p_shared,
-
-                                          a_grid_desc_ak0_m_ak1,
-                                          b_grid_desc_bk0_n_bk1,
-                                          ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                                          e_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                          num_k_per_block,
-
-                                          k_arg));
+        GridwiseGemm::template Run<AGridDesc_AK0_M_AK1,
+                                   BGridDesc_BK0_N_BK1,
+                                   DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+                                   EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                                   ComputePtrOffsetOfBatch,
+                                   ComputePtrOffsetOfN,
+                                   HasMainKBlockLoop,
+                                   EGlobalMemoryDataOperation,
+                                   TailNum>(p_shared,
+                                            a_grid_desc_ak0_m_ak1,
+                                            b_grid_desc_bk0_n_bk1,
+                                            ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                            e_grid_desc_mblock_mperblock_nblock_nperblock,
+                                            compute_ptr_offset_of_batch,
+                                            compute_ptr_offset_of_n,
+                                            num_k_per_block,
+                                            karg);
 
 #if defined(__gfx11__)
-}
+    }
+#endif
 #else
     ignore = karg;
     ignore = a_grid_desc_ak0_m_ak1;
@@ -118,8 +99,9 @@ __global__ void
     ignore = e_grid_desc_mblock_mperblock_nblock_nperblock_;
     ignore = compute_ptr_offset_of_batch;
     ignore = compute_ptr_offset_of_n;
-    ignore = block_2_ctile_map;
+    ignore = num_k_per_block;
 #endif
+}
 
 } // namespace
 
@@ -147,7 +129,6 @@ template <index_t NDimSpatial,
           ConvolutionBackwardDataSpecialization ConvBackwardDataSpecialization,
           bool DoPadGemmM,
           bool DoPadGemmN,
-          index_t NumGemmKPrefetchStage,
           index_t BlockSize,
           index_t MPerBlock,
           index_t NPerBlock,
@@ -175,7 +156,6 @@ template <index_t NDimSpatial,
           index_t CShuffleMRepeatPerShuffle,
           index_t CShuffleNRepeatPerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-          index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           typename CShuffleBlockTransferScalarPerVector,
           BlockGemmPipelineScheduler BlkGemmPipeSched    = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer    = BlockGemmPipelineVersion::v1,
@@ -207,7 +187,18 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
 
     using DeviceOp = DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3;
 
-    static constexpr index_t NumDTensor          = DsDataType::Size();
+    static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
+    static constexpr auto I2 = Number<2>{};
+    static constexpr auto I3 = Number<3>{};
+
+    static constexpr index_t NumDTensor = DsDataType::Size();
+    // Note: the values in CShuffleBlockTransferScalarPerVector sequence must be all the same.
+    // This is a limitation of the thread transfer implementation (v7r3)
+    // It should be fixed later on
+    static constexpr index_t CShuffleBlockTransferScalarPerVector_NPerBlock =
+        CShuffleBlockTransferScalarPerVector{}[I0];
+
     static constexpr GemmSpecialization GemmSpec = GemmSpecialization::MNKPadding;
     static constexpr bool IsSplitKSupported =
         (CShuffleBlockTransferScalarPerVector_NPerBlock % 2 == 0 || sizeof(EDataType) % 4 == 0) &&
@@ -215,11 +206,6 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
 
     // TODO: Add support for different A and B data types.
     using ABDataType = ADataType;
-
-    static constexpr auto I0 = Number<0>{};
-    static constexpr auto I1 = Number<1>{};
-    static constexpr auto I2 = Number<2>{};
-    static constexpr auto I3 = Number<3>{};
 
     using ALayoutAfterTranspose =
         std::conditional_t<is_NGCHW_NGKHW<ELayout, BLayout, ALayout>(),
@@ -256,6 +242,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                                                                      ABDataType,
                                                                      EDataType>;
 
+    // Dummy function just used to create an alias to Grid Descriptors
     static auto
     GetDummyABDsEGridDescriptor(const ConvToGemmBwdDataTransform& conv_to_gemm_transform)
     {
@@ -293,30 +280,58 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             a_grid_desc_ak0_m_ak1, b_grid_desc_bk0_n_bk1, ds_grid_desc_m_n, e_grid_desc_m_n);
     }
 
-// GridwiseGemm
-#define GridwiseGemmMultiDTemplateParams                                                          \
-    Alayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType,     \
-        DsDataType, EDataType, AElementwiseOp, BElementwiseOp, CDEElementwiseOp, GemmSpec,        \
-        BlockSize, MPerBlock, NPerBlock, KPerBlock, AK1, BK1, MPerWmma, NPerWmma, MRepeat,        \
-        NRepeat, ABlockTransferThreadClusterLengths_AK0_M_AK1,                                    \
-        ABlockTransferThreadClusterArrangeOrder, ABlockTransferSrcAccessOrder,                    \
-        ABlockTransferSrcVectorDim, ABlockTransferSrcScalarPerVector,                             \
-        ABlockTransferDstScalarPerVector_AK1, false, ABlockLdsExtraM,                             \
-        BBlockTransferThreadClusterLengths_BK0_N_BK1, BBlockTransferThreadClusterArrangeOrder,    \
-        BBlockTransferSrcAccessOrder, BBlockTransferSrcVectorDim,                                 \
-        BBlockTransferSrcScalarPerVector, BBlockTransferDstScalarPerVector_BK1, false,            \
-        BBlockLdsExtraN, CShuffleMRepeatPerShuffle, CShuffleNRepeatPerShuffle,                    \
-        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                    \
-        CShuffleBlockTransferScalarPerVector, BlkGemmPipeSched, BlkGemmPipelineVer, AComputeType, \
-        BComputeType, PeremuteA, PermuteB
-    using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3<GridwiseGemmMultiDTemplateParams>;
-
-    template <typename EGridDesc_M_N>
-    static auto
-    MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(const EGridDesc_M_N e_grid_desc_m_n)
-    {
-        return GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(e_grid_desc_m_n);
-    }
+    // GridwiseGemm
+    using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3<
+        ALayout,
+        BLayout,
+        DsLayout,
+        ELayout,
+        Tuple<ADataType>,
+        Tuple<BDataType>,
+        AccDataType,
+        CShuffleDataType,
+        DsDataType,
+        EDataType,
+        AElementwiseOp,
+        BElementwiseOp,
+        CDEElementwiseOp,
+        GemmSpec,
+        BlockSize,
+        MPerBlock,
+        NPerBlock,
+        KPerBlock,
+        AK1,
+        BK1,
+        MPerWmma,
+        NPerWmma,
+        MRepeat,
+        NRepeat,
+        ABlockTransferThreadClusterLengths_AK0_M_AK1,
+        ABlockTransferThreadClusterArrangeOrder,
+        ABlockTransferSrcAccessOrder,
+        ABlockTransferSrcVectorDim,
+        ABlockTransferSrcScalarPerVector,
+        ABlockTransferDstScalarPerVector_AK1,
+        false,
+        ABlockLdsExtraM,
+        BBlockTransferThreadClusterLengths_BK0_N_BK1,
+        BBlockTransferThreadClusterArrangeOrder,
+        BBlockTransferSrcAccessOrder,
+        BBlockTransferSrcVectorDim,
+        BBlockTransferSrcScalarPerVector,
+        BBlockTransferDstScalarPerVector_BK1,
+        false,
+        BBlockLdsExtraN,
+        CShuffleMRepeatPerShuffle,
+        CShuffleNRepeatPerShuffle,
+        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        CShuffleBlockTransferScalarPerVector,
+        BlkGemmPipeSched,
+        BlkGemmPipelineVer,
+        AComputeType,
+        BComputeType,
+        false,
+        false>;
 
     template <typename Desc_K0_M_K1>
     static auto transform_k0_m_k1_to_m_k(const Desc_K0_M_K1& desc_k0_m_k1)
@@ -332,7 +347,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         return grid_desc_m_k;
     }
 
-    // desc
+    // Note: the dummy function is used just to create the alias
     constexpr static ConvToGemmBwdDataTransform dummy_conv_to_gemm_transform;
     using ABDsEGridDesc = decltype(GetDummyABDsEGridDescriptor(dummy_conv_to_gemm_transform));
 
@@ -344,16 +359,16 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
     using AGridDesc_M_K = decltype(transform_k0_m_k1_to_m_k(AGridDesc_AK0_M_AK1{}));
     using BGridDesc_N_K = decltype(transform_k0_m_k1_to_m_k(BGridDesc_BK0_N_BK1{}));
 
+    // Note: here we can call gridwise functions with dummy arguments,
+    // just to create the alias
     using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
-        decltype(GridwiseGemm_wmma_cshuffle_v3<GridwiseGemmMultiDTemplateParams>::
-                     MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(DsGridDesc_M_N{}));
+        decltype(GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+            DsGridDesc_M_N{}, 1, 1));
     using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
-        decltype(MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(EGridDesc_M_N{}));
+        decltype(GridwiseGemm::MakeDEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+            EGridDesc_M_N{}, 1, 1));
 
-    // block-to-e-tile map
-    using Block2ETileMap =
-        remove_cvref_t<decltype(GridwiseGemm_wmma_cshuffle_v3<GridwiseGemmMultiDTemplateParams>::
-                                    MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
+    // block-to-e-tile map for elementwise kernels
     using Block2TileMapInOutElementwise = BlockToCTileMap_M00_N0_M01Adapt<NPerBlock, MPerBlock>;
     using Block2TileMapWeiElementwise   = BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock>;
 
@@ -649,28 +664,49 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                         a_grid_desc_ak0_m_ak1_container_.push_back(a_grid_desc_ak0_m_ak1);
                         b_grid_desc_bk0_n_bk1_container_.push_back(b_grid_desc_bk0_n_bk1);
 
-                        // block-to-e-tile-map
-                        auto block_2_etile_map =
-                            GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n);
+                        // Create dummy gemm arguments to check for gridwise validity
+                        const index_t GemmM = a_grid_desc_ak0_m_ak1.GetLength(I1);
+                        const index_t GemmN = a_grid_desc_ak0_m_ak1.GetLength(I1);
+                        const index_t GemmK = a_grid_desc_ak0_m_ak1.GetLength(I0) *
+                                              a_grid_desc_ak0_m_ak1.GetLength(I2);
+                        std::array<const void*, NumDTensor> p_ds_grid_dummy;
+                        std::array<index_t, NumDTensor> StrideDs_dummy;
+                        static_for<0, NumDTensor, 1>{}([&](auto i) {
+                            p_ds_grid_dummy(i) = nullptr;
+                            StrideDs_dummy(i)  = I0;
+                        });
+                        typename GridwiseGemm::Argument gemm_arg{
+                            std::array<const void*, 1>{nullptr}, // p_as_grid
+                            std::array<const void*, 1>{nullptr}, // p_bs_grid
+                            p_ds_grid_dummy,                     // p_ds_grid
+                            nullptr,                             // p_e_grid
+                            GemmM,                               // M
+                            GemmN,                               // N
+                            GemmK,                               // K
+                            std::array<index_t, 1>{I0},          // StrideAs
+                            std::array<index_t, 1>{I0},          // StrideBs
+                            StrideDs_dummy,                      // StrideDs
+                            I0,                                  // StrideE
+                            k_batch_,
+                            AElementwiseOp{},
+                            BElementwiseOp{},
+                            CDEElementwiseOp{}};
 
-                        block_2_etile_map_container_.push_back(block_2_etile_map);
-
-                        if(GridwiseGemm::CheckValidity(a_grid_desc_m_k,
-                                                       b_grid_desc_n_k,
-                                                       ds_grid_desc_m_n,
-                                                       e_grid_desc_m_n,
-                                                       block_2_etile_map,
-                                                       k_batch_))
+                        if(GridwiseGemm::CheckValidity(gemm_arg))
                         {
                             ds_grid_desc_mblock_mperblock_nblock_nperblock_container_.push_back(
-
                                 GridwiseGemm::
                                     MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                        ds_grid_desc_m_n));
+                                        ds_grid_desc_m_n,
+                                        GridwiseGemm::CalculateMBlock(GemmM),
+                                        GridwiseGemm::CalculateNBlock(GemmN)));
 
                             e_grid_desc_mblock_mperblock_nblock_nperblock_container_.push_back(
-                                MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                    e_grid_desc_m_n));
+                                GridwiseGemm::
+                                    MakeDEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                        e_grid_desc_m_n,
+                                        GridwiseGemm::CalculateMBlock(GemmM),
+                                        GridwiseGemm::CalculateNBlock(GemmN)));
                         }
                     }
                 }
@@ -804,8 +840,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         // pointers
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
-        typename GridwiseGemm_wmma_cshuffle_v3<GridwiseGemmMultiDTemplateParams>::DsGridPointer
-            p_ds_grid_;
+        typename GridwiseGemm::DsGridPointer p_ds_grid_;
         EDataType* p_e_grid_;
 
         // tensor descriptor for problem definition
@@ -824,8 +859,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         std::vector<EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>
             e_grid_desc_mblock_mperblock_nblock_nperblock_container_;
 
-        // block-to-e-tile map
-        std::vector<Block2ETileMap> block_2_etile_map_container_;
+        // block-to-e-tile map elementwise kernels
         Block2TileMapInOutElementwise elementwise_block_2_ctile_map_transpose_a_,
             elementwise_block_2_ctile_map_transpose_e_;
         Block2TileMapWeiElementwise elementwise_block_2_ctile_map_transpose_b_;
@@ -866,9 +900,6 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         {
             float ave_time = 0;
 
-            const index_t gdy = arg.num_group_;
-            const index_t gdz = arg.num_workgroups_per_Conv_N_ * arg.k_batch_;
-
             const ADataType* p_a_grid = arg.p_a_grid_;
             const BDataType* p_b_grid = arg.p_b_grid_;
             EDataType* p_e_grid       = arg.p_e_grid_;
@@ -890,39 +921,65 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                            arg.GetWorkspaceATensorSizeBytes() / sizeof(BDataType);
             }
 
+            // Create dummy Ds strides because they are not used in convolution
+            // since we pass the grid descriptor to gridwise gemm
+            std::array<index_t, NumDTensor> StrideDs_dummy;
+            static_for<0, NumDTensor, 1>{}([&](auto i) { StrideDs_dummy(i) = I0; });
+            // TODO: fix this, it's not nice to go back and forth
+            std::array<const void*, NumDTensor> p_ds;
+            static_for<0, NumDTensor, 1>{}(
+                [&](auto i) { p_ds(i) = static_cast<const void*>(arg.p_ds_grid_[i]); });
             for(std::size_t i = 0; i < arg.a_grid_desc_ak0_m_ak1_container_.size(); i++)
             {
-                if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_container_[i],
-                                                arg.b_grid_desc_n_k_container_[i],
-                                                arg.ds_grid_desc_m_n_container_[i],
-                                                arg.e_grid_desc_m_n_container_[i],
-                                                arg.block_2_etile_map_container_[i],
-                                                arg.k_batch_))
+                const index_t GemmM = arg.a_grid_desc_ak0_m_ak1_container_[i].GetLength(I1);
+                const index_t GemmN = arg.b_grid_desc_bk0_n_bk1_container_[i].GetLength(I1);
+                const index_t GemmK = arg.a_grid_desc_ak0_m_ak1_container_[i].GetLength(I0) *
+                                      arg.a_grid_desc_ak0_m_ak1_container_[i].GetLength(I2);
+
+                typename GridwiseGemm::Argument gemm_arg{std::array<const void*, 1>{p_a_grid},
+                                                         std::array<const void*, 1>{p_b_grid},
+                                                         p_ds,
+                                                         p_e_grid,
+                                                         GemmM,
+                                                         GemmN,
+                                                         GemmK,
+                                                         std::array<index_t, 1>{I0},
+                                                         std::array<index_t, 1>{I0},
+                                                         StrideDs_dummy,
+                                                         I0,
+                                                         arg.k_batch_,
+                                                         AElementwiseOp{},
+                                                         BElementwiseOp{},
+                                                         CDEElementwiseOp{}};
+                if(!GridwiseGemm::CheckValidity(gemm_arg))
                 {
                     throw std::runtime_error("wrong! device_op has invalid setting");
                 }
 
-                const index_t gdx = arg.block_2_etile_map_container_[i].CalculateGridSize(
-                    arg.e_grid_desc_m_n_container_[i]);
+                index_t gdx, gdy, gdz;
+                std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(
+                    gemm_arg.M,
+                    gemm_arg.N,
+                    arg.num_group_,
+                    gemm_arg.KBatch * arg.num_workgroups_per_Conv_N_);
 
-                const auto GemmK = arg.a_grid_desc_m_k_container_[i].GetLength(I1);
+                index_t k_grain = gemm_arg.KBatch * KPerBlock;
+                index_t K_split = (gemm_arg.K + k_grain - 1) / k_grain * KPerBlock;
+                const bool has_main_k_block_loop =
+                    GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
 
-                auto launch_kernel = [&](auto has_main_k_block_loop) {
-                    constexpr bool has_main_loop = has_main_k_block_loop.value;
+                const auto num_k_per_block =
+                    arg.a_grid_desc_ak0_m_ak1_container_[i].GetLength(I0) / gemm_arg.KBatch;
+
+                auto launch_kernel = [&](auto has_main_k_block_loop_) {
+                    constexpr bool has_main_loop = has_main_k_block_loop_.value;
 
                     const auto kernel = kernel_grouped_conv_bwd_data_wmma_cshuffle_v3<
                         GridwiseGemm,
-                        ADataType, // TODO: distiguish A/B datatype
-                        typename GridwiseGemm::DsGridPointer,
-                        EDataType,
-                        AElementwiseOp,
-                        BElementwiseOp,
-                        CDEElementwiseOp,
                         DeviceOp::AGridDesc_AK0_M_AK1,
                         DeviceOp::BGridDesc_BK0_N_BK1,
                         DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                         DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                        Block2ETileMap,
                         ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
                         ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
                         has_main_loop,
@@ -934,24 +991,17 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                         dim3(gdx, gdy, gdz),
                         dim3(BlockSize),
                         0,
-                        p_a_grid,
-                        p_b_grid,
-                        arg.p_ds_grid_,
-                        p_e_grid,
-                        arg.a_element_op_,
-                        arg.b_element_op_,
-                        arg.cde_element_op_,
+                        gemm_arg,
                         arg.a_grid_desc_ak0_m_ak1_container_[i],
                         arg.b_grid_desc_bk0_n_bk1_container_[i],
                         arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_container_[i],
                         arg.e_grid_desc_mblock_mperblock_nblock_nperblock_container_[i],
-                        arg.block_2_etile_map_container_[i],
                         arg.compute_ptr_offset_of_batch_,
                         arg.compute_ptr_offset_of_n_,
-                        arg.k_batch_);
+                        num_k_per_block);
                 };
 
-                if(GridwiseGemm::CalculateHasMainKBlockLoop(GemmK, arg.k_batch_))
+                if(has_main_k_block_loop)
                 {
                     ave_time += launch_kernel(integral_constant<bool, true>{});
                 }
@@ -1121,36 +1171,6 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        const index_t GemmM = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I1);
-        const index_t GemmN = arg.b_grid_desc_kbatch_k0_n_k1_.GetLength(I1);
-        const index_t GemmK = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I0) *
-                              arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I2);
-
-        typename GridwiseGemm::Argument gemm_arg{std::array<const void*, 1>{nullptr}, // p_as_grid
-                                                 std::array<const void*, 1>{nullptr}, // p_bs_grid
-                                                 std::array<const void*, 0>{},        // p_ds_grid
-                                                 nullptr,                             // p_e_grid
-                                                 GemmM,                               // M
-                                                 GemmN,                               // N
-                                                 GemmK,                               // K
-                                                 std::array<index_t, 1>{I0},          // StrideAs
-                                                 std::array<index_t, 1>{I0},          // StrideBs
-                                                 std::array<index_t, 0>{},            // StrideDs
-                                                 I0,                                  // StrideE
-                                                 arg.k_batch_,
-                                                 AElementwiseOp{},
-                                                 BElementwiseOp{},
-                                                 element_wise::PassThrough{}};
-
-        const auto num_k_loop = gemm_arg.AK0 / (KPerBlock / ABK1);
-        if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1)
-        {
-            if(num_k_loop <= GridwiseGemm::BlockwiseGemmPipe::PrefetchStages)
-            {
-                return false;
-            }
-        }
-
         if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported())
         {
             return false;
@@ -1158,7 +1178,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
 
         if constexpr(!IsSplitKSupported)
         {
-            if(arg.k_batch_ != 1)
+            if(arg.k_batch_ > 1)
             {
                 return false;
             }
@@ -1267,12 +1287,6 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             return false;
         }
 
-        // Gridwise GEMM size
-        for(std::size_t i = 0; i < arg.a_grid_desc_ak0_m_ak1_container_.size(); i++)
-        {
-            return GridwiseGemm::CheckValidity(gemm_arg);
-        }
-
         if constexpr(is_NGCHW_NGKHW<ELayout, BLayout, ALayout>() ||
                      is_NGCDHW_NGKDHW<ELayout, BLayout, ALayout>())
         {
@@ -1311,6 +1325,44 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                            "allocated, use SetWorkSpacePointer."
                         << std::endl;
                 }
+                return false;
+            }
+        }
+
+        // Check gridwise gemm validity
+        // Create dummy values for Ds pointers and strides
+        std::array<const void*, NumDTensor> p_ds_grid_dummy;
+        std::array<index_t, NumDTensor> StrideDs_dummy;
+        static_for<0, NumDTensor, 1>{}([&](auto i) {
+            p_ds_grid_dummy(i) = nullptr;
+            StrideDs_dummy(i)  = I0;
+        });
+        for(std::size_t i = 0; i < arg.a_grid_desc_ak0_m_ak1_container_.size(); i++)
+        {
+            const index_t GemmM = arg.a_grid_desc_ak0_m_ak1_container_[i].GetLength(I1);
+            const index_t GemmN = arg.b_grid_desc_bk0_n_bk1_container_[i].GetLength(I1);
+            const index_t GemmK = arg.a_grid_desc_ak0_m_ak1_container_[i].GetLength(I0) *
+                                  arg.a_grid_desc_ak0_m_ak1_container_[i].GetLength(I2);
+            // Create gemm arguments with dummy values to check for validity
+            typename GridwiseGemm::Argument gemm_arg{
+                std::array<const void*, 1>{nullptr}, // p_as_grid
+                std::array<const void*, 1>{nullptr}, // p_bs_grid
+                p_ds_grid_dummy,                     // p_ds_grid
+                nullptr,                             // p_e_grid
+                GemmM,                               // M
+                GemmN,                               // N
+                GemmK,                               // K
+                std::array<index_t, 1>{I0},          // StrideAs
+                std::array<index_t, 1>{I0},          // StrideBs
+                StrideDs_dummy,                      // StrideDs
+                I0,                                  // StrideE
+                arg.k_batch_,
+                AElementwiseOp{},
+                BElementwiseOp{},
+                CDEElementwiseOp{}};
+
+            if(!GridwiseGemm::CheckValidity(gemm_arg))
+            {
                 return false;
             }
         }
@@ -1439,7 +1491,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             << MPerWmma << ", "
             << NPerWmma << ", "
             << MRepeat << ", "
-            << NXRepeaT << ", "
+            << NRepeat << ", "
             << ABlockTransferSrcScalarPerVector << ", "
             << BBlockTransferSrcScalarPerVector << ", "
             << CShuffleMRepeatPerShuffle << ", "
