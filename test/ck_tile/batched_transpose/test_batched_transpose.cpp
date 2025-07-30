@@ -132,8 +132,8 @@ class TestCkTileBatchedTranspose //              N    C    H    W    layout_in==
                                                                  height,
                                                                  width,
                                                                  height * width,
-                                                                 Config::BlockTile::at(0),
-                                                                 Config::BlockTile::at(1)};
+                                                                 Config::BlockTile::at(1),
+                                                                 Config::BlockTile::at(0)};
         auto kargs           = Kernel::MakeKargs(host_args);
 
         auto sc                   = ck_tile::stream_config{};
@@ -148,8 +148,14 @@ class TestCkTileBatchedTranspose //              N    C    H    W    layout_in==
         message << "N=" << N << " C=" << C << " H=" << H << " W=" << W << " layout_in=" << layout_in
                 << " layout_out=" << layout_out << " device_name=" << device_name;
 
+        // NB: order of output and reference matters
         bool pass = ck_tile::check_err(
-            y_ref, y_host, message.str(), /* rtol */ 0, /* atol */ 0, /* allow inf */ false);
+            /* out */ y_host,
+            /* ref */ y_ref,
+            message.str(),
+            /* rtol */ 0,
+            /* atol */ 0,
+            /* allow inf */ false);
 
         EXPECT_TRUE(pass);
     }
@@ -240,39 +246,26 @@ class CaseHalfPadMultiWarpLoadTranspose
 {
 };
 
-class XXX
-    : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t,
-                                                       PipelineTag::LDSLoadTranspose,
-                                                       128,
-                                                       128,
-                                                       2,
-                                                       2,
-                                                       false,
-                                                       false>>
+class XXX : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t,
+                                                             PipelineTag::LDSLoadTranspose,
+                                                             128,
+                                                             128,
+                                                             2,
+                                                             2,
+                                                             false,
+                                                             false>>
 {
 };
 
 class YYY
-    : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t,
-                                                       PipelineTag::Universal,
-                                                       128,
-                                                       128,
-                                                       2,
-                                                       2,
-                                                       false,
-                                                       false>>
+    : public TestCkTileBatchedTranspose<
+          PipelineConfig<ck_tile::half_t, PipelineTag::Universal, 128, 128, 2, 2, false, false>>
 {
 };
 
 class ZZZ
-    : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t,
-                                                       PipelineTag::LDSLoadTranspose,
-                                                       64,
-                                                       128,
-                                                       1,
-                                                       1,
-                                                       false,
-                                                       false>>
+    : public TestCkTileBatchedTranspose<
+          PipelineConfig<ck_tile::half_t, PipelineTag::Universal, 64, 128, 1, 1, false, false>>
 {
 };
 
