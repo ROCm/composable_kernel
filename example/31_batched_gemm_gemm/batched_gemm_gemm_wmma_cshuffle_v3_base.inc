@@ -32,7 +32,7 @@ using DeviceMHAFactory =
             Row, Col, Col, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, 1,
+            GemmSpec,
             32,
             //      Gemm 0
             16, 64, 64, 64, 64, 8,  8,
@@ -60,7 +60,7 @@ using DeviceMHAFactory =
             Row, Col, Row, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, 1,
+            GemmSpec,
             32,
             //      Gemm 0
             16, 128, 64, 64, 64, 8,  8,
@@ -82,7 +82,7 @@ using DeviceMHAFactory =
             Row, Col, Row, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, 1,
+            GemmSpec,
             32,
             //      Gemm 0
             16, 64, 64, 64, 64, 8,  8,
@@ -106,7 +106,7 @@ using DeviceMHAFactory =
             Row, Col, Row, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, 1,
+            GemmSpec,
             64,
             //      Gemm 0
             32, 128, 64, 64, 64, 8, 8,
@@ -128,7 +128,7 @@ using DeviceMHAFactory =
             Row, Col, Row, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, 1,
+            GemmSpec,
             64,
             //      Gemm 0
             32, 64, 64, 64, 64, 8, 8,
@@ -152,7 +152,7 @@ using DeviceMHAFactory =
             Row, Col, Row, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, 1,
+            GemmSpec,
             128,
             //      Gemm 0
             64, 128, 64, 64, 64, 8, 8,
@@ -174,7 +174,7 @@ using DeviceMHAFactory =
             Row, Col, Row, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, 1,
+            GemmSpec,
             128,
             //      Gemm 0
             64, 64, 64, 64, 64, 8, 8,
@@ -198,7 +198,7 @@ using DeviceMHAFactory =
             Row, Col, Row, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, 1,
+            GemmSpec,
             256,
             //      Gemm 0
             128, 128, 64, 64, 64, 8, 8,   
@@ -220,7 +220,7 @@ using DeviceMHAFactory =
             Row, Col, Row, Row, 
             ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, 1,
+            GemmSpec,
             256,
             //      Gemm 0
             128, 128, 64, 64, 64, 8, 8,   

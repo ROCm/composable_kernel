@@ -88,7 +88,6 @@ template <typename ALayout,
           typename B1ElementwiseOperation,
           typename CElementwiseOperation,
           GemmSpecialization GemmSpec,
-          ck::index_t NumPrefetch, // Not used, determined by pipeline version.
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t LPerBlock,     // Gemm0NPerBlock
@@ -449,12 +448,6 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         if constexpr(!(is_same_v<CLayout, tensor_layout::gemm::RowMajor>))
         {
             printf("DeviceOp: C layout must be Row\n");
-            return false;
-        }
-
-        if constexpr(NumPrefetch != 1)
-        {
-            printf("NumPrefetch is not used!\n");
             return false;
         }
 
