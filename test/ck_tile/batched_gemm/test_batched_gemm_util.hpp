@@ -70,12 +70,12 @@ class TestCkTileBatchedGemm : public ::testing::Test
                                                                      kPadN,
                                                                      kPadK,
                                                                      DoubleSmemBuffer,
-                                                                     kSkipALds,
-                                                                     kSkipBLds,
                                                                      ALayout,
                                                                      BLayout,
                                                                      CLayout,
-                                                                     TransposeC>;
+                                                                     TransposeC,
+                                                                     kSkipALds,
+                                                                     kSkipBLds>;
         using GemmPipelineProblem =
             ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 

@@ -158,9 +158,7 @@ struct GemmKernel
                 {hostArgs.stride_A},
                 {hostArgs.stride_B},
                 {/*hostArgs.stride_Ds*/},
-                hostArgs.stride_E,
-                hostArgs.skip_a_lds,
-                hostArgs.skip_b_lds));
+                hostArgs.stride_E));
     }
 
     CK_TILE_HOST static auto

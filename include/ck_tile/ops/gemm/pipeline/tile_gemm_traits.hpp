@@ -67,6 +67,9 @@ struct TileGemmUniversalTraits
     static constexpr bool UsePersistentKernel   = UsePersistentKernel_;
     static constexpr index_t NumWaveGroups      = NumWaveGroups_;
     static constexpr bool Preshuffle            = Preshuffle_;
+
+    static constexpr bool kSkipALds = SkipALds_;
+    static constexpr bool kSkipBLds = SkipBLds_;
 };
 
 template <bool kPadM_,

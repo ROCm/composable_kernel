@@ -41,9 +41,7 @@ struct UniversalGemmHostArgs
                                        const std::array<index_t, NumATensor>& stride_As_,
                                        const std::array<index_t, NumBTensor>& stride_Bs_,
                                        const std::array<index_t, NumDTensor>& stride_Ds_,
-                                       index_t stride_E_,
-                                       bool skip_a_lds_,
-                                       bool skip_b_lds_)
+                                       index_t stride_E_)
         : as_ptr(as_ptr_),
           bs_ptr(bs_ptr_),
           ds_ptr(ds_ptr_),
@@ -55,9 +53,7 @@ struct UniversalGemmHostArgs
           stride_Bs(stride_Bs_),
           stride_Ds(stride_Ds_),
           stride_E(stride_E_),
-          k_batch(k_batch_),
-          skip_a_lds(skip_a_lds_),
-          skip_b_lds(skip_b_lds_)
+          k_batch(k_batch_)
     {
     }
 
@@ -82,8 +78,6 @@ struct UniversalGemmHostArgs
     };
 
     index_t k_batch;
-    bool skip_a_lds;
-    bool skip_b_lds;
 };
 
 /// @brief The GEMM kernel device arguments.
@@ -117,10 +111,6 @@ struct UniversalGemmKernelArgs
     ///        (in memory) of E tensor.
     index_t stride_E;
     index_t k_batch;
-    /// @brief Flag to skip loading A tensor tile into LDS.
-    bool skip_a_lds;
-    /// @brief Flag to skip loading B tensor tile into LDS.
-    bool skip_b_lds;
 };
 
 /// @brief The Universal GEMM kernel template.
@@ -292,9 +282,7 @@ struct UniversalGemmKernel
                           hostArgs.stride_Bs,
                           hostArgs.stride_Ds,
                           hostArgs.stride_E,
-                          hostArgs.k_batch,
-                          hostArgs.skip_a_lds,
-                          hostArgs.skip_b_lds};
+                          hostArgs.k_batch};
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
