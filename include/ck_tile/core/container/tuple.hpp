@@ -301,9 +301,20 @@ struct tuple : impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>
 };
 
 template <typename... T>
-CK_TILE_HOST_DEVICE static void print(const tuple<T...>& t)
+CK_TILE_HOST_DEVICE void print(const tuple<T...>& t)
 {
-    static_for<0, sizeof...(T), 1>{}([&t](auto i) { print(t.get(i)); });
+    printf("tuple<");
+    if constexpr(sizeof...(T) > 0)
+    {
+        bool first = true;
+        static_for<0, sizeof...(T), 1>{}([&t, &first](auto i) {
+            if(!first)
+                printf(", ");
+            print(t.get(i));
+            first = false;
+        });
+    }
+    printf(">");
 }
 
 template <typename, typename = void>
