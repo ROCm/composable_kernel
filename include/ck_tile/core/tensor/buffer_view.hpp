@@ -1272,66 +1272,35 @@ make_buffer_view(T* p, BufferSizeType buffer_size, X invalid_element_value)
         p, buffer_size, invalid_element_value};
 }
 
-// Free print functions for all buffer_view variants
-template <typename T, typename BufferSizeType, bool InvalidElementUseNumericalZeroValue>
-CK_TILE_HOST_DEVICE static void
-print(const buffer_view<address_space_enum::generic,
-                        T,
-                        BufferSizeType,
-                        InvalidElementUseNumericalZeroValue,
-                        amd_buffer_coherence_enum::coherence_default>& bv)
+// Helper function to convert address space enum to string
+constexpr const char* address_space_to_string(address_space_enum addr_space)
 {
-    printf("buffer_view{AddressSpace: generic, p_data_: %p, buffer_size_: ",
-           static_cast<void*>(const_cast<remove_cvref_t<T>*>(bv.p_data_)));
-    print(bv.buffer_size_);
-    printf(", invalid_element_value_: ");
-    print(bv.invalid_element_value_);
-    printf("}");
+    switch(addr_space)
+    {
+        case address_space_enum::generic: return "generic";
+        case address_space_enum::global: return "Global";
+        case address_space_enum::lds: return "Lds";
+        case address_space_enum::sgpr: return "Sgpr";
+        case address_space_enum::constant: return "Constant";
+        case address_space_enum::vgpr: return "Vgpr";
+        default: return "unknown";
+    }
 }
 
-template <typename T,
+// Generalized print function for all buffer_view variants
+template <address_space_enum BufferAddressSpace,
+          typename T,
           typename BufferSizeType,
           bool InvalidElementUseNumericalZeroValue,
           amd_buffer_coherence_enum Coherence>
-CK_TILE_HOST_DEVICE static void print(const buffer_view<address_space_enum::global,
-                                                        T,
-                                                        BufferSizeType,
-                                                        InvalidElementUseNumericalZeroValue,
-                                                        Coherence>& bv)
+CK_TILE_HOST_DEVICE void print(const buffer_view<BufferAddressSpace,
+                                                 T,
+                                                 BufferSizeType,
+                                                 InvalidElementUseNumericalZeroValue,
+                                                 Coherence>& bv)
 {
-    printf("buffer_view{AddressSpace: Global, p_data_: %p, buffer_size_: ",
-           static_cast<void*>(const_cast<remove_cvref_t<T>*>(bv.p_data_)));
-    print(bv.buffer_size_);
-    printf(", invalid_element_value_: ");
-    print(bv.invalid_element_value_);
-    printf("}");
-}
-
-template <typename T, typename BufferSizeType, bool InvalidElementUseNumericalZeroValue>
-CK_TILE_HOST_DEVICE static void
-print(const buffer_view<address_space_enum::lds,
-                        T,
-                        BufferSizeType,
-                        InvalidElementUseNumericalZeroValue,
-                        amd_buffer_coherence_enum::coherence_default>& bv)
-{
-    printf("buffer_view{AddressSpace: Lds, p_data_: %p, buffer_size_: ",
-           static_cast<void*>(const_cast<remove_cvref_t<T>*>(bv.p_data_)));
-    print(bv.buffer_size_);
-    printf(", invalid_element_value_: ");
-    print(bv.invalid_element_value_);
-    printf("}");
-}
-
-template <typename T, typename BufferSizeType, bool InvalidElementUseNumericalZeroValue>
-CK_TILE_HOST_DEVICE static void
-print(const buffer_view<address_space_enum::vgpr,
-                        T,
-                        BufferSizeType,
-                        InvalidElementUseNumericalZeroValue,
-                        amd_buffer_coherence_enum::coherence_default>& bv)
-{
-    printf("buffer_view{AddressSpace: Vgpr, p_data_: %p, buffer_size_: ",
+    printf("buffer_view{AddressSpace: %s, p_data_: %p, buffer_size_: ",
+           address_space_to_string(BufferAddressSpace),
            static_cast<void*>(const_cast<remove_cvref_t<T>*>(bv.p_data_)));
     print(bv.buffer_size_);
     printf(", invalid_element_value_: ");

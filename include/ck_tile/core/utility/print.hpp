@@ -31,4 +31,45 @@ CK_TILE_HOST_DEVICE void print(const float& value)
     printf("%f", value);
 }
 
+/// Specialization for double
+template <>
+CK_TILE_HOST_DEVICE void print(const double& value)
+{
+    printf("%f", value);
+}
+
+/// Specialization for long
+template <>
+CK_TILE_HOST_DEVICE void print(const long& value)
+{
+    printf("%ld", value);
+}
+
+/// Specialization for unsigned int
+template <>
+CK_TILE_HOST_DEVICE void print(const unsigned int& value)
+{
+    printf("%u", value);
+}
+
+/// Specialization for char
+template <>
+CK_TILE_HOST_DEVICE void print(const char& value)
+{
+    printf("%c", value);
+}
+
+/// Specialization for array
+template <typename T, size_t N>
+CK_TILE_HOST_DEVICE void print(const T (&value)[N])
+{
+    printf("[");
+    for (size_t i = 0; i < N; ++i)
+    {
+        if (i > 0) printf(", ");
+        print(value[i]);  // Recursively call print for each element
+    }
+    printf("]");
+}
+
 } // namespace ck_tile
