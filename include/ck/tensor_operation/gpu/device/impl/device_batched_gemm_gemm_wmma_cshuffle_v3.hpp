@@ -25,7 +25,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename DeviceOp, typename GridwiseOp, bool HasMainKBlockLoop>
+template <typename DeviceOp, typename GridwiseOp, bool HasMainKBlockLoop, TailNumber TailNum>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -48,21 +48,22 @@ __global__ void
     const long_index_t c_batch_offset =
         __builtin_amdgcn_readfirstlane((arg.compute_base_ptr_of_batch.GetCBasePtr(g_idx)));
 
-    GridwiseOp::template Run<HasMainKBlockLoop>(arg.p_a_grid + a_batch_offset,
-                                                arg.p_b0_grid + b0_batch_offset,
-                                                arg.p_b1_grid + b1_batch_offset,
-                                                arg.p_c_grid + c_batch_offset,
-                                                p_shared,
-                                                arg.a_grid_desc,
-                                                arg.b0_grid_desc,
-                                                arg.b1_grid_desc,
-                                                arg.c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                arg.a_element_op,
-                                                arg.b0_element_op,
-                                                arg.acc_element_op,
-                                                arg.b1_element_op,
-                                                arg.c_element_op,
-                                                arg.block_2_ctile_map);
+    GridwiseOp::template Run<HasMainKBlockLoop, TailNum>(
+        arg.p_a_grid + a_batch_offset,
+        arg.p_b0_grid + b0_batch_offset,
+        arg.p_b1_grid + b1_batch_offset,
+        arg.p_c_grid + c_batch_offset,
+        p_shared,
+        arg.a_grid_desc,
+        arg.b0_grid_desc,
+        arg.b1_grid_desc,
+        arg.c_grid_desc_mblock_mperblock_nblock_nperblock,
+        arg.a_element_op,
+        arg.b0_element_op,
+        arg.acc_element_op,
+        arg.b1_element_op,
+        arg.c_element_op,
+        arg.block_2_ctile_map);
 #else
     ignore = arg;
 #endif // (!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__)
@@ -530,23 +531,66 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
             const auto N0 = math::integer_divide_ceil(arg.O, NPerBlock);
 
             const index_t grid_size = arg.batch_count * M0 * N0;
-            auto launch_kernel      = [&](auto has_main_k_block_loop) {
+
+            auto launch_kernel = [&](auto has_main_k_block_loop, auto tail_number) {
+                constexpr bool has_loop = decltype(has_main_k_block_loop)::value;
+                constexpr TailNumber tn = tail_number;
+
                 const auto kernel =
-                    kernel_batched_gemm_gemm_wmma_cshuffle_v3<DeviceOp,
-                                                              GridwiseOp,
-                                                              has_main_k_block_loop>;
+                    kernel_batched_gemm_gemm_wmma_cshuffle_v3<DeviceOp, GridwiseOp, has_loop, tn>;
 
                 return launch_and_time_kernel(
                     stream_config, kernel, dim3(grid_size), dim3(BlockSize), 0, arg);
             };
 
-            if(GridwiseOp::CalculateHasMainKBlockLoop(arg.K))
+            bool HasMainKBlockLoop = GridwiseOp::CalculateHasMainKBlockLoop(arg.K);
+            TailNumber TailNum     = GridwiseOp::CalculateKBlockLoopTailNum(arg.K);
+
+            if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
             {
-                return launch_kernel(integral_constant<bool, true>{});
+                if(HasMainKBlockLoop && TailNum == TailNumber::Full)
+                {
+                    return launch_kernel(std::integral_constant<bool, true>{},
+                                         std::integral_constant<TailNumber, TailNumber::Full>{});
+                }
+                else if(!HasMainKBlockLoop && TailNum == TailNumber::Full)
+                {
+                    return launch_kernel(std::integral_constant<bool, false>{},
+                                         std::integral_constant<TailNumber, TailNumber::Full>{});
+                }
+                else
+                {
+                    printf("Invalid HasMainKBlockLoop and TailNum combination for V1!\n");
+                    return 0.0f;
+                }
+            }
+            else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+            {
+                if(HasMainKBlockLoop && TailNum == TailNumber::Full)
+                {
+                    return launch_kernel(std::integral_constant<bool, true>{},
+                                         std::integral_constant<TailNumber, TailNumber::Full>{});
+                }
+                else if(!HasMainKBlockLoop && TailNum == TailNumber::Even)
+                {
+                    return launch_kernel(std::integral_constant<bool, false>{},
+                                         std::integral_constant<TailNumber, TailNumber::Even>{});
+                }
+                else if(!HasMainKBlockLoop && TailNum == TailNumber::Odd)
+                {
+                    return launch_kernel(std::integral_constant<bool, false>{},
+                                         std::integral_constant<TailNumber, TailNumber::Odd>{});
+                }
+                else
+                {
+                    printf("Invalid HasMainKBlockLoop and TailNum combination for V3!\n");
+                    return 0.0f;
+                }
             }
             else
             {
-                return launch_kernel(integral_constant<bool, false>{});
+                printf("Invalid pipeline version!\n");
+                return 0.0f;
             }
         }
 

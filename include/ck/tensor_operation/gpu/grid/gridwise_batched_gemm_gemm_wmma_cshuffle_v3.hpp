@@ -424,6 +424,12 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
         return BlockwiseGemmPipe::BlockHasHotloop(num_loop);
     }
 
+    __host__ __device__ static constexpr TailNumber CalculateKBlockLoopTailNum(index_t K)
+    {
+        const index_t num_loop = math::integer_divide_ceil(K, KPerBlock);
+        return BlockwiseGemmPipe::BlockLoopTailNum(num_loop);
+    }
+
     __host__ __device__ static constexpr auto
     MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(const CGridDesc_M_N& c_grid_desc_m_n)
     {
@@ -486,7 +492,9 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                 .GetElementSpaceSize();
     };
 
-    template <bool HasMainKBlockLoop, typename Block2CTileMap = DefaultBlock2CTileMap>
+    template <bool HasMainKBlockLoop,
+              TailNumber TailNum,
+              typename Block2CTileMap = DefaultBlock2CTileMap>
     __device__ static void Run(const ADataType* __restrict__ p_a_grid,
                                const B0DataType* __restrict__ p_b0_grid,
                                const B1DataType* __restrict__ p_b1_grid,
@@ -792,22 +800,22 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
         // Outer loop, along GEMM_L
         // Inner loop, along GEMM_K
         do {
-            blockwise_gemm0_pipeline.template Run<HasMainKBlockLoop, TailNumber::Full>(a_grid_desc, 
-                                                                                       a_block_desc, 
-                                                                                       a_blockwise_copy, 
-                                                                                       a_grid_buf,
-                                                                                       a_block_buf, 
-                                                                                       a_block_slice_copy_step,
-                                                                                       b0_grid_desc,
-                                                                                       b0_block_desc,
-                                                                                       b0_blockwise_copy,
-                                                                                       b0_grid_buf,
-                                                                                       b0_block_buf,
-                                                                                       b0_block_slice_copy_step,
-                                                                                       acc0_thread_buf,
-                                                                                       b_scale_struct,
-                                                                                       KBlockMainLoop,
-                                                                                       1); // num_k_block_per_scale
+            blockwise_gemm0_pipeline.template Run<HasMainKBlockLoop, TailNum>(a_grid_desc, 
+                                                                              a_block_desc, 
+                                                                              a_blockwise_copy, 
+                                                                              a_grid_buf,
+                                                                              a_block_buf, 
+                                                                              a_block_slice_copy_step,
+                                                                              b0_grid_desc,
+                                                                              b0_block_desc,
+                                                                              b0_blockwise_copy,
+                                                                              b0_grid_buf,
+                                                                              b0_block_buf,
+                                                                              b0_block_slice_copy_step,
+                                                                              acc0_thread_buf,
+                                                                              b_scale_struct,
+                                                                              KBlockMainLoop,
+                                                                              1); // num_k_block_per_scale
 
             static_for<0, acc0_thread_buf.Size(), 1>{}(
                     [&](auto i) { acc_element_op(acc0_thread_buf(i), acc0_thread_buf[i]); });
