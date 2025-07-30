@@ -26,8 +26,8 @@ if(GPU_TARGETS MATCHES "gfx9")
 
     add_batched_transpose_test(test_ck_tile_batched_transpose_bf16 batched_transpose_bf16.cpp)
     add_dependencies(${CUSTOM_TARGET_NAME} test_ck_tile_batched_transpose_bf16)
-
-
+    add_gtest_executable(test_batched_transpose test_batched_transpose.cpp)
+    set_property(TARGET test_batched_transpose PROPERTY CXX_STANDARD 20)
 else()
     message(DEBUG "Skipping ck_tile batched_transpose tests for current target")
 endif()
