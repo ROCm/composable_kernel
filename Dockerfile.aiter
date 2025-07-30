@@ -9,4 +9,5 @@ RUN pip install pandas zmq einops && \
     rm -rf 3rdparty/composable_kernel/ && \
     git clone https://github.com/ROCm/composable_kernel.git 3rdparty/composable_kernel/ && \
     python3 setup.py develop && \
-    chown -R jenkins:jenkins /var/lib/jenkins
+    chown -R jenkins:jenkins /var/lib/jenkins && \
+    sudo usermod -aG irc jenkins
