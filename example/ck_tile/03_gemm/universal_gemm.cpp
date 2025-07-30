@@ -53,8 +53,6 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                                                                  GemmConfig::kPadN,
                                                                  GemmConfig::kPadK,
                                                                  GemmConfig::DoubleSmemBuffer,
-                                                                 GemmConfig::SkipALds,
-                                                                 GemmConfig::SkipBLds,
                                                                  ALayout,
                                                                  BLayout,
                                                                  ELayout,
@@ -62,7 +60,9 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                                                                  GemmConfig::UseStructuredSparsity,
                                                                  Persistent,
                                                                  GemmConfig::NumWaveGroups,
-                                                                 GemmConfig::Preshuffle>;
+                                                                 GemmConfig::Preshuffle,
+                                                                 GemmConfig::SkipALds,
+                                                                 GemmConfig::SkipBLds>;
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
@@ -298,7 +298,7 @@ int run_gemm_example(int argc, char* argv[])
         return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::half_t>(
             a_layout, b_layout, argc, argv);
     }
-#if(CK_TILE_PIPELINE_DEFAULT != CK_TILE_PIPELINE_MEMORY)
+
     else if(data_type == "bf16")
     {
         return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::bf16_t>(

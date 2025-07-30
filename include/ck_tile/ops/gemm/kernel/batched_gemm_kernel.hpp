@@ -28,12 +28,12 @@ struct BatchedGemmHostArgs : public ck_tile::UniversalGemmHostArgs<>
                                               ck_tile::index_t stride_A_,
                                               ck_tile::index_t stride_B_,
                                               ck_tile::index_t stride_C_,
-                                              bool skip_a_lds_,
-                                              bool skip_b_lds_,
                                               ck_tile::index_t batch_stride_A_,
                                               ck_tile::index_t batch_stride_B_,
                                               ck_tile::index_t batch_stride_C_,
-                                              ck_tile::index_t batch_count_)
+                                              ck_tile::index_t batch_count_,
+                                              bool skip_a_lds_,
+                                              bool skip_b_lds_)
         : UniversalGemmHostArgs<>({a_ptr_},
                                   {b_ptr_},
                                   {/*ds_ptr*/},

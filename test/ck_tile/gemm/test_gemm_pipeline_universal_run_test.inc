@@ -48,7 +48,10 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                                                                  GemmConfig::TransposeC,
                                                                  GemmConfig::UseStructuredSparsity,
                                                                  Persistent,
-                                                                 GemmConfig::NumWaveGroups>;
+                                                                 GemmConfig::NumWaveGroups,
+                                                                 false,
+                                                                 GemmConfig::SkipALds,
+                                                                 GemmConfig::SkipBLds>;
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 

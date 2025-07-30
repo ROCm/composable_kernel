@@ -339,7 +339,7 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                                a_block_tiles.get(number<prefetch_idx>{}),
                                b_lds_gemm_window,
                                false,
-                               false); // TODO
+                               false); // TODO: transpose
                 }
                 else if constexpr(SkipALds == false && SkipBLds == true)
                 {
@@ -347,7 +347,7 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                                a_lds_gemm_window,
                                b_block_tiles.get(number<prefetch_idx>{}),
                                false,
-                               false); // TODO
+                               false); // TODO: transpose
                 }
                 else
                 {
@@ -355,7 +355,7 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                                a_block_tiles.get(number<prefetch_idx>{}),
                                b_block_tiles.get(number<prefetch_idx>{}),
                                false,
-                               false); // TODO
+                               false); // TODO: transpose
                 }
             };
             // -----------------------------------------------------------------------------------------
@@ -419,9 +419,7 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                 {
                     static_for<0, PrefetchStages, 1>{}([&](auto prefetch_idx) {
                         block_sync_lds();
-                        block_gemm.LocalPrefetch(
-                            a_lds_gemm_window, b_lds_gemm_window, is_a_load_tr_v, is_b_load_tr_v);
-                        block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
+
                         if constexpr(SkipALds == false)
                         {
                             block_gemm.LocalPrefetchA(a_lds_gemm_window, is_a_load_tr_v);
@@ -496,11 +494,11 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                     block_sync_lds();
                     if constexpr(SkipALds == false)
                     {
-                        block_gemm.LocalPrefetchA(a_lds_gemm_window, is_a_load_tr_v, );
+                        block_gemm.LocalPrefetchA(a_lds_gemm_window, is_a_load_tr_v);
                     }
                     if constexpr(SkipBLds == false)
                     {
-                        block_gemm.LocalPrefetchB(b_lds_gemm_window, is_b_load_tr_v, );
+                        block_gemm.LocalPrefetchB(b_lds_gemm_window, is_b_load_tr_v);
                     }
                     RunBlockGemm(number<prefetch_idx - 1>{});
 
@@ -545,11 +543,11 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                 block_sync_lds();
                 if constexpr(SkipALds == false)
                 {
-                    block_gemm.LocalPrefetchA(a_lds_gemm_window, is_a_load_tr_v, );
+                    block_gemm.LocalPrefetchA(a_lds_gemm_window, is_a_load_tr_v);
                 }
                 if constexpr(SkipBLds == false)
                 {
-                    block_gemm.LocalPrefetchB(b_lds_gemm_window, is_b_load_tr_v, );
+                    block_gemm.LocalPrefetchB(b_lds_gemm_window, is_b_load_tr_v);
                 }
                 RunBlockGemm(number<tail_num - 1>{});
             };
@@ -559,13 +557,13 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                 block_sync_lds();
                 if constexpr(SkipALds == false)
                 {
-                    block_gemm.LocalPrefetchA(a_lds_gemm_window, is_a_load_tr_v, );
+                    block_gemm.LocalPrefetchA(a_lds_gemm_window, is_a_load_tr_v);
                 }
                 if constexpr(SkipBLds == false)
                 {
-                    block_gemm.LocalPrefetchB(b_lds_gemm_window, is_b_load_tr_v, );
+                    block_gemm.LocalPrefetchB(b_lds_gemm_window, is_b_load_tr_v);
                 }
-                RunBlockGemm(number<0>{}, is_a_load_tr_v, is_b_load_tr_v);
+                RunBlockGemm(number<0>{});
             }
             else if constexpr(TailNum == TailNumber::Two)
             {
@@ -765,6 +763,7 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                 }
             }
             // TODO add encoding and support for BRowMajor for SkipBLds, current
+
             // MakeShuffledBRegTileDistribution takes into account shuffling encoding which is used
             // for [Global -> Vgpr -> Lds -> Vgpr] reading, but for skipping lds we need to have
             // different shuffled layout for [Global -> Vgpr] reads, similar for AColMajor
@@ -787,24 +786,38 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                 {
                     static_for<0, PrefetchStages, 1>{}([&](auto prefetch_idx) {
                         block_sync_lds();
+                        if constexpr(SkipALds == false)
+                        {
+                            block_gemm.LocalPrefetchA(a_lds_gemm_window);
+                        }
+                        if constexpr(SkipBLds == false)
+                        {
+                            block_gemm.LocalPrefetchB(b_lds_gemm_window);
+                        }
                         RunBlockGemm(number<prefetch_idx>{});
                         // no second block_sync_lds because it's interwave
 
-                        if constexpr(is_a_col_major)
+                        if constexpr(SkipALds == false)
                         {
-                            auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-                                Policy::template MakeShuffledARegTileDistribution<Problem>());
-                            transpose_tile2d(
-                                a_shuffle_tmp,
-                                a_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}));
-                            Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
-                        }
-                        else
-                        {
-                            Base::LocalPrefill(
-                                a_copy_lds_window,
-                                a_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}),
-                                a_element_func);
+                            if constexpr(is_a_col_major)
+                            {
+                                auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                                    Policy::template MakeShuffledARegTileDistribution<Problem>());
+                                transpose_tile2d(
+                                    a_shuffle_tmp,
+                                    a_block_tiles.get(
+                                        number<(prefetch_idx + 1) % PrefetchStages>{}));
+                                Base::LocalPrefill(
+                                    a_copy_lds_window, a_shuffle_tmp, a_element_func);
+                            }
+                            else
+                            {
+                                Base::LocalPrefill(
+                                    a_copy_lds_window,
+                                    a_block_tiles.get(
+                                        number<(prefetch_idx + 1) % PrefetchStages>{}),
+                                    a_element_func);
+                            }
                         }
                         if constexpr(SkipBLds == false)
                         {

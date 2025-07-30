@@ -58,6 +58,9 @@ struct GemmConfigBase
     static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
     static constexpr ck_tile::index_t Pipeline      = CK_TILE_PIPELINE_COMPUTE_V3;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
+
+    static constexpr bool SkipALds = false;
+    static constexpr bool SkipBLds = false;
 };
 
 template <typename PrecType>
@@ -98,6 +101,7 @@ struct GemmConfigMemoryIntrawave : public GemmConfigBase
 
     static constexpr bool DoubleSmemBuffer     = false;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_MEMORY;
+    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave
 };
 
 template <typename PrecType>

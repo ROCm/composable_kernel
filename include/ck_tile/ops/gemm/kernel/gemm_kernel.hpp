@@ -38,8 +38,8 @@ struct GemmHostArgs
                               index_t stride_A_,
                               index_t stride_B_,
                               index_t stride_E_,
-                              bool skip_a_lds_,
-                              bool skip_b_lds_)
+                              bool skip_a_lds_ = false,
+                              bool skip_b_lds_ = false)
         : a_ptr(a_ptr_),
           b_ptr(b_ptr_),
           e_ptr(e_ptr_),
@@ -76,9 +76,7 @@ struct GemmHostArgs
     };
 
     index_t k_batch;
-    /// @brief Flag to skip loading A tensor tile into LDS.
     bool skip_a_lds;
-    /// @brief Flag to skip loading B tensor tile into LDS.
     bool skip_b_lds;
 };
 

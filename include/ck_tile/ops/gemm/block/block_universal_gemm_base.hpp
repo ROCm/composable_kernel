@@ -15,7 +15,6 @@ template <typename Problem_, typename Policy_>
 struct BlockUniversalGemmBase
 {
     protected:
-    // TODO: This should be in Policy - UniversalGemmPolicyBase ?
     template <typename PipelineProblem_, typename GemmPolicy_>
     struct GemmTraits_
     {

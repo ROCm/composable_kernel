@@ -52,7 +52,10 @@ using KernelTypesMem = ::testing::Types<
     // SkipALds/SkipBLds
     std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem,          std::false_type,      std::true_type>,
     std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem,          std::true_type,       std::false_type>,
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem,          std::true_type,       std::true_type>
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem,          std::true_type,       std::true_type>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem,          std::false_type,      std::true_type>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem,          std::true_type,       std::false_type>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem,          std::true_type,       std::true_type>
 >;
 
 using KernelTypesCompV3 = ::testing::Types<

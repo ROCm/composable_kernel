@@ -34,7 +34,9 @@ struct GroupedGemmHostArgs
                                      index_t K_,
                                      index_t stride_A_,
                                      index_t stride_B_,
-                                     index_t stride_E_)
+                                     index_t stride_E_,
+                                     bool skip_a_lds_,
+                                     bool skip_b_lds_)
         : a_ptr(a_ptr_),
           b_ptr(b_ptr_),
           e_ptr(e_ptr_),
@@ -44,7 +46,9 @@ struct GroupedGemmHostArgs
           stride_A(stride_A_),
           stride_B(stride_B_),
           stride_E(stride_E_),
-          k_batch(k_batch_)
+          k_batch(k_batch_),
+          skip_a_lds(skip_a_lds_),
+          skip_b_lds(skip_b_lds_)
     {
     }
 
@@ -69,6 +73,8 @@ struct GroupedGemmHostArgs
     };
 
     index_t k_batch;
+    bool skip_a_lds;
+    bool skip_b_lds;
 };
 
 struct GemmTransKernelArg

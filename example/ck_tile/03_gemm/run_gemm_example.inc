@@ -53,13 +53,13 @@ void permute_tensor_b(Tensor& tensor)
                                                                  GemmConfig::kPadN,
                                                                  GemmConfig::kPadK,
                                                                  GemmConfig::DoubleSmemBuffer,
-                                                                 GemmConfig::SkipALds,
-                                                                 GemmConfig::SkipBLds,
                                                                  ALayout,
                                                                  BLayout,
                                                                  CLayout,
                                                                  GemmConfig::TransposeC,
-                                                                 GemmConfig::UseStructuredSparsity>;
+                                                                 GemmConfig::UseStructuredSparsity,
+                                                                 GemmConfig::SkipALds,
+                                                                 GemmConfig::SkipBLds>;
 
     using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
                                                                        BDataType,

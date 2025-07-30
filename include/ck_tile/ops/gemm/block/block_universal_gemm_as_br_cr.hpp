@@ -243,6 +243,12 @@ struct BlockUniversalGemmAsBrCr : public BlockUniversalGemmBase<Problem_, Policy
             }
         }
 
+        template <typename BSmemBlockWindow>
+        CK_TILE_DEVICE void LocalPrefetchA(const BSmemBlockWindow& b_block_window)
+        {
+            LocalPrefetchA<0>(b_block_window);
+        }
+
         // C += A * B
         template <typename CBlockTensor, typename ASmemBlockWindow, typename BRegBlockTensor>
         CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,

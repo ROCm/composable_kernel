@@ -38,8 +38,6 @@ template <bool kPadM_,
           bool kPadN_,
           bool kPadK_,
           bool DoubleSmemBuffer_,
-          bool SkipALds_,
-          bool SkipBLds_,
           typename ALayout_,
           typename BLayout_,
           typename CLayout_,
@@ -47,7 +45,9 @@ template <bool kPadM_,
           bool UseStructuredSparsity_ = false,
           bool UsePersistentKernel_   = false,
           index_t NumWaveGroups_      = 1,
-          bool Preshuffle_            = 0>
+          bool Preshuffle_            = 0,
+          bool SkipALds_              = false,
+          bool SkipBLds_              = false>
 struct TileGemmUniversalTraits
 {
     static constexpr bool kPadM            = kPadM_;

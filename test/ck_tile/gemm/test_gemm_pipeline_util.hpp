@@ -142,8 +142,6 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                                      kPadN,
                                                                      kPadK,
                                                                      DoubleSmemBuffer,
-                                                                     kSkipALds,
-                                                                     kSkipBLds,
                                                                      ALayout,
                                                                      BLayout,
                                                                      CLayout,
@@ -151,7 +149,9 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                                      StructuredSparsity,
                                                                      Persistent,
                                                                      NumWaveGroup,
-                                                                     preshuffle>;
+                                                                     preshuffle,
+                                                                     kSkipALds,
+                                                                     kSkipBLds>;
 
         using GemmPipelineProblem =
             ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
