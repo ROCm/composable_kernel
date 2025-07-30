@@ -1,0 +1,5 @@
+# Print utility tests
+add_gtest_executable(test_print_sequence test_print_sequence.cpp)
+add_gtest_executable(test_print_array test_print_array.cpp)
+add_gtest_executable(test_print_tuple test_print_tuple.cpp)
+add_gtest_executable(test_print_coordinate_transform test_print_coordinate_transform.cpp)
