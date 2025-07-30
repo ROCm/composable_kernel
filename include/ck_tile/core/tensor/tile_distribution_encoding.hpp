@@ -909,8 +909,6 @@ CK_TILE_HOST_DEVICE void print(const tile_distribution_encoding<RsLengths_,
     printf("ys_to_rhs_minor_: ");
     print(encoding.ys_to_rhs_minor_);
     printf(", ");
-    printf("detail: ");
-    print(typename encoding::detail{});
     printf("}");
 }
 
