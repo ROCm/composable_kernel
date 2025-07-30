@@ -144,7 +144,7 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
                       end(e_g_k_c_xs_lengths),
                       begin(filter_spatial_lengths_));
 
-            if (split_k < 0)
+            if(split_k < 0)
             {
                 const auto max_occupancy = DeviceGemmV3Op::GetMaxOccupancy();
                 index_t gdx, gdy, gdz;
@@ -153,7 +153,8 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
                 const index_t grid_size = gdx * gdy * gdz;
                 split_k_ = get_best_occupancy_k_batch_value(max_occupancy, grid_size);
             }
-            else {
+            else
+            {
                 split_k_ = split_k;
             }
 

@@ -364,11 +364,11 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                 hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
                     &max_occupancy,
                     kernel_batched_gemm_xdl_cshuffle_v3_multi_d_2lds<
-                                GridwiseGemm,
-                                Argument,
-                                true,
-                                InMemoryDataOperationEnum::AtomicAdd,
-                                minimum_occupancy>,
+                        GridwiseGemm,
+                        Argument,
+                        true,
+                        InMemoryDataOperationEnum::AtomicAdd,
+                        minimum_occupancy>,
                     BlockSize,
                     dynamic_smem_size));
             }
@@ -377,11 +377,11 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                 hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
                     &max_occupancy,
                     kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
-                                    GridwiseGemm,
-                                    Argument,
-                                    true,
-                                    InMemoryDataOperationEnum::AtomicAdd,
-                                    minimum_occupancy>,
+                        GridwiseGemm,
+                        Argument,
+                        true,
+                        InMemoryDataOperationEnum::AtomicAdd,
+                        minimum_occupancy>,
                     BlockSize,
                     dynamic_smem_size));
             }

@@ -56,7 +56,9 @@ static void print_helper_msg()
               << "arg5: initialization (0: no init, 1: integer value, 2: decimal value)\n"
               << "arg6: print tensor value (0: no; 1: yes)\n"
               << "arg7: time kernel (0: no, 1: yes)\n"
-              << ck::utils::conv::get_conv_param_parser_helper_msg() << " SplitK (-1 for internally computed best split-K value, positive value to set k batches explicitly, or 'all' to test all internal split-K values)\n"
+              << ck::utils::conv::get_conv_param_parser_helper_msg()
+              << " SplitK (-1 for internally computed split-K value, positive value to set k "
+                 "batches explicitly, or 'all' to test all internal split-K values)\n"
               << std::endl;
 }
 
