@@ -252,20 +252,35 @@ struct BlockUniversalGemmArBrCr : public BlockUniversalGemmBase<Problem_, Policy
     };
 
     public:
+    /*
+     * @FIXME: currently using LoadTranspose as placeholder. The logic needs to be implemented
+     */
     // C += A * B
-    template <typename CBlockTensor, typename ARegBlockTensor, typename BRegBlockTensor>
+    template <typename CBlockTensor,
+              typename ARegBlockTensor,
+              typename BRegBlockTensor,
+              bool ALoadTranspose = false,
+              bool BLoadTranspose = false>
     CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
                                    const ARegBlockTensor& a_block_tensor,
-                                   const BRegBlockTensor& b_block_tensor)
+                                   const BRegBlockTensor& b_block_tensor,
+                                   [[maybe_unused]] bool_constant<ALoadTranspose> a_load_tr = {},
+                                   [[maybe_unused]] bool_constant<BLoadTranspose> b_load_tr = {})
     {
+        if(a_load_tr || b_load_tr) {}
 
         block_gemm_impl_(c_block_tensor, a_block_tensor, b_block_tensor);
     }
 
     // C = A * B
-    template <typename ARegBlockTensor, typename BRegBlockTensor>
+    template <typename ARegBlockTensor,
+              typename BRegBlockTensor,
+              bool ALoadTranspose = false,
+              bool BLoadTranspose = false>
     CK_TILE_DEVICE auto operator()(const ARegBlockTensor& a_block_tensor,
-                                   const BRegBlockTensor& b_block_tensor)
+                                   const BRegBlockTensor& b_block_tensor,
+                                   [[maybe_unused]] bool_constant<ALoadTranspose> a_load_tr = {},
+                                   [[maybe_unused]] bool_constant<BLoadTranspose> b_load_tr = {})
     {
         auto c_block_tensor = Base::MakeCBlockTile();
 

@@ -11,9 +11,27 @@
 
 namespace ck_tile {
 
-//  A Tile Window: global memory
-//  B Tile Window: global memory
-//  C Distributed tensor: register
+// ============================================================================
+// GEMM Pipeline for Global Memory (A and B) and Register Memory (C)
+// ============================================================================
+//
+// Overview:
+// ---------
+// - A Tile Window: Global memory
+// - B Tile Window: Global memory
+// - C Distributed Tensor: Register
+//
+// This pipeline maximizes memory throughput and computational efficiency,
+// supporting both intrawave and interwave scheduling strategies.
+//
+// Skip LDS Feature:
+// -----------------
+// - Allows bypassing the Local Data Share (LDS) for A and/or B tiles,
+//   directly transferring data from Global Memory to Registers when enabled.
+//   When disabled, data flows through Global Memory -> LDS -> Registers.
+// - Supported for both intrawave and interwave pipelines.
+// ============================================================================
+
 template <typename Problem>
 struct BaseGemmPipelineAgBgCrMem
 {
@@ -338,24 +356,24 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                     block_gemm(c_block_tile,
                                a_block_tiles.get(number<prefetch_idx>{}),
                                b_lds_gemm_window,
-                               false,
-                               false); // TODO: transpose
+                               is_a_load_tr_v,
+                               is_b_load_tr_v);
                 }
                 else if constexpr(SkipALds == false && SkipBLds == true)
                 {
                     block_gemm(c_block_tile,
                                a_lds_gemm_window,
                                b_block_tiles.get(number<prefetch_idx>{}),
-                               false,
-                               false); // TODO: transpose
+                               is_a_load_tr_v,
+                               is_b_load_tr_v);
                 }
                 else
                 {
                     block_gemm(c_block_tile,
                                a_block_tiles.get(number<prefetch_idx>{}),
                                b_block_tiles.get(number<prefetch_idx>{}),
-                               false,
-                               false); // TODO: transpose
+                               is_a_load_tr_v,
+                               is_b_load_tr_v);
                 }
             };
             // -----------------------------------------------------------------------------------------

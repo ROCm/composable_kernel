@@ -329,25 +329,40 @@ struct BlockUniversalGemmArBsCr : public BlockUniversalGemmBase<Problem_, Policy
     };
 
     public:
-    template <typename BSmemBlockWindow>
-    CK_TILE_DEVICE void LocalPrefetchB(const BSmemBlockWindow& b_block_window)
+    /*
+     * @FIXME: currently using LoadTranspose as placeholder. The logic needs to be implemented
+     */
+    template <typename BSmemBlockWindow, bool BLoadTranspose = false>
+    CK_TILE_DEVICE void LocalPrefetchB(const BSmemBlockWindow& b_block_window,
+                                       bool_constant<BLoadTranspose> = {})
     {
         block_gemm_impl_.LocalPrefetchB(b_block_window);
     }
 
     // C += A * B
-    template <typename CBlockTensor, typename ARegBlockTensor, typename BSmemBlockWindow>
+    template <typename CBlockTensor,
+              typename ARegBlockTensor,
+              typename BSmemBlockWindow,
+              bool ALoadTranspose = false,
+              bool BLoadTranspose = false>
     CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
                                    const ARegBlockTensor& a_block_tensor,
-                                   const BSmemBlockWindow& b_block_window)
+                                   const BSmemBlockWindow& b_block_window,
+                                   [[maybe_unused]] bool_constant<ALoadTranspose> a_load_tr = {},
+                                   [[maybe_unused]] bool_constant<BLoadTranspose> b_load_tr = {})
     {
         block_gemm_impl_(c_block_tensor, a_block_tensor, b_block_window);
     }
 
     // C = A * B
-    template <typename ARegBlockTensor, typename BSmemBlockWindow>
+    template <typename ARegBlockTensor,
+              typename BSmemBlockWindow,
+              bool ALoadTranspose = false,
+              bool BLoadTranspose = false>
     CK_TILE_DEVICE auto operator()(const ARegBlockTensor& a_block_tensor,
-                                   const BSmemBlockWindow& b_block_window)
+                                   const BSmemBlockWindow& b_block_window,
+                                   [[maybe_unused]] bool_constant<ALoadTranspose> a_load_tr = {},
+                                   [[maybe_unused]] bool_constant<BLoadTranspose> b_load_tr = {})
     {
         auto c_block_tensor = Base::MakeCBlockTile();
         block_gemm_impl_(c_block_tensor, a_block_tensor, b_block_window);

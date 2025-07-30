@@ -143,8 +143,10 @@ struct BlockUniversalGemmAsBrCr : public BlockUniversalGemmBase<Problem_, Policy
         ALdsTile a_warp_tile_;
         BLdsTile b_warp_tile_;
 
-        template <typename ASmemBlockWindow>
-        CK_TILE_DEVICE void LocalPrefetchA(const ASmemBlockWindow& a_block_window)
+        template <typename ASmemBlockWindow, bool ALoadTranspose = false>
+        CK_TILE_DEVICE void
+        LocalPrefetchA(const ASmemBlockWindow& a_block_window,
+                       [[maybe_unused]] bool_constant<ALoadTranspose> a_load_tr = {})
         {
             if constexpr(std::is_same_v<ADataType, pk_int4_t>)
             {
@@ -243,8 +245,10 @@ struct BlockUniversalGemmAsBrCr : public BlockUniversalGemmBase<Problem_, Policy
             }
         }
 
-        template <typename BSmemBlockWindow>
-        CK_TILE_DEVICE void LocalPrefetchA(const BSmemBlockWindow& b_block_window)
+        template <typename BSmemBlockWindow, bool ALoadTranspose = false>
+        CK_TILE_DEVICE void
+        LocalPrefetchA(const BSmemBlockWindow& b_block_window,
+                       [[maybe_unused]] bool_constant<ALoadTranspose> a_load_tr = {})
         {
             LocalPrefetchA<0>(b_block_window);
         }
@@ -344,25 +348,40 @@ struct BlockUniversalGemmAsBrCr : public BlockUniversalGemmBase<Problem_, Policy
     };
 
     public:
-    template <typename ASmemBlockWindow>
-    CK_TILE_DEVICE void LocalPrefetchA(const ASmemBlockWindow& a_block_window)
+    /*
+     * @FIXME: currently using LoadTranspose as placeholder. The logic needs to be implemented
+     */
+    template <typename ASmemBlockWindow, bool ALoadTranspose = false>
+    CK_TILE_DEVICE void LocalPrefetchA(const ASmemBlockWindow& a_block_window,
+                                       bool_constant<ALoadTranspose> a_load_tr = {})
     {
-        block_gemm_impl_.LocalPrefetchA(a_block_window);
+        block_gemm_impl_.LocalPrefetchA(a_block_window, a_load_tr);
     }
 
     // C += A * B
-    template <typename CBlockTensor, typename ASmemBlockWindow, typename BRegBlockTensor>
+    template <typename CBlockTensor,
+              typename ASmemBlockWindow,
+              typename BRegBlockTensor,
+              bool ALoadTranspose = false,
+              bool BLoadTranspose = false>
     CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
                                    const ASmemBlockWindow& a_block_window,
-                                   const BRegBlockTensor& b_block_tensor)
+                                   const BRegBlockTensor& b_block_tensor,
+                                   [[maybe_unused]] bool_constant<ALoadTranspose> a_load_tr = {},
+                                   [[maybe_unused]] bool_constant<BLoadTranspose> b_load_tr = {})
     {
         block_gemm_impl_(c_block_tensor, a_block_window, b_block_tensor);
     }
 
     // C = A * B
-    template <typename ASmemBlockWindow, typename BRegBlockTensor>
+    template <typename ASmemBlockWindow,
+              typename BRegBlockTensor,
+              bool ALoadTranspose = false,
+              bool BLoadTranspose = false>
     CK_TILE_DEVICE auto operator()(const ASmemBlockWindow& a_block_window,
-                                   const BRegBlockTensor& b_block_tensor)
+                                   const BRegBlockTensor& b_block_tensor,
+                                   [[maybe_unused]] bool_constant<ALoadTranspose> a_load_tr = {},
+                                   [[maybe_unused]] bool_constant<BLoadTranspose> b_load_tr = {})
     {
         auto c_block_tensor = Base::MakeCBlockTile();
         block_gemm_impl_(c_block_tensor, a_block_window, b_block_tensor);

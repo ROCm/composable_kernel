@@ -613,62 +613,6 @@ struct UniversalGemmBasePolicy
 
         return smem_size_a + smem_size_b;
     }
-
-    // template <typename Problem_, typename Policy_>
-    // struct GemmTraits
-    // {
-    //     using Problem         = remove_cvref_t<Problem_>;
-    //     using Policy          = remove_cvref_t<Policy_>;
-    //     using ADataType       = remove_cvref_t<typename Problem::ADataType>;
-    //     using BDataType       = remove_cvref_t<typename Problem::BDataType>;
-    //     using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
-    //     using CDataType       = remove_cvref_t<typename Problem::CDataType>;
-    //     using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
-
-    //     static constexpr index_t kBlockSize = Problem::kBlockSize;
-    //     static constexpr auto Scheduler     = Problem::Scheduler;
-
-    //     static constexpr index_t MPerBlock = BlockGemmShape::kM;
-    //     static constexpr index_t NPerBlock = BlockGemmShape::kN;
-    //     static constexpr index_t KPerBlock = BlockGemmShape::kK;
-
-    //     static constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
-
-    //     using WarpGemm = remove_cvref_t<decltype(config.template at<0>())>;
-
-    //     static constexpr index_t MWarp = config.template at<1>();
-    //     static constexpr index_t NWarp = config.template at<2>();
-
-    //     using I0 = number<0>;
-    //     using I1 = number<1>;
-
-    //     static_assert(MWarp == BlockGemmShape::BlockWarps::at(I0{}),
-    //                   "Error! WarpGemm's MWarp is not consistent with BlockGemmShape!");
-    //     static_assert(NWarp == BlockGemmShape::BlockWarps::at(I1{}),
-    //                   "Error! WarpGemm's NWarp is not consistent with BlockGemmShape!");
-    //     static_assert(WarpGemm::kM == BlockGemmShape::WarpTile::at(I0{}),
-    //                   "Error! WarpGemm's M is not consistent with BlockGemmShape!");
-    //     static_assert(WarpGemm::kN == BlockGemmShape::WarpTile::at(I1{}),
-    //                   "Error! WarpGemm's N is not consistent with BlockGemmShape!");
-
-    //     static constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WarpGemm::kM);
-    //     static constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WarpGemm::kN);
-    //     static constexpr index_t KIterPerWarp = KPerBlock / WarpGemm::kK;
-
-    //     static_assert(MIterPerWarp * MWarp * WarpGemm::kM == MPerBlock,
-    //                   "Error! Warps should cover all Block tile!");
-    //     static_assert(NIterPerWarp * NWarp * WarpGemm::kN == NPerBlock,
-    //                   "Error! Warps should cover all Block tile!");
-
-    //     static constexpr index_t MPerBlockPerIter = MWarp * WarpGemm::kM;
-    //     static constexpr index_t NPerBlockPerIter = NWarp * WarpGemm::kN;
-    //     static constexpr index_t KPerBlockPerIter = WarpGemm::kK;
-
-    //     static constexpr index_t InterWaveSchedulingMacClusters = 1;
-
-    //     static constexpr index_t KPack      = WarpGemm::kKPerThread;
-    //     static constexpr index_t KPerThread = KIterPerWarp * WarpGemm::kKPerThread;
-    // };
 };
 
 // Forward declarations, to avoid circular dependencies
