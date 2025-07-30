@@ -105,10 +105,8 @@ struct KernelInstance
     friend std::ostream& operator<<(std::ostream& os, const KernelInstance& obj)
     {
         os << "{\n"
-           << " \"name\": \""
-           << "{\n"
-           << obj.name_ << "\n}"
-           << "\",\n"
+           << " \"name\": \"" << "{\n"
+           << obj.name_ << "\n}" << "\",\n"
            << " \"problem\": \"" << obj.problem_ << "\",\n"
            << " \"perf_result\": " << obj.perf_result_ << "\n"
            << "}";
@@ -127,6 +125,7 @@ struct Setting
     std::string csv_filename_;
     bool flush_cache_;
     int rotating_count_;
+    int bench_time_ms_;
 };
 
 inline std::string get_rocm_version()

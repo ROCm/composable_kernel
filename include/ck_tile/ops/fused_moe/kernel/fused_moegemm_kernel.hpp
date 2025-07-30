@@ -385,7 +385,7 @@ struct FusedMoeGemmKernel
             auto o_window = [&]() {
                 ODataType* o_ptr = reinterpret_cast<ODataType*>(kargs.o_ptr);
                 auto o_view_     = make_naive_tensor_view<address_space_enum::global,
-                                                      memory_operation_enum::atomic_add>(
+                                                          memory_operation_enum::atomic_add>(
                     o_ptr,
                     make_tuple(kargs.num_tokens, kargs.hidden_size),
                     make_tuple(kargs.stride_token, 1),

@@ -114,16 +114,16 @@ template <typename PrecType>
 struct GemmConfigComputeV3 : public GemmConfigBase
 {
     // Compute V3 only support Intrawave scheduler
-    static constexpr ck_tile::index_t M_Tile = 256;
-    static constexpr ck_tile::index_t N_Tile = 256;
-    static constexpr ck_tile::index_t K_Tile = 64 / sizeof(PrecType);
+    static constexpr ck_tile::index_t M_Tile = 16;
+    static constexpr ck_tile::index_t N_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 256 / sizeof(PrecType);
 
-    static constexpr ck_tile::index_t M_Warp = 2;
-    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
     static constexpr ck_tile::index_t K_Warp = 1;
 
-    static constexpr ck_tile::index_t M_Warp_Tile = 32;
-    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
 
     static constexpr bool DoubleSmemBuffer     = false;
@@ -241,8 +241,8 @@ struct GemmConfigPreshufle_1 : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp = 4;
     static constexpr ck_tile::index_t K_Warp = 1;
 
-    static constexpr ck_tile::index_t M_Warp_Tile = 32;
-    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile_flatmm<PrecType, M_Warp_Tile>();
 
     static constexpr int kBlockPerCu           = 2;
@@ -263,8 +263,8 @@ struct GemmConfigPreshufle_2 : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp = 4;
     static constexpr ck_tile::index_t K_Warp = 1;
 
-    static constexpr ck_tile::index_t M_Warp_Tile = 16;
-    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile_flatmm<PrecType, M_Warp_Tile>();
 
     static constexpr int kBlockPerCu           = 2;
@@ -457,7 +457,8 @@ auto create_args(int argc, char* argv[])
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("split_k", "1", "splitK value")
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
-        .insert("persistent", "0", "0:non-persistent, 1:persistent");
+        .insert("persistent", "0", "0:non-persistent, 1:persistent")
+        .insert("bench_time_ms", "0", "benchmark time in ms, defaults to 0 ms");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -475,4 +476,4 @@ template <typename ADataType,
           typename CLayout,
           bool Persistent = false,
           typename CDEElementWise>
-float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile::stream_config& s);
+float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s);
