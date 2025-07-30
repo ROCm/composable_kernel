@@ -104,7 +104,7 @@ class GemmKernelValidationTestBase : public ::testing::Test
         return pass;
     }
 
-    bool
+    std::tuple<std::string, float, bool>
     test_single_problem(const std::function<std::tuple<std::string, float>(
                             ck_tile::GemmHostArgs<>&, const ck_tile::stream_config&)>& kernel_func,
                         int M,
@@ -112,8 +112,6 @@ class GemmKernelValidationTestBase : public ::testing::Test
                         int K,
                         int split_k)
     {
-        // std::cout << "      Testing problem M=" << M << " N=" << N << " K=" << K
-        //           << " split_k=" << split_k << std::endl;
         const ALayout layout_a{};
         const BLayout layout_b{};
         const CLayout layout_c{};
@@ -161,23 +159,18 @@ class GemmKernelValidationTestBase : public ::testing::Test
                 verify_results(c_m_n_dev_result, c_m_n_host_result, kernel_name, K, split_k);
             if(verified_correct)
             {
-
-                std::cout << "PASS: " << kernel_name << " M=" << M << " N=" << N << " K=" << K
-                          << " split_k=" << split_k << " time=" << execution_time << "ms"
-                          << std::endl;
-                return true;
+                return std::make_tuple(kernel_name, execution_time, true);
             }
             else
             {
-                ADD_FAILURE() << "FAIL: " << kernel_name << " verification failed for M=" << M
-                              << " N=" << N << " K=" << K << " split_k=" << split_k;
-                return false;
+                return std::make_tuple(kernel_name, execution_time, false);
             }
         }
         catch(const std::exception& e)
         {
             ADD_FAILURE() << "        ERROR: " << e.what();
-            return false;
+            return std::make_tuple("", 0, false);
+            ;
         }
     }
 };

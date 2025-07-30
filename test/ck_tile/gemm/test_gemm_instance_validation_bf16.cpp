@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 #include "gemm_kernel_validation_base.hpp"
-#include "gemm_common_bf16.hpp"
-#include "gemm_dispatcher_bf16.hpp"
+#include "gemm_common.hpp"
+#include "gemm_dispatcher.hpp"
 
 using DispatcherTypesBF16 = ::testing::Types<GemmDispatcher>;
 
@@ -39,14 +39,31 @@ TYPED_TEST(GemmKernelValidationTestBF16, AllKernelConfigurations)
             {
                 for(const auto& prob : kTestProblems)
                 {
-                    if(this->test_single_problem(kernels[i], prob.M, prob.N, prob.K, prob.split_k))
+                    auto [kernel_name, elapsed_time, is_valid] =
+                        this->test_single_problem(kernels[i], prob.M, prob.N, prob.K, prob.split_k);
+                    if(is_valid)
+                    {
                         passed_kernels++;
+                        std::cout << "PASS: " << kernel_name << " M=" << prob.M << " N=" << prob.N
+                                  << " K=" << prob.K << " split_k=" << prob.split_k
+                                  << " structured_sparsity="
+                                  << (structured_sparsity ? "true" : "false")
+                                  << " elapsed_time=" << elapsed_time << " ms" << std::endl;
+                    }
+                    else
+                    {
+                        ADD_FAILURE()
+                            << "FAIL: " << kernel_name << " verification failed for M=" << prob.M
+                            << " N=" << prob.N << " K=" << prob.K << " split_k=" << prob.split_k
+                            << " structured_sparsity=" << (structured_sparsity ? "true" : "false");
+                    }
+
                     total_kernels++;
                 }
             }
         }
-        SCOPED_TRACE(::testing::Message() << "Passed Kernels: " << passed_kernels
-                                          << ", Total Kernels: " << total_kernels);
-        EXPECT_EQ(passed_kernels, total_kernels) << "Some BF16 kernels failed verification";
     }
+    std::cout << "Passed Kernels: " << passed_kernels << ", Total Kernels: " << total_kernels
+              << std::endl;
+    EXPECT_EQ(passed_kernels, total_kernels) << "Some BF16 kernels failed verification";
 }

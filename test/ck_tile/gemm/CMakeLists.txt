@@ -28,9 +28,15 @@ if(GPU_TARGETS MATCHES "gfx94" OR GPU_TARGETS MATCHES "gfx95" OR GPU_TARGETS MAT
     add_gtest_executable(test_ck_tile_gemm_pipeline_persistent test_gemm_pipeline_persistent.cpp)
     target_compile_options(test_ck_tile_gemm_pipeline_persistent PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
 
-    function(generate_ck_tile_test_instances datatype)
-        set(working_path "${CMAKE_CURRENT_BINARY_DIR}/test_instances_${datatype}/")
-        set(json_config "${CMAKE_CURRENT_LIST_DIR}/configs/default_config_sample.json")
+    set(GEMM_TEST_CONFIG_NAMES
+        config1
+        config2
+        # Add more config names (without .json) here
+    )
+
+    function(generate_ck_tile_test_instances_for_config datatype config_name)
+        set(working_path "${CMAKE_CURRENT_BINARY_DIR}/test_instances_${datatype}_${config_name}/")
+        set(json_config "${CMAKE_CURRENT_LIST_DIR}/configs/${config_name}.json")
         
         # List blobs
         execute_process(
@@ -58,11 +64,10 @@ if(GPU_TARGETS MATCHES "gfx94" OR GPU_TARGETS MATCHES "gfx95" OR GPU_TARGETS MAT
                     --gen_blobs
             DEPENDS ${json_config}
                     ${PROJECT_SOURCE_DIR}/tile_engine/ops/gemm/gemm_instance_builder.py
-            COMMENT "Generating CK Tile GEMM test instance sources for ${datatype}"
+            COMMENT "Generating CK Tile GEMM test instance sources for ${datatype} config ${config_name}"
         )
 
-        # Create custom target for generated blobs
-        add_custom_target(ck_tile_test_gen_${datatype} DEPENDS ${test_codegen_blobs})
+        add_custom_target(ck_tile_test_gen_${datatype}_${config_name} DEPENDS ${test_codegen_blobs})
 
         # Build object libraries with chunking 
         set(test_intermediate_libs)
@@ -71,16 +76,14 @@ if(GPU_TARGETS MATCHES "gfx94" OR GPU_TARGETS MATCHES "gfx95" OR GPU_TARGETS MAT
         foreach(blob IN LISTS test_codegen_blobs_range)
             string(STRIP "${blob}" stripped_blob)
             separate_arguments(split_blob UNIX_COMMAND "${stripped_blob}")
-            # Each line is: <trait_name> <first_index_inclusive> <last_index_exclusive>   
             list(GET split_blob 0 name)
             list(GET split_blob 1 first)
             list(GET split_blob 2 last)
             math(EXPR total_files "${last} - ${first}")
             if(total_files EQUAL 0)
-                continue()        # nothing for this trait
+                continue()
             endif()
 
-            # Object libraries (chunked) per trait
             set(sub_intermediate_libs)
             set(chunk_size 3)
             math(EXPR num_chunks "( ${total_files} + ${chunk_size} - 1 ) / ${chunk_size}")
@@ -99,58 +102,50 @@ if(GPU_TARGETS MATCHES "gfx94" OR GPU_TARGETS MATCHES "gfx95" OR GPU_TARGETS MAT
                 endforeach()
 
                 if(chunk_files)
-                    set(sub_intermediate_lib_name "test_gemm_objlib_${name}_${i}_${datatype}")
+                    set(sub_intermediate_lib_name "test_gemm_objlib_${name}_${i}_${datatype}_${config_name}")
                     add_library(${sub_intermediate_lib_name} OBJECT ${chunk_files})
-                    add_dependencies(${sub_intermediate_lib_name} ck_tile_test_gen_${datatype})
+                    add_dependencies(${sub_intermediate_lib_name} ck_tile_test_gen_${datatype}_${config_name})
                     list(APPEND sub_intermediate_libs ${sub_intermediate_lib_name})
                 endif()
             endforeach()
 
-            # Bundle the object libs into one static lib
             if(sub_intermediate_libs)
-                set(intermediate_lib_name "test_gemm_staticlib_${name}_${datatype}")
-                # Collect the $<TARGET_OBJECTS:...> expressions
+                set(intermediate_lib_name "test_gemm_staticlib_${name}_${datatype}_${config_name}")
                 set(obj_exprs)
                 foreach(objlib IN LISTS sub_intermediate_libs)
                     list(APPEND obj_exprs $<TARGET_OBJECTS:${objlib}>)
                 endforeach()
-                
                 add_library(${intermediate_lib_name} STATIC ${obj_exprs})
-                add_dependencies(${intermediate_lib_name} ck_tile_test_gen_${datatype})
+                add_dependencies(${intermediate_lib_name} ck_tile_test_gen_${datatype}_${config_name})
                 list(APPEND test_intermediate_libs ${intermediate_lib_name})
             endif()
         endforeach()
         
-        # Create interface library for test instances
-        add_library(test_gemm_instances_${datatype} INTERFACE)
-        add_dependencies(test_gemm_instances_${datatype} ck_tile_test_gen_${datatype})
-        target_include_directories(test_gemm_instances_${datatype} INTERFACE
+        add_library(test_gemm_instances_${datatype}_${config_name} INTERFACE)
+        add_dependencies(test_gemm_instances_${datatype}_${config_name} ck_tile_test_gen_${datatype}_${config_name})
+        target_include_directories(test_gemm_instances_${datatype}_${config_name} INTERFACE
             ${PROJECT_SOURCE_DIR}/tile_engine/ops/gemm
             "${working_path}"
         )
-        set_target_properties(test_gemm_instances_${datatype} PROPERTIES LINKER_LANGUAGE CXX)
+        set_target_properties(test_gemm_instances_${datatype}_${config_name} PROPERTIES LINKER_LANGUAGE CXX)
+
+        add_gtest_executable(test_ck_tile_gemm_instance_validation_${datatype}_${config_name}
+            test_gemm_instance_validation_${datatype}.cpp)
+        target_link_libraries(test_ck_tile_gemm_instance_validation_${datatype}_${config_name}
+            PRIVATE test_gemm_instances_${datatype}_${config_name})
+        target_compile_options(test_ck_tile_gemm_instance_validation_${datatype}_${config_name}
+            PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+        target_include_directories(test_ck_tile_gemm_instance_validation_${datatype}_${config_name} PRIVATE
+            ${CMAKE_CURRENT_BINARY_DIR}/test_instances_${datatype}_${config_name}
+            ${PROJECT_SOURCE_DIR}/tile_engine/ops/gemm
+        )
     endfunction()
+
+    # Loop over configs and datatypes
+    foreach(config_name IN LISTS GEMM_TEST_CONFIG_NAMES)
+        foreach(datatype fp16 bf16)
+            generate_ck_tile_test_instances_for_config(${datatype} ${config_name})
+        endforeach()
+    endforeach()
     
-    # Generate test instances
-    generate_ck_tile_test_instances(fp16)
-    generate_ck_tile_test_instances(bf16)
-
-
-    # Add test executables for each datatype
-    add_gtest_executable(test_ck_tile_gemm_instance_validation_fp16 test_gemm_instance_validation_fp16.cpp)
-    target_link_libraries(test_ck_tile_gemm_instance_validation_fp16 PRIVATE test_gemm_instances_fp16)
-    target_compile_options(test_ck_tile_gemm_instance_validation_fp16 PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
-    target_include_directories(test_ck_tile_gemm_instance_validation_fp16 PRIVATE
-        ${CMAKE_CURRENT_BINARY_DIR}/test_instances_fp16
-        ${PROJECT_SOURCE_DIR}/tile_engine/ops/gemm
-    )
-
-    add_gtest_executable(test_ck_tile_gemm_instance_validation_bf16 test_gemm_instance_validation_bf16.cpp)
-    target_link_libraries(test_ck_tile_gemm_instance_validation_bf16 PRIVATE test_gemm_instances_bf16)
-    target_compile_options(test_ck_tile_gemm_instance_validation_bf16 PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
-    target_include_directories(test_ck_tile_gemm_instance_validation_bf16 PRIVATE
-        ${CMAKE_CURRENT_BINARY_DIR}/test_instances_bf16
-        ${PROJECT_SOURCE_DIR}/tile_engine/ops/gemm
-)
-
 endif()
