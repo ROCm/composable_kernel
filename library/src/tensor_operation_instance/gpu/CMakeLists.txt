@@ -89,6 +89,12 @@ function(add_instance_library INSTANCE_NAME)
             message(DEBUG "removing gemm_universal_f8 instance ${source} ")
             list(REMOVE_ITEM ARGN "${source}")
         endif()
+        # Do not build gemm_universal_preshuffle_f8 for any targets except gfx94
+        if(NOT (INST_TARGETS MATCHES "gfx942" OR INST_TARGETS MATCHES "gfx950" OR INST_TARGETS MATCHES "gfx11" OR INST_TARGETS MATCHES "gfx13") AND (source_name MATCHES "gemm_universal_preshuffle" OR source_name MATCHES "gemm_xdl_universal_preshuffle") AND (source_name MATCHES "_f8_f8_f16" OR source_name MATCHES "_f8_f8_bf16"))
+            message(DEBUG "removing gemm_universal_preshuffle_f8 instance ${source} ")
+            list(REMOVE_ITEM ARGN "${source}")
+        endif()
+
     endforeach()
 
     message(DEBUG "remaining instances: ${ARGN}")
