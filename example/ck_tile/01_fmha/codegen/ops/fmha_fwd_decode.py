@@ -143,6 +143,7 @@ void run_instance(const ck_tile::stream_config& s, fmha_fwd_decode_args a) {{
     }} else {{
         instance<kHasUnevenSplits>::run(s, a);
     }}
+    // instance<kHasUnevenSplits>::run(s, a);
 }}
 }} // anonymous namespace
 
@@ -164,6 +165,7 @@ void fmha_fwd_decode_oneshot_<trait_{F_idx}>(const ck_tile::stream_config& s, fm
     }} else {{
         run_instance</*kHasUnevenSplits=*/true>(s, a);
     }}
+    // run_instance</*kHasUnevenSplits=*/true>(s, a);
 }}
 
 template<>
@@ -657,16 +659,14 @@ def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {
             '64': {
-            #     # Specialize for different SeqQ
+                # Specialize for different SeqQ
                 '16': FmhaFwdTileSize(16, 32, 64, 64,  32,  64,   1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
                 '32': FmhaFwdTileSize(32, 32, 64, 64,  32,  64,   1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-                # '64': FmhaFwdTileSize(64, 64, 64, 64,  64,  64,   4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
                 '128': FmhaFwdTileSize(128, 64, 64, 64,  64,  64,   4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
             },
             '128': {
                 '16': FmhaFwdTileSize(16, 32, 64, 128, 32,  128,  1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
                 '32': FmhaFwdTileSize(32, 32, 128, 128, 32,  128,  1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-                # '64': FmhaFwdTileSize(64, 64, 64, 128, 64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
                 '128': FmhaFwdTileSize(128, 32, 128, 128, 32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
             },
         }

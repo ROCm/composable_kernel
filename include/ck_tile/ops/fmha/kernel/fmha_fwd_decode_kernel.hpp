@@ -582,6 +582,15 @@ struct FmhaFwdDecodeKernel
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
+        // TODO: Refine the logical here.
+        // In Decode case
+        //     1. we don't expect KV data reused by different ThreadGroups, bypass the cache
+        //     2. limit the LDS usage, as we want higher occupancy
+        // In Prefill case
+        //     1. we expect KV data reused by different ThreadGroups, use cache
+        //     2. use more LDS, as we want better memory latency hiding
+        // If SplitKV off, we don't expect Q data reused by different ThreadGroups, bypass the cache
+        constexpr bool PrefillCase = FmhaPipeline::kM0 == 128;
         // divide problem
         const auto [i_tile_m, i_tile_n, i_split, i_nhead, i_batch] = GetTileIndex(kargs);
 
@@ -710,7 +719,9 @@ struct FmhaFwdDecodeKernel
                     // reshape: (nhead_ratio_qk, seqlen_q, hdim_q) -> (nhead_ratio_qk * seqlen_q,
                     // hdim_q)
                     // We expect Q data reuse among different KVSplited in decode case.
-                    const auto view = make_naive_tensor_view<address_space_enum::global>(
+                    const auto view = make_naive_tensor_view<address_space_enum::global,
+                                                             memory_operation_enum::set,
+                                                             amd_buffer_coherence_enum::SYSTEM_NT1>(
                         q_ptr,
                         make_tuple(kargs.nhead_ratio_qk, kargs.seqlen_q, kargs.hdim_q),
                         make_tuple(kargs.nhead_stride_q, kargs.stride_q, 1),
@@ -727,7 +738,9 @@ struct FmhaFwdDecodeKernel
                 }
                 else
                 {
-                    return make_naive_tensor_view<address_space_enum::global>(
+                    return make_naive_tensor_view<address_space_enum::global,
+                                                  memory_operation_enum::set,
+                                                  amd_buffer_coherence_enum::SYSTEM_NT1>(
                         q_ptr,
                         make_tuple(kargs.seqlen_q, kargs.hdim_q),
                         make_tuple(kargs.stride_q, 1),
@@ -753,20 +766,44 @@ struct FmhaFwdDecodeKernel
         }();
 
         const auto make_k_dram = [&](const KDataType* data, index_t height) {
-            // We don't expect K data reuse among different blocks in decode case.
-            const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global,
-                                                             memory_operation_enum::set,
-                                                             amd_buffer_coherence_enum::SYSTEM_NT1>(
+            const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 data, // will update this pointer if using paged-kvcache
                 make_tuple(height, kargs.hdim_q),
                 make_tuple(kargs.stride_k, 1),
                 number<FmhaPipeline::kAlignmentK>{},
                 number<1>{});
 
-            return pad_tensor_view(
+            const auto k_dram_pad = pad_tensor_view(
                 k_dram_naive,
                 make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
                 sequence<false, kPadHeadDimQ>{});
+
+            const auto k_dram_unmerged = transform_tensor_view(
+                k_dram_pad,
+                make_tuple(make_pass_through_transform(height),
+                           make_unmerge_transform(make_tuple(
+                               number<FmhaPipeline::kQKHeaddim / FmhaPipeline::kAlignmentK>{},
+                               number<FmhaPipeline::kAlignmentK>{}))),
+                make_tuple(sequence<0>{}, sequence<1>{}),
+                make_tuple(sequence<0>{}, sequence<1, 2>{}));
+
+            const auto k_dram_permuted = transform_tensor_view(
+                k_dram_unmerged,
+                make_tuple(
+                    make_xor_transform(make_tuple(
+                        height, number<FmhaPipeline::kQKHeaddim / FmhaPipeline::kAlignmentK>{})),
+                    make_pass_through_transform(number<FmhaPipeline::kAlignmentK>{})),
+                make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                make_tuple(sequence<0, 1>{}, sequence<2>{}));
+
+            return transform_tensor_view(
+                k_dram_permuted,
+                make_tuple(make_pass_through_transform(height),
+                           make_merge_transform_v3_division_mod(make_tuple(
+                               number<FmhaPipeline::kQKHeaddim / FmhaPipeline::kAlignmentK>{},
+                               number<FmhaPipeline::kAlignmentK>{}))),
+                make_tuple(sequence<0>{}, sequence<1, 2>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
         };
         const auto k_dram = [&]() {
             if constexpr(kIsPagedKV)
@@ -780,19 +817,47 @@ struct FmhaFwdDecodeKernel
         }();
 
         const auto make_v_dram = [&](const VDataType* data, index_t length) {
-            const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global,
-                                                             memory_operation_enum::set,
-                                                             amd_buffer_coherence_enum::SYSTEM_NT1>(
+            const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 data, // will update this pointer if using paged-kvcache
                 make_tuple(length, kargs.hdim_v),
                 make_tuple(kargs.hdim_v, 1),
                 number<FmhaPipeline::kAlignmentV>{},
                 number<1>{});
 
-            return pad_tensor_view(
+            const auto v_dram_pad = pad_tensor_view(
                 v_dram_naive,
                 make_tuple(number<FmhaPipeline::kK1>{}, number<FmhaPipeline::kN1>{}),
                 sequence<kPadSeqLenK, false>{});
+
+            // TODO: Add kVHeadDim
+            // TrLoad Performed in 16x4/16x8/16x16 unit, the fast dimension is 16 elements
+            constexpr auto TrLoadFastDimLength = 16;
+
+            const auto v_dram_unmerged = transform_tensor_view(
+                v_dram_pad,
+                make_tuple(make_pass_through_transform(length),
+                           make_unmerge_transform(
+                               make_tuple(number<FmhaPipeline::kQKHeaddim / TrLoadFastDimLength>{},
+                                          number<TrLoadFastDimLength>{}))),
+                make_tuple(sequence<0>{}, sequence<1>{}),
+                make_tuple(sequence<0>{}, sequence<1, 2>{}));
+
+            const auto v_dram_permuted = transform_tensor_view(
+                v_dram_unmerged,
+                make_tuple(make_xor_transform(make_tuple(
+                               length, number<FmhaPipeline::kQKHeaddim / TrLoadFastDimLength>{})),
+                           make_pass_through_transform(number<TrLoadFastDimLength>{})),
+                make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                make_tuple(sequence<0, 1>{}, sequence<2>{}));
+
+            return transform_tensor_view(
+                v_dram_permuted,
+                make_tuple(make_pass_through_transform(length),
+                           make_merge_transform_v3_division_mod(
+                               make_tuple(number<FmhaPipeline::kQKHeaddim / TrLoadFastDimLength>{},
+                                          number<TrLoadFastDimLength>{}))),
+                make_tuple(sequence<0>{}, sequence<1, 2>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
         };
 
         const auto v_dram = [&]() {
@@ -945,7 +1010,7 @@ struct FmhaFwdDecodeKernel
         }();
 
         auto o_acc_tile = [&, i_split_ = i_split]() {
-            if constexpr(FmhaPipeline::kM0 == 128)
+            if constexpr(PrefillCase)
             {
                 // allocate double lds
                 // add __restrict__ here to avoid aliasing

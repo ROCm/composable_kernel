@@ -253,12 +253,18 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
         auto k_dram_window = make_tile_window(
             k_dram_block_window_tmp, Policy::template MakeKDramTileDistribution<Problem>());
 
-        auto k_lds = make_tensor_view<address_space_enum::lds>(
+        auto k_lds_write_view = make_tensor_view<address_space_enum::lds>(
             static_cast<KDataType*>(smem_ptr), Policy::template MakeKLdsBlockDescriptor<Problem>());
-        auto k_lds_write_window = make_tile_window(
-            k_lds, Policy::template MakeKLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
+        auto k_lds_read_view = make_tensor_view<address_space_enum::lds>(
+            static_cast<KDataType*>(smem_ptr),
+            Policy::template MakeKLdsBlockDescriptor<Problem, false, true>());
+
+        auto k_lds_write_window =
+            make_tile_window(k_lds_write_view,
+                             Policy::template MakeKLdsBlockDescriptor<Problem>().get_lengths(),
+                             {0, 0});
         auto k_lds_read_window =
-            make_tile_window(k_lds,
+            make_tile_window(k_lds_read_view,
                              make_tuple(number<kN0>{}, number<kK0>{}),
                              {0, 0},
                              Policy::template MakeKRegTileDistribution<Problem>());
@@ -280,16 +286,23 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
         auto v_dram_window = make_tile_window(
             v_dram_block_window_tmp, Policy::template MakeVDramTileDistribution<Problem>());
 
-        auto v_lds = make_tensor_view<address_space_enum::lds>(
+        auto v_lds_write_view = make_tensor_view<address_space_enum::lds>(
             reinterpret_cast<VDataType*>(static_cast<char*>(smem_ptr) +
                                          Policy::template GetSmemSizeK<Problem>() +
                                          Policy::template GetSmemSizeS<Problem>()),
             Policy::template MakeVLdsBlockDescriptor<Problem>());
-        auto v_lds_write_window = make_tile_window(
-            v_lds, Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
+        auto v_lds_read_view = make_tensor_view<address_space_enum::lds>(
+            reinterpret_cast<VDataType*>(static_cast<char*>(smem_ptr) +
+                                         Policy::template GetSmemSizeK<Problem>() +
+                                         Policy::template GetSmemSizeS<Problem>()),
+            Policy::template MakeVLdsBlockDescriptor<Problem, true>());
+        auto v_lds_write_window =
+            make_tile_window(v_lds_write_view,
+                             Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(),
+                             {0, 0});
 
         auto v_lds_read_window =
-            make_tile_window(v_lds,
+            make_tile_window(v_lds_read_view,
                              make_tuple(number<kK1>{}, number<kN1>{}),
                              {0, 0},
                              Policy::template MakeVRegTileDistribution<Problem>());
@@ -745,29 +758,38 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
         auto k_dram_window = make_tile_window(
             k_dram_block_window_tmp, Policy::template MakeKDramTileDistribution<Problem, true>());
 
-        auto k_lds = make_tuple(make_tensor_view<address_space_enum::lds>(
-                                    static_cast<KDataType* __restrict__>(smem_ptrk0),
-                                    Policy::template MakeKLdsBlockDescriptor<Problem, true>()),
-                                make_tensor_view<address_space_enum::lds>(
-                                    static_cast<KDataType* __restrict__>(smem_ptrk1),
-                                    Policy::template MakeKLdsBlockDescriptor<Problem, true>()));
+        auto k_lds_write_view =
+            make_tuple(make_tensor_view<address_space_enum::lds>(
+                           static_cast<KDataType* __restrict__>(smem_ptrk0),
+                           Policy::template MakeKLdsBlockDescriptor<Problem, true>()),
+                       make_tensor_view<address_space_enum::lds>(
+                           static_cast<KDataType* __restrict__>(smem_ptrk1),
+                           Policy::template MakeKLdsBlockDescriptor<Problem, true>()));
+
+        auto k_lds_read_view =
+            make_tuple(make_tensor_view<address_space_enum::lds>(
+                           static_cast<KDataType* __restrict__>(smem_ptrk0),
+                           Policy::template MakeKLdsBlockDescriptor<Problem, true, true>()),
+                       make_tensor_view<address_space_enum::lds>(
+                           static_cast<KDataType* __restrict__>(smem_ptrk1),
+                           Policy::template MakeKLdsBlockDescriptor<Problem, true, true>()));
 
         auto k_lds_write_windows =
             make_tuple(make_tile_window(
-                           k_lds.at(I0),
+                           k_lds_write_view.at(I0),
                            Policy::template MakeKLdsBlockDescriptor<Problem, true>().get_lengths(),
                            {0, 0}),
                        make_tile_window(
-                           k_lds.at(I1),
+                           k_lds_write_view.at(I1),
                            Policy::template MakeKLdsBlockDescriptor<Problem, true>().get_lengths(),
                            {0, 0}));
 
         auto k_lds_read_windows =
-            make_tuple(make_tile_window(k_lds.at(I0),
+            make_tuple(make_tile_window(k_lds_read_view.at(I0),
                                         make_tuple(number<kN0>{}, number<kK0>{}),
                                         {0, 0},
                                         Policy::template MakeKRegTileDistribution<Problem>()),
-                       make_tile_window(k_lds.at(I1),
+                       make_tile_window(k_lds_read_view.at(I1),
                                         make_tuple(number<kN0>{}, number<kK0>{}),
                                         {0, 0},
                                         Policy::template MakeKRegTileDistribution<Problem>()));
@@ -789,7 +811,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
         auto v_dram_window = make_tile_window(
             v_dram_block_window_tmp, Policy::template MakeVDramTileDistribution<Problem>());
 
-        auto v_lds = make_tuple(
+        auto v_lds_write_view = make_tuple(
             make_tensor_view<address_space_enum::lds>(
                 reinterpret_cast<VDataType* __restrict__>(static_cast<char*>(smem_ptrv0)),
                 Policy::template MakeVLdsBlockDescriptor<Problem>()),
@@ -797,20 +819,28 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
                 reinterpret_cast<VDataType* __restrict__>(static_cast<char*>(smem_ptrv1)),
                 Policy::template MakeVLdsBlockDescriptor<Problem>()));
 
+        auto v_lds_read_view = make_tuple(
+            make_tensor_view<address_space_enum::lds>(
+                reinterpret_cast<VDataType* __restrict__>(static_cast<char*>(smem_ptrv0)),
+                Policy::template MakeVLdsBlockDescriptor<Problem, true>()),
+            make_tensor_view<address_space_enum::lds>(
+                reinterpret_cast<VDataType* __restrict__>(static_cast<char*>(smem_ptrv1)),
+                Policy::template MakeVLdsBlockDescriptor<Problem, true>()));
+
         auto v_lds_write_windows = make_tuple(
-            make_tile_window(v_lds.at(I0),
+            make_tile_window(v_lds_write_view.at(I0),
                              Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(),
                              {0, 0}),
-            make_tile_window(v_lds.at(I1),
+            make_tile_window(v_lds_write_view.at(I1),
                              Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(),
                              {0, 0}));
 
         auto v_lds_read_windows =
-            make_tuple(make_tile_window(v_lds.at(I0),
+            make_tuple(make_tile_window(v_lds_read_view.at(I0),
                                         make_tuple(number<kK1>{}, number<kN1>{}),
                                         {0, 0},
                                         Policy::template MakeVRegTileDistribution<Problem>()),
-                       make_tile_window(v_lds.at(I1),
+                       make_tile_window(v_lds_read_view.at(I1),
                                         make_tuple(number<kK1>{}, number<kN1>{}),
                                         {0, 0},
                                         Policy::template MakeVRegTileDistribution<Problem>()));

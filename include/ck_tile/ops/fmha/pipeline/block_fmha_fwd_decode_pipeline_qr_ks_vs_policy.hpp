@@ -224,7 +224,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
         return q_lds_block_desc;
     }
 
-    template <typename Problem, bool LoadOnce = false>
+    template <typename Problem, bool LoadOnce = false, bool Xor = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
     {
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
@@ -233,16 +233,53 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
 
         constexpr index_t kKPack = GetSmemKPackK<Problem>();
 
-        constexpr auto k_lds_block_desc =
-            make_naive_tensor_descriptor(make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}),
-                                         make_tuple(number<kKPerBlock>{}, number<1>{}),
-                                         number<kKPack>{},
-                                         number<1>{});
+        constexpr auto k_lds_block_desc = [&]() {
+            if constexpr(Xor)
+            {
+                constexpr auto k_lds_block_desc_naive = make_naive_tensor_descriptor(
+                    make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}),
+                    make_tuple(number<kKPerBlock>{}, number<1>{}),
+                    number<kKPack>{},
+                    number<1>{});
+
+                const auto k_lds_block_desc_unmerged = transform_tensor_descriptor(
+                    k_lds_block_desc_naive,
+                    make_tuple(make_pass_through_transform(number<kNPerBlock>{}),
+                               make_unmerge_transform(
+                                   make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
+                    make_tuple(sequence<0>{}, sequence<1>{}),
+                    make_tuple(sequence<0>{}, sequence<1, 2>{}));
+
+                const auto k_lds_block_desc_permuted = transform_tensor_descriptor(
+                    k_lds_block_desc_unmerged,
+                    make_tuple(make_xor_transform(
+                                   make_tuple(number<kNPerBlock>{}, number<kKPerBlock / kKPack>{})),
+                               make_pass_through_transform(number<kKPack>{})),
+                    make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                    make_tuple(sequence<0, 1>{}, sequence<2>{}));
+
+                return transform_tensor_descriptor(
+                    k_lds_block_desc_permuted,
+                    make_tuple(make_pass_through_transform(number<kNPerBlock>{}),
+                               make_merge_transform_v3_division_mod(
+                                   make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
+                    make_tuple(sequence<0>{}, sequence<1, 2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+            }
+            else
+            {
+                return make_naive_tensor_descriptor(
+                    make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}),
+                    make_tuple(number<kKPerBlock>{}, number<1>{}),
+                    number<kKPack>{},
+                    number<1>{});
+            }
+        }();
 
         return k_lds_block_desc;
     }
 
-    template <typename Problem>
+    template <typename Problem, bool Xor = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeVLdsBlockDescriptor()
     {
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
@@ -250,11 +287,53 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
 
         constexpr index_t kKPack = GetSmemKPackV<Problem>();
 
-        constexpr auto v_lds_block_desc =
-            make_naive_tensor_descriptor(make_tuple(number<kKPerBlock>{}, number<kNPerBlock>{}),
-                                         make_tuple(number<kNPerBlock>{}, number<1>{}),
-                                         number<kKPack>{},
-                                         number<1>{});
+        constexpr auto v_lds_block_desc = [&]() {
+            if constexpr(Xor)
+            {
+                constexpr auto TrLoadFastDimLength = 16;
+
+                constexpr auto v_lds_block_desc_naive = make_naive_tensor_descriptor(
+                    make_tuple(number<kKPerBlock>{}, number<kNPerBlock>{}),
+                    make_tuple(number<kNPerBlock>{}, number<1>{}),
+                    number<kKPack>{},
+                    number<1>{});
+
+                const auto v_lds_block_desc_unmerged = transform_tensor_descriptor(
+                    v_lds_block_desc_naive,
+                    make_tuple(make_pass_through_transform(number<kKPerBlock>{}),
+                               make_unmerge_transform(
+                                   make_tuple(number<kNPerBlock / TrLoadFastDimLength>{},
+                                              number<TrLoadFastDimLength>{}))),
+                    make_tuple(sequence<0>{}, sequence<1>{}),
+                    make_tuple(sequence<0>{}, sequence<1, 2>{}));
+
+                const auto v_lds_block_desc_permuted = transform_tensor_descriptor(
+                    v_lds_block_desc_unmerged,
+                    make_tuple(
+                        make_xor_transform(make_tuple(number<kKPerBlock>{},
+                                                      number<kNPerBlock / TrLoadFastDimLength>{})),
+                        make_pass_through_transform(number<TrLoadFastDimLength>{})),
+                    make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                    make_tuple(sequence<0, 1>{}, sequence<2>{}));
+
+                return transform_tensor_descriptor(
+                    v_lds_block_desc_permuted,
+                    make_tuple(make_pass_through_transform(number<kKPerBlock>{}),
+                               make_merge_transform_v3_division_mod(
+                                   make_tuple(number<kNPerBlock / TrLoadFastDimLength>{},
+                                              number<TrLoadFastDimLength>{}))),
+                    make_tuple(sequence<0>{}, sequence<1, 2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+            }
+            else
+            {
+                return make_naive_tensor_descriptor(
+                    make_tuple(number<kKPerBlock>{}, number<kNPerBlock>{}),
+                    make_tuple(number<kNPerBlock>{}, number<1>{}),
+                    number<kKPack>{},
+                    number<1>{});
+            }
+        }();
 
         return v_lds_block_desc;
     }
