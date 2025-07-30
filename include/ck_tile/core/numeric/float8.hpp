@@ -259,47 +259,47 @@ CK_TILE_HOST_DEVICE DstT run_cast_to_f8(SrcT src, unsigned int rng = 0)
     // fp8/bf8 type exponent/mantissa layout
     constexpr int DstT_exp  = numeric_traits<DstT>::exp;  // exponent width of the destination type
     constexpr int DstT_mant = numeric_traits<DstT>::mant; // mantissa width of the destination type
+    constexpr int DstT_bias = numeric_traits<DstT>::bias;
     constexpr bool is_fnuz =
         (numeric_traits<DstT>::f8_interpret == fp8_interpretation::E4M3_FNUZ) ||
         (numeric_traits<DstT>::f8_interpret == fp8_interpretation::E5M2_FNUZ);
 
-    constexpr int SrcT_exp  = numeric_traits<SrcT>::exp;
-    constexpr int SrcT_mant = numeric_traits<SrcT>::mant;
+    constexpr int SrcT_exp          = numeric_traits<SrcT>::exp;
+    constexpr int SrcT_mant         = numeric_traits<SrcT>::mant;
+    constexpr int bias              = numeric_traits<SrcT>::bias;
+    constexpr unsigned int fInf     = numeric_traits<SrcT>::Inf;
+    constexpr unsigned int abs_mask = numeric_traits<SrcT>::abs_mask;
 
     using SrcT_bitwise       = typename numeric_traits<SrcT>::bitwise_type;
     SrcT_bitwise src_bitwise = bit_cast<SrcT_bitwise>(src);
 
     unsigned int head, mantissa;
-    int exponent, bias;
+    int exponent;
     unsigned int sign;
-    unsigned int fInf, abs_mask;
 
     head     = src_bitwise & numeric_traits<SrcT>::head_mask;
     mantissa = src_bitwise & numeric_traits<SrcT>::mant_mask;
     exponent = (head >> SrcT_mant) & numeric_traits<SrcT>::exp_mask;
     sign     = head >> (SrcT_exp + SrcT_mant);
-    bias     = numeric_traits<SrcT>::bias;
-    fInf     = numeric_traits<SrcT>::Inf;
-    abs_mask = numeric_traits<SrcT>::abs_mask;
 
     unsigned int signed_inf = 0;
     unsigned int nan        = 0;
     if constexpr(is_fnuz)
     {
-        signed_inf = clip ? ((sign << 7) + 0x7f) : 0x80;
+        signed_inf = clip ? ((sign << (DstT_exp + DstT_mant)) + 0x7f) : 0x80;
         nan        = 0x80;
     }
     else
     {
         if constexpr(DstT_exp == 4)
         { // e4m3
-            signed_inf = (sign << 7) + (clip ? 0x7e : 0x7f);
+            signed_inf = (sign << (DstT_exp + DstT_mant)) + (clip ? 0x7e : 0x7f);
         }
         else
         { // e5m2
-            signed_inf = (sign << 7) + (clip ? 0x7b : 0x7c);
+            signed_inf = (sign << (DstT_exp + DstT_mant)) + (clip ? 0x7b : 0x7c);
         }
-        nan = (sign << 7) + 0x7f;
+        nan = (sign << (DstT_exp + DstT_mant)) + 0x7f;
     }
     // Max values
     unsigned int ifmax = 0;
@@ -359,8 +359,7 @@ CK_TILE_HOST_DEVICE DstT run_cast_to_f8(SrcT src, unsigned int rng = 0)
 
     // For IEEE bias mode, the bias is 2^(k-1) -1 where k is the width of exponent
     // bits
-    const int f8_bias                  = (1 << (DstT_exp - 1)) - 1 + (is_fnuz ? 1 : 0);
-    const int f8_denormal_act_exponent = 1 - f8_bias; // actual exponent of f8 denormal
+    constexpr int f8_denormal_act_exponent = 1 - DstT_bias; // actual exponent of f8 denormal
     // act_exponent is the actual exponent of fp32/fp16 (after subtracting bias)
     // f8_exponent is the converted f8 exponent with bias encoding
     // exponent_diff is the diff between fp32/fp16 exponent and f8 exponent,
@@ -404,7 +403,7 @@ CK_TILE_HOST_DEVICE DstT run_cast_to_f8(SrcT src, unsigned int rng = 0)
     // an undefined behavior of bit shifts >= type width).
     if(exponent_diff > DstT_mant)
     {
-        return is_fnuz ? 0 : (sign << 7);
+        return is_fnuz ? 0 : (sign << (DstT_exp + DstT_mant));
     }
     bool midpoint = (mantissa & ((1u << (SrcT_mant - DstT_mant + exponent_diff)) - 1)) ==
                     (1u << (SrcT_mant - DstT_mant + exponent_diff - 1));
@@ -423,7 +422,7 @@ CK_TILE_HOST_DEVICE DstT run_cast_to_f8(SrcT src, unsigned int rng = 0)
     // if there is no implicit 1, it  means the f8 is denormal and need to adjust
     // to denorm exponent
     f8_exponent =
-        (act_exponent + exponent_diff) /*actual f8 exponent*/ + f8_bias - (implicit_one ? 0 : 1);
+        (act_exponent + exponent_diff) /*actual f8 exponent*/ + DstT_bias - (implicit_one ? 0 : 1);
 
     // Now we have the exponent and mantissa adjusted
     unsigned int drop_mask = (1u << (SrcT_mant - DstT_mant)) - 1;
@@ -468,9 +467,9 @@ CK_TILE_HOST_DEVICE DstT run_cast_to_f8(SrcT src, unsigned int rng = 0)
     }
 
     if(f8_exponent == 0 && mantissa == 0)
-        return is_fnuz ? 0 : (sign << 7);
+        return is_fnuz ? 0 : (sign << (DstT_exp + DstT_mant));
     mantissa &= (1 << DstT_mant) - 1;
-    return (sign << 7) | (f8_exponent << DstT_mant) | mantissa;
+    return (sign << (DstT_exp + DstT_mant)) | (f8_exponent << DstT_mant) | mantissa;
 }
 
 template <typename SrcT, typename DstT, bool clip = true>
@@ -478,8 +477,9 @@ CK_TILE_HOST_DEVICE DstT run_cast_from_f8(SrcT x)
 {
     static_assert(std::is_same<SrcT, fp8_t>::value || std::is_same<SrcT, bf8_t>::value,
                   "SrcT type must be fp8 or bf8.");
-    constexpr int SrcT_exp  = numeric_traits<SrcT>::exp;
-    constexpr int SrcT_mant = numeric_traits<SrcT>::mant;
+    constexpr int SrcT_exp          = numeric_traits<SrcT>::exp;
+    constexpr int SrcT_mant         = numeric_traits<SrcT>::mant;
+    constexpr uint8_t SrcT_abs_mask = numeric_traits<SrcT>::abs_mask;
     constexpr bool is_fnuz =
         (numeric_traits<SrcT>::f8_interpret == fp8_interpretation::E4M3_FNUZ) ||
         (numeric_traits<SrcT>::f8_interpret == fp8_interpretation::E5M2_FNUZ);
@@ -515,9 +515,9 @@ CK_TILE_HOST_DEVICE DstT run_cast_from_f8(SrcT x)
         return 0;
     }
 
-    unsigned int sign     = x >> 7;
+    unsigned int sign     = x >> (SrcT_exp + SrcT_mant);
     unsigned int mantissa = x & ((1 << SrcT_mant) - 1);
-    int exponent          = (x & 0x7F) >> SrcT_mant;
+    int exponent          = (x & SrcT_abs_mask) >> SrcT_mant;
     if constexpr(is_fnuz)
     {
         if((x & 0xff) == 0x80)
