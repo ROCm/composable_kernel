@@ -178,7 +178,7 @@ static const auto kTestingValues = ::testing::Values(
     std::tuple{8, 16, 8, 16, true},
     std::tuple{8, 16, 8, 16, false},
     std::tuple{1, 64, 1, 1024, true},
-    std::tuple{1, 64, 1024, 1, false}, 
+    std::tuple{1, 64, 1024, 1, false}
 );
 // clang-format on
 
