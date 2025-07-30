@@ -582,9 +582,6 @@ struct FmhaFwdDecodeKernel
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
-        // allocate LDS
-        __shared__ char smem_ptr[GetSmemSize()];
-
         // divide problem
         const auto [i_tile_m, i_tile_n, i_split, i_nhead, i_batch] = GetTileIndex(kargs);
 
@@ -948,23 +945,51 @@ struct FmhaFwdDecodeKernel
         }();
 
         auto o_acc_tile = [&, i_split_ = i_split]() {
-            return FmhaPipeline{}(q_dram_window,
-                                  k_dram_window,
-                                  //   k_page_block_navigator, // Remove it
-                                  v_dram_window,
-                                  //   v_page_block_navigator, // Remove it
-                                  bias_dram_window,
-                                  lse_acc_dram_window,
-                                  kargs.num_splits, // Remove it
-                                  i_split_,         // Remove it
-                                  mask,
-                                  position_encoding,
-                                  kargs.scale_s,
-                                  //   variant,        // Remove it
-                                  //   variant_params, // Remove it
-                                  //   block_indices,  // Remove it
-                                  //   kv_l2p_offset,  // Remove it
-                                  smem_ptr);
+            if constexpr(FmhaPipeline::kM0 == 128)
+            {
+                // allocate double lds
+                // add __restrict__ here to avoid aliasing
+                __shared__ char
+                    smem_ptrk0[FmhaPipeline::Policy::
+                                   template GetSmemSizeK<typename FmhaPipeline::Problem, true>()];
+                __shared__ char
+                    smem_ptrk1[FmhaPipeline::Policy::
+                                   template GetSmemSizeK<typename FmhaPipeline::Problem, true>()];
+                __shared__ char smem_ptrv0
+                    [FmhaPipeline::Policy::template GetSmemSizeV<typename FmhaPipeline::Problem>()];
+                __shared__ char smem_ptrv1
+                    [FmhaPipeline::Policy::template GetSmemSizeV<typename FmhaPipeline::Problem>()];
+
+                return FmhaPipeline{}(q_dram_window,
+                                      k_dram_window,
+                                      v_dram_window,
+                                      bias_dram_window,
+                                      lse_acc_dram_window,
+                                      kargs.num_splits, // Remove it
+                                      i_split_,         // Remove it
+                                      mask,
+                                      position_encoding,
+                                      kargs.scale_s,
+                                      smem_ptrk0,
+                                      smem_ptrk1,
+                                      smem_ptrv0,
+                                      smem_ptrv1);
+            }
+            else
+            {
+                __shared__ char smem_ptr[GetSmemSize()];
+                return FmhaPipeline{}(q_dram_window,
+                                      k_dram_window,
+                                      v_dram_window,
+                                      bias_dram_window,
+                                      lse_acc_dram_window,
+                                      kargs.num_splits, // Remove it
+                                      i_split_,         // Remove it
+                                      mask,
+                                      position_encoding,
+                                      kargs.scale_s,
+                                      smem_ptr);
+            }
         }();
 
         // Oacc DRAM and Oacc DRAM window

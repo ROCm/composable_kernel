@@ -68,7 +68,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kN0;
 
         constexpr index_t MaxVectorSize = 16 / sizeof(typename Problem::VDataType);
 
@@ -77,43 +77,77 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
         return min(ElemPerThread, MaxVectorSize);
     }
 
-    template <typename Problem>
+    template <typename Problem, bool BypassLDS = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQDramTileDistribution()
     {
-        constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kSubQKHeaddim;
+        if constexpr(!BypassLDS)
+        {
+            constexpr index_t kBlockSize = Problem::kBlockSize;
+            constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
+            constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kSubQKHeaddim;
 
-        constexpr index_t MaxVectorSize = 16 / sizeof(typename Problem::QDataType);
+            constexpr index_t MaxVectorSize = 16 / sizeof(typename Problem::QDataType);
 
-        constexpr index_t ElemPerThread = (kMPerBlock * kKPerBlock) / kBlockSize;
-        static_assert(0 < ElemPerThread);
-        constexpr index_t kMaxVecLoad = min(ElemPerThread, MaxVectorSize);
+            constexpr index_t ElemPerThread = (kMPerBlock * kKPerBlock) / kBlockSize;
+            static_assert(0 < ElemPerThread);
+            constexpr index_t kMaxVecLoad = min(ElemPerThread, MaxVectorSize);
 
-        constexpr index_t KPerThread     = kMaxVecLoad;
-        constexpr index_t KThreads       = kKPerBlock / KPerThread;
-        constexpr index_t MThreadPerWarp = get_warp_size() / KThreads;
-        constexpr index_t NumWarps       = kBlockSize / get_warp_size();
-        constexpr index_t MPerThread     = kMPerBlock / (MThreadPerWarp * NumWarps);
+            constexpr index_t KPerThread     = kMaxVecLoad;
+            constexpr index_t KThreads       = kKPerBlock / KPerThread;
+            constexpr index_t MThreadPerWarp = get_warp_size() / KThreads;
+            constexpr index_t NumWarps       = kBlockSize / get_warp_size();
+            constexpr index_t MPerThread     = kMPerBlock / (MThreadPerWarp * NumWarps);
 
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<MPerThread, NumWarps, MThreadPerWarp>,
-                                             sequence<KThreads, KPerThread>>,
-                                       tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<1>, sequence<2, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 1>>{});
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<MPerThread, NumWarps, MThreadPerWarp>,
+                                                 sequence<KThreads, KPerThread>>,
+                                           tuple<sequence<1>, sequence<1, 2>>,
+                                           tuple<sequence<1>, sequence<2, 0>>,
+                                           sequence<1, 2>,
+                                           sequence<0, 1>>{});
+        }
+        else
+        {
+            using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
+            constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+            using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
+
+            constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<0>{});
+            constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
+
+            constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
+            constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kSubQKHeaddim;
+
+            constexpr index_t MIterPerWarp = kMPerBlock / (MWarp * WarpGemm::kM);
+            constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
+
+            constexpr auto q_block_outer_dstr_encoding = tile_distribution_encoding<
+                sequence<NWarp>,
+                tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
+                tuple<sequence<1, 0>>,
+                tuple<sequence<1, 0>>,
+                sequence<1, 2>,
+                sequence<0, 0>>{};
+
+            constexpr auto q_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+                q_block_outer_dstr_encoding, typename WarpGemm::AWarpDstrEncoding{});
+
+            constexpr auto q_block_dstr = make_static_tile_distribution(q_block_dstr_encode);
+
+            return q_block_dstr;
+        }
     }
 
-    template <typename Problem>
+    template <typename Problem, bool LoadOnce = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKDramTileDistribution()
     {
         using KDataType = remove_cvref_t<typename Problem::KDataType>;
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+        constexpr index_t kKPerBlock =
+            LoadOnce ? Problem::BlockFmhaShape::kSubQKHeaddim : Problem::BlockFmhaShape::kK0;
 
         constexpr index_t MaxVectorSize = 16 / sizeof(KDataType);
         constexpr index_t ElemPerThread = (kNPerBlock * kKPerBlock) / kBlockSize;
@@ -190,11 +224,12 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
         return q_lds_block_desc;
     }
 
-    template <typename Problem>
+    template <typename Problem, bool LoadOnce = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
     {
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+        constexpr index_t kKPerBlock =
+            LoadOnce ? Problem::BlockFmhaShape::kSubQKHeaddim : Problem::BlockFmhaShape::kK0;
 
         constexpr index_t kKPack = GetSmemKPackK<Problem>();
 
@@ -211,7 +246,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeVLdsBlockDescriptor()
     {
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kN0;
 
         constexpr index_t kKPack = GetSmemKPackV<Problem>();
 
@@ -335,7 +370,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kN0;
 
         constexpr index_t MaxVectorSize = 16 / sizeof(typename Problem::VDataType);
 
@@ -370,7 +405,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm1BlockWarps::at(number<1>{});
 
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kN0;
 
         constexpr index_t MIterPerWarp = kMPerBlock / (MWarp * WarpGemm::kM);
         constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
@@ -502,10 +537,10 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
                sizeof(typename Problem::QDataType);
     }
 
-    template <typename Problem>
+    template <typename Problem, bool LoadOnce = false>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeK()
     {
-        return MakeKLdsBlockDescriptor<Problem>().get_element_space_size() *
+        return MakeKLdsBlockDescriptor<Problem, LoadOnce>().get_element_space_size() *
                sizeof(typename Problem::KDataType);
     }
 

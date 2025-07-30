@@ -41,6 +41,7 @@ SEQLENQ_MAP = {
     "16" : "16",
     "32" : "32",
     # "64" : "64"
+    "128" : "128",
 }
 
 FMHA_FWD_DECODE_PIPELINE_MAP = {
@@ -294,7 +295,7 @@ float fmha_fwd_decode(fmha_fwd_decode_traits t, fmha_fwd_decode_args a, const ck
 """
 
 FMHA_FWD_DECODE_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && (t.has_logits_soft_cap == {F_logits}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_lse == {F_lse}) && (t.do_fp8_static_quant == {F_squant}) &&
-                        ((a.block_table_ptr != nullptr) == {F_pagedkv}) && ({F_scheck}) && ({F_skcheck}) && ({F_dcheck})&& (a.seqlen_q <= {F_bm0}) && ({F_dvcheck})) {{
+                        ((a.block_table_ptr != nullptr) == {F_pagedkv}) && ({F_scheck})&& ({F_seqtune}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
                 using traits_ = fmha_fwd_decode_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, {F_lse}, {F_squant}, {F_pagedkv}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
 
                 // get combine kernel tile sizes
@@ -360,6 +361,12 @@ class FmhaFwdDecodeApiTrait:
             if self.spad == 't' : return 'true'
             else :                return 'true'
         else: assert False
+    
+    @property
+    def seqtune(self) -> str:
+        if self.bm0 == 128: return 'true/*fall back to largest tile*/'                  # group mode only generate spad/skpad == true
+        else: 
+            return f'a.seqlen_q <= {self.bm0}'
 
     @property
     def skcheck(self) -> str:
@@ -501,7 +508,7 @@ class FmhaFwdDecodeApiPool:
                                    F_pipeline_enum=PIPELINE_ENUM_MAP[trait.pipeline_tag], F_logits=BOOL_MAP[trait.logits], F_mask=get_mask_map(self.mask_impl)[trait.mask],
                                    F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask], F_bias_check=BIAS_CHECK_MAP[trait.bias], F_bias=BIAS_MAP[trait.bias],
                                    F_lse=BOOL_MAP[trait.lse], F_squant=BOOL_MAP[trait.squant], F_pagedkv=BOOL_MAP[trait.pagedkv],
-                                   F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck,
+                                   F_scheck=trait.scheck,F_seqtune=trait.seqtune, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck,
                                    F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
                                    F_bm0=trait.bm0, F_bn0=trait.bn0, F_bk0=trait.bk0, F_bn1=trait.bn1, F_bk1=trait.bk1, F_bk0max=trait.bk0max,
                                    F_hdim=hdim, F_dtype=FWD_DTYPE_MAP[dtype])
@@ -654,11 +661,13 @@ def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
                 '16': FmhaFwdTileSize(16, 32, 64, 64,  32,  64,   1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
                 '32': FmhaFwdTileSize(32, 32, 64, 64,  32,  64,   1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
                 # '64': FmhaFwdTileSize(64, 64, 64, 64,  64,  64,   4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
+                '128': FmhaFwdTileSize(128, 64, 64, 64,  64,  64,   4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
             },
             '128': {
                 '16': FmhaFwdTileSize(16, 32, 64, 128, 32,  128,  1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
                 '32': FmhaFwdTileSize(32, 32, 128, 128, 32,  128,  1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-            #     # '64': FmhaFwdTileSize(64, 64, 64, 128, 64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
+                # '64': FmhaFwdTileSize(64, 64, 64, 128, 64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
+                '128': FmhaFwdTileSize(128, 32, 128, 128, 32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
             },
         }
     else:
