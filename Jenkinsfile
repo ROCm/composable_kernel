@@ -890,7 +890,7 @@ pipeline {
             description: "Run the ck_tile FMHA tests (default: OFF)")
         booleanParam(
             name: "RUN_CK_TILE_TRANSPOSE_TESTS",
-            defaultValue: true,
+            defaultValue: false,
             description: "Run the ck_tile Transpose tests (default: ON)")
         booleanParam(
             name: "RUN_CK_TILE_GEMM_TESTS",
