@@ -676,12 +676,27 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
               e_grid_desc_m_n_{
                   DeviceOp::MakeEGridDescriptor_M_N<ELayout>(conv_to_gemm_transformer_)},
               e_grid_desc_mblock_mperblock_nblock_nperblock_{},
-              e_grid_desc_splitk_mblock_mperblock_nblock_nperblock_{},
+              e_grid_desc_two_stage_mblock_mperblock_nblock_nperblock_{},
               compute_ptr_offset_of_groups_{},
               compute_ptr_offset_of_n_{},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
-              cde_element_op_{cde_element_op}
+              cde_element_op_{cde_element_op},
+              multi_k_batch_{k_batch_ > 1},
+#if defined(__gfx942__) || defined(__gfx950__) || defined(__gfx12__)
+              two_stage_
+        {
+            multi_k_batch_&& CDEBlockTransferScalarPerVector_NPerBlock == 1 &&
+                (std::is_same_v<EDataType, ck::half_t> || std::is_same_v<EDataType, ck::bhalf_t>)
+        }
+#else
+              two_stage_
+        {
+            (multi_k_batch_ && CDEBlockTransferScalarPerVector_NPerBlock == 1 &&
+             std::is_same_v<EDataType, ck::half_t>) ||
+                (multi_k_batch_ && std::is_same_v<EDataType, ck::bhalf_t>)
+        }
+#endif
         {
             // A/B/E Batch/N Stride
             compute_ptr_offset_of_groups_.BatchStrideA_ = a_g_n_c_wis_strides_[0];
@@ -695,9 +710,9 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             compute_ptr_offset_of_groups_.BatchStrideE_ = e_g_n_k_wos_strides_[0];
             compute_ptr_offset_of_n_.BatchStrideE_ = e_g_n_k_wos_strides_[1] * conv_N_per_block_;
 
-            if(k_batch_ > 1)
+            if(two_stage_)
             {
-                e_grid_desc_splitk_mblock_mperblock_nblock_nperblock_ =
+                e_grid_desc_two_stage_mblock_mperblock_nblock_nperblock_ =
                     MakeEGridDescriptorTwoStage_MBlock_MPerBlock_NBlock_NPerBlock(e_grid_desc_m_n_);
             }
             else
@@ -799,7 +814,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             const long_index_t e_accum = ck::accumulate_n<long_index_t>(
                 e_g_n_k_wos_lengths_.begin(), NDimSpatial + I3, 1, std::multiplies<>());
 
-            if(k_batch_ > 1)
+            if(two_stage_)
             {
                 return math::integer_divide_ceil(sizeof(AccDataType) * e_accum, 128) * 128;
             }
@@ -870,7 +885,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         CElementwiseGridDesc_M_N ce_elementwise_grid_desc_m_n_;
         EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock e_grid_desc_mblock_mperblock_nblock_nperblock_;
         EGridDescTwoStage_MBlock_MPerBlock_NBlock_NPerBlock
-            e_grid_desc_splitk_mblock_mperblock_nblock_nperblock_;
+            e_grid_desc_two_stage_mblock_mperblock_nblock_nperblock_;
 
         // for computing batch offset
         ComputePtrOffsetOfStridedBatch<I1, I1, I0> compute_ptr_offset_of_groups_;
@@ -890,6 +905,9 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         NHWGCTransposeDescType a_out_transpose_desc_, e_in_transpose_desc_;
         GKCYXTransposeDescType b_in_transpose_desc_;
         GKYXCTransposeDescType b_out_transpose_desc_;
+
+        bool multi_k_batch_;
+        bool two_stage_;
     };
 
     // Invoker
@@ -914,9 +932,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
 
             LaunchConfig(const Argument& arg)
             {
-                const bool multi_k_batch = arg.k_batch_ > 1;
-
-                if(multi_k_batch)
+                if(arg.two_stage_)
                 {
                     p_acc_grid  = type_convert<AccDataType*>(arg.p_workspace_);
                     e_grid_size = arg.elementwise_block_2_ctile_map_.CalculateGridSize(
@@ -931,7 +947,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                     b_grid_size = arg.elementwise_block_2_ctile_map_transpose_b_.CalculateGridSize(
                         arg.b_in_transpose_desc_);
 
-                    if(!multi_k_batch)
+                    if(!arg.two_stage_)
                     {
                         e_grid_size = arg.elementwise_block_2_ctile_map_.CalculateGridSize(
                             arg.e_in_transpose_desc_);
@@ -949,7 +965,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                 {
                     p_a_grid = arg.p_a_grid_;
                     p_b_grid = arg.p_b_grid_;
-                    if(!multi_k_batch)
+                    if(!arg.two_stage_)
                     {
                         p_e_grid = arg.p_e_grid_;
                     }
@@ -990,19 +1006,31 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                 GridwiseGemmType::CalculateHasMainKBlockLoop(K_split);
 
             const auto clear_workspace = [&]() {
-                if(arg.k_batch_ > 1)
+                if(arg.two_stage_)
                 {
                     hip_check_error(hipMemsetAsync(gemm_arg.p_c_grid,
                                                    0,
                                                    arg.GetWorkspaceETensorSizeBytes(),
                                                    stream_config.stream_id_));
                 }
+                else if(arg.multi_k_batch_)
+                {
+                    // NOT 100% sure, what about stride? For some reason
+                    // arg.e_grid_desc_m_n_.GetElementSpaceSize() causes more errors
+                    const size_t output_size =
+                        sizeof(EDataType) * std::accumulate(arg.e_g_n_k_wos_lengths_.begin(),
+                                                            arg.e_g_n_k_wos_lengths_.end(),
+                                                            1,
+                                                            std::multiplies<>());
+                    hip_check_error(hipMemsetAsync(
+                        gemm_arg.p_c_grid, 0, output_size, stream_config.stream_id_));
+                }
             };
 
             const auto Run = [&](const auto& kernel) {
                 auto e_grid_desc_mblock_mperblock_nblock_nperblock =
-                    (arg.k_batch_ > 1) ? arg.e_grid_desc_splitk_mblock_mperblock_nblock_nperblock_
-                                       : arg.e_grid_desc_mblock_mperblock_nblock_nperblock_;
+                    (arg.two_stage_) ? arg.e_grid_desc_two_stage_mblock_mperblock_nblock_nperblock_
+                                     : arg.e_grid_desc_mblock_mperblock_nblock_nperblock_;
 
                 if(stream_config.flush_cache)
                 {
@@ -1352,7 +1380,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                 const index_t GemmK = arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) *
                                       arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
 
-                if(arg.k_batch_ > 1)
+                if(arg.two_stage_)
                 {
                     typename GridwiseGemmTwoStage::Argument gemm_arg{launch_config.p_a_grid,
                                                                      launch_config.p_b_grid,
@@ -1365,6 +1393,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                                                                      I0,
                                                                      arg.k_batch_};
 
+                    std::cout << "DEBUG: Two stage SplitK AtomicAdd" << std::endl;
                     avg_time += RunGemm<GridwiseGemmTwoStage, InMemoryDataOperationEnum::AtomicAdd>(
                         arg, gemm_arg, stream_config);
 
@@ -1438,8 +1467,18 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                                                              I0,
                                                              arg.k_batch_};
 
-                    avg_time += RunGemm<GridwiseGemm, InMemoryDataOperationEnum::Set>(
-                        arg, gemm_arg, stream_config);
+                    if(arg.multi_k_batch_)
+                    {
+                        std::cout << "DEBUG: One stage SplitK AtomicAdd" << std::endl;
+                        avg_time += RunGemm<GridwiseGemm, InMemoryDataOperationEnum::AtomicAdd>(
+                            arg, gemm_arg, stream_config);
+                    }
+                    else
+                    {
+                        std::cout << "DEBUG: One stage Non-SplitK Set" << std::endl;
+                        avg_time += RunGemm<GridwiseGemm, InMemoryDataOperationEnum::Set>(
+                            arg, gemm_arg, stream_config);
+                    }
 
                     if constexpr(launch_config.needs_transpose)
                     {
@@ -1658,7 +1697,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         const index_t GemmK =
             arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
 
-        if(arg.k_batch_ > 1)
+        if(arg.two_stage_)
         {
             if(!arg.p_workspace_)
             {
