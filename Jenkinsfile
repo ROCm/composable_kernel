@@ -812,6 +812,7 @@ def process_results(Map conf=[:]){
 }
 
 def run_aiter_tests(Map conf=[:]){
+    show_node_info()
     env.HSA_ENABLE_SDMA=0
     checkout scm
     //use the latest pytorch image
@@ -838,7 +839,12 @@ def run_aiter_tests(Map conf=[:]){
     withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
         timeout(time: 45, unit: 'MINUTES'){
             try{
+                sh "python3 --version"
+                sh "pwd"
+                sh "ls -ltr"
                 dir("/var/lib/jenkins/aiter"){
+                    sh "ls -ltr"
+                    sh "python3 --version"
                     sh "python3 op_tests/test_gemm_a8w8_blockscale.py"
                     sh "python3 op_tests/test_mha.py"
                 }
