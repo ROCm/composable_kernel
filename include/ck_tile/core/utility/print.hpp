@@ -64,10 +64,11 @@ template <typename T, size_t N>
 CK_TILE_HOST_DEVICE void print(const T (&value)[N])
 {
     printf("[");
-    for (size_t i = 0; i < N; ++i)
+    for(size_t i = 0; i < N; ++i)
     {
-        if (i > 0) printf(", ");
-        print(value[i]);  // Recursively call print for each element
+        if(i > 0)
+            printf(", ");
+        print(value[i]); // Recursively call print for each element
     }
     printf("]");
 }

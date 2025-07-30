@@ -19,7 +19,8 @@ class PrintStaticEncodingPatternTest : public ::testing::Test
 TEST_F(PrintStaticEncodingPatternTest, PrintThreadRakedPattern)
 {
     // Test printing thread raked pattern
-    using PatternType = TileDistributionEncodingPattern2D<64, 8, 16, 4, tile_distribution_pattern::thread_raked>;
+    using PatternType =
+        TileDistributionEncodingPattern2D<64, 8, 16, 4, tile_distribution_pattern::thread_raked>;
     PatternType pattern;
 
     testing::internal::CaptureStdout();
@@ -38,7 +39,8 @@ TEST_F(PrintStaticEncodingPatternTest, PrintThreadRakedPattern)
 TEST_F(PrintStaticEncodingPatternTest, PrintWarpRakedPattern)
 {
     // Test printing warp raked pattern
-    using PatternType = TileDistributionEncodingPattern2D<128, 16, 32, 8, tile_distribution_pattern::warp_raked>;
+    using PatternType =
+        TileDistributionEncodingPattern2D<128, 16, 32, 8, tile_distribution_pattern::warp_raked>;
     PatternType pattern;
 
     testing::internal::CaptureStdout();
@@ -57,7 +59,8 @@ TEST_F(PrintStaticEncodingPatternTest, PrintWarpRakedPattern)
 TEST_F(PrintStaticEncodingPatternTest, PrintBlockRakedPattern)
 {
     // Test printing block raked pattern
-    using PatternType = TileDistributionEncodingPattern2D<256, 32, 64, 16, tile_distribution_pattern::block_raked>;
+    using PatternType =
+        TileDistributionEncodingPattern2D<256, 32, 64, 16, tile_distribution_pattern::block_raked>;
     PatternType pattern;
 
     testing::internal::CaptureStdout();

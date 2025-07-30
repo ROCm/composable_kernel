@@ -84,7 +84,7 @@ using ext_vector_t = typename impl::ext_vector<T, N>::type;
 
 // by default, any type will result in a vector_size=1 with scalar_type=T traits.
 // ... unless we have other vector_traits specialization
-template <typename T, typename=void>
+template <typename T, typename = void>
 struct vector_traits
 {
     using scalar_type =

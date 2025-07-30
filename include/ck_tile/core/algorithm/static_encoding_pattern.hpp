@@ -323,10 +323,10 @@ constexpr const char* tile_distribution_pattern_to_string(tile_distribution_patt
 {
     switch(pattern)
     {
-        case tile_distribution_pattern::thread_raked: return "thread_raked";
-        case tile_distribution_pattern::warp_raked: return "warp_raked";
-        case tile_distribution_pattern::block_raked: return "block_raked";
-        default: return "unknown";
+    case tile_distribution_pattern::thread_raked: return "thread_raked";
+    case tile_distribution_pattern::warp_raked: return "warp_raked";
+    case tile_distribution_pattern::block_raked: return "block_raked";
+    default: return "unknown";
     }
 }
 
@@ -343,7 +343,12 @@ CK_TILE_HOST_DEVICE void print(const TileDistributionEncodingPattern2D<BlockSize
                                                                        DistributionPattern,
                                                                        NumWaveGroups>&)
 {
-    using PatternType = TileDistributionEncodingPattern2D<BlockSize, YPerTile, XPerTile, VecSize, DistributionPattern, NumWaveGroups>;
+    using PatternType = TileDistributionEncodingPattern2D<BlockSize,
+                                                          YPerTile,
+                                                          XPerTile,
+                                                          VecSize,
+                                                          DistributionPattern,
+                                                          NumWaveGroups>;
 
     printf("TileDistributionEncodingPattern2D<BlockSize:%d, YPerTile:%d, XPerTile:%d, "
            "VecSize:%d, %s>: ",
@@ -353,7 +358,11 @@ CK_TILE_HOST_DEVICE void print(const TileDistributionEncodingPattern2D<BlockSize
            VecSize,
            tile_distribution_pattern_to_string(DistributionPattern));
     printf("{<Y0, Y1, Y2>: <%d, %d, %d>, <X0, X1>: <%d, %d>}\n",
-           PatternType::Y0, PatternType::Y1, PatternType::Y2, PatternType::X0, PatternType::X1);
+           PatternType::Y0,
+           PatternType::Y1,
+           PatternType::Y2,
+           PatternType::X0,
+           PatternType::X1);
 }
 
 } // namespace ck_tile
