@@ -2,7 +2,8 @@ ARG BASE_DOCKER="rocm/pytorch:latest"
 FROM $BASE_DOCKER
 RUN pip install pandas zmq einops && \
     pip install numpy==1.26.2 && \
-    mkdir /home/jenkins/workspace && \
+    sudo mkdir /home/jenkins && \
+    sudo mkdir /home/jenkins/workspace && \
     cd /home/jenkins/workspace && \
     rm -rf aiter && \
     git clone --recursive https://github.com/ROCm/aiter.git && \
