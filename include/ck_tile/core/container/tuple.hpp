@@ -317,12 +317,12 @@ CK_TILE_HOST_DEVICE void print(const tuple<T...>& t)
     printf(">");
 }
 
-template <typename, typename = void>
+template <typename, typename>
 struct vector_traits;
 
 // specialization for array
 template <typename... T>
-struct vector_traits<tuple<T...>>
+struct vector_traits<tuple<T...>, void>
 {
     using scalar_type                    = __type_pack_element<0, T...>;
     static constexpr index_t vector_size = sizeof...(T);
