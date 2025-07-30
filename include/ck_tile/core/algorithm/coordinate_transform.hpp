@@ -526,19 +526,11 @@ template <typename UpLengths, typename Coefficients>
 CK_TILE_HOST_DEVICE static void print(const embed<UpLengths, Coefficients>& e)
 {
     printf("embed{");
-    printf("up_lengths_: <");
-    static_for<0, UpLengths::size(), 1>{}([&](auto idim) {
-        if(idim != 0)
-            printf(", ");
-        printf("%d", e.up_lengths_.at(idim).value);
-    });
-    printf(">, coefficients_: <");
-    static_for<0, Coefficients::size(), 1>{}([&](auto idim) {
-        if(idim != 0)
-            printf(", ");
-        printf("%d", e.coefficients_.at(idim).value);
-    });
-    printf(">}");
+    printf("up_lengths_: ");
+    print(e.up_lengths_);
+    printf(", coefficients_: ");
+    print(e.coefficients_);
+    printf("}");
 }
 
 template <typename LowLengths>
@@ -822,25 +814,13 @@ template <typename LowLengths>
 CK_TILE_HOST_DEVICE static void print(const merge_v3_division_mod<LowLengths>& m)
 {
     printf("merge_v3_division_mod{");
-    printf("low_lengths_: [");
-    static_for<0, LowLengths::size(), 1>{}([&](auto idim) {
-        if(idim != 0)
-            printf(", ");
-        printf("%d", m.low_lengths_.at(idim).value);
-    });
-    printf("], low_lengths_scan_: [");
-    static_for<0, decltype(m.low_lengths_scan_)::size(), 1>{}([&](auto idim) {
-        if(idim != 0)
-            printf(", ");
-        printf("%d", m.low_lengths_scan_.at(idim).value);
-    });
-    printf("], up_lengths_: [");
-    static_for<0, decltype(m.up_lengths_)::size(), 1>{}([&](auto idim) {
-        if(idim != 0)
-            printf(", ");
-        printf("%d", m.up_lengths_.at(idim).value);
-    });
-    printf("]}");
+    printf("low_lengths_: ");
+    print(m.low_lengths_);
+    printf(", low_lengths_scan_: ");
+    print(m.low_lengths_scan_);
+    printf(", up_lengths_: ");
+    print(m.up_lengths_);
+    printf("}");
 }
 
 template <typename UpLengths, bool Use24BitIntegerCalculation>
@@ -954,19 +934,11 @@ template <typename UpLengths, bool Use24BitIntegerCalculation>
 CK_TILE_HOST_DEVICE static void print(const unmerge<UpLengths, Use24BitIntegerCalculation>& u)
 {
     printf("unmerge{");
-    printf("up_lengths_: [");
-    static_for<0, UpLengths::size(), 1>{}([&](auto idim) {
-        if(idim != 0)
-            printf(", ");
-        printf("%d", u.up_lengths_.at(idim).value);
-    });
-    printf("], up_lengths_scan_: [");
-    static_for<0, decltype(u.up_lengths_scan_)::size(), 1>{}([&](auto idim) {
-        if(idim != 0)
-            printf(", ");
-        printf("%d", u.up_lengths_scan_.at(idim).value);
-    });
-    printf("]}");
+    printf("up_lengths_: ");
+    print(u.up_lengths_);
+    printf(", up_lengths_scan_: ");
+    print(u.up_lengths_scan_);
+    printf("}");
 }
 
 template <typename LowerIndex>
@@ -1410,13 +1382,9 @@ template <typename LowLengths>
 CK_TILE_HOST_DEVICE static void print(const xor_t<LowLengths>& x)
 {
     printf("xor_t{");
-    printf("up_lengths_: [");
-    static_for<0, LowLengths::size(), 1>{}([&](auto idim) {
-        if(idim != 0)
-            printf(", ");
-        printf("%d", x.up_lengths_.at(idim).value);
-    });
-    printf("]}");
+    printf("up_lengths_: ");
+    print(x.up_lengths_);
+    printf("}");
 }
 
 template <typename LowLength, typename OffsetLength>
