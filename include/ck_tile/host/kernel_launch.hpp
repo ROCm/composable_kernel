@@ -15,12 +15,6 @@
 
 namespace ck_tile {
 
-#define LOW_CU_PROCESSORS 80
-#define HIGH_CU_PROCESSORS 228
-#define OPTIMAL_LATENCY_LOW_CU_PROCESSORS 0.005
-#define OPTIMAL_LATENCY_HIGH_CU_PROCESSORS 0.0015
-#define OPTIMAL_LATENCY_SAFE_MARGIN 0.01
-
 template <int MaxThreadPerBlock, int MinBlockPerCu, typename Kernel, typename... Args>
 #if CK_TILE_USE_LAUNCH_BOUNDS
 __launch_bounds__(MaxThreadPerBlock, MinBlockPerCu)
@@ -81,12 +75,6 @@ preprocess_profiling_impl(TimerType timer, const stream_config& s, PreprocessFun
     timer.stop(s.stream_id_);
 
     return timer.duration() / s.nrepeat_;
-}
-
-template <typename PreprocessFunc>
-CK_TILE_HOST float preprocess_profiling(const stream_config& s, PreprocessFunc preprocess)
-{
-    return preprocess_profiling_impl(gpu_timer{}, s, preprocess);
 }
 
 template <typename TimerType, typename CallablesFunc, typename PreprocessFunc = std::nullptr_t>
