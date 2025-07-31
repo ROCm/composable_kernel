@@ -111,10 +111,8 @@ struct UniversalGemmKernelArgs
     ///        (in memory) of E tensor.
     index_t stride_E;
     index_t k_batch;
-    /// @brief The workspace memory pointer.
-    // workspace_barriers layout [0:gridDim.x] -> cleared_barrier [gridDim.x:2*gridDim.x] ->
-    // updated_barrier
-    uint32_t* workspace_barriers = nullptr; // Single pointer to the workspace memory
+    /// @brief Pointer to the additional workspace memory (if needed)
+    uint32_t* workspace = nullptr; // Single pointer to the workspace memory
 };
 
 /// @brief The Universal GEMM kernel template.
@@ -276,7 +274,7 @@ struct UniversalGemmKernel
 
     CK_TILE_HOST static constexpr KernelArgs
     MakeKernelArgs(const UniversalGemmHostArgs<NumATensor, NumBTensor, NumDTensor>& hostArgs,
-                   uint32_t* workspace_barriers = nullptr)
+                   uint32_t* workspace = nullptr)
     {
         return KernelArgs{hostArgs.as_ptr,
                           hostArgs.bs_ptr,
@@ -290,7 +288,7 @@ struct UniversalGemmKernel
                           hostArgs.stride_Ds,
                           hostArgs.stride_E,
                           hostArgs.k_batch,
-                          workspace_barriers};
+                          workspace};
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
@@ -914,7 +912,7 @@ struct UniversalGemmKernel
     CK_TILE_DEVICE static void ZeroTile(TileWindows& gemm_tile_windows, const KernelArgs& kargs)
     {
         // Check if this is the first k_batch
-        if(blockIdx.z == 0 && kargs.workspace_barriers != nullptr)
+        if(blockIdx.z == 0 && kargs.workspace != nullptr)
         {
             // Output tile in global memory
             auto& c_block_window = gemm_tile_windows.at(I3);
@@ -946,7 +944,7 @@ struct UniversalGemmKernel
             // Store the zero tile to global memory
             store_tile(c_block_window, zero_tile);
 
-            workgroup_barrier cleared_barrier(kargs.workspace_barriers);
+            workgroup_barrier cleared_barrier(kargs.workspace);
 
             // Signal that C tile has been zeroed
             cleared_barrier.inc(blockIdx.x);
@@ -1010,11 +1008,7 @@ struct UniversalGemmKernel
 
             EpiloguePipeline{}.template
             operator()<decltype(c_block_window), decltype(c_block_tile), decltype(ds_block_window)>(
-                c_block_window,
-                c_block_tile,
-                ds_block_window,
-                smem_ptr_0,
-                kargs.workspace_barriers);
+                c_block_window, c_block_tile, ds_block_window, smem_ptr_0, kargs.workspace);
         }
     }
 
@@ -1076,7 +1070,7 @@ struct UniversalGemmKernel
 
         EpiloguePipeline{}.template
         operator()<decltype(c_block_window), decltype(c_block_tile), decltype(ds_block_window)>(
-            c_block_window, c_block_tile, ds_block_window, smem_ptr_0, kargs.workspace_barriers);
+            c_block_window, c_block_tile, ds_block_window, smem_ptr_0, kargs.workspace);
     }
 
     // Non-persistent kernel entry point

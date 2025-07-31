@@ -266,7 +266,7 @@ struct CShuffleEpilogue
                                    const OAccTile& o_acc_tile,
                                    const DsDramWindows& ds_dram_windows,
                                    void* p_smem,
-                                   uint32_t* workspace_barriers = nullptr)
+                                   uint32_t* workspace = nullptr)
     {
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
 
@@ -317,7 +317,7 @@ struct CShuffleEpilogue
         ////////////////////////////////////////////////////////////
         if constexpr(UseZeroing)
         {
-            workgroup_barrier cleared_barrier(workspace_barriers);
+            workgroup_barrier cleared_barrier(workspace);
 
             // Wait for C tile to be zeroed before first access
             cleared_barrier.wait_lt(1, blockIdx.x);
@@ -380,8 +380,8 @@ struct CShuffleEpilogue
         // Update barriers and reset if needed
         if constexpr(UseZeroing)
         {
-            workgroup_barrier cleared_barrier(workspace_barriers);
-            workgroup_barrier updated_barrier(workspace_barriers + gridDim.x);
+            workgroup_barrier cleared_barrier(workspace);
+            workgroup_barrier updated_barrier(workspace + gridDim.x);
 
             // After moving tile, increment completed batches counter
             updated_barrier.inc(blockIdx.x); // Increment completion counter
@@ -393,8 +393,8 @@ struct CShuffleEpilogue
                 if(completed >= static_cast<uint32_t>(gridDim.z))
                 {
                     // Reset barriers for next iteration
-                    workspace_barriers[blockIdx.x]             = 0; // Reset cleared barrier
-                    workspace_barriers[gridDim.x + blockIdx.x] = 0; // Reset updated batches
+                    workspace[blockIdx.x]             = 0; // Reset cleared barrier
+                    workspace[gridDim.x + blockIdx.x] = 0; // Reset updated batches
                 }
             }
         }

@@ -135,7 +135,7 @@ struct GemmKernel
     }
 
     CK_TILE_HOST static constexpr auto MakeKernelArgs(const GemmHostArgs& hostArgs,
-                                                      uint32_t* workspace_barriers = nullptr) ->
+                                                      uint32_t* workspace = nullptr) ->
         typename UniversalGemmKernel::KernelArgs
     {
         /// @brief  Universal GEMM requires array objects and corresponding stride information for
@@ -154,7 +154,7 @@ struct GemmKernel
                 {hostArgs.stride_B},
                 {/*hostArgs.stride_Ds*/},
                 hostArgs.stride_E),
-            workspace_barriers);
+            workspace);
     }
 
     CK_TILE_HOST static auto
