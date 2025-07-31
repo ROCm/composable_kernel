@@ -197,6 +197,7 @@ int run(int argc, char* argv[])
         if(!gemm.IsSupportedArgument(argument_ptr.get()))
         {
             std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
+            return;
         }
 
         float ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});

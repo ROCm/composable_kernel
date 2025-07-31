@@ -415,40 +415,60 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
 
     static bool IsSupportedArgument([[maybe_unused]] const RawArg& arg)
     {
+        // Print lambda with env check and printf() style formmating.
+        const char* curFunc = __func__;
+        auto print          = [&curFunc](const char* format, ...) -> void {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
+#endif
+                va_list args;
+                va_start(args, format);
+                std::vfprintf(stdout, format, args);
+                va_end(args);
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+                std::cout << "In file: " << __FILE__ << ", function: " << curFunc << "\n";
+            }
+        };
+
         if(!(ck::is_gfx11_supported() || ck::is_gfx12_supported()))
         {
-            printf("DeviceOp: Arch err\n");
+            print("DeviceOp: Arch err\n");
             return false;
         }
 
         if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
         {
-            printf("DeviceOp: Acc0 Type err\n");
+            print("DeviceOp: Acc0 Type err\n");
             return false;
         }
 
         if constexpr(!(is_same_v<ALayout, tensor_layout::gemm::RowMajor>))
         {
-            printf("DeviceOp: A layout must be Row\n");
+            print("DeviceOp: A layout must be Row\n");
             return false;
         }
 
         if constexpr(!(is_same_v<B0layout, tensor_layout::gemm::ColumnMajor>))
         {
-            printf("DeviceOp: B layout must be Column\n");
+            print("DeviceOp: B layout must be Column\n");
             return false;
         }
 
         if constexpr(!(is_same_v<B1Layout, tensor_layout::gemm::RowMajor> ||
                        is_same_v<B1Layout, tensor_layout::gemm::ColumnMajor>))
         {
-            printf("DeviceOp: B1 layout must be Column or Row\n");
+            print("DeviceOp: B1 layout must be Column or Row\n");
             return false;
         }
 
         if constexpr(!(is_same_v<CLayout, tensor_layout::gemm::RowMajor>))
         {
-            printf("DeviceOp: C layout must be Row\n");
+            print("DeviceOp: C layout must be Row\n");
             return false;
         }
 
@@ -456,14 +476,14 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         if constexpr(GemmSpec != GemmSpecialization::Default &&
                      GemmSpec != GemmSpecialization::MNKOPadding)
         {
-            printf("Padding mode must be default or MNKO\n");
+            print("Padding mode must be default or MNKO\n");
             return false;
         }
 
         // Per wmma dimensions not equal to 16 are very untested.
         if constexpr(MPerWmma != 16 || LPerWmma != 16 || NPerWmma != 16)
         {
-            printf("M, L, N per Wmma must be 16\n");
+            print("M, L, N per Wmma must be 16\n");
             return false;
         }
 
@@ -487,7 +507,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
              b1_extent_lowest % B1BlockTransferSrcScalarPerVector == 0 &&
              c_extent_lowest % CShuffleBlockTransferScalarPerVector_NPerBlock == 0))
         {
-            printf("DeviceOp: Data Transfer Vector scalar err\n");
+            print("DeviceOp: Data Transfer Vector scalar err\n");
             return false;
         }
 
@@ -503,7 +523,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         if(!(a_stride_lowest == 1 || b0_stride_lowest == 1 || b1_stride_lowest == 1 ||
              c_stride_lowest == 1))
         {
-            printf("DeviceOp: Data Vectorize transfer err\n");
+            print("DeviceOp: Data Vectorize transfer err\n");
             return false;
         }
 

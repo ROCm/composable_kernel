@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <cstdarg>
+#include "ck/utility/env.hpp"
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -364,6 +366,26 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                                                             const CGridDesc_M_N& c_grid_desc_m_n,
                                                             const Block2CTileMap& block_2_ctile_map)
     {
+        // Print lambda with env check and printf() style formmating.
+        const char* curFunc = __func__;
+        auto print          = [&curFunc](const char* format, ...) -> void {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
+#endif
+                va_list args;
+                va_start(args, format);
+                std::vfprintf(stdout, format, args);
+                va_end(args);
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+                std::cout << "In file: " << __FILE__ << ", function: " << curFunc << "\n";
+            }
+        };
+
         static_assert(MPerBlock % (MPerWmma * MRepeat) == 0 &&
                           LPerBlock % (LPerWmma * LRepeat) == 0 &&
                           NPerBlock % (NPerWmma * NRepeat) == 0,
@@ -376,41 +398,41 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
 
         if(!(M == c_grid_desc_m_n.GetLength(I0) && N == c_grid_desc_m_n.GetLength(I1)))
         {
-            printf("GridwiseOp: M/N Length err, A_M/N = %d, %d | C_M/N = %d, %d\n",
-                   M,
-                   N,
-                   c_grid_desc_m_n.GetLength(I0),
-                   c_grid_desc_m_n.GetLength(I1));
+            print("GridwiseOp: M/N Length err, A_M/N = %d, %d | C_M/N = %d, %d\n",
+                  M,
+                  N,
+                  c_grid_desc_m_n.GetLength(I0),
+                  c_grid_desc_m_n.GetLength(I1));
             return false;
         }
 
         if(!(M % MPerBlock == 0 && L % LPerBlock == 0 && K % KPerBlock == 0 && N % NPerBlock == 0))
         {
-            printf("GridwiseOp: M/L/K/N Division err, M/L/K/N = %d, %d, %d, %d | M/L/K/NPerBlock = "
-                   "%d, %d, %d, %d\n",
-                   M,
-                   L,
-                   K,
-                   N,
-                   MPerBlock,
-                   LPerBlock,
-                   KPerBlock,
-                   NPerBlock);
+            print("GridwiseOp: M/L/K/N Division err, M/L/K/N = %d, %d, %d, %d | M/L/K/NPerBlock = "
+                  "%d, %d, %d, %d\n",
+                  M,
+                  L,
+                  K,
+                  N,
+                  MPerBlock,
+                  LPerBlock,
+                  KPerBlock,
+                  NPerBlock);
             return false;
         }
 
         // check gemm1 gridwise gemm pipeline
         if(!(LPerBlock % LTilePerBlock == 0))
         {
-            printf("GridwiseOp: inner loop division, L/LTilePerblock: %d, %d\n",
-                   LPerBlock,
-                   LTilePerBlock);
+            print("GridwiseOp: inner loop division, L/LTilePerblock: %d, %d\n",
+                  LPerBlock,
+                  LTilePerBlock);
             return false;
         }
 
         if(!block_2_ctile_map.CheckValidity(c_grid_desc_m_n))
         {
-            printf("GridwiseOp: invalid block_2_ctile_map\n");
+            print("GridwiseOp: invalid block_2_ctile_map\n");
             return false;
         }
 
