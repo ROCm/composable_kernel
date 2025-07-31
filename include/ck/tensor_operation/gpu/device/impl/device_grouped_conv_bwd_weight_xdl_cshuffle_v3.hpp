@@ -496,7 +496,8 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                       end(a_g_n_k_wos_lengths),
                       begin(output_spatial_lengths_));
 
-            if(split_k < 0)
+            const auto split_k = split_k_parameters.fixed_value_;
+            if(split_k < 0 || split_k_parameters.strategy_ == SplitKStrategy::BestOccupancy)
             {
                 ck::index_t gemmM, gemmN, gemmK;
                 std::tie(gemmM, gemmN, gemmK) =
@@ -631,7 +632,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
             const ADataType* p_a_grid = arg.p_a_grid_;
             const BDataType* p_b_grid = arg.p_b_grid_;
             typename GridwiseGemm::Argument gemm_arg{
-                p_a_grid, p_b_grid, arg.p_c_grid_, GemmM, GemmN, GemmK, I0, I0, I0, arg.k_batch()};
+                p_a_grid, p_b_grid, arg.p_c_grid_, GemmM, GemmN, GemmK, I0, I0, I0, arg.k_batch_};
 
             index_t gdx, gdy, gdz;
             std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(
@@ -647,7 +648,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                 arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(Number<0>{}) / gemm_arg.KBatch;
 
             const auto clear_workspace = [&]() {
-                if(arg.k_batch() > 1)
+                if(arg.k_batch_ > 1)
                 {
                     hip_check_error(hipMemsetAsync(
                         gemm_arg.p_c_grid, 0, arg.c_space_size_bytes, stream_config.stream_id_));
@@ -1250,7 +1251,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                               arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I2);
 
         typename GridwiseGemm::Argument gemm_arg{
-            nullptr, nullptr, nullptr, GemmM, GemmN, GemmK, I0, I0, I0, arg.k_batch()};
+            nullptr, nullptr, nullptr, GemmM, GemmN, GemmK, I0, I0, I0, arg.k_batch_};
 
         const auto num_k_loop = gemm_arg.AK0 / (K0PerBlock / K1);
         if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1)
@@ -1267,7 +1268,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         }
 
         if(!is_bf16_atomic_supported() && std::is_same_v<CDataType, ck::bhalf_t> &&
-           arg.k_batch() > 1)
+           arg.k_batch_ > 1)
         {
             return false;
         }

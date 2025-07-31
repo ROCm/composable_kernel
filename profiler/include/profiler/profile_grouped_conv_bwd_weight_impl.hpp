@@ -573,17 +573,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                 auto* split_k_arg = dynamic_cast<ck::tensor_operation::device::ArgumentSplitK*>(argument_ptr.get());
                 if (split_k_arg)
                 {
-                    split_k_arg_value = split_k_arg->k_batch();
-                    const auto k_dim_size = split_k_arg->k_dim_size();
-                    const auto m_dim_size = split_k_arg->m_dim_size();
-                    const auto n_dim_size = split_k_arg->n_dim_size();
-                    const auto arithmetic_intensity = split_k_arg->arithmetic_intensity();
-                    const auto& data_type = split_k_arg->data_type();
-                    if (k_dim_size > 0)
-                    {
-                        perf_results_local.set_common_params(m_dim_size, n_dim_size, k_dim_size, arithmetic_intensity, data_type);
-                        perf_results_global.set_common_params(m_dim_size, n_dim_size, k_dim_size, arithmetic_intensity, data_type);
-                    }
+                    split_k_arg_value = split_k_arg->k_batch_;
                     supports_split_k_optimization = true;
                 }
 

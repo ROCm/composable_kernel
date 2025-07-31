@@ -100,6 +100,8 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
 
         for(const auto split_k : split_ks)
         {
+            ck::tensor_operation::device::ParamsSplitK split_k_params{
+                ck::tensor_operation::device::SplitKStrategy::FixedSplitK, split_k};
             auto argument = conv.MakeArgument(nullptr,
                                               nullptr,
                                               nullptr,
@@ -116,7 +118,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
                                               PassThrough{},
                                               PassThrough{},
                                               PassThrough{},
-                                              split_k);
+                                              split_k_params);
             is_supported &= conv.IsSupportedArgument(argument);
         }
         return is_supported;

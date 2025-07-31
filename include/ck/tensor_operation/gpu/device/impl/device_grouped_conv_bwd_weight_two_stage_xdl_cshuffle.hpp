@@ -628,7 +628,8 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                 conv_ngchw_to_nhwgc_transformer.TransposeWeiStrides(e_g_k_c_xs_lengths,
                                                                     e_g_k_c_xs_strides);
 
-            if(split_k < 0)
+            const auto split_k = split_k_parameters.fixed_value_;
+            if(split_k < 0 || split_k_parameters.strategy_ == SplitKStrategy::BestOccupancy)
             {
                 ck::index_t gemmM, gemmN, gemmK;
                 std::tie(gemmM, gemmN, gemmK) =

@@ -644,7 +644,8 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                       end(a_g_n_k_wos_lengths),
                       begin(output_spatial_lengths_));
 
-            if(split_k < 0)
+            const auto split_k = split_k_parameters.fixed_value_;
+            if(split_k < 0 || split_k_parameters.strategy_ == SplitKStrategy::BestOccupancy)
             {
                 ck::index_t gemmM, gemmN;
                 std::tie(gemmM, gemmN, std::ignore) =

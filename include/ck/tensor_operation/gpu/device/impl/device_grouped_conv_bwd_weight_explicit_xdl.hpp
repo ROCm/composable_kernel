@@ -144,7 +144,8 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
                       end(e_g_k_c_xs_lengths),
                       begin(filter_spatial_lengths_));
 
-            if(split_k < 0)
+            const auto split_k = split_k_parameters.fixed_value_;
+            if(split_k < 0 || split_k_parameters.strategy_ == SplitKStrategy::BestOccupancy)
             {
                 const auto max_occupancy = DeviceGemmV3Op::GetMaxOccupancy();
                 index_t gdx, gdy, gdz;
