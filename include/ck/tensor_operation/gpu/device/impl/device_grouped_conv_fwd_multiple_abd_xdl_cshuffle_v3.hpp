@@ -683,20 +683,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
               b_element_op_{b_element_op},
               cde_element_op_{cde_element_op},
               multi_k_batch_{k_batch_ > 1},
-#if defined(__gfx942__) || defined(__gfx950__) || defined(__gfx12__)
-              two_stage_
-        {
-            multi_k_batch_&& CDEBlockTransferScalarPerVector_NPerBlock == 1 &&
-                (std::is_same_v<EDataType, ck::half_t> || std::is_same_v<EDataType, ck::bhalf_t>)
-        }
-#else
-              two_stage_
-        {
-            (multi_k_batch_ && CDEBlockTransferScalarPerVector_NPerBlock == 1 &&
-             std::is_same_v<EDataType, ck::half_t>) ||
-                (multi_k_batch_ && std::is_same_v<EDataType, ck::bhalf_t>)
-        }
-#endif
+              two_stage_{multi_k_batch_ && (std::is_same_v<EDataType, ck::half_t> ||
+                                            std::is_same_v<EDataType, ck::bhalf_t>)}
         {
             // A/B/E Batch/N Stride
             compute_ptr_offset_of_groups_.BatchStrideA_ = a_g_n_c_wis_strides_[0];
@@ -1393,7 +1381,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                                                                      I0,
                                                                      arg.k_batch_};
 
-                    std::cout << "DEBUG: Two stage SplitK AtomicAdd" << std::endl;
                     avg_time += RunGemm<GridwiseGemmTwoStage, InMemoryDataOperationEnum::AtomicAdd>(
                         arg, gemm_arg, stream_config);
 
@@ -1469,13 +1456,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
 
                     if(arg.multi_k_batch_)
                     {
-                        std::cout << "DEBUG: One stage SplitK AtomicAdd" << std::endl;
                         avg_time += RunGemm<GridwiseGemm, InMemoryDataOperationEnum::AtomicAdd>(
                             arg, gemm_arg, stream_config);
                     }
                     else
                     {
-                        std::cout << "DEBUG: One stage Non-SplitK Set" << std::endl;
                         avg_time += RunGemm<GridwiseGemm, InMemoryDataOperationEnum::Set>(
                             arg, gemm_arg, stream_config);
                     }
