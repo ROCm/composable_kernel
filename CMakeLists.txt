@@ -9,16 +9,16 @@ get_property(_GENERATOR_IS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFI
 # This has to be initialized before the project() command appears
 # Set the default of CMAKE_BUILD_TYPE to be release, unless user specifies with -D.  MSVC_IDE does not use CMAKE_BUILD_TYPE
 if(_GENERATOR_IS_MULTI_CONFIG)
-    set(CMAKE_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo;MinSizeRel" CACHE STRING
-            "Available build types (configurations) on multi-config generators")
+set(CMAKE_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo;MinSizeRel" CACHE STRING
+"Available build types (configurations) on multi-config generators")
 else()
-    set(CMAKE_BUILD_TYPE Release CACHE STRING
-            "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel.")
+set(CMAKE_BUILD_TYPE Release CACHE STRING
+"Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel.")
 endif()
 
 # Default installation path
 if(NOT WIN32)
-    set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
+set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
 endif()
 
 set(version 1.1.0)
@@ -34,10 +34,10 @@ option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
 # CK Codegen requires dataclass which is added in Python 3.7
 # Python version 3.8 is required for general good practice as it is default for Ubuntu 20.04
 if(NOT CK_USE_ALTERNATIVE_PYTHON)
-   find_package(Python3 3.8 COMPONENTS Interpreter REQUIRED)
+find_package(Python3 3.8 COMPONENTS Interpreter REQUIRED)
 else()
-   message(STATUS "Using alternative python version")
-   set(EXTRA_PYTHON_PATH)
+message(STATUS "Using alternative python version")
+set(EXTRA_PYTHON_PATH)
    # this is overly restrictive, we may need to be more flexible on the following
    string(REPLACE "/bin/python3.8" "" EXTRA_PYTHON_PATH "${CK_USE_ALTERNATIVE_PYTHON}")
    message(STATUS "alternative python path is: ${EXTRA_PYTHON_PATH}")
@@ -359,15 +359,15 @@ message(STATUS "CMAKE_HIP_COMPILER: ${CMAKE_HIP_COMPILER}")
 
 ## OpenMP
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-	# workaround issue hipcc in rocm3.5 cannot find openmp
-	set(OpenMP_CXX "${CMAKE_CXX_COMPILER}")
-	set(OpenMP_CXX_FLAGS "-fopenmp=libomp -Wno-unused-command-line-argument")
-	set(OpenMP_CXX_LIB_NAMES "libomp" "libgomp" "libiomp5")
-	set(OpenMP_libomp_LIBRARY ${OpenMP_CXX_LIB_NAMES})
-	set(OpenMP_libgomp_LIBRARY ${OpenMP_CXX_LIB_NAMES})
-	set(OpenMP_libiomp5_LIBRARY ${OpenMP_CXX_LIB_NAMES})
+    # workaround issue hipcc in rocm3.5 cannot find openmp
+    set(OpenMP_CXX "${CMAKE_CXX_COMPILER}")
+    set(OpenMP_CXX_FLAGS "-fopenmp=libomp -Wno-unused-command-line-argument")
+    set(OpenMP_CXX_LIB_NAMES "libomp" "libgomp" "libiomp5")
+    set(OpenMP_libomp_LIBRARY ${OpenMP_CXX_LIB_NAMES})
+    set(OpenMP_libgomp_LIBRARY ${OpenMP_CXX_LIB_NAMES})
+    set(OpenMP_libiomp5_LIBRARY ${OpenMP_CXX_LIB_NAMES})
 else()
-	find_package(OpenMP REQUIRED)
+    find_package(OpenMP REQUIRED)
 endif()
 
 message(STATUS "OpenMP_CXX_LIB_NAMES: ${OpenMP_CXX_LIB_NAMES}")
@@ -703,3 +703,6 @@ rocm_create_package(
     LDCONFIG
     HEADER_ONLY
 )
+
+# Add the experimental subdirectory
+add_subdirectory(experimental)
