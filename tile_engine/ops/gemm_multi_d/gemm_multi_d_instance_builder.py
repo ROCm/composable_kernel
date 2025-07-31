@@ -11,7 +11,7 @@ import argparse
 import itertools
 from pathlib import Path
 from typing import List, Optional
-from gemm_multi_d_json_config import GemmConfig, RangeConfigParam
+from gemm_multi_d_json_config import GemmMultiDConfig, RangeConfigParam
 from gemm_multi_d_codegen_utils import (
     DATA_TYPE_MAP,
     LAYOUT_MAP,
@@ -36,11 +36,11 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 
-class GemmCodeGenerator:
-    """GEMM (General Matrix Multiplication) code generator."""
+class GemmMultiDCodeGenerator:
+    """GEMM (General Matrix Multiplication) Multi D code generator."""
 
     def __init__(
-        self, args: argparse.Namespace, user_provided_config: Optional[GemmConfig] = None
+        self, args: argparse.Namespace, user_provided_config: Optional[GemmMultiDConfig] = None
     ):
         self.output_dir = Path(args.working_path)
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -51,7 +51,7 @@ class GemmCodeGenerator:
             config_path = (
                 Path(__file__).resolve().parent / "configs" / "default_config.json"
             )
-            self.config = GemmConfig.from_json(config_path)
+            self.config = GemmMultiDConfig.from_json(config_path)
 
         self.valid_trait_names: List[str] = []
         self.valid_trait_tile_combinations: map[str, list[tuple[int]]] = {}
@@ -154,8 +154,6 @@ class GemmCodeGenerator:
             )
         )
 
-        print("DELETE : tile_group: ", tile_group)
-
         warp_group = list(
             itertools.product(
                 get_tile_value(self.config.tile_config.warp_m),
@@ -163,8 +161,6 @@ class GemmCodeGenerator:
                 get_tile_value(self.config.tile_config.warp_k),
             )
         )
-
-        print("DELETE : warp_group: ", warp_group)  
 
         warp_tile_group = list(
             itertools.product(
@@ -174,13 +170,9 @@ class GemmCodeGenerator:
             )
         )
 
-        print("DELETE : warp_tile_group: ", warp_tile_group)
-
         tile_params = {
             t + w + wt for t in tile_group for w in warp_group for wt in warp_tile_group
         }
-
-        print("DELETE : tile_params: ", tile_params)
 
         for trait in self.valid_trait_names:
             tile_valid_params = [
@@ -190,11 +182,8 @@ class GemmCodeGenerator:
             if trait not in self.valid_trait_tile_combinations:
                 self.valid_trait_tile_combinations[trait] = []
             self.valid_trait_tile_combinations[trait].append(tile_valid_params)
-
-        # print("DELETE : valid_trait_tile_combinations: ", self.valid_trait_tile_combinations)
     
     def is_tile_valid(self, tile: tuple, trait: str) -> bool:
-        print("DELETE : is_tile_valid: ", tile, trait)
         """Check if the tile configuration is valid for the given trait."""
         (
             tile_m,
@@ -252,7 +241,6 @@ class GemmCodeGenerator:
             )
             return False
 
-        # TO DO Check this if there is anything specific to multi D gemm
         # LDS capacity verification
         matrix_a_size = (tile_m * tile_k) * element_size(
             self.config.problem.datatype_map["matrix_a"]
@@ -274,7 +262,6 @@ class GemmCodeGenerator:
             )
             return False
 
-        #TO DO: Check if anything needs to be added for multi D gem
         # Warp combination validation
         warp_tile_key = f"{self.config.problem.datatype_map['matrix_a']}_{self.config.problem.datatype_map['matrix_b']}_{self.config.problem.datatype_map['matrix_e']}"
         current_combination = [warp_tile_m, warp_tile_n, warp_tile_k]
@@ -316,7 +303,9 @@ class GemmCodeGenerator:
         # Determine appropriate accumulation type based on input types
         a_type = self.config.problem.datatype_map["matrix_a"]
         b_type = self.config.problem.datatype_map["matrix_b"]
-        d_type = self.config.problem.datatype_map["matrix_d"]
+        d0_type = self.config.problem.datatype_map["matrix_ds"][0]
+        d1_type = self.config.problem.datatype_map["matrix_ds"][1]
+        ds_type = (d0_type, d1_type)
         e_type = self.config.problem.datatype_map["matrix_e"]
 
         acc_type = "float" # As we are currently supporting only fp16
@@ -333,14 +322,16 @@ class GemmCodeGenerator:
 using ADataType = {DATA_TYPE_MAP[self.config.problem.datatype_map["matrix_a"]]};
 using BDataType = {DATA_TYPE_MAP[self.config.problem.datatype_map["matrix_b"]]};
 using AccDataType = {acc_type};
-using DDataType = {DATA_TYPE_MAP[self.config.problem.datatype_map["matrix_d"]]};
+using D0DataType = {DATA_TYPE_MAP[self.config.problem.datatype_map["d0"]]};
+using D1DataType = {DATA_TYPE_MAP[self.config.problem.datatype_map["d1"]]};
+using DsDataType = {D0DataType}, {D1DataType};
 using EDataType = {DATA_TYPE_MAP[self.config.problem.datatype_map["matrix_e"]]};
 
 
 // Layout configurations
 using ALayout = {LAYOUT_MAP[self.config.problem.layout_map["matrix_a"]]};
 using BLayout = {LAYOUT_MAP[self.config.problem.layout_map["matrix_b"]]};
-using DLayout = {LAYOUT_MAP[self.config.problem.layout_map["matrix_d"]]};
+using DsLayout = {LAYOUT_MAP[self.config.problem.layout_map["matrix_ds"]]};
 using ELayout = {LAYOUT_MAP[self.config.problem.layout_map["matrix_e"]]};
 
 """
@@ -396,8 +387,7 @@ namespace {trait} {{
 
 template <int TileM, int TileN, int TileK,
           int WarpM, int WarpN, int WarpK,
-          int WarpTileM, int WarpTileN, int WarpTileK,
-          bool structured_sparsity>
+          int WarpTileM, int WarpTileN, int WarpTileK>
 struct GemmKernel {{
     static constexpr bool kPadM = {pad_m};
     static constexpr bool kPadN = {pad_n};
@@ -424,11 +414,11 @@ struct GemmKernel {{
                                                       TileParitionerM01>;
 
         using Traits  =
-            ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
+            ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, ELayout>;
 
         using GemmUniversalTraits =
             ck_tile::TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
-                                             ALayout, BLayout, CLayout, TransposeC>;
+                                             ALayout, BLayout, ELayout, TransposeC>;
 
         using GemmPipelineProblem =
             ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
@@ -512,7 +502,7 @@ struct GemmKernel {{
     }}
 
     static std::string get_name() {{
-        return std::string("gemm_") + std::to_string(TileM) + "x" + std::to_string(TileN) + "x" + std::to_string(TileK) +
+        return std::string("gemm_multi_d_") + std::to_string(TileM) + "x" + std::to_string(TileN) + "x" + std::to_string(TileK) +
                 "_" + std::to_string(WarpM) + "x" + std::to_string(WarpN) + "x" + std::to_string(WarpK) + "_" +
                 std::to_string(WarpTileM) + "x" + std::to_string(WarpTileN) + "x" + std::to_string(WarpTileK) + "_" +
                 "{pad_m}" + "_" +
@@ -631,8 +621,8 @@ template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {war
 #include <functional>
 #include <vector>
 
-#include "gemm_common.hpp"
-#include "gemm_instances.hpp"
+#include "gemm_multi_d_common.hpp"
+#include "gemm_multi_d_instances.hpp"
 
 /// @brief Defines the configuration parameters for a GEMM Multi D operation, enabling the selection of a
 /// specific kernel instance based on the provided settings.
@@ -762,20 +752,20 @@ private:
         (self.output_dir / "gemm_dispatcher.hpp").write_text(content)
 
 def do_list_blobs(
-    args: argparse.Namespace, user_provide_config: Optional[GemmConfig] = None
+    args: argparse.Namespace, user_provide_config: Optional[GemmMultiDConfig] = None
 ):
-    generator = GemmCodeGenerator(args, user_provide_config)
+    generator = GemmMultiDCodeGenerator(args, user_provide_config)
     generator.list_all_trait_names()
 
 def do_gen_blobs(
-    args: argparse.Namespace, user_provide_config: Optional[GemmConfig] = None
+    args: argparse.Namespace, user_provide_config: Optional[GemmMultiDConfig] = None
 ):
-    generator = GemmCodeGenerator(args, user_provide_config)
+    generator = GemmMultiDCodeGenerator(args, user_provide_config)
     generator.generate_all_instance_files()
 
 def main(args):
     gemm_config = (
-        GemmConfig.from_json(args.config_json, args.datatype, args.layout)
+        GemmMultiDConfig.from_json(args.config_json, args.datatype, args.layout)
         if args.config_json is not None
         else args.config_json
     )

@@ -67,7 +67,7 @@ class ProblemConfig:
         return {
             "matrix_a": self.datatypes[0].values[0],
             "matrix_b": self.datatypes[1].values[0],
-            "matrix_d": self.datatypes[2].values[0], # Dth Dimension
+            "matrix_ds": self.datatypes[2].values[0], # Dth Dimension
             "matrix_e": self.datatypes[3].values[0], # Result Matrix
         }
 
@@ -77,7 +77,7 @@ class ProblemConfig:
         return {
             "matrix_a": self.layouts[0].values[0],
             "matrix_b": self.layouts[1].values[0],
-            "matrix_d": self.layouts[2].values[0], # Dth Dimension
+            "matrix_ds": self.layouts[2].values[0], # Dth Dimension
             "matrix_e": self.layouts[3].values[0], # Result Matrix
         }
 
@@ -112,8 +112,8 @@ class TraitConfig:
 
 
 @dataclass
-class GemmConfig:
-    """Main configuration class for GEMM operations"""
+class GemmMultiDConfig:
+    """Main configuration class for GEMM Multi D operations"""
 
     problem: ProblemConfig
     tile_config: TileConfig
@@ -121,8 +121,8 @@ class GemmConfig:
 
     @classmethod
     def from_json(
-        cls: Type["GemmConfig"], filepath: str, datatype: str, layout: str
-    ) -> "GemmConfig":
+        cls: Type["GemmMultiDConfig"], filepath: str, datatype: str, layout: str
+    ) -> "GemmMultiDConfig":
         """JSON configuration loader with validation controls"""
         config_path = Path(filepath)
 
@@ -135,8 +135,10 @@ class GemmConfig:
 
             a_type = datatype
             b_type = datatype
-            d_type = datatype
             e_type = datatype
+            d0_type = datatype
+            d1_type = datatype
+            ds_type = (d0_type, d1_type)
 
             layout_parts = layout.lower()
             assert len(layout_parts) == 4, (
@@ -156,8 +158,10 @@ class GemmConfig:
             )
             a_layout = layout_parts[0]
             b_layout = layout_parts[1]
-            d_layout = layout_parts[2]
-            e_layout = layout_parts[3]
+            e_layout = layout_parts[2]
+            d0_layout = layout_parts[3]
+            d1_layout = layout_parts[4]
+            ds_layout = (d0_layout, d1_layout)
 
             # Parse problem config
             # TODO: Not reading datatype and layout information from json file.
@@ -165,13 +169,13 @@ class GemmConfig:
                 datatypes=(
                     EnumConfigParam(values=[a_type]),
                     EnumConfigParam(values=[b_type]),
-                    EnumConfigParam(values=[d_type]),
+                    EnumConfigParam(values=[ds_type]),
                     EnumConfigParam(values=[e_type]),
                 ),
                 layouts=(
                     EnumConfigParam(values=[a_layout]),
                     EnumConfigParam(values=[b_layout]),
-                    EnumConfigParam(values=[d_layout]),
+                    EnumConfigParam(values=[ds_layout]),
                     EnumConfigParam(values=[e_layout]),
                 ),
             )

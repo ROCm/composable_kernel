@@ -4,7 +4,7 @@
   "tile_config": {
     "tile_m": {
       "values": [
-        128,64
+        128
       ]
     },
     "tile_n": {
@@ -51,13 +51,12 @@
   "trait_config": {
     "pipeline": {
       "values": [
-        "compv3",
-        "mem"      
+        "compv3"
       ]
     },
     "scheduler": {
       "values": [
-        "interwave"      
+        "intrawave"      
       ]
     },
     "epilogue": {
