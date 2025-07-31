@@ -22,8 +22,8 @@ struct BatchedTransposeCommonPolicy
         constexpr index_t kVectorSize = Problem::VectorSizeInput;
         static_assert((LeadDimPerBlock * kVectorSize) % BlockSize == 0, "");
         using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
-                                                                      SecondDimPerBlock,
                                                                       LeadDimPerBlock,
+                                                                      SecondDimPerBlock,
                                                                       kVectorSize,
                                                                       TileAccessPattern>;
         return TileEncodingPattern::Make2DStaticTileDistribution();
