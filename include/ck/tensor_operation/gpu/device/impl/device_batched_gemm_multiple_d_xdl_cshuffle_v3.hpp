@@ -337,6 +337,60 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
         }
     };
 
+    struct ActiveWorkgroupsPerCU
+    {
+        ActiveWorkgroupsPerCU()
+        {
+            constexpr int dynamic_smem_size = 0;
+            int max_occupancy               = 0;
+
+            constexpr index_t minimum_occupancy = []() {
+                if constexpr(BlkGemmPipeSched == BlockGemmPipelineScheduler::Interwave)
+                {
+                    return 2;
+                }
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                {
+                    return (MPerBlock * NPerBlock / BlockSize <= 128) ? 2 : 1;
+                }
+                else
+                {
+                    return 1;
+                }
+            }();
+
+            if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
+            {
+                hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                    &max_occupancy,
+                    kernel_batched_gemm_xdl_cshuffle_v3_multi_d_2lds<
+                        GridwiseGemm,
+                        Argument,
+                        true,
+                        InMemoryDataOperationEnum::AtomicAdd,
+                        minimum_occupancy>,
+                    BlockSize,
+                    dynamic_smem_size));
+            }
+            else
+            {
+                hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                    &max_occupancy,
+                    kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
+                        GridwiseGemm,
+                        Argument,
+                        true,
+                        InMemoryDataOperationEnum::AtomicAdd,
+                        minimum_occupancy>,
+                    BlockSize,
+                    dynamic_smem_size));
+            }
+
+            max_occupancy_ = std::max(1, max_occupancy);
+        }
+        int max_occupancy_;
+    };
+
     // Invoker
     struct Invoker : public BaseInvoker
     {
@@ -1043,6 +1097,12 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
         // clang-format on
 
         return str.str();
+    }
+
+    static ck::index_t GetMaxOccupancy()
+    {
+        static ActiveWorkgroupsPerCU active_workgroups_per_cu;
+        return active_workgroups_per_cu.max_occupancy_;
     }
 };
 
