@@ -38,8 +38,6 @@
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_async.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_async_default_policy.hpp"
-#include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_async_mod.hpp"
-#include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_async_mod_default_policy.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_bsp_pipeline_qr_ks_vs_async.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_bsp_pipeline_qr_ks_vs_async_default_policy.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_default_policy.hpp"
