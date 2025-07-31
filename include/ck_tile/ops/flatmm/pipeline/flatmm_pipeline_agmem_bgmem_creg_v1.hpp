@@ -9,9 +9,33 @@
 
 namespace ck_tile {
 
-template <typename Problem, typename PipelinePolicy = UniversalFlatmmPipelineAgBgCrPolicy>
-struct FlatmmPipelineAGmemBGmemCRegV1
+template <typename Problem>
+struct BaseFlatmmPipelineAGmemBGmemCRegV1
 {
+    static constexpr index_t PrefetchStages   = 1;
+    static constexpr index_t PrefillStages    = 1;
+    static constexpr index_t GlobalBufferNum  = 1;
+    static constexpr bool UsePersistentKernel = Problem::Traits::UsePersistentKernel;
+
+    CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
+
+    CK_TILE_HOST_DEVICE static constexpr bool BlockHasHotloop(index_t) { return true; }
+
+    CK_TILE_HOST_DEVICE static constexpr TailNumber GetBlockLoopTailNum(index_t)
+    {
+        return TailNumber::Empty;
+    }
+
+    template <typename RunFunction>
+    CK_TILE_HOST_DEVICE static auto TailHandler(const RunFunction& run_func, bool, TailNumber)
+    {
+        return run_func(bool_constant<true>{}, integral_constant<TailNumber, TailNumber::Empty>{});
+    }
+};
+template <typename Problem, typename PipelinePolicy = UniversalFlatmmPipelineAgBgCrPolicy>
+struct FlatmmPipelineAGmemBGmemCRegV1 : public BaseFlatmmPipelineAGmemBGmemCRegV1<Problem>
+{
+    using Base           = BaseFlatmmPipelineAGmemBGmemCRegV1<Problem>;
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
@@ -33,38 +57,43 @@ struct FlatmmPipelineAGmemBGmemCRegV1
     static constexpr index_t flatKPerWarp = BlockGemmShape::flatKPerWarp;
     static constexpr index_t flatNPerWarp = BlockGemmShape::flatNPerWarp;
 
-    static constexpr index_t GetVectorSizeA() { return Problem::VectorSizeA; }
-    static constexpr index_t GetVectorSizeB() { return Problem::VectorSizeB; }
-    static constexpr index_t GetVectorSizeC() { return Problem::VectorSizeC; }
+    static constexpr index_t GetVectorSizeA()
+    {
+        return PipelinePolicy::template GetVectorSizeA<Problem>();
+    }
+    static constexpr index_t GetVectorSizeB()
+    {
+        return PipelinePolicy::template GetVectorSizeB<Problem>();
+    }
 
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
 
     static constexpr index_t kLdsAlignmentInBytes = 16;
+    static constexpr index_t NumWaveGroups        = Problem::NumWaveGroups;
 
-    static constexpr auto I0   = number<0>();
-    static constexpr auto I1   = number<1>();
-    static constexpr auto I2   = number<2>();
-    static constexpr auto idxM = I0;
-    static constexpr auto idxN = I1;
-    static constexpr auto idxK = I2;
-    using BlockTile            = remove_cvref_t<typename BlockGemmShape::BlockTile>;
-    using BlockWarps           = remove_cvref_t<typename BlockGemmShape::BlockWarps>;
-    using WarpTile             = remove_cvref_t<typename BlockGemmShape::WarpTile>;
+    static constexpr auto I0 = number<0>();
+    static constexpr auto I1 = number<1>();
+    static constexpr auto I2 = number<2>();
+
+    using BlockTile  = remove_cvref_t<typename BlockGemmShape::BlockTile>;
+    using BlockWarps = remove_cvref_t<typename BlockGemmShape::BlockWarps>;
+    using WarpTile   = remove_cvref_t<typename BlockGemmShape::WarpTile>;
+
+    static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
+    static constexpr index_t Preshuffle    = Problem::Preshuffle;
+    using Base::UsePersistentKernel;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
         return concat('_', "pipeline_AGmemBGmemCRegV1", 
                       concat('x', kMPerBlock, kNPerBlock, kKPerBlock,  BlockSize),
-                      concat('x', GetVectorSizeA(), GetVectorSizeB(), GetVectorSizeC()),
+                      concat('x', GetVectorSizeA(), GetVectorSizeB()),
                       concat('x', kPadM, kPadN, kPadK));
         // clang-format on
     }
-
-    // For the basic gemm pipelien DoubleSmemBuffer set to be false naturally.
-    static constexpr bool DoubleSmemBuffer = false;
 
     CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
 
@@ -162,13 +191,19 @@ struct FlatmmPipelineAGmemBGmemCRegV1
                                         void* p_smem) const
     {
         static_assert(
-            std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>>,
-            "wrong!");
+            std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
+                std::is_same_v<BDataType, remove_cvref_t<typename BFlatBlockWindowTmp::DataType>>,
+            "A/B Dram block window should have the same data type as appropriate "
+            "([A|B]DataType) defined in Problem definition!");
 
-        static_assert(kMPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<0>{}],
-                      "wrong!");
-        static_assert(kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
-                      "wrong!");
+        constexpr bool is_a_col_major = std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
+
+        static_assert(is_a_col_major
+                          ? (kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0] &&
+                             kMPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1])
+                          : (kMPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0] &&
+                             kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1]),
+                      "A block window has incorrect lengths for defined ALayout!");
 
         constexpr auto config = BlockFlatmm::BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
 
@@ -423,7 +458,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1
     {
         return operator()(
             a_dram_block_window_tmp,
-            [](const ADataType& a) { return a; },
+            [](const ADataType & a) { return a; },
             b_flat_dram_block_window_tmp,
             num_loop,
             p_smem);

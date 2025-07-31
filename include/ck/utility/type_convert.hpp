@@ -39,6 +39,19 @@ namespace details {
 } // namespace details
 } // namespace
 
+#if defined(__gfx950__)
+inline __device__ bhalf_t static_cast_float_to_bf16(float x)
+{
+    union
+    {
+        uint16_t uint16;
+        __bf16 bf16;
+    } out;
+    out.bf16 = static_cast<__bf16>(x);
+    return out.uint16;
+}
+#endif
+
 // Declare a template function for bf16 conversion using RTN
 template <typename Y, typename X>
 __host__ __device__ constexpr Y bf16_convert_rtn(X x);
@@ -47,6 +60,9 @@ __host__ __device__ constexpr Y bf16_convert_rtn(X x);
 template <>
 inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(float x)
 {
+#if defined(__gfx950__)
+    return static_cast_float_to_bf16(x);
+#else
     // Nan check
     if(x != x)
     {
@@ -63,6 +79,7 @@ inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(fl
     constexpr uint32_t rounding_bias      = uint32_t((1 << 15) - 1);
 
     return uint16_t((u.int32 + first_bf16_mantisa_bit + rounding_bias) >> 16);
+#endif
 }
 
 // convert fp16 to bfp16 via fp32 with RTN if higher precision is needed
@@ -242,7 +259,7 @@ inline __host__ __device__ f8_fnuz_t f8_convert_sr<f8_fnuz_t, float>(float x)
 #else
     constexpr int seed = 1254739;
 #ifndef CK_CODE_GEN_RTC
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
 #else
     uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
 #endif // #ifndef CK_CODE_GEN_RTC
@@ -310,7 +327,7 @@ inline __host__ __device__ bf8_fnuz_t f8_convert_sr<bf8_fnuz_t, float>(float x)
 #else
     constexpr int seed = 1254739;
 #ifndef CK_CODE_GEN_RTC
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
 #else
     uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
 #endif // #ifndef CK_CODE_GEN_RTC
@@ -1401,8 +1418,7 @@ inline __host__ __device__ f4x2_t f4_convert_rne(float2_t x, float scale = 1.0f)
         uint32_t bitwise;
         f4x2_t f4x2_array[4];
     } value{0};
-    // permute high bits and low bits to match the order of the original vector
-    value.bitwise = __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(value.bitwise, x[1], x[0], scale, 0);
+    value.bitwise = __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(value.bitwise, x[0], x[1], scale, 0);
     return value.f4x2_array[0];
 #else
     union
@@ -1410,8 +1426,8 @@ inline __host__ __device__ f4x2_t f4_convert_rne(float2_t x, float scale = 1.0f)
         uint32_t bitwise;
         f4x2_t f4x2_array[4];
     } value{0};
-    uint8_t l     = utils::sat_convert_to_type<f4_t>(x[1] / scale);
-    uint8_t h     = utils::sat_convert_to_type<f4_t>(x[0] / scale);
+    uint8_t l     = utils::sat_convert_to_type<f4_t>(x[0] / scale);
+    uint8_t h     = utils::sat_convert_to_type<f4_t>(x[1] / scale);
     value.bitwise = (h << 4) | l;
     return value.f4x2_array[0];
 #endif
@@ -1429,9 +1445,8 @@ inline __host__ __device__ f4x32_t f4_convert_rne(float32_t x, float scale = 1.0
     } f4_values{}, tmp_values{};
 
     ck::static_for<0, 32 / 2, 1>{}([&](auto idx) {
-        // permute high bits and low bits to match the order of the original vector
         tmp_values.bitwise = __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(
-            tmp_values.bitwise, x[2 * idx + 1], x[2 * idx], scale, 0);
+            tmp_values.bitwise, x[2 * idx], x[2 * idx + 1], scale, 0);
         f4_values.f4x2_array[idx] = tmp_values.f4x2_array[0];
     });
 
@@ -1480,7 +1495,7 @@ inline __host__ __device__ f4_t f4_convert_sr(float x, float scale = 1.0f)
 #else
     constexpr int seed = 1254739;
 #ifndef CK_CODE_GEN_RTC
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
 #else
     uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
 #endif
@@ -1500,14 +1515,12 @@ inline __host__ __device__ f4x2_t f4_convert_sr(float2_t x, float scale = 1.0f)
         uint32_t bitwise;
         f4x2_t f4x2_array[4];
     } value{0};
-    // permute high bits and low bits to match the order of the original vector
-    value.bitwise = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
-        value.bitwise, float2_t{x[1], x[0]}, rng, scale, 0);
+    value.bitwise = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(value.bitwise, x, rng, scale, 0);
     return value.f4x2_array[0];
 #else
     constexpr int seed = 1254739;
 #ifndef CK_CODE_GEN_RTC
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x[0]);
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x[0]);
 #else
     uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x[0]);
 #endif
@@ -1516,8 +1529,8 @@ inline __host__ __device__ f4x2_t f4_convert_sr(float2_t x, float scale = 1.0f)
         uint32_t bitwise;
         f4x2_t f4x2_array[4];
     } value{0};
-    uint8_t l     = utils::sat_convert_to_type_sr<f4_t>(x[1] / scale, rng);
-    uint8_t h     = utils::sat_convert_to_type_sr<f4_t>(x[0] / scale, rng);
+    uint8_t l     = utils::sat_convert_to_type_sr<f4_t>(x[0] / scale, rng);
+    uint8_t h     = utils::sat_convert_to_type_sr<f4_t>(x[1] / scale, rng);
     value.bitwise = (h << 4) | l;
     return value.f4x2_array[0];
 #endif
@@ -1544,20 +1557,15 @@ inline __host__ __device__ f4x32_t f4_convert_sr(float32_t x, float scale = 1.0f
     float_values.floatx32_array = x;
 
     ck::static_for<0, 32 / 2, 1>{}([&](auto idx) {
-        // permute high bits and low bits to match the order of the original vector
         f4_values.f4x2_array[idx] = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
-            f4_values.bitwise,
-            float2_t{float_values.floatx2_array[idx][1], float_values.floatx2_array[idx][0]},
-            rng,
-            scale,
-            0);
+            f4_values.bitwise, float_values.floatx2_array[idx], rng, scale, 0);
     });
 
     return f4_values.f4x32_array;
 #else
     constexpr int seed = 1254739;
 #ifndef CK_CODE_GEN_RTC
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x[0]);
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x[0]);
 #else
     uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x[0]);
 #endif
@@ -1648,9 +1656,7 @@ inline __host__ __device__ float2_t type_convert<float2_t, f4x2_t>(f4x2_t x)
     } value{};
     value.f4x2_array[0] = x;
     float scale         = 1.0f;
-    float2_t tmp        = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.bitwise, scale, 0);
-    // permute high bits and low bits to match the order of the original vector
-    return float2_t{tmp[1], tmp[0]};
+    return __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.bitwise, scale, 0);
 #else
     float2_t ret{
         utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
@@ -1676,10 +1682,9 @@ inline __host__ __device__ float32_t type_convert<float32_t, f4x32_t>(f4x32_t x)
     float scale = 1.0f;
 
     ck::static_for<0, 32 / 2, 1>{}([&](auto idx) {
-        op = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[idx], scale, 0);
-        // permute high bits and low bits to match the order of the original vector
-        ret[2 * idx]     = op[1];
-        ret[2 * idx + 1] = op[0];
+        op               = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[idx], scale, 0);
+        ret[2 * idx]     = op[0];
+        ret[2 * idx + 1] = op[1];
     });
 
     return ret;
@@ -1734,7 +1739,7 @@ inline __host__ __device__ f6_t f6_convert_rne(float x, float scale = 1.0f)
         f6_t f6_array[32];
     } out{};
 
-    out.f6_vector = __builtin_amdgcn_cvt_scalef32_2xpk16_fp6_f32(in1, in2, scale);
+    out.f6_vector = f6x32_t{__builtin_amdgcn_cvt_scalef32_2xpk16_fp6_f32(in1, in2, scale)};
 
     return out.f6_array[0];
 #else
@@ -1757,7 +1762,7 @@ inline __host__ __device__ f6x32_t f6_convert_rne(float32_t x, float scale = 1.0
 #if defined(__gfx950__)
     float16_t* in1 = reinterpret_cast<float16_t*>(&x);
     float16_t* in2 = reinterpret_cast<float16_t*>(&x + 16);
-    return __builtin_amdgcn_cvt_scalef32_2xpk16_fp6_f32(*in1, *in2, scale);
+    return f6x32_t{__builtin_amdgcn_cvt_scalef32_2xpk16_fp6_f32(*in1, *in2, scale)};
 #else
     union
     {
@@ -1765,17 +1770,15 @@ inline __host__ __device__ f6x32_t f6_convert_rne(float32_t x, float scale = 1.0
         float float_array[32];
     } in{x};
 
-    union
-    {
-        f6x32_t f6_vector;
-        f6_t f6_array[32];
-    } out{};
+    using array_type = uint8_t __attribute__((ext_vector_type(32)));
+    array_type uint8_array;
 
+    // collect the 6-bit values into an array
     ck::static_for<0, 32, 1>{}([&](auto i) {
-        out.f6_array[i] = utils::sat_convert_to_type<f6_t>(in.float_array[i] / scale);
+        uint8_array[static_cast<index_t>(i)] =
+            utils::sat_convert_to_type<f6_t>(in.float_array[i] / scale);
     });
-
-    return out.f6_vector;
+    return f6x32_t{f6x32_pk_t{uint8_array}};
 #endif
 }
 
@@ -1807,13 +1810,14 @@ inline __host__ __device__ f6_t f6_convert_sr(float x, float scale = 1.0f)
         f6_t f6_array[32];
     } out{};
 
-    out.f6_vector = __builtin_amdgcn_cvt_scalef32_sr_pk32_fp6_f32(in.float_vector, rng, scale);
+    out.f6_vector =
+        f6x32_t{__builtin_amdgcn_cvt_scalef32_sr_pk32_fp6_f32(in.float_vector, rng, scale)};
 
     return out.f6_array[0];
 #else
     constexpr int seed = 1254739;
 #ifndef CK_CODE_GEN_RTC
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
 #else
     uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
 #endif
@@ -1837,7 +1841,7 @@ inline __host__ __device__ f6x32_t f6_convert_sr(float32_t x, float scale = 1.0f
     // use HW clock for stochastic input multiply by incremented thread id
     uint32_t rng = __builtin_amdgcn_prng_b32(__builtin_amdgcn_s_memrealtime() *
                                              (get_thread_global_1d_id() + 1));
-    return __builtin_amdgcn_cvt_scalef32_sr_pk32_fp6_f32(x, rng, scale);
+    return f6x32_t{__builtin_amdgcn_cvt_scalef32_sr_pk32_fp6_f32(x, rng, scale)};
 #else
     constexpr int seed = 1254739;
     union
@@ -1852,6 +1856,7 @@ inline __host__ __device__ f6x32_t f6_convert_sr(float32_t x, float scale = 1.0f
     uint32_t rng =
         prand_generator<float, seed>(reinterpret_cast<size_t>(&x), float_values.float_array[0]);
 #endif
+
     union
     {
         float32_t float_vector;
@@ -1914,6 +1919,43 @@ inline __host__ __device__ f6x32_t type_convert<f6x32_t, float32_t>(float32_t x)
 #endif
 }
 
+template <>
+inline __host__ __device__ f6x32_pk_t type_convert<f6x32_pk_t, float32_t>(float32_t x)
+{
+    return static_cast<f6x32_pk_t>(type_convert<f6x32_t>(x));
+}
+
+template <>
+inline __host__ __device__ f6x16_t type_convert<f6x16_t, float16_t>(float16_t x)
+{
+
+    union
+    {
+        float16_t v16x2[2];
+        float32_t v32;
+    } in{{x, x}};
+
+    union
+    {
+        f6x32_t v32;
+        f6x16_t v16x2[2];
+    } out{};
+
+#if CK_USE_SR_F6_CONVERSION
+    out.v32 = f6_convert_sr(in.v32);
+#else
+    out.v32 = f6_convert_rne(in.v32);
+#endif
+
+    return out.v16x2[0];
+}
+
+template <>
+inline __host__ __device__ f6x16_pk_t type_convert<f6x16_pk_t, float16_t>(float16_t x)
+{
+    return static_cast<f6x16_pk_t>(type_convert<f6x16_t>(x));
+}
+
 /**
  * @brief Specializes the type conversion template for converting the 6-bit float type (f6_t) to
  * float.
@@ -1929,9 +1971,9 @@ inline __host__ __device__ float type_convert<float, f6_t>(f6_t x)
 #if defined(__gfx950__)
     union
     {
-        f6x32_t f6_vector;
         f6_t f6_array[32];
-    } in{x};
+        f6x32_t f6_vector;
+    } in{{x}};
 
     union
     {
@@ -1940,7 +1982,8 @@ inline __host__ __device__ float type_convert<float, f6_t>(f6_t x)
     } out{};
 
     out.float_vector = __builtin_amdgcn_cvt_scalef32_pk32_f32_fp6(
-        in.f6_vector, type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
+        in.f6_vector.template AsType<f6x32_t::data_t>()[Number<0>{}],
+        type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
     return out.float_array[0];
 #else
     return utils::to_float<f6_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), x);
@@ -1948,8 +1991,8 @@ inline __host__ __device__ float type_convert<float, f6_t>(f6_t x)
 }
 
 /**
- * @brief Specializes the type conversion template for converting the vector of 32 6-bit float types
- * (f6x32_t) to vector of 32 floats.
+ * @brief Specializes the type conversion template for converting the vector of 32 6-bit float
+ * types (f6x32_t) to vector of 32 floats.
  *
  * Interprets an f6_t values as floats using the default scale factor of 1.
  *
@@ -1961,7 +2004,8 @@ inline __host__ __device__ float32_t type_convert<float32_t, f6x32_t>(f6x32_t x)
 {
 #if defined(__gfx950__)
     return __builtin_amdgcn_cvt_scalef32_pk32_f32_fp6(
-        x, type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
+        x.template AsType<f6x32_t::data_t>()[Number<0>{}],
+        type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
 #else
     union
     {
@@ -1982,6 +2026,31 @@ inline __host__ __device__ float32_t type_convert<float32_t, f6x32_t>(f6x32_t x)
 
     return out.float_vector;
 #endif
+}
+
+template <>
+inline __host__ __device__ float16_t type_convert<float16_t, f6x16_t>(f6x16_t x)
+{
+    union
+    {
+        f6x16_t v16x2[2];
+        f6x32_t v32;
+    } in{{x, x}};
+
+    union
+    {
+        float16_t v16x2[2];
+        float32_t v32;
+    } out{};
+
+    out.v32 = type_convert<float32_t>(in.v32);
+    return out.v16x2[0];
+}
+
+template <>
+inline __host__ __device__ float16_t type_convert<float16_t, f6x16_pk_t>(f6x16_pk_t x)
+{
+    return type_convert<float16_t>(static_cast<f6x16_t>(x));
 }
 
 /**
@@ -2006,7 +2075,7 @@ inline __host__ __device__ bf6_t bf6_convert_rne(float x, float scale = 1.0f)
         bf6_t bf6_array[32];
     } out{};
 
-    out.bf6_vector = __builtin_amdgcn_cvt_scalef32_2xpk16_bf6_f32(in1, in2, scale);
+    out.bf6_vector = bf6x32_t{__builtin_amdgcn_cvt_scalef32_2xpk16_bf6_f32(in1, in2, scale)};
 
     return out.bf6_array[0];
 #else
@@ -2030,7 +2099,7 @@ inline __host__ __device__ bf6x32_t bf6_convert_rne(float32_t x, float scale = 1
 #if defined(__gfx950__)
     float16_t* in1 = reinterpret_cast<float16_t*>(&x);
     float16_t* in2 = reinterpret_cast<float16_t*>(&x + 16);
-    return __builtin_amdgcn_cvt_scalef32_2xpk16_bf6_f32(*in1, *in2, scale);
+    return bf6x32_t{__builtin_amdgcn_cvt_scalef32_2xpk16_bf6_f32(*in1, *in2, scale)};
 #else
     union
     {
@@ -2038,17 +2107,15 @@ inline __host__ __device__ bf6x32_t bf6_convert_rne(float32_t x, float scale = 1
         float float_array[32];
     } in{x};
 
-    union
-    {
-        bf6x32_t bf6_vector;
-        bf6_t bf6_array[32];
-    } out{};
+    using array_type = uint8_t __attribute__((ext_vector_type(32)));
+    array_type uint8_array;
 
+    // collect the 6-bit values into an array
     ck::static_for<0, 32, 1>{}([&](auto i) {
-        out.bf6_array[i] = utils::sat_convert_to_type<bf6_t>(in.float_array[i] / scale);
+        uint8_array[static_cast<index_t>(i)] =
+            utils::sat_convert_to_type<bf6_t>(in.float_array[i] / scale);
     });
-
-    return out.bf6_vector;
+    return bf6x32_t{bf6x32_pk_t{uint8_array}};
 #endif
 }
 
@@ -2081,13 +2148,14 @@ inline __host__ __device__ bf6_t bf6_convert_sr(float x, float scale = 1.0f)
         bf6_t bf6_array[32];
     } out{};
 
-    out.bf6_vector = __builtin_amdgcn_cvt_scalef32_sr_pk32_bf6_f32(in.float_vector, rng, scale);
+    out.bf6_vector =
+        bf6x32_t{__builtin_amdgcn_cvt_scalef32_sr_pk32_bf6_f32(in.float_vector, rng, scale)};
 
     return out.bf6_array[0];
 #else
     constexpr int seed = 1254739;
 #ifndef CK_CODE_GEN_RTC
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
 #else
     uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
 #endif
@@ -2113,7 +2181,7 @@ inline __host__ __device__ bf6x32_t bf6_convert_sr(float32_t x, float scale = 1.
     // use HW clock for stochastic input multiply by incremented thread id
     uint32_t rng = __builtin_amdgcn_prng_b32(__builtin_amdgcn_s_memrealtime() *
                                              (get_thread_global_1d_id() + 1));
-    return __builtin_amdgcn_cvt_scalef32_sr_pk32_bf6_f32(x, rng, scale);
+    return bf6x32_t{__builtin_amdgcn_cvt_scalef32_sr_pk32_bf6_f32(x, rng, scale)};
 #else
     constexpr int seed = 1254739;
     union
@@ -2186,6 +2254,43 @@ inline __host__ __device__ bf6x32_t type_convert<bf6x32_t, float32_t>(float32_t 
 #endif
 }
 
+template <>
+inline __host__ __device__ bf6x32_pk_t type_convert<bf6x32_pk_t, float32_t>(float32_t x)
+{
+    return static_cast<bf6x32_pk_t>(type_convert<bf6x32_t>(x));
+}
+
+template <>
+inline __host__ __device__ bf6x16_t type_convert<bf6x16_t, float16_t>(float16_t x)
+{
+
+    union
+    {
+        float16_t v16x2[2];
+        float32_t v32;
+    } in{{x, x}};
+
+    union
+    {
+        bf6x32_t v32;
+        bf6x16_t v16x2[2];
+    } out{};
+
+#if CK_USE_SR_F6_CONVERSION
+    out.v32 = bf6_convert_sr(in.v32);
+#else
+    out.v32 = bf6_convert_rne(in.v32);
+#endif
+
+    return out.v16x2[0];
+}
+
+template <>
+inline __host__ __device__ bf6x16_pk_t type_convert<bf6x16_pk_t, float16_t>(float16_t x)
+{
+    return static_cast<bf6x16_pk_t>(type_convert<bf6x16_t>(x));
+}
+
 /**
  * @brief Specializes the type conversion template for converting a bf6_t value to float.
  *
@@ -2201,9 +2306,9 @@ inline __host__ __device__ float type_convert<float, bf6_t>(bf6_t x)
 #if defined(__gfx950__)
     union
     {
-        bf6x32_t bf6_vector;
         bf6_t bf6_array[32];
-    } in{x};
+        bf6x32_t bf6_vector;
+    } in{{x}};
 
     union
     {
@@ -2212,7 +2317,8 @@ inline __host__ __device__ float type_convert<float, bf6_t>(bf6_t x)
     } out{};
 
     out.float_vector = __builtin_amdgcn_cvt_scalef32_pk32_f32_bf6(
-        in.bf6_vector, type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
+        in.bf6_vector.template AsType<bf6x32_t::data_t>()[Number<0>{}],
+        type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
     return out.float_array[0];
 #else
     return utils::to_float<bf6_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), x);
@@ -2234,7 +2340,8 @@ inline __host__ __device__ float32_t type_convert<float32_t, bf6x32_t>(bf6x32_t 
 {
 #if defined(__gfx950__)
     return __builtin_amdgcn_cvt_scalef32_pk32_f32_bf6(
-        x, type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
+        x.template AsType<bf6x32_t::data_t>()[Number<0>{}],
+        type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
 #else
     union
     {
@@ -2256,6 +2363,32 @@ inline __host__ __device__ float32_t type_convert<float32_t, bf6x32_t>(bf6x32_t 
     return out.float_vector;
 #endif
 }
+
+template <>
+inline __host__ __device__ float16_t type_convert<float16_t, bf6x16_t>(bf6x16_t x)
+{
+    union
+    {
+        bf6x16_t v16x2[2];
+        bf6x32_t v32;
+    } in{{x, x}};
+
+    union
+    {
+        float16_t v16x2[2];
+        float32_t v32;
+    } out{};
+
+    out.v32 = type_convert<float32_t>(in.v32);
+    return out.v16x2[0];
+}
+
+template <>
+inline __host__ __device__ float16_t type_convert<float16_t, bf6x16_pk_t>(bf6x16_pk_t x)
+{
+    return type_convert<float16_t>(static_cast<bf6x16_t>(x));
+}
+
 #endif
 #if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 template <typename Y, typename X, size_t NumElems>

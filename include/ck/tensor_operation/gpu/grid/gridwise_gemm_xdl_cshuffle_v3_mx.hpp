@@ -34,7 +34,7 @@ template <bool Use2LDS,
           TailNumber TailNum       = TailNumber::Full>
 __global__ enable_if_t<!Use2LDS, void>
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3_mx(typename GridwiseGemm::Argument karg)
@@ -66,7 +66,7 @@ template <bool Use2LDS,
           TailNumber TailNum       = TailNumber::Full>
 __global__ enable_if_t<Use2LDS, void>
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3_mx(typename GridwiseGemm::Argument karg)
@@ -419,6 +419,12 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                         (GemmSpec != GemmSpecialization::Default &&
                          GemmSpec != GemmSpecialization::MPadding)),
                       "f4x2_pk_t does not support K padding");
+        static_assert(!((is_same_v<remove_cvref_t<ADataType>, f6x16_pk_t> ||
+                         is_same_v<remove_cvref_t<ADataType>, bf6x16_pk_t> ||
+                         is_same_v<remove_cvref_t<ADataType>, f6x32_pk_t> ||
+                         is_same_v<remove_cvref_t<ADataType>, bf6x32_pk_t>) &&
+                        GemmSpec != GemmSpecialization::Default),
+                      "Packed F6 types do not support padding");
 
         if constexpr(GemmSpec == GemmSpecialization::NKPadding ||
                      GemmSpec == GemmSpecialization::MNKPadding)
@@ -642,23 +648,13 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
         __host__ void Print() const
         {
-            std::cout << "problem {"
-                      << "M:" << M << ", "
-                      << "N:" << N << ", "
-                      << "K:" << K << ", "
-                      << "SA:" << StrideA << ", "
-                      << "SScaleA:" << StrideScaleA << ", "
-                      << "SB:" << StrideB << ", "
-                      << "SScaleB:" << StrideScaleB << ", "
-                      << "SC:" << StrideC << ", "
-                      << "MP:" << MPadded << ", "
-                      << "NP:" << NPadded << ", "
-                      << "KRead:" << KRead << ", "
-                      << "KP:" << KPadded << ", "
-                      << "AK0:" << AK0 << ", "
-                      << "BK0:" << BK0 << ", "
-                      << "MBlock: " << MBlock << ", "
-                      << "NBlock: " << NBlock << "}" << std::endl;
+            std::cout << "problem {" << "M:" << M << ", " << "N:" << N << ", " << "K:" << K << ", "
+                      << "SA:" << StrideA << ", " << "SScaleA:" << StrideScaleA << ", "
+                      << "SB:" << StrideB << ", " << "SScaleB:" << StrideScaleB << ", "
+                      << "SC:" << StrideC << ", " << "MP:" << MPadded << ", " << "NP:" << NPadded
+                      << ", " << "KRead:" << KRead << ", " << "KP:" << KPadded << ", "
+                      << "AK0:" << AK0 << ", " << "BK0:" << BK0 << ", " << "MBlock: " << MBlock
+                      << ", " << "NBlock: " << NBlock << "}" << std::endl;
         }
 
         index_t M;

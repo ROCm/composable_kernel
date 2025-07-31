@@ -62,6 +62,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     libzstd-dev \
     openssh-server \
     clang-format-12 \
+    clang-format-18 \
     kmod && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
@@ -77,7 +78,6 @@ RUN git clone https://github.com/ccache/ccache.git && \
     wget -qO /usr/local/bin/ninja.gz https://github.com/ninja-build/ninja/releases/latest/download/ninja-linux.zip && \
     gunzip /usr/local/bin/ninja.gz && \
     chmod a+x /usr/local/bin/ninja && \
-    git clone https://github.com/nico/ninjatracing.git && \
 #Install ClangBuildAnalyzer
     git clone https://github.com/aras-p/ClangBuildAnalyzer.git && \
     cd ClangBuildAnalyzer/ && \

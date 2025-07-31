@@ -105,10 +105,8 @@ struct KernelInstance
     friend std::ostream& operator<<(std::ostream& os, const KernelInstance& obj)
     {
         os << "{\n"
-           << " \"name\": \""
-           << "{\n"
-           << obj.name_ << "\n}"
-           << "\",\n"
+           << " \"name\": \"" << "{\n"
+           << obj.name_ << "\n}" << "\",\n"
            << " \"problem\": \"" << obj.problem_ << "\",\n"
            << " \"perf_result\": " << obj.perf_result_ << "\n"
            << "}";
@@ -127,6 +125,7 @@ struct Setting
     std::string csv_filename_;
     bool flush_cache_;
     int rotating_count_;
+    int bench_time_ms_;
 };
 
 inline std::string get_rocm_version()
@@ -163,7 +162,8 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
 }
 
 /// @brief Function to compare the results of the device and host computations
-bool compare(ck_tile::index_t K,
+bool compare(std::string instanceName,
+             ck_tile::index_t K,
              ck_tile::index_t kbatch,
              ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
              ck_tile::HostTensor<CDataType>& c_m_n_host_result)
@@ -178,8 +178,9 @@ bool compare(ck_tile::index_t K,
                                    rtol_atol.at(ck_tile::number<0>{}),
                                    rtol_atol.at(ck_tile::number<1>{}));
 
-    std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
-              << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{}) << std::endl;
+    std::cout << "For " << instanceName << " Relative error threshold is "
+              << rtol_atol.at(ck_tile::number<0>{}) << " Absolute error threshold is "
+              << rtol_atol.at(ck_tile::number<1>{}) << std::endl;
     std::cout << "The verification result is:" << (pass ? "correct" : "fail") << std::endl;
 
     return pass;

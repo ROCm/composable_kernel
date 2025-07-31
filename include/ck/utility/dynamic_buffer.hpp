@@ -34,6 +34,10 @@ struct DynamicBuffer
     ElementSpaceSize element_space_size_;
     T invalid_element_value_ = T{0};
 
+    // XXX: PackedSize semantics for pk_i4_t is different from the other packed types.
+    // Objects of f4x2_pk_t and f6_pk_t are counted as 1 element, while
+    // objects of pk_i4_t are counted as 2 elements. Therefore, element_space_size_ for pk_i4_t must
+    // be divided by 2 to correctly represent the number of addressable elements.
     static constexpr index_t PackedSize = []() {
         if constexpr(is_same_v<remove_cvref_t<T>, pk_i4_t>)
             return 2;
@@ -228,7 +232,7 @@ struct DynamicBuffer
 #if CK_USE_AMD_BUFFER_LOAD
         bool constexpr use_amd_buffer_addressing = sizeof(IndexType) <= sizeof(int32_t);
 #else
-        bool constexpr use_amd_buffer_addressing      = false;
+        bool constexpr use_amd_buffer_addressing = false;
 #endif
 
 #if CK_WORKAROUND_SWDEV_XXXXXX_INT8_DS_WRITE_ISSUE
