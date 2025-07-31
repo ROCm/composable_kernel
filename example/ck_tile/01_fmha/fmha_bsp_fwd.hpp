@@ -30,8 +30,10 @@ struct FmhaBspFwdTypeConfig;
 template <>
 struct FmhaBspFwdTypeConfig<FmhaBspFwdFp16>
 {
+    using MaskSelectDataType    = uint64_t;
     using LanguageMaskDataType  = bool;
     using ColumnMaskDataType    = int32_t;
+    using DocumentIdDataType    = uint16_t;
     using QDataType             = ck_tile::half_t;
     using KDataType             = ck_tile::half_t;
     using VDataType             = ck_tile::half_t;
@@ -48,8 +50,10 @@ struct FmhaBspFwdTypeConfig<FmhaBspFwdFp16>
 template <>
 struct FmhaBspFwdTypeConfig<FmhaBspFwdBf16>
 {
+    using MaskSelectDataType    = uint64_t;
     using LanguageMaskDataType  = bool;
     using ColumnMaskDataType    = int32_t;
+    using DocumentIdDataType    = uint16_t;
     using QDataType             = ck_tile::bf16_t;
     using KDataType             = ck_tile::bf16_t;
     using VDataType             = ck_tile::bf16_t;
@@ -66,11 +70,12 @@ struct FmhaBspFwdTypeConfig<FmhaBspFwdBf16>
 // runtime args, some will passed to karg, some will used to compute grids/blocks
 struct fmha_bsp_fwd_args
 {
+    const void* mask_select_ptr;
     const void* language_mask_ptr;
-    ck_tile::index_t stride_language_mask;
     void* column_mask_ptr;
-    ck_tile::index_t stride_column_mask_n;
-    ck_tile::index_t stride_column_mask_i;
+    ck_tile::index_t stride_column_mask_h;
+    ck_tile::index_t stride_column_mask_m;
+    const void* document_id_ptr;
     const void* q_ptr;
     const void* k_ptr;
     const void* v_ptr;
@@ -138,11 +143,12 @@ auto fmha_bsp_fwd_create_kargs_and_grids(fmha_bsp_fwd_args args)
         if constexpr(FmhaBspKernel::kIsGroupMode)
         {
             return FmhaBspKernel::MakeKargsImpl(
+                                            args.mask_select_ptr,
                                             args.language_mask_ptr,
-                                            args.stride_language_mask,
                                             args.column_mask_ptr,
-                                            args.stride_column_mask_n,
-                                            args.stride_column_mask_i,
+                                            args.stride_column_mask_h,
+                                            args.stride_column_mask_m,
+                                            args.document_id_ptr,
                                             args.q_ptr,
                                             args.k_ptr,
                                             args.v_ptr,
@@ -183,11 +189,12 @@ auto fmha_bsp_fwd_create_kargs_and_grids(fmha_bsp_fwd_args args)
         else
         { // create batch mode kernel arguments
             return FmhaBspKernel::MakeKargsImpl(
+                                             args.mask_select_ptr,
                                              args.language_mask_ptr,
-                                             args.stride_language_mask,
                                              args.column_mask_ptr,
-                                             args.stride_column_mask_n,
-                                             args.stride_column_mask_i,
+                                             args.stride_column_mask_h,
+                                             args.stride_column_mask_m,
+                                             args.document_id_ptr,
                                              args.q_ptr,
                                              args.k_ptr,
                                              args.v_ptr,
@@ -237,14 +244,14 @@ auto fmha_bsp_fwd_create_kargs_and_grids(fmha_bsp_fwd_args args)
     {
         dim3 grids = FmhaBspKernel::GridSize(
             args.batch, args.nhead_q, args.max_seqlen_q, args.hdim_v, args.seqlen_k_ptr != nullptr);
-        std::cout << "grids: " << grids.x << ", " << grids.y << ", " << grids.z << std::endl;
+        // std::cout << "grids: " << grids.x << ", " << grids.y << ", " << grids.z << std::endl;
         return ck_tile::make_tuple(kargs, grids);
     }
     else
     {
         dim3 grids =
             FmhaBspKernel::GridSize(args.batch, args.nhead_q, args.max_seqlen_q, args.hdim_v, false);
-        std::cout << "grids: " << grids.x << ", " << grids.y << ", " << grids.z  << std::endl;
+        // std::cout << "grids: " << grids.x << ", " << grids.y << ", " << grids.z  << std::endl;
         return ck_tile::make_tuple(kargs, grids);
     }
 }
@@ -311,4 +318,4 @@ struct fmha_bsp_fwd_traits
     bool has_dropout;
     bool do_fp8_static_quant;
 };
-float fmha_bsp_fwd(fmha_bsp_fwd_traits, fmha_bsp_fwd_args, const ck_tile::stream_config&);
+float fmha_bsp_fwd(fmha_bsp_fwd_traits, fmha_bsp_fwd_args, const ck_tile::stream_config&, const int sparse_factor);

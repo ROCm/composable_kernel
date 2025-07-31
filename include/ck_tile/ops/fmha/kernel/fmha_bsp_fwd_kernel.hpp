@@ -20,7 +20,7 @@
 
 namespace ck_tile {
 
-template <typename FmhaBspPipeline_, typename EpiloguePipeline_>
+template <typename MaskSelectDataType_, typename FmhaBspPipeline_, typename EpiloguePipeline_>
 struct FmhaBspFwdKernel
 {
     using FmhaBspPipeline                            = ck_tile::remove_cvref_t<FmhaBspPipeline_>;
@@ -30,8 +30,10 @@ struct FmhaBspFwdKernel
     static_assert(kBlockPerCu > 0);
     static constexpr ck_tile::index_t kBlockPerCuInput = FmhaBspPipeline::Problem::kBlockPerCu;
 
+    using MaskSelectDataType    = ck_tile::remove_cvref_t<MaskSelectDataType_>;
     using LanguageMaskDataType  = ck_tile::remove_cvref_t<typename FmhaBspPipeline::LanguageMaskDataType>;
     using ColumnMaskDataType    = ck_tile::remove_cvref_t<typename FmhaBspPipeline::ColumnMaskDataType>;
+    using DocumentIdDataType    = ck_tile::remove_cvref_t<typename FmhaBspPipeline::ColumnMaskDataType>;
     using QDataType    = ck_tile::remove_cvref_t<typename FmhaBspPipeline::QDataType>;
     using KDataType    = ck_tile::remove_cvref_t<typename FmhaBspPipeline::KDataType>;
     using VDataType    = ck_tile::remove_cvref_t<typename FmhaBspPipeline::VDataType>;
@@ -126,11 +128,12 @@ struct FmhaBspFwdKernel
     // user need to use MakeKargs() function to create kargs.
     struct FmhaBspFwdCommonKargs
     {
+        const void* mask_select_ptr;
         const void* language_mask_ptr;
-        ck_tile::index_t stride_language_mask;
         void* column_mask_ptr;
-        ck_tile::index_t stride_column_mask_n;
-        ck_tile::index_t stride_column_mask_i;
+        ck_tile::index_t stride_column_mask_h;
+        ck_tile::index_t stride_column_mask_m;
+        const void* document_id_ptr;
         const void* q_ptr;
         const void* k_ptr;
         const void* v_ptr;
@@ -290,11 +293,12 @@ struct FmhaBspFwdKernel
 
     template <bool Cond = !kIsGroupMode>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
-    MakeKargsImpl(const void* language_mask_ptr,
-                  ck_tile::index_t stride_language_mask,
+    MakeKargsImpl(const void* mask_select_ptr,
+                  const void* language_mask_ptr,
                   void* column_mask_ptr,
-                  ck_tile::index_t stride_column_mask_n,
-                  ck_tile::index_t stride_column_mask_i,
+                  ck_tile::index_t stride_column_mask_h,
+                  ck_tile::index_t stride_column_mask_m,
+                  const void* document_id_ptr,
                   const void* q_ptr,
                   const void* k_ptr,
                   const void* v_ptr,
@@ -339,11 +343,12 @@ struct FmhaBspFwdKernel
                   std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
                       drop_seed_offset)
     {
-        Kargs kargs{{language_mask_ptr,
-                     stride_language_mask,
+        Kargs kargs{{mask_select_ptr,
+                     language_mask_ptr,
                      column_mask_ptr,
-                     stride_column_mask_n,
-                     stride_column_mask_i,
+                     stride_column_mask_h,
+                     stride_column_mask_m,
+                     document_id_ptr,
                      q_ptr,
                      k_ptr,
                      v_ptr,
@@ -434,11 +439,12 @@ struct FmhaBspFwdKernel
     // std::variant<> can't take in a list initializer, overload for backward compatibility
     template <bool Cond = !kIsGroupMode>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
-    MakeKargs(const void* language_mask_ptr,
-              ck_tile::index_t stride_language_mask,
+    MakeKargs(const void* mask_select_ptr,
+              const void* language_mask_ptr,
               void* column_mask_ptr,
-              ck_tile::index_t stride_column_mask_n,
-              ck_tile::index_t stride_column_mask_i,
+              ck_tile::index_t stride_column_mask_h,
+              ck_tile::index_t stride_column_mask_m,
+              const void* document_id_ptr,
               const void* q_ptr,
               const void* k_ptr,
               const void* v_ptr,
@@ -483,11 +489,12 @@ struct FmhaBspFwdKernel
               const std::tuple<uint64_t, uint64_t>& drop_seed_offset)
     {
         return MakeKargsImpl(
+            mask_select_ptr,
             language_mask_ptr,
-            stride_language_mask,
             column_mask_ptr,
-            stride_column_mask_n,
-            stride_column_mask_i,
+            stride_column_mask_h,
+            stride_column_mask_m,
+            document_id_ptr,
             q_ptr,
             k_ptr,
             v_ptr,
@@ -535,11 +542,12 @@ struct FmhaBspFwdKernel
     // std::variant<> can't take in a list initializer, overload for backward compatibility
     template <bool Cond = !kIsGroupMode>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
-    MakeKargs(const void* language_mask_ptr,
-              ck_tile::index_t stride_language_mask,
+    MakeKargs(const void* mask_select_ptr,
+              const void* language_mask_ptr,
               void* column_mask_ptr,
-              ck_tile::index_t stride_column_mask_n,
-              ck_tile::index_t stride_column_mask_i,
+              ck_tile::index_t stride_column_mask_h,
+              ck_tile::index_t stride_column_mask_m,
+              const void* document_id_ptr,
               const void* q_ptr,
               const void* k_ptr,
               const void* v_ptr,
@@ -584,11 +592,12 @@ struct FmhaBspFwdKernel
               const std::tuple<const void*, const void*>& drop_seed_offset)
     {
         return MakeKargsImpl(
+            mask_select_ptr,
             language_mask_ptr,
-            stride_language_mask,
             column_mask_ptr,
-            stride_column_mask_n,
-            stride_column_mask_i,
+            stride_column_mask_h,
+            stride_column_mask_m,
+            document_id_ptr,
             q_ptr,
             k_ptr,
             v_ptr,
@@ -635,11 +644,12 @@ struct FmhaBspFwdKernel
 
     template <bool Cond = kIsGroupMode>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
-    MakeKargsImpl(const void* language_mask_ptr,
-                  ck_tile::index_t stride_language_mask,
+    MakeKargsImpl(const void* mask_select_ptr,
+                  const void* language_mask_ptr,
                   void* column_mask_ptr,
-                  ck_tile::index_t stride_column_mask_n,
-                  ck_tile::index_t stride_column_mask_i,
+                  ck_tile::index_t stride_column_mask_h,
+                  ck_tile::index_t stride_column_mask_m,
+                  const void* document_id_ptr,
                   const void* q_ptr,
                   const void* k_ptr,
                   const void* v_ptr,
@@ -678,11 +688,12 @@ struct FmhaBspFwdKernel
                   std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
                       drop_seed_offset)
     {
-        Kargs kargs{{language_mask_ptr,
-                     stride_language_mask,
+        Kargs kargs{{mask_select_ptr,
+                     language_mask_ptr,
                      column_mask_ptr,
-                     stride_column_mask_n,
-                     stride_column_mask_i,
+                     stride_column_mask_h,
+                     stride_column_mask_m,
+                     document_id_ptr,
                      q_ptr,
                      k_ptr,
                      v_ptr,
@@ -769,11 +780,12 @@ struct FmhaBspFwdKernel
     // std::variant<> can't take in a list initializer, overload for backward compatibility
     template <bool Cond = kIsGroupMode>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
-    MakeKargs(const void* language_mask_ptr,
-              ck_tile::index_t stride_language_mask,
+    MakeKargs(const void* mask_select_ptr,
+              const void* language_mask_ptr,
               void* column_mask_ptr,
-              ck_tile::index_t stride_column_mask_n,
-              ck_tile::index_t stride_column_mask_i,
+              ck_tile::index_t stride_column_mask_h,
+              ck_tile::index_t stride_column_mask_m,
+              const void* document_id_ptr,
               const void* q_ptr,
               const void* k_ptr,
               const void* v_ptr,
@@ -812,11 +824,12 @@ struct FmhaBspFwdKernel
               const std::tuple<uint64_t, uint64_t>& drop_seed_offset)
     {
         return MakeKargsImpl(
+            mask_select_ptr,
             language_mask_ptr,
-            stride_language_mask,
             column_mask_ptr,
-            stride_column_mask_n,
-            stride_column_mask_i,
+            stride_column_mask_h,
+            stride_column_mask_m,
+            document_id_ptr,
             q_ptr,
             k_ptr,
             v_ptr,
@@ -858,11 +871,12 @@ struct FmhaBspFwdKernel
     // std::variant<> can't take in a list initializer, overload for backward compatibility
     template <bool Cond = kIsGroupMode>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
-    MakeKargs(const void* language_mask_ptr,
-              ck_tile::index_t stride_language_mask,
+    MakeKargs(const void* mask_select_ptr,
+              const void* language_mask_ptr,
               void* column_mask_ptr,
-              ck_tile::index_t stride_column_mask_n,
-              ck_tile::index_t stride_column_mask_i,
+              ck_tile::index_t stride_column_mask_h,
+              ck_tile::index_t stride_column_mask_m,
+              const void* document_id_ptr,
               const void* q_ptr,
               const void* k_ptr,
               const void* v_ptr,
@@ -901,11 +915,12 @@ struct FmhaBspFwdKernel
               const std::tuple<const void*, const void*>& drop_seed_offset)
     {
         return MakeKargsImpl(
+            mask_select_ptr,
             language_mask_ptr,
-            stride_language_mask,
             column_mask_ptr,
-            stride_column_mask_n,
-            stride_column_mask_i,
+            stride_column_mask_h,
+            stride_column_mask_m,
+            document_id_ptr,
             q_ptr,
             k_ptr,
             v_ptr,
@@ -1134,6 +1149,7 @@ struct FmhaBspFwdKernel
 
         // get whether or not this is a language mask
         const LanguageMaskDataType is_language = reinterpret_cast<const LanguageMaskDataType*>(kargs.language_mask_ptr)[i_tile_m];
+        const MaskSelectDataType mask_select = reinterpret_cast<const MaskSelectDataType*>(kargs.mask_select_ptr)[i_nhead];
 
         // Q/K/V DRAM and DRAM window
         const auto q_dram = [&]() {
@@ -1230,6 +1246,7 @@ struct FmhaBspFwdKernel
             make_tile_window(v_dram,
                              make_tuple(number<FmhaBspPipeline::kN1>{}, number<FmhaBspPipeline::kK1>{}),
                              {i_n1, 0});
+
         /// FIXME: Before C++20, capturing structured binding variables are not supported. Remove
         /// following copy capture of the 'i_nhead' if in C++20
         const auto bias_dram_window = [&, i_nhead_ = i_nhead]() {
@@ -1390,45 +1407,45 @@ struct FmhaBspFwdKernel
         }();
 
         // TODO: head pointers
-        // column_mask_ptr += stride_column_mask_h * i_nhead;
-
-        ColumnMaskDataType* column_mask_ptr = reinterpret_cast<ColumnMaskDataType*>(kargs.column_mask_ptr);
+        // ColumnMaskDataType* column_mask_ptr = reinterpret_cast<ColumnMaskDataType*>(kargs.column_mask_ptr) + kargs.stride_column_mask_h * i_nhead + kargs.stride_column_mask_m * i_tile_m;
+        ColumnMaskDataType* column_mask_ptr = reinterpret_cast<ColumnMaskDataType*>(kargs.column_mask_ptr) 
+                                            + static_cast<long_index_t>(kargs.stride_column_mask_h) * (mask_select-1)
+                                            + (static_cast<long_index_t>(kargs.stride_column_mask_m) * i_tile_m);
+        const DocumentIdDataType* document_id_ptr = reinterpret_cast<const DocumentIdDataType*>(kargs.document_id_ptr);
 
         auto o_acc_tile = [&]() {
             if constexpr(kDoFp8StaticQuant)
             {
                 return FmhaBspPipeline{}(
-                    is_language,
-                    column_mask_ptr,
-                    kargs.stride_column_mask_n,
-                    kargs.stride_column_mask_i,
-                    q_dram_window,
-                    identity{}, // q_element_func
-                    k_dram_window,
-                    identity{}, // k_element_func
-                    v_dram_window,
-                    identity{}, // v_element_func
-                    bias_dram_window,
-                    identity{}, // bias_element_func
-                    randval_dram_window,
-                    lse_dram_window,
-                    identity{},                                          // lse_element_func
-                    identity{},                                          // s_acc_element_func
-                    scales{kargs.scale_p},                               // p_compute_element_func
-                    composes(saturates<fp8_t>{}, scales{kargs.scale_o}), // o_acc_element_func
-                    mask,
-                    position_encoding,
-                    kargs.scale_s,
-                    smem_ptr,
-                    dropout);
+                                        is_language | (mask_select == 0),
+                                        column_mask_ptr,
+                                        document_id_ptr,
+                                        q_dram_window,
+                                        identity{}, // q_element_func
+                                        k_dram_window,
+                                        identity{}, // k_element_func
+                                        v_dram_window,
+                                        identity{}, // v_element_func
+                                        bias_dram_window,
+                                        identity{}, // bias_element_func
+                                        randval_dram_window,
+                                        lse_dram_window,
+                                        identity{},                                          // lse_element_func
+                                        identity{},                                          // s_acc_element_func
+                                        scales{kargs.scale_p},                               // p_compute_element_func
+                                        composes(saturates<fp8_t>{}, scales{kargs.scale_o}), // o_acc_element_func
+                                        mask,
+                                        position_encoding,
+                                        kargs.scale_s,
+                                        smem_ptr,
+                                        dropout);
             }
             else
             {
                 return FmhaBspPipeline{}(
-                                      is_language,
+                                      is_language | (mask_select==0),
                                       column_mask_ptr,
-                                      kargs.stride_column_mask_n,
-                                      kargs.stride_column_mask_i,
+                                      document_id_ptr,
                                       q_dram_window,
                                       k_dram_window,
                                       v_dram_window,

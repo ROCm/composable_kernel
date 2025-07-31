@@ -9,6 +9,7 @@ namespace ck_tile {
 
 template <typename LanguageMaskDataType_,
           typename ColumnMaskDataType_,
+          typename DocumentIdDataType_,
           typename QDataType_,
           typename KDataType_,
           typename VDataType_,
@@ -28,6 +29,7 @@ struct BlockFmhaBspPipelineProblem
 {
     using LanguageMaskDataType  = remove_cvref_t<LanguageMaskDataType_>;
     using ColumnMaskDataType    = remove_cvref_t<ColumnMaskDataType_>;
+    using DocumentIdDataType    = remove_cvref_t<DocumentIdDataType_>;
     using QDataType             = remove_cvref_t<QDataType_>;
     using KDataType             = remove_cvref_t<KDataType_>;
     using VDataType             = remove_cvref_t<VDataType_>;

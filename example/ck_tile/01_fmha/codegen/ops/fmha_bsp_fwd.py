@@ -72,6 +72,7 @@ using fmha_mask_{F_idx} = {F_mask};
 using fmha_pipeline_problem_{F_idx} = ck_tile::BlockFmhaBspPipelineProblem<
     typename FmhaBspFwdTypeConfig<fmha_dtype_{F_idx}>::LanguageMaskDataType,
     typename FmhaBspFwdTypeConfig<fmha_dtype_{F_idx}>::ColumnMaskDataType,
+    typename FmhaBspFwdTypeConfig<fmha_dtype_{F_idx}>::DocumentIdDataType,
     typename FmhaBspFwdTypeConfig<fmha_dtype_{F_idx}>::QDataType,
     typename FmhaBspFwdTypeConfig<fmha_dtype_{F_idx}>::KDataType,
     typename FmhaBspFwdTypeConfig<fmha_dtype_{F_idx}>::VDataType,
@@ -97,7 +98,7 @@ using fmha_epilogue_{F_idx} =
                                            {F_spad}, {F_dvpad}>>;
 
 using fmha_kernel_{F_idx} =
-    ck_tile::FmhaBspFwdKernel<fmha_pipeline_{F_idx}, fmha_epilogue_{F_idx}>;
+    ck_tile::FmhaBspFwdKernel<typename FmhaBspFwdTypeConfig<fmha_dtype_{F_idx}>::MaskSelectDataType, fmha_pipeline_{F_idx}, fmha_epilogue_{F_idx}>;
 
 using trait_{F_idx} = fmha_bsp_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout},
                         {F_pipeline_enum}, fmha_mask_{F_idx}, {F_bias}, {F_lse}, {F_dropout}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
@@ -119,31 +120,36 @@ float fmha_bsp_fwd_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_bsp_fwd
 
 FMHA_FWD_API_FILENAME="fmha_bsp_fwd_api.cpp"
 FMHA_FWD_API="""
-float fmha_bsp_fwd(fmha_bsp_fwd_traits t, fmha_bsp_fwd_args a, const ck_tile::stream_config& s){{
+float fmha_bsp_fwd(fmha_bsp_fwd_traits t, fmha_bsp_fwd_args a, const ck_tile::stream_config& s, const int sparse_factor){{
     float r = -1;
 {F_dispatch}
     return r;
 }}
 """
-
-FMHA_FWD_API_PER_DTYPE="""    {F_if}(t.data_type.compare(\"{F_dtype}\") == 0){{
-{F_hdim_case}
+FMHA_FWD_API_PER_SPARSE_FACTOR="""  {F_if}({F_sparse_factor} == sparse_factor){{
+{F_dtype_case}
     }}
 """
-FMHA_FWD_API_PER_HDIM_CASE="""        {F_if} (t.hdim_q <= {F_hdim} && t.hdim_v <= {F_hdim_v}) {{
-{F_inner_dispatch}
+
+FMHA_FWD_API_PER_DTYPE="""      {F_if}(t.data_type.compare(\"{F_dtype}\") == 0){{
+{F_hdim_case}
         }}
 """
+FMHA_FWD_API_PER_HDIM_CASE="""          {F_if} (t.hdim_q <= {F_hdim} && t.hdim_v <= {F_hdim_v}) {{
+{F_inner_dispatch}
+            }}
+"""
 
-FMHA_FWD_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_lse == {F_lse})  && (t.has_dropout == {F_dropout}) && (t.do_fp8_static_quant == {F_squant}) &&
+FMHA_FWD_API_INNER_DISPATCH="""             {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_lse == {F_lse})  && (t.has_dropout == {F_dropout}) && (t.do_fp8_static_quant == {F_squant}) &&
                         ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
                 using trait_ = fmha_bsp_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_mask}, {F_bias}, {F_lse}, {F_dropout}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
                 return fmha_bsp_fwd_<trait_>(s, a);
-            }}
+                }}
 """
 
 @dataclass
 class FmhaBspFwdApiTrait:
+    sparse_factor : int
     pipeline_tag : str
     # sync with fmha_fwd_traits<>, to generate fallback calls
     hdim      : str
@@ -168,7 +174,7 @@ class FmhaBspFwdApiTrait:
 
     @property
     def name(self) -> str:
-        return f'{self.hdim}-{self.dtype}-{self.mode}-{self.bm0}-{self.bn0}-{self.bk0}-{self.bn0}-{self.bk1}-{self.bk0max}-'+\
+        return f'{self.sparse_factor}-{self.hdim}-{self.dtype}-{self.mode}-{self.bm0}-{self.bn0}-{self.bk0}-{self.bn0}-{self.bk1}-{self.bk0max}-'+\
                     f'{self.vlayout}-{self.mask}-{self.bias}-{self.lse}-{self.dropout}-{self.squant}-{self.spad}-{self.skpad}-{self.dpad}-{self.dvpad}'
 
     @property
@@ -274,39 +280,45 @@ class FmhaBspFwdApiPool:
 
     def register_traits(self, trait : FmhaBspFwdApiTrait) -> None:
         # TODO: do we need to check duplication?
-        if trait.dtype not in self.pool.keys():
-            self.pool[trait.dtype] = dict()
-        if trait.hdim not in self.pool[trait.dtype].keys():
-            self.pool[trait.dtype][trait.hdim] = list()
+        if trait.sparse_factor not in self.pool.keys():
+            self.pool[trait.sparse_factor] = dict()
+        if trait.dtype not in self.pool[trait.sparse_factor].keys():
+            self.pool[trait.sparse_factor][trait.dtype] = dict()
+        if trait.hdim not in self.pool[trait.sparse_factor][trait.dtype].keys():
+            self.pool[trait.sparse_factor][trait.dtype][trait.hdim] = list()
 
-        self.pool[trait.dtype][trait.hdim].append(copy.copy(trait))
+        self.pool[trait.sparse_factor][trait.dtype][trait.hdim].append(copy.copy(trait))
 
     @property
     def api(self) -> str:
-        per_dtypes=str()
-        for i, dtype in enumerate(self.pool.keys()):
-            per_hdim_case=str()
-            for j, hdim in enumerate(self.pool[dtype].keys()):
-                traits=self.pool[dtype][hdim]
-                inners=str()
-                for k, trait in enumerate(traits):
-                    if_k = 'if' if k == 0 else 'else if'
-                    inners = inners + FMHA_FWD_API_INNER_DISPATCH.format(F_if=if_k, F_mode=MODE_MAP[trait.mode], F_vlayout=LAYOUT_MAP[trait.vlayout],
-                                   F_pipeline_enum=PIPELINE_ENUM_MAP[trait.pipeline_tag], F_mask=get_mask_map(self.mask_impl)[trait.mask],
-                                   F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask], F_bias_check=BIAS_CHECK_MAP[trait.bias], F_bias=BIAS_MAP[trait.bias],
-                                   F_lse=BOOL_MAP[trait.lse], F_dropout=BOOL_MAP[trait.dropout] ,
-                                   F_squant=BOOL_MAP[trait.squant], F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck,
-                                   F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
-                                   F_bm0=trait.bm0, F_bn0=trait.bn0, F_bk0=trait.bk0, F_bn1=trait.bn1, F_bk1=trait.bk1, F_bk0max=trait.bk0max,
-                                   F_hdim=hdim, F_dtype=FWD_DTYPE_MAP[dtype])
-                if_j = 'if' if j == 0 else 'else if'
-                per_hdim_case = per_hdim_case + FMHA_FWD_API_PER_HDIM_CASE.format(F_if=if_j, F_hdim=hdim, F_hdim_v=trait.bn1, F_inner_dispatch=inners)
-            if_i = 'if' if i == 0 else 'else if'
-            per_dtypes = per_dtypes + FMHA_FWD_API_PER_DTYPE.format(F_if=if_i, F_dtype=dtype, F_hdim_case=per_hdim_case)
-        if not per_dtypes:
-            # empty string we add some ignore to suppress warning in api
-            per_dtypes += '    (void)t ; (void)s ; (void)a;'
-        return FMHA_FWD_KERNEL_HEADER + FMHA_FWD_API.format(F_dispatch = per_dtypes)
+        per_sparse_factor=str()
+        for h,sparse_factor in enumerate(self.pool.keys()):
+            if_h = 'if' if h == 0 else 'else if'
+            per_dtypes=str()
+            for i, dtype in enumerate(self.pool[sparse_factor].keys()):
+                per_hdim_case=str()
+                for j, hdim in enumerate(self.pool[sparse_factor][dtype].keys()):
+                    traits=self.pool[sparse_factor][dtype][hdim]
+                    inners=str()
+                    for k, trait in enumerate(traits):
+                        if_k = 'if' if k == 0 else 'else if'
+                        inners = inners + FMHA_FWD_API_INNER_DISPATCH.format(F_if=if_k, F_mode=MODE_MAP[trait.mode], F_vlayout=LAYOUT_MAP[trait.vlayout],
+                                    F_pipeline_enum=PIPELINE_ENUM_MAP[trait.pipeline_tag], F_mask=get_mask_map(self.mask_impl)[trait.mask],
+                                    F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask], F_bias_check=BIAS_CHECK_MAP[trait.bias], F_bias=BIAS_MAP[trait.bias],
+                                    F_lse=BOOL_MAP[trait.lse], F_dropout=BOOL_MAP[trait.dropout] ,
+                                    F_squant=BOOL_MAP[trait.squant], F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck,
+                                    F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
+                                    F_bm0=trait.bm0, F_bn0=trait.bn0, F_bk0=trait.bk0, F_bn1=trait.bn1, F_bk1=trait.bk1, F_bk0max=trait.bk0max,
+                                    F_hdim=hdim, F_dtype=FWD_DTYPE_MAP[dtype])
+                    if_j = 'if' if j == 0 else 'else if'
+                    per_hdim_case = per_hdim_case + FMHA_FWD_API_PER_HDIM_CASE.format(F_if=if_j, F_hdim=hdim, F_hdim_v=trait.bn1, F_inner_dispatch=inners)
+                if_i = 'if' if i == 0 else 'else if'
+                per_dtypes = per_dtypes + FMHA_FWD_API_PER_DTYPE.format(F_if=if_i, F_dtype=dtype, F_hdim_case=per_hdim_case)
+            if not per_dtypes:
+                # empty string we add some ignore to suppress warning in api
+                per_dtypes += '    (void)t ; (void)s ; (void)a;'
+            per_sparse_factor = per_sparse_factor + FMHA_FWD_API_PER_SPARSE_FACTOR.format(F_if=if_h, F_sparse_factor=sparse_factor, F_dtype_case=per_dtypes)
+        return FMHA_FWD_KERNEL_HEADER + FMHA_FWD_API.format(F_dispatch = per_sparse_factor)
 
 @dataclass
 class FmhaBspFwdTileSize:
@@ -338,6 +350,7 @@ class FmhaBspFwdTileSize:
 
 @dataclass
 class FmhaBspFwdKernel:
+    F_sparse_factor : int
     F_idx           : int  # this is not a tunable, but a counter to differentiate symbol
     F_hdim          : int  # hdim
     F_dtype         : str  # data type
@@ -399,6 +412,7 @@ class FmhaBspFwdKernel:
 
     def api_trait(self) -> FmhaBspFwdApiTrait:
         return FmhaBspFwdApiTrait(
+                sparse_factor=self.F_sparse_factor,
                 pipeline_tag=self.F_pipeline.tag,
                 hdim=str(self.F_hdim),
                 dtype=self.F_dtype,
@@ -422,24 +436,40 @@ class FmhaBspFwdKernel:
 
 # TODO: design a more practical way to do it
 # this is current supported tile size per hdim
-def get_fmha_bsp_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
-    if dtype == 'fp16' or dtype == 'bf16':
-        return {
-            '32'  : FmhaBspFwdTileSize(128, 64,  16, 32,  32,  32,   2, 1, 1,  2, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-            '64'  : FmhaBspFwdTileSize(128, 64,  32, 64,  32,  64,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-        ### '96'  : FmhaBspFwdTileSize(128, 128, 32, 128, 32,  96,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-            '128' : FmhaBspFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-            '192' : FmhaBspFwdTileSize(128, 128, 32, 128, 32,  192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-            '256' : FmhaBspFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-        }
-    elif dtype == 'fp8' or dtype == 'bf8':
-        return {
-            '64'  : FmhaBspFwdTileSize(128, 64,  32, 64,  32,  64,   2, 1, 1,  2, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
-            '128' : FmhaBspFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
-            '256' : FmhaBspFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
-        }
-    else:
-        return None
+def get_fmha_bsp_fwd_tile_dict_from_dtype(dtype : str, sparse_factor : int) -> Optional[dict]:
+    if sparse_factor == 0:
+        if dtype == 'fp16' or dtype == 'bf16':
+            return {
+                '32'  : FmhaBspFwdTileSize(128, 64,  16, 32,  32,  32,   2, 1, 1,  2, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+                '64'  : FmhaBspFwdTileSize(128, 64,  32, 64,  32,  64,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+            ### '96'  : FmhaBspFwdTileSize(128, 128, 32, 128, 32,  96,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+                '128' : FmhaBspFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+                '192' : FmhaBspFwdTileSize(128, 128, 32, 128, 32,  192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+                '256' : FmhaBspFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+            }
+        elif dtype == 'fp8' or dtype == 'bf8':
+            return {
+                '64'  : FmhaBspFwdTileSize(128, 64,  32, 64,  32,  64,   2, 1, 1,  2, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
+                '128' : FmhaBspFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
+                '256' : FmhaBspFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
+            }
+    elif sparse_factor == 1:
+        if dtype == 'fp16' or dtype == 'bf16':
+            return {
+                '32'  : FmhaBspFwdTileSize(128, 64,  16, 32,  32,  32,   2, 1, 1,  2, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+                '64'  : FmhaBspFwdTileSize(128, 64,  32, 64,  32,  64,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+            ### '96'  : FmhaBspFwdTileSize(128, 128, 32, 128, 32,  96,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+                '128' : FmhaBspFwdTileSize(128, 64, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+                '192' : FmhaBspFwdTileSize(128, 64, 32, 128, 32,  192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+                '256' : FmhaBspFwdTileSize(128, 64, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+            }
+        elif dtype == 'fp8' or dtype == 'bf8':
+            return {
+                '64'  : FmhaBspFwdTileSize(128, 64,  32, 64,  32,  64,   2, 1, 1,  2, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
+                '128' : FmhaBspFwdTileSize(128, 64, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
+                '256' : FmhaBspFwdTileSize(128, 64, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
+            }   
+    return None
 
 def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> Tuple[FmhaBspFwdApiPool, List[FmhaBspFwdKernel]]:
     # TODO: we don't support tuning yet, so pick up one value for vlayout/pipeline/pad
@@ -496,77 +526,79 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
     gen = list()
     api_pool = FmhaBspFwdApiPool(mask_impl)
 
-    for dtype in FWD_DTYPE_MAP.keys():
-        d = get_fmha_bsp_fwd_tile_dict_from_dtype(dtype)
-        if d == None:
-            continue
-        #for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
-        for hdim_str, mode in itertools.product(d.keys(), MODE_MAP.keys()):
-            tile = d[hdim_str]
-            hdim = int(hdim_str)
-            for pipeline in get_pipelines(dtype, hdim):
-                if mode == "group":
-                    if pipeline.F_spad != 't' or pipeline.F_skpad != 't':
-                        # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
-                        continue
-                if hdim == 192 and tile.F_bn1 == 128:
-                    # NOTE: this is used to speedup deepseek prefill case, we don't gen training
-                    if pipeline.F_bias != 'no' or pipeline.F_lse == 't' or pipeline.F_dropout == 't':
-                        continue
-                k = FmhaBspFwdKernel(F_idx=0,
-                                  F_hdim=hdim,
-                                  F_dtype=dtype,
-                                  F_mode=mode,
-                                  F_tile=tile,
-                                  F_pipeline=pipeline,
-                                  mask_impl=mask_impl)
-                if kernel_filter != '':
-                    if not fnmatch.fnmatch(k.name, kernel_filter):
-                        continue
-                if optdim_list != [-1]:
-                    if hdim not in optdim_list:
-                        continue
-                # 2 - Flash attention integration
-                if receipt in (2, 3):
-                    cond = dtype in ['fp16', 'bf16']
-                    cond &= pipeline.F_vlayout == 'row'
-                    cond &= pipeline.F_bias in ['no', 'alibi']
-                    cond &= pipeline.F_squant == 'f'
-                    if not cond:
-                        continue
-                # PyTorch integration
-                elif receipt == 4:
-                    cond = dtype in ['fp16', 'bf16']
-                    cond &= pipeline.F_vlayout == 'row'
-                    cond &= pipeline.F_bias in ['no', 'bias']
-                    cond &= pipeline.F_squant == 'f'
-                    if not cond:
-                        continue
-                # Aiter(mha_fwd) integration
-                elif receipt == 100:
-                    cond = dtype in ['fp16', 'bf16']
-                    cond &= mode == 'batch'
-                    cond &= pipeline.F_vlayout == 'row'
-                    cond &= pipeline.F_squant == 'f'
-                    if not cond:
-                        continue
-                # Aiter(mha_varlen_fwd) integration
-                elif receipt == 200:
-                    cond = dtype in ['fp16', 'bf16']
-                    cond &= mode == 'group'
-                    cond &= pipeline.F_vlayout == 'row'
-                    cond &= pipeline.F_squant == 'f'
-                    if not cond:
-                        continue
-                # aiter::mha_fwd C++ api integration
-                elif receipt == 600:
-                    cond = dtype in ['fp16', 'bf16']
-                    cond &= pipeline.F_vlayout == 'row'
-                    cond &= pipeline.F_squant == 'f'
-                    if not cond:
-                        continue
-                api_pool.register_traits(k.api_trait())
-                gen.append(k)
+    for sparse_factor in [0, 1]:
+        for dtype in FWD_DTYPE_MAP.keys():
+            d = get_fmha_bsp_fwd_tile_dict_from_dtype(dtype, sparse_factor)
+            if d == None:
+                continue
+            #for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
+            for hdim_str, mode in itertools.product(d.keys(), MODE_MAP.keys()):
+                tile = d[hdim_str]
+                hdim = int(hdim_str)
+                for pipeline in get_pipelines(dtype, hdim):
+                    if mode == "group":
+                        if pipeline.F_spad != 't' or pipeline.F_skpad != 't':
+                            # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
+                            continue
+                    if hdim == 192 and tile.F_bn1 == 128:
+                        # NOTE: this is used to speedup deepseek prefill case, we don't gen training
+                        if pipeline.F_bias != 'no' or pipeline.F_lse == 't' or pipeline.F_dropout == 't':
+                            continue
+                    k = FmhaBspFwdKernel(F_sparse_factor=sparse_factor,
+                                    F_idx=0,
+                                    F_hdim=hdim,
+                                    F_dtype=dtype,
+                                    F_mode=mode,
+                                    F_tile=tile,
+                                    F_pipeline=pipeline,
+                                    mask_impl=mask_impl)
+                    if kernel_filter != '':
+                        if not fnmatch.fnmatch(k.name, kernel_filter):
+                            continue
+                    if optdim_list != [-1]:
+                        if hdim not in optdim_list:
+                            continue
+                    # 2 - Flash attention integration
+                    if receipt in (2, 3):
+                        cond = dtype in ['fp16', 'bf16']
+                        cond &= pipeline.F_vlayout == 'row'
+                        cond &= pipeline.F_bias in ['no', 'alibi']
+                        cond &= pipeline.F_squant == 'f'
+                        if not cond:
+                            continue
+                    # PyTorch integration
+                    elif receipt == 4:
+                        cond = dtype in ['fp16', 'bf16']
+                        cond &= pipeline.F_vlayout == 'row'
+                        cond &= pipeline.F_bias in ['no', 'bias']
+                        cond &= pipeline.F_squant == 'f'
+                        if not cond:
+                            continue
+                    # Aiter(mha_fwd) integration
+                    elif receipt == 100:
+                        cond = dtype in ['fp16', 'bf16']
+                        cond &= mode == 'batch'
+                        cond &= pipeline.F_vlayout == 'row'
+                        cond &= pipeline.F_squant == 'f'
+                        if not cond:
+                            continue
+                    # Aiter(mha_varlen_fwd) integration
+                    elif receipt == 200:
+                        cond = dtype in ['fp16', 'bf16']
+                        cond &= mode == 'group'
+                        cond &= pipeline.F_vlayout == 'row'
+                        cond &= pipeline.F_squant == 'f'
+                        if not cond:
+                            continue
+                    # aiter::mha_fwd C++ api integration
+                    elif receipt == 600:
+                        cond = dtype in ['fp16', 'bf16']
+                        cond &= pipeline.F_vlayout == 'row'
+                        cond &= pipeline.F_squant == 'f'
+                        if not cond:
+                            continue
+                    api_pool.register_traits(k.api_trait())
+                    gen.append(k)
 
     return (api_pool, gen)
 

@@ -143,6 +143,7 @@ struct BlockFmhaBspPipelineQRKSVSAsync
 
     template <typename LanguageMaskDataType,
               typename ColumnMaskDataType,
+              typename DocumentIdDataType,
               typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
@@ -161,8 +162,7 @@ struct BlockFmhaBspPipelineQRKSVSAsync
     CK_TILE_HOST_DEVICE auto
     operator()(const LanguageMaskDataType is_language,
                ColumnMaskDataType* column_mask_ptr,
-               index_t stride_column_mask_n,
-               index_t stride_column_mask_i,
+               const DocumentIdDataType* document_id_ptr,
                const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                const QElementFunction& q_element_func,
                const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
@@ -709,16 +709,14 @@ struct BlockFmhaBspPipelineQRKSVSAsync
                 }
             } while(i_total_loops < num_total_loop);
         } else {
-            // initalize the cursor
+            // load the guide document ids
             do
-            {   
+            {
                 coltodo--;
                 i_total_loops += (coltodo == 0) ? 1 : 0;
                 coloff = column_mask_ptr[2*i_total_loops];
                 k_step = (coltodo == 0) ? (coloff - kv_cursor) : kN0;
-                // v_step = (coltodo == 0) ? (coloff - kv_cursor) : kK1;
-                v_step = (coltodo == 0) ? (coloff - kv_cursor - kN1) : 0;
-
+                v_step = (coltodo == 0) ? (coloff - kv_cursor - kN0) : 0;
                 kv_cursor += k_step;
                 coltodo = (coltodo == 0) ? column_mask_ptr[2*i_total_loops + 1] : coltodo;
                 
@@ -1106,6 +1104,7 @@ struct BlockFmhaBspPipelineQRKSVSAsync
 
     template <typename LanguageMaskDataType,
               typename ColumnMaskDataType,
+              typename DocumentIdDataType,
               typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
@@ -1116,8 +1115,7 @@ struct BlockFmhaBspPipelineQRKSVSAsync
     CK_TILE_HOST_DEVICE auto
     operator()(const LanguageMaskDataType is_language,
                ColumnMaskDataType* column_mask_ptr,
-               index_t stride_column_mask_n,
-               index_t stride_column_mask_i,
+               const DocumentIdDataType* document_id_ptr,
                const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
                const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
                const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
@@ -1133,8 +1131,7 @@ struct BlockFmhaBspPipelineQRKSVSAsync
         return operator()(
                           is_language,
                           column_mask_ptr,
-                          stride_column_mask_n,
-                          stride_column_mask_i,
+                          document_id_ptr,
                           q_dram_block_window_tmp,
                           identity{},
                           k_dram_block_window_tmp,
