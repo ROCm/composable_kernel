@@ -831,22 +831,22 @@ struct FmhaFwdDecodeKernel
 
             // TODO: Add kVHeadDim
             // TrLoad Performed in 16x4/16x8/16x16 unit, the fast dimension is 16 elements
-            constexpr auto TrLoadFastDimLength = 16;
+            constexpr auto XorGroupSize = FmhaPipeline::Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{});
 
             const auto v_dram_unmerged = transform_tensor_view(
                 v_dram_pad,
                 make_tuple(make_pass_through_transform(length),
                            make_unmerge_transform(
-                               make_tuple(number<FmhaPipeline::kQKHeaddim / TrLoadFastDimLength>{},
-                                          number<TrLoadFastDimLength>{}))),
+                               make_tuple(number<FmhaPipeline::kQKHeaddim / XorGroupSize>{},
+                                          number<XorGroupSize>{}))),
                 make_tuple(sequence<0>{}, sequence<1>{}),
                 make_tuple(sequence<0>{}, sequence<1, 2>{}));
 
             const auto v_dram_permuted = transform_tensor_view(
                 v_dram_unmerged,
                 make_tuple(make_xor_transform(make_tuple(
-                               length, number<FmhaPipeline::kQKHeaddim / TrLoadFastDimLength>{})),
-                           make_pass_through_transform(number<TrLoadFastDimLength>{})),
+                               length, number<FmhaPipeline::kQKHeaddim / XorGroupSize>{})),
+                           make_pass_through_transform(number<XorGroupSize>{})),
                 make_tuple(sequence<0, 1>{}, sequence<2>{}),
                 make_tuple(sequence<0, 1>{}, sequence<2>{}));
 
@@ -854,8 +854,8 @@ struct FmhaFwdDecodeKernel
                 v_dram_permuted,
                 make_tuple(make_pass_through_transform(length),
                            make_merge_transform_v3_division_mod(
-                               make_tuple(number<FmhaPipeline::kQKHeaddim / TrLoadFastDimLength>{},
-                                          number<TrLoadFastDimLength>{}))),
+                               make_tuple(number<FmhaPipeline::kQKHeaddim / XorGroupSize>{},
+                                          number<XorGroupSize>{}))),
                 make_tuple(sequence<0>{}, sequence<1, 2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
         };

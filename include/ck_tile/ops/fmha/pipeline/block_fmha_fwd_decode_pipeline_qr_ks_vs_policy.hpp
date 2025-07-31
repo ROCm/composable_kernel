@@ -290,7 +290,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
         constexpr auto v_lds_block_desc = [&]() {
             if constexpr(Xor)
             {
-                constexpr auto TrLoadFastDimLength = 16;
+                constexpr auto XorGroupSize = Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{});
 
                 constexpr auto v_lds_block_desc_naive = make_naive_tensor_descriptor(
                     make_tuple(number<kKPerBlock>{}, number<kNPerBlock>{}),
@@ -302,8 +302,8 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
                     v_lds_block_desc_naive,
                     make_tuple(make_pass_through_transform(number<kKPerBlock>{}),
                                make_unmerge_transform(
-                                   make_tuple(number<kNPerBlock / TrLoadFastDimLength>{},
-                                              number<TrLoadFastDimLength>{}))),
+                                   make_tuple(number<kNPerBlock / XorGroupSize>{},
+                                              number<XorGroupSize>{}))),
                     make_tuple(sequence<0>{}, sequence<1>{}),
                     make_tuple(sequence<0>{}, sequence<1, 2>{}));
 
@@ -311,8 +311,8 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
                     v_lds_block_desc_unmerged,
                     make_tuple(
                         make_xor_transform(make_tuple(number<kKPerBlock>{},
-                                                      number<kNPerBlock / TrLoadFastDimLength>{})),
-                        make_pass_through_transform(number<TrLoadFastDimLength>{})),
+                                                      number<kNPerBlock / XorGroupSize>{})),
+                        make_pass_through_transform(number<XorGroupSize>{})),
                     make_tuple(sequence<0, 1>{}, sequence<2>{}),
                     make_tuple(sequence<0, 1>{}, sequence<2>{}));
 
@@ -320,8 +320,8 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
                     v_lds_block_desc_permuted,
                     make_tuple(make_pass_through_transform(number<kKPerBlock>{}),
                                make_merge_transform_v3_division_mod(
-                                   make_tuple(number<kNPerBlock / TrLoadFastDimLength>{},
-                                              number<TrLoadFastDimLength>{}))),
+                                   make_tuple(number<kNPerBlock / XorGroupSize>{},
+                                              number<XorGroupSize>{}))),
                     make_tuple(sequence<0>{}, sequence<1, 2>{}),
                     make_tuple(sequence<0>{}, sequence<1>{}));
             }

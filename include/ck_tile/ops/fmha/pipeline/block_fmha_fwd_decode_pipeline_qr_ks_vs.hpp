@@ -865,11 +865,12 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
         constexpr index_t k_vmem_insts = k_dram_window.get_num_of_access();
         constexpr index_t v_vmem_insts = v_dram_window.get_num_of_access();
 
-        auto mainloop = [&](auto lds_write_buf, auto lds_read_buf) {
-            auto k_lds_write_window = k_lds_write_windows.at(lds_write_buf);
-            auto k_lds_read_window  = k_lds_read_windows.at(lds_read_buf);
-            auto v_lds_write_window = v_lds_write_windows.at(lds_write_buf);
-            auto v_lds_read_window  = v_lds_read_windows.at(lds_read_buf);
+        auto mainloop = [&](index_t cur_loop) {
+            
+            auto k_lds_write_window = (cur_loop%2 == 0)? k_lds_write_windows.at(I1) : k_lds_write_windows.at(I0);
+            auto k_lds_read_window  = (cur_loop%2 == 0)? k_lds_read_windows.at(I0) : k_lds_read_windows.at(I1);
+            auto v_lds_write_window = (cur_loop%2 == 0)? v_lds_write_windows.at(I1) : v_lds_write_windows.at(I0);
+            auto v_lds_read_window  = (cur_loop%2 == 0)? v_lds_read_windows.at(I0) : v_lds_read_windows.at(I1);
 
             block_sync_lds();
             // move K tile windows
@@ -1090,14 +1091,16 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
 
         do
         {
-            mainloop(I1, I0);
+            mainloop(i_total_loops);
             i_total_loops++;
-            if(i_total_loops == (num_total_loop))
-            {
-                continue;
-            }
-            mainloop(I0, I1);
-            i_total_loops++;
+            // mainloop(I1, I0);
+            // i_total_loops++;
+            // if(i_total_loops == (num_total_loop))
+            // {
+            //     continue;
+            // }
+            // mainloop(I0, I1);
+            // i_total_loops++;
         } while(i_total_loops < num_total_loop);
 
         if constexpr(kStoreLSE)
