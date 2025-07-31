@@ -458,7 +458,8 @@ auto create_args(int argc, char* argv[])
         .insert("split_k", "1", "splitK value")
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
         .insert("persistent", "0", "0:non-persistent, 1:persistent")
-        .insert("bench_time_ms", "0", "benchmark time in ms, defaults to 0 ms");
+        .insert("flush_cache", "true", "flush cache before running the kernel, defaults to true")
+        .insert("rotating_count", "1", "rotating count, defaults to 1");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
