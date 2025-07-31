@@ -34,8 +34,7 @@ void benchmark_gemm(const ck_tile::ArgParser& arg_parser)
                     arg_parser.get_bool("log"),
                     arg_parser.get_str("csv_filename"),
                     arg_parser.get_bool("flush_cache"),
-                    arg_parser.get_int("rotating_count"),
-                    arg_parser.get_int("bench_time")};
+                    arg_parser.get_int("rotating_count")};
 
     auto& profiler = GemmProfiler::instance(setting);
 

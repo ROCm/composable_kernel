@@ -125,7 +125,6 @@ struct Setting
     std::string csv_filename_;
     bool flush_cache_;
     int rotating_count_;
-    int bench_time_ms_;
 };
 
 inline std::string get_rocm_version()
