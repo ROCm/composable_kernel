@@ -77,7 +77,6 @@ RUN git clone https://github.com/ccache/ccache.git && \
     wget -qO /usr/local/bin/ninja.gz https://github.com/ninja-build/ninja/releases/latest/download/ninja-linux.zip && \
     gunzip /usr/local/bin/ninja.gz && \
     chmod a+x /usr/local/bin/ninja && \
-    git clone https://github.com/nico/ninjatracing.git && \
 #Install ClangBuildAnalyzer
     git clone https://github.com/aras-p/ClangBuildAnalyzer.git && \
     cd ClangBuildAnalyzer/ && \

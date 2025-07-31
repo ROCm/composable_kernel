@@ -30,7 +30,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
     using NDimSpatial = std::tuple_element_t<6, Tuple>;
 
     std::vector<ck::utils::conv::ConvParam> conv_params;
-    std::vector<ck::index_t> split_ks{1, 2};
+    std::vector<ck::index_t> split_ks{-1, 1, 2};
 
     bool skip_case(const ck::index_t split_k)
     {

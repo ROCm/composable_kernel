@@ -13,7 +13,8 @@
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_elementwise_2d.hpp"
 #include <ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp>
-#include "ck/tensor_operation/gpu/device/split_k_params.hpp"
+#include "ck/tensor_operation/gpu/device/impl/split_k_utils.hpp"
+#include "ck/tensor_operation/gpu/device/impl/split_k_arg.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -143,7 +144,20 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
                       end(e_g_k_c_xs_lengths),
                       begin(filter_spatial_lengths_));
 
-            const auto split_k = split_k_parameters.fixed_value_;
+            if(split_k < 0)
+            {
+                const auto max_occupancy = DeviceGemmV3Op::GetMaxOccupancy();
+                index_t gdx, gdy, gdz;
+                std::tie(gdx, gdy, gdz) =
+                    DeviceGemmV3Op::GridwiseGemm::CalculateGridSize(M, N, BatchSize);
+                const index_t grid_size = gdx * gdy * gdz;
+                split_k_ = get_best_occupancy_k_batch_value(max_occupancy, grid_size);
+            }
+            else
+            {
+                split_k_ = split_k;
+            }
+
             if constexpr(IsTwoStageNeeded)
             {
                 const index_t merged_filter_dims = std::accumulate(begin(e_g_k_c_xs_lengths),
@@ -178,7 +192,7 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
                                                   out_element_op,
                                                   in_element_op,
                                                   wei_element_op,
-                                                  split_k};
+                                                  split_k_};
             }
             else
             {
@@ -201,7 +215,7 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
                                                   out_element_op,
                                                   in_element_op,
                                                   wei_element_op,
-                                                  split_k};
+                                                  split_k_};
             }
         }
 
@@ -238,6 +252,7 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
         bool is_filter_data_packed;
         CElementwiseGridDesc elementwise_desc_;
         Block2TileMapElementwise elementwise_block_2_ctile_map_;
+        ck::index_t split_k_;
     };
 
     // Invoker

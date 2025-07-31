@@ -167,7 +167,7 @@ struct HostTensorDescriptor
         return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
     }
 
-    std::size_t GetOffsetFromMultiIndex(std::vector<std::size_t> iss) const
+    std::size_t GetOffsetFromMultiIndex(const std::vector<std::size_t>& iss) const
     {
         return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
     }
@@ -556,6 +556,64 @@ struct Tensor
                         return ck::f4x2_pk_t{ck::type_convert<ck::f4x2_t>(
                             ck::float2_t{ck::type_convert<float>(fn(dis_(g_))),
                                          ck::type_convert<float>(fn(dis_(g_)))})};
+                    else if constexpr(ck::is_same_v<T, ck::f6x32_pk_t> ||
+                                      ck::is_same_v<T, ck::bf6x32_pk_t>)
+                    {
+                        return ck::type_convert<T>(
+                            ck::float32_t{ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_)))});
+                    }
+                    else if constexpr(ck::is_same_v<T, ck::f6x16_pk_t> ||
+                                      ck::is_same_v<T, ck::bf6x16_pk_t>)
+                    {
+                        return ck::type_convert<T>(
+                            ck::float16_t{ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_)))});
+                    }
                     else
                         static_assert(false, "Unsupported packed size for T");
                 };
@@ -600,12 +658,12 @@ struct Tensor
                      ck::packed_size_v<ck::remove_cvref_t<T>>];
     }
 
-    T& operator()(std::vector<std::size_t> idx)
+    T& operator()(const std::vector<std::size_t>& idx)
     {
         return mData[mDesc.GetOffsetFromMultiIndex(idx) / ck::packed_size_v<ck::remove_cvref_t<T>>];
     }
 
-    const T& operator()(std::vector<std::size_t> idx) const
+    const T& operator()(const std::vector<std::size_t>& idx) const
     {
         return mData[mDesc.GetOffsetFromMultiIndex(idx) / ck::packed_size_v<ck::remove_cvref_t<T>>];
     }

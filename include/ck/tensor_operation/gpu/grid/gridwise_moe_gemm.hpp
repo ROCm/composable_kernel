@@ -405,7 +405,7 @@ struct GridwiseMoeGemm
 
     __host__ __device__ static auto MakeBGridDescriptor_Preshuffled(index_t N0, index_t K0)
     {
-        constexpr index_t NkSwizzleNumber = Number<warpSize * KPack / KGroup>{};
+        constexpr index_t NkSwizzleNumber = Number<WarpSize * KPack / KGroup>{};
         return make_naive_tensor_descriptor(
             make_tuple(N0 / NWave, NWave, K0, NkSwizzleNumber),
             make_tuple(NWave * K0 * NkSwizzleNumber, K0 * NkSwizzleNumber, NkSwizzleNumber, I1));
@@ -1315,7 +1315,7 @@ struct GridwiseMoeGemm
                   make_multi_index(n_block_data_idx_on_grid,
                                    get_warp_local_1d_id() % NWave,
                                    0,
-                                   KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
+                                   KPack / KGroup * (get_thread_local_1d_id() % WarpSize)));
 
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
@@ -1361,7 +1361,8 @@ struct GridwiseMoeGemm
                       make_multi_index(n_block_data_idx_on_grid,
                                        get_warp_local_1d_id() % NWave,
                                        0,
-                                       KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
+                                       KPack / KGroup * (get_thread_local_1d_id() % WarpSize)));
+
             blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
                 a_grid_desc_ak0_m_ak1,
                 a_block_desc_ak0_m_ak1,
@@ -1472,7 +1473,12 @@ struct GridwiseMoeGemm
                                         index_t fused_token = scale_token_ids.AsType<index_t>()[m4];
                                         const index_t token_offset = fused_token & 0xffffff;
                                         return token_offset < problem.NumTokens
-                                                   ? p_sorted_weights_0[token_offset]
+                                                   ? p_sorted_weights_0[IsInputGemm
+                                                                            ? token_offset
+                                                                            : token_offset *
+                                                                                      problem.TopK +
+                                                                                  (fused_token >>
+                                                                                   24)]
                                                    : 0.0;
                                     }
                                     else
@@ -2027,7 +2033,7 @@ struct GridwiseMoeGemm
                   make_multi_index(n_block_data_idx_on_grid,
                                    get_warp_local_1d_id() % NWave,
                                    0,
-                                   KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
+                                   KPack / KGroup * (get_thread_local_1d_id() % WarpSize)));
 
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
@@ -2077,7 +2083,7 @@ struct GridwiseMoeGemm
                       make_multi_index(n_block_data_idx_on_grid,
                                        get_warp_local_1d_id() % NWave,
                                        0,
-                                       KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
+                                       KPack / KGroup * (get_thread_local_1d_id() % WarpSize)));
             blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
                 a_grid_desc_ak0_m_ak1,
                 a_block_desc_ak0_m_ak1,
@@ -2189,7 +2195,12 @@ struct GridwiseMoeGemm
                                         index_t fused_token = scale_token_ids.AsType<index_t>()[m4];
                                         const index_t token_offset = fused_token & 0xffffff;
                                         return token_offset < problem.NumTokens
-                                                   ? p_sorted_weights_0[token_offset]
+                                                   ? p_sorted_weights_0[IsInputGemm
+                                                                            ? token_offset
+                                                                            : token_offset *
+                                                                                      problem.TopK +
+                                                                                  (fused_token >>
+                                                                                   24)]
                                                    : 0.0;
                                     }
                                     else

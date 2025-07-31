@@ -52,7 +52,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
     // clang-format on
 
     ck::utils::conv::ConvParam conv_param;
-    ck::index_t split_k{2};
+    std::vector<ck::index_t> split_ks{-1, 2};
 
     template <ck::index_t NDimSpatial>
     bool Run()
@@ -96,26 +96,30 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
 
         auto conv = GroupedConvBwdWeightDeviceInstance{};
 
-        ck::tensor_operation::device::ParamsSplitK split_k_parameters;
-        split_k_parameters.fixed_value_ = split_k;
-        auto argument = conv.MakeArgument(nullptr,
-                                          nullptr,
-                                          nullptr,
-                                          input_lengths,
-                                          input_strides,
-                                          filter_lengths,
-                                          weights_strides,
-                                          output_lengths,
-                                          output_strides,
-                                          conv_filter_strides,
-                                          conv_filter_dilations,
-                                          input_left_pads,
-                                          input_right_pads,
-                                          PassThrough{},
-                                          PassThrough{},
-                                          PassThrough{},
-                                          split_k_parameters);
-        return conv.IsSupportedArgument(argument);
+        bool is_supported = true;
+
+        for(const auto split_k : split_ks)
+        {
+            auto argument = conv.MakeArgument(nullptr,
+                                              nullptr,
+                                              nullptr,
+                                              input_lengths,
+                                              input_strides,
+                                              filter_lengths,
+                                              weights_strides,
+                                              output_lengths,
+                                              output_strides,
+                                              conv_filter_strides,
+                                              conv_filter_dilations,
+                                              input_left_pads,
+                                              input_right_pads,
+                                              PassThrough{},
+                                              PassThrough{},
+                                              PassThrough{},
+                                              split_k);
+            is_supported &= conv.IsSupportedArgument(argument);
+        }
+        return is_supported;
     }
 };
 

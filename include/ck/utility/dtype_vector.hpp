@@ -1438,14 +1438,16 @@ struct non_native_vector_base<
 
 // implementation for f6x16 and f6x32
 template <typename T, index_t N>
-struct non_native_vector_base<T, N, ck::enable_if_t<sizeof(T) == 12 || sizeof(T) == 24>>
+struct non_native_vector_base<
+    T,
+    N,
+    ck::enable_if_t<sizeof(T) == 12 || sizeof(T) == 16 || sizeof(T) == 24 || sizeof(T) == 32>>
 {
     using data_t =
         typename nnvb_data_t_selector<T>::type; // select data_t based on declared base type
     using element_t = typename T::element_type; // select element_t based on declared element type
     static_assert(sizeof(T) == sizeof(data_t), "non_native_vector_base storage size mismatch");
-    static constexpr size_t size_factor =
-        sizeof(data_t) / sizeof(element_t); // f6x16: 12/4 = 3, f6x32: 24/4 = 6
+    static constexpr size_t size_factor = sizeof(data_t) / sizeof(element_t);
     using data_v = element_t __attribute__((ext_vector_type(N * size_factor)));
     using type   = non_native_vector_base<T, N>;
 
@@ -1457,29 +1459,29 @@ struct non_native_vector_base<T, N, ck::enable_if_t<sizeof(T) == 12 || sizeof(T)
         StaticallyIndexedArray<data_v, 1> dNx1;
     } data_;
 
-    __host__ __device__ constexpr non_native_vector_base(data_t a)
-        : data_{data_v(a.At(Number<0>{}))}
+    // Broadcast single value to vector
+    __host__ __device__ constexpr non_native_vector_base(data_t a) : data_{}
     {
+        // TODO: consider removing initialization similar to vector_type<T, 256>
+
+        ck::static_for<0, N, 1>{}([&](auto i) {
+            data_.dxN(i) = a; // broadcast value to all elements
+        });
     }
+
     __host__ __device__ constexpr non_native_vector_base(T f)
         : non_native_vector_base(bit_cast<data_t>(f))
     {
     }
+
     __host__ __device__ constexpr non_native_vector_base() : non_native_vector_base(T{}){};
+
     __host__ __device__ constexpr non_native_vector_base(data_v v) : data_{v} {}
 
+    __host__ __device__ constexpr non_native_vector_base(element_t v) : data_{data_v(v)} {}
+
     __host__ __device__ constexpr operator data_v() const { return data_.dN; }
-    __host__ __device__ constexpr operator data_t() const
-    {
-        if constexpr(N == 1)
-        {
-            return data_.dxN[Number<0>{}];
-        }
-        else
-        {
-            return data_.dxN; // XXX this should cause an error
-        }
-    }
+
     __host__ __device__ constexpr operator T() const
     {
         if constexpr(N == 1)
@@ -1488,7 +1490,31 @@ struct non_native_vector_base<T, N, ck::enable_if_t<sizeof(T) == 12 || sizeof(T)
         }
         else
         {
-            return data_.dTxN; // XXX this should cause an error
+            return err; // XXX this should cause an error
+        }
+    }
+
+    template <typename X>
+    __host__ __device__ constexpr const auto& AsType() const
+    {
+        static_assert(is_same_v<X, data_t> || is_same_v<X, data_v> || is_same_v<X, T>,
+                      "Something went wrong, please check src and dst types.");
+
+        if constexpr(is_same_v<X, data_v>)
+        {
+            return data_.dNx1;
+        }
+        else if constexpr(is_same_v<X, data_t>)
+        {
+            return data_.dxN;
+        }
+        else if constexpr(is_same_v<X, T>)
+        {
+            return data_.dTxN;
+        }
+        else
+        {
+            return err;
         }
     }
 };
@@ -1504,8 +1530,10 @@ struct scalar_type<non_native_vector_base<
 };
 
 template <typename T, index_t N>
-struct scalar_type<
-    non_native_vector_base<T, N, ck::enable_if_t<sizeof(T) == 12 || sizeof(T) == 24>>>
+struct scalar_type<non_native_vector_base<
+    T,
+    N,
+    ck::enable_if_t<sizeof(T) == 12 || sizeof(T) == 16 || sizeof(T) == 24 || sizeof(T) == 32>>>
 {
     using type                           = typename non_native_vector_base<T, N>::element_t;
     static constexpr index_t vector_size = N * non_native_vector_base<T, N>::size_factor;
@@ -2221,8 +2249,9 @@ using f4x32_t = typename vector_type<f4x2_pk_t, 16>::type;
 using f4x64_t = typename vector_type<f4x2_pk_t, 32>::type;
 
 // f6
-using f6x16_t = typename vector_type<f6x16_pk_t, 1>::type;
-using f6x32_t = typename vector_type<f6x32_pk_t, 1>::type;
+using f6x16_t   = typename vector_type<f6x16_pk_t, 1>::type;
+using f6x16x2_t = typename vector_type<f6x16_pk_t, 2>::type;
+using f6x32_t   = typename vector_type<f6x32_pk_t, 1>::type;
 
 // bf6
 using bf6x16_t = typename vector_type<bf6x16_pk_t, 1>::type;

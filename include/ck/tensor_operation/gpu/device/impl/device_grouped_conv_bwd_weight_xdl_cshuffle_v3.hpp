@@ -20,6 +20,8 @@
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_conv_v3.hpp"
 #include <ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp>
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
+#include "ck/tensor_operation/gpu/device/impl/split_k_utils.hpp"
+#include "ck/tensor_operation/gpu/device/impl/split_k_arg.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 
@@ -385,52 +387,50 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         decltype(GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
             CGridDesc_M_N{}, 1, 1));
 
-    struct MaximumActiveBlocksPerMultiprocessor
+    struct ActiveWorkgroupsPerCU
     {
-        MaximumActiveBlocksPerMultiprocessor()
+        ActiveWorkgroupsPerCU()
         {
             constexpr int dynamic_smem_size = 0;
             constexpr index_t minimum_occupancy =
-                BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;            
+                BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;
             int max_occupancy = 0;
 
             if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
             {
                 hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
-                                &max_occupancy,
-                                kernel_grouped_conv_bwd_weight_xdl_cshuffle_v3_2lds<
-                                    GridwiseGemm,
-                                    remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
-                                    remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                                    remove_reference_t<
-                                        DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
-                                    ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                    true,
-                                    InMemoryDataOperationEnum::AtomicAdd,
-                                    minimum_occupancy>,
-                                BlockSize,
-                                dynamic_smem_size));
+                    &max_occupancy,
+                    kernel_grouped_conv_bwd_weight_xdl_cshuffle_v3_2lds<
+                        GridwiseGemm,
+                        remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                        remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                        remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                        ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
+                        true,
+                        InMemoryDataOperationEnum::AtomicAdd,
+                        minimum_occupancy>,
+                    BlockSize,
+                    dynamic_smem_size));
             }
-            else 
+            else
             {
                 hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
-                                &max_occupancy,
-                                kernel_grouped_conv_bwd_weight_xdl_cshuffle_v3<
-                                        GridwiseGemm,
-                                        remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
-                                        remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                                        remove_reference_t<
-                                            DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
-                                        ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                        true,
-                                        InMemoryDataOperationEnum::AtomicAdd,
-                                        minimum_occupancy>,
-                                BlockSize,
-                                dynamic_smem_size));
+                    &max_occupancy,
+                    kernel_grouped_conv_bwd_weight_xdl_cshuffle_v3<
+                        GridwiseGemm,
+                        remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                        remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                        remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                        ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
+                        true,
+                        InMemoryDataOperationEnum::AtomicAdd,
+                        minimum_occupancy>,
+                    BlockSize,
+                    dynamic_smem_size));
             }
-            value_ = std::max(1, max_occupancy);
+            max_occupancy_ = std::max(1, max_occupancy);
         }
-        int value_;
+        int max_occupancy_;
     };
 
     struct Argument : public BaseArgument, public ArgumentSplitK
@@ -478,7 +478,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
               input_left_pads_{input_left_pads},
               input_right_pads_{input_right_pads}
         {
-            static MaximumActiveBlocksPerMultiprocessor max_occupancy;
+            static ActiveWorkgroupsPerCU active_workgroups_per_cu;
 
             c_space_size_bytes =
                 ck::accumulate_n<long_index_t>(
@@ -496,80 +496,33 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                       end(a_g_n_k_wos_lengths),
                       begin(output_spatial_lengths_));
 
-            if (split_k_parameters.strategy_== SplitKStrategy::BestOccupancy ||
-                split_k_parameters.strategy_== SplitKStrategy::Optimized)
+            if(split_k < 0)
             {
-                constexpr int k_batch_initial = 1;
-                const auto descs_initial =
-                        conv_to_gemm_transformer
-                            .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
-                                Conv_N_,
-                                Conv_K_,
-                                Conv_C_,
-                                input_spatial_lengths_,
-                                filter_spatial_lengths_,
-                                output_spatial_lengths_,
-                                b_g_n_c_wis_strides,
-                                e_g_k_c_xs_strides,
-                                a_g_n_k_wos_strides,
-                                conv_filter_strides,
-                                conv_filter_dilations,
-                                input_left_pads,
-                                input_right_pads,
-                                k_batch_initial);
-
-                const auto& a_grid_desc_kbatch_k0_m_k1 = descs_initial[I0];
-                const auto& b_grid_desc_kbatch_k0_n_k1 = descs_initial[I1];
-                const auto gemmM = a_grid_desc_kbatch_k0_m_k1.GetLength(I1);
-                const auto gemmN = b_grid_desc_kbatch_k0_n_k1.GetLength(I1);
-
-                const auto grid_size_mn = GridwiseGemm::Block2CTileMap::CalculateGridSize(gemmM, gemmN);
-                std::tie(m_dim_size_, n_dim_size_, k_dim_size_) = 
+                ck::index_t gemmM, gemmN, gemmK;
+                std::tie(gemmM, gemmN, gemmK) =
                     get_bwd_weight_gemm_sizes<NDimSpatial>(a_g_n_k_wos_lengths, e_g_k_c_xs_lengths);
-                const auto k_grid_size = k_dim_size_ / K0PerBlock;
 
-                const auto total_grid_size = grid_size_mn * Conv_G_;
-                k_batch_ = split_k_parameters.strategy_== SplitKStrategy::BestOccupancy
-                    ? get_best_occupancy_k_batch_value(max_occupancy.value_, total_grid_size)
-                    : get_optimized_k_batch_value(max_occupancy.value_, grid_size_mn, k_grid_size);
+                const auto grid_size =
+                    calculate_mn_grid_size<MPerBlock, NPerBlock>(gemmM, gemmN) * Conv_G_;
+                k_batch_ = get_best_occupancy_k_batch_value(active_workgroups_per_cu.max_occupancy_,
+                                                            grid_size);
 
-                data_type_ = typeid(ABDataType).name();
-                arithmetic_intensity_ = calculate_arithmetic_intensity(m_dim_size_, n_dim_size_, k_dim_size_, sizeof(ABDataType));
+                // Ensure that k_batch_ does not exceed the maximum value
+                // for the GEMM pipeline.
+                const auto k_batch_max = static_cast<index_t>((gemmK - 1) / K0PerBlock);
+                k_batch_               = std::min(k_batch_, k_batch_max);
 
-                // For small GemmK size, cap the max value of the k_batch.
-                const auto k_batch_max = static_cast<index_t>((k_dim_size_ - 1) / K0PerBlock);
-                if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
-                    std::cout << "[SPLIT-K AUTODEDUCE] m_dim_size: " 
-                                << m_dim_size_ << std::endl;
-                    std::cout << "[SPLIT-K AUTODEDUCE] n_dim_size: "
-                                << n_dim_size_ << std::endl;
-                    std::cout << "[SPLIT-K AUTODEDUCE] k_dim_size: " 
-                                << k_dim_size_ << std::endl;
-                    std::cout << "[SPLIT-K AUTODEDUCE] K0PerBlock: " 
-                                << K0PerBlock << std::endl;
-                    std::cout << "[SPLIT-K AUTODEDUCE] arithmetic intensity: "
-                                << arithmetic_intensity_ << std::endl;
-                    std::cout << "[SPLIT-K AUTODEDUCE] data type: "
-                                << data_type_ << " (size " << sizeof(ABDataType) << " bytes)" << std::endl;
-                    std::cout << "[SPLIT-K AUTODEDUCE] k_batch max value: " 
-                                << k_batch_max << std::endl;
+                    std::cout << "[SPLIT-K AUTODEDUCE] k_batch max value: " << k_batch_max
+                              << std::endl;
+                    std::cout << "[SPLIT-K AUTODEDUCE] Final k_batch value: " << k_batch_
+                              << std::endl;
                 }
-
-                k_batch_ = std::min(k_batch_, k_batch_max);
-                if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << "[SPLIT-K AUTODEDUCE] Final k_batch value: " 
-                                << k_batch_ << std::endl; 
-                }
-            }
-            else if (split_k_parameters.strategy_ == SplitKStrategy::FixedSplitK)
-            {
-                k_batch_ = split_k_parameters.fixed_value_;
             }
             else
             {
-                throw std::runtime_error("Unsupported Split-K strategy.");
+                k_batch_ = split_k;
             }
 
             const auto descs =
