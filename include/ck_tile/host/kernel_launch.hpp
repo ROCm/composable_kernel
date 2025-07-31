@@ -91,6 +91,29 @@ inline void remove_outliers(std::vector<float>& v)
     v.erase(std::remove_if(v.begin(), v.end(), [&](float f) { return f < lb || f > ub; }), v.end());
 }
 
+// Measure the preprocess time during the cold iterations
+template <typename TimerType>
+CK_TILE_HOST double
+preprocess_profiling_impl(TimerType timer, const stream_config& s, std::function<void()> preprocess)
+{
+    timer.start(s.stream_id_);
+    auto iter = max(s.cold_niters_, s.nrepeat_);
+    for(int i = 0; i < iter; i++)
+    {
+        if(preprocess)
+            preprocess();
+    }
+    timer.stop(s.stream_id_);
+
+    return timer.duration() / iter;
+}
+
+template <typename PreprocessFunc>
+CK_TILE_HOST float preprocess_profiling(const stream_config& s, PreprocessFunc preprocess)
+{
+    return preprocess_profiling_impl(gpu_timer{}, s, preprocess);
+}
+
 template <typename TimerType, typename CallablesFunc>
 CK_TILE_HOST double timing_loop_impl(TimerType timer,
                                      const stream_config& s,
@@ -101,35 +124,26 @@ CK_TILE_HOST double timing_loop_impl(TimerType timer,
     {
         callables_func();
     }
+    timer.start(s.stream_id_);
 
-    float per_iter_time = 0.f;
+    auto profile_time = preprocess_profiling(s, preprocess);
+
     std::vector<float> times;
     int i = 0;
-    while(i < s.nrepeat_ || per_iter_time < s.bench_time_ms_)
+    timer.start(s.stream_id_);
+    while(i < s.nrepeat_)
     {
         if(preprocess)
             preprocess();
 
-        timer.start(s.stream_id_, i);
         callables_func();
-        timer.stop(s.stream_id_, i);
-
-        if(i > 0)
-        {
-            per_iter_time = timer.duration(i - 1);
-            times.push_back(per_iter_time);
-            per_iter_time = timer.is_exceed(i - 1);
-        }
         i++;
     }
+    timer.stop(s.stream_id_);
 
     if(!i)
         return 0.;
-
-    per_iter_time = timer.duration(i - 1);
-    times.push_back(per_iter_time);
-    remove_outliers(times);
-    return std::accumulate(times.begin(), times.end(), 0.) / times.size();
+    return (timer.duration() / s.nrepeat_) - profile_time;
 }
 
 // clang-format off
@@ -174,7 +188,7 @@ CK_TILE_HOST float launch_kernel(const stream_config& s, Callables&&... callable
 
     if(s.is_gpu_timer_)
     {
-        return timing_loop_impl(gpu_timer_new{s.stream_id_}, s, callables_func);
+        return timing_loop_impl(gpu_timer{}, s, callables_func);
     }
     else
     {
@@ -199,7 +213,7 @@ launch_kernel_time_mask(const stream_config& s, PreprocessFunc preprocess, Calla
 
     if(s.is_gpu_timer_)
     {
-        return timing_loop_impl(gpu_timer_new{s.stream_id_}, s, callables_func, preprocess);
+        return timing_loop_impl(gpu_timer{}, s, callables_func);
     }
     else
     {

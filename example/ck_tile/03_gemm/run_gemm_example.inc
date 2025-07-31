@@ -184,6 +184,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   int n_warmup,
                   int n_repeat,
                   bool persistent,
+                  bool flush_cache,
+                  int rotating_count,
                   int bench_time_ms)
 {
     ck_tile::GemmHostArgs args = {a_m_k_dev_buf.GetDeviceBuffer(),
@@ -211,10 +213,16 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                         DsLayout,
                         CLayout,
                         true,
-                        CDEElementWise>(
-            args,
-            ck_tile::stream_config{
-                nullptr, true, 1, n_warmup, n_repeat, true, true, 50, bench_time_ms});
+                        CDEElementWise>(args,
+                                        ck_tile::stream_config{nullptr,
+                                                               true,
+                                                               1,
+                                                               n_warmup,
+                                                               n_repeat,
+                                                               true,
+                                                               flush_cache,
+                                                               rotating_count,
+                                                               bench_time_ms});
     }
     else
     {
@@ -229,10 +237,16 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                         DsLayout,
                         CLayout,
                         false,
-                        CDEElementWise>(
-            args,
-            ck_tile::stream_config{
-                nullptr, true, 1, n_warmup, n_repeat, true, true, 50, bench_time_ms});
+                        CDEElementWise>(args,
+                                        ck_tile::stream_config{nullptr,
+                                                               true,
+                                                               1,
+                                                               n_warmup,
+                                                               n_repeat,
+                                                               true,
+                                                               flush_cache,
+                                                               rotating_count,
+                                                               bench_time_ms});
     }
 
     std::size_t flop = std::size_t(2) * M * N * K;
@@ -303,6 +317,8 @@ int run_gemm_example_with_layouts(int argc,
     int n_repeat                 = arg_parser.get_int("repeat");
     ck_tile::index_t init_method = arg_parser.get_int("init");
     bool persistent              = arg_parser.get_int("persistent");
+    bool flush_cache             = arg_parser.get_bool("flush_cache");
+    int rotating_count           = arg_parser.get_int("rotating_count");
     int bench_time_ms            = arg_parser.get_int("bench_time_ms");
 
     const bool preshuffle = GemmConfig::Preshuffle;
@@ -422,6 +438,8 @@ int run_gemm_example_with_layouts(int argc,
                          n_warmup,
                          n_repeat,
                          persistent,
+                         flush_cache,
+                         rotating_count,
                          bench_time_ms);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
