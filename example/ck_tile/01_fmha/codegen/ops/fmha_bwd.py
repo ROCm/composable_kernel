@@ -385,9 +385,10 @@ def get_dq_dk_dv_tiles(dtype : str, tr_load: str) -> List[FmhaBwdDQDKDVTileSize]
         ]
     elif (dtype == 'fp16' or dtype == 'bf16') and tr_load == 't':
         return [
-                FmhaBwdDQDKDVTileSize( 32, 128, 128, 32, 128, 32, 32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 32, 1),
+                # FmhaBwdDQDKDVTileSize( 32, 128, 128, 32, 128, 32, 32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 32, 1),
                 # FmhaBwdDQDKDVTileSize( 16, 32, 128, 16, 128, 16, 32, 128, 128, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 16, 32, 16, 16, 16, 1, 16),
-                FmhaBwdDQDKDVTileSize( 16,  16, 128, 16, 128, 16, 16, 128, 128, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 16, 32, 16, 16, 16, 2, 16),
+                # FmhaBwdDQDKDVTileSize( 16,  16, 128, 16, 128, 16, 16, 128, 128, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 16, 32, 16, 16, 16, 2, 16),
+                FmhaBwdDQDKDVTileSize( 16, 192, 128, 16, 128, 16, 32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
         ]
     else:
         return []
@@ -791,6 +792,9 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[Fm
                 continue
             if tr_load == "t" and (dpad == "t" or dvpad == "t"):
                 continue  # tr_load cannot work with dpad or dvpad
+            if optdim_list != [-1]:
+                if hdim not in optdim_list:
+                    continue
             t = FmhaBwdApiTrait(idx=0, hdim=hdim, dtype=dtype, mode=mode,tile=tile,mask=mask, bias=bias, dbias=dbias, dropout=dropout, spad1d=spad1d, dpad=dpad, dvpad=dvpad, deterministic=deterministic, mask_impl=mask_impl, tr_load=tr_load)
 
             if not fnmatch.fnmatch(t.dot_do_o_kernel.name, filter_dot_do_o):
@@ -799,9 +803,6 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[Fm
                 continue
             if not fnmatch.fnmatch(t.convert_dq_kernel.name, filter_convert_dq):
                 continue
-            if optdim_list != [-1]:
-                if hdim not in optdim_list:
-                    continue
 
             # Flash attention integration
             if receipt == 2:
