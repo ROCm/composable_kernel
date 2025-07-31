@@ -127,7 +127,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
                 tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
                 tuple<sequence<1, 0>>,
                 tuple<sequence<1, 0>>,
-                sequence<1, 2>,
+                sequence<2, 1>,
                 sequence<0, 0>>{};
 
             constexpr auto q_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
@@ -183,12 +183,14 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
         constexpr index_t MIterPerWarp = kMPerBlock / (MWarp * WarpGemm::kM);
         constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
 
+        // Read M first, then K
+        // This is the same data consume order as BlockGEMM
         constexpr auto q_block_outer_dstr_encoding =
             tile_distribution_encoding<sequence<NWarp>,
                                        tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
                                        tuple<sequence<1, 0>>,
                                        tuple<sequence<1, 0>>,
-                                       sequence<1, 2>,
+                                       sequence<2, 1>,
                                        sequence<0, 0>>{};
 
         constexpr auto q_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
@@ -428,12 +430,14 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
         constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
         constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
 
+        // Read N first, then K
+        // This is the same data consume order as BlockGEMM
         constexpr auto k_block_outer_dstr_encoding =
             tile_distribution_encoding<sequence<MWarp>,
                                        tuple<sequence<NIterPerWarp, NWarp>, sequence<KIterPerWarp>>,
                                        tuple<sequence<0, 1>>,
                                        tuple<sequence<0, 1>>,
-                                       sequence<1, 2>,
+                                       sequence<2, 1>,
                                        sequence<0, 0>>{};
 
         constexpr auto k_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
@@ -489,12 +493,14 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
         constexpr index_t MIterPerWarp = kMPerBlock / (MWarp * WarpGemm::kM);
         constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
 
+        // Read M first, then K
+        // This is the same data consume order as BlockGEMM
         constexpr auto p_block_outer_dstr_encoding =
             tile_distribution_encoding<sequence<NWarp>,
                                        tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
                                        tuple<sequence<1, 0>>,
                                        tuple<sequence<1, 0>>,
-                                       sequence<1, 2>,
+                                       sequence<2, 1>,
                                        sequence<0, 0>>{};
 
         constexpr auto p_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
@@ -521,12 +527,14 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
         constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
         constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
 
+        // Read N first, then K
+        // This is the same data consume order as BlockGEMM
         constexpr auto v_block_outer_dstr_encoding =
             tile_distribution_encoding<sequence<MWarp>,
                                        tuple<sequence<NIterPerWarp, NWarp>, sequence<KIterPerWarp>>,
                                        tuple<sequence<0, 1>>,
                                        tuple<sequence<0, 1>>,
-                                       sequence<1, 2>,
+                                       sequence<2, 1>,
                                        sequence<0, 0>>{};
 
         constexpr auto v_block_dstr_encode = detail::make_embed_tile_distribution_encoding(

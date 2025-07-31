@@ -88,7 +88,7 @@ struct BlockGemmARegBRegCRegV1
                 tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
                 tuple<sequence<1, 0>>,
                 tuple<sequence<1, 0>>,
-                sequence<1, 2>,
+                sequence<2, 1>,
                 sequence<0, 0>>{};
             constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
                 a_block_outer_dstr_encoding, typename WarpGemm::AWarpDstrEncoding{});
@@ -120,7 +120,7 @@ struct BlockGemmARegBRegCRegV1
                 tuple<sequence<NIterPerWarp, NWarp>, sequence<KIterPerWarp>>,
                 tuple<sequence<0, 1>>,
                 tuple<sequence<0, 1>>,
-                sequence<1, 2>,
+                sequence<2, 1>,
                 sequence<0, 0>>{};
             constexpr auto b_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
                 b_block_outer_dstr_encoding, typename WarpGemm::BWarpDstrEncoding{});
@@ -221,7 +221,7 @@ struct BlockGemmARegBRegCRegV1
                 AWarpTensor a_warp_tensor;
 
                 a_warp_tensor.get_thread_buffer() = a_block_tensor.get_y_sliced_thread_data(
-                    merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                    merge_sequences(sequence<kIter, mIter>{}, a_warp_y_index_zeros),
                     merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
 
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
@@ -229,7 +229,7 @@ struct BlockGemmARegBRegCRegV1
                     BWarpTensor b_warp_tensor;
 
                     b_warp_tensor.get_thread_buffer() = b_block_tensor.get_y_sliced_thread_data(
-                        merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
+                        merge_sequences(sequence<kIter, nIter>{}, b_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
 
                     // read C warp tensor from C block tensor
