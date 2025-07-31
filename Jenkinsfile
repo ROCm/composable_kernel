@@ -836,7 +836,7 @@ def run_aiter_tests(Map conf=[:]){
         }
     }
 
-    withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
+    withDockerContainer(image: image, args: dockerOpts + ' --device=/dev/dri --device=/dev/kfd  --group-add $(getent group render | cut -d: -f3) --user jenkins -v=/var/jenkins/:/var/jenkins') {
         timeout(time: 45, unit: 'MINUTES'){
             try{
                 sh "python3 --version"
