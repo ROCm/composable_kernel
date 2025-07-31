@@ -12,16 +12,41 @@ static constexpr inline auto is_row_major(Layout layout_)
                                                  ck_tile::tensor_layout::gemm::RowMajor>>{};
 }
 
-template <typename ADataType,
+template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
+auto calculate_rtol_atol(const ck_tile::index_t K,
+                         const ck_tile::index_t kbatch,
+                         const float max_accumulated_value)
+{
+    using ComputeType =
+        std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
+    // Calculate thresholds
+    const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType, AccDataType>(
+        ck_tile::integer_divide_ceil(K, kbatch));
+    const auto atol = ck_tile::get_absolute_threshold<ComputeType, CDataType, AccDataType>(
+        max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
+    // Calculate error due to split_k accumulation
+    const auto rtol_split_k =
+        ck_tile::get_relative_threshold<CDataType, CDataType, CDataType>(kbatch);
+    const auto atol_split_k = ck_tile::get_absolute_threshold<CDataType, CDataType, CDataType>(
+        max_accumulated_value, kbatch);
+    // Use higher threshold
+    return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
+}
+
+template <typename GemmConfig,
+          typename ADataType,
           typename AQDataType,
           typename BDataType,
+          typename DsDataType,
           typename AccDataType,
           typename CDataType,
           typename ALayout,
           typename AQLayout,
           typename BLayout,
+          typename DsLayout,
           typename CLayout,
-          uint32_t QuantGroupSize>
+          uint32_t QuantGroupSize,
+          typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   ck_tile::DeviceMem& aq_m_aqk_dev_buf,
                   ck_tile::DeviceMem& b_k_n_dev_buf,
@@ -53,16 +78,20 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     args.stride_C  = stride_C;
     args.stride_AQ = stride_AQ;
 
-    float ave_time = gemm_calc_aquant<ADataType,
+    float ave_time = gemm_calc_aquant<GemmConfig,
+                                      ADataType,
                                       AQDataType,
                                       BDataType,
+                                      DsDataType,
                                       AccDataType,
                                       CDataType,
-                                      BDataType,
+                                      BDataType, // computeDatatype
                                       ALayout,
                                       BLayout,
+                                      DsLayout,
                                       CLayout,
-                                      QuantGroupSize>(
+                                      QuantGroupSize,
+                                      CDEElementWise>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::size_t flop     = std::size_t(2) * M * N * K;
@@ -85,7 +114,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     return ave_time;
 }
 
-template <typename TypeConfig,
+template <typename GemmConfig,
+          typename TypeConfig,
           uint32_t QuantGroupSize,
           typename ALayout,
           typename AQLayout,
@@ -190,14 +220,17 @@ int run_gemm_example_with_layouts(int argc,
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
-    invoke_gemm<ADataType,
+    invoke_gemm<GemmConfig,
+                ADataType,
                 AQDataType,
                 BDataType,
+                ck_tile::tuple<>,
                 AccDataType,
                 CDataType,
                 ALayout,
                 AQLayout,
                 BLayout,
+                ck_tile::tuple<>,
                 CLayout,
                 QuantGroupSize>(a_m_k_dev_buf,
                                 aq_m_aqk_dev_buf,
