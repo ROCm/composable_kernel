@@ -77,7 +77,7 @@ class TestCkTileMemoryCopy : public ::testing::TestWithParam<std::tuple<int, int
         constexpr ck_tile::index_t kBlockPerCu = 1;
 
         auto ms = launch_kernel(ck_tile::stream_config{nullptr, true},
-                                ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
+                                ck_tile::make_kernel<kBlockPerCu>(
                                     Kernel{},
                                     kGridSize,
                                     kBlockSize,

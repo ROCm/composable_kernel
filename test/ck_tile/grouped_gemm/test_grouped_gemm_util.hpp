@@ -150,7 +150,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
             EXPECT_TRUE(Kernel::IsSupportedArgument(kargs));
 
             const dim3 grids      = Kernel::GridSize(gemm_descs);
-            constexpr dim3 blocks = Kernel::BlockSize();
+            const dim3 blocks     = Kernel::BlockSize();
 
             ck_tile::hip_check_error(hipMemcpyWithStream(kargs_ptr,
                                                          kargs.data(),
@@ -168,7 +168,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
 
             ave_time = ck_tile::launch_kernel(
                 s,
-                ck_tile::make_kernel<blocks.x, GroupedGemKernelParam::kBlockPerCu>(
+                ck_tile::make_kernel<GroupedGemKernelParam::kBlockPerCu>(
                     Kernel{},
                     grids,
                     blocks,
@@ -277,7 +277,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
                                                  UniversalGemmProblem::TransposeC,
                                                  memory_operation>>;
             using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-            constexpr dim3 blocks = Kernel::BlockSize();
+            const dim3 blocks     = Kernel::BlockSize();
             const dim3 grids      = Kernel::MaxOccupancyGridSize(s);
 
             if(s.log_level_ > 0)
@@ -289,7 +289,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
             }
 
             ck_tile::launch_kernel(s,
-                                   ck_tile::make_kernel<blocks.x, kBlockPerCu>(
+                                   ck_tile::make_kernel<kBlockPerCu>(
                                        Kernel{},
                                        grids,
                                        blocks,

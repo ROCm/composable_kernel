@@ -139,9 +139,9 @@ class TestCkTileBatchedTranspose //              N    C    H    W    layout_in==
 
         auto sc                   = ck_tile::stream_config{};
         const dim3 grid_size      = Kernel::GridSize(host_args);
-        constexpr dim3 block_size = Kernel::BlockSize();
+        const dim3 block_size     = Kernel::BlockSize();
         ck_tile::launch_kernel(
-            sc, ck_tile::make_kernel<block_size.x, 1>(Kernel{}, grid_size, block_size, 0, kargs));
+            sc, ck_tile::make_kernel<1>(Kernel{}, grid_size, block_size, 0, kargs));
 
         y_dev.FromDevice(y_host.data());
         ck_tile::reference_batched_transpose<DataType>(x_host, y_ref, layout_in, layout_out);
