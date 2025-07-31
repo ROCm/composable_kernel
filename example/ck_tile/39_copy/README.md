@@ -4,7 +4,7 @@
 
 ### Copy Kernel
 A minimal CK_Tile memory copy implementation demonstrating basic setup required to write a kernel in CK Tile.
-This experimental kernel serves the purpose of demonstrating the builiding blocks of CK Tile for novice developers and a sandbox for experimenting with kernel parameters.
+This experimental kernel serves the purpose of demonstrating the building blocks of CK Tile for novice developers and a sandbox for experimenting with kernel parameters.
 
 ## build
 ```
