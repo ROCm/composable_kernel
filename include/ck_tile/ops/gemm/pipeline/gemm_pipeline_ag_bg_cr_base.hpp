@@ -91,10 +91,10 @@ struct GemmPipelineAgBgCrImplBase
         return make_tuple(std::move(a_lds_block), std::move(b_lds_block));
     }
 
-    template <typename ADramBlockWindow, typename ALdsTensorView, typename ALoadTileDistr>
+    template <typename ADramBlockWindow, typename ALdsTensorView, typename ALdsLoadTileDistr>
     CK_TILE_DEVICE constexpr auto GetAWindows(const ADramBlockWindow& a_dram_block_window,
                                               const ALdsTensorView& a_lds_block_view,
-                                              const ALoadTileDistr&,
+                                              const ALdsLoadTileDistr&,
                                               const array<index_t, 2>& offset = {0, 0}) const
     {
         constexpr bool is_col_major = std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
@@ -116,7 +116,7 @@ struct GemmPipelineAgBgCrImplBase
                 return make_tile_window(a_dram_block_window.get_bottom_tensor_view(),
                                         make_tuple(YPerTile{}, XPerTile{}),
                                         a_dram_block_window.get_window_origin() + offset,
-                                        ALoadTileDistr{});
+                                        ALdsLoadTileDistr{});
             }
         }();
 
@@ -133,10 +133,10 @@ struct GemmPipelineAgBgCrImplBase
             if constexpr(is_a_load_tr)
                 return make_static_tile_distribution(
                     typename InputTileDistributionTraits<
-                        typename ALoadTileDistr::DstrEncode,
+                        typename ALdsLoadTileDistr::DstrEncode,
                         typename Problem::ADataType>::TransposedDstrEncode{});
             else
-                return ALoadTileDistr{};
+                return ALdsLoadTileDistr{};
         }();
         auto a_lds_gemm_window =
             make_tile_window(a_lds_block_view, a_lds_shape, {0, 0}, a_lds_load_tile_distr);
@@ -146,10 +146,10 @@ struct GemmPipelineAgBgCrImplBase
                           std::move(a_lds_gemm_window));
     }
 
-    template <typename BDramBlockWindow, typename BLdsTensorView, typename BLoadTileDistr>
+    template <typename BDramBlockWindow, typename BLdsTensorView, typename BLdsLoadTileDistr>
     CK_TILE_DEVICE constexpr auto GetBWindows(const BDramBlockWindow& b_dram_block_window,
                                               const BLdsTensorView& b_lds_block_view,
-                                              const BLoadTileDistr&,
+                                              const BLdsLoadTileDistr&,
                                               const array<index_t, 2>& offset = {0, 0}) const
     {
         constexpr bool is_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
@@ -170,7 +170,7 @@ struct GemmPipelineAgBgCrImplBase
                 return make_tile_window(b_dram_block_window.get_bottom_tensor_view(),
                                         make_tuple(YPerTile{}, XPerTile{}),
                                         b_dram_block_window.get_window_origin() + offset,
-                                        BLoadTileDistr{});
+                                        BLdsLoadTileDistr{});
             }
         }();
 
@@ -189,10 +189,10 @@ struct GemmPipelineAgBgCrImplBase
             if constexpr(is_b_load_tr)
                 return make_static_tile_distribution(
                     typename InputTileDistributionTraits<
-                        typename BLoadTileDistr::DstrEncode,
+                        typename BLdsLoadTileDistr::DstrEncode,
                         typename Problem::BDataType>::TransposedDstrEncode{});
             else
-                return BLoadTileDistr{};
+                return BLdsLoadTileDistr{};
         }();
         auto b_lds_gemm_window =
             make_tile_window(b_lds_block_view, b_lds_shape, {0, 0}, b_lds_load_tile_distr);
