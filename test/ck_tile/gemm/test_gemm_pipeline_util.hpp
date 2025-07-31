@@ -82,14 +82,20 @@ class TestCkTileGemmPipeline : public ::testing::Test
     using CDataType                    = std::tuple_element_t<6, Tuple>;
     static constexpr auto Scheduler    = std::tuple_element_t<7, Tuple>::value;
     static constexpr auto PipelineType = std::tuple_element_t<8, Tuple>::value;
-    static constexpr bool SkipALds     = std::tuple_element_t<9, Tuple>::value;
-    static constexpr bool SkipBLds     = std::tuple_element_t<10, Tuple>::value;
+
+    static constexpr bool Persistent = (PipelineType == GemmPipelineType::CompV3)
+                                           ? std::tuple_element_t<9, Tuple>::value
+                                           : std::false_type::value;
+    static constexpr bool SkipALds   = (PipelineType == GemmPipelineType::Mem)
+                                           ? std::tuple_element_t<9, Tuple>::value
+                                           : std::false_type::value;
+    static constexpr bool SkipBLds   = (PipelineType == GemmPipelineType::Mem)
+                                           ? std::tuple_element_t<10, Tuple>::value
+                                           : std::false_type::value;
 
     using DsLayout   = ck_tile::tuple<>;
     using DsDataType = ck_tile::tuple<>;
 
-    static constexpr bool Persistent =
-        ck_tile::tuple_element_or_default_t<Tuple, 9, std::false_type>::value;
     // TODO: expose tile size through test t-param ?
 
     template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
