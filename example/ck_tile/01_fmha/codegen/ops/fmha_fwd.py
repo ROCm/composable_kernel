@@ -162,7 +162,7 @@ class FmhaFwdApiTrait:
     @property
     def scheck(self) -> str:
         if self.mode == 'group': return 'true/*group mode spad always true*/'                  # group mode only generate spad/skpad == true
-        if self.pipeline_tag == 'qr_async' or self.pipeline_tag == 'qr_async_mod':
+        if self.pipeline_tag == 'qr_async':
             if self.spad == 't' : return 'true' # always support
             else :                return 'true'
         elif self.pipeline_tag in ['qr']:
@@ -173,7 +173,7 @@ class FmhaFwdApiTrait:
     @property
     def skcheck(self) -> str:
         if self.mode == 'group': return 'true/*group mode skpad always true*/'                  # group mode only generate spad/skpad == true
-        if self.pipeline_tag == 'qr_async' or self.pipeline_tag == 'qr_async_mod':
+        if self.pipeline_tag == 'qr_async':
             if self.skpad == 't' : return f'a.seqlen_k == 0 || a.seqlen_k % {self.bn0} != 0'
             else :                 return f'a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0'
         elif self.pipeline_tag in ['qr', 'qr_fp8']:
@@ -183,7 +183,7 @@ class FmhaFwdApiTrait:
 
     @property
     def dcheck(self) -> str:
-        if self.pipeline_tag == 'qr_async' or self.pipeline_tag == 'qr_async_mod':
+        if self.pipeline_tag == 'qr_async':
             vec = int((32 * 4) / DTYPE_BITS[self.dtype])
             if self.dpad == 't': return f'a.hdim_q % {vec} == 0'
             else :               assert False
@@ -195,7 +195,7 @@ class FmhaFwdApiTrait:
 
     @property
     def dvcheck(self) -> str:
-        if self.pipeline_tag == 'qr_async' or self.pipeline_tag == 'qr_async_mod':
+        if self.pipeline_tag == 'qr_async':
             vec = int((32 * 4) / DTYPE_BITS[self.dtype])
             if self.dvpad == 't': return f'a.hdim_v % {vec} == 0'
             else :                assert False
@@ -463,11 +463,6 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
                         pipelines.append(FmhaFwdPipeline('qr_async', 'row', 't', 't', 't', 't', bias, lse, dropout, squant, mask))
                         pipelines.append(FmhaFwdPipeline('qr_async', 'col', 't', 'f', 't', 't', bias, lse, dropout, squant, mask))
                         pipelines.append(FmhaFwdPipeline('qr_async', 'col', 't', 't', 't', 't', bias, lse, dropout, squant, mask))
-
-                        pipelines.append(FmhaFwdPipeline('qr_async_mod', 'row', 't', 'f', 't', 't', bias, lse, dropout, squant, mask))
-                        pipelines.append(FmhaFwdPipeline('qr_async_mod', 'row', 't', 't', 't', 't', bias, lse, dropout, squant, mask))
-                        pipelines.append(FmhaFwdPipeline('qr_async_mod', 'col', 't', 'f', 't', 't', bias, lse, dropout, squant, mask))
-                        pipelines.append(FmhaFwdPipeline('qr_async_mod', 'col', 't', 't', 't', 't', bias, lse, dropout, squant, mask))
                     if receipt == 1 and bias != "bias":
                         pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 't', 't', bias, lse, dropout, squant, mask)) # TODO: cover arbitraty hdim
                         pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 'f', 't', 't', bias, lse, dropout, squant, mask)) # TODO: cover arbitraty hdim
