@@ -79,7 +79,7 @@ class TestCkTileSmoothquant : public ::testing::Test
         x_buf.ToDevice(x_host.data());
         smscale_buf.ToDevice(smscale_host.data());
 
-        std::cout << " m:" << m << ", n:" << n << ", x_stride:" << x_stride
+        std::cout << "m:" << m << ", n:" << n << ", x_stride:" << x_stride
                   << ", y_stride:" << y_stride << std::flush;
 
         smoothquant_args args{x_buf.GetDeviceBuffer(),
