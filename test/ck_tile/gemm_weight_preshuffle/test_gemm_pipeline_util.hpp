@@ -183,7 +183,6 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                  DsLayout,
                                                  CLayout,
                                                  ck_tile::element_wise::PassThrough,
-                                                 GemmPipeline::BlockSize,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,
                                                  GemmConfig::M_Warp,

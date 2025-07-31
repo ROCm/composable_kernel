@@ -121,9 +121,16 @@ struct BatchedGemmKernel
         return dim3(TilePartitioner::GridSize(M, N), batch_count, KBatch);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() -> dim3
+    CK_TILE_HOST static auto BlockSize() -> dim3
     {
-        return dim3(UniversalGemmKernel::KernelBlockSize);
+        if(ck_tile::is_wave32())
+        {
+            return dim3(UniversalGemmKernel::KernelBlockSize / 2);
+        }
+        else
+        {
+            return dim3(UniversalGemmKernel::KernelBlockSize);
+        }
     }
 
     CK_TILE_HOST static constexpr BatchedGemmKernelArgs

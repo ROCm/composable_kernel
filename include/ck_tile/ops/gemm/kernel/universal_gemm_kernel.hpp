@@ -275,15 +275,26 @@ struct UniversalGemmKernel
     CK_TILE_HOST static auto MaxOccupancyGridSize(const stream_config& s) -> dim3
     {
         using Kernel      = UniversalGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline>;
-        const auto kernel = kentry<KernelBlockSize, 1, Kernel, KernelArgs>;
+        const auto kernel = kentry<1, Kernel, KernelArgs>;
         int occupancy;
-        hip_check_error(
-            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, KernelBlockSize, 0));
+        hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
+            &occupancy, kernel, BlockSize().x, 0));
+
         const int grid_size = get_available_compute_units(s) * occupancy;
         return dim3(grid_size, 1, 1);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
+    CK_TILE_HOST static auto BlockSize()
+    {
+        if(ck_tile::is_wave32())
+        {
+            return dim3(KernelBlockSize / 2);
+        }
+        else
+        {
+            return dim3(KernelBlockSize);
+        }
+    }
 
     CK_TILE_HOST static constexpr KernelArgs
     MakeKernelArgs(const UniversalGemmHostArgs<NumATensor, NumBTensor, NumDTensor>& hostArgs)

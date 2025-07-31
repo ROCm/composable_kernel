@@ -67,6 +67,23 @@ CK_TILE_HOST_DEVICE constexpr index_t get_warp_size()
 #endif
 }
 
+CK_TILE_HOST bool is_wave32()
+{
+    hipDeviceProp_t props{};
+    int device;
+    auto status = hipGetDevice(&device);
+    if(status != hipSuccess)
+    {
+        return false;
+    }
+    status = hipGetDeviceProperties(&props, device);
+    if(status != hipSuccess)
+    {
+        return false;
+    }
+    return props.major > 9;
+}
+
 CK_TILE_DEVICE index_t get_grid_size() { return gridDim.x; }
 
 CK_TILE_DEVICE index_t get_block_size() { return blockDim.x; }

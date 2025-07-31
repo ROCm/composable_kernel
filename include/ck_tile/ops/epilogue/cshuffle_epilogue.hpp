@@ -17,7 +17,6 @@ template <typename ADataType_,
           typename DsLayout_,
           typename ELayout_,
           typename CDElementwise_,
-          index_t kBlockSize_,
           index_t kM_,
           index_t kN_,
           index_t MWave_,
@@ -40,7 +39,7 @@ struct CShuffleEpilogueProblem
     using DsLayout                                         = remove_cvref_t<DsLayout_>;
     using ELayout                                          = remove_cvref_t<ELayout_>;
     using CDElementwise                                    = remove_cvref_t<CDElementwise_>;
-    static constexpr index_t kBlockSize                    = kBlockSize_;
+    static constexpr index_t kBlockSize                    = MWave_ * NWave_ * get_warp_size();
     static constexpr index_t kMPerBlock                    = kM_;
     static constexpr index_t kNPerBlock                    = kN_;
     static constexpr index_t MWave                         = MWave_;
@@ -77,7 +76,7 @@ struct CShuffleEpilogue
     using ELayout       = remove_cvref_t<typename Problem::ELayout>;
     using CDElementwise = remove_cvref_t<typename Problem::CDElementwise>;
     static constexpr memory_operation_enum MemoryOperation = Problem::MemoryOperation;
-    static constexpr index_t kBlockSize                    = Problem::kBlockSize;
+    static constexpr index_t kBlockSize                    = Problem::MWave * Problem::NWave * get_warp_size();
     static constexpr index_t kMPerBlock                    = Problem::kMPerBlock;
     static constexpr index_t kNPerBlock                    = Problem::kNPerBlock;
     static constexpr index_t MWave                         = Problem::MWave;

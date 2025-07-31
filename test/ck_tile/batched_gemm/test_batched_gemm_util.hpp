@@ -111,7 +111,6 @@ class TestCkTileBatchedGemm : public ::testing::Test
                                                  DsLayout,
                                                  CLayout,
                                                  ck_tile::element_wise::PassThrough,
-                                                 GemmPipelineProblem::kBlockSize,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,
                                                  M_Warp,

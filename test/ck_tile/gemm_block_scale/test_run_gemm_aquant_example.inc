@@ -99,7 +99,6 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
                                                     ck_tile::tuple<>,
                                                     CLayout,
                                                     ck_tile::element_wise::PassThrough,
-                                                    CodegenPipelineProblem::kBlockSize,
                                                     TilePartitioner::MPerBlock,
                                                     TilePartitioner::NPerBlock,
                                                     M_Warp,
