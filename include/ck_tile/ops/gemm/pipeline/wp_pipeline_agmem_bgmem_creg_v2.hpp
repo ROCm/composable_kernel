@@ -21,8 +21,6 @@ struct BaseWeightPreshufflePipelineAGmemBGmemCRegV2
 
     CK_TILE_HOST static constexpr bool BlockHasHotloop(index_t num_loop)
     {
-
-        std::cout << "BlockHasHotloop: " << num_loop << std::endl;
         return num_loop > PrefetchStages;
     }
 
@@ -37,12 +35,10 @@ struct BaseWeightPreshufflePipelineAGmemBGmemCRegV2
     {
         if(tail_number == TailNumber::Odd)
         {
-            std::cout << "TailHandler: Odd" << std::endl;
             run_func(bool_constant<true>{}, integral_constant<TailNumber, TailNumber::Odd>{});
         }
         else if(tail_number == TailNumber::Even)
         {
-            std::cout << "TailHandler: Even" << std::endl;
             run_func(bool_constant<true>{}, integral_constant<TailNumber, TailNumber::Even>{});
         }
     }

@@ -107,25 +107,18 @@ CK_TILE_HOST double timing_loop_impl(TimerType timer,
     }
 
     int i = 0;
-    while(i < s.nrepeat_ || per_iter_time < s.bench_time_ms_)
+    timer.start(s.stream_id_);
+    while(i < s.nrepeat_)
     {
         if constexpr(!std::is_same_v<PreprocessFunc, std::nullptr_t>)
         {
             preprocess();
         }
 
-        timer.start(s.stream_id_, i);
         callables_func();
-        timer.stop(s.stream_id_, i);
-
-        if(i > 0)
-        {
-            per_iter_time = timer.duration(i - 1);
-            times.push_back(per_iter_time);
-            per_iter_time = timer.is_exceed(i - 1);
-        }
         i++;
     }
+    timer.stop(s.stream_id_);
 
     if(!i)
         return 0.;
@@ -174,7 +167,7 @@ CK_TILE_HOST float launch_kernel(const stream_config& s, Callables&&... callable
 
     if(s.is_gpu_timer_)
     {
-        return timing_loop_impl(gpu_timer_new{s.stream_id_}, s, callables_func);
+        return timing_loop_impl(gpu_timer{}, s, callables_func);
     }
     else
     {

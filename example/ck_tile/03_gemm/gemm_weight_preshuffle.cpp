@@ -67,9 +67,8 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     using BaseGemmPipeline = typename PipelineTypeTraits<
         GemmConfig::Pipeline>::template UniversalGemmPipeline<GemmPipelineProblem>;
 
-    const ck_tile::index_t k_grain = args.k_batch * GemmConfig::K_Tile;
-    const ck_tile::index_t K_split = (args.K + k_grain - 1) / k_grain * GemmConfig::K_Tile;
-    std::cout << "k_grain: " << k_grain << " K_split: " << K_split << std::endl;
+    const ck_tile::index_t k_grain     = args.k_batch * GemmConfig::K_Tile;
+    const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * GemmConfig::K_Tile;
     const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
     const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
     const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
