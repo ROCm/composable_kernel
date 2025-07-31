@@ -844,11 +844,11 @@ def run_aiter_tests(Map conf=[:]){
         timeout(time: 45, unit: 'MINUTES'){
             try{
                 sh "python3 --version"
+                sh "pwd"
                 sh "rocminfo"
-                dir("/home/jenkins/workspace/aiter"){
-                    sh "python3 op_tests/test_gemm_a8w8_blockscale.py"
-                    sh "python3 op_tests/test_mha.py"
-                }
+                sh "ls -ltr ../aiter"
+                sh "python3 ../aiter/op_tests/test_gemm_a8w8_blockscale.py"
+                sh "python3 ../aiter/op_tests/test_mha.py"
             }
             catch(e){
                 echo "Throwing error exception while running AITER tests"
