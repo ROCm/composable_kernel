@@ -1278,11 +1278,11 @@ constexpr const char* address_space_to_string(address_space_enum addr_space)
     switch(addr_space)
     {
     case address_space_enum::generic: return "generic";
-    case address_space_enum::global: return "Global";
-    case address_space_enum::lds: return "Lds";
-    case address_space_enum::sgpr: return "Sgpr";
-    case address_space_enum::constant: return "Constant";
-    case address_space_enum::vgpr: return "Vgpr";
+    case address_space_enum::global: return "global";
+    case address_space_enum::lds: return "lds";
+    case address_space_enum::sgpr: return "sgpr";
+    case address_space_enum::constant: return "constant";
+    case address_space_enum::vgpr: return "vgpr";
     default: return "unknown";
     }
 }
