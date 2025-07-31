@@ -167,6 +167,7 @@ static const auto kTestingValues = ::testing::Values(
 //             N  C   H  W   layout_in==NCHW    
     std::tuple{1, 32, 1, 32, true},
     std::tuple{1, 64, 1, 64, true},
+    std::tuple{1, 32, 1, 64, true},
     std::tuple{2, 12, 1, 32, false},
     std::tuple{3, 1334, 1, 37, false},
     std::tuple{4, 27, 1, 32, true},
