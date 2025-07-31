@@ -6,6 +6,7 @@ namespace ck_tile::builder {
 
 using index_t = std::size_t;
 
+// Some sample host args to describe a GEMM, with defaults set to zero.
 struct GemmHostArgs
 {
     index_t m        = 0;
@@ -20,13 +21,25 @@ struct GemmHostArgs
     void* c          = nullptr;
 };
 
+// Tag for column major layout.
 struct ColMajor
 {
 };
+
+// Tag for row major layout.
 struct RowMajor
 {
 };
 
+// Requirements for struct to define the data types used in the GEMM operation.
+//
+// Example that satifies this constraint:
+// struct GemmTypes {
+//     using ADataType = float;
+//     using BDataType = float;
+//     using CDataType = float;
+//     using AccDataType = float;
+// };
 template <typename T>
 concept DefinesGemmTypes =
     requires {
@@ -38,6 +51,14 @@ concept DefinesGemmTypes =
     std::is_arithmetic_v<typename T::BDataType> && std::is_arithmetic_v<typename T::CDataType> &&
     std::is_arithmetic_v<typename T::AccDataType>;
 
+// Requirements for struct that defines the layout used in the GEMM operation.
+//
+// Example that satisfies this constraint:
+// struct Layouts {
+//     using ALayout = RowMajor;
+//     using BLayout = ColMajor;
+//     using CLayout = RowMajor;
+// };
 template <typename T>
 concept DefinesGemmLayout = requires {
     typename T::ALayout;
@@ -45,6 +66,7 @@ concept DefinesGemmLayout = requires {
     typename T::CLayout;
 };
 
+// A dummy placeholder for a real GEMM.
 class Gemm
 {
     public:
@@ -54,6 +76,7 @@ class Gemm
     }
 };
 
+// A minimal GEMM builder, this is where all the work will be.
 template <DefinesGemmTypes Types, DefinesGemmLayout Layout>
 class GemmBuilder
 {

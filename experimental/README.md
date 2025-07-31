@@ -1,42 +1,17 @@
-# Experimental Project
+# Experimental GEMM Example
 
-This project demonstrates a simple C++ application that outputs "Hello, World!" to the console. It serves as an entry point for understanding basic C++ programming and CMake configuration.
+This directory contains an experimental project to build a C++20 GEMM builder over CK Tile.
 
-## Building the Project
+* **Current state**: Early stages of development.
+* **Future work**
+  * Fake implemenation as a fascade over CK Tile universal GEMM.
+  * Add a `Describe(gemm)` function.
+  * Build out flexibilty.
+  * Experiment with some more complex build functionality.
+  * Explore design to describe more GEMM details.
 
-To build the project, follow these steps:
+## File Overview
 
-1. Ensure you have CMake installed on your system.
-2. Open a terminal and navigate to the `experimental` directory.
-3. Create a build directory:
-   ```bash
-   mkdir build
-   cd build
-   ```
-4. Run CMake to configure the project:
-   ```bash
-   cmake ..
-   ```
-5. Build the project:
-   ```bash
-   make
-   ```
-
-## Running the Executable
-
-After building the project, you can run the executable with the following command:
-
-```bash
-./hello_world
-```
-
-You should see the output:
-
-```
-Hello, World!
-```
-
-## Notes
-
-- This project is intended for educational purposes and may be expanded with additional features in the future.
-- Contributions and feedback are welcome.
+* `gemm_example.cpp` — Main example code, including device memory helpers and GEMM builder usage
+* `builder.h` — C++20 concepts and builder pattern for GEMM configuration
+* `CMakeLists.txt` — Build configuration for CMake

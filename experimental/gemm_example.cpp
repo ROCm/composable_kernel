@@ -1,8 +1,10 @@
+
+// gemm_example.cpp (formerly hello_world.cpp)
 #include <iostream>
 #include <memory>
 #include <hip/hip_runtime.h>
 
-#include "builder.h"
+#include "gemm_builder.h"
 
 namespace example {
 
