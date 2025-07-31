@@ -39,6 +39,15 @@ void topid_unique_gen(
     }
 }
 
+void print_vector(std::vector<int>& data)
+{
+    for(const auto& x : data)
+    {
+        std::cout << x << ",";
+    }
+    std::cout << " ";
+}
+
 template <typename Tuple>
 class TestCkTileMoeSorting : public ::testing::Test
 {
@@ -218,10 +227,10 @@ class TestCkTileMoeSorting : public ::testing::Test
         printf(
             ", num_experts:%d, topk:%d, mp:%d, ", num_experts, topk, workspace_size != 0 ? 1 : 0);
 
-        // TODO: check format of printing in examples
         if(local_expert_masking)
         {
-            // printf("local_eid:%s, ", args.get_str("local_eid").c_str());
+            printf("local_eid:");
+            print_vector(local_eid);
         }
 
         if(moe_buf_bytes > 0)
