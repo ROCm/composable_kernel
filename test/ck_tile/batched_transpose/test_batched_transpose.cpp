@@ -95,10 +95,12 @@ class TestCkTileBatchedTranspose //              N    C    H    W    layout_in==
         ck_tile::HostTensor<DataType> y_ref(Y_dim, Y_stride);
 
         ck_tile::FillUniformDistribution<DataType>{-.5f, .5f}(x_host);
+        ck_tile::FillConstant<DataType>{-37}(y_host);
 
         ck_tile::DeviceMem x_dev(x_host.get_element_space_size_in_bytes());
         ck_tile::DeviceMem y_dev(y_host.get_element_space_size_in_bytes());
         x_dev.ToDevice(x_host.data());
+        y_dev.ToDevice(y_host.data());
 
         using Kernel = typename Config::Kernel;
 
