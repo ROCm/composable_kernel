@@ -238,28 +238,6 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
     // similar to MakeOaccDramTileDistribution(), but duplicate same 1-warp encoding 4 times on M
     // direction
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeOacc4DramTileDistribution()
-    {
-        constexpr index_t kMPerBlock = Problem::kM0; // real kMPerBlock we want is (4 * kM0)
-        constexpr index_t kNPerBlock = Problem::kN1;
-        static_assert(get_warp_size() <= kMPerBlock * kNPerBlock);
-
-        constexpr index_t M1 = 1; // compose encoding base on 1 warp
-        constexpr index_t M2 = min(kMPerBlock / M1, get_warp_size());
-        constexpr index_t N0 = get_warp_size() / M2;
-        constexpr index_t N1 = kNPerBlock / N0;
-        constexpr index_t M0 = kMPerBlock / (M2 * M1);
-
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<4, M0, M1, M2>, sequence<N0, N1>>,
-                                       tuple<sequence<1, 1>, sequence<1, 2>>,
-                                       tuple<sequence<0, 2>, sequence<3, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<1, 1>>{});
-    }
-
-    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeOaccDramTileDistribution()
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
@@ -272,6 +250,8 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
         constexpr index_t N0 = get_warp_size() / M2;
         constexpr index_t N1 = kNPerBlock / N0;
         constexpr index_t M0 = kMPerBlock / (M2 * M1);
+        static_assert(kMPerBlock % (M0 * M1) == 0);
+        static_assert(kNPerBlock % N0 == 0);
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<1>,

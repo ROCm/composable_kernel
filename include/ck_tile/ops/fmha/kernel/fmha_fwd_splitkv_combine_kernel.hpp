@@ -407,10 +407,10 @@ struct FmhaFwdSplitKVCombineKernel
         const index_t padded_num_splits =
             integer_divide_ceil(kargs.num_splits, kNumWarps) * kNumWarps;
 
-        auto o_acc_dram_window = make_tile_window(
-            o_acc_dram,
-            make_tuple(number<kNumWarps * FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
-            {i_tile_m * padded_num_splits * FmhaPipeline::kM0, i_n1});
+        auto o_acc_dram_window =
+            make_tile_window(o_acc_dram,
+                             make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
+                             {i_tile_m * padded_num_splits * FmhaPipeline::kM0, i_n1});
 
         // LSE DRAM window
         auto lse_dram_window = [&, i_nhead_ = i_nhead]() {

@@ -174,7 +174,7 @@ struct BlockFmhaSplitKVCombinePipelineTileSizes
 
     static constexpr index_t kN1      = kN1_;
     static constexpr index_t NThreads = kN1 / MaxVectorSize;
-    static constexpr index_t kM0      = get_warp_size() / NThreads; // MThreadPerWarp
+    static constexpr index_t kM0      = 4 * get_warp_size() / NThreads; // MThreadPerWarp
 };
 
 template <typename LSEDataType_,

@@ -1089,7 +1089,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     const float fwd_ave_time = [&] {
 #if CK_TILE_FMHA_FWD_SPLITKV_API
-        if(1 < num_splits && use_kvcache)
+        // if(1 < num_splits && use_kvcache)
         {
             fmha_fwd_splitkv_traits fmha_splitkv_traits;
             init_traits(fmha_splitkv_traits);
@@ -1112,13 +1112,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
             return fmha_fwd_pagedkv(fmha_pagedkv_traits, fmha_pagedkv_args, stream_config);
         }
 #endif
-        fmha_fwd_traits fmha_traits;
-        init_traits(fmha_traits);
+        // fmha_fwd_traits fmha_traits;
+        // init_traits(fmha_traits);
 
-        fmha_fwd_args fmha_args;
-        init_args(fmha_args);
+        // fmha_fwd_args fmha_args;
+        // init_args(fmha_args);
 
-        return fmha_fwd(fmha_traits, fmha_args, stream_config);
+        // return fmha_fwd(fmha_traits, fmha_args, stream_config);
     }();
 
     if(appendkv_ave_time < 0.0f || fwd_ave_time < 0.0f)
