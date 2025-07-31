@@ -153,9 +153,9 @@ In many scenarios, the total work (BlockTile) is larger than what the available 
 ```cpp
 // Calculate how many times a warp needs to repeat to cover the entire block tile
 static constexpr index_t WarpRepetitionPerBlock_M =
-    (Vector_M * Warps_Per_Block_M * Warp_Tile_M) / Block_Tile_M;
+    Block_Tile_M / (Warps_Per_Block_M * Warp_Tile_M);
 static constexpr index_t WarpRepetitionPerBlock_N =
-    (Vector_N * Warps_Per_Block_N * Warp_Tile_N) / Block_Tile_N;
+    Block_Tile_N / (Warps_Per_Block_N * Warp_Tile_N);
 ```
 
 **Key Insight**: When warps repeat, the effective work per thread becomes `Vector * Repeat`, not just `Vector`.
