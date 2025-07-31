@@ -817,9 +817,13 @@ def run_aiter_tests(Map conf=[:]){
     checkout scm
     //use the latest pytorch image
     def image = "rocm/composable_kernel:ck_aiter"
-    def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+    def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined  -v=/var/jenkins/:/var/jenkins"
     def variant = env.STAGE_NAME
     def retimage
+    def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3')
+    def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3')
+    dockerOpts = dockerOpts + " --group-add=${video_id} --group-add=${render_id} "
+    echo "Docker flags: ${dockerOpts}"
 
     gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
         try
@@ -836,7 +840,7 @@ def run_aiter_tests(Map conf=[:]){
         }
     }
 
-    withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
+    withDockerContainer(image: image, args: dockerOpts) {
         timeout(time: 45, unit: 'MINUTES'){
             try{
                 sh "python3 --version"
