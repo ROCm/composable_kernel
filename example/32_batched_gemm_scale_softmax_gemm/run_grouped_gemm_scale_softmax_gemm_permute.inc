@@ -126,10 +126,10 @@ int run(int argc, char* argv[])
 
         if(i < 4)
         {
-            std::cout << "a_gs_ms_ks[" << i << "]: " << a_gs_ms_ks.mDesc << ", "
-                      << "b0_gs_ns_ks[" << i << "]: " << b0_gs_ns_ks.mDesc << ", "
-                      << "b1_gs_os_ns[" << i << "]: " << b1_gs_os_ns.mDesc << ", "
-                      << "c_gs_ms_os[" << i << "]: " << c_gs_ms_os_device_result.mDesc << std::endl;
+            std::cout << "a_gs_ms_ks[" << i << "]: " << a_gs_ms_ks.mDesc << ", " << "b0_gs_ns_ks["
+                      << i << "]: " << b0_gs_ns_ks.mDesc << ", " << "b1_gs_os_ns[" << i
+                      << "]: " << b1_gs_os_ns.mDesc << ", " << "c_gs_ms_os[" << i
+                      << "]: " << c_gs_ms_os_device_result.mDesc << std::endl;
         }
 
         switch(init_method)

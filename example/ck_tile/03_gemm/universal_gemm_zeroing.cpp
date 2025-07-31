@@ -18,7 +18,7 @@ namespace {
 
 // Calculate number of tiles for barrier allocation
 template <typename TilePartitioner>
-auto CalculateNumTiles(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args)
+auto CalculateNumTiles(const ck_tile::GemmHostArgs& args)
 {
     const auto M_blocks = (args.M + TilePartitioner::MPerBlock - 1) / TilePartitioner::MPerBlock;
     const auto N_blocks = (args.N + TilePartitioner::NPerBlock - 1) / TilePartitioner::NPerBlock;
@@ -32,7 +32,7 @@ auto CalculateNumTiles(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args)
 
 // Calculate workspace size needed for barriers only
 template <typename TilePartitioner>
-size_t GetWorkspaceSize(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args)
+size_t GetWorkspaceSize(const ck_tile::GemmHostArgs& args)
 {
     if(args.k_batch <= 1)
     {
@@ -47,8 +47,7 @@ size_t GetWorkspaceSize(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args)
 
 // Setup workspace with barriers
 template <typename TilePartitioner>
-uint32_t* SetupWorkspace(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args,
-                         ck_tile::DeviceMem& workspace)
+uint32_t* SetupWorkspace(const ck_tile::GemmHostArgs& args, ck_tile::DeviceMem& workspace)
 {
     if(args.k_batch <= 1)
     {
@@ -90,7 +89,7 @@ template <typename GemmConfig,
           typename ELayout,
           bool Persistent,
           typename CDEElementWise>
-float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile::stream_config& s)
+float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 {
     using GemmShape = ck_tile::TileGemmShape<
         ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,

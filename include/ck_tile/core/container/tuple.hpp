@@ -262,6 +262,8 @@ struct tuple : impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>
         return flag;
     }
 
+    CK_TILE_HOST_DEVICE static constexpr bool IsTuple() { return true; }
+
 #define TP_COM_() static_assert(I < size(), "wrong! out of range")
     // clang-format off
     template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get() const &          { TP_COM_(); return impl::getv<I>(*this); }

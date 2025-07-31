@@ -105,7 +105,7 @@ static constexpr inline auto is_row_major(Layout layout_)
 
 // Calculate number of tiles for barrier allocation
 template <typename TilePartitioner>
-auto CalculateNumTiles(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args)
+auto CalculateNumTiles(const ck_tile::GemmHostArgs& args)
 {
     const auto M_blocks = (args.M + TilePartitioner::MPerBlock - 1) / TilePartitioner::MPerBlock;
     const auto N_blocks = (args.N + TilePartitioner::NPerBlock - 1) / TilePartitioner::NPerBlock;
@@ -119,7 +119,7 @@ auto CalculateNumTiles(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args)
 
 // Calculate workspace size needed for barriers only - same as universal_gemm_zeroing.cpp
 template <typename TilePartitioner>
-size_t GetWorkspaceSize(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args)
+size_t GetWorkspaceSize(const ck_tile::GemmHostArgs& args)
 {
     if(args.k_batch <= 1)
     {
@@ -134,8 +134,7 @@ size_t GetWorkspaceSize(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args)
 
 // Setup workspace with barriers - same as universal_gemm_zeroing.cpp
 template <typename TilePartitioner>
-uint32_t* SetupWorkspace(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args,
-                         ck_tile::DeviceMem& workspace)
+uint32_t* SetupWorkspace(const ck_tile::GemmHostArgs& args, ck_tile::DeviceMem& workspace)
 {
     if(args.k_batch <= 1)
     {
@@ -339,8 +338,7 @@ class TestCkTileGemmSplitKZeroing : public ::testing::Test
         a_device_buf.ToDevice(a_m_k.data());
         b_device_buf.ToDevice(b_k_n.data());
 
-        // Create host args structure exactly like universal_gemm.cpp
-        ck_tile::GemmHostArgs</*NumDTensor = 0*/> args;
+        ck_tile::GemmHostArgs args;
         args.a_ptr    = a_device_buf.GetDeviceBuffer();
         args.b_ptr    = b_device_buf.GetDeviceBuffer();
         args.c_ptr    = c_device_buf.GetDeviceBuffer();
@@ -379,7 +377,7 @@ class TestCkTileGemmSplitKZeroing : public ::testing::Test
 
     private:
     template <typename Kernel>
-    void RunKernelTest(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args,
+    void RunKernelTest(const ck_tile::GemmHostArgs& args,
                        const std::string& test_name,
                        bool use_preprocessing,
                        const ck_tile::HostTensor<ADataType>& a_host,
@@ -411,9 +409,9 @@ class TestCkTileGemmSplitKZeroing : public ::testing::Test
 
         if(use_preprocessing)
         {
-            // Need preprocessing to clear C buffer (like universal_gemm.cpp run_flush_cache)
+            // Need preprocessing to clear C buffer
             auto run_preprocess = [&]() {
-                // Clear C memory for split-K operations (following universal_gemm pattern)
+                // Clear C memory for split-K operations
                 hipError_t hip_err = hipMemsetAsync(
                     args.c_ptr, 0, args.M * args.N * sizeof(CDataType), stream_cfg.stream_id_);
                 if(hip_err != hipSuccess)
@@ -423,8 +421,7 @@ class TestCkTileGemmSplitKZeroing : public ::testing::Test
                 }
             };
 
-            // Launch with preprocessing (like universal_gemm.cpp)
-            kernel_time = ck_tile::launch_kernel_preprocess(
+            kernel_time = ck_tile::launch_kernel_time_mask(
                 stream_cfg,
                 run_preprocess,
                 ck_tile::make_kernel<blocks.x, splitk_zeroing_test::TestGemmConfig::kBlockPerCu>(
@@ -432,7 +429,7 @@ class TestCkTileGemmSplitKZeroing : public ::testing::Test
         }
         else
         {
-            // Normal launch without preprocessing (like universal_gemm.cpp else branch)
+            // Normal launch without preprocessing
 
             kernel_time = ck_tile::launch_kernel(
                 stream_cfg,
