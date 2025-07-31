@@ -87,7 +87,7 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        return GetSmemSizeLSEacc<Problem>() + GetSmemSizeOacc4<Problem>();
+        return GetSmemSizeLSEacc<Problem>();
     }
 
     // shape=[kMaxSplits, kM0]
