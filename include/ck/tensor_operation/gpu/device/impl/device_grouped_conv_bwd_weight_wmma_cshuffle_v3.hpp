@@ -58,7 +58,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
 #if defined(__gfx11__)
     // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
-    using c_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_e_grid)>>;
+    using e_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_e_grid)>>;
     if constexpr(!(CGlobalMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd &&
                    (std::is_same_v<e_data_type, ck::half_t> ||
                     std::is_same_v<e_data_type, ck::bhalf_t>)))
@@ -345,8 +345,8 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
                             I0>;
 
     using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3<
-        tensor_layout::gemm::RowMajor,
         tensor_layout::gemm::ColumnMajor,
+        tensor_layout::gemm::RowMajor,
         Tuple<>,
         tensor_layout::gemm::RowMajor,
         Tuple<ADataType>,
