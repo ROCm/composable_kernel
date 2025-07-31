@@ -441,6 +441,17 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
             return false;
         }
 
+        if constexpr(std::is_same_v<ADataType, f8_t> || std::is_same_v<ADataType, bf8_t> ||
+                     std::is_same_v<B0DataType, f8_t> || std::is_same_v<B0DataType, bf8_t> ||
+                     std::is_same_v<B1DataType, f8_t> || std::is_same_v<B1DataType, bf8_t>)
+        {
+            if(ck::is_gfx11_supported())
+            {
+                print("DeviceOp: gfx 11 does not support fp8\n");
+                return false;
+            }
+        }
+
         if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
         {
             print("DeviceOp: Acc0 Type err\n");
