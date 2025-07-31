@@ -146,7 +146,9 @@ class TestCkTileBatchedTranspose //              N    C    H    W    layout_in==
 
         std::ostringstream message;
         message << "N=" << N << " C=" << C << " H=" << H << " W=" << W << " layout_in=" << layout_in
-                << " layout_out=" << layout_out << " device_name=" << device_name;
+                << " layout_out=" << layout_out << " grid_size={" << grid_size.x << ", "
+                << grid_size.y << ", " << grid_size.z << "} block_size=" << block_size.x
+                << " device_name=" << device_name;
 
         // NB: order of output and reference matters
         bool pass = ck_tile::check_err(
@@ -270,9 +272,14 @@ class ZZZU
 {
 };
 
-class ZZZL
-    : public TestCkTileBatchedTranspose<
-          PipelineConfig<ck_tile::half_t, PipelineTag::LDSLoadTranspose, 32, 64, 1, 1, false, false>>
+class ZZZL : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t,
+                                                              PipelineTag::LDSLoadTranspose,
+                                                              32,
+                                                              64,
+                                                              1,
+                                                              1,
+                                                              false,
+                                                              false>>
 {
 };
 
