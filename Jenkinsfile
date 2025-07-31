@@ -817,7 +817,7 @@ def run_aiter_tests(Map conf=[:]){
     checkout scm
     //use the latest pytorch image
     def image = "rocm/composable_kernel:ck_aiter"
-    def dockerOpts="--network=host --device=/dev/kfd --device=/dev/dri --group-add video --group-add render --group-add irc --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --user=jenkins -v=/var/jenkins/:/var/jenkins"
+    def dockerOpts="--network=host --device=/dev/kfd --device=/dev/dri --group-add video --group-add render --group-add irc --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --user=root -v=/var/jenkins/:/var/jenkins"
     def variant = env.STAGE_NAME
     def retimage
     def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3')
