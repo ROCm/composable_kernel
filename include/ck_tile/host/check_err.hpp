@@ -407,6 +407,8 @@ check_err(const Range& out,
     int err_count  = 0;
     double err     = 0;
     double max_err = static_cast<double>(std::numeric_limits<ranges::range_value_t<Range>>::min());
+    std::vector<ck_tile::index_t> mismatched_indices;
+    mismatched_indices.reserve(ref.size());
     for(std::size_t i = 0; i < ref.size(); ++i)
     {
         const double o = type_convert<float>(*std::next(std::begin(out), i));
@@ -422,7 +424,12 @@ check_err(const Range& out,
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
             }
             res = false;
+            mismatched_indices.push_back(i);
         }
+    }
+    if (!mismatched_indices.empty()) 
+    {
+        std::cerr << "Mismatched indices: " << mismatched_indices << std::endl;
     }
     if(!res)
     {
