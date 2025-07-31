@@ -1003,8 +1003,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                 }
                 else if(arg.multi_k_batch_)
                 {
-                    // NOT 100% sure, what about stride? For some reason
-                    // arg.e_grid_desc_m_n_.GetElementSpaceSize() causes more errors
                     const size_t output_size =
                         sizeof(EDataType) * std::accumulate(arg.e_g_n_k_wos_lengths_.begin(),
                                                             arg.e_g_n_k_wos_lengths_.end(),
