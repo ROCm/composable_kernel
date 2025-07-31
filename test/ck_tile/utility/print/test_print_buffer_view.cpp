@@ -45,7 +45,7 @@ TEST_F(PrintBufferViewTest, PrintGlobalBufferView)
     std::string output = testing::internal::GetCapturedStdout();
 
     // Verify the output contains expected information
-    EXPECT_TRUE(output.find("buffer_view{AddressSpace: Global") != std::string::npos);
+    EXPECT_TRUE(output.find("buffer_view{AddressSpace: global") != std::string::npos);
     EXPECT_TRUE(output.find("p_data_:") != std::string::npos);
     EXPECT_TRUE(output.find("buffer_size_:") != std::string::npos);
     EXPECT_TRUE(output.find("invalid_element_value_:") != std::string::npos);
@@ -63,7 +63,7 @@ TEST_F(PrintBufferViewTest, PrintLdsBufferView)
     std::string output = testing::internal::GetCapturedStdout();
 
     // Verify the output contains expected information
-    EXPECT_TRUE(output.find("buffer_view{AddressSpace: Lds") != std::string::npos);
+    EXPECT_TRUE(output.find("buffer_view{AddressSpace: lds") != std::string::npos);
     EXPECT_TRUE(output.find("p_data_:") != std::string::npos);
     EXPECT_TRUE(output.find("buffer_size_:") != std::string::npos);
     EXPECT_TRUE(output.find("invalid_element_value_:") != std::string::npos);
@@ -81,7 +81,7 @@ TEST_F(PrintBufferViewTest, PrintVgprBufferView)
     std::string output = testing::internal::GetCapturedStdout();
 
     // Verify the output contains expected information
-    EXPECT_TRUE(output.find("buffer_view{AddressSpace: Vgpr") != std::string::npos);
+    EXPECT_TRUE(output.find("buffer_view{AddressSpace: vgpr") != std::string::npos);
     EXPECT_TRUE(output.find("p_data_:") != std::string::npos);
     EXPECT_TRUE(output.find("buffer_size_:") != std::string::npos);
     EXPECT_TRUE(output.find("invalid_element_value_:") != std::string::npos);
