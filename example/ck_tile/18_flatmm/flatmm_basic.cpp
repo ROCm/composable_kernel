@@ -219,6 +219,7 @@ int run_flatmm_example(int argc, char* argv[])
     std::string b_layout  = arg_parser.get_str("b_layout");
     if(a_layout == "R" && b_layout == "C")
     {
+
         if(data_type == "fp16")
         {
             run_flatmm_example_with_layouts<ck_tile::half_t, FlatmmConfig<ck_tile::half_t>>(

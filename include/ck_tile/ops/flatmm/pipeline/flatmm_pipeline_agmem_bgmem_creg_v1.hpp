@@ -32,6 +32,7 @@ struct BaseFlatmmPipelineAGmemBGmemCRegV1
         return run_func(bool_constant<true>{}, integral_constant<TailNumber, TailNumber::Empty>{});
     }
 };
+
 template <typename Problem, typename PipelinePolicy = UniversalFlatmmPipelineAgBgCrPolicy>
 struct FlatmmPipelineAGmemBGmemCRegV1 : public BaseFlatmmPipelineAGmemBGmemCRegV1<Problem>
 {
