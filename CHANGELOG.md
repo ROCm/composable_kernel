@@ -53,7 +53,7 @@ None
 
 ### Upcoming changes
 
-* Non-grouped convolutions will be deprecated. All of their functionality is supported by grouped convolution.
+* Non-grouped convolutions are deprecated. All of their functionality is supported by grouped convolution.
 
 ## Composable Kernel 1.1.0 for ROCm 6.1.0
 
