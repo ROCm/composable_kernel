@@ -86,9 +86,4 @@ using KernelTypesPersistent = ::testing::Types<
     std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV3, NonPersistent>
 >;
 
-using KernelTypesPersistent = ::testing::Types<
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV3,    Persistent>,
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV3, NonPersistent>
->;
-
 // clang-format on

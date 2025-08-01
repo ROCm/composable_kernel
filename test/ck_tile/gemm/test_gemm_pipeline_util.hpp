@@ -83,15 +83,17 @@ class TestCkTileGemmPipeline : public ::testing::Test
     static constexpr auto Scheduler    = std::tuple_element_t<7, Tuple>::value;
     static constexpr auto PipelineType = std::tuple_element_t<8, Tuple>::value;
 
-    static constexpr bool Persistent = (PipelineType == GemmPipelineType::CompV3)
-                                           ? std::tuple_element_t<9, Tuple>::value
-                                           : std::false_type::value;
-    static constexpr bool SkipALds   = (PipelineType == GemmPipelineType::Mem)
-                                           ? std::tuple_element_t<9, Tuple>::value
-                                           : std::false_type::value;
-    static constexpr bool SkipBLds   = (PipelineType == GemmPipelineType::Mem)
-                                           ? std::tuple_element_t<10, Tuple>::value
-                                           : std::false_type::value;
+    static constexpr bool Persistent = std::conditional_t<PipelineType == GemmPipelineType::CompV3,
+                                                          std::tuple_element_t<9, Tuple>,
+                                                          std::false_type>::value;
+
+    static constexpr bool SkipALds = std::conditional_t<PipelineType == GemmPipelineType::Mem,
+                                                        std::tuple_element_t<9, Tuple>,
+                                                        std::false_type>::value;
+
+    static constexpr bool SkipBLds = std::conditional_t<PipelineType == GemmPipelineType::Mem,
+                                                        std::tuple_element_t<10, Tuple>,
+                                                        std::false_type>::value;
 
     using DsLayout   = ck_tile::tuple<>;
     using DsDataType = ck_tile::tuple<>;
@@ -120,9 +122,6 @@ class TestCkTileGemmPipeline : public ::testing::Test
         constexpr bool preshuffle = Preshuffle;
 
         constexpr bool DoubleSmemBuffer = (PipelineType == GemmPipelineType::CompV4) ? true : false;
-
-        constexpr bool kSkipALds = SkipALds;
-        constexpr bool kSkipBLds = SkipBLds;
 
         // TODO: For now - but this should also be a test parameter
         constexpr bool TransposeC = false;
@@ -156,8 +155,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                                      Persistent,
                                                                      NumWaveGroup,
                                                                      preshuffle,
-                                                                     kSkipALds,
-                                                                     kSkipBLds>;
+                                                                     SkipALds,
+                                                                     SkipBLds>;
 
         using GemmPipelineProblem =
             ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
