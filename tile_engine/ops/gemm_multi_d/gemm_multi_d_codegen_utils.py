@@ -3,7 +3,6 @@
 
 # -*- coding: utf-8 -*-
 
-#TO DO FInalize this file
 """
 Mappings and utility functions for kernel code generation.
 """
@@ -29,7 +28,7 @@ LAYOUT_MAP = {
 }
 
 
-#THIS IS NOT SUPPORTED FOR MULTI D AS OF NOW
+#TODO THIS IS NOT SUPPORTED FOR MULTI D AS OF NOW
 # DEFAULT_EPILOGUE = """
 #             using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
 #                                 ck_tile::DefaultGemm2DEpilogueProblem<ADataType,
@@ -186,7 +185,7 @@ def BOOL_MAP(b_):
     return {True: "true", False: "false"}[bool(b_)]
 
 
-# To Do: add some more supported combinations
+# TODO: add some more supported combinations
 warp_tile_supported_combinations = {
     "gfx90a": {
         "fp16_fp16_fp16": [
@@ -267,10 +266,10 @@ warp_tile_supported_combinations = {
 
 # TODO: remove some unsupported combinations
 trait_unsupported_combinations = {
-    # ("compv3", "cshuffle", "interwave"),
-    # ("compv3", "default", "interwave"),
-    # ("compv4", "cshuffle", "interwave"),
-    # ("compv4", "default", "interwave"),
+    ("compv3", "cshuffle", "interwave"),
+    ("compv3", "default", "interwave"),
+    ("compv4", "cshuffle", "interwave"),
+    ("compv4", "default", "interwave"),
 }
 
 

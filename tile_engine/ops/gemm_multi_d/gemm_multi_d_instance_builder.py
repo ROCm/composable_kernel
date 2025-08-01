@@ -11,7 +11,7 @@ import argparse
 import itertools
 from pathlib import Path
 from typing import List, Optional
-from gemm_multi_d_json_config import GemmMultiDConfig, RangeConfigParam
+from gemm_multi_d_config import JsonConfig, ArgumentConfig, RangeConfigParam
 from gemm_multi_d_codegen_utils import (
     DATA_TYPE_MAP,
     LAYOUT_MAP,
@@ -40,7 +40,7 @@ class GemmMultiDCodeGenerator:
     """GEMM (General Matrix Multiplication) Multi D code generator."""
 
     def __init__(
-        self, args: argparse.Namespace, user_provided_config: Optional[GemmMultiDConfig] = None
+        self, args: argparse.Namespace, user_provided_config: Optional[JsonConfig] = None
     ):
         self.output_dir = Path(args.working_path)
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -51,7 +51,9 @@ class GemmMultiDCodeGenerator:
             config_path = (
                 Path(__file__).resolve().parent / "configs" / "default_config.json"
             )
-            self.config = GemmMultiDConfig.from_json(config_path)
+            self.config = JsonConfig.from_json(config_path)
+
+        self.args = ArgumentConfig.from_args(args.datatype, args.layout)
 
         self.valid_trait_names: List[str] = []
         self.valid_trait_tile_combinations: map[str, list[tuple[int]]] = {}
@@ -135,8 +137,6 @@ class GemmMultiDCodeGenerator:
                 self.valid_trait_names.append(trait_name)
             else:
                 logging.debug(f"Invalid combination: {pipeline}-{epilogue}-{scheduler}")
-
-        print("DELETE : valid_trait_names : Size : ",len(self.valid_trait_names), self.valid_trait_names)
 
     def _get_valid_trait_tile_combinations(self):
         def get_tile_value(tile_param):
@@ -243,10 +243,11 @@ class GemmMultiDCodeGenerator:
 
         # LDS capacity verification
         matrix_a_size = (tile_m * tile_k) * element_size(
-            self.config.problem.datatype_map["matrix_a"]
+            self.args.datatypes.a_datatype
         )
+
         matrix_b_size = (tile_n * tile_k) * element_size(
-            self.config.problem.datatype_map["matrix_b"]
+            self.args.datatypes.b_datatype
         )
 
         total_tile_in_lds = matrix_a_size + matrix_b_size
@@ -263,7 +264,8 @@ class GemmMultiDCodeGenerator:
             return False
 
         # Warp combination validation
-        warp_tile_key = f"{self.config.problem.datatype_map['matrix_a']}_{self.config.problem.datatype_map['matrix_b']}_{self.config.problem.datatype_map['matrix_e']}"
+        warp_tile_key = f"{self.args.datatypes.a_datatype}_{self.args.datatypes.b_datatype}_{self.args.datatypes.e_datatype}"
+        
         current_combination = [warp_tile_m, warp_tile_n, warp_tile_k]
 
         gpu_name = get_gpu_name_by_id(0)
@@ -301,13 +303,12 @@ class GemmMultiDCodeGenerator:
         """Generate common header file with datatypes and layout."""
 
         # Determine appropriate accumulation type based on input types
-        a_type = self.config.problem.datatype_map["matrix_a"]
-        b_type = self.config.problem.datatype_map["matrix_b"]
-        d0_type = self.config.problem.datatype_map["matrix_ds"][0]
-        d1_type = self.config.problem.datatype_map["matrix_ds"][1]
+        a_type = self.args.datatypes.a_datatype
+        b_type = self.args.datatypes.b_datatype
+        e_type = self.args.datatypes.e_datatype
+        d0_type = self.args.datatypes.d0_datatype
+        d1_type = self.args.datatypes.d1_datatype
         ds_type = (d0_type, d1_type)
-        e_type = self.config.problem.datatype_map["matrix_e"]
-
         acc_type = "float" # As we are currently supporting only fp16
 
         content = f"""// SPDX-License-Identifier: MIT
@@ -319,20 +320,22 @@ class GemmMultiDCodeGenerator:
 #include "ck_tile/ops/common.hpp"
 
 // Data types
-using ADataType = {DATA_TYPE_MAP[self.config.problem.datatype_map["matrix_a"]]};
-using BDataType = {DATA_TYPE_MAP[self.config.problem.datatype_map["matrix_b"]]};
+using ADataType = {DATA_TYPE_MAP[self.args.datatypes.a_datatype]};
+using BDataType = {DATA_TYPE_MAP[self.args.datatypes.b_datatype]};
 using AccDataType = {acc_type};
-using D0DataType = {DATA_TYPE_MAP[self.config.problem.datatype_map["d0"]]};
-using D1DataType = {DATA_TYPE_MAP[self.config.problem.datatype_map["d1"]]};
-using DsDataType = {D0DataType}, {D1DataType};
-using EDataType = {DATA_TYPE_MAP[self.config.problem.datatype_map["matrix_e"]]};
+using D0DataType = {DATA_TYPE_MAP[self.args.datatypes.d0_datatype]};
+using D1DataType = {DATA_TYPE_MAP[self.args.datatypes.d1_datatype]};
+using DsDataType = ck_tile::tuple<D0DataType, D1DataType>;
+using EDataType = {DATA_TYPE_MAP[self.args.datatypes.e_datatype]};
 
 
 // Layout configurations
-using ALayout = {LAYOUT_MAP[self.config.problem.layout_map["matrix_a"]]};
-using BLayout = {LAYOUT_MAP[self.config.problem.layout_map["matrix_b"]]};
-using DsLayout = {LAYOUT_MAP[self.config.problem.layout_map["matrix_ds"]]};
-using ELayout = {LAYOUT_MAP[self.config.problem.layout_map["matrix_e"]]};
+using ALayout = {LAYOUT_MAP[self.args.layouts.a_layout]};
+using BLayout = {LAYOUT_MAP[self.args.layouts.b_layout]};
+using D0Layout = {LAYOUT_MAP[self.args.layouts.d0_layout]};
+using D1Layout = {LAYOUT_MAP[self.args.layouts.d1_layout]};
+using DsLayout = ck_tile::tuple<D0Layout, D1Layout>;
+using ELayout = {LAYOUT_MAP[self.args.layouts.e_layout]};
 
 """
 
@@ -536,10 +539,6 @@ struct GemmKernel {{
                     if key not in tile_map:
                         tile_map[key] = set()
                     tile_map[key].add(value)
-        
-        print("DELETE : tile_map: ", tile_map)
-        print("DELETE : trait: ", trait)
-
 
         files_listed = 0
         for trait, _ in self.valid_trait_tile_combinations.items():
@@ -752,23 +751,20 @@ private:
         (self.output_dir / "gemm_dispatcher.hpp").write_text(content)
 
 def do_list_blobs(
-    args: argparse.Namespace, user_provide_config: Optional[GemmMultiDConfig] = None
+    args: argparse.Namespace, user_provide_config: Optional[JsonConfig] = None
 ):
     generator = GemmMultiDCodeGenerator(args, user_provide_config)
     generator.list_all_trait_names()
 
 def do_gen_blobs(
-    args: argparse.Namespace, user_provide_config: Optional[GemmMultiDConfig] = None
+    args: argparse.Namespace, user_provide_config: Optional[JsonConfig] = None
 ):
     generator = GemmMultiDCodeGenerator(args, user_provide_config)
     generator.generate_all_instance_files()
 
 def main(args):
-    gemm_config = (
-        GemmMultiDConfig.from_json(args.config_json, args.datatype, args.layout)
-        if args.config_json is not None
-        else args.config_json
-    )
+ 
+    gemm_config = JsonConfig.from_json(args.config_json)
 
     if args.list_blobs:
         do_list_blobs(args, gemm_config)

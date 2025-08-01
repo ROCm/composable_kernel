@@ -4,7 +4,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Handles loading, parsing, and validation of JSON configuration parameters.
+Handles loading, parsing, and validation of JSON and Argument configuration parameters.
 """
 
 from pathlib import Path
@@ -54,32 +54,77 @@ class RangeConfigParam:
         return candidates
 
 
+
 @dataclass
-class ProblemConfig:
-    """configuration class for problem parameter."""
+class DataType:
+    """Configuration class for data type parameter."""  
+    a_datatype: str
+    b_datatype: str
+    e_datatype: str
+    d0_datatype: str
+    d1_datatype: str
+    ds_datatype: List[str]
 
-    datatypes: Tuple[EnumConfigParam, ...]
-    layouts: Tuple[EnumConfigParam, ...]
+@dataclass
+class Layout:
+    """Configuration class for Layout parameter."""  
+    a_layout: str
+    b_layout: str
+    e_layout: str
+    d0_layout: str
+    d1_layout: str
+    ds_layout: List[str]
 
-    @property
-    def datatype_map(self) -> Dict[str, str]:
-        """Get datatype as a key-value map."""
-        return {
-            "matrix_a": self.datatypes[0].values[0],
-            "matrix_b": self.datatypes[1].values[0],
-            "matrix_ds": self.datatypes[2].values[0], # Dth Dimension
-            "matrix_e": self.datatypes[3].values[0], # Result Matrix
-        }
+@dataclass
+class ArgumentConfig:
+    """Configuration class for Argument parameter."""
 
-    @property
-    def layout_map(self) -> Dict[str, str]:
-        """Get layout as a key-value map."""
-        return {
-            "matrix_a": self.layouts[0].values[0],
-            "matrix_b": self.layouts[1].values[0],
-            "matrix_ds": self.layouts[2].values[0], # Dth Dimension
-            "matrix_e": self.layouts[3].values[0], # Result Matrix
-        }
+    datatypes: DataType
+    layouts: Layout
+    
+    @classmethod
+    def from_args(
+        cls: Type["ArgumentConfig"],  datatype: str, layout: str) -> "ArgumentConfig":
+        """configuration loader with validation controls"""
+        
+        datatypes = DataType(
+            a_datatype = datatype,
+            b_datatype = datatype,
+            e_datatype = datatype,
+            d0_datatype = datatype,
+            d1_datatype = datatype,
+            ds_datatype = [datatype, datatype],
+        )
+
+        layout_parts = layout.lower()
+        assert len(layout_parts) == 4, (
+            f"Invalid layout string: {layout} (must be 4 characters like 'rcrr' where r stands for row major and c stands for column major)"
+        )
+        assert layout_parts[0] in ("r", "c"), (
+            f"Invalid matrix_a layout: {layout_parts[0]} (must be 'r' for row major or or 'c' for column major)"
+        )
+        assert layout_parts[1] in ("r", "c"), (
+            f"Invalid matrix_b layout: {layout_parts[1]} (must be 'r' for row major or or 'c' for column major)"
+        )
+        assert layout_parts[2] == "r", (
+            f"Invalid matrix_e layout: {layout_parts[2]} (must be 'r' only as currently we are supporting only row major)"
+        )
+        assert layout_parts[3] == "r", (
+            f"Invalid D dimension layout: {layout_parts[3]} (must be 'r' only as currently we are supporting only row major)"
+        )
+
+        layouts = Layout(
+            a_layout = layout[0],
+            b_layout = layout[1],
+            e_layout = layout[2],
+            d0_layout = layout[3],
+            d1_layout = layout[3],
+            ds_layout = [layout[3], layout[3]],
+        )
+
+        return cls(
+            datatypes=datatypes, layouts=layouts
+        )
 
 
 @dataclass
@@ -112,17 +157,15 @@ class TraitConfig:
 
 
 @dataclass
-class GemmMultiDConfig:
-    """Main configuration class for GEMM Multi D operations"""
+class JsonConfig:
+    """Configuration class for JSON parameter."""
 
-    problem: ProblemConfig
     tile_config: TileConfig
     trait_config: TraitConfig
 
     @classmethod
     def from_json(
-        cls: Type["GemmMultiDConfig"], filepath: str, datatype: str, layout: str
-    ) -> "GemmMultiDConfig":
+        cls: Type["JsonConfig"], filepath: str) -> "JsonConfig":
         """JSON configuration loader with validation controls"""
         config_path = Path(filepath)
 
@@ -132,53 +175,6 @@ class GemmMultiDConfig:
 
             with config_path.open("r") as f:
                 config_dict = json.load(f)
-
-            a_type = datatype
-            b_type = datatype
-            e_type = datatype
-            d0_type = datatype
-            d1_type = datatype
-            ds_type = (d0_type, d1_type)
-
-            layout_parts = layout.lower()
-            assert len(layout_parts) == 4, (
-                f"Invalid layout string: {layout} (must be 3 characters like 'rcr' where r stands for row major and c stands for column major)"
-            )
-            assert layout_parts[0] in ("r", "c"), (
-                f"Invalid matrix_a layout: {layout_parts[0]} (must be 'r' for row major or or 'c' for column major)"
-            )
-            assert layout_parts[1] in ("r", "c"), (
-                f"Invalid matrix_a layout: {layout_parts[1]} (must be 'r' for row major or or 'c' for column major)"
-            )
-            assert layout_parts[2] == "r", (
-                f"Invalid matrix_c layout: {layout_parts[2]} (must be 'r' only as currently we are supporting only row major)"
-            )
-            assert layout_parts[3] == "r", (
-                f"Invalid matrix_c layout: {layout_parts[2]} (must be 'r' only as currently we are supporting only row major)"
-            )
-            a_layout = layout_parts[0]
-            b_layout = layout_parts[1]
-            e_layout = layout_parts[2]
-            d0_layout = layout_parts[3]
-            d1_layout = layout_parts[4]
-            ds_layout = (d0_layout, d1_layout)
-
-            # Parse problem config
-            # TODO: Not reading datatype and layout information from json file.
-            problem = ProblemConfig(
-                datatypes=(
-                    EnumConfigParam(values=[a_type]),
-                    EnumConfigParam(values=[b_type]),
-                    EnumConfigParam(values=[ds_type]),
-                    EnumConfigParam(values=[e_type]),
-                ),
-                layouts=(
-                    EnumConfigParam(values=[a_layout]),
-                    EnumConfigParam(values=[b_layout]),
-                    EnumConfigParam(values=[ds_layout]),
-                    EnumConfigParam(values=[e_layout]),
-                ),
-            )
 
             # Parse tile config
             def create_param(param_dict):
@@ -227,7 +223,7 @@ class GemmMultiDConfig:
             )
 
             return cls(
-                problem=problem, tile_config=tile_config, trait_config=trait_config
+                tile_config=tile_config, trait_config=trait_config
             )
 
         except json.JSONDecodeError as e:
