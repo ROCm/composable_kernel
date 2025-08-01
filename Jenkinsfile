@@ -188,12 +188,16 @@ def buildDocker(install_prefix){
     if(params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
         dockerArgs = dockerArgs + " --no-cache --build-arg BASE_DOCKER='${base_image_name}' -f Dockerfile.compiler . "
     }
+    else if(params.RUN_AITER_TESTS){
+        image_name = "rocm/composable_kernel:ck_aiter"
+        dockerArgs = dockerArgs + " --no-cache -f Dockerfile.aiter . "
+    }
     else{
         dockerArgs = dockerArgs + " -f Dockerfile . "
     }
     echo "Build Args: ${dockerArgs}"
     try{
-        if(params.BUILD_DOCKER){
+        if(params.BUILD_DOCKER || params.RUN_AITER_TESTS){
             //force building the new docker if that parameter is true
             echo "Building image: ${image_name}"
             retimage = docker.build("${image_name}", dockerArgs)
@@ -807,13 +811,62 @@ def process_results(Map conf=[:]){
     }
 }
 
+def run_aiter_tests(Map conf=[:]){
+    show_node_info()
+    env.HSA_ENABLE_SDMA=0
+    checkout scm
+    //use the latest pytorch image
+    def image = "rocm/composable_kernel:ck_aiter"
+    def dockerOpts="--network=host --device=/dev/kfd --device=/dev/dri --group-add video --group-add render --group-add irc --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --user=jenkins -v=/var/jenkins/:/var/jenkins"
+    def variant = env.STAGE_NAME
+    def retimage
+    def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3')
+    def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3')
+    dockerOpts = dockerOpts + " --group-add=${video_id} --group-add=${render_id} "
+    echo "Docker flags: ${dockerOpts}"
+
+    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
+        try
+        {
+            echo "Pulling image: ${image}"
+            retimage = docker.image("${image}")
+            withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
+                retimage.pull()
+            }
+        }
+        catch(Exception ex)
+        {
+            error "Unable to locate image: ${image}"
+        }
+    }
+
+    withDockerContainer(image: image, args: dockerOpts) {
+        timeout(time: 45, unit: 'MINUTES'){
+            try{
+                sh "python3 --version"
+                sh "rocminfo"
+                sh "python3 ../aiter/op_tests/test_gemm_a8w8_blockscale.py"
+                //sh "python3 ../aiter/op_tests/test_mha.py"
+            }
+            catch(e){
+                echo "Throwing error exception while running AITER tests"
+                echo 'Exception occurred: ' + e.toString()
+                throw e
+            }
+            finally{
+                echo "Finished running AITER tests"
+            }
+        }
+    }
+}
+
 //launch develop branch daily jobs
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_CK_TILE_TRANSPOSE_TESTS=true;RUN_CK_TILE_GEMM_TESTS=true;RUN_TILE_ENGINE_GEMM_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
                                               0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX908=true;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
-                                              0 13 * * * % BUILD_LEGACY_OS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false''' : ""
+                                              0 13 * * * % RUN_AITER_TESTS=true;BUILD_LEGACY_OS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false''' : ""
 
 pipeline {
     agent none
@@ -952,6 +1005,10 @@ pipeline {
             name: "RUN_ALL_UNIT_TESTS",
             defaultValue: false,
             description: "Run all unit tests (default: OFF)")
+        booleanParam(
+            name: "RUN_AITER_TESTS",
+            defaultValue: false,
+            description: "Run AITER tests with latest CK develop branch (default: OFF)")
     }
     environment{
         dbuser = "${dbuser}"
@@ -1027,6 +1084,24 @@ pipeline {
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
+                        cleanWs()
+                    }
+                }
+            }
+        }
+        stage("Run AITER Tests")
+        {
+            parallel
+            {
+                stage("Run AITER Tests on gfx90a")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_AITER_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx90a")}
+                    steps{
+                        run_aiter_tests()
                         cleanWs()
                     }
                 }
