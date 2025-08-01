@@ -115,6 +115,30 @@ struct UniversalGemmKernelArgs
     uint32_t* workspace = nullptr; // Single pointer to the workspace memory
 };
 
+// Helper to detect UseZeroing member
+template <typename T, typename = void>
+struct has_use_zeroing : std::false_type
+{
+};
+
+template <typename T>
+struct has_use_zeroing<T, std::void_t<decltype(T::UseZeroing)>> : std::true_type
+{
+};
+
+template <typename T>
+static constexpr bool get_use_zeroing()
+{
+    if constexpr(has_use_zeroing<T>::value)
+    {
+        return T::UseZeroing;
+    }
+    else
+    {
+        return false;
+    }
+}
+
 /// @brief The Universal GEMM kernel template.
 ///
 /// @paragraph Overview Overview
@@ -983,7 +1007,7 @@ struct UniversalGemmKernel
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
 
         // --- Per-tile zeroing for split-K ---
-        if constexpr(EpiloguePipeline::UseZeroing)
+        if constexpr(get_use_zeroing<EpiloguePipeline>())
         {
             ZeroTile(gemm_tile_windows, kargs);
         }
@@ -1004,9 +1028,22 @@ struct UniversalGemmKernel
             // Run Epilogue Pipeline
             auto& c_block_window = gemm_tile_windows.at(I3);
 
-            EpiloguePipeline{}.template
-            operator()<decltype(c_block_window), decltype(c_block_tile), decltype(ds_block_window)>(
-                c_block_window, c_block_tile, ds_block_window, smem_ptr_0, kargs.workspace);
+            if constexpr(get_use_zeroing<EpiloguePipeline>())
+            {
+                EpiloguePipeline{}
+                    .template operator()<decltype(c_block_window),
+                                         decltype(c_block_tile),
+                                         decltype(ds_block_window)>(
+                        c_block_window, c_block_tile, ds_block_window, smem_ptr_0, kargs.workspace);
+            }
+            else
+            {
+                EpiloguePipeline{}
+                    .template operator()<decltype(c_block_window),
+                                         decltype(c_block_tile),
+                                         decltype(ds_block_window)>(
+                        c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
+            }
         }
     }
 
@@ -1047,7 +1084,7 @@ struct UniversalGemmKernel
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
 
         // --- Per-tile zeroing for split-K ---
-        if constexpr(EpiloguePipeline::UseZeroing)
+        if constexpr(get_use_zeroing<EpiloguePipeline>())
         {
             ZeroTile(gemm_tile_windows, kargs);
         }
@@ -1066,9 +1103,18 @@ struct UniversalGemmKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I3);
 
-        EpiloguePipeline{}.template
-        operator()<decltype(c_block_window), decltype(c_block_tile), decltype(ds_block_window)>(
-            c_block_window, c_block_tile, ds_block_window, smem_ptr_0, kargs.workspace);
+        if constexpr(get_use_zeroing<EpiloguePipeline>())
+        {
+            EpiloguePipeline{}.template
+            operator()<decltype(c_block_window), decltype(c_block_tile), decltype(ds_block_window)>(
+                c_block_window, c_block_tile, ds_block_window, smem_ptr_0, kargs.workspace);
+        }
+        else
+        {
+            EpiloguePipeline{}.template
+            operator()<decltype(c_block_window), decltype(c_block_tile), decltype(ds_block_window)>(
+                c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
+        }
     }
 
     // Non-persistent kernel entry point
