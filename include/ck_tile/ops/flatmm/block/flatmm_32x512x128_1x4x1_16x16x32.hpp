@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -73,7 +73,7 @@ struct Flatmm_32x512x128_1x4x1_16x16x32_Base // for f16/bf16
             sequence<2, 1>, // !! note here is different
             sequence<0, 0>>{};
 
-        using WG = WarpGemmMfmaF16F16F32M16N16K32TransposedCDistribution;
+        using WG = WarpGemmMfmaF16F16F32M16N16K32TransposedCDistribution<>;
 
         constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             c_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});

@@ -25,6 +25,7 @@ TYPED_TEST(GemmKernelValidationTestFP16, AllKernelConfigurations)
 {
     int total_kernels  = 0;
     int passed_kernels = 0;
+
     for(bool structured_sparsity : {false, true})
     {
         this->InitDispatcher(structured_sparsity);
@@ -35,12 +36,24 @@ TYPED_TEST(GemmKernelValidationTestFP16, AllKernelConfigurations)
 
         for(const auto& [trait_name, kernels] : *kernel_map_)
         {
+            SCOPED_TRACE("Testing trait: " + trait_name +
+                         " structured_sparsity=" + (structured_sparsity ? "true" : "false"));
+
             for(size_t i = 0; i < kernels.size(); ++i)
             {
+                SCOPED_TRACE("Kernel index: " + std::to_string(i));
+
                 for(const auto& prob : kTestProblems)
                 {
-                    auto [kernel_name, elapsed_time, is_valid] =
-                        this->test_single_problem(kernels[i], prob.M, prob.N, prob.K, prob.split_k);
+                    SCOPED_TRACE("Problem: M=" + std::to_string(prob.M) +
+                                 " N=" + std::to_string(prob.N) + " K=" + std::to_string(prob.K) +
+                                 " split_k=" + std::to_string(prob.split_k));
+
+                    auto [kernel_name, elapsed_time, is_valid] = this->test_single_problem(
+                        kernels[i], prob.M, prob.N, prob.K, prob.split_k, structured_sparsity);
+
+                    total_kernels++;
+
                     if(is_valid)
                     {
                         passed_kernels++;
@@ -52,18 +65,31 @@ TYPED_TEST(GemmKernelValidationTestFP16, AllKernelConfigurations)
                     }
                     else
                     {
-                        ADD_FAILURE()
-                            << "FAIL: " << kernel_name << " verification failed for M=" << prob.M
-                            << " N=" << prob.N << " K=" << prob.K << " split_k=" << prob.split_k
-                            << " structured_sparsity=" << (structured_sparsity ? "true" : "false");
-                    }
+                        std::cerr << "FAIL: " << kernel_name
+                                  << " verification failed for M=" << prob.M << " N=" << prob.N
+                                  << " K=" << prob.K << " split_k=" << prob.split_k
+                                  << " structured_sparsity="
+                                  << (structured_sparsity ? "true" : "false") << std::endl;
 
-                    total_kernels++;
+                        // Fail immediately - all kernels must pass
+                        FAIL() << "Kernel validation failed: " << kernel_name << " M=" << prob.M
+                               << " N=" << prob.N << " K=" << prob.K << " split_k=" << prob.split_k
+                               << " structured_sparsity="
+                               << (structured_sparsity ? "true" : "false");
+                    }
                 }
             }
         }
     }
-    std::cout << "Passed Kernels: " << passed_kernels << ", Total Kernels: " << total_kernels
+
+    std::cout << "All kernels passed validation: " << passed_kernels << "/" << total_kernels
               << std::endl;
-    EXPECT_EQ(passed_kernels, total_kernels) << "Some FP16 kernels failed verification";
+
+    // Require 100% pass rate - all kernels must work correctly
+    EXPECT_EQ(passed_kernels, total_kernels)
+        << "Not all kernels passed validation. Expected: " << total_kernels
+        << ", Actual: " << passed_kernels;
+
+    // Additional check to ensure we actually tested some kernels
+    EXPECT_GT(total_kernels, 0) << "No kernels were found to test";
 }
