@@ -8,7 +8,7 @@
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
 
-#include "block_gemm_pipeline_agmem_bgmem_creg.hpp"
+#include "block_gemm_softmax_topk_pipeline_agmem_bgmem_creg.hpp"
 #include "config.h"
 #include "grid_gemm.hpp"
 
@@ -156,7 +156,7 @@ struct Gemm
                                          AccDataType,
                                          kBlockSize,
                                          TileGemmShape<kMPerBlock, kNPerBlock, kKPerBlock>>;
-            return BlockGemmSoftmaxPipelineAGmemBGmemCReg<BlockGemmPipelineProblem_>{};
+            return BlockGemmSoftmaxTopkPipelineAGmemBGmemCReg<BlockGemmPipelineProblem_>{};
         }
     };
 

@@ -5,8 +5,8 @@
 
 #include "config.h"
 #include "ck_tile/host.hpp"
-#include "gemm.hpp"
-#include "reference_gemm.hpp"
+#include "gemm_softmax_topk.hpp"
+#include "reference_gemm_softmax_topk.hpp"
 
 /*
  * Toy code of GEMM
@@ -180,7 +180,7 @@ int main(int argc, char* argv[])
     {
         // reference gemm
         ck_tile::HostTensor<CDataType> c_host_ref(c_lengths, c_strides);
-        reference_basic_gemm_softmax<ADataType, ADataType, AccDataType, CDataType>(
+        reference_basic_gemm_softmax_topk<ADataType, ADataType, AccDataType, CDataType>(
             a_host, b_host, c_host_ref);
         c_buf.FromDevice(c_host_dev.mData.data());
         pass &= ck_tile::check_err(c_host_dev, c_host_ref);

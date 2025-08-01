@@ -2,6 +2,8 @@
 // Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 
+#include "ck_tile/host.hpp"
+
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
 {
@@ -158,7 +160,7 @@ template <typename GemmConfig,
           typename CLayout,
           bool Persistent,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
-float gemm_topksoftmax(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s);
+float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s);
 
 template <typename GemmConfig,
           typename ADataType,
@@ -171,37 +173,37 @@ template <typename GemmConfig,
           typename DsLayout,
           typename CLayout,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
-float invoke_gemm_topksoftmax(ck_tile::DeviceMem& a_m_k_dev_buf,
+float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   ck_tile::DeviceMem& b_k_n_dev_buf,
-                  ck_tile::DeviceMem& value_m_topk_dev_buf,
-                  ck_tile::DeviceMem& index_m_topk_dev_buf,
+                  ck_tile::DeviceMem& c_m_n_dev_buf,
                   ck_tile::index_t M,
                   ck_tile::index_t N,
                   ck_tile::index_t K,
                   ck_tile::index_t stride_A,
                   ck_tile::index_t stride_B,
-                  ck_tile::index_t stride_Out,
+                  ck_tile::index_t stride_C,
                   ck_tile::index_t kbatch,
                   int n_warmup,
                   int n_repeat,
-                  bool persistent)
+                  bool persistent,
+                  bool flush_cache,
+                  int rotating_count)
 {
     ck_tile::GemmHostArgs args = {a_m_k_dev_buf.GetDeviceBuffer(),
                                   b_k_n_dev_buf.GetDeviceBuffer(),
-                                  value_m_topk_dev_buf.GetDeviceBuffer(),
-                                  index_m_topk_dev_buf.GetDeviceBuffer(),
+                                  c_m_n_dev_buf.GetDeviceBuffer(),
                                   kbatch,
                                   M,
                                   N,
                                   K,
                                   stride_A,
                                   stride_B,
-                                  stride_Out};
+                                  stride_C};
 
     float ave_time;
     if(persistent)
     {
-        ave_time = gemm_topksoftmax<GemmConfig,
+        ave_time = gemm<GemmConfig,
                         ADataType,
                         BDataType,
                         DsDataType,
@@ -213,11 +215,13 @@ float invoke_gemm_topksoftmax(ck_tile::DeviceMem& a_m_k_dev_buf,
                         CLayout,
                         true,
                         CDEElementWise>(
-            args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
+            args,
+            ck_tile::stream_config{
+                nullptr, true, 1, n_warmup, n_repeat, true, flush_cache, rotating_count});
     }
     else
     {
-        ave_time = gemm_topksoftmax<GemmConfig,
+        ave_time = gemm<GemmConfig,
                         ADataType,
                         BDataType,
                         DsDataType,
@@ -229,7 +233,9 @@ float invoke_gemm_topksoftmax(ck_tile::DeviceMem& a_m_k_dev_buf,
                         CLayout,
                         false,
                         CDEElementWise>(
-            args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
+            args,
+            ck_tile::stream_config{
+                nullptr, true, 1, n_warmup, n_repeat, true, flush_cache, rotating_count});
     }
 
     std::size_t flop = std::size_t(2) * M * N * K;
@@ -238,15 +244,16 @@ float invoke_gemm_topksoftmax(ck_tile::DeviceMem& a_m_k_dev_buf,
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_byte / 1.E6 / ave_time;
 
-    std::cout << "Run Gemm kernel with M=" << M << " N=" << N << " K=" << K
-              << " StrideA=" << stride_A << " StrideB=" << stride_B << " StrideOut=" << stride_Out
+    std::cout << "Run Gemm kernel with \n M=" << M << " N=" << N << " K=" << K
+              << " StrideA=" << stride_A << " StrideB=" << stride_B << " StrideC=" << stride_C
               << " A_Layout=" << ALayout::name << " B_Layout =" << BLayout::name
               << " C_Layout=" << CLayout::name << " A_Type=" << DataTypeTraits<ADataType>::name
               << " B_Type=" << DataTypeTraits<BDataType>::name
               << " C_Type=" << DataTypeTraits<CDataType>::name
               << " StructuredSparsity=" << (GemmConfig::UseStructuredSparsity ? "on" : "off")
-              << " Persistent=" << (persistent ? "on" : "off") << " : " << ave_time << " ms, "
-              << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
+              << " Persistent=" << (persistent ? "on" : "off") << " : \n"
+              << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
+              << std::endl;
 
     return ave_time;
 }
@@ -267,72 +274,6 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t)
     return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
 }
 
-// CPU reference
-template <typename InputType, typename WeightType, typename IndexType = ck_tile::index_t>
-auto reference_topk_softmax(const ck_tile::HostTensor<InputType>& x,
-                            ck_tile::index_t k,
-                            ck_tile::index_t dim = -1,
-                            bool largest         = true,
-                            bool sorted          = true)
-{
-    using namespace ck_tile;
-
-    auto y = reference_softmax<InputType, WeightType, WeightType>(x, dim);
-
-    auto [y_values, y_indices] = reference_topk(y, k, dim, largest, sorted);
-
-    return ck_tile::make_tuple(y_values, y_indices);
-}
-
-template <typename InputType, typename WeightType, typename IndexType = ck_tile::index_t>
-auto reference_topk_softmax(const ck_tile::HostTensor<InputType>& x,
-                            ck_tile::HostTensor<WeightType>& y_values,
-                            ck_tile::HostTensor<IndexType>& y_indices,
-                            ck_tile::index_t k,
-                            ck_tile::index_t dim = -1,
-                            bool largest         = true,
-                            bool sorted          = true)
-{
-    using namespace ck_tile;
-
-    auto y = reference_softmax<InputType, WeightType, WeightType>(x, dim);
-    reference_topk(y, y_values, y_indices, k, dim, largest, sorted);
-}
-
-// different threshold for different dtype
-template <typename DataType>
-auto get_elimit(std::string /*init_method*/)
-{
-    double rtol = 1e-3;
-    double atol = 1e-3;
-    return ck_tile::make_tuple(rtol, atol);
-}
-
-template <>
-auto get_elimit<ck_tile::bf16_t>(std::string /*init_method*/)
-{
-    double rtol = 1e-2;
-    double atol = 1e-2;
-    return ck_tile::make_tuple(rtol, atol);
-}
-
-template <>
-auto get_elimit<ck_tile::fp8_t>(std::string init_method)
-{
-    if(init_method == "ui" || init_method == "ni")
-    {
-        unsigned max_rounding_point_distance = 0;
-        double atol                          = 2e-3;
-        return ck_tile::make_tuple(max_rounding_point_distance, atol);
-    }
-    else
-    {
-        unsigned max_rounding_point_distance = 1;
-        double atol                          = 0.0625;
-        return ck_tile::make_tuple(max_rounding_point_distance, atol);
-    }
-}
-
 template <typename GemmConfig,
           typename ADataType,
           typename BDataType = ADataType,
@@ -340,7 +281,7 @@ template <typename GemmConfig,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-int run_gemm_topksoftmax_example_with_layouts(int argc,
+int run_gemm_example_with_layouts(int argc,
                                   char* argv[],
                                   const ALayout a_layout                  = ALayout{},
                                   const BLayout b_layout                  = BLayout{},
@@ -355,33 +296,31 @@ int run_gemm_topksoftmax_example_with_layouts(int argc,
     ck_tile::index_t M = arg_parser.get_int("m");
     ck_tile::index_t N = arg_parser.get_int("n");
     ck_tile::index_t K = arg_parser.get_int("k");
-    ck_tile::index_t topK = arg_parser.get_int("topk");
 
     ck_tile::index_t stride_A = arg_parser.get_int("stride_a");
     ck_tile::index_t stride_B = arg_parser.get_int("stride_b");
-    ck_tile::index_t stride_Out = arg_parser.get_int("stride_out");
+    ck_tile::index_t stride_C = arg_parser.get_int("stride_c");
 
     ck_tile::index_t kbatch      = arg_parser.get_int("split_k");
     int n_warmup                 = arg_parser.get_int("warmup");
     int n_repeat                 = arg_parser.get_int("repeat");
     ck_tile::index_t init_method = arg_parser.get_int("init");
     bool persistent              = arg_parser.get_int("persistent");
-    int validate                 = arg_parser.get_int("v");
+    bool flush_cache             = arg_parser.get_bool("flush_cache");
+    int rotating_count           = arg_parser.get_int("rotating_count");
 
     const bool preshuffle = GemmConfig::Preshuffle;
 
     stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
     stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
-    stride_Out = ck_tile::get_default_stride(M, topk, stride_Out, is_row_major(CLayout{}));
+    stride_C = ck_tile::get_default_stride(M, N, stride_C, is_row_major(CLayout{}));
 
     ck_tile::HostTensor<ADataType> a_m_k(
         ck_tile::host_tensor_descriptor(M, K, stride_A, is_row_major(a_layout)));
     ck_tile::HostTensor<BDataType> b_k_n(
         ck_tile::host_tensor_descriptor(K, N, stride_B, is_row_major(b_layout)));
-    ck_tile::HostTensor<CDataType> value_m_topk_dev_result(
-        ck_tile::host_tensor_descriptor(M, topK, stride_Out, is_row_major(CLayout{})));
-    ck_tile::HostTensor<CDataType> index_m_topk_dev_result(
-        ck_tile::host_tensor_descriptor(M, topK, stride_Out, is_row_major(CLayout{})));
+    ck_tile::HostTensor<CDataType> c_m_n_dev_result(
+        ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
     if(init_method == 0)
     {
@@ -419,8 +358,7 @@ int run_gemm_topksoftmax_example_with_layouts(int argc,
 
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem value_m_topk_dev_buf(value_m_topk_dev_result.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem index_m_topk_dev_buf(index_m_topk_dev_result.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
 
     static_assert(!GemmConfig::PermuteA, "Not implemented");
 
@@ -463,12 +401,10 @@ int run_gemm_topksoftmax_example_with_layouts(int argc,
     }
 
     a_m_k_dev_buf.ToDevice(a_m_k.data());
-    value_m_topk_dev_buf.SetZero();
-    value_m_topk_dev_result.SetZero();
-    index_m_topk_dev_buf.SetZero();
-    index_m_topk_dev_result.SetZero();
+    c_m_n_dev_buf.SetZero();
+    c_m_n_dev_result.SetZero();
 
-    invoke_gemm_topksoftmax<GemmConfig,
+    invoke_gemm<GemmConfig,
                 ADataType,
                 BDataType,
                 ck_tile::tuple<>,
@@ -479,55 +415,100 @@ int run_gemm_topksoftmax_example_with_layouts(int argc,
                 ck_tile::tuple<>,
                 CLayout>(a_m_k_dev_buf,
                          b_k_n_dev_buf,
-                         value_m_topk_dev_buf,
-                         index_m_topk_dev_buf,
+                         c_m_n_dev_buf,
                          M,
                          N,
                          K,
                          stride_A,
                          stride_B,
-                         stride_Out,
+                         stride_C,
                          kbatch,
                          n_warmup,
                          n_repeat,
-                         persistent);
+                         persistent,
+                         flush_cache,
+                         rotating_count);
 
-    value_m_topk_dev_buf.FromDevice(value_m_topk_dev_result.data());
-    index_m_topk_dev_buf.FromDevice(index_m_topk_dev_result.data());
-    
-    if(validate)
+    c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
+    bool pass = true;
+
+    if(arg_parser.get_int("v") == 1)
     {
-        ck_tile::HostTensor<WeightType> value_ref({tokens, topk}, {stride_output, 1});
-        ck_tile::HostTensor<IndexType> index_ref({tokens, topk}, {stride_output, 1});
+        ck_tile::HostTensor<CDataType> c_m_n_host_ref(
+            ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
+        c_m_n_host_ref.SetZero();
 
-        reference_topk_softmax<InputType, WeightType, IndexType>(
-            x_host, value_ref, index_ref, topk);
+        ck_tile::HostTensor<CDataType> c_m_n_host_ref_gemm(
+            ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
+        c_m_n_host_ref_gemm.SetZero();
 
-        auto [rtol, atol] = get_elimit<InputType>("");
-        for(int i_t = 0; i_t < tokens; i_t++)
+        ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
+            a_m_k, b_k_n, c_m_n_host_ref);
+        // ck_tile::reference_softmax<CDataType, AccDataType, CDataType>(c_m_n_host_ref_gemm, c_m_n_host_ref, -1);
+        const float max_accumulated_value =
+            *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
+        const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+            K, kbatch, max_accumulated_value);
+        pass = ck_tile::check_err(c_m_n_dev_result,
+                                  c_m_n_host_ref,
+                                  "Error: Incorrect results!",
+                                  rtol_atol.at(ck_tile::number<0>{}),
+                                  rtol_atol.at(ck_tile::number<1>{}));
+
+        std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
+                  << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
+                  << std::endl;
+        std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
+    }
+    else if(arg_parser.get_int("v") == 2)
+    {
+        if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
         {
-            auto s_begin = std::vector<size_t>{static_cast<size_t>(i_t), static_cast<size_t>(0)};
-            auto s_end =
-                std::vector<size_t>{static_cast<size_t>(i_t + 1), static_cast<size_t>(topk)};
-            auto s_value_host = value_m_topk_dev_result.slice(s_begin, s_end);
-            auto s_value_ref  = value_ref.slice(s_begin, s_end);
-            rtn &= ck_tile::check_err(s_value_host,
-                                      s_value_ref,
-                                      std::string("[") + std::to_string(i_t) +
-                                          std::string("] Value Error:"),
-                                      rtol,
-                                      atol);
-            auto s_index_host = index_m_topk_dev_result.slice(s_begin, s_end);
-            auto s_index_ref  = index_ref.slice(s_begin, s_end);
-            rtn &= ck_tile::check_err(s_index_host,
-                                      s_index_ref,
-                                      std::string("[") + std::to_string(i_t) +
-                                          std::string("] Index Error:"),
-                                      rtol,
-                                      atol);
+            // Restore input for B for gpu reference
+            b_k_n_dev_buf.ToDevice(b_k_n.data());
         }
+        if constexpr(GemmConfig::Preshuffle)
+        {
+            b_k_n_dev_buf.ToDevice(b_k_n.data());
+        }
+
+        // memory on host to store gpu reference result
+        ck_tile::HostTensor<CDataType> c_m_n_gpu_ref(
+            ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
+        // memory on device to store gpu reference result
+        ck_tile::DeviceMem c_m_n_gpu_buf_ref(c_m_n_gpu_ref.get_element_space_size_in_bytes());
+
+        c_m_n_gpu_ref.SetZero();
+        c_m_n_gpu_buf_ref.SetZero();
+
+        ADataType* d_A = static_cast<ADataType*>(a_m_k_dev_buf.GetDeviceBuffer());
+        BDataType* d_B = static_cast<BDataType*>(b_k_n_dev_buf.GetDeviceBuffer());
+        CDataType* d_C = static_cast<CDataType*>(c_m_n_gpu_buf_ref.GetDeviceBuffer());
+
+        ck_tile::reference_gemm_gpu<ADataType,
+                                    BDataType,
+                                    AccDataType,
+                                    CDataType,
+                                    ALayout,
+                                    BLayout,
+                                    CLayout>(d_A, d_B, d_C, M, N, K, stride_A, stride_B, stride_C);
+
+        c_m_n_gpu_buf_ref.FromDevice(c_m_n_gpu_ref.data());
+
+        const float max_accumulated_value =
+            *std::max_element(c_m_n_gpu_ref.mData.begin(), c_m_n_gpu_ref.mData.end());
+        const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+            K, kbatch, max_accumulated_value);
+        pass = ck_tile::check_err(c_m_n_dev_result,
+                                  c_m_n_gpu_ref,
+                                  "Error: Incorrect results!",
+                                  rtol_atol.at(ck_tile::number<0>{}),
+                                  rtol_atol.at(ck_tile::number<1>{}));
+        std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
+                  << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
+                  << std::endl;
+        std::cout << "The GPU verification result is: " << (pass ? "correct" : "fail") << std::endl;
     }
 
-    printf("valid:%s\n", rtn ? "y" : "n");
-    return rtn;
+    return pass;
 }
