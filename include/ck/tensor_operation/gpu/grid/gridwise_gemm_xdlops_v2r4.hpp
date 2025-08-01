@@ -29,21 +29,20 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_xdlops_v2r4(const FloatAB* __restrict__ p_a_grid,
-                                const FloatAB* __restrict__ p_b_grid,
-                                FloatC* __restrict__ p_c_grid,
-                                const ABK0MK1GridDesc a_b_k0_m_k1_grid_desc,
-                                const BBK0NK1GridDesc b_b_k0_n_k1_grid_desc,
-                                const CM0N0M1N1M2M3M4N2GridDesc c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
-                                const AElementwiseOperation a_element_op,
-                                const BElementwiseOperation b_element_op,
-                                const CElementwiseOperation c_element_op,
-                                const CBlockClusterAdaptor c_block_cluster_adaptor)
+    kernel_gemm_xdlops_v2r4(const FloatAB* __restrict__ p_a_grid,
+                            const FloatAB* __restrict__ p_b_grid,
+                            FloatC* __restrict__ p_c_grid,
+                            const ABK0MK1GridDesc a_b_k0_m_k1_grid_desc,
+                            const BBK0NK1GridDesc b_b_k0_n_k1_grid_desc,
+                            const CM0N0M1N1M2M3M4N2GridDesc c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
+                            const AElementwiseOperation a_element_op,
+                            const BElementwiseOperation b_element_op,
+                            const CElementwiseOperation c_element_op,
+                            const CBlockClusterAdaptor c_block_cluster_adaptor)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
+#if(defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__))
     constexpr index_t shared_block_size =
         GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
 

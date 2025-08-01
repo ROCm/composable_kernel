@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -42,7 +42,7 @@ static constexpr ck::index_t NumDimK = 2;
 
 struct AlphaBetaAdd
 {
-    AlphaBetaAdd(float alpha, float beta) : alpha_(alpha), beta_(beta){};
+    AlphaBetaAdd(float alpha, float beta) : alpha_(alpha), beta_(beta) {};
 
     template <typename E, typename C, typename D>
     __host__ __device__ constexpr void operator()(E& e, const C& c, const D& d) const;
@@ -213,7 +213,7 @@ int main(int argc, char* argv[])
     auto invoker   = device_op.MakeInvoker();
     auto argument  = device_op.MakeArgument(
         std::array<const void*, 2>{a0_device_buf.GetDeviceBuffer(),
-                                   a1_device_buf.GetDeviceBuffer()},
+                                    a1_device_buf.GetDeviceBuffer()},
         std::array<const void*, 1>{b_device_buf.GetDeviceBuffer()},
         std::array<const void*, 1>{d_device_buf.GetDeviceBuffer()},
         e_device_buf.GetDeviceBuffer(),

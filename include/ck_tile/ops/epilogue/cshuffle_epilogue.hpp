@@ -69,6 +69,8 @@ struct CShuffleEpilogue
     using ODataType   = remove_cvref_t<typename Problem::ODataType>;
     using DsDataType  = remove_cvref_t<typename Problem::DsDataType>;
     using DsLayout    = remove_cvref_t<typename Problem::DsLayout>;
+    using ATypeToUse =
+        std::conditional_t<std::is_same_v<ADataType, pk_int4_t>, BDataType, ADataType>;
     // Used for weight-only quantization kernel, B would be dequantized to the same data type as A
     using BTypeToUse =
         std::conditional_t<std::is_same_v<BDataType, pk_int4_t>, ADataType, BDataType>;
@@ -201,7 +203,7 @@ struct CShuffleEpilogue
     static constexpr index_t MPerIterationShuffle = std::get<0>(MNPerIterationShuffle);
     static constexpr index_t NPerIterationShuffle = std::get<1>(MNPerIterationShuffle);
 
-    using WG = WarpGemmMfmaDispatcher<ADataType,
+    using WG = WarpGemmMfmaDispatcher<ATypeToUse,
                                       BTypeToUse,
                                       AccDataType,
                                       MPerXdl,
@@ -282,8 +284,8 @@ struct CShuffleEpilogue
             {0, 0});
 
         using SFC                    = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
-                                        sequence<0, 1>,
-                                        sequence<MPerIterationShuffle, NPerIterationShuffle>>;
+                                                           sequence<0, 1>,
+                                                           sequence<MPerIterationShuffle, NPerIterationShuffle>>;
         constexpr index_t num_access = SFC::get_num_of_access();
 
         static_assert(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
@@ -334,8 +336,8 @@ struct CShuffleEpilogue
 
             const auto c_ds_tiles = concat_tuple_of_reference(
                 tie(c_out_tensor, c_out_tensor),
-                generate_tie(
-                    [&](auto idx) -> const auto& { return ds_tensor[idx]; }, number<NumDTensor>{}));
+                generate_tie([&](auto idx) -> const auto& { return ds_tensor[idx]; },
+                             number<NumDTensor>{}));
 
             tile_elementwise_inout_unpack(typename Problem::CDElementwise{}, c_ds_tiles);
 

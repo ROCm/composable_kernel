@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -21,7 +21,7 @@
 
 struct AlphaBetaAdd
 {
-    AlphaBetaAdd(int alpha, int beta) : alpha_(alpha), beta_(beta){};
+    AlphaBetaAdd(int alpha, int beta) : alpha_(alpha), beta_(beta) {};
 
     template <typename E, typename C, typename D>
     __host__ __device__ constexpr void operator()(E& e, const C& c, const D& d) const;
