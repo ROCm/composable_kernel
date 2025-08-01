@@ -334,15 +334,15 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_confi
         }                                                                                          \
     }
 
-#define MOR_SORTING_CLEAR_WS_DISPATCH_(is_local_token_, block_size_, occu_)                 \
-    [&]() {                                                                                 \
-        using problem_ =                                                                    \
-            ck_tile::MoeSortingClearWorkspaceProblem<is_local_token_, block_size_, occu_>;  \
-        using kernel      = ck_tile::MoeSortingClearWorkspaceKernel<problem_>;              \
-        auto kargs        = kernel::MakeKargs(a);                                           \
-        const dim3 grids  = kernel::GridSize(a);                                            \
-        const dim3 blocks = kernel::BlockSize(a);                                           \
-        return ck_tile::make_kernel(kernel{}, grids, blocks, 0, kargs);                     \
+#define MOR_SORTING_CLEAR_WS_DISPATCH_(is_local_token_, block_size_, occu_)                \
+    [&]() {                                                                                \
+        using problem_ =                                                                   \
+            ck_tile::MoeSortingClearWorkspaceProblem<is_local_token_, block_size_, occu_>; \
+        using kernel      = ck_tile::MoeSortingClearWorkspaceKernel<problem_>;             \
+        auto kargs        = kernel::MakeKargs(a);                                          \
+        const dim3 grids  = kernel::GridSize(a);                                           \
+        const dim3 blocks = kernel::BlockSize(a);                                          \
+        return ck_tile::make_kernel(kernel{}, grids, blocks, 0, kargs);                    \
     }()
 
 float moe_sorting_mp(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_config s)
