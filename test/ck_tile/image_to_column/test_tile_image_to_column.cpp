@@ -97,7 +97,7 @@ class TestCkTileImageToColumn : public ::testing::Test
             kargs.N * kargs.output_spatial_lengths[0] * kargs.output_spatial_lengths[1],
             kargs.filter_spatial_lengths[0] * kargs.filter_spatial_lengths[1] * kargs.C,
             kargs.G);
-        const dim3 blocks     = Kernel::BlockSize();
+        const dim3 blocks = Kernel::BlockSize();
 
         constexpr ck_tile::index_t kBlockPerCu = 2;
 

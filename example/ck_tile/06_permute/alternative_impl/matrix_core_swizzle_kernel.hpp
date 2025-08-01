@@ -89,6 +89,7 @@ struct matrix_core_swizzle_kernel
     using harg = matrix_core_swizzle_host_args;
 
     static constexpr int BLOCK_SIZE      = BLOCK_SIZE_;
+    static constexpr int KernelBlockSize = BLOCK_SIZE;
     static constexpr int WavesPerBlock_N = 4;
     static constexpr int WavesPerBlock_K = 1;
     static_assert(WavesPerBlock_N * WavesPerBlock_K * 64 == BLOCK_SIZE);
@@ -115,11 +116,12 @@ struct matrix_core_swizzle_kernel
 
     __host__ void operator()(const ck_tile::stream_config& s) const
     {
-        ck_tile::kentry<BLOCK_SIZE, 1, kernel><<<grids, BLOCK_SIZE, 0, s.stream_id_>>>(a);
+        ck_tile::kentry<1, kernel><<<grids, BLOCK_SIZE, 0, s.stream_id_>>>(a);
     }
 
     struct kernel
     {
+        static constexpr int KernelBlockSize = BLOCK_SIZE;
         __device__ static constexpr auto get_src_dist()
         {
             using namespace ck_tile;

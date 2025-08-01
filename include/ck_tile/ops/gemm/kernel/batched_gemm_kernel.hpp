@@ -64,6 +64,7 @@ struct BatchedGemmKernel
     /// functions.
     using UniversalGemmKernel =
         UniversalGemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
+    static constexpr index_t KernelBlockSize = UniversalGemmKernel::KernelBlockSize;
 
     using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
     using GemmPipeline     = remove_cvref_t<GemmPipeline_>;

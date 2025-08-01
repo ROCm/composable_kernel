@@ -241,8 +241,6 @@ class TestCkTileGroupedGemm : public ::testing::Test
                                                        BLayout,
                                                        CLayout,
                                                        TransposeC>;
-        using GemmPipelineProblem =
-            ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
         const auto Run = [&](const auto memory_operation_) {
             constexpr auto scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;

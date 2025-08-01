@@ -29,8 +29,9 @@ struct ImageToColumn
 
     static_assert(NDimSpatial == 2, "Not supported.");
 
-    static constexpr index_t kMPerBlock = Problem::BlockShape::kMPerBlock;
-    static constexpr index_t kKPerBlock = Problem::BlockShape::kKPerBlock;
+    static constexpr index_t kMPerBlock      = Problem::BlockShape::kMPerBlock;
+    static constexpr index_t kKPerBlock      = Problem::BlockShape::kKPerBlock;
+    static constexpr index_t KernelBlockSize = Problem::BlockShape::kBlockSize;
 
     struct Kargs
     {

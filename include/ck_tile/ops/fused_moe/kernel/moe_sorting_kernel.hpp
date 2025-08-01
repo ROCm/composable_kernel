@@ -214,6 +214,7 @@ struct MoeSortingKernel
     using Hargs = MoeSortingHostArgs;
 
     static constexpr index_t BLOCK_SIZE = 256;
+    static constexpr index_t KernelBlockSize = BLOCK_SIZE;
     static constexpr index_t OCCUPANCY  = 2; // hard coded
 
     struct Kargs
@@ -1418,9 +1419,10 @@ CK_TILE_HOST index_t moe_sorting_get_workspace_size(int tokens_,
 template <typename Problem_>
 struct MoeSortingClearWorkspaceKernel
 {
-    using Problem                       = remove_cvref_t<Problem_>;
-    static constexpr index_t BLOCK_SIZE = Problem::BlockSize;
-    static constexpr index_t OCCUPANCY  = Problem::Occu;
+    using Problem                            = remove_cvref_t<Problem_>;
+    static constexpr index_t BLOCK_SIZE      = Problem::BlockSize;
+    static constexpr index_t KernelBlockSize = BLOCK_SIZE;
+    static constexpr index_t OCCUPANCY       = Problem::Occu;
 
     using Hargs = MoeSortingHostArgs;
 
@@ -1560,8 +1562,9 @@ struct MoeSortingMultiPhaseKernel_P0
     using WeightType = typename Problem::WeightType;
     using MeshType   = typename Problem::MeshType;
 
-    static constexpr index_t BLOCK_SIZE = 256;
-    static constexpr index_t OCCUPANCY  = 2; // hard coded
+    static constexpr index_t BLOCK_SIZE      = 256;
+    static constexpr index_t KernelBlockSize = BLOCK_SIZE;
+    static constexpr index_t OCCUPANCY       = 2; // hard coded
 
     typedef MoeSortingHostArgs MoeSortingKargs;
 
@@ -1679,6 +1682,7 @@ struct MoeSortingMultiPhaseKernel_P1
     using MeshType   = typename Problem::MeshType;
 
     static constexpr index_t BLOCK_SIZE = 256;
+    static constexpr index_t KernelBlockSize = BLOCK_SIZE;
     static constexpr index_t OCCUPANCY  = 2; // hard coded
 
     typedef MoeSortingHostArgs MoeSortingKargs;
@@ -1811,8 +1815,9 @@ struct MoeSortingMultiPhaseKernel_P01
     using WeightType = typename Problem::WeightType;
     using MeshType   = typename Problem::MeshType;
 
-    static constexpr index_t BLOCK_SIZE = 256;
-    static constexpr index_t OCCUPANCY  = 2; // hard coded
+    static constexpr index_t BLOCK_SIZE      = 256;
+    static constexpr index_t KernelBlockSize = BLOCK_SIZE;
+    static constexpr index_t OCCUPANCY       = 2; // hard coded
 
     typedef MoeSortingHostArgs MoeSortingKargs;
 
@@ -2055,8 +2060,9 @@ struct MoeSortingMultiPhaseKernel_P2
     using WeightType = typename Problem::WeightType;
     using MeshType   = typename Problem::MeshType;
 
-    static constexpr index_t BLOCK_SIZE = 256;
-    static constexpr index_t OCCUPANCY  = 2; // hard coded
+    static constexpr index_t BLOCK_SIZE      = 256;
+    static constexpr index_t KernelBlockSize = BLOCK_SIZE;
+    static constexpr index_t OCCUPANCY       = 2; // hard coded
 
     typedef MoeSortingHostArgs MoeSortingKargs;
 
@@ -2297,8 +2303,9 @@ struct MoeSortingMultiPhaseKernel_P3
     using WeightType = typename Problem::WeightType;
     using MeshType   = typename Problem::MeshType;
 
-    static constexpr index_t BLOCK_SIZE = 256;
-    static constexpr index_t OCCUPANCY  = 2; // hard coded
+    static constexpr index_t BLOCK_SIZE      = 256;
+    static constexpr index_t KernelBlockSize = BLOCK_SIZE;
+    static constexpr index_t OCCUPANCY       = 2; // hard coded
 
     typedef MoeSortingHostArgs MoeSortingKargs;
 
@@ -2473,8 +2480,9 @@ struct MoeSortingMultiPhaseKernel_P23
     using WeightType = typename Problem::WeightType;
     using MeshType   = typename Problem::MeshType;
 
-    static constexpr index_t BLOCK_SIZE = 256;
-    static constexpr index_t OCCUPANCY  = 2; // hard coded
+    static constexpr index_t BLOCK_SIZE      = 256;
+    static constexpr index_t KernelBlockSize = BLOCK_SIZE;
+    static constexpr index_t OCCUPANCY       = 2; // hard coded
 
     typedef MoeSortingHostArgs MoeSortingKargs;
 

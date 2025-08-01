@@ -13,11 +13,11 @@
                                                                                                 \
     auto kargs = kernel::MakeKargs(a);                                                          \
                                                                                                 \
-    const dim3 grids      = kernel::GridSize(a);                                                \
-    const dim3 blocks     = Kernel::BlockSize();                                                \
+    const dim3 grids  = kernel::GridSize(a);                                                    \
+    const dim3 blocks = kernel::BlockSize();                                                    \
                                                                                                 \
-    float ave_time = ck_tile::launch_kernel(                                                    \
-        s, ck_tile::make_kernel<1>(kernel{}, grids, blocks, 0, kargs));               \
+    float ave_time =                                                                            \
+        ck_tile::launch_kernel(s, ck_tile::make_kernel<1>(kernel{}, grids, blocks, 0, kargs));  \
                                                                                                 \
     return ave_time;
 

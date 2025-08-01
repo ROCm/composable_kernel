@@ -40,10 +40,11 @@ struct GenericPermute
 {
     using Problem = ck_tile::remove_cvref_t<Problem_>;
 
-    using DataType                      = remove_cvref_t<typename Problem::DataType>;
-    static constexpr index_t kBlockSize = Problem::kBlockSize;
-    static constexpr index_t kMaxRanks  = Problem::kMaxRanks;
-    static constexpr bool KeepLastDim   = Problem::KeepLastDim;
+    using DataType                           = remove_cvref_t<typename Problem::DataType>;
+    static constexpr index_t kBlockSize      = Problem::kBlockSize;
+    static constexpr index_t KernelBlockSize = Problem::kBlockSize;
+    static constexpr index_t kMaxRanks       = Problem::kMaxRanks;
+    static constexpr bool KeepLastDim        = Problem::KeepLastDim;
 
     struct __attribute__((packed)) Kargs
     {

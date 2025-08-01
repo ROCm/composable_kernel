@@ -33,6 +33,7 @@ struct TopkSoftmaxKernel
     using InputType  = typename Problem::InputType;
     using WeightType = typename Problem::WeightType;
     using IndexType  = typename Problem::IndexType;
+    static constexpr index_t KernelBlockSize = Problem::BlockSize;
 
     struct TopkSoftmaxKargs
     {
