@@ -54,8 +54,10 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
     static constexpr auto BiasEnum         = Problem::BiasEnum;
     static constexpr bool kHasBiasGrad     = Problem::kHasBiasGrad;
     static constexpr bool kIsDeterministic = Problem::kIsDeterministic;
+    static constexpr bool kIsAtomic32      = Problem::kIsAtomic32;
     static constexpr bool kUseTrLoad       = Problem::kUseTrLoad;
     static_assert(kUseTrLoad, "This pipeline uses trload!");
+    static_assert(kIsAtomic32, "This pipeline does not use atomic16!");
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this

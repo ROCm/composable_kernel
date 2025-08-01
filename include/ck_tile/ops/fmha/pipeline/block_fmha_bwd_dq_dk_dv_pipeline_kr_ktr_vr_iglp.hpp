@@ -38,15 +38,16 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
     static constexpr index_t kBlockPerCu = Problem::kBlockPerCu;
     static constexpr index_t kBlockSize  = Problem::kBlockSize;
 
-    static constexpr index_t kM0        = BlockFmhaShape::kM0;
-    static constexpr index_t kN0        = BlockFmhaShape::kN0;
-    static constexpr index_t kK0        = BlockFmhaShape::kK0;
-    static constexpr index_t kK1        = BlockFmhaShape::kK1;
-    static constexpr index_t kK2        = BlockFmhaShape::kK2;
-    static constexpr index_t kK3        = BlockFmhaShape::kK3;
-    static constexpr index_t kK4        = BlockFmhaShape::kK4;
-    static constexpr index_t kQKHeaddim = BlockFmhaShape::kQKHeaddim;
-    static constexpr index_t kVHeaddim  = BlockFmhaShape::kVHeaddim;
+    static constexpr index_t kM0         = BlockFmhaShape::kM0;
+    static constexpr index_t kN0         = BlockFmhaShape::kN0;
+    static constexpr index_t kK0         = BlockFmhaShape::kK0;
+    static constexpr index_t kK1         = BlockFmhaShape::kK1;
+    static constexpr index_t kK2         = BlockFmhaShape::kK2;
+    static constexpr index_t kK3         = BlockFmhaShape::kK3;
+    static constexpr index_t kK4         = BlockFmhaShape::kK4;
+    static constexpr index_t kQKHeaddim  = BlockFmhaShape::kQKHeaddim;
+    static constexpr index_t kVHeaddim   = BlockFmhaShape::kVHeaddim;
+    static constexpr index_t kGemm4WarpN = BlockFmhaShape::Gemm0WarpTile::at(ck_tile::number<1>{});
 
     static constexpr bool kIsGroupMode     = Problem::kIsGroupMode;
     static constexpr bool kPadHeadDimQ     = Problem::kPadHeadDimQ;
@@ -54,6 +55,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
     static constexpr auto BiasEnum         = Problem::BiasEnum;
     static constexpr bool kHasBiasGrad     = Problem::kHasBiasGrad;
     static constexpr bool kIsDeterministic = Problem::kIsDeterministic;
+    static constexpr bool kIsAtomic32      = Problem::kIsAtomic32;
     static constexpr bool kUseTrLoad       = Problem::kUseTrLoad;
     static_assert(!kUseTrLoad, "This pipeline does not use trload!");
 
@@ -467,14 +469,26 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                              {0, 0},
                              Policy::template MakeShuffledBiasTileDistribution<Problem>());
 
-        // ----------------------------Loop write out------------------------------//
-        auto dq_dram_window = make_tile_window(dq_dram_block_window_tmp.get_bottom_tensor_view(),
-                                               dq_dram_block_window_tmp.get_window_lengths(),
-                                               {seqlen_q_start, 0});
-
         using SPBlockTileType     = decltype(gemm_0.MakeCBlockTile());
         using SPGradBlockTileType = decltype(gemm_2.MakeCBlockTile());
         using QGradBlockTileType  = decltype(gemm_4.MakeCBlockTile());
+        // ----------------------------Loop write out------------------------------//
+        auto dq_dram_window = [&]() {
+            if constexpr(kIsAtomic32)
+            {
+                return make_tile_window(dq_dram_block_window_tmp.get_bottom_tensor_view(),
+                                        dq_dram_block_window_tmp.get_window_lengths(),
+                                        {seqlen_q_start, 0});
+            }
+            else
+            {
+                return make_tile_window(dq_dram_block_window_tmp.get_bottom_tensor_view(),
+                                        dq_dram_block_window_tmp.get_window_lengths(),
+                                        {seqlen_q_start, 0},
+                                        decltype(cast_tile<QGradDataType>(
+                                            QGradBlockTileType{}))::get_tile_distribution());
+            }
+        }();
 
         index_t i_total_loops = 0;
         index_t seqlen_q_step = seqlen_q_start;
@@ -792,8 +806,20 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             }
             else
             {
-                update_tile(dq_dram_window, dq_acc);
+                if constexpr(kIsAtomic32)
+                {
+                    update_tile(dq_dram_window, dq_acc);
+                }
+                else
+                {
+                    buffer_store_fence();
+                    update_tile_raw(dq_dram_window,
+                                    cast_tile<QGradDataType>(dq_acc),
+                                    number<-1>{},
+                                    bool_constant<false>{});
+                }
             }
+
             move_tile_window(dq_dram_window, {kM0, 0});
 
             i_total_loops += 1;
@@ -1027,14 +1053,24 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, dq_acc);
             tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, dk_acc);
         }
-
         if constexpr(kIsDeterministic)
         {
             store_tile(dq_dram_window, dq_acc);
         }
         else
         {
-            update_tile(dq_dram_window, dq_acc);
+            if constexpr(kIsAtomic32)
+            {
+                update_tile(dq_dram_window, dq_acc);
+            }
+            else
+            {
+                buffer_store_fence();
+                update_tile_raw(dq_dram_window,
+                                cast_tile<QGradDataType>(dq_acc),
+                                number<-1>{},
+                                bool_constant<false>{});
+            }
         }
 
         return make_tuple(dk_acc, dv_acc);

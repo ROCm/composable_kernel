@@ -94,7 +94,8 @@ auto create_args(int argc, char* argv[])
         .insert("deterministic",
                 "0",
                 "if set to 1 will use multi-buffer reduction strategy for dq, atomic opeartion "
-                "will not be used");
+                "will not be used")
+        .insert("atomic_fp32", "1", "if set to 0 will use atomic fp16/bf16");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -122,7 +123,19 @@ auto get_elimit<FmhaBwdBf16>(ck_tile::index_t hdim_q, ck_tile::index_t hdim_v)
     return ck_tile::make_tuple(rtol, atol);
 }
 
-template <typename DataTypeConfig>
+ck_tile::index_t get_bit_ceil(const ck_tile::index_t dim_value)
+{
+    unsigned un = static_cast<unsigned>(dim_value);
+    un |= un >> 1;
+    un |= un >> 2;
+    un |= un >> 4;
+    un |= un >> 8;
+    un |= un >> 16;
+    un++;
+    return static_cast<ck_tile::index_t>(un);
+}
+
+template <typename DataTypeConfig, bool IsAtomic32 = true>
 bool run(const ck_tile::ArgParser& arg_parser)
 {
     std::string data_type    = arg_parser.get_str("prec");
@@ -198,6 +211,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int stream_repeat  = arg_parser.get_int("repeat");
     bool kname         = arg_parser.get_bool("kname");
     bool deterministic = arg_parser.get_bool("deterministic");
+    bool atomic_fp32   = arg_parser.get_bool("atomic_fp32");
 
     ck_tile::stream_config stream_config{nullptr,
                                          true,
@@ -226,6 +240,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using KGradDataType         = typename TypeConfig::KGradDataType;
     using VGradDataType         = typename TypeConfig::VGradDataType;
     using BiasGradDataType      = typename TypeConfig::BiasGradDataType;
+    using QGradAccDataType      = std::conditional_t<IsAtomic32, AccDataType, OGradDataType>;
 
     // accumulation numbers for performance evaluation
     std::size_t flop = 0, num_byte = 0;
@@ -277,12 +292,26 @@ bool run(const ck_tile::ArgParser& arg_parser)
             return std::array<ck_tile::index_t, 4>{b, s, h, d};
     };
 
+    // for dq_acc padding in atomic16
+    constexpr ck_tile::index_t seqlen_dq_acc_tile_size = 16;
+    const ck_tile::index_t hdim_q_pad                  = get_bit_ceil(hdim_q);
+    const ck_tile::index_t hdim_q_dq_acc               = atomic_fp32 ? hdim_q : hdim_q_pad;
+    const ck_tile::index_t max_seqlen_q_aligned =
+        ck_tile::integer_least_multiple(max_seqlen_q, seqlen_dq_acc_tile_size);
+
     // host memory for storing all the tensor elements
     const ck_tile::index_t shape_batch = (mode == mode_enum::batch ? batch : 1);
     const ck_tile::index_t shape_seqlen_q =
         (mode == mode_enum::batch ? seqlen_q : seqstart_q_host.back());
     const ck_tile::index_t shape_seqlen_k =
         (mode == mode_enum::batch ? seqlen_k : seqstart_k_host.back());
+    const ck_tile::index_t shape_seqlen_dq_acc_batch_mode =
+        atomic_fp32 ? seqlen_q : ck_tile::integer_least_multiple(seqlen_q, seqlen_dq_acc_tile_size);
+    const ck_tile::index_t shape_seqlen_dq_acc_group_mode =
+        atomic_fp32 ? seqstart_q_host.back() : max_seqlen_q_aligned * batch;
+    const ck_tile::index_t shape_seqlen_dq_acc =
+        (mode == mode_enum::batch ? shape_seqlen_dq_acc_batch_mode
+                                  : shape_seqlen_dq_acc_group_mode);
     const ck_tile::index_t kN0 = (hdim_q <= 128) ? 128 : 64;
     const ck_tile::index_t nsplits =
         deterministic ? ck_tile::integer_divide_ceil(max_seqlen_k, kN0) : 1;
@@ -323,10 +352,16 @@ bool run(const ck_tile::ArgParser& arg_parser)
         use_dbias
             ? get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, max_seqlen_k)
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
-    ck_tile::HostTensor<AccDataType> dq_acc_host(
-        i_perm
-            ? std::array<ck_tile::index_t, 5>{nsplits, shape_batch, nhead, shape_seqlen_q, hdim_q}
-            : std::array<ck_tile::index_t, 5>{nsplits, shape_batch, shape_seqlen_q, nhead, hdim_q});
+
+    bool dq_acc_perm = i_perm || !atomic_fp32; // need to permute for atomic16
+    ck_tile::HostTensor<QGradAccDataType> dq_acc_host(
+        dq_acc_perm ? std::array<ck_tile::index_t, 5>{nsplits,
+                                                      shape_batch,
+                                                      nhead,
+                                                      shape_seqlen_dq_acc,
+                                                      hdim_q_dq_acc}
+                    : std::array<ck_tile::index_t, 5>{
+                          nsplits, shape_batch, shape_seqlen_dq_acc, nhead, hdim_q_dq_acc});
 
     if(init_method == 0)
     {
@@ -438,7 +473,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        use_dbias,
                                        p_drop > 0.0f,
                                        s_randval,
-                                       deterministic};
+                                       deterministic,
+                                       atomic_fp32};
     auto fmha_args   = [&]() {
         assert(nhead % nhead_k == 0);
         /// NOTE: we broadcast bias from [1, 1, seqlen_q, seqlen_k] to [batch, nhead, seqlen_q,
@@ -455,6 +491,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t stride_dk      = (i_perm ? hdim_q : nhead * hdim_q);
         const ck_tile::index_t stride_dv      = (i_perm ? hdim_v : nhead * hdim_v);
         const ck_tile::index_t stride_dbias   = (i_perm ? max_seqlen_k : nhead * max_seqlen_k);
+        const ck_tile::index_t stride_dq_acc =
+            (dq_acc_perm ? hdim_q_dq_acc : nhead * hdim_q_dq_acc);
         // setup nhead_stride_* arguments
         const ck_tile::index_t nhead_stride_q       = (i_perm ? shape_seqlen_q * hdim_q : hdim_q);
         const ck_tile::index_t nhead_stride_k       = (i_perm ? shape_seqlen_k * hdim_q : hdim_q);
@@ -466,6 +504,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t nhead_stride_lsed    = shape_seqlen_q;
         const ck_tile::index_t nhead_stride_dbias =
             (i_perm ? shape_seqlen_q * max_seqlen_k : max_seqlen_k);
+        const ck_tile::index_t nhead_stride_dq_acc =
+            (dq_acc_perm ? shape_seqlen_dq_acc * hdim_q_dq_acc : hdim_q_dq_acc);
         // setup batch_stride_* arguments
         const ck_tile::index_t batch_stride_q       = (nhead * shape_seqlen_q * hdim_q);
         const ck_tile::index_t batch_stride_k       = (nhead_k * shape_seqlen_k * hdim_q);
@@ -478,9 +518,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t batch_stride_dk      = (nhead * shape_seqlen_k * hdim_q);
         const ck_tile::index_t batch_stride_dv      = (nhead * shape_seqlen_k * hdim_v);
         const ck_tile::index_t batch_stride_dbias   = (nhead * shape_seqlen_q * max_seqlen_k);
+        const ck_tile::index_t batch_stride_dq_acc  = (nhead * shape_seqlen_dq_acc * hdim_q_dq_acc);
         const ck_tile::index_t split_stride_dq_acc =
-            (shape_batch * nhead * shape_seqlen_q * hdim_q);
-
+            (shape_batch * nhead * shape_seqlen_dq_acc * hdim_q_dq_acc);
         const auto drop_seed_offset = [&]() -> decltype(fmha_bwd_args::drop_seed_offset) {
             if(drop_prefs)
             {
@@ -516,6 +556,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              batch,
                              max_seqlen_q,
                              max_seqlen_k,
+                             max_seqlen_q_aligned,
                              hdim_q,
                              hdim_v,
                              nhead,
@@ -529,8 +570,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              stride_o,
                              stride_randval,
                              stride_do,
-                             stride_q, // stride_dq_acc
-                             stride_q, // stride_dq
+                             stride_dq_acc, // stride_dq_acc
+                             stride_q,      // stride_dq
                              stride_dk,
                              stride_dv,
                              stride_dbias,
@@ -542,10 +583,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              nhead_stride_randval,
                              nhead_stride_do,
                              nhead_stride_lsed,
-                             nhead_stride_q, // nhead_stride_dq_acc
-                             nhead_stride_q, // nhead_stride_dq
-                             nhead_stride_k, // nhead_stride_dk
-                             nhead_stride_v, // nhead_stride_dv
+                             nhead_stride_dq_acc, // nhead_stride_dq_acc
+                             nhead_stride_q,      // nhead_stride_dq
+                             nhead_stride_k,      // nhead_stride_dk
+                             nhead_stride_v,      // nhead_stride_dv
                              nhead_stride_dbias,
                              batch_stride_q,
                              batch_stride_k,
@@ -555,8 +596,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              batch_stride_randval,
                              batch_stride_do,
                              batch_stride_lsed,
-                             batch_stride_q, // batch_stride_dq_acc
-                             batch_stride_q, // batch_stride_dq
+                             batch_stride_dq_acc, // batch_stride_dq_acc
+                             batch_stride_q,      // batch_stride_dq
                              batch_stride_dk,
                              batch_stride_dv,
                              batch_stride_dbias,
@@ -985,13 +1026,28 @@ int main(int argc, char* argv[])
         return -1;
 
     const std::string data_type = arg_parser.get_str("prec");
+    const bool atomic_fp32      = arg_parser.get_bool("atomic_fp32");
     if(data_type == "fp16")
     {
-        return run<FmhaBwdFp16>(arg_parser) ? 0 : -2;
+        if(atomic_fp32)
+        {
+            return run<FmhaBwdFp16>(arg_parser) ? 0 : -2;
+        }
+        else
+        {
+            return run<FmhaBwdFp16, false>(arg_parser) ? 0 : -2;
+        }
     }
     else if(data_type == "bf16")
     {
-        return run<FmhaBwdBf16>(arg_parser) ? 0 : -2;
+        if(atomic_fp32)
+        {
+            return run<FmhaBwdBf16>(arg_parser) ? 0 : -2;
+        }
+        else
+        {
+            return run<FmhaBwdBf16, false>(arg_parser) ? 0 : -2;
+        }
     }
 
     return -3;

@@ -741,6 +741,56 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         return dstr;
     }
 
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakePostQGradAccAtomic16DramTileDistribution()
+    {
+
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kMPerBlock = Problem::kM0;
+        constexpr index_t kNPerBlock = Problem::kQKHeaddim;
+
+        constexpr index_t mPack = 2; // for b16
+        constexpr index_t M1    = mPack;
+        constexpr index_t M0    = kMPerBlock / M1;
+
+        constexpr index_t N0 = kBlockSize / get_warp_size();
+        constexpr index_t N1 = get_warp_size() / M0;
+        constexpr index_t N2 = kNPerBlock / (N0 * N1);
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<>,
+                                       tuple<sequence<M0, M1>, sequence<N0, N1, N2>>,
+                                       tuple<sequence<2>, sequence<1, 2>>,
+                                       tuple<sequence<0>, sequence<0, 1>>,
+                                       sequence<2, 1>,
+                                       sequence<2, 1>>{});
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakePostQGradAtomic16DramTileDistribution()
+    {
+
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kMPerBlock = Problem::kM0;
+        constexpr index_t kNPerBlock = Problem::kQKHeaddim;
+
+        constexpr index_t mPack = 2; // for b16
+        constexpr index_t M1    = mPack;
+        constexpr index_t M0    = kMPerBlock / M1;
+
+        constexpr index_t N0 = kBlockSize / get_warp_size();
+        constexpr index_t N1 = get_warp_size() / M0;
+        constexpr index_t N2 = kNPerBlock / (N0 * N1);
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<>,
+                                       tuple<sequence<M0, M1>, sequence<N0, N1, N2>>,
+                                       tuple<sequence<2>, sequence<1, 2>>,
+                                       tuple<sequence<0>, sequence<0, 1>>,
+                                       sequence<1, 2>,
+                                       sequence<1, 2>>{});
+    }
+
     // these are for lds
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackQ()

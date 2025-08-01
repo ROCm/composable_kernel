@@ -790,6 +790,34 @@ struct buffer_atomic_add_if<bf16_t, 2, pre_nop>
     }
 };
 
+template <bool pre_nop>
+struct buffer_atomic_add_if<fp16_t, 2, pre_nop>
+{
+    template <typename T>
+    CK_TILE_DEVICE void operator()(const T& value,
+                                   int32x4_t res /*buffer resource*/,
+                                   index_t v_offset,
+                                   index_t /*s_offset*/,
+                                   index_t i_offset /*max 0xFFF*/,
+                                   index_t flag = 1)
+    {
+        static_assert(sizeof(T) == 4);
+        auto save_exec = __builtin_amdgcn_read_exec();
+        using mbuf_t   = float;
+        asm volatile("v_cmpx_le_u32 exec, 1, %4\n"
+                     "global_atomic_pk_add_f16 %0, %1, %2 offset:%3\n"
+                     "s_mov_b64 exec %5"
+                     :
+                     : "v"(v_offset),
+                       "v"(bit_cast<mbuf_t>(value)),
+                       "s"(res.xy),
+                       "n"(i_offset),
+                       "v"(flag),
+                       "s"(save_exec)
+                     : "memory");
+    }
+};
+
 template <typename scalar_type, index_t N, bool pre_nop = false>
 struct buffer_atomic_add;
 
@@ -807,6 +835,26 @@ struct buffer_atomic_add<bf16_t, 2, pre_nop>
         static_assert(sizeof(T) == 4);
         using mbuf_t = float;
         asm volatile("global_atomic_pk_add_bf16 %0, %1, %2 offset:%3"
+                     :
+                     : "v"(v_offset), "v"(bit_cast<mbuf_t>(value)), "s"(res.xy), "n"(i_offset)
+                     : "memory");
+    }
+};
+
+template <bool pre_nop>
+struct buffer_atomic_add<fp16_t, 2, pre_nop>
+{
+    template <typename T>
+    CK_TILE_DEVICE void operator()(const T& value,
+                                   int32x4_t res /*buffer resource*/,
+                                   index_t v_offset,
+                                   index_t /*s_offset*/,
+                                   index_t i_offset /*max 0xFFF*/,
+                                   index_t /*flag = 1*/)
+    {
+        static_assert(sizeof(T) == 4);
+        using mbuf_t = float;
+        asm volatile("global_atomic_pk_add_f16 %0, %1, %2 offset:%3"
                      :
                      : "v"(v_offset), "v"(bit_cast<mbuf_t>(value)), "s"(res.xy), "n"(i_offset)
                      : "memory");

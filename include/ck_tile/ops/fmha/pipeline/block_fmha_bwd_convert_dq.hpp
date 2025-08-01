@@ -20,11 +20,15 @@ struct BlockFmhaBwdConvertQGrad
     static constexpr index_t kBlockPerCu = Problem::kBlockPerCu;
     static constexpr index_t kBlockSize  = Problem::kBlockSize;
     static constexpr index_t kQKHeaddim  = Problem::kQKHeaddim;
+    static constexpr index_t kGemm4WarpN = Problem::kGemm4WarpN;
 
     static constexpr bool kIsGroupMode     = Problem::kIsGroupMode;
     static constexpr bool kPadSeqLenQ      = Problem::kPadSeqLenQ;
     static constexpr bool kPadHeadDimQ     = Problem::kPadHeadDimQ;
     static constexpr bool kIsDeterministic = Problem::kIsDeterministic;
+    static constexpr bool kIsAtomic32      = Problem::kIsAtomic32;
+
+    using QGradAccDataType = std::conditional_t<kIsAtomic32, AccDataType, QGradDataType>;
 
     static constexpr index_t kAlignmentQGradAcc =
         kPadHeadDimQ ? 1 : Policy::template GetAlignmentPostQGradAcc<Problem>();
@@ -40,7 +44,7 @@ struct BlockFmhaBwdConvertQGrad
                QGradDramBlockWindowTmp& dq_dram_block_window_tmp) const
     {
         static_assert(
-            std::is_same_v<AccDataType,
+            std::is_same_v<QGradAccDataType,
                            remove_cvref_t<typename QGradAccDramBlockWindowTmp::DataType>> &&
                 std::is_same_v<QGradDataType,
                                remove_cvref_t<typename QGradDramBlockWindowTmp::DataType>>,
@@ -48,16 +52,32 @@ struct BlockFmhaBwdConvertQGrad
 
         static_assert(kM0 == QGradDramBlockWindowTmp{}.get_window_lengths()[number<0>{}], "wrong!");
 
-        auto dq_acc_dram_window =
-            make_tile_window(dq_acc_dram_block_window_tmp.get_bottom_tensor_view(),
-                             dq_acc_dram_block_window_tmp.get_window_lengths(),
-                             dq_acc_dram_block_window_tmp.get_window_origin(),
-                             Policy::template MakePostQGradDramTileDistribution<Problem>());
+        if constexpr(kIsAtomic32)
+        {
+            auto dq_acc_dram_window =
+                make_tile_window(dq_acc_dram_block_window_tmp.get_bottom_tensor_view(),
+                                 dq_acc_dram_block_window_tmp.get_window_lengths(),
+                                 dq_acc_dram_block_window_tmp.get_window_origin(),
+                                 Policy::template MakePostQGradDramTileDistribution<Problem>());
 
-        auto dq_acc   = load_tile(dq_acc_dram_window);
-        const auto dq = cast_tile<QGradDataType>(dq_acc);
+            auto dq_acc   = load_tile(dq_acc_dram_window);
+            const auto dq = cast_tile<QGradDataType>(dq_acc);
 
-        store_tile(dq_dram_block_window_tmp, dq);
+            store_tile(dq_dram_block_window_tmp, dq);
+        }
+        else
+        {
+            auto dq_acc_dram_window = make_tile_window(
+                dq_acc_dram_block_window_tmp.get_bottom_tensor_view(),
+                dq_acc_dram_block_window_tmp.get_window_lengths(),
+                dq_acc_dram_block_window_tmp.get_window_origin(),
+                Policy::template MakePostQGradAccAtomic16DramTileDistribution<Problem>());
+            auto shuffled_dq = make_static_distributed_tensor<QGradDataType>(
+                Policy::template MakePostQGradAtomic16DramTileDistribution<Problem>());
+            auto dq_acc = load_tile(dq_acc_dram_window);
+            shuffle_tile(shuffled_dq, dq_acc);
+            store_tile(dq_dram_block_window_tmp, shuffled_dq);
+        }
     }
 
     // Reduce + Convert

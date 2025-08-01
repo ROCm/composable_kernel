@@ -83,6 +83,7 @@ using fmha_bwd_pipeline_problem_{F_idx} = ck_tile::BlockFmhaBwdPipelineProblem<
     fmha_bwd_shape_{F_idx},
     {F_mode},
     {F_deterministic},
+    {F_atomic32},
     fmha_mask_{F_idx},
     fmha_dropout_{F_idx},
     {F_trload},
@@ -124,6 +125,7 @@ using dq_dk_dv_trait_{F_idx} = fmha_bwd_dq_dk_dv_traits_<{F_hdim},
                                                          {F_dpad},
                                                          {F_dvpad},
                                                          {F_deterministic},
+                                                         {F_atomic32},
                                                          {F_trload},
                                                          {F_maxq}>;
 
@@ -218,10 +220,10 @@ def FMHA_BWD_API_COND_STATEMENT(F_cond: str, F_body: str, *, indent=0, if_ = 0) 
 
 FMHA_BWD_API_INNER_DISPATCH="""
 {F_if}((t.is_group_mode == {F_mode}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_dbias == {F_dbias}) && ({F_dropout_check}) &&
-        ({F_scheck}) && ({F_dcheck}) && ({F_dvcheck}) && (t.is_deterministic == {F_deterministic})) {{
+        ({F_scheck}) && ({F_dcheck}) && ({F_dvcheck}) && ({F_dq_reduce_check})) {{
     using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad1d}, {F_dvpad}>;
-    using dq_dk_dv_trait_ = fmha_bwd_dq_dk_dv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_mask}, {F_dropout}, {F_bias}, {F_dbias}, {F_dpad}, {F_dvpad}, {F_deterministic}, {F_trload}, {F_maxq}>;
-    using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad1d}, {F_dpad}, {F_deterministic}>;
+    using dq_dk_dv_trait_ = fmha_bwd_dq_dk_dv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_mask}, {F_dropout}, {F_bias}, {F_dbias}, {F_dpad}, {F_dvpad}, {F_deterministic}, {F_atomic32}, {F_trload}, {F_maxq}>;
+    using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad1d}, {F_dpad}, {F_deterministic}, {F_atomic32}>;
     r = fmha_bwd_<dot_do_o_trait_, dq_dk_dv_trait_, std::conditional_t<{F_convert_dq_enabled}, convert_dq_trait_, void>>(s, a);
     return r;
 }}
@@ -285,8 +287,9 @@ class FmhaBwdDQDKDVKernel:
     F_mask          : str  # value from MASK_MAP
     F_mode          : str  # value from MODE_MAP
     F_deterministic : str  #
+    F_atomic32      : str  # will not be used if deterministic set to 1
     mask_impl       : str  #
-    F_trload       : str  #
+    F_trload        : str  #
 
     @property
     def template(self) -> str:
@@ -328,6 +331,7 @@ class FmhaBwdDQDKDVKernel:
                 F_mask          = get_mask_map(self.mask_impl)[self.F_mask],
                 F_mode          = MODE_MAP[self.F_mode],
                 F_deterministic = BOOL_MAP[self.F_deterministic],
+                F_atomic32      = BOOL_MAP[self.F_atomic32],
                 F_trload        = BOOL_MAP[self.F_trload],
                 F_maxq          = self.F_tile.max_seq_q
             )
@@ -362,7 +366,8 @@ class FmhaBwdDQDKDVKernel:
         else: n += '_ndropout'
 
         if self.F_deterministic == 't' : n += '_deterministic'
-        else: n += '_ndeterministic'
+        elif self.F_atomic32 == 't' : n += '_atomic32'
+        else: n += '_atomic16'
 
         if self.F_trload == 't' : n += '_trload'
         else: n += '_ntrload'
@@ -504,8 +509,10 @@ using fmha_bwd_convert_dq_pipeline_problem_{F_idx} =
         {F_bm0},
         {F_bn0},
         {F_hdim},
+        {F_wn0},
         {F_mode},
         {F_deterministic},
+        {F_atomic32},
         fmha_bwd_convert_dq_trait_{F_idx}>;
 
 using fmha_bwd_convert_dq_{F_idx} =
@@ -519,7 +526,8 @@ using convert_dq_trait_{F_idx} = fmha_bwd_convert_dq_traits_<{F_hdim},
                                                              {F_mode},
                                                              {F_spad},
                                                              {F_dpad},
-                                                             {F_deterministic}>;
+                                                             {F_deterministic},
+                                                             {F_atomic32}>;
 
 #include <iostream>
 
@@ -563,11 +571,13 @@ class FmhaBwdConvertQGradKernel:
     F_dtype         : str  # data type
     F_bm0           : int  # tile size along q seqlen (block size)
     F_bn0           : int  # tile size along k seqlen
+    F_wn0           : int # warp size along n in gemm0/gemm2/gemm4
     F_spad          : str  # true/false
     F_dpad          : str  #
     F_mode          : str  # value from MODE_MAP
     F_occupancy     : int  #
     F_deterministic : str  #
+    F_atomic32      : str
     disabled        : bool # sometimes this kernel is not used
 
     @property
@@ -579,11 +589,13 @@ class FmhaBwdConvertQGradKernel:
                 F_dtype         = BWD_DTYPE_MAP[self.F_dtype],
                 F_bm0           = self.F_bm0,
                 F_bn0           = self.F_bn0,
+                F_wn0           = self.F_wn0,
                 F_spad          = BOOL_MAP[self.F_spad],
                 F_dpad          = BOOL_MAP[self.F_dpad],
                 F_mode          = MODE_MAP[self.F_mode],
                 F_occupancy     = self.F_occupancy,
-                F_deterministic = BOOL_MAP[self.F_deterministic])
+                F_deterministic = BOOL_MAP[self.F_deterministic],
+                F_atomic32      = BOOL_MAP[self.F_atomic32])
 
     @property
     def name(self) -> str:
@@ -594,11 +606,12 @@ class FmhaBwdConvertQGradKernel:
             if n != '' : n = 'p' + n
             return n
         pn = pad_name()
-        n = f"fmha_bwd_convert_dq_d{self.F_hdim}_{self.F_dtype}_b{self.F_bm0}x{self.F_bn0}_{self.F_mode}_o{self.F_occupancy}"
+        n = f"fmha_bwd_convert_dq_d{self.F_hdim}_{self.F_dtype}_b{self.F_bm0}x{self.F_bn0}_wn0{self.F_wn0}_{self.F_mode}_o{self.F_occupancy}"
         if pn != '' : n += f'_{pn}'
         else: n += '_npad'
         if self.F_deterministic == 't' : n += '_deterministic'
-        else: n += '_ndeterministic'
+        elif self.F_atomic32 == 't' : n += '_atomic32'
+        else: n += '_atomic16'
         return n
 
     @property
@@ -621,6 +634,7 @@ class FmhaBwdApiTrait:
     dpad          : str
     dvpad         : str
     deterministic : str
+    atomic32      : str
     mask_impl     : str
     tr_load       : str
 
@@ -657,6 +671,12 @@ class FmhaBwdApiTrait:
         else :                return f'a.hdim_v % {self.bhdv} == 0'
 
     @property
+    def dq_reduce_check(self) -> str:
+        if self.deterministic == 't' : return 't.is_deterministic'
+        elif self.atomic32 == 't' :    return '!t.is_deterministic && t.is_atomic_fp32'
+        else :                         return '!t.is_deterministic && !t.is_atomic_fp32'
+
+    @property
     def dot_do_o_kernel(self) -> FmhaBwdOGradDotOKernel:
         # TODO: we don't support tuning yet, so pick up one value for pad/occupancy
         #       support this in future
@@ -670,7 +690,8 @@ class FmhaBwdApiTrait:
     def dq_dk_dv_kernel(self) -> FmhaBwdDQDKDVKernel:
         return FmhaBwdDQDKDVKernel(F_idx=self.idx, F_hdim=self.hdim, F_dtype=self.dtype, F_tile=self.tile,
             F_dpad=self.dpad, F_dvpad=self.dvpad, F_bias=self.bias, F_dbias=self.dbias, F_dropout=self.dropout,
-            F_mask=self.mask, F_mode=self.mode, F_deterministic=self.deterministic, mask_impl=self.mask_impl, F_trload=self.tr_load)
+            F_mask=self.mask, F_mode=self.mode, F_deterministic=self.deterministic, F_atomic32=self.atomic32,
+            mask_impl=self.mask_impl, F_trload=self.tr_load)
 
     @property
     def convert_dq_kernel(self) -> FmhaBwdConvertQGradKernel:
@@ -680,9 +701,9 @@ class FmhaBwdApiTrait:
             return 2
 
         return FmhaBwdConvertQGradKernel(F_idx=self.idx, F_hdim=self.hdim, F_dtype=self.dtype,
-            F_bm0=M0_1D, F_bn0=self.tile.F_bn0, F_spad=self.spad1d, F_dpad=self.dpad,
+            F_bm0=M0_1D, F_bn0=self.tile.F_bn0, F_wn0=self.tile.F_wn0, F_spad=self.spad1d, F_dpad=self.dpad,
             F_mode=self.mode, F_occupancy=get_occupancy(self.dtype, self.hdim),
-            F_deterministic=self.deterministic, disabled=self.tile.max_seq_q != 0)
+            F_deterministic=self.deterministic, F_atomic32=self.atomic32, disabled=self.tile.max_seq_q != 0)
 
 class FmhaBwdApiPool:
     def __init__(self, mask_impl):
@@ -705,9 +726,9 @@ class FmhaBwdApiPool:
             inners += FMHA_BWD_API_INNER_DISPATCH.format(F_if=self.if_(i), F_mode=MODE_MAP[trait.mode],
                 F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask], F_mask=get_mask_map(self.mask_impl)[trait.mask], F_bias_check=BIAS_CHECK_MAP[trait.bias],
                 F_bias=BIAS_MAP[trait.bias], F_dbias=BOOL_MAP[trait.dbias], F_dropout_check=DROPOUT_CHECK_MAP[trait.dropout], F_dropout=DROPOUT_MAP[trait.dropout],
-                F_scheck=trait.scheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck, F_hdim=trait.hdim, F_dtype=BWD_DTYPE_MAP[trait.dtype],
+                F_scheck=trait.scheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck, F_dq_reduce_check=trait.dq_reduce_check, F_hdim=trait.hdim, F_dtype=BWD_DTYPE_MAP[trait.dtype],
                 F_spad1d=BOOL_MAP[trait.spad1d], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
-                F_deterministic=BOOL_MAP[trait.deterministic], F_trload=BOOL_MAP[trait.tr_load], F_maxq=trait.tile.max_seq_q,
+                F_deterministic=BOOL_MAP[trait.deterministic], F_atomic32=BOOL_MAP[trait.atomic32], F_trload=BOOL_MAP[trait.tr_load], F_maxq=trait.tile.max_seq_q,
                 F_convert_dq_enabled=BOOL_MAP[not trait.convert_dq_kernel.disabled])
             i += 1
         return inners
@@ -778,7 +799,7 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[Fm
 
     for dtype, tr_load in itertools.product(BWD_DTYPE_MAP.keys(), ["t", "f"]):
         tiles: Any = get_dq_dk_dv_tiles(dtype, tr_load)
-        for tile, mode, mask, bias, dbias, dropout, spad1d, dpad, dvpad, deterministic in itertools.product(tiles, MODE_MAP.keys(), get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], DROPOUT_MAP.keys(), *([["t", "f"]] * 4)):
+        for tile, mode, mask, bias, dbias, dropout, spad1d, dpad, dvpad, deterministic, atomic32 in itertools.product(tiles, MODE_MAP.keys(), get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], DROPOUT_MAP.keys(), *([["t", "f"]] * 5)):
             assert isinstance(tile, FmhaBwdDQDKDVTileSize), "tile must be FmhaBwdDQDKDVTileSize"
             hdim = tile.F_bhdq
             if (mode == "group") and (spad1d == "f"):
@@ -787,11 +808,13 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[Fm
                 continue
             if ((bias == "no" or bias == "alibi") and dbias == "t"):
                 continue
+            if ((deterministic == 't' or tr_load == "t") and atomic32 == 'f'):
+                continue
             if ("wg32" in dropout):
                 continue
             if tr_load == "t" and (dpad == "t" or dvpad == "t"):
                 continue  # tr_load cannot work with dpad or dvpad
-            t = FmhaBwdApiTrait(idx=0, hdim=hdim, dtype=dtype, mode=mode,tile=tile,mask=mask, bias=bias, dbias=dbias, dropout=dropout, spad1d=spad1d, dpad=dpad, dvpad=dvpad, deterministic=deterministic, mask_impl=mask_impl, tr_load=tr_load)
+            t = FmhaBwdApiTrait(idx=0, hdim=hdim, dtype=dtype, mode=mode,tile=tile,mask=mask, bias=bias, dbias=dbias, dropout=dropout, spad1d=spad1d, dpad=dpad, dvpad=dvpad, deterministic=deterministic, atomic32=atomic32, mask_impl=mask_impl, tr_load=tr_load)
 
             if not fnmatch.fnmatch(t.dot_do_o_kernel.name, filter_dot_do_o):
                 continue

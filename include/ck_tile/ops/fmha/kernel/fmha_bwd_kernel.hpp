@@ -71,14 +71,19 @@ struct FmhaBwdDQDKDVKernel
     static constexpr bool kHasDropout = FmhaDropout::IsDropout;
     static constexpr bool kIsStoreRandval  = FmhaDropout::IsStoreRandval;
     static constexpr bool kIsDeterministic = FmhaPipeline::kIsDeterministic;
+    static constexpr bool kIsAtomic32      = FmhaPipeline::kIsAtomic32;
     static constexpr bool kUseTrLoad       = FmhaPipeline::kUseTrLoad;
     static constexpr index_t kMaxSeqLenQ   = FmhaPipeline::BlockFmhaShape::kMaxSeqLenQ;
     static_assert(kUseQrQtrDorPipeline == (kMaxSeqLenQ != 0));
+    static_assert(!kUseTrLoad || kIsAtomic32);
+    static_assert(!kIsDeterministic || kIsAtomic32);
 #if defined(__gfx950__)
     static constexpr bool kIsAvialable = true;
 #else
     static constexpr bool kIsAvialable = !kUseTrLoad;
 #endif
+
+    using QGradAccDataType = std::conditional_t<kIsAtomic32, AccDataType, QDataType>;
 
     // clang-format off
     template <typename T> struct t2s;
@@ -116,7 +121,7 @@ struct FmhaBwdDQDKDVKernel
             ("o" + _TS_(kBlockPerCu)) + (pn.empty() ? "_npad" : "_" + pn) +
             (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("_nbias") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) +
             (kHasBiasGrad ? "_dbias" : "_ndbias") + (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kHasDropout ? "_dropout" : "_ndropout" ) +
-            (kIsStoreRandval ? "_storerandval" : "" ) + (kIsDeterministic ? "_deterministic" : "_ndeterministic" ) + (kUseTrLoad ? "_trload" : "_ntrload");
+            (kIsStoreRandval ? "_storerandval" : "" ) + (kIsDeterministic ? "_deterministic" : (kIsAtomic32 ? "_atomic32" : "_atomic16")) + (kUseTrLoad ? "_trload" : "_ntrload");
         #undef _SS_
         #undef _TS_
         // clang-format on
@@ -274,6 +279,11 @@ struct FmhaBwdDQDKDVKernel
         ck_tile::index_t split_stride_dq_acc = 0;
     };
 
+    struct FmhaBwdAtomic16GroupModeKargs
+    {
+        ck_tile::index_t max_seqlen_q_aligned = 0;
+    };
+
     struct FmhaBwdBatchModeKargs
         : FmhaBwdCommonKargs,
           std::conditional_t<BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS,
@@ -306,7 +316,8 @@ struct FmhaBwdDQDKDVKernel
           std::conditional_t<kHasBiasGrad, FmhaBwdCommonBiasGradKargs, FmhaBwdEmptyKargs<1>>,
           std::conditional_t<kHasMask, FmhaBwdMaskKargs, FmhaBwdEmptyKargs<2>>,
           std::conditional_t<kHasDropout, FmhaBwdCommonDropoutKargs, FmhaBwdEmptyKargs<3>>,
-          std::conditional_t<kIsDeterministic, FmhaBwdDeterministicKargs, FmhaBwdEmptyKargs<4>>
+          std::conditional_t<kIsDeterministic, FmhaBwdDeterministicKargs, FmhaBwdEmptyKargs<4>>,
+          std::conditional_t<!kIsAtomic32, FmhaBwdAtomic16GroupModeKargs, FmhaBwdEmptyKargs<5>>
     {
         const int32_t* seqstart_q_ptr;
         const int32_t* seqstart_k_ptr;
@@ -518,6 +529,7 @@ struct FmhaBwdDQDKDVKernel
                   const void* seqstart_q_ptr,
                   const void* seqstart_k_ptr,
                   const void* seqlen_k_ptr,
+                  ck_tile::index_t max_seqlen_q_aligned,
                   ck_tile::index_t hdim_q,
                   ck_tile::index_t hdim_v,
                   ck_tile::index_t num_head_q,
@@ -589,6 +601,7 @@ struct FmhaBwdDQDKDVKernel
                     {},                // placeholder for mask
                     {},                // placeholder for dropout
                     {},                // placeholder for deterministic
+                    {},                // placeholder for atomic16
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
                     reinterpret_cast<const int32_t*>(seqstart_k_ptr),
                     reinterpret_cast<const int32_t*>(seqlen_k_ptr)};
@@ -642,6 +655,11 @@ struct FmhaBwdDQDKDVKernel
         if constexpr(kIsDeterministic)
         {
             kargs.split_stride_dq_acc = split_stride_dq_acc;
+        }
+
+        if constexpr(!kIsAtomic32)
+        {
+            kargs.max_seqlen_q_aligned = max_seqlen_q_aligned;
         }
 
         return kargs;
@@ -707,13 +725,22 @@ struct FmhaBwdDQDKDVKernel
             // get starting offset for each batch
             const long_index_t query_start = kargs.seqstart_q_ptr[i_batch];
             const long_index_t key_start   = kargs.seqstart_k_ptr[i_batch];
+            long_index_t dq_acc_start      = 0;
+            if constexpr(kIsAtomic32)
+            {
+                dq_acc_start = kargs.seqstart_q_ptr[i_batch];
+            }
+            else
+            {
+                dq_acc_start = kargs.max_seqlen_q_aligned * i_batch;
+            }
 
             batch_offset_q      = query_start * kargs.stride_q;
             batch_offset_k      = key_start * kargs.stride_k;
             batch_offset_v      = key_start * kargs.stride_v;
             batch_offset_do     = query_start * kargs.stride_do;
             batch_offset_lsed   = query_start;
-            batch_offset_dq_acc = query_start * kargs.stride_dq_acc;
+            batch_offset_dq_acc = dq_acc_start * kargs.stride_dq_acc;
             batch_offset_dk     = key_start * kargs.stride_dk;
             batch_offset_dv     = key_start * kargs.stride_dv;
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
@@ -879,7 +906,9 @@ struct FmhaBwdDQDKDVKernel
 
         auto dq_dram_window = [&, i_tile_n_ = i_tile_n, i_nhead_ = i_nhead]() {
             constexpr bool kUseKSplit = !kUseQrQtrDorPipeline && kIsDeterministic;
-            using DType = std::conditional_t<kUseQrQtrDorPipeline, QGradDataType, AccDataType>;
+
+            using DType = std::
+                conditional_t<kUseQrQtrDorPipeline || !kIsAtomic32, QGradDataType, AccDataType>;
 
             auto dq_acc_ptr = reinterpret_cast<DType*>(kargs.dq_acc_ptr) + [&]() {
                 if constexpr(kUseKSplit)
@@ -893,17 +922,71 @@ struct FmhaBwdDQDKDVKernel
 
             constexpr auto DstInMemOp = conditional_expr<kUseKSplit>(
                 memory_operation_enum::set, memory_operation_enum::atomic_add);
-            const auto dq_acc_dram_naive =
-                make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
-                    dq_acc_ptr,
-                    make_tuple(kargs.seqlen_q, kargs.hdim_q),
-                    make_tuple(kargs.stride_dq_acc, 1),
-                    number<FmhaPipeline::kAlignmentQGrad>{},
-                    number<1>{});
-            const auto dq_acc_dram = pad_tensor_view(
-                dq_acc_dram_naive,
-                make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kQKHeaddim>{}),
-                sequence<false, kPadHeadDimQ>{});
+
+            auto dq_acc_dram = [&]() {
+                if constexpr(kIsAtomic32)
+                {
+
+                    const auto dq_acc_dram_naive =
+                        make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
+                            dq_acc_ptr,
+                            make_tuple(kargs.seqlen_q, kargs.hdim_q),
+                            make_tuple(kargs.stride_dq_acc, 1),
+                            number<FmhaPipeline::kAlignmentQGrad>{},
+                            number<1>{});
+                    return pad_tensor_view(
+                        dq_acc_dram_naive,
+                        make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kQKHeaddim>{}),
+                        sequence<false, kPadHeadDimQ>{});
+                }
+                else
+                {
+                    constexpr index_t m_pack           = 2; // dword alignment for atomic 16 instr.
+                    constexpr index_t mfma_m1_per_lane = 4;
+                    constexpr index_t m1_pack_num      = mfma_m1_per_lane / m_pack;
+                    constexpr index_t mfma_n_lane      = FmhaPipeline::kGemm4WarpN;
+                    constexpr index_t mfma_m_lane      = get_warp_size() / mfma_n_lane;
+                    constexpr index_t m_align_size     = mfma_m1_per_lane * mfma_m_lane;
+
+                    static_assert(
+                        FmhaPipeline::kM0 % m_align_size == 0,
+                        "tiling size in the m direction must be divisible by the m align size.");
+
+                    index_t M0 = (kargs.seqlen_q + FmhaPipeline::kM0 - 1) / m_align_size;
+                    constexpr auto dq_acc_n = FmhaPipeline::kQKHeaddim;
+                    constexpr index_t N0    = dq_acc_n / mfma_n_lane;
+
+                    const auto q_grad_dram_desc_0 = make_naive_tensor_descriptor(
+                        make_tuple(M0,
+                                   number<N0>{},
+                                   number<m1_pack_num>{},
+                                   number<mfma_m_lane>{},
+                                   number<mfma_n_lane>{},
+                                   number<m_pack>{}),
+                        make_tuple(number<dq_acc_n * mfma_m1_per_lane * mfma_m_lane>{},
+                                   number<mfma_n_lane * mfma_m1_per_lane * mfma_m_lane>{},
+                                   number<mfma_m_lane * mfma_n_lane * m_pack>{},
+                                   number<mfma_n_lane * m_pack>{},
+                                   number<m_pack>{},
+                                   number<1>{}),
+                        number<m_pack>{},
+                        number<1>{});
+
+                    const auto q_grad_dram_desc = transform_tensor_descriptor(
+                        q_grad_dram_desc_0,
+                        make_tuple(
+                            make_merge_transform(make_tuple(M0,
+                                                            number<mfma_m_lane>{},
+                                                            number<m1_pack_num>{},
+                                                            number<m_pack>{})),
+                            make_merge_transform(make_tuple(number<N0>{}, number<mfma_n_lane>{}))),
+                        make_tuple(sequence<0, 3, 2, 5>{}, sequence<1, 4>{}),
+                        make_tuple(sequence<0>{}, sequence<1>{}));
+                    return make_tensor_view<address_space_enum::global,
+                                            memory_operation_enum::atomic_add>(dq_acc_ptr,
+                                                                               q_grad_dram_desc);
+                }
+            }();
             return make_tile_window(
                 dq_acc_dram,
                 make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kQKHeaddim>{}),
@@ -1430,14 +1513,18 @@ struct FmhaBwdConvertQGradKernel
     static constexpr ck_tile::index_t kM0         = FmhaBwdConvertQGrad::kM0;
     static constexpr ck_tile::index_t kN0         = FmhaBwdConvertQGrad::kN0;
     static constexpr ck_tile::index_t kQKHeaddim  = FmhaBwdConvertQGrad::kQKHeaddim;
+    static constexpr ck_tile::index_t kGemm4WarpN = FmhaBwdConvertQGrad::kGemm4WarpN;
 
     using AccDataType   = ck_tile::remove_cvref_t<typename FmhaBwdConvertQGrad::AccDataType>;
     using QGradDataType = ck_tile::remove_cvref_t<typename FmhaBwdConvertQGrad::QGradDataType>;
+    using QGradAccDataType =
+        ck_tile::remove_cvref_t<typename FmhaBwdConvertQGrad::QGradAccDataType>;
 
     static constexpr bool kIsGroupMode     = FmhaBwdConvertQGrad::kIsGroupMode;
     static constexpr bool kPadSeqLenQ      = FmhaBwdConvertQGrad::kPadSeqLenQ;
     static constexpr bool kPadHeadDimQ     = FmhaBwdConvertQGrad::kPadHeadDimQ;
     static constexpr bool kIsDeterministic = FmhaBwdConvertQGrad::kIsDeterministic;
+    static constexpr bool kIsAtomic32      = FmhaBwdConvertQGrad::kIsAtomic32;
 
     // clang-format off
     template <typename T> struct t2s;
@@ -1463,7 +1550,7 @@ struct FmhaBwdConvertQGradKernel
             + "b" + _TS_(kM0) + "x" + _TS_(kN0) + "_"
             + (kIsGroupMode ? "group" : "batch") + "_"
             + ("o" + _TS_(kBlockPerCu)) + (pn.empty() ? "_npad" : "_" + pn)
-            + (kIsDeterministic ? "_deterministic" : "_ndeterministic") ;
+            + (kIsDeterministic ? "_deterministic" : (kIsAtomic32 ? "_atomic32" : "_atomic16")) ;
         #undef _SS_
         #undef _TS_
         // clang-format on
@@ -1498,6 +1585,11 @@ struct FmhaBwdConvertQGradKernel
         ck_tile::index_t split_stride_dq_acc = 0;
     };
 
+    struct FmhaBwdConvertQGradAtomic16GroupModeKargs
+    {
+        ck_tile::index_t max_seqlen_q_aligned = 0;
+    };
+
     struct FmhaBwdConvertQGradBatchModeKargs
         : FmhaBwdConvertQGradCommonKargs,
           std::conditional_t<kIsDeterministic,
@@ -1512,7 +1604,10 @@ struct FmhaBwdConvertQGradKernel
         : FmhaBwdConvertQGradCommonKargs,
           std::conditional_t<kIsDeterministic,
                              FmhaBwdConvertQGradDeterministicKargs,
-                             FmhaBwdConvertQGradEmptyKargs<0>>
+                             FmhaBwdConvertQGradEmptyKargs<0>>,
+          std::conditional_t<!kIsAtomic32,
+                             FmhaBwdConvertQGradAtomic16GroupModeKargs,
+                             FmhaBwdConvertQGradEmptyKargs<1>>
     {
         const int32_t* seqstart_q_ptr;
         const int32_t* seqstart_k_ptr;
@@ -1564,6 +1659,7 @@ struct FmhaBwdConvertQGradKernel
               void* dq_ptr,
               const void* seqstart_q_ptr,
               const void* seqstart_k_ptr,
+              ck_tile::index_t max_seqlen_q_aligned,
               ck_tile::index_t hdim_q,
               ck_tile::index_t stride_dq,
               ck_tile::index_t stride_dq_acc,
@@ -1580,13 +1676,19 @@ struct FmhaBwdConvertQGradKernel
                      stride_dq_acc,
                      nhead_stride_dq,
                      nhead_stride_dq_acc},
-                    {},
+                    {}, // placeholder for deterministic
+                    {}, // placeholder for atomic16
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
                     reinterpret_cast<const int32_t*>(seqstart_k_ptr)};
 
         if constexpr(kIsDeterministic)
         {
             kargs.split_stride_dq_acc = split_stride_dq_acc;
+        }
+
+        if constexpr(!kIsAtomic32)
+        {
+            kargs.max_seqlen_q_aligned = max_seqlen_q_aligned;
         }
 
         return kargs;
@@ -1624,8 +1726,17 @@ struct FmhaBwdConvertQGradKernel
         {
             // get starting offset for each batch
             const long_index_t query_start = kargs.seqstart_q_ptr[i_batch];
-            batch_offset_dq                = query_start * kargs.stride_dq;
-            batch_offset_dq_acc            = query_start * kargs.stride_dq_acc;
+            long_index_t dq_acc_start      = 0;
+            if constexpr(kIsAtomic32)
+            {
+                dq_acc_start = kargs.seqstart_q_ptr[i_batch];
+            }
+            else
+            {
+                dq_acc_start = kargs.max_seqlen_q_aligned * i_batch;
+            }
+            batch_offset_dq     = query_start * kargs.stride_dq;
+            batch_offset_dq_acc = dq_acc_start * kargs.stride_dq_acc;
 
             // get real # queries & # keys under group mode
             const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
@@ -1676,20 +1787,75 @@ struct FmhaBwdConvertQGradKernel
             }
             else
             {
-                const AccDataType* dq_acc_ptr =
-                    reinterpret_cast<const AccDataType*>(kargs.dq_acc_ptr) +
+                const QGradAccDataType* dq_acc_ptr =
+                    reinterpret_cast<const QGradAccDataType*>(kargs.dq_acc_ptr) +
                     static_cast<long_index_t>(i_nhead_) * (kargs.nhead_stride_dq_acc) +
                     batch_offset_dq_acc;
+                if constexpr(kIsAtomic32)
+                {
 
-                auto dq_acc_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                    dq_acc_ptr,
-                    make_tuple(kargs.seqlen_q, kargs.hdim_q),
-                    make_tuple(kargs.stride_dq_acc, 1),
-                    number<FmhaBwdConvertQGrad::kAlignmentQGradAcc>{},
-                    number<1>{});
-                return pad_tensor_view(dq_acc_dram_naive,
-                                       make_tuple(number<kM0>{}, number<kQKHeaddim>{}),
-                                       sequence<kPadSeqLenQ, kPadHeadDimQ>{});
+                    auto dq_acc_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                        dq_acc_ptr,
+                        make_tuple(kargs.seqlen_q, kargs.hdim_q),
+                        make_tuple(kargs.stride_dq_acc, 1),
+                        number<FmhaBwdConvertQGrad::kAlignmentQGradAcc>{},
+                        number<1>{});
+                    return pad_tensor_view(dq_acc_dram_naive,
+                                           make_tuple(number<kM0>{}, number<kQKHeaddim>{}),
+                                           sequence<kPadSeqLenQ, kPadHeadDimQ>{});
+                }
+                else
+                {
+                    constexpr index_t m_pack           = 2; // dword alignment for atomic 16 instr.
+                    constexpr index_t mfma_m1_per_lane = 4;
+                    constexpr index_t m1_pack_num      = mfma_m1_per_lane / m_pack;
+                    constexpr index_t mfma_n_lane      = kGemm4WarpN;
+                    constexpr index_t mfma_m_lane      = get_warp_size() / mfma_n_lane;
+                    constexpr index_t m_align_size     = mfma_m1_per_lane * mfma_m_lane;
+
+                    static_assert(
+                        kM0 % m_align_size == 0,
+                        "tiling size in the m direction must be divisible by the m align size.");
+
+                    index_t M0              = (kargs.seqlen_q + m_align_size - 1) / m_align_size;
+                    constexpr auto dq_acc_n = kQKHeaddim;
+                    constexpr index_t N0    = dq_acc_n / mfma_n_lane;
+
+                    const auto q_grad_dram_desc_0 = make_naive_tensor_descriptor(
+                        make_tuple(M0,
+                                   number<N0>{},
+                                   number<m1_pack_num>{},
+                                   number<mfma_m_lane>{},
+                                   number<mfma_n_lane>{},
+                                   number<m_pack>{}),
+                        make_tuple(number<dq_acc_n * mfma_m1_per_lane * mfma_m_lane>{},
+                                   number<mfma_n_lane * mfma_m1_per_lane * mfma_m_lane>{},
+                                   number<mfma_m_lane * mfma_n_lane * m_pack>{},
+                                   number<mfma_n_lane * m_pack>{},
+                                   number<m_pack>{},
+                                   number<1>{}),
+                        number<m_pack>{},
+                        number<1>{});
+
+                    const auto q_grad_dram_desc = transform_tensor_descriptor(
+                        q_grad_dram_desc_0,
+                        make_tuple(
+                            make_merge_transform(make_tuple(M0,
+                                                            number<mfma_m_lane>{},
+                                                            number<m1_pack_num>{},
+                                                            number<m_pack>{})),
+                            make_merge_transform(make_tuple(number<N0>{}, number<mfma_n_lane>{}))),
+                        make_tuple(sequence<0, 3, 2, 5>{}, sequence<1, 4>{}),
+                        make_tuple(sequence<0>{}, sequence<1>{}));
+                    auto dq_acc_dram_view = make_tensor_view<address_space_enum::global,
+                                                             memory_operation_enum::atomic_add>(
+                        dq_acc_ptr, q_grad_dram_desc);
+                    return pad_tensor_view(
+                        dq_acc_dram_view,
+                        make_tuple(number<kM0>{}, number<kQKHeaddim>{}),
+                        sequence<kPadSeqLenQ, false>{}); // we have already padded the dram buffer
+                                                         // in headdim direction
+                }
             }
         }();
 
