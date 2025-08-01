@@ -438,34 +438,6 @@ def cmake_build(Map conf=[:]){
             echo "could not locate the requested artifacts: ${err.getMessage()}. will skip the stashing."
         }
     }
-    if (params.RUN_CK_TILE_TRANSPOSE_TESTS){
-        try{
-            archiveArtifacts "perf_transpose_*.log"
-            if (arch_type == 1){
-                stash includes: "perf_transpose_**_gfx90a.log", name: "perf_transpose_log_gfx90a"
-            }
-            else if (arch_type == 2){
-                stash includes: "perf_transpose_**_gfx942.log", name: "perf_transpose_log_gfx942"
-            }
-        }
-        catch(Exception err){
-            echo "could not locate the requested artifacts: ${err.getMessage()}. will skip the stashing."
-        }
-    }
-    if (params.RUN_CK_TILE_GEMM_TESTS){
-        try{
-            archiveArtifacts "perf_tile_gemm_**.log"
-            if (arch == 1){
-                stash includes: "perf_tile_gemm_**_gfx90a.log", name: "perf_tile_gemm_log_gfx90a"
-            }
-            else if (arch == 2){
-                stash includes: "perf_tile_gemm_**_gfx942.log", name: "perf_tile_gemm_log_gfx942"
-            }
-        }
-        catch(Exception err){
-            echo "could not locate the requested artifacts: ${err.getMessage()}. will skip the stashing."
-        }
-    }
 }
 
 def buildHipClangJob(Map conf=[:]){
@@ -762,24 +734,6 @@ def process_results(Map conf=[:]){
                             echo "could not locate the FMHA performance logs: ${err.getMessage()}."
                         }
                     }
-                    if (params.RUN_CK_TILE_TRANSPOSE_TESTS){
-                        try{
-                            unstash "perf_transpose_log_gfx942"
-                            unstash "perf_transpose_log_gfx90a"
-                        }
-                        catch(Exception err){
-                            echo "could not locate the Transpose performance logs: ${err.getMessage()}."
-                        }
-                    }
-                    if (params.RUN_CK_TILE_GEMM_TESTS){
-                        try{
-                            unstash "perf_tile_gemm_log_gfx942"
-                            unstash "perf_tile_gemm_log_gfx90a"
-                        }
-                        catch(Exception err){
-                            echo "could not locate the GEMM performance logs: ${err.getMessage()}."
-                        }
-                    }
                     if (params.RUN_FULL_QA || params.BUILD_INSTANCES_ONLY){
                         // unstash deb packages
                         unstash "packages"
@@ -861,7 +815,7 @@ def run_aiter_tests(Map conf=[:]){
 }
 
 //launch develop branch daily jobs
-CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_CK_TILE_TRANSPOSE_TESTS=true;RUN_CK_TILE_GEMM_TESTS=true;RUN_TILE_ENGINE_GEMM_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_TILE_ENGINE_GEMM_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
                                               0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX908=true;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true
@@ -941,14 +895,6 @@ pipeline {
             name: "RUN_CK_TILE_FMHA_TESTS",
             defaultValue: false,
             description: "Run the ck_tile FMHA tests (default: OFF)")
-        booleanParam(
-            name: "RUN_CK_TILE_TRANSPOSE_TESTS",
-            defaultValue: false,
-            description: "Run the ck_tile Transpose tests (default: OFF)")
-        booleanParam(
-            name: "RUN_CK_TILE_GEMM_TESTS",
-            defaultValue: false,
-            description: "Run the ck_tile GEMM tests (default: OFF)")
         booleanParam(
             name: "RUN_TILE_ENGINE_GEMM_TESTS",
             defaultValue: false,
@@ -1198,94 +1144,6 @@ pipeline {
                 }
             }
         }
-        stage("Run CK_TILE_TRANSPOSE Tests")
-        {
-            parallel
-            {
-                stage("Run CK_TILE_TRANSPOSE Tests on gfx90a")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_CK_TILE_TRANSPOSE_TESTS.toBoolean() }
-                    }
-                    agent{ label rocmnode("gfx90a") }
-                    environment{
-                        setup_args = "NO_CK_BUILD"
-                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
-                                           make -j64 tile_example_batched_transpose && \
-                                           cd ../ &&
-                                           example/ck_tile/35_batched_transpose/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx90a """
-                    }
-                    steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
-                        cleanWs()
-                    }
-                }
-                stage("Run CK_TILE_TRANSPOSE Tests on gfx942")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_CK_TILE_TRANSPOSE_TESTS.toBoolean() }
-                    }
-                    agent{ label rocmnode("gfx942") }
-                    environment{
-                        setup_args = "NO_CK_BUILD"
-                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 && \
-                                           make -j64 tile_example_batched_transpose && \
-                                           cd ../ &&
-                                           example/ck_tile/35_batched_transpose/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
-                    }
-                    steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
-                        cleanWs()
-                    }
-                }
-            }
-        }
-        stage("Run CK_TILE_GEMM Tests")
-        {
-            parallel
-            {
-                stage("Run CK_TILE_GEMM Tests on gfx90a")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_CK_TILE_GEMM_TESTS.toBoolean() }
-                    }
-                    agent{ label rocmnode("gfx90a") }
-                    environment{
-                        setup_args = "NO_CK_BUILD"
-                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
-                                           make -j64 tile_example_gemm_universal && \
-                                           cd ../ &&
-                                           example/ck_tile/03_gemm/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx90a """
-                    }
-                    steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
-                        cleanWs()
-                    }
-                }
-                stage("Run CK_TILE_GEMM Tests on gfx942")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_CK_TILE_GEMM_TESTS.toBoolean() }
-                    }
-                    agent{ label rocmnode("gfx942") }
-                    environment{
-                        setup_args = "NO_CK_BUILD"
-                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 && \
-                                           make -j64 tile_example_gemm_universal && \
-                                           cd ../ &&
-                                           example/ck_tile/03_gemm/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
-                    }
-                    steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
-                        cleanWs()
-                    }
-                }
-            }
-        }
         stage("Run TILE_ENGINE_GEMM Tests")
         {
             parallel
@@ -1492,7 +1350,7 @@ pipeline {
                                            -DGPU_TARGETS="gfx90a" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
-                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
+                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j 32"""
                     }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
