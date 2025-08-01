@@ -287,6 +287,25 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentQGrad()
+    {
+        using QGradDataType               = remove_cvref_t<typename Problem::QGradDataType>;
+        constexpr index_t kBlockSize  = Problem::kBlockSize;
+        constexpr index_t kMNPerBlock = Problem::BlockFmhaShape::kM0;
+        constexpr index_t kKPerBlock  = Problem::BlockFmhaShape::kQKHeaddim;
+        constexpr index_t kMaxVecLoad = 16 / sizeof(QGradDataType);
+        constexpr index_t kMinVecLoad = 4 / sizeof(QGradDataType);
+
+        constexpr index_t total_pixels = kMNPerBlock * kKPerBlock / kBlockSize;
+
+        constexpr index_t kVecLoad = ((total_pixels / kMaxVecLoad) >= kMinVecLoad)
+                                         ? kMaxVecLoad
+                                         : (total_pixels / kMinVecLoad);
+
+        return kVecLoad;
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentKGrad()
     {
         using BlockGemm       = remove_cvref_t<decltype(GetSGradTQTBlockGemm<Problem>())>;
@@ -603,6 +622,58 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                        sequence<0, 1>>{});
     }
 
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakePostQGradAccAtomic16DramTileDistribution()
+    {
+
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kMPerBlock = Problem::kM0;
+        constexpr index_t kNPerBlock = Problem::kQKHeaddim;
+
+        constexpr index_t mPack = 2; // for b16
+        constexpr index_t M1 = mPack;
+        constexpr index_t M0 = kMPerBlock / M1;
+
+        constexpr index_t N0 = kBlockSize / get_warp_size();
+        constexpr index_t N1 = get_warp_size() / M0;
+        constexpr index_t N2 = kNPerBlock / (N0 * N1);
+        
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<>,
+                                       tuple<sequence<M0, M1>, sequence<N0, N1, N2>>,
+                                       tuple<sequence<2>, sequence<1, 2>>,
+                                       tuple<sequence<0>, sequence<0, 1>>,
+                                       sequence<2, 1>,
+                                       sequence<2, 1>>{});
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakePostQGradAtomic16DramTileDistribution()
+    {
+
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kMPerBlock = Problem::kM0;
+        constexpr index_t kNPerBlock = Problem::kQKHeaddim;
+
+        constexpr index_t mPack = 2; // for b16
+        constexpr index_t M1 = mPack;
+        constexpr index_t M0 = kMPerBlock / M1;
+
+        constexpr index_t N0 = kBlockSize / get_warp_size();
+        constexpr index_t N1 = get_warp_size() / M0;
+        constexpr index_t N2 = kNPerBlock / (N0 * N1);
+        
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<>,
+                                       tuple<sequence<M0, M1>, sequence<N0, N1, N2>>,
+                                       tuple<sequence<2>, sequence<1, 2>>,
+                                       tuple<sequence<0>, sequence<0, 1>>,
+                                       sequence<1, 2>,
+                                       sequence<1, 2>>{});
+    }
+
     // these are for lds
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackQ()
@@ -665,6 +736,27 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         using GemmDataType = remove_cvref_t<typename Problem::GemmDataType>;
         return 16 / sizeof(GemmDataType);
     }
+
+    // template <index_t mSize, index_t nSize, index_t mPack>
+    // CK_TILE_HOST_DEVICE static constexpr auto MakeQGradDramBlockDescriptor()
+    // {
+    //     constexpr auto q_grad_dram_desc_0 = make_naive_tensor_descriptor(
+    //        make_tuple(number<mSize / mPack>{}, number<nSize>{}, number<mPack>{}),
+    //        make_tuple(number<nSize * mPack>{}, number<mPack>{}, number<1>{}),
+    //        number<mPack>{},
+    //        number<1>{}
+    //     );
+
+    //     constexpr auto q_grad_dram_desc = transform_tensor_descriptor(
+    //         q_grad_dram_desc_0,
+    //         make_tuple(
+    //             make_merge_transform(make_tuple(number<mSize / mPack>{}, number<mPack>{})),
+    //             make_pass_through_transform(number<nSize>{})),
+    //         make_tuple(sequence<0, 2>{}, sequence<1>{}),
+    //         make_tuple(sequence<0>{}, sequence<1>{})
+    //     );
+    //     return q_grad_dram_desc;
+    // }
 
     template <index_t MNPerBlock, index_t KPerBlock, index_t KPack>
     CK_TILE_HOST_DEVICE static constexpr auto MakeXLdsBlockDescriptor()

@@ -38,15 +38,16 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
     static constexpr index_t kBlockPerCu = Problem::kBlockPerCu;
     static constexpr index_t kBlockSize  = Problem::kBlockSize;
 
-    static constexpr index_t kM0        = BlockFmhaShape::kM0;
-    static constexpr index_t kN0        = BlockFmhaShape::kN0;
-    static constexpr index_t kK0        = BlockFmhaShape::kK0;
-    static constexpr index_t kK1        = BlockFmhaShape::kK1;
-    static constexpr index_t kK2        = BlockFmhaShape::kK2;
-    static constexpr index_t kK3        = BlockFmhaShape::kK3;
-    static constexpr index_t kK4        = BlockFmhaShape::kK4;
-    static constexpr index_t kQKHeaddim = BlockFmhaShape::kQKHeaddim;
-    static constexpr index_t kVHeaddim  = BlockFmhaShape::kVHeaddim;
+    static constexpr index_t kM0         = BlockFmhaShape::kM0;
+    static constexpr index_t kN0         = BlockFmhaShape::kN0;
+    static constexpr index_t kK0         = BlockFmhaShape::kK0;
+    static constexpr index_t kK1         = BlockFmhaShape::kK1;
+    static constexpr index_t kK2         = BlockFmhaShape::kK2;
+    static constexpr index_t kK3         = BlockFmhaShape::kK3;
+    static constexpr index_t kK4         = BlockFmhaShape::kK4;
+    static constexpr index_t kQKHeaddim  = BlockFmhaShape::kQKHeaddim;
+    static constexpr index_t kVHeaddim   = BlockFmhaShape::kVHeaddim;
+    static constexpr index_t kGemm4WarpN = BlockFmhaShape::Gemm0WarpTile::at(ck_tile::number<1>{});
 
     static constexpr bool kIsGroupMode     = Problem::kIsGroupMode;
     static constexpr bool kPadSeqLenQ      = Problem::kPadSeqLenQ;
@@ -56,6 +57,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
     static constexpr auto BiasEnum         = Problem::BiasEnum;
     static constexpr bool kHasBiasGrad     = Problem::kHasBiasGrad;
     static constexpr bool kIsDeterministic = Problem::kIsDeterministic;
+    static constexpr bool kIsAtomic32      = Problem::kIsAtomic32;
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
@@ -67,7 +69,8 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
         kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
     static constexpr index_t kAlignmentOGrad =
         kPadHeadDimV ? 1 : Policy::template GetAlignmentOGrad<Problem>();
-    static constexpr index_t kAlignmentQGrad = 1;
+    static constexpr index_t kAlignmentQGrad = kPadHeadDimQ ? 1 : Policy::template GetAlignmentQGrad<Problem>();
+    // static constexpr index_t kAlignmentQGrad = 1;
     static constexpr index_t kAlignmentKGrad =
         kPadHeadDimQ ? 1 : Policy::template GetAlignmentKGrad<Problem>();
     static constexpr index_t kAlignmentVGrad =
@@ -472,6 +475,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
         auto dq_dram_window = make_tile_window(dq_dram_block_window_tmp.get_bottom_tensor_view(),
                                                dq_dram_block_window_tmp.get_window_lengths(),
                                                {seqlen_q_start, 0});
+        // auto dq_dram_window = dq_dram_block_window_tmp;
 
         using SPBlockTileType     = decltype(gemm_0.MakeCBlockTile());
         using SPGradBlockTileType = decltype(gemm_2.MakeCBlockTile());
@@ -793,8 +797,16 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             }
             else
             {
-                update_tile(dq_dram_window, dq_acc);
+                if constexpr(kIsAtomic32)
+                {
+                    update_tile(dq_dram_window, dq_acc);
+                }
+                else
+                {
+                    update_tile(dq_dram_window, cast_tile<QDataType>(dq_acc));
+                }
             }
+
             move_tile_window(dq_dram_window, {kM0, 0});
 
             i_total_loops += 1;
@@ -1023,14 +1035,26 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, dq_acc);
             tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, dk_acc);
         }
-
+            // auto wgid = blockIdx.x + blockIdx.y * gridDim.x + gridDim.x * gridDim.y * blockIdx.z;
+            // auto tid = (threadIdx.z * (blockDim.x * blockDim.y)) + (threadIdx.y * blockDim.x) + threadIdx.x;
         if constexpr(kIsDeterministic)
         {
             store_tile(dq_dram_window, dq_acc);
         }
         else
         {
-            update_tile(dq_dram_window, dq_acc);
+            if constexpr(kIsAtomic32)
+            {
+                update_tile(dq_dram_window, dq_acc);
+            }
+            else
+            {
+                update_tile(dq_dram_window, cast_tile<QDataType>(dq_acc));
+                    // if (wgid ==0 && tid==0) {
+                    //     printf("atomic 16 update tile \n");
+
+                    // }
+            }
         }
 
         return make_tuple(dk_acc, dv_acc);

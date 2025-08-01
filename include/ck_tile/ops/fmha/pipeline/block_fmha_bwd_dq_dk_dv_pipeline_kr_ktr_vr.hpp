@@ -56,6 +56,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
     static constexpr auto BiasEnum         = Problem::BiasEnum;
     static constexpr bool kHasBiasGrad     = Problem::kHasBiasGrad;
     static constexpr bool kIsDeterministic = Problem::kIsDeterministic;
+    static constexpr bool kIsAtomic32      = Problem::kIsAtomic32;
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
@@ -67,7 +68,8 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
         kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
     static constexpr index_t kAlignmentOGrad =
         kPadHeadDimV ? 1 : Policy::template GetAlignmentOGrad<Problem>();
-    static constexpr index_t kAlignmentQGrad = 1;
+    // static constexpr index_t kAlignmentQGrad = kPadHeadDimQ ? 1 : Policy::template GetAlignmentQGrad<Problem>();
+    static constexpr index_t kAlignmentQGrad  = 1;
     static constexpr index_t kAlignmentKGrad =
         kPadHeadDimQ ? 1 : Policy::template GetAlignmentKGrad<Problem>();
     static constexpr index_t kAlignmentVGrad =
@@ -750,10 +752,17 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
             {
                 store_tile(dq_dram_window, dq_acc);
             }
-            else
+        else
+        {
+            if constexpr(kIsAtomic32)
             {
                 update_tile(dq_dram_window, dq_acc);
             }
+            else
+            {
+                // update_tile(dq_dram_window, cast_tile<QDataType>(dq_acc));
+            }
+        }
             move_tile_window(dq_dram_window, {kM0, 0});
 
             i_total_loops += 1;

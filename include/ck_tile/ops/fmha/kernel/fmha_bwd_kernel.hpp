@@ -64,6 +64,9 @@ struct FmhaBwdDQDKDVKernel
     static constexpr bool kHasDropout = FmhaDropout::IsDropout;
     static constexpr bool kIsStoreRandval  = FmhaDropout::IsStoreRandval;
     static constexpr bool kIsDeterministic = FmhaPipeline::kIsDeterministic;
+    static constexpr bool kIsAtomic32        = FmhaPipeline::kIsAtomic32;
+
+    using QGradAccDataType   = std::conditional_t<kIsAtomic32, AccDataType, QDataType>;
 
     // clang-format off
     template <typename T> struct t2s;
@@ -1323,27 +1326,47 @@ struct FmhaBwdDQDKDVKernel
             }
             else
             {
-                AccDataType* dq_acc_ptr =
-                    reinterpret_cast<AccDataType*>(kargs.dq_acc_ptr) +
+                QGradAccDataType* dq_acc_ptr =
+                    reinterpret_cast<QGradAccDataType*>(kargs.dq_acc_ptr) +
                     static_cast<long_index_t>(i_nhead_) * kargs.nhead_stride_dq_acc +
                     batch_offset_dq_acc;
 
+
                 auto dq_acc_dram = [&]() {
-                    const auto dq_acc_dram_naive =
-                        make_naive_tensor_view<address_space_enum::global,
+                    index_t dq_acc_m = (kargs.seqlen_q + FmhaPipeline::kM0 - 1) / FmhaPipeline::kM0 * FmhaPipeline::kM0;
+                    constexpr auto dq_acc_n = FmhaPipeline::kQKHeaddim;
+                    constexpr index_t m_pack = 2; // dword alignment for atomic 16 instr.
+                    constexpr index_t mfma_m1_per_lane = 4;
+                    constexpr index_t m1_pack_num = mfma_m1_per_lane / m_pack;
+                    constexpr index_t mfma_n_lane = FmhaPipeline::kGemm4WarpN;
+                    constexpr index_t mfma_m_lane = get_warp_size() / mfma_n_lane;
+
+                    index_t M0 = dq_acc_m / (mfma_m1_per_lane * mfma_m_lane);
+                    constexpr index_t N0 = dq_acc_n / mfma_n_lane;
+
+                    const auto q_grad_dram_desc_0 = make_naive_tensor_descriptor(
+                        make_tuple(M0, number<N0>{}, number<m1_pack_num>{}, number<mfma_m_lane>{}, number<mfma_n_lane>{}, number<m_pack>{}),
+                        make_tuple(number<dq_acc_n * mfma_m1_per_lane * mfma_m_lane>{}, number<mfma_n_lane * mfma_m1_per_lane * mfma_m_lane>{}, number<mfma_m_lane * mfma_n_lane * m_pack>{}, number<mfma_n_lane * m_pack>{}, number<m_pack>{}, number<1>{}),
+                        number<m_pack>{},
+                        number<1>{}
+                    );
+
+                    const auto q_grad_dram_desc = transform_tensor_descriptor(
+                        q_grad_dram_desc_0,
+                        make_tuple(
+                            make_merge_transform(make_tuple(M0, number<mfma_m_lane>{}, number<m1_pack_num>{}, number<m_pack>{})),
+                            make_merge_transform(make_tuple(number<N0>{}, number<mfma_n_lane>{}))),
+                        make_tuple(sequence<0, 3, 2, 5>{}, sequence<1, 4>{}),
+                        make_tuple(sequence<0>{}, sequence<1>{})
+                    );
+                     return 
+                        make_tensor_view<address_space_enum::global,
                                                memory_operation_enum::atomic_add>(
                             dq_acc_ptr,
-                            make_tuple(kargs.seqlen_q, kargs.hdim_q),
-                            make_tuple(kargs.stride_dq_acc, 1),
-                            number<FmhaPipeline::kAlignmentQGrad>{},
-                            number<1>{});
-
-                    return pad_tensor_view(
-                        dq_acc_dram_naive,
-                        make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kQKHeaddim>{}),
-                        sequence<kPadSeqLenQ, kPadHeadDimQ>{});
+                            q_grad_dram_desc);
                 }();
-
+                
+                
                 return make_tile_window(
                     dq_acc_dram,
                     make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kQKHeaddim>{}),
@@ -1846,9 +1869,11 @@ struct FmhaBwdConvertQGradKernel
     static constexpr ck_tile::index_t kM0         = FmhaBwdConvertQGrad::kM0;
     static constexpr ck_tile::index_t kN0         = FmhaBwdConvertQGrad::kN0;
     static constexpr ck_tile::index_t kQKHeaddim  = FmhaBwdConvertQGrad::kQKHeaddim;
+    static constexpr ck_tile::index_t kGemm4WarpN = FmhaBwdConvertQGrad::kGemm4WarpN;
 
-    using AccDataType   = ck_tile::remove_cvref_t<typename FmhaBwdConvertQGrad::AccDataType>;
-    using QGradDataType = ck_tile::remove_cvref_t<typename FmhaBwdConvertQGrad::QGradDataType>;
+    using AccDataType      = ck_tile::remove_cvref_t<typename FmhaBwdConvertQGrad::AccDataType>;
+    using QGradDataType    = ck_tile::remove_cvref_t<typename FmhaBwdConvertQGrad::QGradDataType>;
+    using QGradAccDataType = ck_tile::remove_cvref_t<typename FmhaBwdConvertQGrad::QGradAccDataType>;
 
     static constexpr bool kIsGroupMode     = FmhaBwdConvertQGrad::kIsGroupMode;
     static constexpr bool kPadSeqLenQ      = FmhaBwdConvertQGrad::kPadSeqLenQ;
@@ -2092,20 +2117,51 @@ struct FmhaBwdConvertQGradKernel
             }
             else
             {
-                const AccDataType* dq_acc_ptr =
-                    reinterpret_cast<const AccDataType*>(kargs.dq_acc_ptr) +
+                const QGradAccDataType* dq_acc_ptr =
+                    reinterpret_cast<const QGradAccDataType*>(kargs.dq_acc_ptr) +
                     static_cast<long_index_t>(i_nhead_) * (kargs.nhead_stride_dq_acc) +
                     batch_offset_dq_acc;
 
-                auto dq_acc_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                // auto dq_acc_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                //     dq_acc_ptr,
+                //     make_tuple(kargs.seqlen_q, kargs.hdim_q),
+                //     make_tuple(kargs.stride_dq_acc, 1),
+                //     number<FmhaBwdConvertQGrad::kAlignmentQGradAcc>{},
+                //     number<1>{});
+                // return pad_tensor_view(dq_acc_dram_naive,
+                //                        make_tuple(number<kM0>{}, number<kQKHeaddim>{}),
+                //                        sequence<kPadSeqLenQ, kPadHeadDimQ>{});
+                index_t dq_acc_m = (kargs.seqlen_q + kM0 - 1) / kM0 * kM0;
+                constexpr auto dq_acc_n = kQKHeaddim;
+                constexpr index_t m_pack = 2; // dword alignment for atomic 16 instr.
+                constexpr index_t mfma_m1_per_lane = 4;
+                constexpr index_t m1_pack_num = mfma_m1_per_lane / m_pack;
+                constexpr index_t mfma_n_lane = kGemm4WarpN;
+                constexpr index_t mfma_m_lane = get_warp_size() / mfma_n_lane;
+
+                index_t M0 = dq_acc_m / (mfma_m1_per_lane * mfma_m_lane);
+                constexpr index_t N0 = dq_acc_n / mfma_n_lane;
+
+                const auto q_grad_dram_desc_0 = make_naive_tensor_descriptor(
+                    make_tuple(M0, number<N0>{}, number<m1_pack_num>{}, number<mfma_m_lane>{}, number<mfma_n_lane>{}, number<m_pack>{}),
+                    make_tuple(number<dq_acc_n * mfma_m1_per_lane * mfma_m_lane>{}, number<mfma_n_lane * mfma_m1_per_lane * mfma_m_lane>{}, number<mfma_m_lane * mfma_n_lane * m_pack>{}, number<mfma_n_lane * m_pack>{}, number<m_pack>{}, number<1>{}),
+                    number<m_pack>{},
+                    number<1>{}
+                );
+
+                const auto q_grad_dram_desc = transform_tensor_descriptor(
+                    q_grad_dram_desc_0,
+                    make_tuple(
+                        make_merge_transform(make_tuple(M0, number<mfma_m_lane>{}, number<m1_pack_num>{}, number<m_pack>{})),
+                        make_merge_transform(make_tuple(number<N0>{}, number<mfma_n_lane>{}))),
+                    make_tuple(sequence<0, 3, 2, 5>{}, sequence<1, 4>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{})
+                );
+                return 
+                make_tensor_view<address_space_enum::global,
+                                        memory_operation_enum::atomic_add>(
                     dq_acc_ptr,
-                    make_tuple(kargs.seqlen_q, kargs.hdim_q),
-                    make_tuple(kargs.stride_dq_acc, 1),
-                    number<FmhaBwdConvertQGrad::kAlignmentQGradAcc>{},
-                    number<1>{});
-                return pad_tensor_view(dq_acc_dram_naive,
-                                       make_tuple(number<kM0>{}, number<kQKHeaddim>{}),
-                                       sequence<kPadSeqLenQ, kPadHeadDimQ>{});
+                    q_grad_dram_desc);
             }
         }();
 

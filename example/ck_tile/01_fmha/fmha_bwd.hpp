@@ -366,7 +366,8 @@ template <ck_tile::index_t HDim_,
           bool kPadSK_,
           bool kPadD_,
           bool kPadDv_,
-          bool kIsDeterministic_>
+          bool kIsDeterministic_,
+          bool kAtomic32_>
 struct fmha_bwd_dq_dk_dv_traits_
 {
     static constexpr ck_tile::index_t HDim    = HDim_;
@@ -382,6 +383,7 @@ struct fmha_bwd_dq_dk_dv_traits_
     static constexpr bool kPadD               = kPadD_;
     static constexpr bool kPadDv              = kPadDv_;
     static constexpr bool kIsDeterministic    = kIsDeterministic_;
+    static constexpr bool kAtomic32           = kAtomic32_;
 };
 
 template <typename Traits_>
@@ -417,7 +419,8 @@ template <ck_tile::index_t HDim_,
           bool kIsGroupMode_,
           bool kPadS_,
           bool kPadD_,
-          bool kIsDeterministic_>
+          bool kIsDeterministic_,
+          bool kAtomic32_>
 struct fmha_bwd_convert_dq_traits_
 {
     static constexpr ck_tile::index_t HDim = HDim_;
@@ -426,6 +429,7 @@ struct fmha_bwd_convert_dq_traits_
     static constexpr bool kPadS            = kPadS_;
     static constexpr bool kPadD            = kPadD_;
     static constexpr bool kIsDeterministic = kIsDeterministic_;
+    static constexpr bool kAtomic32        = kAtomic32_;
 };
 
 template <typename Traits_>
@@ -450,6 +454,7 @@ struct fmha_bwd_traits
     bool has_dropout;
     bool is_store_randval;
     bool is_deterministic;
+    bool is_atomic_fp32;
     // TODO: padding check is inside this api
 };
 template <int Version = 2>

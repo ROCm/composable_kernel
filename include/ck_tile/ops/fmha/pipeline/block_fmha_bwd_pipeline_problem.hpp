@@ -25,6 +25,7 @@ template <typename QDataType_,
           typename BlockFmhaShape_,
           bool kIsGroupMode_,
           bool kIsDeterministic_,
+          bool kIsAtomic32_,
           typename FmhaMask_,
           typename FmhaDropout_,
           typename Traits_>
@@ -53,6 +54,7 @@ struct BlockFmhaBwdPipelineProblem
     static constexpr index_t kBlockSize    = BlockFmhaShape::NumWarps * get_warp_size();
     static constexpr bool kIsGroupMode     = kIsGroupMode_;
     static constexpr bool kIsDeterministic = kIsDeterministic_;
+    static constexpr bool kIsAtomic32      = kIsAtomic32_;
 
     // attributes from traits
     static constexpr bool kPadSeqLenQ    = Traits::kPadSeqLenQ;
@@ -97,8 +99,10 @@ template <typename AccDataType_,
           index_t kM0_,
           index_t kN0_,
           index_t kQKHeaddim_,
+          index_t kGemm4WarpN_,
           bool kIsGroupMode_,
           bool kIsDeterministic_,
+          bool kIsAtomic32_,
           typename Traits_>
 struct BlockFmhaBwdConvertQGradPipelineProblem
 {
@@ -113,8 +117,10 @@ struct BlockFmhaBwdConvertQGradPipelineProblem
     static constexpr index_t kM0           = kM0_;
     static constexpr index_t kN0           = kN0_;
     static constexpr index_t kQKHeaddim    = kQKHeaddim_;
+    static constexpr index_t kGemm4WarpN   = kGemm4WarpN_;
     static constexpr bool kIsGroupMode     = kIsGroupMode_;
     static constexpr bool kIsDeterministic = kIsDeterministic_;
+    static constexpr bool kIsAtomic32      = kIsAtomic32_;
 
     // attributes from traits
     static constexpr bool kPadSeqLenQ    = Traits::kPadSeqLenQ;

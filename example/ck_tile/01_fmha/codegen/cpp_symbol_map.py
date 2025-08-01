@@ -12,7 +12,6 @@ FWD_DTYPE_MAP = {
 
 BWD_DTYPE_MAP = {
     "fp16": "FmhaBwdFp16",
-    "bf16": "FmhaBwdBf16"
 }
 
 MASK_IMPL = {
