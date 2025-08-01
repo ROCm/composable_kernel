@@ -55,41 +55,17 @@ inline __device__ bhalf_t static_cast_float_to_bf16(float x)
 #if defined(__gfx950__)
 inline __device__ bhalf2_t static_cast_float2_to_bhalf2_rne(float2_t x)
 {
-    union
-    {
-        bhalf2_t bf16x2val;
-        uint32_t i32val;
-    } value;
-    // Use the intrinsic to convert float2 to bfloat2 with RNE
-    value.i32val = __builtin_amdgcn_cvt_pk_bf16_f32(x[Number<0>{}], x[Number<1>{}]); 
-    return value.bf16x2val;
+    uint32_t result;
+    asm volatile("v_cvt_pk_bf16_f32 %0, %1, %2" 
+        : "=v"(result) 
+        : "v"(x[0]), "v"(x[1]));
+    return result;
 }
 #endif
 
 // Declare a template function for conversion of bf16 vector of two values using RNE
 template <typename Y, typename X>
 __host__ __device__ constexpr Y bf16x2_convert_rne(X x);
-
-/**
- * @brief Converts a vector of 2 float (float2_t) to a vector of 2 16-bit bfloat types (bhalf2_t) using
- * rounding to nearest/even (RNE).
- *
- * @param x     The input vector of 2 float.
- * @return      The converted vector of 2 bhalf_t.
- */
-template<>
-inline __host__ __device__ constexpr bhalf2_t bf16x2_convert_rne<bhalf2_t, float2_t>(float2_t x)
-{
-#if defined(__gfx950__)
-    return static_cast_float2_to_bhalf2_rne(x);
-#else
-    // TODO: Perform real RNE conversion for bfloat16
-    return {
-        bf16_convert_rtn<bhalf_t>(x[Number<0>{}]),
-        bf16_convert_rtn<bhalf_t>(x[Number<1>{}])
-    };
-#endif
-}
 
 // Declare a template function for bf16 conversion using RTN
 template <typename Y, typename X>
@@ -118,6 +94,27 @@ inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(fl
     constexpr uint32_t rounding_bias      = uint32_t((1 << 15) - 1);
 
     return uint16_t((u.int32 + first_bf16_mantisa_bit + rounding_bias) >> 16);
+#endif
+}
+
+/**
+ * @brief Converts a vector of 2 float (float2_t) to a vector of 2 16-bit bfloat types (bhalf2_t) using
+ * rounding to nearest/even (RNE).
+ *
+ * @param x     The input vector of 2 float.
+ * @return      The converted vector of 2 bhalf_t.
+ */
+template<>
+inline __host__ __device__ constexpr bhalf2_t bf16x2_convert_rne<bhalf2_t, float2_t>(float2_t x)
+{
+#if defined(__gfx950__)
+    return static_cast_float2_to_bhalf2_rne(x);
+#else
+    // TODO: Perform real RNE conversion for bfloat16
+    return {
+        bf16_convert_rtn<bhalf_t>(x[0]),
+        bf16_convert_rtn<bhalf_t>(x[1])
+    };
 #endif
 }
 

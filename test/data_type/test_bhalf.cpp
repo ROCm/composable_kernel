@@ -51,10 +51,70 @@ TEST(BHALF_T, MantisaExpOverflow)
     ASSERT_TRUE(std::isnan(type_convert<float>(type_convert<bhalf_t>(float_val))));
 }
 
+__global__ void cast2(const float2 input, float2* output)
+{
+    ck::float2_t x {input.x, input.y};
+    const ck::bhalf2_t bhalf2_val = ck::bf16x2_convert_rne<ck::bhalf2_t, ck::float2_t>(x);
+    const float fval1 = type_convert<float>(bhalf2_val[0]);
+    const float fval2 = type_convert<float>(bhalf2_val[1]);
+    output->x = fval1;
+    output->y = fval2;
+}
+
 __global__ void cast(const float input, float* output)
 {
     const bhalf_t bhalf_val = type_convert<bhalf_t>(input);
     *output                 = type_convert<float>(bhalf_val);
+}
+
+// Since the type_convert is almost at the bottom of the dependency tree,
+// any changes there require rebuilding a large number of components.
+// To build only this test, run 'make test_bhalf' to test the BF16 packed cast.
+TEST(BHALF_T, PackedCastRoundtrip)
+{
+    constexpr int num_vals = 11;
+    const float abs_tol    = std::pow(2, -7);
+    float float_vals[num_vals] = {0.5, 0.875, 1.5, 1, 2, 4, 8, 16, 32, 64, 128};
+
+    float2* float_val_after_cast_dev;
+    float2 float_val_after_cast_host;
+    hip_check_error(hipMalloc(&float_val_after_cast_dev, sizeof(float2)));
+
+    // Positive
+    for(int i = 0; i < num_vals; i++)
+    {
+        for (int j = 0; j < num_vals; j++)
+        {
+            cast2<<<1, 1>>>(float2{float_vals[i], float_vals[j]}, float_val_after_cast_dev);
+
+            hip_check_error(hipMemcpy(&float_val_after_cast_host,
+                                    float_val_after_cast_dev,
+                                    sizeof(float2),
+                                    hipMemcpyDeviceToHost));
+
+            ASSERT_NEAR(float_val_after_cast_host.x, float_vals[i], abs_tol);
+            ASSERT_NEAR(float_val_after_cast_host.y, float_vals[j], abs_tol);
+        }
+    }
+
+    // Negative
+    for(int i = 0; i < num_vals; i++)
+    {
+        for (int j = 0; j < num_vals; j++)
+        {
+            cast2<<<1, 1>>>(float2{-float_vals[i], -float_vals[j]}, float_val_after_cast_dev);
+
+            hip_check_error(hipMemcpy(&float_val_after_cast_host,
+                                    float_val_after_cast_dev,
+                                    sizeof(float2),
+                                    hipMemcpyDeviceToHost));
+
+            ASSERT_NEAR(float_val_after_cast_host.x, -float_vals[i], abs_tol);
+            ASSERT_NEAR(float_val_after_cast_host.y, -float_vals[j], abs_tol);
+        }
+    }
+
+    hip_check_error(hipFree(float_val_after_cast_dev));
 }
 
 TEST(BHALF_T, CastOnDevice)
