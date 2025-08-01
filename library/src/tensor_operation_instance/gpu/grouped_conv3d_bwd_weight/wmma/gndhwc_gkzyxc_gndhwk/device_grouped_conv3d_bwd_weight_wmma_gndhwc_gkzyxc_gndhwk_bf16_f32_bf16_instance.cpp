@@ -30,6 +30,16 @@ void add_device_grouped_conv3d_bwd_weight_wmma_gndhwc_gkzyxc_gndhwk_bf16_f32_bf1
             GKZYXC,
             GNDHWK,
             ConvBwdWeightDefault>{});
+
+    // 2. Filter1x1Stride1Pad0
+    add_device_operation_instances(
+        instances,
+        device_grouped_conv_bwd_weight_wmma_c_shuffle_bf16_f32_bf16_generic_instances<
+            3,
+            GNDHWC,
+            GKZYXC,
+            GNDHWK,
+            ConvBwdWeightFilter1x1Stride1Pad0>{});
 }
 
 } // namespace instance
