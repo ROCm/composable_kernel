@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -13,9 +13,10 @@ namespace ck_tile {
 template <typename FmhaPipeline_>
 struct FmhaFwdAppendKVKernel
 {
-    using FmhaPipeline                            = ck_tile::remove_cvref_t<FmhaPipeline_>;
-    static constexpr ck_tile::index_t kBlockSize  = FmhaPipeline::kBlockSize;
-    static constexpr ck_tile::index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
+    using FmhaPipeline                                = ck_tile::remove_cvref_t<FmhaPipeline_>;
+    static constexpr ck_tile::index_t kBlockSize      = FmhaPipeline::kBlockSize;
+    static constexpr ck_tile::index_t kBlockPerCu     = FmhaPipeline::kBlockPerCu;
+    static constexpr ck_tile::index_t KernelBlockSize = kBlockSize;
     static_assert(kBlockPerCu > 0);
     static constexpr ck_tile::index_t kBlockPerCuInput = FmhaPipeline::Problem::kBlockPerCu;
 

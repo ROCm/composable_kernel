@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -11,9 +11,10 @@ struct FmhaFwdSplitKVCombineKernel
     using FmhaPipeline     = remove_cvref_t<FmhaPipeline_>;
     using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
 
-    static constexpr index_t kNumWarps   = FmhaPipeline::kNumWarps;
-    static constexpr index_t kBlockSize  = FmhaPipeline::kBlockSize;
-    static constexpr index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
+    static constexpr index_t kNumWarps                = FmhaPipeline::kNumWarps;
+    static constexpr index_t kBlockSize               = FmhaPipeline::kBlockSize;
+    static constexpr index_t kBlockPerCu              = FmhaPipeline::kBlockPerCu;
+    static constexpr ck_tile::index_t KernelBlockSize = kBlockSize;
     static_assert(kBlockPerCu > 0);
     static constexpr index_t kBlockPerCuInput = FmhaPipeline::Problem::kBlockPerCu;
 

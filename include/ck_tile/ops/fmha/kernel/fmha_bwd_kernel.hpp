@@ -43,6 +43,7 @@ struct FmhaBwdDQDKDVKernel
         ck_tile::fmha_bwd_qr_qtr_dor_pipeline_c<FmhaPipeline>;
     static_assert(!kUseQrQtrDorPipeline || !std::is_same_v<QGradEpiloguePipeline_, void>,
                   "QrQtrDorPipeline needs QGradEpiloguePipeline");
+    static constexpr ck_tile::index_t KernelBlockSize = kBlockSize;
 
     using QDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::QDataType>;
     using KDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::KDataType>;
