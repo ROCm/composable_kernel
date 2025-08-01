@@ -94,7 +94,7 @@ function(build_gemm_for_datatype datatype layout)
 
         if (trait_files)
             # Create object libraries with chunking
-            set(chunk_size 12)  # adjust as needed for memory vs parallelism
+            set(chunk_size 3)  # adjust as needed for memory vs parallelism
             list(LENGTH trait_files num_files)
             math(EXPR num_chunks "( ${num_files} + ${chunk_size} - 1 ) / ${chunk_size}")
 
