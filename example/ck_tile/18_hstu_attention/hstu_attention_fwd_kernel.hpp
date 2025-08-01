@@ -91,8 +91,8 @@ struct HstuAttentionFwdKernel
         ck_tile::index_t seq_stride_o;
 
         ck_tile::index_t num_head;
-        float scale_s;
-        ck_tile::index_t max_seqlen;
+        float scale_s; // scaling value exerted on the immediate Q@K result
+        float scale_p; // scaling value exerted on the SiLU result
 
         ck_tile::index_t contextual_seqlen;
     };
@@ -124,8 +124,8 @@ struct HstuAttentionFwdKernel
         ck_tile::index_t seqlen;
 
         ck_tile::index_t num_head;
-        float scale_s;
-        ck_tile::index_t max_seqlen;
+        float scale_s; // scaling value exerted on the immediate Q@K result
+        float scale_p; // scaling value exerted on the SiLU result
 
         ck_tile::index_t contextual_seqlen;
     };
@@ -257,11 +257,11 @@ struct HstuAttentionFwdKernel
              seq_stride_o,
              num_head,
              -scale_s,
-             seqlen,             // max_seqlen
-             contextual_seqlen}, // args for common karg
-            {},                  // placeholder for mask
-            {},                  // placeholder for bias
-            {},                  // placeholder for dropout
+             1.0f / static_cast<float>(seqlen), // max_seqlen
+             contextual_seqlen},                // args for common karg
+            {},                                 // placeholder for mask
+            {},                                 // placeholder for bias
+            {},                                 // placeholder for dropout
         };
 
         if constexpr(kHasLocalMask)
@@ -404,7 +404,7 @@ struct HstuAttentionFwdKernel
              -1, // seqlen will be updated by another pointer
              num_head,
              -scale_s,
-             max_seqlen,
+             1.0f / static_cast<float>(max_seqlen),
              contextual_seqlen}, // args for common karg
             {},                  // placeholder for mask
             {},                  // placeholder for bias
@@ -850,7 +850,7 @@ struct HstuAttentionFwdKernel
                                            bias_dram_window,
                                            mask,
                                            kargs.scale_s,
-                                           kargs.max_seqlen,
+                                           kargs.scale_p,
                                            smem_ptr,
                                            dropout);
         }();
