@@ -38,25 +38,25 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_multiple_d_xdl_cshuffle_lds_direct_load(
-            const ADataType* __restrict__ p_a_grid,
-            const BDataType* __restrict__ p_b_grid,
-            DsPointer p_ds_grid,
-            EDataType* __restrict__ p_e_grid,
-            const AElementwiseOperation a_element_op,
-            const BElementwiseOperation b_element_op,
-            const CDEElementwiseOperation cde_element_op,
-            const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
-            const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-            const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                ds_grid_desc_mblock_mperblock_nblock_nperblock,
-            const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                e_grid_desc_mblock_mperblock_nblock_nperblock,
-            const Block2ETileMap block_2_etile_map)
+    kernel_gemm_multiple_d_xdl_cshuffle_lds_direct_load(
+        const ADataType* __restrict__ p_a_grid,
+        const BDataType* __restrict__ p_b_grid,
+        DsPointer p_ds_grid,
+        EDataType* __restrict__ p_e_grid,
+        const AElementwiseOperation a_element_op,
+        const BElementwiseOperation b_element_op,
+        const CDEElementwiseOperation cde_element_op,
+        const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
+        const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
+        const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+            ds_grid_desc_mblock_mperblock_nblock_nperblock,
+        const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+            e_grid_desc_mblock_mperblock_nblock_nperblock,
+        const Block2ETileMap block_2_etile_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx90a__) || defined(__gfx94__))
+#if(defined(__gfx90a__) || defined(__gfx94__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
@@ -73,18 +73,18 @@ __global__ void
                                                   e_grid_desc_mblock_mperblock_nblock_nperblock,
                                                   block_2_etile_map);
 #else
-    ignore                 = p_a_grid;
-    ignore                 = p_b_grid;
-    ignore                 = p_ds_grid;
-    ignore                 = p_e_grid;
-    ignore                 = a_element_op;
-    ignore                 = b_element_op;
-    ignore                 = cde_element_op;
-    ignore                 = a_grid_desc_ak0_m_ak1;
-    ignore                 = b_grid_desc_bk0_n_bk1;
-    ignore                 = ds_grid_desc_mblock_mperblock_nblock_nperblock;
-    ignore                 = e_grid_desc_mblock_mperblock_nblock_nperblock;
-    ignore                 = block_2_etile_map;
+    ignore = p_a_grid;
+    ignore = p_b_grid;
+    ignore = p_ds_grid;
+    ignore = p_e_grid;
+    ignore = a_element_op;
+    ignore = b_element_op;
+    ignore = cde_element_op;
+    ignore = a_grid_desc_ak0_m_ak1;
+    ignore = b_grid_desc_bk0_n_bk1;
+    ignore = ds_grid_desc_mblock_mperblock_nblock_nperblock;
+    ignore = e_grid_desc_mblock_mperblock_nblock_nperblock;
+    ignore = block_2_etile_map;
 #endif
 }
 
@@ -814,18 +814,16 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
             // A tuple of reference to C/Ds tensor descriptors.
             const auto c_ds_desc_refs = concat_tuple_of_reference(
                 tie(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
-                generate_tie(
-                    [&](auto i) -> const auto& // return type should be reference
-                    { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
-                    Number<NumDTensor>{}));
+                generate_tie([&](auto i) -> const auto& // return type should be reference
+                             { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
+                             Number<NumDTensor>{}));
 
             // A tuple of reference to C/Ds grid buffers.
             const auto c_ds_buf_refs = concat_tuple_of_reference(
                 tie(c_shuffle_block_buf),
-                generate_tie(
-                    [&](auto i) -> const auto& // return type should be reference
-                    { return ds_grid_buf[i]; },
-                    Number<NumDTensor>{}));
+                generate_tie([&](auto i) -> const auto& // return type should be reference
+                             { return ds_grid_buf[i]; },
+                             Number<NumDTensor>{}));
 
             // A tuple of starting index of C/Ds blockwise copy.
             const auto idx_c_ds_block_begin = container_concat(

@@ -25,8 +25,8 @@ struct detector<Default, ck::void_t<Op<Args...>>, Op, Args...>
 
 struct nonesuch
 {
-    ~nonesuch()               = delete;
-    nonesuch(nonesuch const&) = delete;
+    ~nonesuch()                     = delete;
+    nonesuch(nonesuch const&)       = delete;
     void operator=(nonesuch const&) = delete;
 };
 

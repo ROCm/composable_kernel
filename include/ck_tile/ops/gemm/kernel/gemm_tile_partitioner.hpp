@@ -69,8 +69,8 @@ struct GemmTile2DPartitioner
      * @param blockIdy      WGP's Y index.
      * @return const tuple<index_t, index_t>    Tuple containing 2D output C-tile index.
      */
-    CK_TILE_DEVICE static auto GetOutputTileIndex(index_t blockIdx, index_t blockIdy) noexcept
-        -> const tuple<index_t, index_t>
+    CK_TILE_DEVICE static auto
+    GetOutputTileIndex(index_t blockIdx, index_t blockIdy) noexcept -> const tuple<index_t, index_t>
     {
         const index_t iM = __builtin_amdgcn_readfirstlane(blockIdx);
         const index_t iN = __builtin_amdgcn_readfirstlane(blockIdy);
@@ -112,7 +112,7 @@ struct GemmTile1DPartitioner
      * @param N     GEMM's N dimension.
      * @return dim3 Structure holding grid's X,Y and Z dimensions.
      */
-    CK_TILE_HOST static auto
+    CK_TILE_HOST_DEVICE static auto
     GridSize(index_t M, index_t N) noexcept(noexcept(MPerBlock != 0 && NPerBlock != 0)) -> index_t
     {
         const index_t GridDimX = (M + MPerBlock - 1) / MPerBlock;
@@ -137,8 +137,8 @@ struct GemmTile1DPartitioner
      * @param blockIdx      WGP's index.
      * @return const tuple<index_t, index_t>    Tuple containing 2D output C-tile index.
      */
-    CK_TILE_DEVICE static auto GetOutputTileIndex(index_t blockIdx) noexcept
-        -> const tuple<index_t, index_t>
+    CK_TILE_DEVICE static auto
+    GetOutputTileIndex(index_t blockIdx) noexcept -> const tuple<index_t, index_t>
     {
         const index_t NBlocks = integer_divide_ceil(N_, NPerBlock);
 
@@ -188,9 +188,8 @@ struct OffsettedTile1DPartitioner
      * @param [in] N           Gemm's N dimension.
      * @return Returns a `tuple` [Im, In] with shifted index.
      */
-    [[nodiscard]] CK_TILE_DEVICE static auto
-    GetOffsetedTileIndex(index_t block_start, index_t M, index_t N) noexcept
-        -> const tuple<index_t, index_t>
+    [[nodiscard]] CK_TILE_DEVICE static auto GetOffsetedTileIndex(
+        index_t block_start, index_t M, index_t N) noexcept -> const tuple<index_t, index_t>
     {
         const auto [iM, iN] = TilePartitioner{M, N}.GetOutputTileIndex(blockIdx.x - block_start);
         return make_tuple(iM, iN);
@@ -271,8 +270,8 @@ struct GemmSpatiallyLocalTilePartitioner
      * @param [in] block_1d_id      WGP's index.
      * @return const tuple<index_t, index_t>    Tuple containing 2D output C-tile index.
      */
-    CK_TILE_DEVICE auto GetOutputTileIndex(index_t block_1d_id) noexcept
-        -> const tuple<index_t, index_t>
+    CK_TILE_DEVICE auto
+    GetOutputTileIndex(index_t block_1d_id) noexcept -> const tuple<index_t, index_t>
     {
         const auto M0 = integer_divide_ceil(M, MPerBlock);
         const auto N0 = integer_divide_ceil(N, NPerBlock);
