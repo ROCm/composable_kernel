@@ -661,7 +661,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                  const std::array<index_t, NDimSpatial>& input_right_pads,
                  const AElementwiseOperation& a_element_op,
                  const BElementwiseOperation& b_element_op,
-                 const CDEElementwiseOperation& cde_element_op)
+                 const CDEElementwiseOperation& cde_element_op,
+                 ck::index_t split_k = 1)
             : p_as_grid_{},
               p_bs_grid_{},
               p_ds_grid_{},
@@ -688,6 +689,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
               input_left_pads_{input_left_pads},
               input_right_pads_{input_right_pads},
               num_group_{a_g_n_c_wis_lengths_[0]},
+              k_batch_{split_k},
               conv_to_gemm_transformer_{a_g_n_c_wis_lengths_,
                                         a_g_n_c_wis_strides_,
                                         b_g_k_c_xs_lengths_,
@@ -987,6 +989,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
         // tensor descriptors for problem definiton
         index_t num_group_;
+
+        const index_t k_batch_;
 
         ConvToGemmFwdTransformer conv_to_gemm_transformer_;
 
@@ -1613,6 +1617,12 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             return false;
         }
 
+        // SplitK not supported yet
+        if(arg.k_batch_ > 1)
+        {
+            return false;
+        }
+
         // check Gridwise GEMM
         if constexpr(isMultiA || isMultiB)
         {
@@ -1675,8 +1685,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         const CDEElementwiseOperation& cde_element_op,
         const ck::index_t split_k = 1)
     {
-        (void)split_k;
-
         return Argument{p_as,
                         p_bs,
                         p_ds,
@@ -1695,7 +1703,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                         input_right_pads,
                         a_element_op,
                         b_element_op,
-                        cde_element_op};
+                        cde_element_op,
+                        split_k};
     }
 
     static auto
@@ -1722,8 +1731,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                  const CDEElementwiseOperation& cde_element_op,
                  const ck::index_t split_k = 1)
     {
-        (void)split_k;
-
         std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_lengths_i32;
         std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_strides_i32;
         std::array<index_t, NDimSpatial + 3> b_g_k_c_xs_lengths_i32;
@@ -1771,7 +1778,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                         input_right_pads_i32,
                         a_element_op,
                         b_element_op,
-                        cde_element_op};
+                        cde_element_op,
+                        split_k};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -1798,8 +1806,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         const CDEElementwiseOperation& cde_element_op,
         const ck::index_t split_k) override
     {
-        (void)split_k;
-
         return std::make_unique<Argument>(p_as,
                                           p_bs,
                                           p_ds,
@@ -1818,7 +1824,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                                           input_right_pads,
                                           a_element_op,
                                           b_element_op,
-                                          cde_element_op);
+                                          cde_element_op,
+                                          split_k);
     }
 
     std::unique_ptr<BaseArgument>
@@ -1845,8 +1852,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                         const CDEElementwiseOperation& cde_element_op,
                         const ck::index_t split_k) override
     {
-        (void)split_k;
-
         std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_lengths_i32;
         std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_strides_i32;
         std::array<index_t, NDimSpatial + 3> b_g_k_c_xs_lengths_i32;
@@ -1894,7 +1899,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                                           input_right_pads_i32,
                                           a_element_op,
                                           b_element_op,
-                                          cde_element_op);
+                                          cde_element_op,
+                                          split_k);
     }
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override

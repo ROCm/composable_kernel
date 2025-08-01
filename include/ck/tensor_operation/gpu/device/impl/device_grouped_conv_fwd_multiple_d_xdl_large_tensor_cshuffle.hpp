@@ -423,8 +423,10 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
                  const std::array<long_index_t, NDimSpatial>& input_right_pads,
                  const AElementwiseOperation& a_element_op,
                  const BElementwiseOperation& b_element_op,
-                 const CDEElementwiseOperation& cde_element_op)
+                 const CDEElementwiseOperation& cde_element_op,
+                 ck::index_t split_k = 1)
             : num_group_{static_cast<index_t>(a_g_n_c_wis_lengths[0])},
+              k_batch_{split_k},
               compute_ptr_offset_of_groups_{},
               compute_ptr_offset_of_n_{},
               a_element_op_{a_element_op},
@@ -547,6 +549,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
         }
 
         index_t num_group_;
+        const index_t k_batch_;
         index_t conv_N_per_block_;
 
         Array<GemmArgs, MaxGemmsNum> gemm_desc_kernel_args_;
@@ -793,6 +796,12 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
             return false;
         }
 
+        // SplitK not supported yet
+        if(arg.k_batch_ > 1)
+        {
+            return false;
+        }
+
         return true;
     }
 
@@ -820,7 +829,8 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
         const std::array<index_t, NDimSpatial>& input_right_pads,
         const AElementwiseOperation& a_element_op,
         const BElementwiseOperation& b_element_op,
-        const CDEElementwiseOperation& cde_element_op)
+        const CDEElementwiseOperation& cde_element_op,
+        const ck::index_t split_k = 1)
     {
         std::array<long_index_t, NDimSpatial + 3> a_g_n_c_wis_lengths_i64;
         std::array<long_index_t, NDimSpatial + 3> a_g_n_c_wis_strides_i64;
@@ -869,7 +879,8 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
                         input_right_pads_i64,
                         a_element_op,
                         b_element_op,
-                        cde_element_op};
+                        cde_element_op,
+                        split_k};
     }
 
     static auto
@@ -893,7 +904,8 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
                  const std::array<long_index_t, NDimSpatial>& input_right_pads,
                  const AElementwiseOperation& a_element_op,
                  const BElementwiseOperation& b_element_op,
-                 const CDEElementwiseOperation& cde_element_op)
+                 const CDEElementwiseOperation& cde_element_op,
+                 const ck::index_t split_k = 1)
     {
         return Argument{p_a,
                         p_b,
@@ -913,7 +925,8 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
                         input_right_pads,
                         a_element_op,
                         b_element_op,
-                        cde_element_op};
+                        cde_element_op,
+                        split_k};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -940,8 +953,6 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
         const CDEElementwiseOperation& cde_element_op,
         const ck::index_t split_k) override
     {
-        (void)split_k;
-
         std::array<long_index_t, NDimSpatial + 3> a_g_n_c_wis_lengths_i64;
         std::array<long_index_t, NDimSpatial + 3> a_g_n_c_wis_strides_i64;
         std::array<long_index_t, NDimSpatial + 3> b_g_k_c_xs_lengths_i64;
@@ -989,7 +1000,8 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
                                           input_right_pads_i64,
                                           a_element_op,
                                           b_element_op,
-                                          cde_element_op);
+                                          cde_element_op,
+                                          split_k);
     }
 
     std::unique_ptr<BaseArgument>
@@ -1016,8 +1028,6 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
                         const CDEElementwiseOperation& cde_element_op,
                         const ck::index_t split_k) override
     {
-        (void)split_k;
-
         return std::make_unique<Argument>(p_a,
                                           p_b,
                                           p_ds,
@@ -1036,7 +1046,8 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
                                           input_right_pads,
                                           a_element_op,
                                           b_element_op,
-                                          cde_element_op);
+                                          cde_element_op,
+                                          split_k);
     }
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
