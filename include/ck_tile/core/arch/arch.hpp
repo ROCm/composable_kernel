@@ -92,19 +92,11 @@ CK_TILE_DEVICE index_t get_thread_id() { return threadIdx.x; }
 
 CK_TILE_DEVICE index_t get_block_id() { return blockIdx.x; }
 
+template <index_t lgkmcnt = 0>
 CK_TILE_DEVICE void block_sync_lds()
 {
-#if CK_TILE_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM
-    // asm volatile("\
-    // s_waitcnt lgkmcnt(0) \n \
-    // s_barrier \
-    // " ::);
-
-    __builtin_amdgcn_s_waitcnt(0xc07f);
+    __builtin_amdgcn_s_waitcnt(CK_TILE_S_CNT_MAX & CK_TILE_LGKMCNT(lgkmcnt));
     __builtin_amdgcn_s_barrier();
-#else
-    __syncthreads();
-#endif
 }
 
 CK_TILE_DEVICE void block_sync_load_raw(index_t cnt = 0)

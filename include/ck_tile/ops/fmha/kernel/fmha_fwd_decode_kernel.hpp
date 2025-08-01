@@ -831,7 +831,8 @@ struct FmhaFwdDecodeKernel
 
             // TODO: Add kVHeadDim
             // TrLoad Performed in 16x4/16x8/16x16 unit, the fast dimension is 16 elements
-            constexpr auto XorGroupSize = FmhaPipeline::Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{});
+            constexpr auto XorGroupSize =
+                FmhaPipeline::Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{});
 
             const auto v_dram_unmerged = transform_tensor_view(
                 v_dram_pad,
