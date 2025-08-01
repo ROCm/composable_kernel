@@ -1681,9 +1681,9 @@ struct MoeSortingMultiPhaseKernel_P1
     using WeightType = typename Problem::WeightType;
     using MeshType   = typename Problem::MeshType;
 
-    static constexpr index_t BLOCK_SIZE = 256;
+    static constexpr index_t BLOCK_SIZE      = 256;
     static constexpr index_t KernelBlockSize = BLOCK_SIZE;
-    static constexpr index_t OCCUPANCY  = 2; // hard coded
+    static constexpr index_t OCCUPANCY       = 2; // hard coded
 
     typedef MoeSortingHostArgs MoeSortingKargs;
 

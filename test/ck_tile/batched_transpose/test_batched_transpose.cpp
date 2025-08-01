@@ -137,9 +137,9 @@ class TestCkTileBatchedTranspose //              N    C    H    W    layout_in==
                                                                  Config::BlockTile::at(1)};
         auto kargs           = Kernel::MakeKargs(host_args);
 
-        auto sc                   = ck_tile::stream_config{};
-        const dim3 grid_size      = Kernel::GridSize(host_args);
-        const dim3 block_size     = Kernel::BlockSize();
+        auto sc               = ck_tile::stream_config{};
+        const dim3 grid_size  = Kernel::GridSize(host_args);
+        const dim3 block_size = Kernel::BlockSize();
         ck_tile::launch_kernel(
             sc, ck_tile::make_kernel<1>(Kernel{}, grid_size, block_size, 0, kargs));
 

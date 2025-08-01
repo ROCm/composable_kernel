@@ -17,8 +17,7 @@ struct TileImageToColumnShape
     static constexpr index_t kMPerWarp       = WarpTile::at(number<0>{});
     static constexpr index_t kMThreadPerWarp = kMPerWarp / kMPerThread;
     static constexpr index_t kKThreadPerWarp = get_warp_size() / kMThreadPerWarp;
-
-    static constexpr index_t kKPerWarp = kKPerThread * kKThreadPerWarp;
+    static constexpr index_t kKPerWarp       = kKPerThread * kKThreadPerWarp;
 
     static constexpr index_t kMPerBlock = BlockTile::at(number<0>{});
     static constexpr index_t kKPerBlock = BlockTile::at(number<1>{});

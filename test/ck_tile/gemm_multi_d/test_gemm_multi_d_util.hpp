@@ -191,8 +191,8 @@ class TestCkTileGemmMultiD : public ::testing::Test
             using Kernel = ck_tile::GemmKernelMultiD<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
 
-            const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
-            const dim3 blocks     = Kernel::BlockSize();
+            const dim3 grids  = Kernel::GridSize(args.M, args.N, args.k_batch);
+            const dim3 blocks = Kernel::BlockSize();
 
             if(!Kernel::IsSupportedArgument(kargs))
             {

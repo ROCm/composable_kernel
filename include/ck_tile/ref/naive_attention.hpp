@@ -117,7 +117,7 @@ struct naive_attention_fwd_kernel
         std::is_same_v<KType, fp8_t> && std::is_same_v<VType, fp8_t>;
 
     static constexpr int v_per_token_quant_group_size = 64;
-    static constexpr int KernelBlockSize = 256;
+    static constexpr int KernelBlockSize              = 256;
     // TODO: hardcode
     using SoftmaxType      = float; // always using float to do softmax compute
     using QuantComputeType = float; // used for quant/dequant scale compute

@@ -96,8 +96,8 @@ float grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args, const ck_til
                                                                 ConvEpilogue>;
         auto kargs   = Kernel::MakeKernelArgs(args);
 
-        const dim3 grids      = Kernel::GridSize(kargs);
-        const dim3 blocks     = Kernel::BlockSize();
+        const dim3 grids  = Kernel::GridSize(kargs);
+        const dim3 blocks = Kernel::BlockSize();
 
         if(!Kernel::IsSupportedArgument(kargs))
         {

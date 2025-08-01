@@ -111,8 +111,8 @@ struct GemmKernel
                       !is_detected<is_tuple, EDataType>::value,
                   "C/ELayout and C/EDataType must be scalars.");
 
-    static constexpr index_t NumATensor = 1;
-    static constexpr index_t NumBTensor = 1;
+    static constexpr index_t NumATensor      = 1;
+    static constexpr index_t NumBTensor      = 1;
     static constexpr index_t KernelBlockSize = UniversalGemmKernel::KernelBlockSize;
 
     CK_TILE_HOST static auto GetName() -> const std::string
