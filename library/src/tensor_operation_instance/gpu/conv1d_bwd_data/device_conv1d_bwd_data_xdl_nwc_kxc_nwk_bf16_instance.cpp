@@ -91,7 +91,7 @@ void add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_bf16_instances(
                                                   PassThrough>>>& instances)
 {
 #if CK_BUILD_DEPRECATED
-#pragma message "These instances are getting deprecated"
+#pragma message "These instances are deprecated.  They may be removed in a future release."
     add_device_operation_instances(instances,
                                    device_conv1d_bwd_data_xdl_nwc_kxc_nwk_bf16_instances{});
     add_device_operation_instances(
