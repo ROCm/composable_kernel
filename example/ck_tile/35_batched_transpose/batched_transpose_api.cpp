@@ -96,8 +96,8 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
 
     printf("Launching Kernel...\n");
 
-    float ave_time = ck_tile::launch_kernel(
-        s, ck_tile::make_kernel<1>(kernel{}, grids, blocks, 0, kargs));
+    float ave_time =
+        ck_tile::launch_kernel(s, ck_tile::make_kernel<1>(kernel{}, grids, blocks, 0, kargs));
 
     printf("Kernel finished...\n");
 

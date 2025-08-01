@@ -76,20 +76,20 @@ struct CShuffleEpilogue
     using ELayout       = remove_cvref_t<typename Problem::ELayout>;
     using CDElementwise = remove_cvref_t<typename Problem::CDElementwise>;
     static constexpr memory_operation_enum MemoryOperation = Problem::MemoryOperation;
-    static constexpr index_t kBlockSize                    = Problem::MWave * Problem::NWave * get_warp_size();
-    static constexpr index_t kMPerBlock                    = Problem::kMPerBlock;
-    static constexpr index_t kNPerBlock                    = Problem::kNPerBlock;
-    static constexpr index_t MWave                         = Problem::MWave;
-    static constexpr index_t NWave                         = Problem::NWave;
-    static constexpr index_t MPerXdl                       = Problem::MPerXdl;
-    static constexpr index_t NPerXdl                       = Problem::NPerXdl;
-    static constexpr index_t KPerXdl                       = Problem::KPerXdl;
-    static constexpr index_t isCTransposed                 = Problem::isCTransposed;
-    static constexpr bool FixedVectorSize                  = Problem::FixedVectorSize;
-    static constexpr index_t VectorSizeC                   = Problem::VectorSizeC;
-    static constexpr index_t MPerIteration                 = MPerXdl * MWave;
-    static constexpr index_t NPerIteration                 = NPerXdl * NWave;
-    static constexpr index_t NumDTensor                    = Problem::NumDTensor;
+    static constexpr index_t kBlockSize    = Problem::MWave * Problem::NWave * get_warp_size();
+    static constexpr index_t kMPerBlock    = Problem::kMPerBlock;
+    static constexpr index_t kNPerBlock    = Problem::kNPerBlock;
+    static constexpr index_t MWave         = Problem::MWave;
+    static constexpr index_t NWave         = Problem::NWave;
+    static constexpr index_t MPerXdl       = Problem::MPerXdl;
+    static constexpr index_t NPerXdl       = Problem::NPerXdl;
+    static constexpr index_t KPerXdl       = Problem::KPerXdl;
+    static constexpr index_t isCTransposed = Problem::isCTransposed;
+    static constexpr bool FixedVectorSize  = Problem::FixedVectorSize;
+    static constexpr index_t VectorSizeC   = Problem::VectorSizeC;
+    static constexpr index_t MPerIteration = MPerXdl * MWave;
+    static constexpr index_t NPerIteration = NPerXdl * NWave;
+    static constexpr index_t NumDTensor    = Problem::NumDTensor;
 
     static_assert(NumDTensor == DsLayout::size(),
                   "The size of DsDataType and DsLayout should be the same");

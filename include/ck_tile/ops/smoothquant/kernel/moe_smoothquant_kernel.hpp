@@ -49,7 +49,7 @@ struct MoeSmoothquant
     static constexpr index_t Vector_N        = Problem::BlockShape::Vector_N;
     static constexpr index_t Repeat_N        = Problem::BlockShape::Repeat_N;
     static constexpr index_t KernelBlockSize = Problem::BlockShape::BlockSize;
-    
+
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
 

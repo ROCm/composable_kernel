@@ -56,8 +56,8 @@ float permute(permute_traits t, permute_args a, const ck_tile::stream_config& s)
         const dim3 grids  = Kernel::GridSize(a);
         const dim3 blocks = Kernel::BlockSize();
 
-        float ave_time = ck_tile::launch_kernel(
-            s, ck_tile::make_kernel<1>(Kernel{}, grids, blocks, 0, kargs));
+        float ave_time =
+            ck_tile::launch_kernel(s, ck_tile::make_kernel<1>(Kernel{}, grids, blocks, 0, kargs));
 
         return ave_time;
     }
@@ -72,8 +72,8 @@ float permute(permute_traits t, permute_args a, const ck_tile::stream_config& s)
         const dim3 grids  = Kernel::GridSize(a);
         const dim3 blocks = Kernel::BlockSize();
 
-        float ave_time = ck_tile::launch_kernel(
-            s, ck_tile::make_kernel<1>(Kernel{}, grids, blocks, 0, kargs));
+        float ave_time =
+            ck_tile::launch_kernel(s, ck_tile::make_kernel<1>(Kernel{}, grids, blocks, 0, kargs));
 
         return ave_time;
     }
@@ -88,8 +88,8 @@ float permute(permute_traits t, permute_args a, const ck_tile::stream_config& s)
         const dim3 grids      = Kernel::GridSize(a);
         const dim3 blocks     = Kernel::BlockSize();
 
-        float ave_time = ck_tile::launch_kernel(
-            s, ck_tile::make_kernel<1>(Kernel{}, grids, blocks, 0, kargs));
+        float ave_time =
+            ck_tile::launch_kernel(s, ck_tile::make_kernel<1>(Kernel{}, grids, blocks, 0, kargs));
 
         return ave_time;
     }

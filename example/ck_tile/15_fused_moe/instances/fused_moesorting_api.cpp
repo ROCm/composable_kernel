@@ -28,7 +28,7 @@
     const dim3 blocks    = kernel::BlockSize(a);                                      \
     const auto lds_bytes = kernel::GetSmemSize(a);                                    \
     float ave_time       = ck_tile::launch_kernel(                                    \
-        s, ck_tile::make_kernel(kernel{}, grids, blocks, lds_bytes, kargs));          \
+        s, ck_tile::make_kernel(kernel{}, grids, blocks, lds_bytes, kargs));    \
     return ave_time;
 
 #else
@@ -51,7 +51,7 @@
     const dim3 blocks                         = kernel::BlockSize(a);                                   \
     const auto lds_bytes                      = kernel::GetSmemSize(a);                                 \
     float ave_time                            = ck_tile::launch_kernel(                                 \
-        s, ck_tile::make_kernel(kernel{}, grids, blocks, lds_bytes, kargs));                            \
+        s, ck_tile::make_kernel(kernel{}, grids, blocks, lds_bytes, kargs)); \
     return ave_time;
 
 #define MOE_SORTING_DISPATCH_SUB_TOKEN_(                                                  \

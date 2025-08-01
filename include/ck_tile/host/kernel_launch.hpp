@@ -13,7 +13,6 @@
 #include <cstddef>
 #include <hip/hip_runtime.h>
 
-
 namespace ck_tile {
 
 template <int MinBlockPerCu, typename Kernel, typename... Args>

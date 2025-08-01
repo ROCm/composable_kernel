@@ -237,7 +237,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetKBPerLoad()
     {
-        using TileShape = typename Problem::BlockGemmShape;
+        using TileShape         = typename Problem::BlockGemmShape;
         constexpr index_t scale = get_warp_size() == 32 ? 2 : 1;
         if constexpr(TileShape::WarpTile::at(I1) == 32)
         {
