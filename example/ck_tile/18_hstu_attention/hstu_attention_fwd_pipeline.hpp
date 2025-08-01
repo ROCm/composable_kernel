@@ -137,8 +137,8 @@ struct HstuAttentionFwdPipelineQRKSVS
                const PComputeElementFunction& p_compute_element_func,
                const OAccElementFunction& o_acc_element_func,
                HstuMask mask,
-               float scale_s,
-               index_t max_seqlen,
+               float scale_s, // scaling value exerted on the immediate Q@K result
+               float scale_p, // scaling value exerted on the SiLu result
                void* smem_ptr,
                DropoutType& dropout) const
     {
@@ -569,12 +569,8 @@ struct HstuAttentionFwdPipelineQRKSVS
             });
         } while(seqlen_k_curr < seqlen_k_end);
 
-        tile_elementwise_inout(
-            [&](auto& x) {
-                x = x * type_convert<GemmAccDataType>(
-                            __builtin_amdgcn_rcpf(static_cast<float>(max_seqlen)));
-            },
-            o_acc);
+        tile_elementwise_inout([&](auto& x) { x = x * type_convert<GemmAccDataType>(scale_p); },
+                               o_acc);
 
         o_acc = tile_elementwise_in(o_acc_element_func, o_acc);
 
@@ -591,8 +587,8 @@ struct HstuAttentionFwdPipelineQRKSVS
                const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                HstuMask mask,
-               float scale_s,
-               int max_seqlen,
+               float scale_s, // scaling value exerted on the immediate Q@K result
+               float scale_p, // scaling value exerted on the SiLU result
                void* smem_ptr,
                DropoutType& dropout) const
     {
@@ -609,7 +605,7 @@ struct HstuAttentionFwdPipelineQRKSVS
                           identity{},
                           mask,
                           scale_s,
-                          max_seqlen,
+                          scale_p,
                           smem_ptr,
                           dropout);
     }
