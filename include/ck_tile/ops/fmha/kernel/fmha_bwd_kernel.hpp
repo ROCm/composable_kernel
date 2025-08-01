@@ -1170,11 +1170,12 @@ struct FmhaBwdDQDKDVKernel
 template <typename FmhaBwdOGradDotO_>
 struct FmhaBwdOGradDotOKernel
 {
-    using FmhaBwdOGradDotO                        = ck_tile::remove_cvref_t<FmhaBwdOGradDotO_>;
-    static constexpr ck_tile::index_t kBlockSize  = FmhaBwdOGradDotO::kBlockSize;
-    static constexpr ck_tile::index_t kBlockPerCu = FmhaBwdOGradDotO::kBlockPerCu;
-    static constexpr ck_tile::index_t kM0         = kBlockSize;
-    static constexpr ck_tile::index_t kVHeaddim   = FmhaBwdOGradDotO::kVHeaddim;
+    using FmhaBwdOGradDotO                            = ck_tile::remove_cvref_t<FmhaBwdOGradDotO_>;
+    static constexpr ck_tile::index_t kBlockSize      = FmhaBwdOGradDotO::kBlockSize;
+    static constexpr ck_tile::index_t kBlockPerCu     = FmhaBwdOGradDotO::kBlockPerCu;
+    static constexpr ck_tile::index_t KernelBlockSize = kBlockSize;
+    static constexpr ck_tile::index_t kM0             = kBlockSize;
+    static constexpr ck_tile::index_t kVHeaddim       = FmhaBwdOGradDotO::kVHeaddim;
 
     using DDataType     = ck_tile::remove_cvref_t<typename FmhaBwdOGradDotO::DDataType>;
     using ODataType     = ck_tile::remove_cvref_t<typename FmhaBwdOGradDotO::ODataType>;
