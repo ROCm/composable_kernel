@@ -279,13 +279,11 @@ int main(int argc, char* argv[])
 {
     try
     {
-        return !run_gemm_example<GemmConfigPreshufle_1>(argc, argv);
+        return !run_gemm_example<GemmConfigPreshuffle_2>(argc, argv);
     }
     catch(const std::runtime_error& e)
     {
         std::cerr << "Caught runtime error: " << e.what() << '\n';
-        // Return a non-zero code to indicate failure
         return EXIT_FAILURE;
     }
-    return EXIT_SUCCESS;
 }
