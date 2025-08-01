@@ -200,8 +200,6 @@ struct UniversalGemmKernel
 
     static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
 
-    static constexpr bool UseZeroing = EpiloguePipeline::UseZeroing;
-
     // Get the persistent kernel if the pipeline has it available
     struct has_persistent_kernel
     {
@@ -985,7 +983,7 @@ struct UniversalGemmKernel
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
 
         // --- Per-tile zeroing for split-K ---
-        if constexpr(UseZeroing)
+        if constexpr(EpiloguePipeline::UseZeroing)
         {
             ZeroTile(gemm_tile_windows, kargs);
         }
@@ -1049,7 +1047,7 @@ struct UniversalGemmKernel
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
 
         // --- Per-tile zeroing for split-K ---
-        if constexpr(UseZeroing)
+        if constexpr(EpiloguePipeline::UseZeroing)
         {
             ZeroTile(gemm_tile_windows, kargs);
         }
