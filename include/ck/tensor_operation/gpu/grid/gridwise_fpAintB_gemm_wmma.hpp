@@ -34,23 +34,23 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_fpAintB_gemm_wmma(const ADataType* __restrict__ p_a_grid,
-                                 const BDataType* __restrict__ p_b_grid,
-                                 const ScaleDataType* __restrict__ p_scale_grid,
-                                 CDataType* __restrict__ p_c_grid,
-                                 const AGridDesc a_grid_desc,
-                                 const BGridDesc b_grid_desc,
-                                 const ScaleGridDesc scale_grid_desc,
-                                 const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                                     c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                 const AElementwiseOperation a_element_op,
-                                 const BElementwiseOperation b_element_op,
-                                 const CElementwiseOperation c_element_op,
-                                 const Block2CTileMap block_2_ctile_map)
+    kernel_fpAintB_gemm_wmma(const ADataType* __restrict__ p_a_grid,
+                             const BDataType* __restrict__ p_b_grid,
+                             const ScaleDataType* __restrict__ p_scale_grid,
+                             CDataType* __restrict__ p_c_grid,
+                             const AGridDesc a_grid_desc,
+                             const BGridDesc b_grid_desc,
+                             const ScaleGridDesc scale_grid_desc,
+                             const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                                 c_grid_desc_mblock_mperblock_nblock_nperblock,
+                             const AElementwiseOperation a_element_op,
+                             const BElementwiseOperation b_element_op,
+                             const CElementwiseOperation c_element_op,
+                             const Block2CTileMap block_2_ctile_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
+#if(defined(__gfx11__) || defined(__gfx12__))
     __shared__ char p_shared[GridwiseGemm::SharedMemTrait::lds_size];
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
