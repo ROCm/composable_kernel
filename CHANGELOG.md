@@ -2,7 +2,7 @@
 
 Documentation for Composable Kernel available at [https://rocm.docs.amd.com/projects/composable_kernel/en/latest/](https://rocm.docs.amd.com/projects/composable_kernel/en/latest/).
 
-## Composable Kernel 1.1.0 for ROCm 6.5.0
+## Composable Kernel 1.1.0 for ROCm 7.0.0
 
 ### Added
 
@@ -19,6 +19,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added support for Split K for grouped convolution backward data.
 * Added logit soft-capping support for fMHA forward kernels.
 * Added support for hdim as a multiple of 32 for FMHA (fwd/fwd_splitkv)
+* Added support for hdim as a multiple of 32 for FMHA (fwd/fwd_splitkv/bwd)
 * Added benchmarking support for tile engine GEMM.
 * Added Ping-pong scheduler support for GEMM operation along the K dimension.
 * Added rotating buffer feature for CK_Tile GEMM.
