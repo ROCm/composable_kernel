@@ -272,27 +272,37 @@ struct GroupedGemmKernel
         // allocate LDS
         __shared__ char smem_ptr_0[GetSmemSize()];
 
-        if constexpr(GemmPipeline::DoubleSmemBuffer == true){
+        if constexpr(GemmPipeline::DoubleSmemBuffer == true)
+        {
             __shared__ char smem_ptr_1[GetSmemSize()];
             if constexpr(UsePersistentKernel)
             {
-                RunGemmWithPipelineSelection2LDS(
-                    a_ptr, b_ptr, c_ptr, smem_ptr_0, smem_ptr_1, kargs, splitk_batch_offset, i_m, i_n);
+                RunGemmWithPipelineSelection2LDS(a_ptr,
+                                                 b_ptr,
+                                                 c_ptr,
+                                                 smem_ptr_0,
+                                                 smem_ptr_1,
+                                                 kargs,
+                                                 splitk_batch_offset,
+                                                 i_m,
+                                                 i_n);
             }
             else
             {
                 Base::RunGemm2LDS({a_ptr},
-                            {b_ptr},
-                            {/*ds_ptr*/},
-                            c_ptr,
-                            smem_ptr_0,
-                            smem_ptr_1,
-                            kargs,
-                            splitk_batch_offset,
-                            i_m,
-                            i_n);
+                                  {b_ptr},
+                                  {/*ds_ptr*/},
+                                  c_ptr,
+                                  smem_ptr_0,
+                                  smem_ptr_1,
+                                  kargs,
+                                  splitk_batch_offset,
+                                  i_m,
+                                  i_n);
             }
-        } else {
+        }
+        else
+        {
             if constexpr(UsePersistentKernel)
             {
                 RunGemmWithPipelineSelection(
@@ -301,14 +311,14 @@ struct GroupedGemmKernel
             else
             {
                 Base::RunGemm({a_ptr},
-                            {b_ptr},
-                            {/*ds_ptr*/},
-                            c_ptr,
-                            smem_ptr_0,
-                            kargs,
-                            splitk_batch_offset,
-                            i_m,
-                            i_n);
+                              {b_ptr},
+                              {/*ds_ptr*/},
+                              c_ptr,
+                              smem_ptr_0,
+                              kargs,
+                              splitk_batch_offset,
+                              i_m,
+                              i_n);
             }
         }
     }
@@ -373,7 +383,6 @@ struct GroupedGemmKernel
             c_block_window, c_block_tile, d_block_window, smem_ptr_0);
     }
 
-
     /**
      * @brief Runs single GEMM problem cooperatively by whole workgroup.
      *
@@ -395,14 +404,14 @@ struct GroupedGemmKernel
      */
     CK_TILE_DEVICE static void
     RunGemmWithPipelineSelection2LDS(const ADataType* a_ptr,
-                                 const BDataType* b_ptr,
-                                 CDataType* c_ptr,
-                                 void* __restrict__ smem_ptr_0,
-                                 void* __restrict__ smem_ptr_1,
-                                 const UniversalGemmKernelArgs<>& kargs,
-                                 const typename Base::SplitKBatchOffset& splitk_batch_offset,
-                                 const index_t block_idx_m,
-                                 const index_t block_idx_n)
+                                     const BDataType* b_ptr,
+                                     CDataType* c_ptr,
+                                     void* __restrict__ smem_ptr_0,
+                                     void* __restrict__ smem_ptr_1,
+                                     const UniversalGemmKernelArgs<>& kargs,
+                                     const typename Base::SplitKBatchOffset& splitk_batch_offset,
+                                     const index_t block_idx_m,
+                                     const index_t block_idx_n)
     {
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
@@ -429,8 +438,7 @@ struct GroupedGemmKernel
                                                                       has_hot_loop,
                                                                       tail_num,
                                                                       smem_ptr_0,
-                                                                      smem_ptr_1
-                                                                    );
+                                                                      smem_ptr_1);
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(Base::I3);
         EpiloguePipeline{}.template
