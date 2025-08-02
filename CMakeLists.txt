@@ -336,7 +336,7 @@ find_package(Threads REQUIRED)
 link_libraries(Threads::Threads)
 
 ## C++
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 message(STATUS "CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
@@ -568,6 +568,7 @@ SET(BUILD_DEV ON CACHE BOOL "BUILD_DEV")
 if(BUILD_DEV)
     add_compile_options(-Werror)
     add_compile_options(-Weverything)
+    add_compile_options(-Wno-c++20-compat)
 endif()
 message(STATUS "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 

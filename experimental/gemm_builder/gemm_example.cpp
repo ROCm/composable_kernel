@@ -63,7 +63,10 @@ struct MyGemmLayout
     using CLayout = ckb::RowMajor;
 };
 
-using MyGemm = ckb::GemmBuilder<MyGemmTypes, MyGemmLayout>::value;
+using Builder = ckb::GemmBuilder<MyGemmTypes, MyGemmLayout>;
+
+using Gemm   = Builder::value;
+using Kernel = Builder::Kernel;
 
 } // namespace example
 
@@ -71,7 +74,13 @@ int main()
 {
     // Create the GEMM kernel.
     const int M = 1024, N = 2048, K = 64;
-    example::MyGemm gemm;
+    example::Gemm gemm;
+
+    // Describe the GEMM kernel:
+    std::cout << "Shape: " << example::Builder::GemmShape::GetName() << std::endl;
+    std::cout << "Problem: " << example::Builder::UniversalGemmProblem::GetName() << std::endl;
+    // std::cout << "Pipeline: " << example::Builder::GemmPipeline::GetName() << std::endl;
+    // std::cout << "Kernel name: " << Kernel::GetName() << std::endl;
 
     // Try GPU execution.
     try
