@@ -75,7 +75,7 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
     auto kargs = kernel::MakeKargs(a);
 
     const dim3 grids  = kernel::GridSize(a);
-    const dim3 blocks = Kernel::BlockSize();
+    const dim3 blocks = kernel::BlockSize();
 
     printf("Pipeline: %d\n", Config::kPipelineId);
     printf("Grid: x=%u y=%u z=%u\n", grids.x, grids.y, grids.z);
