@@ -8,8 +8,8 @@
 // #include <tuple>
 
 #include "ck_tile/host.hpp"
-// #include "gemm_dispatcher.hpp"
-// #include "gemm_common.hpp"
+#include "gemm_multi_d_dispatcher.hpp"
+#include "gemm_multi_d_common.hpp"
 
 template <typename T>
 struct DataTypeTraits;
@@ -68,12 +68,12 @@ struct DataTypeTraits<ck_tile::half_t>
 //     static constexpr const char* name = "pk_int4_t";
 // };
 
-// template <typename Layout>
-// static constexpr inline auto is_row_major(Layout layout_)
-// {
-//     return ck_tile::bool_constant<std::is_same_v<ck_tile::remove_cvref_t<decltype(layout_)>,
-//                                                  ck_tile::tensor_layout::gemm::RowMajor>>{};
-// }
+template <typename Layout>
+static constexpr inline auto is_row_major(Layout layout_)
+{
+    return ck_tile::bool_constant<std::is_same_v<ck_tile::remove_cvref_t<decltype(layout_)>,
+                                                 ck_tile::tensor_layout::gemm::RowMajor>>{};
+}
 
 inline auto create_args(int argc, char* argv[])
 {
@@ -90,34 +90,34 @@ inline auto create_args(int argc, char* argv[])
                 "2",
                 "The type of validation. Set to 0 for no validation, 1 for validation on CPU, or 2 "
                 "for validation on GPU. Default is 2, validation on GPU.")
-        .insert("log",
-                "false",
-                "Wether output kernel instance information or not. Possible values are true or "
-                "false. Default is false")
+        // .insert("log",
+        //         "false",
+        //         "Wether output kernel instance information or not. Possible values are true or "
+        //         "false. Default is false")
         .insert(
             "warmup", "50", "The number of iterations before benchmark the kernel. Default is 50.")
         .insert(
             "repeat", "100", "The number of iterations to benchmark the kernel. Default is 100.")
-        .insert("timer",
-                "true",
-                "Whether if the timer is gpu timer or not. Possible values are false or true. "
-                "Default is true.")
-        .insert("init",
-                "0",
-                "The method of tensor initialization. Set to 0 for random, to 1 for linear, or 2 "
-                "for constant(1). Default is 0, random.")
-        .insert("flush_cache",
-                "false",
-                "To flush cache, possible values are true or false. "
-                "Default is false.")
-        .insert("rotating_count", "5", "number of iterations to rotate the cache. default is 5.")
-        .insert("metric",
-                "0",
-                "Metric with which to measure kernel performance. Set to 0 for latency, 1 for "
-                "tflops, or 2 for bandwidth. Default is 0, latency.")
-        .insert("csv_filename",
-                "gemm_kernel",
-                "The filename of benchmark result. Default is gemm_kernel.")
+        // .insert("timer",
+        //         "true",
+        //         "Whether if the timer is gpu timer or not. Possible values are false or true. "
+        //         "Default is true.")
+        // .insert("init",
+        //         "0",
+        //         "The method of tensor initialization. Set to 0 for random, to 1 for linear, or 2 "
+        //         "for constant(1). Default is 0, random.")
+        // .insert("flush_cache",
+        //         "false",
+        //         "To flush cache, possible values are true or false. "
+        //         "Default is false.")
+        // .insert("rotating_count", "5", "number of iterations to rotate the cache. default is 5.")
+        // .insert("metric",
+        //         "0",
+        //         "Metric with which to measure kernel performance. Set to 0 for latency, 1 for "
+        //         "tflops, or 2 for bandwidth. Default is 0, latency.")
+        // .insert("csv_filename",
+        //         "gemm_kernel",
+        //         "The filename of benchmark result. Default is gemm_kernel.")
         // .insert("structured_sparsity",
         //         "false",
         //         "Whether use sparsity kernel or not. Possible values are true or false. Default is "

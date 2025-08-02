@@ -10,12 +10,12 @@
 
 #include "gemm_multi_d_host_api.hpp"
 
-// enum class Metric
-// {
-//     LATENCY   = 0,
-//     TFLOPS    = 1,
-//     BANDWIDTH = 2
-// };
+enum class Metric
+{
+    LATENCY   = 0,
+    TFLOPS    = 1,
+    BANDWIDTH = 2
+};
 
 // inline constexpr auto get_metric_name(Metric m)
 // {
@@ -32,14 +32,15 @@ struct GemmMultiDProblem
 {
     int split_k_;
     int m_, n_, k_;
-    int stride_a_, stride_b_, stride_ds_, stride_e_;
+    int stride_a_, stride_b_, stride_d0_, stride_d1_, stride_ds_, stride_e_;
 
-    std::string dtype_a_, dtype_b_, dtype_ds_, dtype_acc_, dtype_e_;
-    std::string layout_a_, layout_b_, layout_ds_, layout_e_;
+    std::string dtype_a_, dtype_b_, dtype_d0_, dtype_d1_, dtype_acc_, dtype_e_;
+    // ck_tile::tuple<std::string, std::string> dtype_ds_;
+    std::string layout_a_, layout_b_, layout_d0_, layout_d1_, layout_e_;
+    // ck_tile::tuple<std::string, std::string> layout_ds_;
+    // bool structured_sparsity_;
 
-    bool structured_sparsity_;
-
-    friend std::ostream& operator<<(std::ostream& os, const GemmProblem& problem)
+    friend std::ostream& operator<<(std::ostream& os, const GemmMultiDProblem& problem)
     {
         os << "{\n"
            << "   \"split_k\":" << problem.split_k_ << ",\n"
@@ -48,87 +49,91 @@ struct GemmMultiDProblem
            << "   \"k\":" << problem.k_ << ",\n"
            << "   \"stride_a\":" << problem.stride_a_ << ",\n"
            << "   \"stride_b\":" << problem.stride_b_ << ",\n"
+           << "   \"stride_d0\":" << problem.stride_ds_ << ",\n"
+           << "   \"stride_d1\":" << problem.stride_ds_ << ",\n"
            << "   \"stride_ds\":" << problem.stride_ds_ << ",\n"
            << "   \"stride_e\":" << problem.stride_e_ << ",\n"
            << "   \"dtype_a\":\"" << problem.dtype_a_ << "\",\n"
            << "   \"dtype_b\":\"" << problem.dtype_b_ << "\",\n"
-           << "   \"dtype_ds\":\"" << problem.dtype_ds_ << "\",\n"
+           << "   \"dtype_d0\":\"" << problem.dtype_d0_ << "\",\n"
+           << "   \"dtype_d1\":\"" << problem.dtype_d1_ << "\",\n"
            << "   \"dtype_acc\":\"" << problem.dtype_acc_ << "\",\n"
            << "   \"dtype_e\":\"" << problem.dtype_e_ << "\",\n"
            << "   \"layout_a\":\"" << problem.layout_a_ << "\",\n"
            << "   \"layout_b\":\"" << problem.layout_b_ << "\",\n"
-           << "   \"layout_ds\":\"" << problem.layout_ds_ << "\",\n"
+           << "   \"layout_d0\":\"" << problem.layout_d0_ << "\",\n"
+           << "   \"layout_d1\":\"" << problem.layout_d1_ << "\",\n"
            << "   \"layout_e\":\"" << problem.layout_e_ << "\"\n"
            << "}";
         return os;
     }
 };
 
-// struct PerformanceResult
-// {
-//     double latency_;
-//     double tflops_;
-//     double bandwidth_;
+struct PerformanceResult
+{
+    double latency_;
+    double tflops_;
+    double bandwidth_;
 
-//     static bool compare(const PerformanceResult& a, const PerformanceResult& b, Metric m)
-//     {
-//         switch(m)
-//         {
-//         case Metric::LATENCY: return a.latency_ < b.latency_;
-//         case Metric::TFLOPS: return a.tflops_ > b.tflops_;
-//         case Metric::BANDWIDTH: return a.bandwidth_ > b.bandwidth_;
-//         default: throw std::invalid_argument("Unsupported metric type");
-//         }
-//     }
+    static bool compare(const PerformanceResult& a, const PerformanceResult& b, Metric m)
+    {
+        switch(m)
+        {
+        case Metric::LATENCY: return a.latency_ < b.latency_;
+        case Metric::TFLOPS: return a.tflops_ > b.tflops_;
+        case Metric::BANDWIDTH: return a.bandwidth_ > b.bandwidth_;
+        default: throw std::invalid_argument("Unsupported metric type");
+        }
+    }
 
-//     friend std::ostream& operator<<(std::ostream& os, const PerformanceResult& result)
-//     {
-//         os << "{\n"
-//            << "   \"latency(ms)\": " << std::fixed << std::setprecision(2) << result.latency_
-//            << ",\n"
-//            << "   \"tflops(TFlops)\": " << result.tflops_ << ",\n"
-//            << "   \"bandwidth(GB/s)\": " << result.bandwidth_ << "\n"
-//            << "}";
-//         return os;
-//     }
-// };
+    friend std::ostream& operator<<(std::ostream& os, const PerformanceResult& result)
+    {
+        os << "{\n"
+           << "   \"latency(ms)\": " << std::fixed << std::setprecision(2) << result.latency_
+           << ",\n"
+           << "   \"tflops(TFlops)\": " << result.tflops_ << ",\n"
+           << "   \"bandwidth(GB/s)\": " << result.bandwidth_ << "\n"
+           << "}";
+        return os;
+    }
+};
 
-// struct KernelInstance
-// {
-//     std::string name_;
-//     GemmProblem problem_;
-//     PerformanceResult perf_result_;
+struct KernelInstance
+{
+    std::string name_;
+    GemmMultiDProblem problem_;
+    PerformanceResult perf_result_;
 
-//     static bool compare(const KernelInstance& a, const KernelInstance& b, Metric m)
-//     {
-//         return PerformanceResult::compare(a.perf_result_, b.perf_result_, m);
-//     }
+    static bool compare(const KernelInstance& a, const KernelInstance& b, Metric m)
+    {
+        return PerformanceResult::compare(a.perf_result_, b.perf_result_, m);
+    }
 
-//     friend std::ostream& operator<<(std::ostream& os, const KernelInstance& obj)
-//     {
-//         os << "{\n"
-//            << " \"name\": \""
-//            << "{\n"
-//            << obj.name_ << "\n}"
-//            << "\",\n"
-//            << " \"problem\": \"" << obj.problem_ << "\",\n"
-//            << " \"perf_result\": " << obj.perf_result_ << "\n"
-//            << "}";
-//         return os;
-//     }
-// };
+    friend std::ostream& operator<<(std::ostream& os, const KernelInstance& obj)
+    {
+        os << "{\n"
+           << " \"name\": \""
+           << "{\n"
+           << obj.name_ << "\n}"
+           << "\",\n"
+           << " \"problem\": \"" << obj.problem_ << "\",\n"
+           << " \"perf_result\": " << obj.perf_result_ << "\n"
+           << "}";
+        return os;
+    }
+};
 
 struct Setting
 {
     int n_warmup_;
     int n_repeat_;
-    bool is_gpu_timer_;
+    // bool is_gpu_timer_;
     int verify_;
-    int init_method_;
-    bool log_;
-    std::string csv_filename_;
-    bool flush_cache_;
-    int rotating_count_;
+    // int init_method_;
+    // bool log_;
+    // std::string csv_filename_;
+    // bool flush_cache_;
+    // int rotating_count_;
 };
 
 // inline std::string get_rocm_version()

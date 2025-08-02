@@ -303,12 +303,12 @@ class GemmMultiDCodeGenerator:
         """Generate common header file with datatypes and layout."""
 
         # Determine appropriate accumulation type based on input types
-        a_type = self.args.datatypes.a_datatype
-        b_type = self.args.datatypes.b_datatype
-        e_type = self.args.datatypes.e_datatype
-        d0_type = self.args.datatypes.d0_datatype
-        d1_type = self.args.datatypes.d1_datatype
-        ds_type = (d0_type, d1_type)
+        # a_type = self.args.datatypes.a_datatype
+        # b_type = self.args.datatypes.b_datatype
+        # e_type = self.args.datatypes.e_datatype
+        # d0_type = self.args.datatypes.d0_datatype
+        # d1_type = self.args.datatypes.d1_datatype
+        # ds_type = (d0_type, d1_type)
         acc_type = "float" # As we are currently supporting only fp16
 
         content = f"""// SPDX-License-Identifier: MIT
@@ -376,6 +376,7 @@ namespace {trait} {{
         content += f"\n}} // namespace {trait}\n"
         (self.output_dir / filename).write_text(content) 
 
+    #TODO Revisit all the hardcoding
     def _generate_kernel_struct(
         self,
         pipeline: str,
@@ -396,7 +397,7 @@ struct GemmKernel {{
     static constexpr bool kPadN = {pad_n};
     static constexpr bool kPadK = {pad_k};
 
-    static float launch(ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& stream) {{
+    static float launch(ck_tile::GemmHostArgs<DsDataType::size()>& args, const ck_tile::stream_config& stream) {{
         static constexpr bool DoubleSmemBuffer ={"true" if pipeline == "compv4" else "false"};
         
         static constexpr bool TransposeC = false;
@@ -646,7 +647,7 @@ struct GemmDispatcher {
         // Use a static local variable
         static std::unordered_map<
             std::string,
-            std::vector<std::function<std::tuple<std::string, float>(ck_tile::GemmHostArgs<>&, const ck_tile::stream_config&)>>>
+            std::vector<std::function<std::tuple<std::string, float>(ck_tile::GemmHostArgs<DsDataType::size()>&, const ck_tile::stream_config&)>>>
             kernel_map;
         return kernel_map;
     }
@@ -671,8 +672,9 @@ struct GemmDispatcher {
                         warp_tile_n,
                         warp_tile_k,
                     ) = tile[j]
-                    content += f"""[=](ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& stream) {{ """
+                    content += f"""[=](ck_tile::GemmHostArgs<DsDataType::size()>& args, const ck_tile::stream_config& stream) {{ """
                     
+                    ###########################################################################################
                     # content += f""" 
                     #                 if(structured_sparsity){{  // SMFMA"""
                     # sparse = (
@@ -701,6 +703,7 @@ struct GemmDispatcher {
                     # content += f"""
                     #                 }} """
 
+                    ###########################################################################################
                     content += f"""
                         return run_kernel<{trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}>>(args, stream);"""
                     
@@ -716,7 +719,7 @@ struct GemmDispatcher {
         content += """    }
 
     template <typename Kernel>
-    static std::tuple<std::string, float> run_kernel(ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& stream)
+    static std::tuple<std::string, float> run_kernel(ck_tile::GemmHostArgs<DsDataType::size()>& args, const ck_tile::stream_config& stream)
     {
         std::string name = Kernel::get_name();
         float avg_time = Kernel::launch(args, stream);
@@ -748,7 +751,7 @@ private:
 };
 
 """
-        (self.output_dir / "gemm_dispatcher.hpp").write_text(content)
+        (self.output_dir / "gemm_multi_d_dispatcher.hpp").write_text(content)
 
 def do_list_blobs(
     args: argparse.Namespace, user_provide_config: Optional[JsonConfig] = None

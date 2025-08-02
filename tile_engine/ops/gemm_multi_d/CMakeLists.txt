@@ -123,6 +123,7 @@ function(build_gemm_multi_d_for_datatype_layout datatype layout)
         ${CMAKE_CURRENT_LIST_DIR}
         "${working_path}"
     )
+
     
 
     # Executable per datatype
