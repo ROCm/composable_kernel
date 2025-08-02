@@ -366,7 +366,7 @@ struct FmhaFwdSplitKVCombineKernel
                 o_acc_dram_naive,
                 make_tuple(
                     number<kNumWarps>{}, number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
-                sequence<true, kPadSeqLenQ, kPadHeadDimV>{});
+                sequence<false, kPadSeqLenQ, kPadHeadDimV>{});
 
             const index_t padded_num_splits =
                 o_acc_dram_view.get_tensor_descriptor().get_lengths()[number<0>{}];
@@ -404,13 +404,10 @@ struct FmhaFwdSplitKVCombineKernel
             make_tuple(number<FmhaPipeline::kMaxSplits>{}, number<FmhaPipeline::kM0>{}),
             {0, i_m0});
 
-        const index_t padded_num_splits =
-            integer_divide_ceil(kargs.num_splits, kNumWarps) * kNumWarps;
-
         auto o_acc_dram_window =
             make_tile_window(o_acc_dram,
                              make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
-                             {i_tile_m * padded_num_splits * FmhaPipeline::kM0, i_n1});
+                             {i_tile_m * kargs.num_splits * FmhaPipeline::kM0, i_n1});
 
         // LSE DRAM window
         auto lse_dram_window = [&, i_nhead_ = i_nhead]() {

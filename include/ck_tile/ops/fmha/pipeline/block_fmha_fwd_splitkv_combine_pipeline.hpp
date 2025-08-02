@@ -282,12 +282,10 @@ struct BlockFmhaFwdSplitKVCombinePipeline
         auto o_acc = make_static_distributed_tensor<OaccDataType>(o_acc_dist);
         clear_tile(o_acc);
 
-        const index_t padded_num_splits = integer_divide_ceil(num_splits, kNumWarps) * kNumWarps;
-
         __builtin_amdgcn_sched_barrier(0);
         block_sync_lds();
         // each warp handles a [KM0, kN1] tile
-        for(index_t split_start = 0; split_start < padded_num_splits; split_start++)
+        for(index_t split_start = 0; split_start < num_splits; split_start++)
         {
             auto o_tile = load_tile(o_acc_dram_window);
             {
