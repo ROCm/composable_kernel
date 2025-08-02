@@ -83,18 +83,20 @@ class TestCkTileGemmPipeline : public ::testing::Test
     static constexpr auto Scheduler    = std::tuple_element_t<7, Tuple>::value;
     static constexpr auto PipelineType = std::tuple_element_t<8, Tuple>::value;
 
+    template <GemmPipelineType TargetPipeline, ck_tile::index_t I, typename T>
+    static constexpr bool get_param_or_default(bool default_value)
+    {
+        if constexpr(PipelineType == TargetPipeline && std::tuple_size_v<T> > I)
+        {
+            return std::tuple_element_t<I, T>::value;
+        }
+        return default_value;
+    }
+
     static constexpr bool Persistent =
-        (PipelineType == GemmPipelineType::CompV3 && std::tuple_size_v<Tuple> > 9)
-            ? std::tuple_element_t<9, Tuple>::value
-            : std::false_type::value;
-    static constexpr bool SkipALds =
-        (PipelineType == GemmPipelineType::Mem && std::tuple_size_v<Tuple> > 9)
-            ? std::tuple_element_t<9, Tuple>::value
-            : std::false_type::value;
-    static constexpr bool SkipBLds =
-        (PipelineType == GemmPipelineType::Mem && std::tuple_size_v<Tuple> > 10)
-            ? std::tuple_element_t<10, Tuple>::value
-            : std::false_type::value;
+        get_param_or_default<GemmPipelineType::CompV3, 9, Tuple>(false);
+    static constexpr bool SkipALds = get_param_or_default<GemmPipelineType::Mem, 9, Tuple>(false);
+    static constexpr bool SkipBLds = get_param_or_default<GemmPipelineType::Mem, 10, Tuple>(false);
 
     using DsLayout   = ck_tile::tuple<>;
     using DsDataType = ck_tile::tuple<>;
