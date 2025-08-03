@@ -5,15 +5,12 @@
 #include <tuple>
 #include <exception>
 
-
-#include "gemm_multi_d_host_api.hpp"
 #include "benchmark_gemm_multi_d.hpp"
 #include "gemm_multi_d_profiler.hpp"
 
+
 void benchmark_gemm_multi_d(const ck_tile::ArgParser& arg_parser)
 {
-    std::cout << "I am here in benchmark_gemm_multi_d" << std::endl;
-    std::cout << "arg_parser: " << arg_parser.get_int("split_k")  << std::endl;
 
     GemmMultiDProblem gemm_multi_d_problem{arg_parser.get_int("split_k"),
                              arg_parser.get_int("m"),
@@ -22,13 +19,14 @@ void benchmark_gemm_multi_d(const ck_tile::ArgParser& arg_parser)
                              arg_parser.get_int("stride_a"),
                              arg_parser.get_int("stride_b"),
                              arg_parser.get_int("stride_ds"),
+                             arg_parser.get_int("stride_ds"),
                              arg_parser.get_int("stride_e"),
                              DataTypeTraits<ADataType>::name,
                              DataTypeTraits<BDataType>::name,
                              DataTypeTraits<D0DataType>::name,
                              DataTypeTraits<D1DataType>::name,
                              DataTypeTraits<AccDataType>::name,
-                             DataTypeTraits<EADV>::name,
+                             DataTypeTraits<EDataType>::name,
                              ALayout::name,
                              BLayout::name,
                              D0Layout::name,
@@ -43,15 +41,29 @@ void benchmark_gemm_multi_d(const ck_tile::ArgParser& arg_parser)
                     arg_parser.get_bool("log"),
                     arg_parser.get_str("csv_filename"),
                     arg_parser.get_bool("flush_cache"),
-                    arg_parser.get_int("rotating_count")};
+                    arg_parser.get_int("rotating_count")
+                };
 
     auto& profiler = GemmProfiler::instance(setting);
 
     try
     {
         auto kernel_func = get_kernel_func_by_trait(arg_parser);
-        profiler.benchmark(gemm_problem, kernel_func);
-        profiler.select_best_instance(static_cast<Metric>(arg_parser.get_int("metric")));
+
+        // Print information about the vector of kernel functions
+        std::cout << "Number of kernel functions: " << kernel_func.size() << std::endl;
+        std::cout << "Kernel function type: " << typeid(kernel_func).name() << std::endl;
+        
+        // Print information about each kernel function in the vector
+        for (size_t i = 0; i < kernel_func.size(); ++i) {
+            std::cout << "Kernel function [" << i << "] address: " 
+                    << reinterpret_cast<void*>(&kernel_func[i]) << std::endl;
+            std::cout << "Kernel function [" << i << "] target type: " 
+                    << typeid(kernel_func[i]).name() << std::endl;
+        }
+
+        profiler.benchmark(gemm_multi_d_problem, kernel_func);
+        // profiler.select_best_instance(static_cast<Metric>(arg_parser.get_int("metric")));
     }
     catch(const std::exception& e)
     {
