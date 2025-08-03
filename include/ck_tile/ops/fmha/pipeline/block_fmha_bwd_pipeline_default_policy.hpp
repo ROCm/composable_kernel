@@ -587,7 +587,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t kMPerBlock = Problem::kM0;
         constexpr index_t kKPerBlock = Problem::kQKHeaddim;
 
-        constexpr index_t K1 = 16 / sizeof(AccDataType);
+        constexpr index_t K1 = 32 / sizeof(AccDataType);
         constexpr index_t K0 = kKPerBlock / K1;
 
         constexpr index_t M2 = get_warp_size() / K0;

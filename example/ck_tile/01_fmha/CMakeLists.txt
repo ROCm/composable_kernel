@@ -107,7 +107,7 @@ if(FMHA_FWD_FAST_EXP2)
 else()
   list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -DCK_TILE_FMHA_FWD_FAST_EXP2=0)
 endif()
-list(APPEND EXAMPLE_FMHA_BWD_COMPILE_OPTIONS -Wno-undefined-func-template -fgpu-flush-denormals-to-zero)
+list(APPEND EXAMPLE_FMHA_BWD_COMPILE_OPTIONS -Wno-undefined-func-template -fgpu-flush-denormals-to-zero -fbracket-depth=512)
 
 # conditionally enable call to the fwd_splitkv API in fmha_fwd example
 if("fwd_splitkv" IN_LIST FMHA_FWD_ENABLE_APIS)

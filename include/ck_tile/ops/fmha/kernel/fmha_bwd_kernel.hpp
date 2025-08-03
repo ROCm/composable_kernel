@@ -1085,11 +1085,24 @@ struct FmhaBwdDQDKDVKernel
                             VGradEpiloguePipeline::GetSmemSize());
     }
 
+    CK_TILE_DEVICE void operator()(Kargs kargs, char* workspace) const
+    {
+    	// use workspace as shared memory
+    	auto smem_size_per_block = GetSmemSize();
+        auto block_id = gridDim.x * gridDim.y * blockIdx.z + gridDim.x * blockIdx.y + blockIdx.x;
+        return operator_core(kargs, workspace + block_id * smem_size_per_block);
+    }
+
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
-        // allocate LDS
-        __shared__ char smem_ptr[GetSmemSize()];
+        // use dynamic shared memory
+        extern __shared__ char smem_ptr[];
 
+        return operator_core(kargs, smem_ptr);
+    }
+
+    CK_TILE_DEVICE void operator_core(Kargs kargs, char* smem_ptr) const
+    {
         // divide problem
         const auto [i_tile_n, i_nhead, i_batch] = GetTileIndex();
 

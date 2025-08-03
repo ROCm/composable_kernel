@@ -149,8 +149,33 @@ void fmha_bwd_dq_dk_dv_oneshot_<dq_dk_dv_trait_{F_idx}>(const ck_tile::stream_co
     auto [kargs, grids]                    = fmha_bwd_dq_dk_dv_create_kargs_and_grids<k_>(a);
     constexpr dim3 blocks                  = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
-    ck_tile::make_kernel<blocks.x, kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs)(
-        ck_tile::stream_config{{s.stream_id_}});
+
+    // shared memory size need by fmha_bwd_dq_dk_dv_kernel_{F_idx} kernel
+    auto shared_mem_bytes = fmha_bwd_dq_dk_dv_kernel_{F_idx}::GetSmemSize();
+
+    // device properties
+    hipDeviceProp_t deviceProps;
+    HIP_CHECK_ERROR(hipGetDeviceProperties(&deviceProps, 0));
+    auto shared_mem_bytes_limit = deviceProps.sharedMemPerBlock;
+
+    // use dynamic shared memory if it is less than device limit
+    // otherwise, use workspace memory which is global memory
+
+    if (static_cast<size_t>(shared_mem_bytes) > shared_mem_bytes_limit) {{
+        // use workspace memory
+        char *workspace = nullptr;
+        auto workspace_size = shared_mem_bytes * grids.x * grids.y * grids.z;
+        HIP_CHECK_ERROR(hipMallocAsync(&workspace, workspace_size, s.stream_id_));
+
+        ck_tile::make_kernel<blocks.x, kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs, workspace)(
+            ck_tile::stream_config{{s.stream_id_}});
+
+        HIP_CHECK_ERROR(hipFreeAsync(workspace, s.stream_id_));
+    }} else {{
+        // use dynamic shared memory
+        ck_tile::make_kernel<blocks.x, kBlockPerCu>(k_{{}}, grids, blocks, shared_mem_bytes, kargs)(
+            ck_tile::stream_config{{s.stream_id_}});
+    }}
 }}
 
 template <>
@@ -358,6 +383,8 @@ def get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype : str) -> Optional[dict
             '128' : [FmhaBwdDQDKDVTileSize( 16, 128, 128, 16, 128, 16, 32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
                         "kr_ktr_vr_iglp", "kr_ktr_vr"],
             '256' : [FmhaBwdDQDKDVTileSize( 16,  64, 256, 16, 256, 16, 32, 256, 256, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
+                        "kr_ktr_vr_iglp", "kr_ktr_vr"],
+            '512' : [FmhaBwdDQDKDVTileSize( 16,  64, 512, 16, 512, 16, 32, 512, 512, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
                         "kr_ktr_vr_iglp", "kr_ktr_vr"]
         }
     else:
