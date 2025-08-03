@@ -108,7 +108,8 @@ auto create_args(int argc, char* argv[])
         .insert("context_len", "6", "sequence length at the begin of the query sequence the should be included for attention")
         .insert("minfull_len", "6", "sequence length at the end of the query sequence that should be included for attention")
 	.insert("seed", "13579", "seed by the uniform or normal distribution generator")
-        .insert("alpha", "0", "scale factor of P=Q@K. 0 means equal to 1/sqrt(hdim)")
+        .insert("alpha", "0", "scale factor of S=Q@K. 0 means equal to 1/sqrt(hdim)")
+        .insert("attn_scale", "0", "scale factor of SiLU(Q@K). 0 means using 1/max_seqlen for scaling")
         .insert("init_qkv", "0", "initialize q, k, v tensor from local files q.dat, k.dat and v.data")
         .insert("save_mask", "0", "save the mask tensor to disk by the CPU validation codes")
         .insert("perf", "0", "weather measure execution time or not")
@@ -223,6 +224,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int min_full_attn_seqlen = arg_parser.get_int("minfull_len");
 
     float alpha       = arg_parser.get_float("alpha");
+    float attn_scale  = arg_parser.get_float("attn_scale");
     int seed          = arg_parser.get_int("seed");
     bool measure_perf = static_cast<bool>(arg_parser.get_int("perf"));
     bool dump_output  = static_cast<bool>(arg_parser.get_int("dump_output"));
@@ -412,6 +414,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         params.hdim_v            = hdim_v;
         params.num_head          = num_head;
         params.scale_s           = scale_s;
+        params.attn_scale        = attn_scale;
         params.seq_stride_q      = q_host.get_strides()[1];
         params.seq_stride_k      = k_host.get_strides()[1];
         params.seq_stride_v      = v_host.get_strides()[1];
@@ -445,6 +448,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         params.hdim_v            = hdim_v;
         params.num_head          = num_head;
         params.scale_s           = scale_s;
+        params.attn_scale        = attn_scale;
         params.seq_stride_q      = q_host.get_strides()[1];
         params.seq_stride_k      = k_host.get_strides()[1];
         params.seq_stride_v      = v_host.get_strides()[1];
@@ -514,6 +518,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                               mask_host,
                                                               num_batch,
                                                               scale_s,
+                                                              attn_scale,
                                                               max_seqlen,
                                                               seq_offsets,
                                                               num_targets,

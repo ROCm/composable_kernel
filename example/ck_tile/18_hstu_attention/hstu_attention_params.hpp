@@ -23,7 +23,8 @@ struct HstuAttentionFwdParams
     ck_tile::index_t hdim_qk;
     ck_tile::index_t hdim_v;
     ck_tile::index_t num_head;
-    float scale_s;
+    float scale_s;    // scaling factor exerted on the immediate Q@K result
+    float attn_scale; // scaling factor exerted on the SiLU result
 
     ck_tile::index_t seq_stride_q;
     ck_tile::index_t seq_stride_k;
