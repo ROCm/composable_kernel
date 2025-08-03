@@ -43,6 +43,7 @@ struct reference_hstu_attention
                     HostTensor<int8_t>& mask_batch_nhead_seq_seq,
                     int num_batch,
                     float alpha,
+                    float attn_scale,
                     int max_seqlen,
                     std::vector<int> seq_offsets,
                     std::vector<int> num_targets, // define masking length at the end of token
@@ -177,6 +178,8 @@ struct reference_hstu_attention
                 for(CompDataType& elem : locals)
                     elem = silu(elem);
 
+                float scale_p = attn_scale ? attn_scale : 1.0f / static_cast<float>(max_seqlen);
+
                 // second Gemm
                 for(int k = 0; k < hdim_v; k++)
                 {
@@ -203,7 +206,7 @@ struct reference_hstu_attention
                         };
                     };
 
-                    dot_prod = dot_prod / ck_tile::type_convert<GemmAccDataType>(max_seqlen);
+                    dot_prod = dot_prod * ck_tile::type_convert<GemmAccDataType>(scale_p);
 
                     if constexpr(kIsJagged)
                         o_batch_seq_nhead_hdim(0, seq_offsets[i_batch] + sq, i_head, k) =

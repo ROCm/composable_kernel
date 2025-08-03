@@ -212,6 +212,7 @@ struct HstuAttentionFwdKernel
                   ck_tile::index_t hdim_v,
                   ck_tile::index_t num_head,
                   float scale_s,
+                  float attn_scale,
                   ck_tile::index_t seq_stride_q,
                   ck_tile::index_t seq_stride_k,
                   ck_tile::index_t seq_stride_v,
@@ -257,11 +258,11 @@ struct HstuAttentionFwdKernel
              seq_stride_o,
              num_head,
              -scale_s,
-             1.0f / static_cast<float>(seqlen), // max_seqlen
-             contextual_seqlen},                // args for common karg
-            {},                                 // placeholder for mask
-            {},                                 // placeholder for bias
-            {},                                 // placeholder for dropout
+             attn_scale ? attn_scale : 1.0f / static_cast<float>(seqlen), // max_seqlen
+             contextual_seqlen},                                          // args for common karg
+            {},                                                           // placeholder for mask
+            {},                                                           // placeholder for bias
+            {},                                                           // placeholder for dropout
         };
 
         if constexpr(kHasLocalMask)
@@ -298,6 +299,7 @@ struct HstuAttentionFwdKernel
               ck_tile::index_t hdim_v,
               ck_tile::index_t num_head,
               float scale_s,
+              float attn_scale,
               ck_tile::index_t seq_stride_q,
               ck_tile::index_t seq_stride_k,
               ck_tile::index_t seq_stride_v,
@@ -331,6 +333,7 @@ struct HstuAttentionFwdKernel
                              hdim_v,
                              num_head,
                              scale_s,
+                             attn_scale,
                              seq_stride_q,
                              seq_stride_k,
                              seq_stride_v,
@@ -367,6 +370,7 @@ struct HstuAttentionFwdKernel
                   ck_tile::index_t hdim_v,
                   ck_tile::index_t num_head,
                   float scale_s,
+                  float attn_scale,
                   ck_tile::index_t seq_stride_q,
                   ck_tile::index_t seq_stride_k,
                   ck_tile::index_t seq_stride_v,
@@ -404,7 +408,7 @@ struct HstuAttentionFwdKernel
              -1, // seqlen will be updated by another pointer
              num_head,
              -scale_s,
-             1.0f / static_cast<float>(max_seqlen),
+             attn_scale ? attn_scale : 1.0f / static_cast<float>(max_seqlen),
              contextual_seqlen}, // args for common karg
             {},                  // placeholder for mask
             {},                  // placeholder for bias
@@ -445,6 +449,7 @@ struct HstuAttentionFwdKernel
               ck_tile::index_t hdim_v,
               ck_tile::index_t num_head,
               float scale_s,
+              float attn_scale,
               ck_tile::index_t seq_stride_q,
               ck_tile::index_t seq_stride_k,
               ck_tile::index_t seq_stride_v,
@@ -474,6 +479,7 @@ struct HstuAttentionFwdKernel
                              hdim_v,
                              num_head,
                              scale_s,
+                             attn_scale,
                              seq_stride_q,
                              seq_stride_k,
                              seq_stride_v,
