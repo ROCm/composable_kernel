@@ -104,6 +104,7 @@ struct batched_forward_causal_local_bias_dropout_dispatch
                                          param.hdim_v,
                                          param.num_head,
                                          param.scale_s,
+                                         param.attn_scale,
                                          param.seq_stride_q,
                                          param.seq_stride_k,
                                          param.seq_stride_v,
