@@ -1365,7 +1365,8 @@ struct FmhaFwdKernel
                     kargs.window_size_right,
                     kargs.seqlen_q,
                     kargs.seqlen_k,
-                    kargs.mask_type == GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT);
+                    kargs.mask_type == GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT,
+                    i_m0);
             else
                 return FmhaMask{kargs.seqlen_q, kargs.seqlen_k};
         }();

@@ -85,22 +85,36 @@ struct GenericAttentionMask
 
     static constexpr const char* name = impl::MaskName<IsMasking, IsLocal>::name;
 
-    CK_TILE_HOST_DEVICE GenericAttentionMask(index_t y_total_, index_t x_total_)
+    CK_TILE_HOST_DEVICE constexpr GenericAttentionMask(index_t y_total_, index_t x_total_)
         : GenericAttentionMask(0, 0, y_total_, x_total_)
     {
     }
 
     CK_TILE_HOST_DEVICE
-    GenericAttentionMask(index_t y_, index_t x_, index_t y_total_, index_t x_total_)
+    constexpr GenericAttentionMask(index_t y_, index_t x_, index_t y_total_, index_t x_total_)
         : y(y_), x(x_), y_total(y_total_), x_total(x_total_)
     {
     }
+
+    // Constructs from global mask parameters, adjusting them to be relative to the tile's origin.
+    CK_TILE_HOST_DEVICE
+    constexpr GenericAttentionMask(
+        index_t y_, index_t x_, index_t y_total_, index_t x_total_, index_t y_offset
+        /*, index_t x_offset*/)
+        : GenericAttentionMask(
+              /*y=*/y_ - y_offset /*+ x_offset*/,
+              /*x=*/x_ + y_offset /*- x_offset*/,
+              /*y_total=*/y_total_ - y_offset,
+              /*x_total=*/x_total_ /*- x_offset*/)
+    {
+    }
+
     template <typename MaskCoordinates>
-    CK_TILE_HOST_DEVICE GenericAttentionMask(const MaskCoordinates& mask_coord)
-        : y(mask_coord.at(number<0>{})),
-          x(mask_coord.at(number<1>{})),
-          y_total(mask_coord.at(number<2>{})),
-          x_total(mask_coord.at(number<3>{}))
+    CK_TILE_HOST_DEVICE constexpr GenericAttentionMask(const MaskCoordinates& mask_coord)
+        : GenericAttentionMask(/*y=*/mask_coord.at(number<0>{}),
+                               /*x=*/mask_coord.at(number<1>{}),
+                               /*y_total=*/mask_coord.at(number<2>{}),
+                               /*x_total=*/mask_coord.at(number<3>{}))
     {
     }
 
@@ -250,22 +264,40 @@ struct SimplifiedGenericAttentionMask
 
     static constexpr const char* name = impl::SimplifiedMaskName<IsMasking>::name;
 
-    CK_TILE_HOST_DEVICE SimplifiedGenericAttentionMask(index_t y_total_, index_t x_total_)
+    CK_TILE_HOST_DEVICE
+    constexpr SimplifiedGenericAttentionMask(index_t y_total_, index_t x_total_)
         : SimplifiedGenericAttentionMask(0, 0, y_total_, x_total_)
     {
     }
 
     CK_TILE_HOST_DEVICE
-    SimplifiedGenericAttentionMask(index_t y_, index_t x_, index_t y_total_, index_t x_total_)
+    constexpr SimplifiedGenericAttentionMask(index_t y_,
+                                             index_t x_,
+                                             index_t y_total_,
+                                             index_t x_total_)
         : y(y_), x(x_), y_total(y_total_), x_total(x_total_)
     {
     }
+
+    // Constructs from global mask parameters, adjusting them to be relative to the tile's origin.
+    CK_TILE_HOST_DEVICE
+    constexpr SimplifiedGenericAttentionMask(
+        index_t y_, index_t x_, index_t y_total_, index_t x_total_, index_t y_offset
+        /*, index_t x_offset*/)
+        : SimplifiedGenericAttentionMask(
+              /*y=*/y_ - y_offset /*+ x_offset*/,
+              /*x=*/x_ + y_offset /*- x_offset*/,
+              /*y_total=*/y_total_ - y_offset,
+              /*x_total=*/x_total_ /*- x_offset*/)
+    {
+    }
+
     template <typename MaskCoordinates>
-    CK_TILE_HOST_DEVICE SimplifiedGenericAttentionMask(const MaskCoordinates& mask_coord)
-        : y(mask_coord.at(number<0>{})),
-          x(mask_coord.at(number<1>{})),
-          y_total(mask_coord.at(number<2>{})),
-          x_total(mask_coord.at(number<3>{}))
+    CK_TILE_HOST_DEVICE constexpr SimplifiedGenericAttentionMask(const MaskCoordinates& mask_coord)
+        : SimplifiedGenericAttentionMask(/*y=*/mask_coord.at(number<0>{}),
+                                         /*x=*/mask_coord.at(number<1>{}),
+                                         /*y_total=*/mask_coord.at(number<2>{}),
+                                         /*x_total=*/mask_coord.at(number<3>{}))
     {
     }
 
@@ -624,10 +656,11 @@ make_generic_attention_mask_from_lr_window(index_t left_size,
                                            index_t right_size,
                                            index_t y_total,
                                            index_t x_total,
-                                           bool is_top_left = true)
+                                           bool is_top_left = true,
+                                           int y_offset     = 0)
 {
     auto r = make_generic_attention_mask_coordinates_from_lr_window(
         left_size, right_size, y_total, x_total, is_top_left);
-    return MaskType{r.at(number<0>{}), r.at(number<1>{}), y_total, x_total};
+    return MaskType{r.at(number<0>{}), r.at(number<1>{}), y_total, x_total, y_offset};
 }
 } // namespace ck_tile

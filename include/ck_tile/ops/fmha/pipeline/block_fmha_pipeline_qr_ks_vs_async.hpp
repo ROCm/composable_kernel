@@ -277,7 +277,7 @@ struct BlockFmhaPipelineQRKSVSAsync
         __builtin_amdgcn_sched_barrier(0);
         const auto q_origin = q_dram_window.get_window_origin();
         const auto [seqlen_k_start, seqlen_k_end] =
-            mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
+            mask.GetTileRangeAlongX(0, number<kM0>{}, number<kN0>{});
 
         const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
 
@@ -479,17 +479,15 @@ struct BlockFmhaPipelineQRKSVSAsync
             move_tile_window(bias_dram_window, {0, kN0});
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
-                const auto k_origin      = k_dram_block_window.get_window_origin();
-                bool need_perpixel_check = mask.IsEdgeTile(q_origin.at(number<0>{}),
-                                                           k_origin.at(number<0>{}),
-                                                           number<kM0>{},
-                                                           number<kN0>{});
+                const auto k_origin = k_dram_block_window.get_window_origin();
+                bool need_perpixel_check =
+                    mask.IsEdgeTile(0, k_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
 
                 if(need_perpixel_check)
                 {
                     set_tile_if(
                         s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
-                            const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
+                            const auto row = tile_idx.at(number<0>{});
                             const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
                             return !variant.LogitsMask(variant_params,
                                                        block_indices.batch_idx,
