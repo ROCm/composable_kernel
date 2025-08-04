@@ -582,9 +582,35 @@ struct TransformConvBwdWeightToGemmV2
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
-            return make_tuple(out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc,
-                              in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc,
-                              wei_grid_desc);
+            // Padd
+            const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_pad_grid_desc =
+                transform_tensor_descriptor(
+                    out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc,
+                    make_tuple(make_pass_through_transform(GemmKBatch * GemmK0),
+                               make_right_pad_transform(GemmM, PadGemmM),
+                               make_pass_through_transform(GemmK1Number)),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+
+            const auto in_gemmkbatch_gemmk0_gemmn_gemmk1_pad_grid_desc =
+                transform_tensor_descriptor(
+                    in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc,
+                    make_tuple(make_pass_through_transform(GemmKBatch * GemmK0),
+                               make_right_pad_transform(GemmN, PadGemmN),
+                               make_pass_through_transform(GemmK1Number)),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+
+            const auto wei_gemmm_gemmn_pad_grid_desc =
+                transform_tensor_descriptor(wei_grid_desc,
+                                            make_tuple(make_right_pad_transform(GemmM, PadGemmM),
+                                                       make_right_pad_transform(GemmN, PadGemmN)),
+                                            make_tuple(Sequence<0>{}, Sequence<1>{}),
+                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+            return make_tuple(out_gemmkbatch_gemmk0_gemmm_gemmk1_pad_grid_desc,
+                              in_gemmkbatch_gemmk0_gemmn_gemmk1_pad_grid_desc,
+                              wei_gemmm_gemmn_pad_grid_desc);
         }
         else
         {
