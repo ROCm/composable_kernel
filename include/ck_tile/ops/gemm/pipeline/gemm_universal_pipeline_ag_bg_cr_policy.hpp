@@ -114,7 +114,7 @@ struct UniversalGemmBasePolicy
                                                                             VecLoadSize,
                                                                             ATileAccessPattern>;
                 // AK1
-                constexpr auto AK1 = number<TileEncodingPattern::Y0>{};
+                constexpr auto AK1 = number<VecLoadSize>{};
                 constexpr auto AK0 = number<KPerBlock / AK1>{};
                 // How the M dimension is split across threads
                 constexpr auto M0 = TileEncodingPattern::X0;
@@ -287,7 +287,7 @@ struct UniversalGemmBasePolicy
                                                                             VecLoadSize,
                                                                             BTileAccessPattern>;
                 // BK1
-                constexpr auto BK1 = number<TileEncodingPattern::Y0>{};
+                constexpr auto BK1 = number<VecLoadSize>{};
                 constexpr auto BK0 = number<KPerBlock / BK1>{};
 
                 // How threads access data on N dim
