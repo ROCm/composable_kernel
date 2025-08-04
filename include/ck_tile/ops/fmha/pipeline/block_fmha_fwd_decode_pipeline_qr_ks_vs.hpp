@@ -1096,6 +1096,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
                                   sequence<kM0, k1_loops * kK1>{}),
                    v_tile);
 
+            block_sync_lds_direct_load<k_vmem_insts + v_vmem_insts>();
             k_lds_read_window.set_bottom_tensor_view_data_ptr(k_lds_read_ptr);
             k_tile = load_tile(k_lds_read_window);
 
