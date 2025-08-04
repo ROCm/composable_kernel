@@ -117,15 +117,16 @@ struct UniversalGemmBasePolicy
                 constexpr auto AK1 = number<VecLoadSize>{};
                 constexpr auto AK0 = number<KPerBlock / AK1>{};
                 // How the M dimension is split across threads
-                constexpr auto M0 = TileEncodingPattern::X0;
-                constexpr auto M1 = TileEncodingPattern::X1;
+                constexpr auto M0 = TileEncodingPattern::X0;  // # of threads in M dim
+                constexpr auto M1 = number<MPerBlock / M0>{};
 
                 // Get the warp tile size
                 using WarpTile         = typename Problem::BlockGemmShape::WarpTile;
                 constexpr auto MPerXdl = number<WarpTile::at(I0)>{};
 
-                // How the data is read/written in threads
-                constexpr auto KThreadWrite     = AK0;
+                // How many elements we can write by single thread to LDS,
+                // the transposed / shuffled tile dstr has size: <X1, Y2>
+                constexpr auto KThreadWrite     = TileEncodingPattern::Y2;
                 constexpr auto K0PerThreadWrite = AK0 / KThreadWrite;
                 constexpr auto KThreadRead      = get_warp_size() / MPerXdl;
                 constexpr auto K0PerThreadRead  = AK0 / KThreadRead;
@@ -291,18 +292,19 @@ struct UniversalGemmBasePolicy
                 constexpr auto BK0 = number<KPerBlock / BK1>{};
 
                 // How threads access data on N dim
-                constexpr auto N0 = TileEncodingPattern::X0;
-                constexpr auto N1 = TileEncodingPattern::X1;
+                constexpr auto N0 = TileEncodingPattern::X0;  // # of threads in N dim
+                constexpr auto N1 = number<NPerBlock / N0>{};
 
+                // Get NPerXdl, the warp tile size
                 using WarpTile         = typename Problem::BlockGemmShape::WarpTile;
                 constexpr auto NPerXdl = number<WarpTile::at(I1)>{};
 
-                // How many elements we can write by single thread to LDS
-                constexpr auto KThreadWrite     = TileEncodingPattern::X1;
+                // How many elements we can write by single thread to LDS,
+                // the transposed / shuffled tile dstr has size: <X1, Y2>
+                constexpr auto KThreadWrite     = TileEncodingPattern::Y2;
                 constexpr auto K0PerThreadWrite = BK0 / KThreadWrite;
-
-                constexpr auto KThreadRead     = get_warp_size() / NPerXdl;
-                constexpr auto K0PerThreadRead = BK0 / KThreadRead;
+                constexpr auto KThreadRead      = get_warp_size() / NPerXdl;
+                constexpr auto K0PerThreadRead  = BK0 / KThreadRead;
 
                 // check if we exceed all 32banks width - (32x4B)
                 constexpr auto LdsBanksWidth = 128;
