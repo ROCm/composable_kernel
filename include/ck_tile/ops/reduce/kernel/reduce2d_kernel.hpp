@@ -25,6 +25,39 @@ struct Reduce
     using ComputeDataType = ck_tile::remove_cvref_t<typename Problem::ComputeDataType>;
     using YDataType       = ck_tile::remove_cvref_t<typename Problem::YDataType>;
 
+private:
+    // Helper function to calculate optimal vector size for input tensor
+    template <typename InputShape, typename ReduceDims>
+    static constexpr index_t CalculateInputVectorSize()
+    {
+        using S = typename Problem::BlockShape;
+        constexpr index_t memory_vector_size = 16 / sizeof(XDataType);
+        constexpr index_t thread_tile_vector_size = S::ThreadTile_N;
+        
+        // Check if innermost reduce dimension is the last dimension (stride 1).
+        constexpr auto innermost_reduce_dim = ReduceDims{}.at(number<ReduceDims{}.size() - 1>{});
+        constexpr bool is_innermost_contiguous = (innermost_reduce_dim == InputShape{}.size() - 1);
+        
+        // If innermost reduce dimension is not the last dim (not contiguous), limit vectorization
+        constexpr index_t stride_based_vector_size = is_innermost_contiguous ? 
+            ck_tile::min(memory_vector_size, thread_tile_vector_size) : 1;
+        
+        return stride_based_vector_size;
+    }
+
+    // Helper function to calculate optimal vector size for output tensor
+    static constexpr index_t CalculateOutputVectorSize()
+    {
+        using S = typename Problem::BlockShape;
+        constexpr index_t memory_vector_size = 16 / sizeof(YDataType);
+        constexpr index_t thread_tile_vector_size = S::ThreadTile_M;
+        constexpr index_t vector_size = ck_tile::min(memory_vector_size, thread_tile_vector_size);
+        
+        return vector_size;
+    }
+
+public:
+
     template <typename InputShape, typename InputStrides, typename KeptDim, typename ReduceDims>
     CK_TILE_DEVICE void operator()(const XDataType* p_x,
                                    YDataType* p_y,
@@ -57,9 +90,12 @@ struct Reduce
         const XDataType custom_padding_value =
             type_convert<XDataType>(reduce_func.template GetIdentityValue<ComputeDataType>());
 
+        // Calculate optimal vector size for input tensor
+        constexpr auto x_tensor_vector_size = CalculateInputVectorSize<InputShape, ReduceDims>();
+
         // Create input tensor view with custom padding value
         auto desc = make_naive_tensor_descriptor(
-            input_shape, input_strides, number<S::ThreadTile_N>{}, number<1>{});
+            input_shape, input_strides, number<x_tensor_vector_size>{}, number<1>{});
 
         // Create buffer view with custom padding value
         auto buffer_view = make_buffer_view<address_space_enum::global>(
@@ -88,8 +124,11 @@ struct Reduce
                 number<kept_dim.size()>{});
         }();
 
+        // Calculate optimal vector size for output tensor
+        constexpr auto y_tensor_vector_size = CalculateOutputVectorSize();
+
         const auto y_m = make_naive_tensor_view<address_space_enum::global>(
-            p_y, kept_lens, kept_strides, number<16 / sizeof(YDataType)>{}, number<1>{});
+            p_y, kept_lens, kept_strides, number<y_tensor_vector_size>{}, number<1>{});
 
         // Transform output tensor to 1D merged view
         // This creates a view compatible with the 2D reduction pattern
