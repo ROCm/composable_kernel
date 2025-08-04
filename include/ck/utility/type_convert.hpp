@@ -59,7 +59,12 @@ inline __device__ bhalf2_t static_cast_float2_to_bhalf2_rne(float2_t x)
     asm volatile("v_cvt_pk_bf16_f32 %0, %1, %2" 
         : "=v"(result) 
         : "v"(x[0]), "v"(x[1]));
-    return result;
+    union {
+        uint32_t u32;
+        bhalf2_t bf16x2;
+    } value;
+    value.u32 = result;
+    return value.bf16x2;
 }
 #endif
 
