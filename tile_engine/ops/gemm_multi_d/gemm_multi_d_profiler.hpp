@@ -24,26 +24,11 @@ class GemmProfiler
                    std::vector<std::function<std::tuple<std::string, float>(
                        ck_tile::GemmHostArgs<DsDataType::size()>&, const ck_tile::stream_config&)>>& callables)
     {
-
-        // std::cout << "Inside GemmProfiler::benchmark" << std::endl;
         const ALayout layout_a = ALayout{};
         const BLayout layout_b = BLayout{};
         const D0Layout layout_d0 = D0Layout{};
         const D1Layout layout_d1 = D1Layout{};
         const ELayout layout_e = ELayout{};
-
-/////////////////////////////////////////////////////////////////////
-    // std::cout<< "M = " << gemm_problem.m_ << ", N = " << gemm_problem.n_ << ", K = " << gemm_problem.k_ << std::endl;
-    // std::cout<< "StrideA = " << gemm_problem.stride_a_ << ", StrideB = " << gemm_problem.stride_b_
-    //          << ", StrideD0 = " << gemm_problem.stride_d0_ << ", StrideD1 = " << gemm_problem.stride_d1_
-    //          << ", StrideE = " << gemm_problem.stride_e_ << std::endl;
-    // std::cout<< "Warmup iterations = " << setting_.n_warmup_ << ", Repeat iterations = " << setting_.n_repeat_
-    //          << ", Batch size = " << gemm_problem.split_k_ << std::endl;
-    // std::cout<< "Data layouts: A = " << layout_a << ", B = " << layout_b
-    //          << ", D0 = " << layout_d0 << ", D1 = " << layout_d1
-    //          << ", E = " << layout_e << std::endl;
-
-////////////////////////////////////////////////////////////////////
 
         gemm_problem.stride_a_ = ck_tile::get_default_stride(
             gemm_problem.m_, gemm_problem.k_, gemm_problem.stride_a_, is_row_major(layout_a));
@@ -158,7 +143,6 @@ class GemmProfiler
                         ck_tile::HostTensor<EDataType>& e_m_n_dev_result,
                         const std::tuple<std::string, float>& kernel_run_result)
     {
-        // std::cout << "Processing result for GEMM problem: " << gemm_problem << std::endl;
         auto [name, avg_time] = kernel_run_result;
         
         KernelInstance kernel_instance{name, gemm_problem, {-1.0f, -1.0f, -1.0f}};
@@ -195,75 +179,77 @@ class GemmProfiler
         else
         {
             std::cout << "Verification failed, skip kernel: " << name << std::endl;
+            kernel_instances_.emplace_back(kernel_instance); // Remove this line if you don't want to keep failed instances
         }
 
         e_m_n_dev_buf.SetZero();
         e_m_n_dev_result.SetZero();
     }
 
-    // KernelInstance select_best_instance(Metric metric)
-    // {
-    //     if(kernel_instances_.empty())
-    //         throw std::runtime_error("Empty instances");
+    KernelInstance select_best_instance(Metric metric)
+    {
+        if(kernel_instances_.empty())
+            throw std::runtime_error("Empty instances");
 
-    //     auto kernel_instance = *std::max_element(kernel_instances_.begin(),
-    //                                              kernel_instances_.end(),
-    //                                              [metric](const auto& a, const auto& b) {
-    //                                                  return PerformanceResult::compare(
-    //                                                      b.perf_result_, a.perf_result_, metric);
-    //                                              });
+        auto kernel_instance = *std::max_element(kernel_instances_.begin(),
+                                                 kernel_instances_.end(),
+                                                 [metric](const auto& a, const auto& b) {
+                                                     return PerformanceResult::compare(
+                                                         b.perf_result_, a.perf_result_, metric);
+                                                 });
 
-    //     std::cout << "**********************************" << std::endl;
-    //     std::cout << "According to given metrics: " << get_metric_name(metric) << "\n"
-    //               << "The best kernel instance is: " << kernel_instance << std::endl;
-    //     std::cout << "**********************************" << std::endl;
+        std::cout << "**********************************" << std::endl;
+        std::cout << "According to given metrics: " << get_metric_name(metric) << "\n"
+                  << "The best kernel instance is: " << kernel_instance << std::endl;
+        std::cout << "**********************************" << std::endl;
 
-    //     if(!setting_.csv_filename_.empty())
-    //     {
-    //         std::ofstream file(setting_.csv_filename_ + ".csv", std::ios::app);
+        if(!setting_.csv_filename_.empty())
+        {
+            std::ofstream file(setting_.csv_filename_ + ".csv", std::ios::app);
 
-    //         if(!file.is_open())
-    //         {
-    //             std::cerr << "Warning: Failed to open CSV file for writing." << std::endl;
-    //         }
-    //         else
-    //         {
-    //             if(file.tellp() == 0)
-    //             {
-    //                 file << "rocm_version,device_name,"
-    //                      << "split_k,m,n,k,stride_a,stride_b,stride_c,"
-    //                      << "dtype_a,dtype_b,dtype_acc,dtype_c,"
-    //                      << "layout_a,layout_b,layout_c,"
-    //                      << "structured_sparsity,"
-    //                      << "name,"
-    //                      << "latency(ms),tflops(TFlops),bandwidth(GB/s),metric\n";
-    //             }
+            if(!file.is_open())
+            {
+                std::cerr << "Warning: Failed to open CSV file for writing." << std::endl;
+            }
+            else
+            {
+                if(file.tellp() == 0)
+                {
+                    file << "rocm_version,device_name,"
+                         << "split_k,m,n,k,stride_a,stride_b,stride_c,"
+                         << "dtype_a,dtype_b,dtype_acc,dtype_c,"
+                         << "layout_a,layout_b,layout_c,"
+                         << "structured_sparsity,"
+                         << "name,"
+                         << "latency(ms),tflops(TFlops),bandwidth(GB/s),metric\n";
+                }
 
-    //             const auto& problem = kernel_instance.problem_;
-    //             const auto& name    = kernel_instance.name_;
-    //             const auto& perf    = kernel_instance.perf_result_;
+                const auto& problem = kernel_instance.problem_;
+                const auto& name    = kernel_instance.name_;
+                const auto& perf    = kernel_instance.perf_result_;
 
-    //             file << get_rocm_version() << "," << ck_tile::get_device_name() << ","
-    //                  << problem.split_k_ << "," << problem.m_ << "," << problem.n_ << ","
-    //                  << problem.k_ << "," << problem.stride_a_ << "," << problem.stride_b_ << ","
-    //                  << problem.stride_c_ << "," << problem.dtype_a_ << "," << problem.dtype_b_
-    //                  << "," << problem.dtype_acc_ << "," << problem.dtype_c_ << ","
-    //                  << problem.layout_a_ << "," << problem.layout_b_ << "," << problem.layout_c_
-    //                  << "," << problem.structured_sparsity_ << "," << name << "," << std::fixed
-    //                  << std::setprecision(4) << perf.latency_ << "," << std::fixed
-    //                  << std::setprecision(4) << perf.tflops_ << "," << std::fixed
-    //                  << std::setprecision(4) << perf.bandwidth_ << "," << get_metric_name(metric)
-    //                  << "\n";
+                //TODO: Add all parameters for Multi D GEMM
+                file << get_rocm_version() << "," << ck_tile::get_device_name() << ","
+                     << problem.split_k_ << "," << problem.m_ << "," << problem.n_ << ","
+                     << problem.k_ << "," << problem.stride_a_ << "," << problem.stride_b_ << ","
+                     << problem.stride_e_ << "," << problem.dtype_a_ << "," << problem.dtype_b_
+                     << "," << problem.dtype_acc_ << "," << problem.dtype_e_ << ","
+                     << problem.layout_a_ << "," << problem.layout_b_ << "," << problem.layout_e_
+                     << "," << "," << name << "," << std::fixed
+                     << std::setprecision(4) << perf.latency_ << "," << std::fixed
+                     << std::setprecision(4) << perf.tflops_ << "," << std::fixed
+                     << std::setprecision(4) << perf.bandwidth_ << "," << get_metric_name(metric)
+                     << "\n";
 
-    //             if(!file)
-    //             {
-    //                 std::cerr << "Warning: Error occurred while writing to CSV file." << std::endl;
-    //             }
-    //         }
-    //     }
+                if(!file)
+                {
+                    std::cerr << "Warning: Error occurred while writing to CSV file." << std::endl;
+                }
+            }
+        }
 
-    //     return kernel_instance;
-    // }
+        return kernel_instance;
+    }
 
     GemmProfiler(const GemmProfiler&) = delete;
     GemmProfiler& operator=(const GemmProfiler&) = delete;

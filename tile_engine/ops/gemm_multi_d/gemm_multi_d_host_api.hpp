@@ -116,7 +116,7 @@ inline auto create_args(int argc, char* argv[])
                 "Metric with which to measure kernel performance. Set to 0 for latency, 1 for "
                 "tflops, or 2 for bandwidth. Default is 0, latency.")
         .insert("csv_filename",
-                "gemm_kernel",
+                "gemm_multi_d_kernel",
                 "The filename of benchmark result. Default is gemm_kernel.")
         .insert(
             "pipeline",

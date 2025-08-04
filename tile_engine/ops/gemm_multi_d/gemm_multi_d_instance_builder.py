@@ -398,6 +398,7 @@ struct GemmKernel {{
     static constexpr bool kPadK = {pad_k};
 
     static float launch(ck_tile::GemmHostArgs<DsDataType::size()>& args, const ck_tile::stream_config& stream) {{
+        std::cout << "Inside launch function in generated file" << std::endl;
         static constexpr bool DoubleSmemBuffer ={"true" if pipeline == "compv4" else "false"};
         
         static constexpr bool TransposeC = false;

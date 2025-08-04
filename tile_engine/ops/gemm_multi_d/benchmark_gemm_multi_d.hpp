@@ -84,7 +84,6 @@ void gemm_multi_d_host_reference(int verify,
     if(verify > 0)
     {
         // Currently supporting on CPU verification for Gemm Multi D
-        // printf("Running reference implementation for Gemm Multi D on CPU\n");
         e_m_n_host_result.SetZero();
 
         ck_tile::reference_gemm_multiple_d<ADataType,
@@ -94,13 +93,6 @@ void gemm_multi_d_host_reference(int verify,
                                        EDataType,
                                        MultiplyMultiply>(
         a_m_k, b_k_n, {d0_m_n, d1_m_n}, e_m_n_host_result);
-
-        ///////////////////////////////////
-
-        for(size_t i = 0; i < std::min(static_cast<size_t>(10), e_m_n_host_result.mData.size()); ++i) {
-            std::cout << static_cast<float>(e_m_n_host_result.mData[i]) << " ";
-        }
-///////////////////////////////////
     }
     std::cout << "Exiting gemm_multi_d_host_reference function" << std::endl;
 }
@@ -115,16 +107,16 @@ enum class Metric
     BANDWIDTH = 2
 };
 
-// inline constexpr auto get_metric_name(Metric m)
-// {
-//     switch(m)
-//     {
-//     case Metric::LATENCY: return "latency";
-//     case Metric::TFLOPS: return "tflops";
-//     case Metric::BANDWIDTH: return "bandwidth";
-//     default: throw std::invalid_argument("Unsupported metric type");
-//     }
-// }
+inline constexpr auto get_metric_name(Metric m)
+{
+    switch(m)
+    {
+    case Metric::LATENCY: return "latency";
+    case Metric::TFLOPS: return "tflops";
+    case Metric::BANDWIDTH: return "bandwidth";
+    default: throw std::invalid_argument("Unsupported metric type");
+    }
+}
 
 struct PerformanceResult
 {
@@ -132,16 +124,16 @@ struct PerformanceResult
     double tflops_;
     double bandwidth_;
 
-    // static bool compare(const PerformanceResult& a, const PerformanceResult& b, Metric m)
-    // {
-    //     switch(m)
-    //     {
-    //     case Metric::LATENCY: return a.latency_ < b.latency_;
-    //     case Metric::TFLOPS: return a.tflops_ > b.tflops_;
-    //     case Metric::BANDWIDTH: return a.bandwidth_ > b.bandwidth_;
-    //     default: throw std::invalid_argument("Unsupported metric type");
-    //     }
-    // }
+    static bool compare(const PerformanceResult& a, const PerformanceResult& b, Metric m)
+    {
+        switch(m)
+        {
+        case Metric::LATENCY: return a.latency_ < b.latency_;
+        case Metric::TFLOPS: return a.tflops_ > b.tflops_;
+        case Metric::BANDWIDTH: return a.bandwidth_ > b.bandwidth_;
+        default: throw std::invalid_argument("Unsupported metric type");
+        }
+    }
 
     friend std::ostream& operator<<(std::ostream& os, const PerformanceResult& result)
     {
@@ -161,10 +153,10 @@ struct KernelInstance
     GemmMultiDProblem problem_;
     PerformanceResult perf_result_;
 
-    // static bool compare(const KernelInstance& a, const KernelInstance& b, Metric m)
-    // {
-    //     return PerformanceResult::compare(a.perf_result_, b.perf_result_, m);
-    // }
+    static bool compare(const KernelInstance& a, const KernelInstance& b, Metric m)
+    {
+        return PerformanceResult::compare(a.perf_result_, b.perf_result_, m);
+    }
 
     friend std::ostream& operator<<(std::ostream& os, const KernelInstance& obj)
     {
@@ -182,17 +174,17 @@ struct KernelInstance
 
 
 
-// inline std::string get_rocm_version()
-// {
-//     std::ifstream version_file("/opt/rocm/.info/version");
-//     if(version_file.is_open())
-//     {
-//         std::string version;
-//         std::getline(version_file, version);
-//         return version;
-//     }
-//     return "Unknown";
-// }
+inline std::string get_rocm_version()
+{
+    std::ifstream version_file("/opt/rocm/.info/version");
+    if(version_file.is_open())
+    {
+        std::string version;
+        std::getline(version_file, version);
+        return version;
+    }
+    return "Unknown";
+}
 
 auto calculate_rtol_atol(const ck_tile::index_t K,
                          const ck_tile::index_t kbatch,
@@ -232,24 +224,6 @@ bool compare(std::string instanceName,
 
     const auto rtol_atol = calculate_rtol_atol(K, 1, max_accumulated_value);
 
-// ///////////////////////////////////
-//    std::cout << "=== Tensor Comparison ===" << std::endl;
-//     std::cout << "Device result tensor shape: " << e_m_n_dev_result.mDesc << std::endl;
-//     std::cout << "Host result tensor shape: " << e_m_n_host_result.mDesc << std::endl;
-    
-//     // Print first few elements for inspection
-//     std::cout << "Device result (first 10 elements): ";
-//     for(size_t i = 0; i < std::min(static_cast<size_t>(10), e_m_n_dev_result.mData.size()); ++i) {
-//         std::cout << static_cast<float>(e_m_n_dev_result.mData[i]) << " ";
-//     }
-//     std::cout << std::endl;
-    
-//     std::cout << "Host result (first 10 elements): ";
-//     for(size_t i = 0; i < std::min(static_cast<size_t>(10), e_m_n_host_result.mData.size()); ++i) {
-//         std::cout << static_cast<float>(e_m_n_host_result.mData[i]) << " ";
-//     }
-//     std::cout << std::endl;
-// ///////////////////////////////////
     bool pass = ck_tile::check_err(e_m_n_dev_result,
                                    e_m_n_host_result,
                                    "Error: Incorrect results!",
