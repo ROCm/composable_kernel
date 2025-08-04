@@ -20,6 +20,8 @@
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_conv_v3.hpp"
 #include <ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp>
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
+#include "ck/tensor_operation/gpu/device/impl/split_k_utils.hpp"
+#include "ck/tensor_operation/gpu/device/impl/split_k_arg.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 
@@ -381,7 +383,53 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         decltype(GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
             CGridDesc_M_N{}, 1, 1));
 
-    struct Argument : public BaseArgument
+    struct ActiveWorkgroupsPerCU
+    {
+        ActiveWorkgroupsPerCU()
+        {
+            constexpr int dynamic_smem_size = 0;
+            constexpr index_t minimum_occupancy =
+                BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;
+            int max_occupancy = 0;
+
+            if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
+            {
+                hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                    &max_occupancy,
+                    kernel_grouped_conv_bwd_weight_xdl_cshuffle_v3_2lds<
+                        GridwiseGemm,
+                        remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                        remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                        remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                        ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
+                        true,
+                        InMemoryDataOperationEnum::AtomicAdd,
+                        minimum_occupancy>,
+                    BlockSize,
+                    dynamic_smem_size));
+            }
+            else
+            {
+                hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                    &max_occupancy,
+                    kernel_grouped_conv_bwd_weight_xdl_cshuffle_v3<
+                        GridwiseGemm,
+                        remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                        remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                        remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                        ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
+                        true,
+                        InMemoryDataOperationEnum::AtomicAdd,
+                        minimum_occupancy>,
+                    BlockSize,
+                    dynamic_smem_size));
+            }
+            max_occupancy_ = std::max(1, max_occupancy);
+        }
+        int max_occupancy_;
+    };
+
+    struct Argument : public BaseArgument, public ArgumentSplitK
     {
         Argument(const InDataType* p_in_grid,
                  WeiDataType* p_wei_grid,
@@ -424,9 +472,10 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
               output_spatial_lengths_{},
               conv_filter_strides_{conv_filter_strides},
               input_left_pads_{input_left_pads},
-              input_right_pads_{input_right_pads},
-              k_batch_{split_k}
+              input_right_pads_{input_right_pads}
         {
+            static ActiveWorkgroupsPerCU active_workgroups_per_cu;
+
             c_space_size_bytes =
                 ck::accumulate_n<long_index_t>(
                     e_g_k_c_xs_lengths.begin(), NDimSpatial + I3, 1, std::multiplies<>()) *
@@ -442,6 +491,35 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
             std::copy(begin(a_g_n_k_wos_lengths) + spatial_offset,
                       end(a_g_n_k_wos_lengths),
                       begin(output_spatial_lengths_));
+
+            if(split_k < 0)
+            {
+                ck::index_t gemmM, gemmN, gemmK;
+                std::tie(gemmM, gemmN, gemmK) =
+                    get_bwd_weight_gemm_sizes<NDimSpatial>(a_g_n_k_wos_lengths, e_g_k_c_xs_lengths);
+
+                const auto grid_size =
+                    calculate_mn_grid_size<MPerBlock, NPerBlock>(gemmM, gemmN) * Conv_G_;
+                k_batch_ = get_best_occupancy_k_batch_value(active_workgroups_per_cu.max_occupancy_,
+                                                            grid_size);
+
+                // Ensure that k_batch_ does not exceed the maximum value
+                // for the GEMM pipeline.
+                const auto k_batch_max = static_cast<index_t>((gemmK - 1) / K0PerBlock);
+                k_batch_               = std::min(k_batch_, k_batch_max);
+
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "[SPLIT-K AUTODEDUCE] k_batch max value: " << k_batch_max
+                              << std::endl;
+                    std::cout << "[SPLIT-K AUTODEDUCE] Final k_batch value: " << k_batch_
+                              << std::endl;
+                }
+            }
+            else
+            {
+                k_batch_ = split_k;
+            }
 
             const auto descs =
                 conv_to_gemm_transformer
@@ -513,7 +591,6 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         const std::array<ck::index_t, NDimSpatial>& conv_filter_strides_;
         const std::array<ck::index_t, NDimSpatial>& input_left_pads_;
         const std::array<ck::index_t, NDimSpatial>& input_right_pads_;
-        const index_t k_batch_;
         long_index_t c_space_size_bytes;
     };
 

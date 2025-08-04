@@ -20,6 +20,10 @@ namespace ck_tile {
  *
  *   // create stream config with _some_stream_id_, and benchmark using cpu timer
  *   stream_config s = stream_config{_some_stream_id_, true, 0, 3, 10, false};
+ *
+ *   // create stream config with _some_stream_id_, and enable gpu timer for rotating buffer with
+ *rotating buffer count stream_config s = stream_config{_some_stream_id_, true, 0, 3, 10, true,
+ *true, 1};
  **/
 
 struct stream_config
@@ -32,6 +36,5 @@ struct stream_config
     bool is_gpu_timer_     = true; // keep compatible
     bool flush_cache_      = false;
     int rotating_count_    = 1;
-    int bench_time_ms_     = 0;
 };
 } // namespace ck_tile

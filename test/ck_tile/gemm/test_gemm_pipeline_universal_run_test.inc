@@ -375,6 +375,8 @@ int run_gemm_combinations(std::string const& data_type)
                     {
                         is_success =
                             run_gemm_test<GemmConfigComputeV3>(ARG_COUNT, argv) && is_success;
+                        is_success =
+                            run_gemm_test<GemmConfigComputeV3_2>(ARG_COUNT, argv) && is_success;
                     }
                     catch(const ArgumentsNotSupportedException& e)
                     {

@@ -5,7 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/concat.hpp"
-#include "ck_tile/ops/gemm/pipeline/wp_pipeline_agmem_bgmem_creg_v1_policy.hpp"
+#include "ck_tile/ops/gemm/pipeline/wp_pipeline_agmem_bgmem_creg_base_policy.hpp"
 
 namespace ck_tile {
 
@@ -276,12 +276,11 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
         // B flat DRAM window for load
         auto b_flat_distribution =
             PipelinePolicy::template MakeBFlatDramTileDistribution<Problem>();
-        auto b_flat_dram_window = // tile_window_with_static_distribution
-            make_tile_window(
-                b_flat_dram_block_window_tmp.get_bottom_tensor_view(), // from kernel gemm_pad_views
-                make_tuple(number<flatNPerWarp>{}, number<flatKPerWarp>{}),
-                b_flat_dram_block_window_tmp.get_window_origin(),
-                b_flat_distribution);
+        auto b_flat_dram_window =
+            make_tile_window(b_flat_dram_block_window_tmp.get_bottom_tensor_view(),
+                             make_tuple(number<flatNPerWarp>{}, number<flatKPerWarp>{}),
+                             b_flat_dram_block_window_tmp.get_window_origin(),
+                             b_flat_distribution);
 
         // Acc register tile
         auto c_block_tile = block_flatmm.MakeCBlockTile();
@@ -468,5 +467,4 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
             p_smem);
     }
 };
-
 } // namespace ck_tile
