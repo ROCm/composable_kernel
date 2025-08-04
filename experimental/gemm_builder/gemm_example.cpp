@@ -10,11 +10,6 @@ namespace ckb = ck_tile::builder;
 namespace example {
 
 // Reproduce example/ck_tile/03_gemm/universal_gemm.cpp
-//
-// That example is kind of hard to follow, but the basic idea is that
-// the function invoke_gemm (in run_gemm_example.inc) gets called with
-// a GemmConfigComputeV3 (in gemm_utils.hpp), which calls the function
-// gemm (in universal_gemm.cpp).
 
 struct MyGemmTypes
 {
