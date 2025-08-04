@@ -816,8 +816,6 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
         // 
         // Kernel Main Stage
         //
-        // Flash Attention
-        // Dao, Tri, et al. "Flashattention: Fast and memory-efficient exact attention with io-awareness." arXiv preprint arXiv:2205.14135 (2022).
         index_t gemm1_l_block_outer_index = 0;
         // Outer loop, along GEMM_L
         // Inner loop, along GEMM_K
