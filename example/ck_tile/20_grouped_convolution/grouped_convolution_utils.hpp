@@ -82,18 +82,18 @@ ck_tile::index_t fill_spatial_dimensions(std::vector<ck_tile::index_t>& filter_s
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("g", "2", "group dimension")
-        .insert("n", "32", "n dimension")
-        .insert("k", "32", "k dimension")
+    arg_parser.insert("g", "1", "group dimension")
+        .insert("n", "1", "n dimension")
+        .insert("k", "16", "k dimension")
         .insert("c", "32", "c dimension")
 
         .insert("d", "64", "d dimension")
-        .insert("h", "64", "h dimension")
-        .insert("w", "64", "w dimension")
+        .insert("h", "8", "h dimension")
+        .insert("w", "8", "w dimension")
 
-        .insert("z", "4", "z dimension")
-        .insert("y", "4", "y dimension")
-        .insert("x", "4", "x dimension")
+        .insert("z", "3", "z dimension")
+        .insert("y", "3", "y dimension")
+        .insert("x", "3", "x dimension")
 
         .insert("stride_d", "1", "d stride")
         .insert("stride_h", "1", "h stride")
