@@ -175,6 +175,10 @@ function(add_instance_library INSTANCE_NAME)
 
         target_compile_features(${INSTANCE_NAME} PUBLIC)
 
+        # splits debug information into separate .dwo files to reduce debug section size
+        if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+            target_compile_options(${INSTANCE_NAME} PRIVATE -gsplit-dwarf)
+        endif()
         # flags to compress the library
         if(NOT DISABLE_OFFLOAD_COMPRESS AND NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
             message(DEBUG "Adding --offload-compress flag for ${INSTANCE_NAME}")
