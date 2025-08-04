@@ -1,45 +1,13 @@
-
-// gemm_example.cpp (formerly hello_world.cpp)
 #include <iostream>
 #include <memory>
 #include <hip/hip_runtime.h>
 
 #include "gemm_builder.h"
-
-namespace example {
-
-// Helper to allocate device memory.
-template <typename T>
-auto AllocDevMem(const size_t n)
-{
-    auto hip_deleter = [](int* ptr) {
-        if(!ptr)
-        {
-            return;
-        }
-        if(hipError_t err = hipFree(ptr); err != hipSuccess)
-        {
-            throw std::runtime_error(std::string("Error during hipFree: ") +
-                                     hipGetErrorString(err));
-        }
-        std::cout << "hipFree called for device memory at " << ptr << std::endl;
-    };
-    std::unique_ptr<int, decltype(hip_deleter)> d_data(nullptr, hip_deleter);
-
-    // Allocate memory on the device
-    void* ptr = nullptr;
-    if(hipError_t err = hipMalloc(&ptr, n * sizeof(T)); err != hipSuccess)
-    {
-        throw std::runtime_error(std::string("Error during hipMalloc: ") + hipGetErrorString(err));
-    }
-    std::cout << "Allocated device memory at " << ptr << std::endl;
-
-    // Transfer ownership to the unique_ptr
-    d_data.reset(static_cast<int*>(ptr));
-    return d_data;
-}
+#include "utils.hpp"
 
 namespace ckb = ck_tile::builder;
+
+namespace example {
 
 // Reproduce example/ck_tile/03_gemm/universal_gemm.cpp
 //
@@ -72,24 +40,54 @@ using Kernel = Builder::Kernel;
 
 int main()
 {
-    // Create the GEMM kernel.
-    const int M = 1024, N = 2048, K = 64;
-    example::Gemm gemm;
-
-    // Describe the GEMM kernel:
+    // Describe the GEMM kernel.
     std::cout << "Kernel name: " << example::Kernel::GetName() << std::endl;
     std::cout << "Shape:       " << example::Builder::GemmShape::GetName() << std::endl;
     std::cout << "Problem:     " << example::Builder::UniversalGemmProblem::GetName() << std::endl;
     std::cout << "Pipeline:    " << example::Builder::GemmPipeline::GetName() << std::endl;
 
-    // Try GPU execution.
+    // Execute the GEMM kernel.
     try
     {
-        auto a_dev = example::AllocDevMem<float>(M * K);
-        auto b_dev = example::AllocDevMem<float>(K * N);
-        auto c_dev = example::AllocDevMem<float>(M * N);
+        const int M = 16, N = 64, K = 128;
 
-        gemm.run({.m = M, .n = N, .k = K, .a = a_dev.get(), .b = b_dev.get(), .c = c_dev.get()});
+        auto a_dev = example::AllocDevMem<ck_tile::bf16_t>(M * K);
+        auto b_dev = example::AllocDevMem<ck_tile::bf16_t>(K * N);
+        auto c_dev = example::AllocDevMem<ck_tile::bf16_t>(M * N);
+
+        [[maybe_unused]] auto kernel_args = ck_tile::UniversalGemmKernelArgs{
+            .as_ptr    = {a_dev.get()}, // As input tensor's device pointer(s)
+            .bs_ptr    = {b_dev.get()}, // Bs input tensor's device pointer(s)
+            .ds_ptr    = {},            // Ds input tensor's device pointer(s) (empty if unused)
+            .e_ptr     = c_dev.get(),   // E output tensor's device pointer
+            .M         = M,             // GEMM's M dimension size
+            .N         = N,             // GEMM's N dimension size
+            .K         = K,             // GEMM's K dimension size
+            .stride_As = {M},           // Stride(s) for As tensor(s)
+            .stride_Bs = {N},           // Stride(s) for Bs tensor(s)
+            .stride_Ds = {},            // Stride(s) for Ds tensor(s) (empty if unused)
+            .stride_E  = M,             // Stride for E tensor
+            .k_batch   = 1              // Batch size (for batched GEMM)
+        };
+        if(!example::Kernel::IsSupportedArgument(kernel_args))
+        {
+            throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!\n");
+        }
+
+        dim3 grid_dim  = example::Kernel::GridSize(M, N, 1);
+        dim3 block_dim = example::Kernel::BlockSize();
+
+        std::cout << "Running " << M << " x " << N << " x " << K << " GEMM kernel..." << std::endl;
+        std::cout << "Grid size:  " << grid_dim.x << " x " << grid_dim.y << " x " << grid_dim.z
+                  << std::endl;
+        std::cout << "Block size: " << block_dim.x << " x " << block_dim.y << " x " << block_dim.z
+                  << std::endl;
+
+        ckb::launch_kernel<example::Kernel>
+            <<<grid_dim, block_dim, 0, hipStreamDefault>>>(kernel_args);
+
+        example::CheckHipError(hipDeviceSynchronize());
+        std::cout << "GEMM completed successfully!" << std::endl;
     }
     catch(const std::exception& e)
     {

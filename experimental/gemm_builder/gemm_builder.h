@@ -210,4 +210,14 @@ struct GemmBuilder
     using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
 };
 
+// Wrap a kernel class's static __device__ operator() method in a __global__ function.
+//
+// Usage:
+//   launch_kernel<Kernel><<<grid_dim, block_dim, 0, hipStreamDefault>>>(kernel_args);
+template <typename Kernel, typename... Args>
+__global__ void launch_kernel(Args... args)
+{
+    Kernel{}(args...);
+}
+
 } // namespace ck_tile::builder
