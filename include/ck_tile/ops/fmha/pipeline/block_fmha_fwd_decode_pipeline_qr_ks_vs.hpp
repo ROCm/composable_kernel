@@ -227,14 +227,20 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
         auto q_dram_window = make_tile_window(
             q_dram_block_window_tmp, Policy::template MakeQDramTileDistribution<Problem>());
 
-        auto q_lds = make_tensor_view<address_space_enum::lds>(
+        auto q_lds_write_view = make_tensor_view<address_space_enum::lds>(
             static_cast<QDataType*>(smem_ptr), Policy::template MakeQLdsBlockDescriptor<Problem>());
 
-        auto q_lds_store_window = make_tile_window(
-            q_lds, Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
+        auto q_lds_read_view = make_tensor_view<address_space_enum::lds>(
+            static_cast<QDataType*>(smem_ptr),
+            Policy::template MakeQLdsBlockDescriptor<Problem, true>());
+
+        auto q_lds_store_window =
+            make_tile_window(q_lds_write_view,
+                             Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(),
+                             {0, 0});
 
         auto q_lds_read_window =
-            make_tile_window(q_lds,
+            make_tile_window(q_lds_read_view,
                              Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(),
                              {0, 0},
                              Policy::template MakeQRegTileDistribution<Problem>());
@@ -452,7 +458,10 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
                 sequence<1>{},
                 f_max,
                 -numeric<SMPLComputeDataType>::infinity()); // m_local = rowmax(S{j})
-            block_tile_reduce_sync(m_local, f_max, bool_constant<false>{});
+            // Set CrossWarp to false will trigger better strategy on gfx950, but will cause
+            // performance regression because of un-coexecutable packed math, silent it for now
+            block_tile_reduce_sync(
+                m_local, f_max, bool_constant<false>{} /*, bool_constant<false>{}*/);
 
             const auto m_old = m; // m{j-1}
             tile_elementwise_inout(
@@ -505,7 +514,8 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
             auto rowsum_p = block_tile_reduce<SMPLComputeDataType>(
                 p_compute, sequence<1>{}, f_sum, SMPLComputeDataType{0}); // rowsum(Pcompute{j})
 
-            block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
+            block_tile_reduce_sync(
+                rowsum_p, f_sum, bool_constant<false>{} /*, bool_constant<false>{}*/);
 
             auto p_tile = make_static_distributed_tensor<PDataType>(
                 Policy::template MakePRegTileDistribution<Problem>());
@@ -964,7 +974,8 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
                 sequence<1>{},
                 f_max,
                 -numeric<SMPLComputeDataType>::infinity()); // m_local = rowmax(S{j})
-            block_tile_reduce_sync(m_local, f_max, bool_constant<false>{});
+            block_tile_reduce_sync(
+                m_local, f_max, bool_constant<false>{} /*, bool_constant<false>{}*/);
 
             static_for<0, 12, 1>{}([&](auto i) {
                 ignore = i;
@@ -1029,7 +1040,8 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
             auto rowsum_p = block_tile_reduce<SMPLComputeDataType>(
                 p_compute, sequence<1>{}, f_sum, SMPLComputeDataType{0}); // rowsum(Pcompute{j})
 
-            block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
+            block_tile_reduce_sync(
+                rowsum_p, f_sum, bool_constant<false>{} /*, bool_constant<false>{}*/);
 
             auto p_tile = make_static_distributed_tensor<PDataType>(
                 Policy::template MakePRegTileDistribution<Problem>());

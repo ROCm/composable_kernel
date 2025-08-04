@@ -95,7 +95,15 @@ CK_TILE_DEVICE index_t get_block_id() { return blockIdx.x; }
 template <index_t lgkmcnt = 0>
 CK_TILE_DEVICE void block_sync_lds()
 {
-    __builtin_amdgcn_s_waitcnt(CK_TILE_S_CNT_MAX & CK_TILE_LGKMCNT(lgkmcnt));
+    if constexpr(lgkmcnt > 15)
+    {
+        __builtin_amdgcn_s_waitcnt(CK_TILE_S_CNT_MAX & CK_TILE_LGKMCNT(15));
+    }
+    else
+    {
+        __builtin_amdgcn_s_waitcnt(CK_TILE_S_CNT_MAX & CK_TILE_LGKMCNT(lgkmcnt));
+    }
+
     __builtin_amdgcn_s_barrier();
 }
 
