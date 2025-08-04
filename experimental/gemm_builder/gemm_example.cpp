@@ -1,5 +1,5 @@
 #include <iostream>
-#include <memory>
+
 #include <hip/hip_runtime.h>
 
 #include "gemm_builder.h"
@@ -32,9 +32,7 @@ struct MyGemmLayout
 };
 
 using Builder = ckb::GemmBuilder<MyGemmTypes, MyGemmLayout>;
-
-using Gemm   = Builder::value;
-using Kernel = Builder::Kernel;
+using Kernel  = Builder::Kernel;
 
 } // namespace example
 
@@ -55,7 +53,7 @@ int main()
         auto b_dev = example::AllocDevMem<ck_tile::bf16_t>(K * N);
         auto c_dev = example::AllocDevMem<ck_tile::bf16_t>(M * N);
 
-        [[maybe_unused]] auto kernel_args = ck_tile::UniversalGemmKernelArgs{
+        auto kernel_args = ck_tile::UniversalGemmKernelArgs{
             .as_ptr    = {a_dev.get()}, // As input tensor's device pointer(s)
             .bs_ptr    = {b_dev.get()}, // Bs input tensor's device pointer(s)
             .ds_ptr    = {},            // Ds input tensor's device pointer(s) (empty if unused)
@@ -94,6 +92,5 @@ int main()
         std::cerr << "Exception: " << e.what() << std::endl;
         return 1;
     }
-
     return 0;
 }
