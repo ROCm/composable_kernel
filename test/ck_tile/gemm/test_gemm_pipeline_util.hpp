@@ -103,12 +103,11 @@ class TestCkTileGemmPipeline : public ::testing::Test
     template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
     void invoke_gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     {
-        // TODO: This should be parameterized in tests
-        constexpr auto numWaveGroups      = (PipelineType == GemmPipelineType::CompV6) ? 2 : 1;
+        constexpr auto numWaveGroups      = 1;
         constexpr ck_tile::index_t M_Tile = 256;
         constexpr ck_tile::index_t N_Tile = 256;
         constexpr ck_tile::index_t K_Tile =
-            (PipelineType == GemmPipelineType::CompV4 || PipelineType == GemmPipelineType::CompV6)
+            (PipelineType == GemmPipelineType::CompV4 || PipelineType == GemmPipelineType::CompV5)
                 ? 32
                 : 64;
 
@@ -126,9 +125,9 @@ class TestCkTileGemmPipeline : public ::testing::Test
         constexpr bool preshuffle = Preshuffle;
 
         constexpr bool DoubleSmemBuffer = (PipelineType == GemmPipelineType::CompV4) ? true : false;
-
+        constexpr bool TransposeC       = false;
+        static constexpr bool StructuredSparsity = false;
         // TODO: For now - but this should also be a test parameter
-        constexpr bool TransposeC = false;
 
         constexpr int kBlockPerCu                         = 1;
         constexpr ck_tile::index_t TileParitionerGroupNum = 8;
@@ -145,8 +144,6 @@ class TestCkTileGemmPipeline : public ::testing::Test
 
         using Traits =
             ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout, numWaveGroups>;
-        static constexpr bool StructuredSparsity = false;
-        static constexpr bool NumWaveGroup       = 1;
 
         using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
                                                                      kPadN,
@@ -158,7 +155,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                                      TransposeC,
                                                                      StructuredSparsity,
                                                                      Persistent,
-                                                                     NumWaveGroup,
+                                                                     numWaveGroups,
                                                                      preshuffle>;
 
         using GemmPipelineProblem =

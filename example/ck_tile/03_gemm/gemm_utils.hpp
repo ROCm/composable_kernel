@@ -248,7 +248,7 @@ struct GemmConfigComputeV6 : public GemmConfigBase
 
     static constexpr bool DoubleSmemBuffer          = false;
     static constexpr ck_tile::index_t Pipeline      = CK_TILE_PIPELINE_COMPUTE_V6;
-    static constexpr ck_tile::index_t NumWaveGroups = 2;
+    static constexpr ck_tile::index_t NumWaveGroups = 1;
 };
 
 template <typename PrecType>
@@ -450,14 +450,15 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V5>
 };
 
 template <>
-<<<<<<< HEAD
 struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V6>
 {
     template <typename PipelineProblem>
     using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV6<PipelineProblem>;
     template <typename PipelineProblem>
     using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV6<PipelineProblem>;
-=======
+};
+
+template <>
 struct PipelineTypeTraits<CK_TILE_PIPELINE_PRESHUFFLE>
 {
     template <typename PipelineProblem>
@@ -465,7 +466,6 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_PRESHUFFLE>
     template <typename PipelineProblem>
     using UniversalGemmPipeline =
         ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV1<PipelineProblem>;
->>>>>>> develop
 };
 
 auto create_args(int argc, char* argv[])
