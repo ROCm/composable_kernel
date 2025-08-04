@@ -4,8 +4,9 @@
 
 template <typename PrecType,
           typename FlatmmConfig,
-          int ScaleGranularityM = -1,
-          int ScaleGranularityN = -1,
+          int ScaleGranularityM    = -1,
+          int ScaleGranularityN    = -1,
+          bool UsePersistentKernel = false,
           typename ALayout,
           typename BLayout,
           typename CLayout>
@@ -55,7 +56,9 @@ int run_flatmm_example_with_layouts(int argc,
     // TODO: add different init types
     if(init_method == 0)
     {
-        ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_host);
+        // ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_host);
+        // ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_origin_host);
+        ck_tile::FillUniformDistribution<ADataType>{0.0f, 1.0f}(a_host);
         ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_origin_host);
         ck_tile::FillUniformDistribution<AccDataType>{-1.f, 1.f}(per_token_scale);
         ck_tile::FillUniformDistribution<AccDataType>{-1.f, 1.f}(per_channel_scale);
@@ -93,7 +96,16 @@ int run_flatmm_example_with_layouts(int argc,
     per_channel_scale_dev_buf.ToDevice(per_channel_scale.data());
 
     // do pre-shuffle
-    ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<FlatmmConfig>(b_origin_host);
+    ck_tile::HostTensor<BDataType> b_shuffle_host = [&]() {
+        if constexpr(FlatmmConfig::TiledMMAPermuteN)
+        {
+            return shuffle_b_v1<FlatmmConfig>(b_origin_host);
+        }
+        else
+        {
+            return shuffle_b<FlatmmConfig>(b_origin_host);
+        }
+    }();
     ck_tile::DeviceMem b_shuffle_dev_buf(b_shuffle_host.get_element_space_size_in_bytes());
     b_shuffle_dev_buf.ToDevice(b_shuffle_host.data());
 
@@ -113,27 +125,29 @@ int run_flatmm_example_with_layouts(int argc,
                   ck_tile::tuple<>,
                   CLayout,
                   decltype(per_token_scale_dev_ptr),
-                  decltype(per_channel_scale_dev_ptr)>(a_dev_buf,
-                                                       b_shuffle_dev_buf,
-                                                       c_dev_buf,
-                                                       M,
-                                                       N,
-                                                       K,
-                                                       stride_A,
-                                                       stride_B,
-                                                       stride_C,
-                                                       kbatch,
-                                                       per_token_scale_dev_ptr,
-                                                       per_channel_scale_dev_ptr,
-                                                       n_warmup,
-                                                       n_repeat);
+                  decltype(per_channel_scale_dev_ptr),
+                  UsePersistentKernel>(a_dev_buf,
+                                       b_shuffle_dev_buf,
+                                       c_dev_buf,
+                                       M,
+                                       N,
+                                       K,
+                                       stride_A,
+                                       stride_B,
+                                       stride_C,
+                                       kbatch,
+                                       per_token_scale_dev_ptr,
+                                       per_channel_scale_dev_ptr,
+                                       n_warmup,
+                                       n_repeat);
 
     c_dev_buf.FromDevice(c_rslt_host.data());
+
     bool pass = true;
 
     if(arg_parser.get_int("v") == 1)
     {
-        if (ScaleGranularityM != -1 || ScaleGranularityN != -1)
+        if(ScaleGranularityM != -1 || ScaleGranularityN != -1)
             throw std::runtime_error("ScaleAB is not supported for CPU verification!\n");
         ck_tile::HostTensor<CDataType> c_ref_host(
             ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));

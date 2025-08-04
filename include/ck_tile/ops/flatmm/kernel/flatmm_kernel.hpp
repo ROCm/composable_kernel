@@ -228,7 +228,8 @@ struct FlatmmKernel
     using ELayout          = remove_cvref_t<typename FlatmmPipeline::CLayout>;
     using DsLayout         = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
     using DsDataType       = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
-    static constexpr index_t KernelBlockSize = FlatmmPipeline::BlockSize;
+    static constexpr index_t KernelBlockSize  = FlatmmPipeline::BlockSize;
+    static constexpr bool UsePersistentKernel = FlatmmPipeline::UsePersistentKernel;
 
     using ADataType = remove_cvref_t<typename FlatmmPipeline::ADataType>;
     using BDataType = remove_cvref_t<typename FlatmmPipeline::BDataType>;
@@ -257,7 +258,48 @@ struct FlatmmKernel
 
     CK_TILE_HOST static constexpr auto GridSize(index_t M, index_t N, index_t KBatch)
     {
+        assert(!UsePersistentKernel);
         return dim3(TilePartitioner::GridSize(M, N), 1, KBatch);
+    }
+
+    template <class ScaleM, class ScaleN>
+    CK_TILE_HOST static constexpr auto
+    GridSize(const FlatmmKernelArgs<ScaleM, ScaleN, DsDataType::size()>& kargs)
+    {
+        if constexpr(UsePersistentKernel)
+        {
+            hipDeviceProp_t prop;
+            int deviceId = 0; // default device
+
+            constexpr int block_size = FlatmmKernel::BlockSize().x;
+            int dync_smem_size       = 0;
+            int maxActiveBlocksPerCU = 0;
+
+            [[maybe_unused]] auto e = hipGetDeviceProperties(&prop, deviceId);
+
+            e = hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                &maxActiveBlocksPerCU,
+                reinterpret_cast<void*>(
+                    kentry2<block_size,
+                            FlatmmKernel,
+                            FlatmmKernelArgs<ScaleM, ScaleN, DsDataType::size()>>),
+                block_size,
+                dync_smem_size);
+
+            const int persistent_block_size = prop.multiProcessorCount * maxActiveBlocksPerCU;
+            const int total_work_tile_cnt   = TilePartitioner::GridSize(kargs.M, kargs.N);
+
+            // std::cout << "maxActiveBlocksPerCU: " << maxActiveBlocksPerCU
+            //           << ", persistent_block_size: " << persistent_block_size
+            //           << ", total_work_tile_cnt: " << total_work_tile_cnt << std::endl;
+
+            assert(kargs.k_batch == 1);
+            return dim3(min(persistent_block_size, total_work_tile_cnt), 1, kargs.k_batch);
+        }
+        else
+        {
+            return dim3(TilePartitioner::GridSize(kargs.M, kargs.N), 1, kargs.k_batch);
+        }
     }
 
     CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
@@ -342,6 +384,14 @@ struct FlatmmKernel
             if(kargs.k_batch != 1)
             {
                 std::cerr << "Conditions not met for Kbatch >1 !" << std::endl;
+                return false;
+            }
+        }
+        if constexpr(UsePersistentKernel)
+        {
+            if(kargs.k_batch != 1)
+            {
+                std::cerr << "Persistent mode doesn't support Kbatch >1 !" << std::endl;
                 return false;
             }
         }
@@ -753,38 +803,45 @@ struct FlatmmKernel
     CK_TILE_DEVICE void operator()(FlatmmKernelArgs<ScaleM, ScaleN, DsDataType::size()> kargs,
                                    int partition_idx = blockIdx.x) const
     {
-        const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(partition_idx);
-        const index_t i_m   = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
-        const index_t i_n   = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
+        int total_work_tile_cnt = TilePartitioner::GridSize(kargs.M, kargs.N);
 
-        const SplitKBatchOffset splitk_batch_offset(kargs);
-        // options
-        const ADataType* a_ptr =
-            static_cast<const ADataType*>(kargs.a_ptr) + splitk_batch_offset.a_k_split_offset;
-        const BDataType* b_flat_ptr =
-            static_cast<const BDataType*>(kargs.b_ptr) + splitk_batch_offset.b_k_split_offset;
-        EDataType* e_ptr = static_cast<EDataType*>(kargs.e_ptr);
-
-        // allocate LDS
-        __shared__ char smem_ptr_ping[GetSmemPingSize()];
-        __shared__ char smem_ptr_pong[GetSmemPongSize()];
-
-        if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
-                       EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
-                       is_any_of<EDataType, fp16_t, bf16_t>::value))
+        do
         {
-            constexpr auto scheduler_type = (FlatmmPipeline::NumWaveGroups == 1);
-            RunFlatmm<ScaleM, ScaleN, scheduler_type>(a_ptr,
-                                                      b_flat_ptr,
-                                                      kargs.ds_ptr,
-                                                      e_ptr,
-                                                      smem_ptr_ping,
-                                                      smem_ptr_pong,
-                                                      kargs,
-                                                      splitk_batch_offset,
-                                                      i_m,
-                                                      i_n);
-        }
+            const auto [iM, iN] =
+                TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(partition_idx);
+            const index_t i_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
+            const index_t i_n = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
+
+            const SplitKBatchOffset splitk_batch_offset(kargs);
+            // options
+            const ADataType* a_ptr =
+                static_cast<const ADataType*>(kargs.a_ptr) + splitk_batch_offset.a_k_split_offset;
+            const BDataType* b_flat_ptr =
+                static_cast<const BDataType*>(kargs.b_ptr) + splitk_batch_offset.b_k_split_offset;
+            EDataType* e_ptr = static_cast<EDataType*>(kargs.e_ptr);
+
+            // allocate LDS
+            __shared__ char smem_ptr_ping[GetSmemPingSize()];
+            __shared__ char smem_ptr_pong[GetSmemPongSize()];
+
+            if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
+                           EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
+                           is_any_of<EDataType, fp16_t, bf16_t>::value))
+            {
+                constexpr auto scheduler_type = (FlatmmPipeline::NumWaveGroups == 1);
+                RunFlatmm<ScaleM, ScaleN, scheduler_type>(a_ptr,
+                                                          b_flat_ptr,
+                                                          kargs.ds_ptr,
+                                                          e_ptr,
+                                                          smem_ptr_ping,
+                                                          smem_ptr_pong,
+                                                          kargs,
+                                                          splitk_batch_offset,
+                                                          i_m,
+                                                          i_n);
+            }
+            partition_idx += gridDim.x;
+        } while(UsePersistentKernel && partition_idx < total_work_tile_cnt);
     }
 };
 

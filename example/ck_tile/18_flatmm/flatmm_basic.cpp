@@ -13,7 +13,6 @@
 #include "flatmm_basic.hpp"
 #include <type_traits>
 
-
 template <typename T>
 constexpr const char* DataTypeToString()
 {
@@ -63,6 +62,25 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t)
     return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
 }
 
+template <typename FlatmmConfig, typename T>
+auto shuffle_b_v1(const ck_tile::HostTensor<T>& t)
+{
+    assert(t.get_lengths().size() == 2);
+    int n_                = t.get_lengths()[1];
+    int k_                = t.get_lengths()[0];
+    constexpr int divisor = FlatmmConfig::N_Warp_Tile == 32 ? 2 : 4;
+    constexpr int NRepeat = FlatmmConfig::N_Tile / FlatmmConfig::N_Warp_Tile / FlatmmConfig::N_Warp;
+    ck_tile::HostTensor<T> t_view({n_ / FlatmmConfig::N_Tile,
+                                   FlatmmConfig::N_Warp,
+                                   FlatmmConfig::N_Warp_Tile,
+                                   NRepeat,
+                                   k_ / FlatmmConfig::K_Warp_Tile,
+                                   divisor,
+                                   FlatmmConfig::K_Warp_Tile / divisor});
+    std::copy(t.begin(), t.end(), t_view.begin());
+    return ck_tile::reference_permute(t_view, {0, 3, 1, 4, 5, 2, 6});
+}
+
 template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
 auto calculate_rtol_atol(const ck_tile::index_t K,
                          const ck_tile::index_t kbatch,
@@ -83,7 +101,6 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     // Use higher threshold
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
-
 
 template <typename FlatmmConfig,
           typename ADataType,
@@ -138,7 +155,7 @@ float flatmm_calc(const ck_tile::ScaleFlatmmHostArgs<ScaleM, ScaleN>& args,
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenFlatmmShape, Traits>;
 
-    using BaseGemmPipeline = ck_tile::BaseFlatmmPipelineAGmemBGmemCRegV0<GemmPipelineProblem>;
+    using BaseGemmPipeline = ck_tile::BaseFlatmmPipelineAGmemBGmemCRegV1<GemmPipelineProblem>;
 
     const ck_tile::index_t k_grain     = args.k_batch * FlatmmConfig::K_Tile;
     const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * FlatmmConfig::K_Tile;
@@ -165,7 +182,7 @@ float flatmm_calc(const ck_tile::ScaleFlatmmHostArgs<ScaleM, ScaleN>& args,
                                                                       tail_number_v>;
 
         using CodegenFlatmmPipeline =
-            ck_tile::FlatmmPipelineAGmemBGmemCRegV0<CodegenPipelineProblem>;
+            ck_tile::FlatmmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
@@ -186,7 +203,10 @@ float flatmm_calc(const ck_tile::ScaleFlatmmHostArgs<ScaleM, ScaleN>& args,
                                              FlatmmConfig::K_Warp_Tile,
                                              CodegenPipelineProblem::TransposeC,
                                              memory_operation,
-                                             FlatmmConfig::NumWaveGroups>>;
+                                             FlatmmConfig::NumWaveGroups,
+                                             false,
+                                             1,
+                                             FlatmmConfig::TiledMMAPermuteN>>;
 
         // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
         // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
@@ -194,7 +214,7 @@ float flatmm_calc(const ck_tile::ScaleFlatmmHostArgs<ScaleM, ScaleN>& args,
 
         auto kargs = Kernel::MakeKernelArgs(args);
 
-        const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
+        const dim3 grids      = Kernel::GridSize(kargs);
         constexpr dim3 blocks = Kernel::BlockSize();
 
         if(!Kernel::IsSupportedArgument(kargs))
@@ -291,7 +311,8 @@ template <typename FlatmmConfig,
           typename CLayout,
           typename ScaleM,
           typename ScaleN,
-          typename CDEElementWise = ck_tile::element_wise::PassThrough>
+          bool UsePersistentKernel = false,
+          typename CDEElementWise  = ck_tile::element_wise::PassThrough>
 float invoke_flatmm(ck_tile::DeviceMem& a_dev_buf,
                     ck_tile::DeviceMem& b_shuffle_dev_buf,
                     ck_tile::DeviceMem& c_dev_buf,
@@ -334,7 +355,7 @@ float invoke_flatmm(ck_tile::DeviceMem& a_dev_buf,
                                  CLayout,
                                  ScaleM,
                                  ScaleN,
-                                 false,
+                                 UsePersistentKernel,
                                  CDEElementWise>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
 
@@ -373,6 +394,7 @@ auto create_args(int argc, char* argv[])
         .insert("split_k", "1", "splitK value")
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
         .insert("scale", "0", "0:without scale, 1:per-token/channel scale, only for fp8/bf8")
+        .insert("persistent", "0", "0: no persistent, 1: persistent kernel")
         .insert("warp_tile",
                 "0",
                 "0: 16x16, 1: 32x32, 2: 16x16x128 (950 only), 3: 32x32x64 (950 only)");
@@ -396,6 +418,7 @@ int run_flatmm_example(int argc, char* argv[])
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
     int scale_opt         = arg_parser.get_int("scale");
+    int persistent_opt    = arg_parser.get_int("persistent");
     if(a_layout == "R" && b_layout == "C")
     {
         if(data_type == "fp16")
@@ -412,13 +435,35 @@ int run_flatmm_example(int argc, char* argv[])
         {
             if(scale_opt == 0)
             {
-                run_flatmm_example_with_layouts<ck_tile::fp8_t, FlatmmConfig<ck_tile::fp8_t>>(
-                    argc, argv, Row{}, Col{}, Row{});
+                if(persistent_opt == 0)
+                {
+                    run_flatmm_example_with_layouts<ck_tile::fp8_t, FlatmmConfig<ck_tile::fp8_t>>(
+                        argc, argv, Row{}, Col{}, Row{});
+                }
+                else
+                {
+                    run_flatmm_example_with_layouts<ck_tile::fp8_t,
+                                                    FlatmmConfig<ck_tile::fp8_t>,
+                                                    -1,
+                                                    -1,
+                                                    true>(argc, argv, Row{}, Col{}, Row{});
+                }
             }
             else
             {
-                run_flatmm_example_with_layouts<ck_tile::fp8_t, FlatmmConfig<ck_tile::fp8_t>, 1, 1>(
-                    argc, argv, Row{}, Col{}, Row{});
+                if(persistent_opt == 0)
+                {
+                    run_flatmm_example_with_layouts<ck_tile::fp8_t, FlatmmConfig<ck_tile::fp8_t>>(
+                        argc, argv, Row{}, Col{}, Row{});
+                }
+                else
+                {
+                    run_flatmm_example_with_layouts<ck_tile::fp8_t,
+                                                    FlatmmConfig<ck_tile::fp8_t>,
+                                                    1,
+                                                    1,
+                                                    true>(argc, argv, Row{}, Col{}, Row{});
+                }
             }
         }
         else if(data_type == "bf8")
