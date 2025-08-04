@@ -49,18 +49,18 @@ int main()
         auto c_dev = example::AllocDevMem<ck_tile::bf16_t>(M * N);
 
         auto kernel_args = ck_tile::UniversalGemmKernelArgs{
-            .as_ptr    = {a_dev.get()}, // As input tensor's device pointer(s)
-            .bs_ptr    = {b_dev.get()}, // Bs input tensor's device pointer(s)
-            .ds_ptr    = {},            // Ds input tensor's device pointer(s) (empty if unused)
-            .e_ptr     = c_dev.get(),   // E output tensor's device pointer
+            .as_ptr    = {a_dev.get()}, // Address of tensor A in device memory.
+            .bs_ptr    = {b_dev.get()}, // Address of tensor B in device memory.
+            .ds_ptr    = {},            // Unused.
+            .e_ptr     = c_dev.get(),   // Address of tensor C in device memory.
             .M         = M,             // GEMM's M dimension size
             .N         = N,             // GEMM's N dimension size
             .K         = K,             // GEMM's K dimension size
-            .stride_As = {M},           // Stride(s) for As tensor(s)
-            .stride_Bs = {N},           // Stride(s) for Bs tensor(s)
-            .stride_Ds = {},            // Stride(s) for Ds tensor(s) (empty if unused)
-            .stride_E  = M,             // Stride for E tensor
-            .k_batch   = 1              // Batch size (for batched GEMM)
+            .stride_As = {M},           // Stride for tensor A_MK (row major).
+            .stride_Bs = {N},           // Stride for tensor B_KN (column major).
+            .stride_Ds = {},            // Unused.
+            .stride_E  = M,             // Stride for tensor C_MN (row major).
+            .k_batch   = 1              // Batch size is 1 for a single GEMM.
         };
         if(!example::Kernel::IsSupportedArgument(kernel_args))
         {
