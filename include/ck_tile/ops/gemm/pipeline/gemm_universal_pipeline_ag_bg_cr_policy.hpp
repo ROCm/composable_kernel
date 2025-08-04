@@ -59,9 +59,6 @@ struct UniversalGemmBasePolicy
         {
             if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
             {
-                constexpr index_t KPack = GetSmemPackA<Problem>();
-
-                constexpr auto DataTypeSize = sizeof(ADataType);
                 constexpr auto MLdsLayer =
                     (32 * 4 / KPerBlock / DataTypeSize) < 1 ? 1 : (32 * 4 / KPerBlock / DataTypeSize);
 
@@ -107,7 +104,7 @@ struct UniversalGemmBasePolicy
                 // more dimension in merge_transform increase the difficulty of generating immarg offset
                 // for compiler.
                 constexpr index_t BlockSize   = Problem::kBlockSize;
-                constexpr index_t VecLoadSize = GetVectorSizeB<Problem>();
+                constexpr index_t VecLoadSize = GetVectorSizeA<Problem>();
                 using TileEncodingPattern     = TileDistributionEncodingPattern2D<BlockSize,
                                                                             KPerBlock,
                                                                             MPerBlock,
