@@ -50,9 +50,9 @@ namespace ckb = ck_tile::builder;
 
 struct MyGemmTypes
 {
-    using ADataType   = float;
-    using BDataType   = float;
-    using CDataType   = float;
+    using ADataType   = ck_tile::bf16_t;
+    using BDataType   = ck_tile::bf16_t;
+    using CDataType   = ck_tile::bf16_t;
     using AccDataType = float;
 };
 
@@ -77,10 +77,10 @@ int main()
     example::Gemm gemm;
 
     // Describe the GEMM kernel:
-    std::cout << "Shape: " << example::Builder::GemmShape::GetName() << std::endl;
-    std::cout << "Problem: " << example::Builder::UniversalGemmProblem::GetName() << std::endl;
-    // std::cout << "Pipeline: " << example::Builder::GemmPipeline::GetName() << std::endl;
-    // std::cout << "Kernel name: " << Kernel::GetName() << std::endl;
+    std::cout << "Kernel name: " << example::Kernel::GetName() << std::endl;
+    std::cout << "Shape:       " << example::Builder::GemmShape::GetName() << std::endl;
+    std::cout << "Problem:     " << example::Builder::UniversalGemmProblem::GetName() << std::endl;
+    std::cout << "Pipeline:    " << example::Builder::GemmPipeline::GetName() << std::endl;
 
     // Try GPU execution.
     try

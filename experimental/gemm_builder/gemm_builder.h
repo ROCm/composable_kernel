@@ -3,13 +3,10 @@
 #include <concepts>
 
 #include "ck_tile/host.hpp"
-#include "ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp"
-#include "ck_tile/ops/gemm/kernel/gemm_tile_partitioner.hpp"
-#include "ck_tile/ops/gemm/pipeline/tile_gemm_traits.hpp"
-#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_problem.hpp"
-#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_comp_v3.hpp"
-#include "ck_tile/ops/gemm/kernel/gemm_kernel.hpp"
-#include "ck_tile/ops/epilogue/cshuffle_epilogue.hpp"
+#include "ck_tile/core.hpp"
+#include "ck_tile/host/kernel_launch.hpp"
+#include "ck_tile/ops/epilogue.hpp"
+#include "ck_tile/ops/gemm.hpp"
 
 namespace ck_tile::builder {
 
@@ -85,7 +82,7 @@ class Gemm
 template <DefinesGemmTypes Types>
 struct GemmConfigForTypes
 {
-    using PrecType = Types::AccDataType;
+    using PrecType = Types::ADataType;
 
     static constexpr int CK_TILE_PIPELINE_COMPUTE_V3 = 1;
     static consteval auto get_k_warp_tile(auto M_Warp_Tile)
@@ -183,17 +180,11 @@ struct GemmBuilder
                                                                        typename Types::AccDataType,
                                                                        GemmShape,
                                                                        GemmUniversalTraits,
-                                                                       GemmConfig::Scheduler>;
+                                                                       GemmConfig::Scheduler,
+                                                                       true,
+                                                                       ck_tile::TailNumber::Full>;
 
-    using GemmPipelineProblem = ck_tile::GemmPipelineProblem<typename Types::ADataType,
-                                                             typename Types::BDataType,
-                                                             typename Types::AccDataType,
-                                                             GemmShape,
-                                                             Traits>;
-
-    using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
-
-    using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
+    using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>;
 
     using GemmEpilogue = ck_tile::CShuffleEpilogue<
         ck_tile::CShuffleEpilogueProblem<typename Types::ADataType,
@@ -213,10 +204,10 @@ struct GemmBuilder
                                          GemmConfig::N_Warp_Tile,
                                          GemmConfig::K_Warp_Tile,
                                          UniversalGemmProblem::TransposeC,
-                                         ck_tile::memory_operation_enum::set,
+                                         ck_tile::memory_operation_enum::atomic_add,
                                          GemmConfig::NumWaveGroups>>;
 
-    using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmPipeline>;
+    using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
 };
 
 } // namespace ck_tile::builder
