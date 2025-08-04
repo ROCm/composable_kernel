@@ -80,10 +80,11 @@ void gemm_multi_d_host_reference(int verify,
                          ck_tile::HostTensor<D1DataType>& d1_m_n,
                          ck_tile::HostTensor<EDataType>& e_m_n_host_result)
 {
+    std::cout << "Inside gemm_multi_d_host_reference function" << std::endl;
     if(verify > 0)
     {
         // Currently supporting on CPU verification for Gemm Multi D
-        printf("Running reference implementation for Gemm Multi D on CPU\n");
+        // printf("Running reference implementation for Gemm Multi D on CPU\n");
         e_m_n_host_result.SetZero();
 
         ck_tile::reference_gemm_multiple_d<ADataType,
@@ -93,7 +94,15 @@ void gemm_multi_d_host_reference(int verify,
                                        EDataType,
                                        MultiplyMultiply>(
         a_m_k, b_k_n, {d0_m_n, d1_m_n}, e_m_n_host_result);
+
+        ///////////////////////////////////
+
+        for(size_t i = 0; i < std::min(static_cast<size_t>(10), e_m_n_host_result.mData.size()); ++i) {
+            std::cout << static_cast<float>(e_m_n_host_result.mData[i]) << " ";
+        }
+///////////////////////////////////
     }
+    std::cout << "Exiting gemm_multi_d_host_reference function" << std::endl;
 }
 
 
@@ -223,6 +232,24 @@ bool compare(std::string instanceName,
 
     const auto rtol_atol = calculate_rtol_atol(K, 1, max_accumulated_value);
 
+// ///////////////////////////////////
+//    std::cout << "=== Tensor Comparison ===" << std::endl;
+//     std::cout << "Device result tensor shape: " << e_m_n_dev_result.mDesc << std::endl;
+//     std::cout << "Host result tensor shape: " << e_m_n_host_result.mDesc << std::endl;
+    
+//     // Print first few elements for inspection
+//     std::cout << "Device result (first 10 elements): ";
+//     for(size_t i = 0; i < std::min(static_cast<size_t>(10), e_m_n_dev_result.mData.size()); ++i) {
+//         std::cout << static_cast<float>(e_m_n_dev_result.mData[i]) << " ";
+//     }
+//     std::cout << std::endl;
+    
+//     std::cout << "Host result (first 10 elements): ";
+//     for(size_t i = 0; i < std::min(static_cast<size_t>(10), e_m_n_host_result.mData.size()); ++i) {
+//         std::cout << static_cast<float>(e_m_n_host_result.mData[i]) << " ";
+//     }
+//     std::cout << std::endl;
+// ///////////////////////////////////
     bool pass = ck_tile::check_err(e_m_n_dev_result,
                                    e_m_n_host_result,
                                    "Error: Incorrect results!",

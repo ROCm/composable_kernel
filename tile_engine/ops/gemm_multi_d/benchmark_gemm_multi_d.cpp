@@ -49,19 +49,6 @@ void benchmark_gemm_multi_d(const ck_tile::ArgParser& arg_parser)
     try
     {
         auto kernel_func = get_kernel_func_by_trait(arg_parser);
-
-        // Print information about the vector of kernel functions
-        std::cout << "Number of kernel functions: " << kernel_func.size() << std::endl;
-        std::cout << "Kernel function type: " << typeid(kernel_func).name() << std::endl;
-        
-        // Print information about each kernel function in the vector
-        for (size_t i = 0; i < kernel_func.size(); ++i) {
-            std::cout << "Kernel function [" << i << "] address: " 
-                    << reinterpret_cast<void*>(&kernel_func[i]) << std::endl;
-            std::cout << "Kernel function [" << i << "] target type: " 
-                    << typeid(kernel_func[i]).name() << std::endl;
-        }
-
         profiler.benchmark(gemm_multi_d_problem, kernel_func);
         // profiler.select_best_instance(static_cast<Metric>(arg_parser.get_int("metric")));
     }

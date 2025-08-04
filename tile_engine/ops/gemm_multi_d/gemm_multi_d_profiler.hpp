@@ -25,12 +25,25 @@ class GemmProfiler
                        ck_tile::GemmHostArgs<DsDataType::size()>&, const ck_tile::stream_config&)>>& callables)
     {
 
-        std::cout << "Inside GemmProfiler::benchmark" << std::endl;
+        // std::cout << "Inside GemmProfiler::benchmark" << std::endl;
         const ALayout layout_a = ALayout{};
         const BLayout layout_b = BLayout{};
         const D0Layout layout_d0 = D0Layout{};
         const D1Layout layout_d1 = D1Layout{};
         const ELayout layout_e = ELayout{};
+
+/////////////////////////////////////////////////////////////////////
+    // std::cout<< "M = " << gemm_problem.m_ << ", N = " << gemm_problem.n_ << ", K = " << gemm_problem.k_ << std::endl;
+    // std::cout<< "StrideA = " << gemm_problem.stride_a_ << ", StrideB = " << gemm_problem.stride_b_
+    //          << ", StrideD0 = " << gemm_problem.stride_d0_ << ", StrideD1 = " << gemm_problem.stride_d1_
+    //          << ", StrideE = " << gemm_problem.stride_e_ << std::endl;
+    // std::cout<< "Warmup iterations = " << setting_.n_warmup_ << ", Repeat iterations = " << setting_.n_repeat_
+    //          << ", Batch size = " << gemm_problem.split_k_ << std::endl;
+    // std::cout<< "Data layouts: A = " << layout_a << ", B = " << layout_b
+    //          << ", D0 = " << layout_d0 << ", D1 = " << layout_d1
+    //          << ", E = " << layout_e << std::endl;
+
+////////////////////////////////////////////////////////////////////
 
         gemm_problem.stride_a_ = ck_tile::get_default_stride(
             gemm_problem.m_, gemm_problem.k_, gemm_problem.stride_a_, is_row_major(layout_a));
@@ -110,16 +123,20 @@ class GemmProfiler
 
         for(auto& callable : callables)
         {
+            printf("Inside Callable loop\n");
             printf("Running kernel: %s\n", callable.target_type().name());
             auto kernel_run_result = callable(gemm_args,
                                               ck_tile::stream_config{nullptr,
                                                                      true,
                                                                      setting_.log_,
                                                                      setting_.n_warmup_,
-                                                                     setting_.n_repeat_,
-                                                                     setting_.is_gpu_timer_,
-                                                                     setting_.flush_cache_,
-                                                                     setting_.rotating_count_});
+                                                                     setting_.n_repeat_
+                                                                    //  ,
+                                                                    //  setting_.is_gpu_timer_,
+                                                                    //  setting_.flush_cache_,
+                                                                    //  setting_.rotating_count_
+                                                                    });
+
 
             auto [kernel_name, execution_time] = kernel_run_result;
             std::cout << "Kernel result - Name: " << kernel_name 
@@ -130,6 +147,8 @@ class GemmProfiler
                            e_m_n_host_result,
                            e_m_n_device_result,
                            kernel_run_result);
+            printf("Exiting Callable loop\n");
+
         }
     }
 
@@ -139,7 +158,7 @@ class GemmProfiler
                         ck_tile::HostTensor<EDataType>& e_m_n_dev_result,
                         const std::tuple<std::string, float>& kernel_run_result)
     {
-        std::cout << "Processing result for GEMM problem: " << gemm_problem << std::endl;
+        // std::cout << "Processing result for GEMM problem: " << gemm_problem << std::endl;
         auto [name, avg_time] = kernel_run_result;
         
         KernelInstance kernel_instance{name, gemm_problem, {-1.0f, -1.0f, -1.0f}};

@@ -89,7 +89,7 @@ inline auto create_args(int argc, char* argv[])
         .insert("verify",
                 "1",
                 "The type of validation. Set to 0 for no validation, 1 for validation on CPU, or 2 "
-                "for validation on GPU. Default is 1, validation on CPU as validation on GPU is not supported.")
+                "for validation on GPU. Default is 1, validation on CPU, as validation on GPU is not supported.")
         .insert("log",
                 "false",
                 "Wether output kernel instance information or not. Possible values are true or "
@@ -118,10 +118,6 @@ inline auto create_args(int argc, char* argv[])
         .insert("csv_filename",
                 "gemm_kernel",
                 "The filename of benchmark result. Default is gemm_kernel.")
-        .insert("structured_sparsity",
-                "false",
-                "Whether use sparsity kernel or not. Possible values are true or false. Default is "
-                "false")
         .insert(
             "pipeline",
             "compv3",
