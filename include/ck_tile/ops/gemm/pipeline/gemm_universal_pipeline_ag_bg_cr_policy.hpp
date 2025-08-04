@@ -135,7 +135,8 @@ struct UniversalGemmBasePolicy
                                                    ? 1
                                                    : LdsBanksWidth / (AK1 * M0 * sizeof(ADataType));
                 constexpr auto KThreadReadPerm =
-                    (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
+                    ((kfold * K0PerThreadWrite / K0PerThreadRead) > 1 &&
+                     (kfold * K0PerThreadWrite / K0PerThreadRead) < KThreadRead)
                         ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
                         : KThreadRead;
 
@@ -321,7 +322,8 @@ struct UniversalGemmBasePolicy
                                                    ? 1
                                                    : LdsBanksWidth / (BK1 * N0 * sizeof(BDataType));
                 constexpr auto KThreadReadPerm =
-                    (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
+                    ((kfold * K0PerThreadWrite / K0PerThreadRead) > 1 &&
+                     (kfold * K0PerThreadWrite / K0PerThreadRead) < KThreadRead)
                         ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
                         : KThreadRead;
 
