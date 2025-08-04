@@ -67,11 +67,9 @@ class TestCkTileReduce : public ::testing::Test
 
         // Generic helper to create tuple from vector based on compile-time size
         auto make_shape_tuple = []<std::size_t N>(const std::vector<ck_tile::index_t>& vec) {
-            return [&vec]<std::size_t... I>(std::index_sequence<I...>)
-            {
+            return [&vec]<std::size_t... I>(std::index_sequence<I...>) {
                 return ck_tile::make_tuple(vec[I]...);
-            }
-            (std::make_index_sequence<N>{});
+            }(std::make_index_sequence<N>{});
         };
 
         auto input_shape_tuple   = make_shape_tuple.template operator()<InputDim>(input_shape);

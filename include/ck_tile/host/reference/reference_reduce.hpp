@@ -32,12 +32,14 @@ reference_reduce(const HostTensor<XDataType>& x_m_n, HostTensor<YDataType>& y_m,
 }
 
 // Generic reference reduce for arbitrary dimensions
-template <typename XDataType,
-          typename ComputeDataType,
-          typename YDataType,
-          typename ReduceOp,
-          typename KeptDim,    // Expected type: ck_tile::sequence<...> containing dimension indices to keep
-          typename ReduceDims> // Expected type: ck_tile::sequence<...> containing dimension indices to reduce
+template <
+    typename XDataType,
+    typename ComputeDataType,
+    typename YDataType,
+    typename ReduceOp,
+    typename KeptDim, // Expected type: ck_tile::sequence<...> containing dimension indices to keep
+    typename ReduceDims> // Expected type: ck_tile::sequence<...> containing dimension indices to
+                         // reduce
 CK_TILE_HOST void reference_reduce(const HostTensor<XDataType>& x_tensor,
                                    HostTensor<YDataType>& y_tensor,
                                    ReduceOp reduce_op,
@@ -99,8 +101,7 @@ CK_TILE_HOST void reference_reduce(const HostTensor<XDataType>& x_tensor,
         // Calculate output tensor index using kept indices
         // The output tensor has the same structure as the kept dimensions
         std::vector<std::size_t> y_indices(kept_dim.size());
-        static_for<0, kept_dim.size(), 1>{}(
-            [&](auto i) { y_indices[i] = kept_indices[i]; });
+        static_for<0, kept_dim.size(), 1>{}([&](auto i) { y_indices[i] = kept_indices[i]; });
 
         y_tensor(y_indices) = type_convert<YDataType>(v_acc);
     };

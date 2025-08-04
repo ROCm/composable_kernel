@@ -25,39 +25,38 @@ struct Reduce
     using ComputeDataType = ck_tile::remove_cvref_t<typename Problem::ComputeDataType>;
     using YDataType       = ck_tile::remove_cvref_t<typename Problem::YDataType>;
 
-private:
+    private:
     // Helper function to calculate optimal vector size for input tensor
     template <typename InputShape, typename ReduceDims>
     static constexpr index_t CalculateInputVectorSize()
     {
-        using S = typename Problem::BlockShape;
-        constexpr index_t memory_vector_size = 16 / sizeof(XDataType);
+        using S                                   = typename Problem::BlockShape;
+        constexpr index_t memory_vector_size      = 16 / sizeof(XDataType);
         constexpr index_t thread_tile_vector_size = S::ThreadTile_N;
-        
+
         // Check if innermost reduce dimension is the last dimension (stride 1).
-        constexpr auto innermost_reduce_dim = ReduceDims{}.at(number<ReduceDims{}.size() - 1>{});
+        constexpr auto innermost_reduce_dim    = ReduceDims{}.at(number<ReduceDims{}.size() - 1>{});
         constexpr bool is_innermost_contiguous = (innermost_reduce_dim == InputShape{}.size() - 1);
-        
+
         // If innermost reduce dimension is not the last dim (not contiguous), limit vectorization
-        constexpr index_t stride_based_vector_size = is_innermost_contiguous ? 
-            ck_tile::min(memory_vector_size, thread_tile_vector_size) : 1;
-        
+        constexpr index_t stride_based_vector_size =
+            is_innermost_contiguous ? ck_tile::min(memory_vector_size, thread_tile_vector_size) : 1;
+
         return stride_based_vector_size;
     }
 
     // Helper function to calculate optimal vector size for output tensor
     static constexpr index_t CalculateOutputVectorSize()
     {
-        using S = typename Problem::BlockShape;
-        constexpr index_t memory_vector_size = 16 / sizeof(YDataType);
+        using S                                   = typename Problem::BlockShape;
+        constexpr index_t memory_vector_size      = 16 / sizeof(YDataType);
         constexpr index_t thread_tile_vector_size = S::ThreadTile_M;
         constexpr index_t vector_size = ck_tile::min(memory_vector_size, thread_tile_vector_size);
-        
+
         return vector_size;
     }
 
-public:
-
+    public:
     template <typename InputShape, typename InputStrides, typename KeptDim, typename ReduceDims>
     CK_TILE_DEVICE void operator()(const XDataType* p_x,
                                    YDataType* p_y,
