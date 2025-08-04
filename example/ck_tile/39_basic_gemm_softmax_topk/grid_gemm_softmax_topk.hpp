@@ -13,24 +13,24 @@ struct GridGemmSoftmaxTopk
     using WeightType       = typename Problem::WeightType;
     using IndexType        = typename Problem::IndexType;
     using AccDataType      = typename Problem::AccDataType;
-    using CElementFunction = typename Problem::CElementFunction;
+    // using CElementFunction = typename Problem::CElementFunction;
 
     static constexpr auto kMPerBlock = Policy::kMPerBlock;
     static constexpr auto kNPerBlock = Policy::kNPerBlock;
     static constexpr auto kKPerBlock = Policy::kKPerBlock;
-    static constexpr auto topk = Policy::topk;
+    static constexpr auto topk = Policy::kTopKPerBlock;
 
     template <typename AGridTensorView, typename BGridTensorView, typename ValueGridTensorView, typename IndexGridTensorView>
     CK_TILE_DEVICE void operator()(const AGridTensorView& a_grid,
                                    const BGridTensorView& b_grid,
                                    ValueGridTensorView& value_grid,
-                                   IndexGridTensorView& index_grid,
-                                   const CElementFunction& c_element_func) const
+                                   IndexGridTensorView& index_grid) const
+                                //    const CElementFunction& c_element_func) const
     {
         const auto M = a_grid.get_tensor_descriptor().get_length(number<0>{});
         const auto N = b_grid.get_tensor_descriptor().get_length(number<0>{});
         const auto K = a_grid.get_tensor_descriptor().get_length(number<1>{});
-        const auto topk = value_grid.get_tensor_descriptor().get_length(number<1>{});
+        // const auto topk = value_grid.get_tensor_descriptor().get_length(number<1>{});
 
         // divide problem
         const auto id_block = get_block_id();
@@ -55,9 +55,9 @@ struct GridGemmSoftmaxTopk
         auto b_block_window = make_tile_window(
             b_grid, make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}), {iN, 0});
 
-        constexpr auto block_gemm_pipeline = Policy::template GetBlockGemmPipeline<Problem>();
+        constexpr auto block_gemm_softmax_topk_pipeline = Policy::template GetBlockGemmPipeline<Problem>();
 
-        __shared__ char p_smem_char[block_gemm_pipeline.GetStaticLdsSize()];
+        __shared__ char p_smem_char[block_gemm_softmax_topk_pipeline.GetStaticLdsSize()];
 
         // store value and index
         auto value_window = make_tile_window(
@@ -67,16 +67,15 @@ struct GridGemmSoftmaxTopk
             index_grid, make_tuple(number<kMPerBlock>{}, number<topk>{}), {iM, iN},
             Policy::template MakeOutputDistribution<Problem>());
 
-        const auto value_block_tile, index_block_tile =
-            block_gemm_pipeline(a_block_window, b_block_window, value_window, index_window, K / kKPerBlock, p_smem_char);
+        block_gemm_softmax_topk_pipeline(a_block_window, b_block_window, value_window, index_window, K / kKPerBlock, p_smem_char);
 
-        // cast to CDataType and apply CElementFunction
-        const auto c_block_tile = tile_elementwise_in(
-            [&](const auto& acc) { return c_element_func(type_convert<CDataType>(acc)); },
-            acc_block_tile);
+        // // cast to WeightType and apply CElementFunction
+        // value_block_tile = tile_elementwise_in(
+        //     [&](const auto& value) { return c_element_func(type_convert<WeightType>(value)); },
+        //     value_block_tile);
 
-        store_tile(value_window, value_block_tile);
-        store_tile(index_window, index_block_tile);
+        // store_tile(value_window, value_block_tile);
+        // store_tile(index_window, index_block_tile);
     }
 };
 

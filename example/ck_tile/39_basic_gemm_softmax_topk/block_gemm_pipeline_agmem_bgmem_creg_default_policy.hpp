@@ -264,15 +264,15 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeOutputDistribution()
     {
-        using ADataType = remove_cvref_t<typename Problem::ADataType>;
+        using WeightType = remove_cvref_t<typename Problem::WeightType>;
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
-        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t topk       = Problem::topk;
 
-        constexpr index_t K1 = 16 / sizeof(ADataType);
-        constexpr index_t K0 = kKPerBlock / K1;
+        constexpr index_t K1 = 16 / sizeof(WeightType);
+        constexpr index_t K0 = topk / K1;
         constexpr index_t M2 = get_warp_size() / K0;
         // coalesce reading for each blocks
         constexpr index_t M1 = kBlockSize / get_warp_size();
