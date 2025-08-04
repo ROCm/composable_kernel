@@ -261,6 +261,32 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
                                        sequence<0, 1>>{});
     }
 
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeOutputDistribution()
+    {
+        using ADataType = remove_cvref_t<typename Problem::ADataType>;
+
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+
+        constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
+        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
+
+        constexpr index_t K1 = 16 / sizeof(ADataType);
+        constexpr index_t K0 = kKPerBlock / K1;
+        constexpr index_t M2 = get_warp_size() / K0;
+        // coalesce reading for each blocks
+        constexpr index_t M1 = kBlockSize / get_warp_size();
+        constexpr index_t M0 = kMPerBlock / (M2 * M1);
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
+                                       tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<1>, sequence<2, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 1>>{});
+    }
+
 #if defined(ENABLE_INSTRUCTION_SCH)
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};

@@ -32,22 +32,26 @@ int main(int argc, char* argv[])
     using BDataType   = ck_tile::half_t;
     using AccDataType = float;
     using CDataType   = ck_tile::half_t;
+    using WeightType  = float;
+    using IndexType   = ck_tile::index_t;
 
     ck_tile::index_t verification = 0;
     ck_tile::index_t M            = 3328;
     ck_tile::index_t N            = 4096;
     ck_tile::index_t K            = 4096;
+    ck_tile::index_t topk         = 16;
 
     if(argc == 2)
     {
         verification = std::stoi(argv[1]);
     }
-    if(argc == 5)
+    if(argc == 6)
     {
         verification = std::stoi(argv[1]);
         M            = std::stoi(argv[2]);
         N            = std::stoi(argv[3]);
         K            = std::stoi(argv[4]);
+        topk         = std::stoi(argv[5]);
     }
 
 #if defined(KERNEL_A)
@@ -95,7 +99,9 @@ int main(int argc, char* argv[])
 
     const ck_tile::index_t Lda = K;
     const ck_tile::index_t Ldb = K;
-    const ck_tile::index_t Ldc = N;
+    // const ck_tile::index_t Ldc = N;
+    const ck_tile::index_t Ldout = topk;
+    const ck_tile::index_t tokens = M;
 
     const auto a_lengths = std::array<ck_tile::index_t, 2>{M, K};
     const auto a_strides = std::array<ck_tile::index_t, 2>{Lda, 1};
@@ -103,20 +109,26 @@ int main(int argc, char* argv[])
     const auto b_lengths = std::array<ck_tile::index_t, 2>{N, K};
     const auto b_strides = std::array<ck_tile::index_t, 2>{Ldb, 1};
 
-    const auto c_lengths = std::array<ck_tile::index_t, 2>{M, N};
-    const auto c_strides = std::array<ck_tile::index_t, 2>{Ldc, 1};
+    // const auto c_lengths = std::array<ck_tile::index_t, 2>{M, N};
+    // const auto c_strides = std::array<ck_tile::index_t, 2>{Ldc, 1};
+
+    const auto out_lengths = std::array<ck_tile::index_t, 2>{M, topk};
+    const auto out_strides = std::array<ck_tile::index_t, 2>{Ldout, 1};
 
     // host verify
     ck_tile::HostTensor<ADataType> a_host(a_lengths, a_strides);
     ck_tile::HostTensor<BDataType> b_host(b_lengths, b_strides);
-    ck_tile::HostTensor<CDataType> c_host_dev(c_lengths, c_strides);
+    ck_tile::HostTensor<WeightType> value_host(out_lengths, out_strides);
+    ck_tile::HostTensor<IndexType> index_host(out_lengths, out_strides);
 
     ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_host);
     ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_host);
 
     ck_tile::DeviceMem a_buf(a_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_buf(b_host.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem c_buf(c_host_dev.get_element_space_size_in_bytes());
+    // ck_tile::DeviceMem c_buf(c_host_dev.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem value_buf(value_host_dev.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem index_buf(index_host_dev.get_element_space_size_in_bytes());
 
     a_buf.ToDevice(a_host.mData.data());
     b_buf.ToDevice(b_host.mData.data());
@@ -124,7 +136,7 @@ int main(int argc, char* argv[])
     // Alignment
     constexpr ck_tile::index_t kAAlignment = 8;
     constexpr ck_tile::index_t kBAlignment = 8;
-    constexpr ck_tile::index_t kCAlignment = 8;
+    constexpr ck_tile::index_t kOutAlignment = 8;
 
     constexpr ck_tile::index_t kBlockSize = 256;
 
@@ -145,14 +157,15 @@ int main(int argc, char* argv[])
     constexpr ck_tile::index_t kWarpPerBlock = kBlockSize / warpSize;
     constexpr ck_tile::index_t kBlockPerCu   = kWarpPerCu / kWarpPerBlock;
 
-    using gemm_kernel = ck_tile::Gemm<ADataType,
+    using gemm_softmax_topk_kernel = ck_tile::GemmSoftmaxTopk<ADataType,
                                       BDataType,
                                       AccDataType,
-                                      CDataType,
+                                      WeightType,
+                                      IndexType,
                                       CElementFunction,
                                       kAAlignment,
                                       kBAlignment,
-                                      kCAlignment,
+                                      kOutAlignment,
                                       kBlockSize,
                                       kGemmMPerBlock,
                                       kGemmNPerBlock,
@@ -160,31 +173,62 @@ int main(int argc, char* argv[])
 
     float ave_time = ck_tile::launch_kernel(ck_tile::stream_config{nullptr, true, 0, 5, 1000},
                                             ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
-                                                gemm_kernel{},
+                                                gemm_softmax_topk_kernel{},
                                                 kGridSize,
                                                 kBlockSize,
                                                 0,
                                                 static_cast<ADataType*>(a_buf.GetDeviceBuffer()),
                                                 static_cast<BDataType*>(b_buf.GetDeviceBuffer()),
-                                                static_cast<CDataType*>(c_buf.GetDeviceBuffer()),
+                                                static_cast<WeightType*>(value_buf.GetDeviceBuffer()),
+                                                static_cast<IndexType*>(index_buf.GetDeviceBuffer()),
                                                 M,
                                                 N,
                                                 K,
+                                                topk,
                                                 Lda,
                                                 Ldb,
-                                                Ldc,
+                                                Ldout,
                                                 CElementFunction{}));
-    auto pass      = true;
-
+    // auto pass      = true;
+    bool rtn = true;
     if(verification)
     {
         // reference gemm
-        ck_tile::HostTensor<CDataType> c_host_ref(c_lengths, c_strides);
-        reference_basic_gemm_softmax_topk<ADataType, ADataType, AccDataType, CDataType>(
-            a_host, b_host, c_host_ref);
-        c_buf.FromDevice(c_host_dev.mData.data());
-        pass &= ck_tile::check_err(c_host_dev, c_host_ref);
-        std::cout << "valid:" << (pass ? "y" : "n") << std::endl;
+        // ck_tile::HostTensor<CDataType> c_host_ref(c_lengths, c_strides);
+        ck_tile::HostTensor<WeightType> value_ref(out_lengths, out_strides);
+        ck_tile::HostTensor<IndexType> index_ref(out_lengths, out_strides);
+        reference_basic_gemm_softmax_topk<ADataType, ADataType, AccDataType, WeightType, IndexType>(
+            a_host, b_host, value_ref, index_ref, topk);
+        // c_buf.FromDevice(c_host_dev.mData.data());
+        value_buf.FromDevice(value_host_dev.mData.data());
+        index_buf.FromDevice(index_host_dev.mData.data());
+
+        // pass &= ck_tile::check_err(c_host_dev, c_host_ref);
+        auto [rtol, atol] = get_elimit<InputType>("");
+        for(int i_t = 0; i_t < tokens; i_t++)
+        {
+            auto s_begin = std::vector<size_t>{static_cast<size_t>(i_t), static_cast<size_t>(0)};
+            auto s_end =
+                std::vector<size_t>{static_cast<size_t>(i_t + 1), static_cast<size_t>(topk)};
+            auto s_value_host = value_host.slice(s_begin, s_end);
+            auto s_value_ref  = value_ref.slice(s_begin, s_end);
+            rtn &= ck_tile::check_err(s_value_host,
+                                      s_value_ref,
+                                      std::string("[") + std::to_string(i_t) +
+                                          std::string("] Value Error:"),
+                                      rtol,
+                                      atol);
+            auto s_index_host = index_host.slice(s_begin, s_end);
+            auto s_index_ref  = index_ref.slice(s_begin, s_end);
+            rtn &= ck_tile::check_err(s_index_host,
+                                      s_index_ref,
+                                      std::string("[") + std::to_string(i_t) +
+                                          std::string("] Index Error:"),
+                                      rtol,
+                                      atol);
+        }
+        // std::cout << "valid:" << (pass ? "y" : "n") << std::endl;
+        std::cout << "valid:" << (rtn ? "y" : "n") << std::endl;
     }
 
     std::size_t flop = std::size_t(2) * M * N * K;

@@ -561,7 +561,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                                         void* p_smem_ping,
                                         void* p_smem_pong) const
     {
-        using ComputeDataType = float;
+        // using ComputeDataType = float;
         // printf("============================wp_pipeline_agmem_bgmem_creg_v2.hpp:564=======================\n");
         static_assert(
             std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>>,

@@ -27,12 +27,19 @@ struct BlockGemmSoftmaxTopkPipelineAGmemBGmemCReg
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
+    static constexpr index_t topk = Problem::topk;
 
     static constexpr index_t kMPerBlock = BlockGemmShape::kM;
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
 
     using BlockGemm = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
+
+    struct ArgmaxPacket
+    {
+        DataType arg;
+        index_t value;
+    };
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetStaticLdsSize()
     {
@@ -198,9 +205,11 @@ struct BlockGemmSoftmaxTopkPipelineAGmemBGmemCReg
     }
 #endif
 
-    template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp>
+    template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp, typename OutputWindow, typename IndexWindow>
     CK_TILE_HOST_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                         const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                        OutputWindow& out_window,
+                                        IndexWindow& idx_window,
                                         index_t num_loop,
                                         void* p_smem) const
     {
@@ -453,7 +462,65 @@ struct BlockGemmSoftmaxTopkPipelineAGmemBGmemCReg
             });
         });
 
-        return p_compute;
+        // apply topk for softmax output
+        auto x_tmp = p_compute;
+        constexpr auto dst_dist = typename IndexWindow::TileDstr{};
+
+        // argmax for topk
+        const auto f_argmax = [](ArgmaxPacket e0, ArgmaxPacket e1) {
+            return e0.arg > e1.arg ? e0 : e1;
+        };
+
+        for(index_t i_k = 0; i_k < topk; i_k++)
+        {
+            constexpr auto span_2d = DistributedTensor::get_distributed_spans();
+            auto packet            = [&]() {
+                auto tmp = make_static_distributed_tensor<ArgmaxPacket>(p_compute.get_tile_distribution());
+
+                sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
+                    sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
+                        const auto tile_idx = get_x_indices_from_distributed_indices(
+                            tmp.get_tile_distribution(), make_tuple(idx0, idx1));
+                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                        ArgmaxPacket t;
+                        t.arg        = x_tmp(i_j_idx); // !!! we reference p_compute here
+                        t.value      = tile_idx.at(number<1>{});
+                        tmp(i_j_idx) = t;
+                    });
+                });
+            return tmp;
+        }();
+
+        auto argmax_init = ArgmaxPacket{-numeric<DataType>::infinity(), 0};
+        auto r = block_tile_reduce<ArgmaxPacket>(packet, sequence<1>{}, f_argmax, argmax_init);
+        block_tile_reduce_xor_sync(r, f_argmax);
+
+        auto value_tensor = make_static_distributed_tensor<DataType>(dst_dist);
+        auto index_tensor = make_static_distributed_tensor<IndexType>(dst_dist);
+        sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
+            sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
+                constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                ArgmaxPacket tmp       = r(i_j_idx);
+                value_tensor(i_j_idx)             = tmp.arg;
+                index_tensor(i_j_idx)             = tmp.value;
+            });
+        });
+
+        // update value
+        sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
+            sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
+                const auto tile_idx = get_x_indices_from_distributed_indices(
+                    p_compute.get_tile_distribution(), make_tuple(idx0, idx1));
+                auto col_id = tile_idx.at(number<1>{});
+
+                constexpr auto i_j_idx = make_tuple(idx0, idx1);
+
+                x_tmp(i_j_idx) = (col_id == r(i_j_idx).value) ? -numeric<DataType>::infinity()
+                                                                : x_tmp(i_j_idx);
+            });
+        });
+
+        return value_tensor, index_tensor;
     }
 };
 

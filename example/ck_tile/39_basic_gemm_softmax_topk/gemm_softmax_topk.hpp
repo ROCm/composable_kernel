@@ -10,21 +10,23 @@
 
 #include "block_gemm_softmax_topk_pipeline_agmem_bgmem_creg.hpp"
 #include "config.h"
-#include "grid_gemm.hpp"
+#include "grid_gemm_softmax_topk.hpp"
 
 namespace ck_tile {
 
 template <typename ADataType_,
           typename BDataType_,
           typename AccDataType_,
-          typename CDataType_,
+          typename WeightType_,
+          typename IndexType_,
           typename CElementFunction_>
-struct GridGemmProblem
+struct GridGemmSoftmaxTopkProblem
 {
     using ADataType   = ADataType_;
     using BDataType   = BDataType_;
     using AccDataType = AccDataType_;
-    using CDataType   = CDataType_;
+    using WeightType   = WeightType_;
+    using IndexType   = IndexType_;
 
     using CElementFunction = CElementFunction_;
 };
@@ -39,38 +41,45 @@ struct TileGemmShape
 
 template <typename ADataType_,
           typename BDataType_,
-          typename CDataType_,
+          typename AccDataType_,
+          typename WeightType_,
+          typename IndexType_,
           index_t kBlockSize_,
+          index_t topk_,
           typename BlockGemmShape_>
-struct BlockGemmPipelineProblem
+struct BlockGemmSoftmaxTopkPipelineProblem
 {
     using ADataType      = remove_cvref_t<ADataType_>;
     using BDataType      = remove_cvref_t<BDataType_>;
-    using CDataType      = remove_cvref_t<CDataType_>;
+    using AccDataType    = remove_cvref_t<AccDataType_>;
+    using WeightType     = remove_cvref_t<WeightType_>;
+    using IndexType      = remove_cvref_t<IndexType_>;
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
     static constexpr index_t kBlockSize = kBlockSize_;
+    static constexpr index_t topk = topk_;
 };
 
 // C = A * B
 template <typename ADataType,
           typename BDataType,
           typename AccDataType,
-          typename CDataType,
+          typename WeightType,
+          typename IndexType,
           typename CElementFunction,
           index_t kAAlignment,
           index_t kBAlignment,
-          index_t kCAlignment,
+          index_t kOutAlignment,
           index_t kBlockSize_,
           index_t kMPerBlock_,
           index_t kNPerBlock_,
           index_t kKPerBlock_>
-struct Gemm
+struct GemmSoftmaxTopk
 {
-    using GridGemmProblem =
-        GridGemmProblem<ADataType, BDataType, AccDataType, CDataType, CElementFunction>;
+    using GridGemmSoftmaxTopkProblem =
+        GridGemmSoftmaxTopkProblem<ADataType, BDataType, AccDataType, WeightType, IndexType, CElementFunction>;
 
-    struct GridGemmPolicy
+    struct GridGemmSoftmaxTopkPolicy
     {
         static constexpr index_t kBlockSize = kBlockSize_;
         static constexpr index_t kMPerBlock = kMPerBlock_;
@@ -148,29 +157,34 @@ struct Gemm
         }
 
         template <typename Problem>
-        CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemmPipeline()
+        CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemmSoftmaxTopkPipeline()
         {
-            using BlockGemmPipelineProblem_ =
-                BlockGemmPipelineProblem<ADataType,
+            using BlockGemmSoftmaxTopkPipelineProblem_ =
+                BlockGemmSoftmaxTopkPipelineProblem<ADataType,
                                          BDataType,
                                          AccDataType,
+                                         WeightType,
+                                         IndexType,
                                          kBlockSize,
-                                         TileGemmShape<kMPerBlock, kNPerBlock, kKPerBlock>>;
-            return BlockGemmSoftmaxTopkPipelineAGmemBGmemCReg<BlockGemmPipelineProblem_>{};
+                                         TileGemmShape<kMPerBlock, kNPerBlock, kKPerBlock>,
+                                         topk>;
+            return BlockGemmSoftmaxTopkPipelineAGmemBGmemCReg<BlockGemmSoftmaxTopkPipelineProblem_>{};
         }
     };
 
-    using GridGemm = GridGemm<GridGemmProblem, GridGemmPolicy>;
+    using GridGemmSoftmaxTopk = GridGemmSoftmaxTopk<GridGemmSoftmaxTopkProblem, GridGemmSoftmaxTopkPolicy>;
 
     CK_TILE_DEVICE void operator()(const ADataType* p_a,
                                    const BDataType* p_b,
-                                   CDataType* p_c,
+                                   WeightType* p_value,
+                                   IndexType* p_index,
                                    const index_t M,
                                    const index_t N,
                                    const index_t K,
+                                   const index_t topk,
                                    const index_t Lda,
                                    const index_t Ldb,
-                                   const index_t Ldc,
+                                   const index_t Ldout,
                                    const CElementFunction& c_element_func) const
     {
         const auto a_dram = [&] {
@@ -183,12 +197,16 @@ struct Gemm
                 p_b, make_tuple(N, K), make_tuple(Ldb, 1), number<kBAlignment>{}, number<1>{});
         }();
 
-        const auto c_dram = [&] {
+        const auto value_dram = [&] {
             return make_naive_tensor_view<address_space_enum::global>(
-                p_c, make_tuple(M, N), make_tuple(Ldc, 1), number<kCAlignment>{}, number<1>{});
+                p_c, make_tuple(M, topk), make_tuple(Ldout, 1), number<kOutAlignment>{}, number<1>{});
+        
+        const auto index_dram = [&] {
+            return make_naive_tensor_view<address_space_enum::global>(
+                p_c, make_tuple(M, topk), make_tuple(Ldout, 1), number<kOutAlignment>{}, number<1>{});
         }();
 
-        GridGemm{}(a_dram, b_dram, c_dram, c_element_func);
+        GridGemmSoftmaxTopk{}(a_dram, b_dram, value_dram, index_dram, c_element_func);
     }
 };
 
