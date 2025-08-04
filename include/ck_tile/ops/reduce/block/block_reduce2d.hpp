@@ -246,7 +246,7 @@ struct BlockReduce2dCrossWarpSync
         //    | w0 | w1 | w2 | w3 |   ----->  | w0123 |
         //
         //   -> also store data from every wave into LDS
-        constexpr index_t num_warps = BlockShape::BlockSize / warpSize;
+        constexpr index_t num_warps = BlockShape::BlockSize / get_warp_size();
         return num_warps * thread_buf_size * sizeof(DataType);
     }
 
@@ -360,7 +360,7 @@ struct BlockReduce2dLinearCrossWarpSync
         //    | w0 | w1 | w2 | w3 |   ----->  | w0123 |
         //
         //   -> also store data from every wave into LDS
-        constexpr index_t num_warps = BlockShape::BlockSize / warpSize;
+        constexpr index_t num_warps = BlockShape::BlockSize / get_warp_size();
         return num_warps * thread_buf_size * sizeof(DataType);
     }
 
