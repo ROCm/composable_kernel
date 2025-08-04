@@ -489,7 +489,7 @@ struct GroupedGemmKernel
             kargs.group_karg.M,
             kargs.group_karg.N,
             (block_id - kargs.block_start) % grid_size_2d);
-        Run(kargs, block_idx_2d, (block_id - kargs.block_start) / grid_size_2d);
+        Run(kargs.group_karg, block_idx_2d, (block_id - kargs.block_start) / grid_size_2d);
     }
 
     // For persistent kernels
