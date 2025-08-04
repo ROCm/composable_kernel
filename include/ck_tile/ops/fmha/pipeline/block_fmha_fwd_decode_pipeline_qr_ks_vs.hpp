@@ -104,7 +104,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
             }
             else if constexpr(kQKHeaddim <= 128)
             {
-                if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
+                if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS || kM0 >= 256)
                     return 1;
                 else
                     return 2;
@@ -728,23 +728,30 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
 
         // Q tile in LDS
         auto q_dram_window = make_tile_window(
-            q_dram_block_window_tmp, Policy::template MakeQDramTileDistribution<Problem, true>());
+            q_dram_block_window_tmp, Policy::template MakeQDramTileDistribution<Problem>());
 
-        // auto q_lds = make_tensor_view<address_space_enum::lds>(
-        //     static_cast<QDataType*>(smem_ptrk0),
-        //     Policy::template MakeQLdsBlockDescriptor<Problem>());
+        auto q_lds_write_view = make_tensor_view<address_space_enum::lds>(
+            static_cast<QDataType*>(smem_ptrk0),
+            Policy::template MakeQLdsBlockDescriptor<Problem>());
 
-        // auto q_lds_store_window = make_tile_window(
-        //     q_lds, Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
+        auto q_lds_read_view = make_tensor_view<address_space_enum::lds>(
+            static_cast<QDataType*>(smem_ptrk0),
+            Policy::template MakeQLdsBlockDescriptor<Problem, true>());
 
-        // auto q_lds_read_window =
-        //     make_tile_window(q_lds,
-        //                      Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(),
-        //                      {0, 0},
-        //                      Policy::template MakeQRegTileDistribution<Problem>());
+        auto q_lds_store_window =
+            make_tile_window(q_lds_write_view,
+                             Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(),
+                             {0, 0});
 
-        // async_load_tile(q_lds_store_window, q_dram_window);
-        auto q_tile = load_tile(q_dram_window);
+        auto q_lds_read_window =
+            make_tile_window(q_lds_read_view,
+                             Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(),
+                             {0, 0},
+                             Policy::template MakeQRegTileDistribution<Problem>());
+
+        async_load_tile(q_lds_store_window, q_dram_window);
+        block_sync_lds_direct_load<0>();
+        auto q_tile = load_tile(q_lds_read_window);
 
         // K tile in LDS
         const index_t physical_seqlen_k_start = logical_seqlen_k_start;
@@ -825,6 +832,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
 
         static_assert(1 <= k0_loops);
         static_assert(1 <= k1_loops);
+        block_sync_lds<0>();
         async_load_tile(k_lds_write_window, k_dram_window);
         async_load_tile(v_lds_write_window, v_dram_window);
 

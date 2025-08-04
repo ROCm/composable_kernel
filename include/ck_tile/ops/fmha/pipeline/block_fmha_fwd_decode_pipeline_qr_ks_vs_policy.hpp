@@ -54,7 +54,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kSubQKHeaddim;
 
         constexpr index_t MaxVectorSize = 16 / sizeof(typename Problem::KDataType);
 
@@ -209,7 +209,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
         return static_cast<index_t>(16 / sizeof(QDataType));
     }
 
-    template <typename Problem>
+    template <typename Problem, bool Xor = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQLdsBlockDescriptor()
     {
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
@@ -217,11 +217,48 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
 
         constexpr index_t kKPack = GetSmemKPackQ<Problem>();
 
-        constexpr auto q_lds_block_desc =
-            make_naive_tensor_descriptor(make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
-                                         make_tuple(number<kKPerBlock>{}, number<1>{}),
-                                         number<kKPack>{},
-                                         number<1>{});
+        constexpr auto q_lds_block_desc = [&]() {
+            if constexpr(Xor)
+            {
+                constexpr auto q_lds_block_desc_naive = make_naive_tensor_descriptor(
+                    make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
+                    make_tuple(number<kKPerBlock>{}, number<1>{}),
+                    number<kKPack>{},
+                    number<1>{});
+
+                const auto q_lds_block_desc_unmerged = transform_tensor_descriptor(
+                    q_lds_block_desc_naive,
+                    make_tuple(make_pass_through_transform(number<kMPerBlock>{}),
+                               make_unmerge_transform(
+                                   make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
+                    make_tuple(sequence<0>{}, sequence<1>{}),
+                    make_tuple(sequence<0>{}, sequence<1, 2>{}));
+
+                const auto q_lds_block_desc_permuted = transform_tensor_descriptor(
+                    q_lds_block_desc_unmerged,
+                    make_tuple(make_xor_transform(
+                                   make_tuple(number<kMPerBlock>{}, number<kKPerBlock / kKPack>{})),
+                               make_pass_through_transform(number<kKPack>{})),
+                    make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                    make_tuple(sequence<0, 1>{}, sequence<2>{}));
+
+                return transform_tensor_descriptor(
+                    q_lds_block_desc_permuted,
+                    make_tuple(make_pass_through_transform(number<kMPerBlock>{}),
+                               make_merge_transform_v3_division_mod(
+                                   make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
+                    make_tuple(sequence<0>{}, sequence<1, 2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+            }
+            else
+            {
+                return make_naive_tensor_descriptor(
+                    make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
+                    make_tuple(number<kKPerBlock>{}, number<1>{}),
+                    number<kKPack>{},
+                    number<1>{});
+            }
+        }();
 
         return q_lds_block_desc;
     }

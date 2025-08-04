@@ -590,7 +590,7 @@ struct FmhaFwdDecodeKernel
         //     1. we expect KV data reused by different ThreadGroups, use cache
         //     2. use more LDS, as we want better memory latency hiding
         // If SplitKV off, we don't expect Q data reused by different ThreadGroups, bypass the cache
-        constexpr bool PrefillCase = FmhaPipeline::kM0 == 128;
+        constexpr bool PrefillCase = FmhaPipeline::kM0 >= 128;
         // divide problem
         const auto [i_tile_m, i_tile_n, i_split, i_nhead, i_batch] = GetTileIndex(kargs);
 
@@ -751,10 +751,38 @@ struct FmhaFwdDecodeKernel
 
             if constexpr(FmhaPipeline::kQLoadOnce)
             {
-                return pad_tensor_view(
+                const auto seqlen_q   = kargs.seqlen_q;
+                const auto q_dram_pad = pad_tensor_view(
                     q_dram_naive,
-                    make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kSubQKHeaddim>{}),
+                    make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kK0>{}),
                     sequence<false, kPadHeadDimQ>{});
+
+                const auto q_dram_unmerged = transform_tensor_view(
+                    q_dram_pad,
+                    make_tuple(make_pass_through_transform(seqlen_q),
+                               make_unmerge_transform(make_tuple(
+                                   number<FmhaPipeline::kQKHeaddim / FmhaPipeline::kAlignmentQ>{},
+                                   number<FmhaPipeline::kAlignmentQ>{}))),
+                    make_tuple(sequence<0>{}, sequence<1>{}),
+                    make_tuple(sequence<0>{}, sequence<1, 2>{}));
+
+                const auto q_dram_permuted = transform_tensor_view(
+                    q_dram_unmerged,
+                    make_tuple(make_xor_transform(make_tuple(
+                                   seqlen_q,
+                                   number<FmhaPipeline::kQKHeaddim / FmhaPipeline::kAlignmentQ>{})),
+                               make_pass_through_transform(number<FmhaPipeline::kAlignmentQ>{})),
+                    make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                    make_tuple(sequence<0, 1>{}, sequence<2>{}));
+
+                return transform_tensor_view(
+                    q_dram_permuted,
+                    make_tuple(make_pass_through_transform(seqlen_q),
+                               make_merge_transform_v3_division_mod(make_tuple(
+                                   number<FmhaPipeline::kQKHeaddim / FmhaPipeline::kAlignmentQ>{},
+                                   number<FmhaPipeline::kAlignmentQ>{}))),
+                    make_tuple(sequence<0>{}, sequence<1, 2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
             }
             else
             {
