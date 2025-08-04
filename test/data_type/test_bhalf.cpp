@@ -78,9 +78,8 @@ TEST(BHALF_T, PackedCast)
     // Test packed cast from bhalf2 to float2
     // Use values that are representable in bhalf2 as well as values that are not
     constexpr int num_vals = 15;
-    const float abs_tol    = std::pow(2, -7);
 
-    float exact_in_both[] = {
+    std::vector<float> exact_in_both {
         0.0f,
         1.0f,  
         2.0f,
@@ -98,7 +97,7 @@ TEST(BHALF_T, PackedCast)
         15.0f
     };
 
-    float exact_fp32_not_bf16[] = {
+    std::vector<float> exact_fp32_not_bf16 {
         // Small fractional values requiring more than 7 mantissa bits
         0.1f,           // 0.1 needs more precision
         0.3f,           // 0.3 = 3/10
@@ -129,17 +128,19 @@ TEST(BHALF_T, PackedCast)
     ck::bhalf2_t value_after_cast_host;
     hip_check_error(hipMalloc(&value_after_cast_dev, sizeof(ck::bhalf2_t)));
 
-    const auto& get_tolerance = [&abs_tol](const float test_val) -> float
+    const auto& get_tolerance = [](const float test_val) -> float
+    {
+        const float abs_tol    = std::pow(2, -7);
+        constexpr float rel_tol = 1e-3f; 
+        if (std::abs(test_val) > 128.0f) 
         {
-            if (std::abs(test_val) > 1.0f) 
-            {
-                return std::abs(test_val) * abs_tol;  // Relative error
-            } 
-            else 
-            {
-                return abs_tol;  // Absolute error for small values
-            }
-        };
+            return std::abs(test_val) * rel_tol;  // Relative error
+        } 
+        else 
+        {
+            return abs_tol;  // Absolute error for small values
+        }
+    };
 
     const auto& test = [&](const float x1, const float x2) 
         {
@@ -163,7 +164,7 @@ TEST(BHALF_T, PackedCast)
         {
             const float exact_in_both_value = exact_in_both[i];
             const float exact_fp32_not_bf16_value = exact_fp32_not_bf16[j];
-            
+
             test(exact_in_both_value, exact_fp32_not_bf16_value);
             test(exact_in_both_value, -exact_fp32_not_bf16_value);
             test(-exact_in_both_value, exact_fp32_not_bf16_value);
@@ -180,7 +181,7 @@ TEST(BHALF_T, PackedCastRoundtrip)
 {
     constexpr int num_vals = 11;
     const float abs_tol    = std::pow(2, -7);
-    float float_vals[num_vals] = {0.5, 0.875, 1.5, 1, 2, 4, 8, 16, 32, 64, 128};
+    std::vector<float> float_vals {0.5, 0.875, 1.5, 1, 2, 4, 8, 16, 32, 64, 128};
 
     float2* float_val_after_cast_dev;
     float2 float_val_after_cast_host;
