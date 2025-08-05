@@ -8,7 +8,7 @@ RUN groupadd -f render && \
     sudo mkdir /home/jenkins/workspace && \
     cd /home/jenkins/workspace && \
     rm -rf aiter && \
-    git clone -b "$AITER_BRANCH" --recursive https://github.com/ROCm/aiter.git && \
+    git clone -b $AITER_BRANCH --recursive https://github.com/ROCm/aiter.git && \
     cd aiter && \
     rm -rf 3rdparty/composable_kernel/ && \
     git clone https://github.com/ROCm/composable_kernel.git 3rdparty/composable_kernel/ && \
