@@ -4,7 +4,7 @@
 #include <iostream>
 #include <stdexcept>
 
-namespace example {
+namespace ck_tile::runtime {
 
 inline void CheckHipError(hipError_t err)
 {
@@ -44,4 +44,4 @@ auto AllocDevMem(const size_t n)
     return d_data;
 }
 
-} // namespace example
+} // namespace ck_tile::runtime

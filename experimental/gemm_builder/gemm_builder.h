@@ -7,6 +7,7 @@
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
+#include "ck_tile/ops/gemm/kernel/universal_gemm_kernel.hpp"
 
 namespace ck_tile::builder {
 
@@ -207,17 +208,44 @@ struct GemmBuilder
                                          ck_tile::memory_operation_enum::atomic_add,
                                          GemmConfig::NumWaveGroups>>;
 
-    using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+    // TODO: Args should not be a templated class!
+    template <index_t NumATensor = 1, index_t NumBTensor = 1, index_t NumDTensor = 0>
+    using KernelArgs = ck_tile::UniversalGemmKernelArgs<NumATensor, NumBTensor, NumDTensor>;
+
+    using KernelClass = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+
+    // TODO: Args should not be a templated class!
+    template <index_t NumATensor = 1, index_t NumBTensor = 1, index_t NumDTensor = 0>
+    static bool Supports(const KernelArgs<NumATensor, NumBTensor, NumDTensor>& args)
+    {
+        return KernelClass::IsSupportedArgument(args);
+    }
+
+    static std::string GetKernelName() { return KernelClass::GetName(); }
+
+    static constexpr dim3 GridDim(index_t M, index_t N, index_t KBatch)
+    {
+        return KernelClass::GridSize(M, N, KBatch);
+    }
+
+    static constexpr dim3 BlockDim() { return KernelClass::BlockSize(); }
+
+    // TODO: Args should not be a templated class!
+    template <index_t NumATensor = 1, index_t NumBTensor = 1, index_t NumDTensor = 0>
+    static __device__ void KernelFn(const KernelArgs<NumATensor, NumBTensor, NumDTensor>& args)
+    {
+        KernelClass{}(args);
+    }
 };
 
-// Wrap a kernel class's static __device__ operator() method in a __global__ function.
+// Wrap a kernel class's static __device__ KerenFn method in a __global__ function.
 //
 // Usage:
-//   launch_kernel<Kernel><<<grid_dim, block_dim, 0, hipStreamDefault>>>(kernel_args);
-template <typename Kernel, typename... Args>
-__global__ void launch_kernel(Args... args)
+//   Kernel<Builder><<<grid_dim, block_dim, 0, hipStreamDefault>>>(kernel_args);
+template <typename Builder, typename... Args>
+__global__ void Kernel(Args... args)
 {
-    Kernel{}(args...);
+    Builder::KernelFn(args...);
 }
 
 } // namespace ck_tile::builder
