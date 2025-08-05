@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_wmma_instance.hpp"
@@ -8,25 +8,38 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-void add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_i8_instances(
+
+// Compilation parameters for in[n, hi, wi, g, c] * wei[g, k, y, x, c] = out[n, ho, wo, g, k]
+void add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_bf16_f32_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
                                                            NDHWGC,
                                                            GKZYXC,
                                                            NDHWGK,
-                                                           int8_t,
-                                                           int8_t,
-                                                           int8_t,
+                                                           BF16,
+                                                           F32,
+                                                           BF16,
                                                            PassThrough,
                                                            PassThrough,
                                                            PassThrough>>>& instances)
 {
+    // 1. Default
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_weight_wmma_i8_instances<3,
-                                                         NDHWGC,
-                                                         GKZYXC,
-                                                         NDHWGK,
-                                                         ConvBwdWeightDefault>{});
+        device_grouped_conv_bwd_weight_wmma_c_shuffle_bf16_f32_bf16_instances<
+            3,
+            NDHWGC,
+            GKZYXC,
+            NDHWGK,
+            ConvBwdWeightDefault>{});
+    // 2. Filter1x1Stride1Pad0
+    add_device_operation_instances(
+        instances,
+        device_grouped_conv_bwd_weight_wmma_c_shuffle_bf16_f32_bf16_instances<
+            3,
+            NDHWGC,
+            GKZYXC,
+            NDHWGK,
+            ConvBwdWeightFilter1x1Stride1Pad0>{});
 }
 
 } // namespace instance

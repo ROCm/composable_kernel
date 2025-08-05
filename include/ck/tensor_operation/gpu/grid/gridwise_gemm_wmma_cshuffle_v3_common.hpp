@@ -167,9 +167,18 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
     using Block2CTileMap = BlockToCTileMap_Grouped_M00_N0_M01Adapt<8, MPerBlock, NPerBlock>;
     // using Block2CTileMap = BlockToCTileMap_3DGrid_KSplit<MPerBlock, NPerBlock>;
 
+    // Calculate grid size taking into account splitk (KBatch)
+    // 2D grid (x,z)
     __host__ static auto CalculateGridSize(index_t M, index_t N, index_t KBatch)
     {
         return std::make_tuple(Block2CTileMap::CalculateGridSize(M, N), 1, KBatch);
+    }
+
+    // Calculate grid size taking into account splitk (KBatch) and multiple groups (Batch)
+    // 3D grid (x,y,z)
+    __host__ static auto CalculateGridSize(index_t M, index_t N, index_t KBatch, index_t Batch)
+    {
+        return std::make_tuple(Block2CTileMap::CalculateGridSize(M, N), KBatch, Batch);
     }
 
     __host__ static auto CalculateMPadded(index_t M)
@@ -923,8 +932,10 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                  KPack>())>;
 
     template <typename DEGridDesc>
-    __device__ static constexpr auto MakeDEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-        const DEGridDesc& de_grid_desc_m_n, index_t MBlock, index_t NBlock)
+    __host__ __device__ static constexpr auto
+    MakeDEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(const DEGridDesc& de_grid_desc_m_n,
+                                                           index_t MBlock,
+                                                           index_t NBlock)
     {
         const auto de_grid_desc_mblock_mperblock_nblock_nperblock = transform_tensor_descriptor(
             de_grid_desc_m_n,
@@ -1206,6 +1217,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         }
     }
 
+    // Note: arguments k_batch and k_id should be set if splitk is used
+    // with implicit gemm (no pointer shift but shift using tensor descriptors)
     template <typename AGridDesc_AK0_M_K1,
               typename BGridDesc_BK0_N_K1,
               typename DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -1231,7 +1244,9 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                const index_t& block_m_id,
                                const index_t& block_n_id,
                                const index_t& num_k_block_per_scale,
-                               BScaleStruct& b_scale_struct)
+                               BScaleStruct& b_scale_struct,
+                               const index_t k_batch = 1,
+                               const index_t k_id    = 0)
     {
         const auto as_grid_buf = generate_tuple(
             [&](auto i) {
@@ -1279,7 +1294,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             if constexpr(NumATensor > 1)
             {
                 const auto idx_as_block_begin = generate_tuple(
-                    [&](auto) { return make_multi_index(0, m_block_data_idx_on_grid, 0); },
+                    [&](auto) { return make_multi_index(k_id, m_block_data_idx_on_grid, 0); },
                     Number<NumATensor>{});
 
                 return ThreadGroupTensorSliceTransfer_v7r2<
@@ -1333,7 +1348,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                     true,
                     BlockwiseGemmPipe::GlobalBufferNum>(
                     as_grid_desc_ak0_m_ak1[I0],
-                    make_multi_index(0, m_block_data_idx_on_grid, 0),
+                    make_multi_index(k_id, m_block_data_idx_on_grid, 0),
                     a_element_op,
                     a_block_desc_ak0_m_ak1,
                     make_multi_index(0, 0, 0),
@@ -1349,7 +1364,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             if constexpr(NumBTensor > 1)
             {
                 const auto idx_bs_block_begin = generate_tuple(
-                    [&](auto) { return make_multi_index(0, n_block_data_idx_on_grid, 0); },
+                    [&](auto) { return make_multi_index(k_id, n_block_data_idx_on_grid, 0); },
                     Number<NumBTensor>{});
 
                 return ThreadGroupTensorSliceTransfer_v7r2<
@@ -1403,7 +1418,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                     true,
                     BlockwiseGemmPipe::GlobalBufferNum>(
                     bs_grid_desc_bk0_n_bk1[I0],
-                    make_multi_index(0, n_block_data_idx_on_grid, 0),
+                    make_multi_index(k_id, n_block_data_idx_on_grid, 0),
                     b_element_op,
                     b_block_desc_bk0_n_bk1,
                     make_multi_index(0, 0, 0),
@@ -1437,7 +1452,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (as_grid_desc_ak0_m_ak1[I0].GetLength(I0) * as_grid_desc_ak0_m_ak1[I0].GetLength(I2)) /
-            KPerBlock);
+            (KPerBlock * k_batch));
 
         blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
             get_first_element_workaround<NumATensor>(as_grid_desc_ak0_m_ak1),

@@ -1,4 +1,4 @@
-# ONLY XDL_AND_DL_KERNELS
+# XDL_DL_WMMA_KERNELS
 set(GROUPED_CONV1D_BWD_WEIGHT
     xdl/device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_f16_instance.cpp
     xdl/device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_f32_instance.cpp
@@ -13,5 +13,9 @@ if(DL_KERNELS)
         dl/device_grouped_conv1d_bwd_weight_dl_nwgc_gkxc_nwgk_f32_instance.cpp
         dl/device_grouped_conv1d_bwd_weight_dl_nwgc_gkxc_nwgk_bf16_f32_bf16_instance.cpp)
 endif()
+
+list(APPEND GROUPED_CONV1D_BWD_WEIGHT
+    wmma/device_grouped_conv1d_bwd_weight_wmma_gnwc_gkxc_gnwk_f16_instance.cpp
+    wmma/device_grouped_conv1d_bwd_weight_wmma_gnwc_gkxc_gnwk_bf16_f32_bf16_instance.cpp)
 
 add_instance_library(device_grouped_conv1d_bwd_weight_instance ${GROUPED_CONV1D_BWD_WEIGHT})
