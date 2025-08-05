@@ -76,7 +76,7 @@ class TestCkTileReduce : public ::testing::Test
         auto input_strides_tuple = make_shape_tuple.template operator()<InputDim>(input_strides);
 
         if(!Kernel::IsSupportedArgument(
-               output_shape[output_shape.size() - 1])) // output tensor's continuous dimension
+               output_shape[output_shape.size() - 1], input_strides_tuple)) // output tensor's continuous dimension
         {
             throw std::runtime_error("Wrong! Arguments not supported!\n");
         }

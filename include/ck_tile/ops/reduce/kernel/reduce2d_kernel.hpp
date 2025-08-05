@@ -174,7 +174,22 @@ struct Reduce
         store_tile(y_window, cast_tile<YDataType>(y_compute));
     }
 
-    CK_TILE_HOST static bool IsSupportedArgument(index_t y_continous_dim)
+    /// @brief Validates if the given arguments are supported by the 2D reduction kernel.
+    /// 
+    /// @param y_continous_dim Size of the continuous dimension of the output tensor.
+    ///                        Must be a multiple of ThreadTile_N for proper thread mapping.
+    /// 
+    /// @param input_strides   The stride configuration of the input tensor.
+    ///                        The last stride must be 1 to ensure contiguous memory access
+    ///                        and enable efficient vectorized loads.
+    /// 
+    /// @return true if the arguments are supported, false otherwise.
+    ///         Error messages are logged when CK_TILE_LOGGING is enabled.
+    /// 
+    /// @note Requirements:
+    ///       - y_continous_dim % ThreadTile_N == 0 (for proper thread distribution)
+    ///       - input_strides[-1] == 1 (for contiguous memory access)
+    CK_TILE_HOST static bool IsSupportedArgument(index_t y_continous_dim, auto input_strides)
     {
         using S = typename Problem::BlockShape;
 
@@ -183,6 +198,15 @@ struct Reduce
             if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
             {
                 CK_TILE_ERROR("Total reduction size should be a multiple of ThreadTile_N!");
+            }
+            return false;
+        }
+
+        if(input_strides.at(number<input_strides.size() - 1>{}) != 1)
+        {
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR("Input tensor's last stride must be 1 to support correct vector access!");
             }
             return false;
         }
