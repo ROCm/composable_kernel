@@ -289,6 +289,36 @@ struct PassThrough
     }
 };
 
+struct MultiDMultiply
+{
+    template <typename E, typename C, typename... Ds>
+    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const Ds&... ds) const -> void
+    {
+        // Start with the base value c
+        float result = ck_tile::type_convert<float>(c);
+
+        // Multiply by each D parameter using fold expression (C++17)
+        ((result *= ck_tile::type_convert<float>(ds)), ...);
+
+        e = ck_tile::type_convert<E>(result);
+    }
+};
+
+struct MultiDAdd
+{
+    template <typename E, typename C, typename... Ds>
+    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const Ds&... ds) const -> void
+    {
+        // Start with the base value c
+        float result = ck_tile::type_convert<float>(c);
+
+        // Multiply by each D parameter using fold expression (C++17)
+        ((result += ck_tile::type_convert<float>(ds)), ...);
+
+        e = ck_tile::type_convert<E>(result);
+    }
+};
+
 #if 0
 struct UnaryConvert
 {

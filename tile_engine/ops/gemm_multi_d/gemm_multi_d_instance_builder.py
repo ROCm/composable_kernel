@@ -51,7 +51,9 @@ class GemmMultiDCodeGenerator:
             )
             self.config = JsonConfig.from_json(config_path)
 
-        self.args = ArgumentConfig.from_args(args.datatype, args.layout)
+        self.args = ArgumentConfig.from_args(
+            args.datatype, args.layout, args.elementwise_function
+        )
 
         self.valid_trait_names: List[str] = []
         self.valid_trait_tile_combinations: map[str, list[tuple[int]]] = {}
@@ -305,6 +307,7 @@ class GemmMultiDCodeGenerator:
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
+#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
 // Data types
 using ADataType = {DATA_TYPE_MAP[self.args.datatypes.a_datatype]};
@@ -323,6 +326,9 @@ using D0Layout = {LAYOUT_MAP[self.args.layouts.d0_layout]};
 using D1Layout = {LAYOUT_MAP[self.args.layouts.d1_layout]};
 using DsLayout = ck_tile::tuple<D0Layout, D1Layout>;
 using ELayout = {LAYOUT_MAP[self.args.layouts.e_layout]};
+
+// Element-wise function for D
+using ElementWiseFn = ck_tile::element_wise::{self.args.function_name};
 
 """
 
@@ -375,22 +381,10 @@ namespace {trait} {{
         """Generate the code block of kernel struct"""
         return f"""
 
-struct MultiplyMultiply
-{{
-    template <typename E, typename C, typename D0, typename D1>
-    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const D0& d0, const D1& d1) const -> void
-    {{
-        const float x0_f = ck_tile::type_convert<float>(c) * ck_tile::type_convert<float>(d0) *
-                           ck_tile::type_convert<float>(d1);
-
-        e = ck_tile::type_convert<E>(x0_f);
-    }}
-}};    
-
 template <int TileM, int TileN, int TileK,
           int WarpM, int WarpN, int WarpK,
           int WarpTileM, int WarpTileN, int WarpTileK,
-          typename CDEElementWise = MultiplyMultiply>
+          typename CDEElementWise = ElementWiseFn>
 struct GemmKernel {{
     static constexpr bool kPadM = {pad_m};
     static constexpr bool kPadN = {pad_n};
@@ -757,6 +751,12 @@ if __name__ == "__main__":
         "--layout",
         required=True,
         help="Specify what layout to use for the kernel generation, e.g. rcrr, rrrr",
+    )
+    parser.add_argument(
+        "-ef",
+        "--elementwise_function",
+        required=True,
+        help="Specify what element wise function for D, e.g. mul, add, passthrough",
     )
     parser.add_argument(
         "-l",

@@ -9,7 +9,7 @@ Handles loading, parsing, and validation of JSON and Argument configuration para
 
 from pathlib import Path
 from dataclasses import dataclass
-from typing import List, Optional, Union, Tuple, Type, Dict
+from typing import List, Optional, Union, Type
 import json
 
 
@@ -54,10 +54,10 @@ class RangeConfigParam:
         return candidates
 
 
-
 @dataclass
 class DataType:
-    """Configuration class for data type parameter."""  
+    """Configuration class for data type parameter."""
+
     a_datatype: str
     b_datatype: str
     e_datatype: str
@@ -65,9 +65,11 @@ class DataType:
     d1_datatype: str
     ds_datatype: List[str]
 
+
 @dataclass
 class Layout:
-    """Configuration class for Layout parameter."""  
+    """Configuration class for Layout parameter."""
+
     a_layout: str
     b_layout: str
     e_layout: str
@@ -75,25 +77,31 @@ class Layout:
     d1_layout: str
     ds_layout: List[str]
 
+
 @dataclass
 class ArgumentConfig:
     """Configuration class for Argument parameter."""
 
     datatypes: DataType
     layouts: Layout
-    
+    function_name: str
+
     @classmethod
     def from_args(
-        cls: Type["ArgumentConfig"],  datatype: str, layout: str) -> "ArgumentConfig":
+        cls: Type["ArgumentConfig"],
+        datatype: str,
+        layout: str,
+        elementwise_function: str,
+    ) -> "ArgumentConfig":
         """configuration loader with validation controls"""
-        
+
         datatypes = DataType(
-            a_datatype = datatype,
-            b_datatype = datatype,
-            e_datatype = datatype,
-            d0_datatype = datatype,
-            d1_datatype = datatype,
-            ds_datatype = [datatype, datatype],
+            a_datatype=datatype,
+            b_datatype=datatype,
+            e_datatype=datatype,
+            d0_datatype=datatype,
+            d1_datatype=datatype,
+            ds_datatype=[datatype, datatype],
         )
 
         layout_parts = layout.lower()
@@ -114,17 +122,30 @@ class ArgumentConfig:
         )
 
         layouts = Layout(
-            a_layout = layout[0],
-            b_layout = layout[1],
-            e_layout = layout[2],
-            d0_layout = layout[3],
-            d1_layout = layout[3],
-            ds_layout = [layout[3], layout[3]],
+            a_layout=layout[0],
+            b_layout=layout[1],
+            e_layout=layout[2],
+            d0_layout=layout[3],
+            d1_layout=layout[3],
+            ds_layout=[layout[3], layout[3]],
         )
+        # Elementwise function name validation
+        valid_functions = ["mul", "add", "passthrough"]
+        if elementwise_function not in valid_functions:
+            raise ValueError(
+                f"Invalid elementwise function: {elementwise_function}. "
+                f"Valid options are: {', '.join(valid_functions)}"
+            )
 
-        return cls(
-            datatypes=datatypes, layouts=layouts
-        )
+        # Set the function name based on the elementwise function
+        if elementwise_function == "mul":
+            function_name = "MultiDMultiply"
+        elif elementwise_function == "add":
+            function_name = "MultiDAdd"
+        elif elementwise_function == "passthrough":
+            function_name = "PassThrough"  # TODO Change this
+
+        return cls(datatypes=datatypes, layouts=layouts, function_name=function_name)
 
 
 @dataclass
@@ -164,8 +185,7 @@ class JsonConfig:
     trait_config: TraitConfig
 
     @classmethod
-    def from_json(
-        cls: Type["JsonConfig"], filepath: str) -> "JsonConfig":
+    def from_json(cls: Type["JsonConfig"], filepath: str) -> "JsonConfig":
         """JSON configuration loader with validation controls"""
         config_path = Path(filepath)
 
@@ -222,9 +242,7 @@ class JsonConfig:
                 ),
             )
 
-            return cls(
-                tile_config=tile_config, trait_config=trait_config
-            )
+            return cls(tile_config=tile_config, trait_config=trait_config)
 
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON format: {str(e)}")

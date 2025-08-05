@@ -1,6 +1,7 @@
 
 set(GEMM_MULTI_D_DATATYPE "fp16" CACHE STRING "List of datatypes for GEMM Multi D (semicolon-separated)")
 set(GEMM_MULTI_D_LAYOUT "rcrr" CACHE STRING "List of layout for GEMM Multi D(semicolon-separated)")
+set(GEMM_MULTI_D_ELEMENTWISE_FUNCTION "mul"  CACHE STRING "Elementwise function")
 
 function(build_gemm_multi_d_for_datatype_layout datatype layout)
     set(working_path "${CMAKE_CURRENT_BINARY_DIR}/${datatype}/${layout}")
@@ -17,6 +18,7 @@ function(build_gemm_multi_d_for_datatype_layout datatype layout)
                 --working_path ${working_path}
                 --datatype ${datatype}
                 --layout ${layout}
+                --elementwise_function ${GEMM_MULTI_D_ELEMENTWISE_FUNCTION}
                 --config_json ${json_blob}
                 --list_blobs
         RESULT_VARIABLE ret
@@ -35,6 +37,7 @@ function(build_gemm_multi_d_for_datatype_layout datatype layout)
                 --working_path "${working_path}"
                 --datatype ${datatype}
                 --layout ${layout}
+                --elementwise_function ${GEMM_MULTI_D_ELEMENTWISE_FUNCTION}
                 --config_json "${json_blob}"
                 --gen_blobs
         COMMENT "Generating GEMM Multi D instance sources for ${datatype} ${layout}"

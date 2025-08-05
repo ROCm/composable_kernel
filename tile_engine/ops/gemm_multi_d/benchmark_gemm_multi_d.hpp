@@ -60,18 +60,6 @@ struct Setting
     int rotating_count_;
 };
 
-struct MultiplyMultiply
-{
-    template <typename E, typename C, typename D0, typename D1>
-    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const D0& d0, const D1& d1) const -> void
-    {
-        const float x0_f = ck_tile::type_convert<float>(c) * ck_tile::type_convert<float>(d0) *
-                           ck_tile::type_convert<float>(d1);
-
-        e = ck_tile::type_convert<E>(x0_f);
-    }
-};
-
 // @brief Function to get the kernel output with reference implementation on CPU
 void gemm_multi_d_host_reference(int verify,
                                  ck_tile::HostTensor<ADataType>& a_m_k,
@@ -84,14 +72,14 @@ void gemm_multi_d_host_reference(int verify,
     if(verify > 0)
     {
         // Currently supporting on CPU verification for Gemm Multi D
-        e_m_n_host_result.SetZero();
+        // e_m_n_host_result.SetZero();
 
         ck_tile::reference_gemm_multiple_d<ADataType,
                                            BDataType,
                                            DsDataType,
                                            AccDataType,
                                            EDataType,
-                                           MultiplyMultiply>(
+                                           ElementWiseFn>(
             a_m_k, b_k_n, {d0_m_n, d1_m_n}, e_m_n_host_result);
     }
     std::cout << "Exiting gemm_multi_d_host_reference function" << std::endl;
