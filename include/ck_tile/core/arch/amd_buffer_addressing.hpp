@@ -2722,7 +2722,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add(const thread_buffer<T, N>& src_thread_
         atomic_add_impl<T, N>(&p_dst_wave[dst_thread_element_offset], src_thread_data);
         return;
     }
-#else
+#endif
     const int32x4_t dst_wave_buffer_resource =
         make_wave_buffer_resource(p_dst_wave, dst_element_space_size * sizeof(T));
 
@@ -2739,7 +2739,6 @@ CK_TILE_DEVICE void amd_buffer_atomic_add(const thread_buffer<T, N>& src_thread_
         amd_buffer_atomic_add_impl<T, N>(
             src_thread_data, dst_wave_buffer_resource, dst_thread_addr_offset, 0);
     }
-#endif
 #endif
 }
 
