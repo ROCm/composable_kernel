@@ -13,6 +13,9 @@
 #include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v1_custom_policy.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v1.hpp"
 
+// can remove all bank conflicts, but drop the performance for some cases
+// Probably it is limited by compiler optimization.
+#define CK_TILE_FMHA_HANDLE_XOR_LENGTH_FOLD 0
 namespace ck_tile {
 // This pipeline is qkv all located in LDS
 struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
@@ -220,35 +223,75 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
         constexpr auto q_lds_block_desc = [&]() {
             if constexpr(Xor)
             {
-                constexpr auto q_lds_block_desc_naive = make_naive_tensor_descriptor(
-                    make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
-                    make_tuple(number<kKPerBlock>{}, number<1>{}),
-                    number<kKPack>{},
-                    number<1>{});
+#if CK_TILE_FMHA_HANDLE_XOR_LENGTH_FOLD
+                constexpr auto LDSLayerSize  = 256 / sizeof(typename Problem::QDataType);
+                constexpr auto XorLengthFold = LDSLayerSize / kKPerBlock;
 
-                const auto q_lds_block_desc_unmerged = transform_tensor_descriptor(
-                    q_lds_block_desc_naive,
-                    make_tuple(make_pass_through_transform(number<kMPerBlock>{}),
-                               make_unmerge_transform(
-                                   make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
-                    make_tuple(sequence<0>{}, sequence<1>{}),
-                    make_tuple(sequence<0>{}, sequence<1, 2>{}));
+                if constexpr(XorLengthFold > 1)
+                {
+                    constexpr auto q_lds_block_desc_naive = make_naive_tensor_descriptor(
+                        make_tuple(number<kMPerBlock / XorLengthFold>{},
+                                   number<LDSLayerSize / kKPack>{},
+                                   number<kKPack>{}),
+                        make_tuple(number<LDSLayerSize>{}, number<kKPack>{}, number<1>{}),
+                        number<kKPack>{},
+                        number<1>{});
 
-                const auto q_lds_block_desc_permuted = transform_tensor_descriptor(
-                    q_lds_block_desc_unmerged,
-                    make_tuple(make_xor_transform(
-                                   make_tuple(number<kMPerBlock>{}, number<kKPerBlock / kKPack>{})),
-                               make_pass_through_transform(number<kKPack>{})),
-                    make_tuple(sequence<0, 1>{}, sequence<2>{}),
-                    make_tuple(sequence<0, 1>{}, sequence<2>{}));
+                    constexpr auto q_lds_block_desc_permuted = transform_tensor_descriptor(
+                        q_lds_block_desc_naive,
+                        make_tuple(
+                            make_xor_transform(make_tuple(number<kMPerBlock / XorLengthFold>{},
+                                                          number<LDSLayerSize / kKPack>{})),
+                            make_pass_through_transform(number<kKPack>{})),
+                        make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                        make_tuple(sequence<0, 1>{}, sequence<2>{}));
 
-                return transform_tensor_descriptor(
-                    q_lds_block_desc_permuted,
-                    make_tuple(make_pass_through_transform(number<kMPerBlock>{}),
-                               make_merge_transform_v3_division_mod(
-                                   make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
-                    make_tuple(sequence<0>{}, sequence<1, 2>{}),
-                    make_tuple(sequence<0>{}, sequence<1>{}));
+                    constexpr auto q_lds_block_desc_tmp = transform_tensor_descriptor(
+                        q_lds_block_desc_permuted,
+                        make_tuple(
+                            make_pass_through_transform(number<kMPerBlock / XorLengthFold>{}),
+                            make_unmerge_transform(
+                                make_tuple(number<XorLengthFold>{}, number<kKPerBlock / kKPack>{})),
+                            make_pass_through_transform(number<kKPack>{})),
+                        make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
+                        make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}));
+
+                    return transform_tensor_descriptor(
+                        q_lds_block_desc_tmp,
+                        make_tuple(
+                            make_merge_transform_v3_division_mod(make_tuple(
+                                number<kMPerBlock / XorLengthFold>{}, number<XorLengthFold>{})),
+                            make_merge_transform_v3_division_mod(
+                                make_tuple(number<kMPerBlock / kKPack>{}, number<kKPack>{}))),
+                        make_tuple(sequence<0, 1>{}, sequence<2, 3>{}),
+                        make_tuple(sequence<0>{}, sequence<1>{}));
+                }
+                else
+#endif // CK_TILE_FMHA_HANDLE_XOR_LENGTH_FOLD
+                {
+                    constexpr auto q_lds_block_desc_naive = make_naive_tensor_descriptor(
+                        make_tuple(
+                            number<kMPerBlock>{}, number<kKPerBlock / kKPack>{}, number<kKPack>{}),
+                        make_tuple(number<kKPerBlock>{}, number<kKPack>{}, number<1>{}),
+                        number<kKPack>{},
+                        number<1>{});
+
+                    constexpr auto q_lds_block_desc_permuted = transform_tensor_descriptor(
+                        q_lds_block_desc_naive,
+                        make_tuple(make_xor_transform(make_tuple(number<kMPerBlock>{},
+                                                                 number<kKPerBlock / kKPack>{})),
+                                   make_pass_through_transform(number<kKPack>{})),
+                        make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                        make_tuple(sequence<0, 1>{}, sequence<2>{}));
+
+                    return transform_tensor_descriptor(
+                        q_lds_block_desc_permuted,
+                        make_tuple(make_pass_through_transform(number<kMPerBlock>{}),
+                                   make_merge_transform_v3_division_mod(make_tuple(
+                                       number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
+                        make_tuple(sequence<0>{}, sequence<1, 2>{}),
+                        make_tuple(sequence<0>{}, sequence<1>{}));
+                }
             }
             else
             {
@@ -275,35 +318,75 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
         constexpr auto k_lds_block_desc = [&]() {
             if constexpr(Xor)
             {
-                constexpr auto k_lds_block_desc_naive = make_naive_tensor_descriptor(
-                    make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}),
-                    make_tuple(number<kKPerBlock>{}, number<1>{}),
-                    number<kKPack>{},
-                    number<1>{});
+#if CK_TILE_FMHA_HANDLE_XOR_LENGTH_FOLD
+                constexpr auto LDSLayerSize  = 256 / sizeof(typename Problem::KDataType);
+                constexpr auto XorLengthFold = LDSLayerSize / kKPerBlock;
 
-                const auto k_lds_block_desc_unmerged = transform_tensor_descriptor(
-                    k_lds_block_desc_naive,
-                    make_tuple(make_pass_through_transform(number<kNPerBlock>{}),
-                               make_unmerge_transform(
-                                   make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
-                    make_tuple(sequence<0>{}, sequence<1>{}),
-                    make_tuple(sequence<0>{}, sequence<1, 2>{}));
+                if constexpr(XorLengthFold > 1)
+                {
+                    constexpr auto k_lds_block_desc_naive = make_naive_tensor_descriptor(
+                        make_tuple(number<kNPerBlock / XorLengthFold>{},
+                                   number<LDSLayerSize / kKPack>{},
+                                   number<kKPack>{}),
+                        make_tuple(number<LDSLayerSize>{}, number<kKPack>{}, number<1>{}),
+                        number<kKPack>{},
+                        number<1>{});
 
-                const auto k_lds_block_desc_permuted = transform_tensor_descriptor(
-                    k_lds_block_desc_unmerged,
-                    make_tuple(make_xor_transform(
-                                   make_tuple(number<kNPerBlock>{}, number<kKPerBlock / kKPack>{})),
-                               make_pass_through_transform(number<kKPack>{})),
-                    make_tuple(sequence<0, 1>{}, sequence<2>{}),
-                    make_tuple(sequence<0, 1>{}, sequence<2>{}));
+                    constexpr auto k_lds_block_desc_permuted = transform_tensor_descriptor(
+                        k_lds_block_desc_naive,
+                        make_tuple(
+                            make_xor_transform(make_tuple(number<kNPerBlock / XorLengthFold>{},
+                                                          number<LDSLayerSize / kKPack>{})),
+                            make_pass_through_transform(number<kKPack>{})),
+                        make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                        make_tuple(sequence<0, 1>{}, sequence<2>{}));
 
-                return transform_tensor_descriptor(
-                    k_lds_block_desc_permuted,
-                    make_tuple(make_pass_through_transform(number<kNPerBlock>{}),
-                               make_merge_transform_v3_division_mod(
-                                   make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
-                    make_tuple(sequence<0>{}, sequence<1, 2>{}),
-                    make_tuple(sequence<0>{}, sequence<1>{}));
+                    constexpr auto k_lds_block_desc_tmp = transform_tensor_descriptor(
+                        k_lds_block_desc_permuted,
+                        make_tuple(
+                            make_pass_through_transform(number<kNPerBlock / XorLengthFold>{}),
+                            make_unmerge_transform(
+                                make_tuple(number<XorLengthFold>{}, number<kKPerBlock / kKPack>{})),
+                            make_pass_through_transform(number<kKPack>{})),
+                        make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
+                        make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}));
+
+                    return transform_tensor_descriptor(
+                        k_lds_block_desc_tmp,
+                        make_tuple(
+                            make_merge_transform_v3_division_mod(make_tuple(
+                                number<kNPerBlock / XorLengthFold>{}, number<XorLengthFold>{})),
+                            make_merge_transform_v3_division_mod(
+                                make_tuple(number<kNPerBlock / kKPack>{}, number<kKPack>{}))),
+                        make_tuple(sequence<0, 1>{}, sequence<2, 3>{}),
+                        make_tuple(sequence<0>{}, sequence<1>{}));
+                }
+                else
+#endif // CK_TILE_FMHA_HANDLE_XOR_LENGTH_FOLD
+                {
+                    constexpr auto k_lds_block_desc_naive = make_naive_tensor_descriptor(
+                        make_tuple(
+                            number<kNPerBlock>{}, number<kKPerBlock / kKPack>{}, number<kKPack>{}),
+                        make_tuple(number<kKPerBlock>{}, number<kKPack>{}, number<1>{}),
+                        number<kKPack>{},
+                        number<1>{});
+
+                    constexpr auto k_lds_block_desc_permuted = transform_tensor_descriptor(
+                        k_lds_block_desc_naive,
+                        make_tuple(make_xor_transform(make_tuple(number<kNPerBlock>{},
+                                                                 number<kKPerBlock / kKPack>{})),
+                                   make_pass_through_transform(number<kKPack>{})),
+                        make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                        make_tuple(sequence<0, 1>{}, sequence<2>{}));
+
+                    return transform_tensor_descriptor(
+                        k_lds_block_desc_permuted,
+                        make_tuple(make_pass_through_transform(number<kNPerBlock>{}),
+                                   make_merge_transform_v3_division_mod(make_tuple(
+                                       number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
+                        make_tuple(sequence<0>{}, sequence<1, 2>{}),
+                        make_tuple(sequence<0>{}, sequence<1>{}));
+                }
             }
             else
             {
@@ -332,35 +415,77 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
                 constexpr auto XorGroupSize =
                     Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{});
 
-                constexpr auto v_lds_block_desc_naive = make_naive_tensor_descriptor(
-                    make_tuple(number<kKPerBlock>{}, number<kNPerBlock>{}),
-                    make_tuple(number<kNPerBlock>{}, number<1>{}),
-                    number<kKPack>{},
-                    number<1>{});
+#if CK_TILE_FMHA_HANDLE_XOR_LENGTH_FOLD
+                constexpr auto LDSLayerSize  = 256 / sizeof(typename Problem::VDataType);
+                constexpr auto XorLengthFold = LDSLayerSize / kNPerBlock;
 
-                const auto v_lds_block_desc_unmerged = transform_tensor_descriptor(
-                    v_lds_block_desc_naive,
-                    make_tuple(make_pass_through_transform(number<kKPerBlock>{}),
-                               make_unmerge_transform(make_tuple(
-                                   number<kNPerBlock / XorGroupSize>{}, number<XorGroupSize>{}))),
-                    make_tuple(sequence<0>{}, sequence<1>{}),
-                    make_tuple(sequence<0>{}, sequence<1, 2>{}));
+                if constexpr(XorLengthFold > 1)
+                {
+                    constexpr auto v_lds_block_desc_naive = make_naive_tensor_descriptor(
+                        make_tuple(number<kKPerBlock / XorLengthFold>{},
+                                   number<LDSLayerSize / XorGroupSize>{},
+                                   number<XorGroupSize>{}),
+                        make_tuple(number<LDSLayerSize>{}, number<XorGroupSize>{}, number<1>{}),
+                        number<kKPack>{},
+                        number<1>{});
 
-                const auto v_lds_block_desc_permuted = transform_tensor_descriptor(
-                    v_lds_block_desc_unmerged,
-                    make_tuple(make_xor_transform(make_tuple(number<kKPerBlock>{},
-                                                             number<kNPerBlock / XorGroupSize>{})),
-                               make_pass_through_transform(number<XorGroupSize>{})),
-                    make_tuple(sequence<0, 1>{}, sequence<2>{}),
-                    make_tuple(sequence<0, 1>{}, sequence<2>{}));
+                    constexpr auto v_lds_block_desc_permuted = transform_tensor_descriptor(
+                        v_lds_block_desc_naive,
+                        make_tuple(
+                            make_xor_transform(make_tuple(number<kKPerBlock / XorLengthFold>{},
+                                                          number<LDSLayerSize / XorGroupSize>{})),
+                            make_pass_through_transform(number<XorGroupSize>{})),
+                        make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                        make_tuple(sequence<0, 1>{}, sequence<2>{}));
 
-                return transform_tensor_descriptor(
-                    v_lds_block_desc_permuted,
-                    make_tuple(make_pass_through_transform(number<kKPerBlock>{}),
-                               make_merge_transform_v3_division_mod(make_tuple(
-                                   number<kNPerBlock / XorGroupSize>{}, number<XorGroupSize>{}))),
-                    make_tuple(sequence<0>{}, sequence<1, 2>{}),
-                    make_tuple(sequence<0>{}, sequence<1>{}));
+                    constexpr auto v_lds_block_desc_tmp = transform_tensor_descriptor(
+                        v_lds_block_desc_permuted,
+                        make_tuple(
+                            make_pass_through_transform(number<kKPerBlock / XorLengthFold>{}),
+                            make_unmerge_transform(make_tuple(number<XorLengthFold>{},
+                                                              number<kNPerBlock / XorGroupSize>{})),
+                            make_pass_through_transform(number<XorGroupSize>{})),
+                        make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
+                        make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}));
+
+                    return transform_tensor_descriptor(
+                        v_lds_block_desc_tmp,
+                        make_tuple(
+                            make_merge_transform_v3_division_mod(make_tuple(
+                                number<kKPerBlock / XorLengthFold>{}, number<XorLengthFold>{})),
+                            make_merge_transform_v3_division_mod(make_tuple(
+                                number<kNPerBlock / XorGroupSize>{}, number<XorGroupSize>{}))),
+                        make_tuple(sequence<0, 1>{}, sequence<2, 3>{}),
+                        make_tuple(sequence<0>{}, sequence<1>{}));
+                }
+                else
+#endif // CK_TILE_FMHA_HANDLE_XOR_LENGTH_FOLD
+                {
+                    constexpr auto v_lds_block_desc_naive = make_naive_tensor_descriptor(
+                        make_tuple(number<kKPerBlock>{},
+                                   number<kNPerBlock / XorGroupSize>{},
+                                   number<XorGroupSize>{}),
+                        make_tuple(number<kNPerBlock>{}, number<XorGroupSize>{}, number<1>{}),
+                        number<kKPack>{},
+                        number<1>{});
+
+                    constexpr auto v_lds_block_desc_permuted = transform_tensor_descriptor(
+                        v_lds_block_desc_naive,
+                        make_tuple(make_xor_transform(make_tuple(
+                                       number<kKPerBlock>{}, number<kNPerBlock / XorGroupSize>{})),
+                                   make_pass_through_transform(number<XorGroupSize>{})),
+                        make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                        make_tuple(sequence<0, 1>{}, sequence<2>{}));
+
+                    return transform_tensor_descriptor(
+                        v_lds_block_desc_permuted,
+                        make_tuple(
+                            make_pass_through_transform(number<kKPerBlock>{}),
+                            make_merge_transform_v3_division_mod(make_tuple(
+                                number<kNPerBlock / XorGroupSize>{}, number<XorGroupSize>{}))),
+                        make_tuple(sequence<0>{}, sequence<1, 2>{}),
+                        make_tuple(sequence<0>{}, sequence<1>{}));
+                }
             }
             else
             {
