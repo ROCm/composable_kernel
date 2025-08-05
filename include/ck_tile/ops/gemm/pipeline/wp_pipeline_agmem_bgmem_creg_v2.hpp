@@ -561,6 +561,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                                         void* p_smem_ping,
                                         void* p_smem_pong) const
     {
+        using ComputeDataType = float;
         static_assert(
             std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>>,
             "wrong!");
@@ -1046,8 +1047,52 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                 });
             });
         }
+        // apply softmax for c_block_tile
+        // reduction function for softmax
+        const auto f_max = [](auto e0, auto e1) { return max(e0, e1); };
+        const auto f_sum = [](auto e0, auto e1) { return e0 + e1; };
 
-        return c_block_tile;
+        // m_local = rowmax(c_block_tile)
+        auto m_local = block_tile_reduce<ComputeDataType>(
+            c_block_tile, sequence<1>{}, f_max, std::numeric_limits<ComputeDataType>::lowest());
+
+        block_tile_reduce_sync(m_local, f_max);
+
+        // Pcompute{j} = sum(exp(x - m_local))
+        auto p_compute =
+            make_static_distributed_tensor<ComputeDataType>(c_block_tile.get_tile_distribution());
+
+        constexpr auto p_spans = decltype(p_compute)::get_distributed_spans();
+
+        sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
+            constexpr auto i_idx = make_tuple(idx0);
+
+            sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
+                constexpr auto i_j_idx = make_tuple(idx0, idx1);
+
+                p_compute(i_j_idx) = exp(c_block_tile[i_j_idx] - m_local[i_idx]);
+            });
+        });
+
+        // rowsum for p_compute{i, j}
+        auto rowsum_p = block_tile_reduce<ComputeDataType>(
+            p_compute, sequence<1>{}, f_sum, ComputeDataType{0});
+
+        block_tile_reduce_sync(rowsum_p, f_sum);
+
+        // softmax = p_compute{i, j} / rowsum_p
+        sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
+            constexpr auto i_idx = make_tuple(idx0);
+
+            sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
+                constexpr auto i_j_idx = make_tuple(idx0, idx1);
+
+                p_compute(i_j_idx) = p_compute[i_j_idx] / rowsum_p[i_idx];
+            });
+        });
+
+        return p_compute;
+        // return c_block_tile;
     }
 
     template <typename ADramBlockWindowTmp, typename BFlatBlockWindowTmp>
