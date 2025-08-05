@@ -26,7 +26,8 @@ struct TileGemmAQuantTraits
     using BLayout  = BLayout_;
     using CLayout  = CLayout_;
     using AQLayout = AQLayout_;
-
+    
+    static constexpr bool TransposeC            = false;
     static constexpr bool UseStructuredSparsity = false;
     static constexpr index_t NumWaveGroups      = 1;
 };
@@ -38,7 +39,7 @@ template <bool kPadM_,
           typename BLayout_,
           typename CLayout_,
           typename BQLayout_ = BLayout_>
-struct TileGemmAQuantTraits
+struct TileGemmBQuantTraits
 {
     static constexpr bool kPadM = kPadM_;
     static constexpr bool kPadN = kPadN_;
@@ -50,7 +51,8 @@ struct TileGemmAQuantTraits
     using BLayout  = BLayout_;
     using CLayout  = CLayout_;
     using BQLayout = BQLayout_;
-
+    
+    static constexpr bool TransposeC            = false;
     static constexpr bool UseStructuredSparsity = false;
     static constexpr index_t NumWaveGroups      = 1;
 };

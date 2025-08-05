@@ -9,7 +9,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
-#include "ck_tile/ops/gemm_group_quant/pipeline/gemm_aquant_pipeline_ag_bg_cr_base.hpp"
+#include "ck_tile/ops/gemm_group_quant/pipeline/gemm_bquant_pipeline_ag_bg_cr_base.hpp"
 #include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
@@ -244,7 +244,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
                                    remove_cvref_t<typename BDramBlockWindowTmp::DataType>> &&
                     std::is_same_v<BQDataType,
                                    remove_cvref_t<typename BQDramBlockWindowTmp::DataType>>,
-                "A/B/AQ Dram block window should have the same data type as appropriate "
+                "A/B/BQ Dram block window should have the same data type as appropriate "
                 "([A|B|BQ]DataType) defined in Problem definition!");
 
             constexpr bool is_a_col_major =
