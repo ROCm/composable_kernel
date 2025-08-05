@@ -82,7 +82,7 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
                                                CodegenGemmTraits,
                                                QuantGroupSize,
                                                ComputeDataType,
-                                               ck_tile::GemmPipelineScheduler::Intrawave,
+                                               ck_tile::GemmPipelineScheduler::Interwave,
                                                has_hot_loop_v,
                                                tail_number_v>;
         using CodegenGemmPipeline = ck_tile::AQuantGemmPipelineAgBgCrCompV3<CodegenPipelineProblem>;
