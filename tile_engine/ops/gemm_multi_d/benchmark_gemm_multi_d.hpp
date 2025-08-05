@@ -74,11 +74,11 @@ struct MultiplyMultiply
 
 // @brief Function to get the kernel output with reference implementation on CPU
 void gemm_multi_d_host_reference(int verify,
-                         ck_tile::HostTensor<ADataType>& a_m_k,
-                         ck_tile::HostTensor<BDataType>& b_k_n,
-                         ck_tile::HostTensor<D0DataType>& d0_m_n,
-                         ck_tile::HostTensor<D1DataType>& d1_m_n,
-                         ck_tile::HostTensor<EDataType>& e_m_n_host_result)
+                                 ck_tile::HostTensor<ADataType>& a_m_k,
+                                 ck_tile::HostTensor<BDataType>& b_k_n,
+                                 ck_tile::HostTensor<D0DataType>& d0_m_n,
+                                 ck_tile::HostTensor<D1DataType>& d1_m_n,
+                                 ck_tile::HostTensor<EDataType>& e_m_n_host_result)
 {
     std::cout << "Inside gemm_multi_d_host_reference function" << std::endl;
     if(verify > 0)
@@ -87,18 +87,15 @@ void gemm_multi_d_host_reference(int verify,
         e_m_n_host_result.SetZero();
 
         ck_tile::reference_gemm_multiple_d<ADataType,
-                                       BDataType,
-                                       DsDataType,
-                                       AccDataType,
-                                       EDataType,
-                                       MultiplyMultiply>(
-        a_m_k, b_k_n, {d0_m_n, d1_m_n}, e_m_n_host_result);
+                                           BDataType,
+                                           DsDataType,
+                                           AccDataType,
+                                           EDataType,
+                                           MultiplyMultiply>(
+            a_m_k, b_k_n, {d0_m_n, d1_m_n}, e_m_n_host_result);
     }
     std::cout << "Exiting gemm_multi_d_host_reference function" << std::endl;
 }
-
-
-
 
 enum class Metric
 {
@@ -172,8 +169,6 @@ struct KernelInstance
     }
 };
 
-
-
 inline std::string get_rocm_version()
 {
     std::ifstream version_file("/opt/rocm/.info/version");
@@ -237,8 +232,3 @@ bool compare(std::string instanceName,
 
     return pass;
 }
-
-
-
-
-

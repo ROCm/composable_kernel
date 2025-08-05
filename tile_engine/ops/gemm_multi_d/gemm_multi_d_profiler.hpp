@@ -20,15 +20,16 @@ class GemmProfiler
         return instance;
     }
 
-    void benchmark(GemmMultiDProblem& gemm_problem,
-                   std::vector<std::function<std::tuple<std::string, float>(
-                       ck_tile::GemmHostArgs<DsDataType::size()>&, const ck_tile::stream_config&)>>& callables)
+    void benchmark(
+        GemmMultiDProblem& gemm_problem,
+        std::vector<std::function<std::tuple<std::string, float>(
+            ck_tile::GemmHostArgs<DsDataType::size()>&, const ck_tile::stream_config&)>>& callables)
     {
-        const ALayout layout_a = ALayout{};
-        const BLayout layout_b = BLayout{};
+        const ALayout layout_a   = ALayout{};
+        const BLayout layout_b   = BLayout{};
         const D0Layout layout_d0 = D0Layout{};
         const D1Layout layout_d1 = D1Layout{};
-        const ELayout layout_e = ELayout{};
+        const ELayout layout_e   = ELayout{};
 
         gemm_problem.stride_a_ = ck_tile::get_default_stride(
             gemm_problem.m_, gemm_problem.k_, gemm_problem.stride_a_, is_row_major(layout_a));
@@ -39,7 +40,7 @@ class GemmProfiler
         gemm_problem.stride_d1_ = ck_tile::get_default_stride(
             gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_d1_, is_row_major(layout_d1));
         gemm_problem.stride_e_ = ck_tile::get_default_stride(
-            gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_e_, is_row_major(layout_e));    
+            gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_e_, is_row_major(layout_e));
 
         ck_tile::HostTensor<ADataType> a_m_k(ck_tile::host_tensor_descriptor(
             gemm_problem.m_, gemm_problem.k_, gemm_problem.stride_a_, is_row_major(layout_a)));
@@ -51,7 +52,6 @@ class GemmProfiler
             gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_d1_, is_row_major(layout_d1)));
         ck_tile::HostTensor<EDataType> e_m_n_device_result(ck_tile::host_tensor_descriptor(
             gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_e_, is_row_major(layout_e)));
-
 
         ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k);
         ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n);
@@ -73,10 +73,10 @@ class GemmProfiler
         e_m_n_device_result.SetZero();
 
         std::array<const void*, DsDataType::size()> ds_ptr_buf = {d0_m_n_dev_buf.GetDeviceBuffer(),
-                                                              d1_m_n_dev_buf.GetDeviceBuffer()};
+                                                                  d1_m_n_dev_buf.GetDeviceBuffer()};
 
-        std::array<ck_tile::index_t, DsDataType::size()> stridesDs = {gemm_problem.stride_d0_, gemm_problem.stride_d1_};
-
+        std::array<ck_tile::index_t, DsDataType::size()> stridesDs = {gemm_problem.stride_d0_,
+                                                                      gemm_problem.stride_d1_};
 
         ck_tile::GemmHostArgs<DsDataType::size()> gemm_args = {
             a_m_k_dev_buf.GetDeviceBuffer(),
@@ -98,34 +98,22 @@ class GemmProfiler
 
         if(setting_.verify_)
         {
-            gemm_multi_d_host_reference(setting_.verify_,
-                                a_m_k,
-                                b_k_n,
-                                d0_m_n,
-                                d1_m_n,
-                                e_m_n_host_result);
+            gemm_multi_d_host_reference(
+                setting_.verify_, a_m_k, b_k_n, d0_m_n, d1_m_n, e_m_n_host_result);
         }
 
         for(auto& callable : callables)
         {
             printf("Inside Callable loop\n");
             printf("Running kernel: %s\n", callable.target_type().name());
-            auto kernel_run_result = callable(gemm_args,
-                                              ck_tile::stream_config{nullptr,
-                                                                     true,
-                                                                     setting_.log_,
-                                                                     setting_.n_warmup_,
-                                                                     setting_.n_repeat_
-                                                                    //  ,
-                                                                    //  setting_.is_gpu_timer_,
-                                                                    //  setting_.flush_cache_,
-                                                                    //  setting_.rotating_count_
-                                                                    });
-
+            auto kernel_run_result =
+                callable(gemm_args,
+                         ck_tile::stream_config{
+                             nullptr, true, setting_.log_, setting_.n_warmup_, setting_.n_repeat_});
 
             auto [kernel_name, execution_time] = kernel_run_result;
-            std::cout << "Kernel result - Name: " << kernel_name 
-              << ", Execution time: " << execution_time << " ms" << std::endl;
+            std::cout << "Kernel result - Name: " << kernel_name
+                      << ", Execution time: " << execution_time << " ms" << std::endl;
 
             process_result(gemm_problem,
                            e_m_n_dev_buf,
@@ -133,7 +121,6 @@ class GemmProfiler
                            e_m_n_device_result,
                            kernel_run_result);
             printf("Exiting Callable loop\n");
-
         }
     }
 
@@ -144,17 +131,21 @@ class GemmProfiler
                         const std::tuple<std::string, float>& kernel_run_result)
     {
         auto [name, avg_time] = kernel_run_result;
-        
+
         KernelInstance kernel_instance{name, gemm_problem, {-1.0f, -1.0f, -1.0f}};
 
         static constexpr ck_tile::index_t NumDTensor = DsDataType::size();
         std::size_t flop = 0, num_byte = 0;
         flop += std::size_t(2) * gemm_problem.m_ * gemm_problem.n_ * gemm_problem.k_;
         ck_tile::static_for<0, NumDTensor, 1>{}([&](auto i) {
-            num_byte += sizeof(ck_tile::remove_cvref_t<std::tuple_element_t<i, DsDataType>>) * gemm_problem.m_ * gemm_problem.n_;
-            flop += sizeof(ck_tile::remove_cvref_t<std::tuple_element_t<i, DsDataType>>) * gemm_problem.m_ * gemm_problem.n_;
+            num_byte += sizeof(ck_tile::remove_cvref_t<std::tuple_element_t<i, DsDataType>>) *
+                        gemm_problem.m_ * gemm_problem.n_;
+            flop += sizeof(ck_tile::remove_cvref_t<std::tuple_element_t<i, DsDataType>>) *
+                    gemm_problem.m_ * gemm_problem.n_;
         });
-        num_byte += sizeof(ADataType) * gemm_problem.m_ * gemm_problem.k_ + sizeof(BDataType) * gemm_problem.k_ * gemm_problem.n_ + sizeof(EDataType) * gemm_problem.m_ * gemm_problem.n_;
+        num_byte += sizeof(ADataType) * gemm_problem.m_ * gemm_problem.k_ +
+                    sizeof(BDataType) * gemm_problem.k_ * gemm_problem.n_ +
+                    sizeof(EDataType) * gemm_problem.m_ * gemm_problem.n_;
 
         kernel_instance.perf_result_.latency_   = avg_time;
         kernel_instance.perf_result_.tflops_    = static_cast<float>(flop) / 1.E9 / avg_time;
@@ -165,12 +156,10 @@ class GemmProfiler
             std::cout << kernel_instance << std::endl;
         }
 
-        //Result verification
+        // Result verification
         e_m_n_dev_buf.FromDevice(e_m_n_dev_result.data());
-        bool verified_correct =
-            !setting_.verify_ ||
-            compare(
-                name, gemm_problem.k_, e_m_n_dev_result, e_m_n_host_result);
+        bool verified_correct = !setting_.verify_ ||
+                                compare(name, gemm_problem.k_, e_m_n_dev_result, e_m_n_host_result);
 
         if(verified_correct)
         {
@@ -179,7 +168,8 @@ class GemmProfiler
         else
         {
             std::cout << "Verification failed, skip kernel: " << name << std::endl;
-            kernel_instances_.emplace_back(kernel_instance); // Remove this line if you don't want to keep failed instances
+            kernel_instances_.emplace_back(
+                kernel_instance); // Remove this line if you don't want to keep failed instances
         }
 
         e_m_n_dev_buf.SetZero();
@@ -228,18 +218,20 @@ class GemmProfiler
                 const auto& name    = kernel_instance.name_;
                 const auto& perf    = kernel_instance.perf_result_;
 
-                //TODO: Add all parameters for Multi D GEMM
+                // TODO: Add all parameters for Multi D GEMM
                 file << get_rocm_version() << "," << ck_tile::get_device_name() << ","
                      << problem.split_k_ << "," << problem.m_ << "," << problem.n_ << ","
                      << problem.k_ << "," << problem.stride_a_ << "," << problem.stride_b_ << ","
-                     << problem.stride_e_ << "," << problem.dtype_a_ << "," << problem.dtype_b_
-                     << "," << problem.dtype_acc_ << "," << problem.dtype_e_ << ","
-                     << problem.layout_a_ << "," << problem.layout_b_ << "," << problem.layout_e_
-                     << "," << "," << name << "," << std::fixed
-                     << std::setprecision(4) << perf.latency_ << "," << std::fixed
-                     << std::setprecision(4) << perf.tflops_ << "," << std::fixed
-                     << std::setprecision(4) << perf.bandwidth_ << "," << get_metric_name(metric)
-                     << "\n";
+                     << problem.stride_d0_ << "," << problem.stride_d1_ << "," << problem.stride_e_
+                     << "," << problem.dtype_a_ << "," << problem.dtype_b_ << ","
+                     << problem.dtype_d0_ << "," << problem.dtype_d1_ << "," << problem.dtype_acc_
+                     << "," << problem.dtype_e_ << "," << problem.layout_a_ << ","
+                     << problem.layout_b_ << "," << problem.layout_d0_ << "," << problem.layout_d1_
+                     << "," << problem.layout_e_ << ","
+                     << "," << name << "," << std::fixed << std::setprecision(4) << perf.latency_
+                     << "," << std::fixed << std::setprecision(4) << perf.tflops_ << ","
+                     << std::fixed << std::setprecision(4) << perf.bandwidth_ << ","
+                     << get_metric_name(metric) << "\n";
 
                 if(!file)
                 {

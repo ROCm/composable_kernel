@@ -296,13 +296,6 @@ class GemmMultiDCodeGenerator:
     def _generate_common_header_file(self):
         """Generate common header file with datatypes and layout."""
 
-        # Determine appropriate accumulation type based on input types
-        # a_type = self.args.datatypes.a_datatype
-        # b_type = self.args.datatypes.b_datatype
-        # e_type = self.args.datatypes.e_datatype
-        # d0_type = self.args.datatypes.d0_datatype
-        # d1_type = self.args.datatypes.d1_datatype
-        # ds_type = (d0_type, d1_type)
         acc_type = "float"  # As we are currently supporting only fp16
 
         content = f"""// SPDX-License-Identifier: MIT
@@ -370,7 +363,6 @@ namespace {trait} {{
         content += f"\n}} // namespace {trait}\n"
         (self.output_dir / filename).write_text(content)
 
-    # TODO Revisit all the hardcoding
     def _generate_kernel_struct(
         self,
         pipeline: str,
@@ -569,30 +561,6 @@ struct GemmKernel {{
                         int, warp_tile.split("x")
                     )
 
-                    # sparse = (
-                    #     self.config.problem.datatype_map["matrix_a"] == "fp16"
-                    #     and self.config.problem.datatype_map["matrix_b"] == "fp16"
-                    #     and self.config.problem.datatype_map["matrix_c"] == "fp16"
-                    #     and (
-                    #         (
-                    #             warp_tile_m == 32
-                    #             and warp_tile_n == 32
-                    #             and warp_tile_k == 16
-                    #         )
-                    #         or (
-                    #             warp_tile_m == 16
-                    #             and warp_tile_n == 16
-                    #             and warp_tile_k == 32
-                    #         )
-                    #     )
-                    # )
-                    #                     if sparse:
-                    #                         files_listed = files_listed + 1
-                    #                         content = (
-                    #                             content
-                    #                             + f"""
-                    # template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, true>;"""
-                    #                         )
                     files_listed = files_listed + 1
                     content = (
                         content
@@ -682,36 +650,6 @@ struct GemmDispatcher {
                     ) = tile[j]
                     content += """[=](ck_tile::GemmHostArgs<DsDataType::size()>& args, const ck_tile::stream_config& stream) { """
 
-                    ###########################################################################################
-                    # content += f"""
-                    #                 if(structured_sparsity){{  // SMFMA"""
-                    # sparse = (
-                    #     self.config.problem.datatype_map["matrix_a"] == "fp16"
-                    #     and self.config.problem.datatype_map["matrix_b"] == "fp16"
-                    #     and self.config.problem.datatype_map["matrix_c"] == "fp16"
-                    #     and (
-                    #         (
-                    #             warp_tile_m == 32
-                    #             and warp_tile_n == 32
-                    #             and warp_tile_k == 16
-                    #         )
-                    #         or (
-                    #             warp_tile_m == 16
-                    #             and warp_tile_n == 16
-                    #             and warp_tile_k == 32
-                    #         )
-                    #     )
-                    # )
-                    # content += f"""
-                    #                     return run_kernel<{trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, {BOOL_MAP(sparse)}>>(args, stream);"""
-                    # content += f"""
-                    #                 }} else {{"""
-                    # content += f"""
-                    #                     return run_kernel<{trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, {BOOL_MAP(False)}>>(args, stream);"""
-                    # content += f"""
-                    #                 }} """
-
-                    ###########################################################################################
                     content += f"""
                         return run_kernel<{trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}>>(args, stream);"""
 
@@ -812,13 +750,13 @@ if __name__ == "__main__":
         "-d",
         "--datatype",
         required=True,
-        help="Specify what datatype to use for the kernel generation, e.g. fp16, bf16, int8, fp8, bf8",
+        help="Specify what datatype to use for the kernel generation, e.g. fp16",
     )
     parser.add_argument(
         "-ly",
         "--layout",
         required=True,
-        help="Specify what layout to use for the kernel generation, e.g. rcr, rrr",
+        help="Specify what layout to use for the kernel generation, e.g. rcrr, rrrr",
     )
     parser.add_argument(
         "-l",

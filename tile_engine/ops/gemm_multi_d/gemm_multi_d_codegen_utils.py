@@ -185,7 +185,7 @@ def BOOL_MAP(b_):
     return {True: "true", False: "false"}[bool(b_)]
 
 
-# TODO: add some more supported combinations
+# Can add some more supported combinations
 warp_tile_supported_combinations = {
     "gfx90a": {
         "fp16_fp16_fp16": [
@@ -264,7 +264,7 @@ warp_tile_supported_combinations = {
     },
 }
 
-# TODO: remove some unsupported combinations
+# Remove some unsupported combinations
 trait_unsupported_combinations = {
     ("compv3", "cshuffle", "interwave"),
     ("compv3", "default", "interwave"),
