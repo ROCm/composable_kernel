@@ -1,4 +1,4 @@
- # SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: MIT
 # Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 # -*- coding: utf-8 -*-
@@ -28,7 +28,7 @@ LAYOUT_MAP = {
 }
 
 
-#TODO THIS IS NOT SUPPORTED FOR MULTI D AS OF NOW
+# TODO THIS IS NOT SUPPORTED FOR MULTI D AS OF NOW
 # DEFAULT_EPILOGUE = """
 #             using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
 #                                 ck_tile::DefaultGemm2DEpilogueProblem<ADataType,
@@ -55,7 +55,7 @@ CSHUFFLE_EPILOGUE = """
                                                              EDataType,
                                                              DsLayout,
                                                              ELayout,
-                                                             CDElementwise,
+                                                             CDEElementWise,
                                                              GemmPipelineProblem::kBlockSize,
                                                              TilePartitioner::MPerBlock,
                                                              TilePartitioner::NPerBlock,

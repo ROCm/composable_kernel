@@ -16,11 +16,7 @@ from gemm_multi_d_codegen_utils import (
     DATA_TYPE_MAP,
     LAYOUT_MAP,
     # DEFAULT_EPILOGUE,
-    CSHUFFLE_EPILOGUE,
     HOT_LOOP_FALSE,
-    RUN_MEM,
-    RUN_COMPV3,
-    RUN_COMPV4,
     PIPELINE_MAP,
     SCHEDULER_MAP,
     EPILOGUE_MAP,
@@ -40,7 +36,9 @@ class GemmMultiDCodeGenerator:
     """GEMM (General Matrix Multiplication) Multi D code generator."""
 
     def __init__(
-        self, args: argparse.Namespace, user_provided_config: Optional[JsonConfig] = None
+        self,
+        args: argparse.Namespace,
+        user_provided_config: Optional[JsonConfig] = None,
     ):
         self.output_dir = Path(args.working_path)
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -111,8 +109,8 @@ class GemmMultiDCodeGenerator:
         file_path = w_p / "gemm_multi_d_instance_blobs_range.txt"
         with file_path.open("w") as f:
             for name, ranges in file_range_map.items():
-                s, l = ranges
-                f.write(name + " " + f"{s}" + " " + f"{l}" + "\n")
+                start, last = ranges
+                f.write(name + " " + f"{start}" + " " + f"{last}" + "\n")
 
     def _generate_all_traits(self):
         """Generate all possible kernel traits names."""
@@ -182,7 +180,7 @@ class GemmMultiDCodeGenerator:
             if trait not in self.valid_trait_tile_combinations:
                 self.valid_trait_tile_combinations[trait] = []
             self.valid_trait_tile_combinations[trait].append(tile_valid_params)
-    
+
     def is_tile_valid(self, tile: tuple, trait: str) -> bool:
         """Check if the tile configuration is valid for the given trait."""
         (
@@ -242,13 +240,9 @@ class GemmMultiDCodeGenerator:
             return False
 
         # LDS capacity verification
-        matrix_a_size = (tile_m * tile_k) * element_size(
-            self.args.datatypes.a_datatype
-        )
+        matrix_a_size = (tile_m * tile_k) * element_size(self.args.datatypes.a_datatype)
 
-        matrix_b_size = (tile_n * tile_k) * element_size(
-            self.args.datatypes.b_datatype
-        )
+        matrix_b_size = (tile_n * tile_k) * element_size(self.args.datatypes.b_datatype)
 
         total_tile_in_lds = matrix_a_size + matrix_b_size
 
@@ -265,7 +259,7 @@ class GemmMultiDCodeGenerator:
 
         # Warp combination validation
         warp_tile_key = f"{self.args.datatypes.a_datatype}_{self.args.datatypes.b_datatype}_{self.args.datatypes.e_datatype}"
-        
+
         current_combination = [warp_tile_m, warp_tile_n, warp_tile_k]
 
         gpu_name = get_gpu_name_by_id(0)
@@ -292,7 +286,7 @@ class GemmMultiDCodeGenerator:
             return False
 
         return True
-    
+
     def generate_all_instance_files(self):
         """Generate all kernel instances files."""
         self._generate_common_header_file()
@@ -309,7 +303,7 @@ class GemmMultiDCodeGenerator:
         # d0_type = self.args.datatypes.d0_datatype
         # d1_type = self.args.datatypes.d1_datatype
         # ds_type = (d0_type, d1_type)
-        acc_type = "float" # As we are currently supporting only fp16
+        acc_type = "float"  # As we are currently supporting only fp16
 
         content = f"""// SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
@@ -342,15 +336,15 @@ using ELayout = {LAYOUT_MAP[self.args.layouts.e_layout]};
         (self.output_dir / "gemm_multi_d_common.hpp").write_text(content)
 
     def _generate_all_trait_files(self):
-            """Generate all kernel traits into files."""
-            if not self.valid_trait_names:
-                self._generate_all_traits()
-                self._get_valid_trait_tile_combinations()
-            for trait in self.valid_trait_names:
-                self._generate_trait_file(trait) 
-            self._generate_instantiation_source_files()
-            self._generate_common_instance_header_file()
-    
+        """Generate all kernel traits into files."""
+        if not self.valid_trait_names:
+            self._generate_all_traits()
+            self._get_valid_trait_tile_combinations()
+        for trait in self.valid_trait_names:
+            self._generate_trait_file(trait)
+        self._generate_instantiation_source_files()
+        self._generate_common_instance_header_file()
+
     def _generate_trait_file(self, trait: str):
         """Generate a trait with all tile/warp combinations."""
         pipeline, epilogue, scheduler, pad_m, pad_n, pad_k = trait.split("_")
@@ -374,9 +368,9 @@ namespace {trait} {{
         )
 
         content += f"\n}} // namespace {trait}\n"
-        (self.output_dir / filename).write_text(content) 
+        (self.output_dir / filename).write_text(content)
 
-    #TODO Revisit all the hardcoding
+    # TODO Revisit all the hardcoding
     def _generate_kernel_struct(
         self,
         pipeline: str,
@@ -403,7 +397,8 @@ struct MultiplyMultiply
 
 template <int TileM, int TileN, int TileK,
           int WarpM, int WarpN, int WarpK,
-          int WarpTileM, int WarpTileN, int WarpTileK>
+          int WarpTileM, int WarpTileN, int WarpTileK,
+          typename CDEElementWise = MultiplyMultiply>
 struct GemmKernel {{
     static constexpr bool kPadM = {pad_m};
     static constexpr bool kPadN = {pad_n};
@@ -530,7 +525,7 @@ struct GemmKernel {{
                 "{scheduler}";
     }}
 }};
-"""      
+"""
 
     def _generate_instantiation_source_files(self):
         """Generate kernel instance instantiation source files"""
@@ -591,20 +586,20 @@ struct GemmKernel {{
                     #         )
                     #     )
                     # )
-#                     if sparse:
-#                         files_listed = files_listed + 1
-#                         content = (
-#                             content
-#                             + f"""
-# template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, true>;"""
-#                         )
+                    #                     if sparse:
+                    #                         files_listed = files_listed + 1
+                    #                         content = (
+                    #                             content
+                    #                             + f"""
+                    # template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, true>;"""
+                    #                         )
                     files_listed = files_listed + 1
                     content = (
                         content
                         + f"""
 template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}>;"""
                     )
-                content += f"""
+                content += """
 """
                 (
                     self.output_dir
@@ -685,10 +680,10 @@ struct GemmDispatcher {
                         warp_tile_n,
                         warp_tile_k,
                     ) = tile[j]
-                    content += f"""[=](ck_tile::GemmHostArgs<DsDataType::size()>& args, const ck_tile::stream_config& stream) {{ """
-                    
+                    content += """[=](ck_tile::GemmHostArgs<DsDataType::size()>& args, const ck_tile::stream_config& stream) { """
+
                     ###########################################################################################
-                    # content += f""" 
+                    # content += f"""
                     #                 if(structured_sparsity){{  // SMFMA"""
                     # sparse = (
                     #     self.config.problem.datatype_map["matrix_a"] == "fp16"
@@ -719,15 +714,15 @@ struct GemmDispatcher {
                     ###########################################################################################
                     content += f"""
                         return run_kernel<{trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}>>(args, stream);"""
-                    
+
                     if j == len(tile) - 1:
-                        content += f"""
-                                }} """
+                        content += """
+                                } """
                     else:
-                        content += f"""
-                                }}, """
-            content += f"""
-            }};\n """
+                        content += """
+                                }, """
+            content += """
+            };\n """
 
         content += """    }
 
@@ -766,11 +761,13 @@ private:
 """
         (self.output_dir / "gemm_multi_d_dispatcher.hpp").write_text(content)
 
+
 def do_list_blobs(
     args: argparse.Namespace, user_provide_config: Optional[JsonConfig] = None
 ):
     generator = GemmMultiDCodeGenerator(args, user_provide_config)
     generator.list_all_trait_names()
+
 
 def do_gen_blobs(
     args: argparse.Namespace, user_provide_config: Optional[JsonConfig] = None
@@ -778,8 +775,8 @@ def do_gen_blobs(
     generator = GemmMultiDCodeGenerator(args, user_provide_config)
     generator.generate_all_instance_files()
 
+
 def main(args):
- 
     gemm_config = JsonConfig.from_json(args.config_json)
 
     if args.list_blobs:

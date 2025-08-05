@@ -271,10 +271,9 @@ struct PassThrough
         /*  Only do the assignment when
             - y is an *l-value*   and
             - y is *not* const     */
-        if constexpr ( std::is_lvalue_reference_v<Y&&> &&
-                       !std::is_const_v<raw_t<Y>> )
+        if constexpr(std::is_lvalue_reference_v<Y&&> && !std::is_const_v<raw_t<Y>>)
         {
-            y = ck_tile::type_convert< raw_t<Y> >(x);
+            y = ck_tile::type_convert<raw_t<Y>>(x);
         }
         /*  otherwise (r-value or const)     → do nothing  */
     }
@@ -285,10 +284,9 @@ struct PassThrough
         // first pair
         (*this)(y, x);
         // recurse on the remaining pairs (if any)
-        if constexpr (sizeof...(rest) > 0)
+        if constexpr(sizeof...(rest) > 0)
             (*this)(std::forward<Rest>(rest)...);
     }
-
 };
 
 #if 0
