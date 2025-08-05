@@ -34,10 +34,14 @@ template <typename SrcData,
           InMemoryDataOperationEnum DstInMemOp,
           index_t DstScalarStrideInVector,
           bool DstResetCoordinateAfterRun,
-          typename enable_if<SrcDesc::IsKnownAtCompileTime(), bool>::type = false>
+          typename enable_if<SrcDesc::IsKnownAtCompileTime(), bool>::type = false,
+          bool PackedInput = false>
 struct ThreadwiseTensorSliceTransfer_v1r3
 {
     static constexpr index_t nDim = SliceLengths::Size();
+
+    static constexpr bool float_input_and_bf16_output_ = 
+        std::is_same_v<SrcData, float> && std::is_same_v<DstData, ck::bhalf_t>;
 
     using Index = MultiIndex<nDim>;
 
@@ -106,17 +110,30 @@ struct ThreadwiseTensorSliceTransfer_v1r3
 
             // copy data from src_buf into dst_vector
             // TODO: It's a hack here to use \p dst_scalar_step_in_vector. Use SpaceFillingCurve?
-            static_for<0, DstScalarPerVector, 1>{}([&](auto i) {
-                constexpr index_t src_offset = src_desc.CalculateOffset(
-                    src_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);
+            if constexpr (PackedInput && float_input_and_bf16_output_)
+            {
+                static_for<0, DstScalarPerVector, 1>{}([&](auto i) {
+                    constexpr index_t src_offset = src_desc.CalculateOffset(
+                        src_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);        
 
-                DstData v;
+                    const float packed_float = src_buf[Number<src_offset>{}];
+                    const bhalf_t* bf16_array = reinterpret_cast<const bhalf_t*>(&packed_float);
+                    dst_vector.template AsType<DstData>()(i) = bf16_array[0];
+                });
+            }
+            else
+            {
+                static_for<0, DstScalarPerVector, 1>{}([&](auto i) {
+                    constexpr index_t src_offset = src_desc.CalculateOffset(
+                        src_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);        
 
-                // apply element-wise operation
-                element_op_(v, src_buf[Number<src_offset>{}]);
+                    DstData v;
 
-                dst_vector.template AsType<DstData>()(i) = v;
-            });
+                    // apply element-wise operation
+                    element_op_(v, src_buf[Number<src_offset>{}]);
+                    dst_vector.template AsType<DstData>()(i) = v;
+                });
+            }
 
             const bool is_dst_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);

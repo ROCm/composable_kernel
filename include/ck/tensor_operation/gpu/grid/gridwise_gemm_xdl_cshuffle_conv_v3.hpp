@@ -112,9 +112,10 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
     static constexpr bool is_gfx950_and_bf16_input_ = false;
 #endif  
 
-    using CShuffleInputDataType = std::conditional_t<is_gfx950_and_bf16_input_, 
-                                         CShuffleDataType, 
-                                         AccDataType>;
+    // using CShuffleInputDataType = std::conditional_t<is_gfx950_and_bf16_input_, 
+    //                                      CShuffleDataType, 
+    //                                      AccDataType>;
+    using CShuffleInputDataType = AccDataType;
 
     __host__ static auto CalculateGridSize(index_t M, index_t N, index_t KBatch, index_t Batch)
     {
@@ -918,7 +919,8 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
                                                    1,
                                                    InMemoryDataOperationEnum::Set,
                                                    1,
-                                                   true>{
+                                                   true,
+                                                   is_gfx950_and_bf16_input_>{
                     c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                     make_multi_index(0,
                                      0,
@@ -988,15 +990,26 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
 
                 if constexpr (is_gfx950_and_bf16_input_)
                 {
-                    packed_cast(sfc_c_vgpr);
+                    auto c_thread_packed_cast = PackedCast<
+                            decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                            M2,
+                            M4,
+                            CShuffleMXdlPerWavePerShuffle,
+                            CShuffleNXdlPerWavePerShuffle
+                        >{};
+                    c_thread_packed_cast.Run(
+                            c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2, // source desc
+                            sfc_c_vgpr.GetIndexTupleOfNumber(access_id),  // source slice origin
+                            c_thread_buf // source buffer
+                    );
                 }
 
                 // each thread write its data from VGPR to LDS
                 c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                                              sfc_c_vgpr.GetIndexTupleOfNumber(access_id),
-                                              c_thread_buf,
-                                              c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                                              c_shuffle_block_buf);
+                                            sfc_c_vgpr.GetIndexTupleOfNumber(access_id),
+                                            c_thread_buf,
+                                            c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                            c_shuffle_block_buf);
 
                 // make sure it's safe to read from LDS
                 block_sync_lds();
@@ -1295,7 +1308,8 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
                                                    1,
                                                    InMemoryDataOperationEnum::Set,
                                                    1,
-                                                   true>{
+                                                   true,
+                                                   is_gfx950_and_bf16_input_>{
                     c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                     make_multi_index(0,
                                      0,
@@ -1365,7 +1379,18 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
                 
                 if constexpr (is_gfx950_and_bf16_input_)
                 {
-                    packed_cast(sfc_c_vgpr);
+                    auto c_thread_packed_cast = PackedCast<
+                            decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                            M2,
+                            M4,
+                            CShuffleMXdlPerWavePerShuffle,
+                            CShuffleNXdlPerWavePerShuffle
+                        >{};
+                    c_thread_packed_cast.Run(
+                            c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2, // source desc
+                            sfc_c_vgpr.GetIndexTupleOfNumber(access_id),  // source slice origin
+                            c_thread_buf // source buffer
+                    );
                 }
 
                 // each thread write its data from VGPR to LDS

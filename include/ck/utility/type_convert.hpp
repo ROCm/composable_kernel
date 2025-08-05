@@ -68,6 +68,32 @@ inline __device__ bhalf2_t static_cast_float2_to_bhalf2_rne(float2_t x)
 }
 #endif
 
+// TODO: Why do we need the host instance?
+inline __host__ __device__ void static_cast_float_to_bhalf_packed(float& x, float& y)
+{
+#if defined(__gfx950__)
+    uint32_t result;
+    asm volatile("v_cvt_pk_bf16_f32 %0, %1, %2" 
+        : "=v"(result) 
+        : "v"(x), "v"(y));
+        
+    // Extract individual BF16 values from packed result
+    const uint16_t* bf16_values = reinterpret_cast<const uint16_t*>(&result);
+    
+    // Treat x and y as arrays of uint16_t
+    uint16_t* x_parts = reinterpret_cast<uint16_t*>(&x);
+    uint16_t* y_parts = reinterpret_cast<uint16_t*>(&y);
+    
+    // Store BF16 values directly to the upper 16 bits (index 1 on little-endian)
+    x_parts[1] = bf16_values[0];
+    y_parts[1] = bf16_values[1];
+#else
+    // Skip conversion for non-GFX950 architectures
+    x = static_cast<float>(static_cast<bhalf_t>(x));
+    y = static_cast<float>(static_cast<bhalf_t>(y));
+#endif
+}
+
 // Declare a template function for conversion of bf16 vector of two values using RNE
 template <typename Y, typename X>
 __host__ __device__ constexpr Y bf16x2_convert_rne(X x);
