@@ -14,8 +14,8 @@
 
 template <typename GemmConfig,
           typename ADataType,
-          typename AQDataType,
           typename BDataType,
+          typename BQDataType,
           typename DsDataType,
           typename AccDataType,
           typename CDataType,
@@ -26,7 +26,7 @@ template <typename GemmConfig,
           typename ELayout,
           uint32_t QuantGroupSize,
           typename CDEElementWise>
-float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::stream_config& s)
+float gemm_calc_bquant(const ck_tile::BQuantGemmHostArgs& args, const ck_tile::stream_config& s)
 {
     static_assert(std::is_same_v<ELayout, ck_tile::tensor_layout::gemm::RowMajor>);
 
@@ -38,7 +38,7 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
 
     using TilePartitioner = ck_tile::GemmTile1DPartitioner<GemmShape>;
 
-    using Traits = ck_tile::TileGemmAQuantTraits<GemmConfig::kPadM,
+    using Traits = ck_tile::TileGemmBQuantTraits<GemmConfig::kPadM,
                                                  GemmConfig::kPadN,
                                                  GemmConfig::kPadK,
                                                  ALayout,
@@ -70,9 +70,9 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
         constexpr auto scheduler        = GemmConfig::Scheduler;
         constexpr auto memory_operation = memory_operation_.value;
 
-        using UniversalGemmProblem = ck_tile::GemmAQuantPipelineProblem<ADataType,
-                                                                        AQDataType,
+        using UniversalGemmProblem = ck_tile::GemmBQuantPipelineProblem<ADataType,
                                                                         BDataType,
+                                                                        BQDataType,
                                                                         AccDataType,
                                                                         GemmShape,
                                                                         Traits,
@@ -103,7 +103,7 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
                                              GemmConfig::K_Warp_Tile,
                                              UniversalGemmProblem::TransposeC,
                                              memory_operation>>;
-        using Kernel = ck_tile::AQuantGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        using Kernel = ck_tile::BQuantGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
 
         auto kargs = Kernel::MakeKernelArgs(args);
 
@@ -150,7 +150,7 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
     return ave_time;
 }
 
-#include "run_gemm_aquant_example.inc"
+#include "run_gemm_bquant_example.inc"
 
 template <typename GemmConfig, typename TypeConfig, uint32_t QuantGroupSize>
 int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
@@ -158,14 +158,14 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
-    if constexpr(std::is_same_v<typename TypeConfig::ADataType, ck_tile::pk_int4_t> ||
-                 std::is_same_v<typename TypeConfig::ADataType, ck_tile::fp8_t> ||
-                 std::is_same_v<typename TypeConfig::ADataType, ck_tile::bf8_t>)
+    if constexpr(std::is_same_v<typename TypeConfig::BDataType, ck_tile::pk_int4_t> ||
+                 std::is_same_v<typename TypeConfig::BDataType, ck_tile::fp8_t> ||
+                 std::is_same_v<typename TypeConfig::BDataType, ck_tile::bf8_t>)
     {
         if(a_layout == "R" && b_layout == "C")
         {
             return run_gemm_example_with_layouts<GemmConfig, TypeConfig, QuantGroupSize>(
-                argc, argv, Row{}, Row{}, Col{}, Row{});
+                argc, argv, Row{}, Col{}, Col{}, Row{});
         }
         else
         {
@@ -194,45 +194,45 @@ int run_gemm_example(int argc, char* argv[])
     if(data_type == "fp8")
     {
         using TypeConfig =
-            decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>{});
+            decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, float, ck_tile::fp8_t>{});
         return run_gemm_example_prec_type<GemmConfig, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
     else if(data_type == "bf8")
     {
-        using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, float>{});
+        using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_til::half_t>{});
         return run_gemm_example_prec_type<GemmConfig, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
-    else if(data_type == "i4fp8")
+    else if(data_type == "fp8i4")
     {
-        using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t,
-                                                        ck_tile::fp8_t,
+        using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::fp8_t,
+                                                        ck_tile::pk_int4_t,
                                                         float,
                                                         ck_tile::fp8_t>{});
         return run_gemm_example_prec_type<GemmConfig, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
-    else if(data_type == "i4bf8")
+    else if(data_type == "bf8i4")
     {
-        using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t,
-                                                        ck_tile::bf8_t,
+        using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::bf8_t,
+                                                        ck_tile::pk_int4_t,
                                                         float,
                                                         ck_tile::bf8_t>{});
         return run_gemm_example_prec_type<GemmConfig, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
-    else if(data_type == "i4f32fp8")
+    else if(data_type == "fp8i4f32")
     {
         using TypeConfig =
-            decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::fp8_t, float, float>{});
+            decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::pk_int4_t, float, float>{});
         return run_gemm_example_prec_type<GemmConfig, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
-    else if(data_type == "i4f32bf8")
+    else if(data_type == "bf8i4f32")
     {
         using TypeConfig =
-            decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::bf8_t, float, float>{});
+            decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::pk_int4_t, float, float>{});
         return run_gemm_example_prec_type<GemmConfig, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
@@ -246,7 +246,7 @@ int main(int argc, char* argv[])
 {
     try
     {
-        return !run_gemm_example<GemmConfigAQunatComputeV3>(argc, argv);
+        return !run_gemm_example<GemmConfigBQunatComputeV3>(argc, argv);
     }
     catch(const std::runtime_error& e)
     {

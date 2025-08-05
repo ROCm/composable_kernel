@@ -31,4 +31,28 @@ struct TileGemmAQuantTraits
     static constexpr index_t NumWaveGroups      = 1;
 };
 
+template <bool kPadM_,
+          bool kPadN_,
+          bool kPadK_,
+          typename ALayout_,
+          typename BLayout_,
+          typename CLayout_,
+          typename BQLayout_ = BLayout_>
+struct TileGemmAQuantTraits
+{
+    static constexpr bool kPadM = kPadM_;
+    static constexpr bool kPadN = kPadN_;
+    static constexpr bool kPadK = kPadK_;
+
+    static constexpr int _VectorSize = 16;
+
+    using ALayout  = ALayout_;
+    using BLayout  = BLayout_;
+    using CLayout  = CLayout_;
+    using BQLayout = BQLayout_;
+
+    static constexpr bool UseStructuredSparsity = false;
+    static constexpr index_t NumWaveGroups      = 1;
+};
+
 } // namespace ck_tile

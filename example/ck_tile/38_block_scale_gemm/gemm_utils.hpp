@@ -11,7 +11,8 @@
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/gemm_group_quant.hpp"
 
-#define CK_TILE_PIPELINE_COMPUTE_V3 1
+#define CK_TILE_PIPELINE_AQUANT_COMPUTE_V3 1
+#define CK_TILE_PIPELINE_BQUANT_COMPUTE_V3 2
 
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile()
@@ -45,10 +46,10 @@ struct GemmConfigBase
 
     static constexpr int kBlockPerCu           = 1;
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_AQUANT_COMPUTE_V3;
 };
 
-struct GemmConfigComputeV3 : public GemmConfigBase
+struct GemmConfigAQunatComputeV3 : public GemmConfigBase
 {
     // Compute V3 only support Intrawave scheduler
     static constexpr ck_tile::index_t M_Tile = 16;
@@ -64,8 +65,26 @@ struct GemmConfigComputeV3 : public GemmConfigBase
     static constexpr ck_tile::index_t K_Warp_Tile = 32; // get_k_warp_tile<PrecType, M_Warp_Tile>();
 
     static constexpr bool DoubleSmemBuffer     = false;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_AQUANT_COMPUTE_V3;
 };
+
+struct GemmConfigBQuantComputeV3 : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 256;
+
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+
+    static constexpr bool DoubleSmemBuffer     = false;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_BQUANT_COMPUTE_V3;
+}
 
 template <typename ADataType_,
           typename BDataType_ = ADataType_,
@@ -311,12 +330,21 @@ template <ck_tile::index_t PipelineId>
 struct PipelineTypeTraits;
 
 template <>
-struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V3>
+struct PipelineTypeTraits<CK_TILE_PIPELINE_AQUANT_COMPUTE_V3>
 {
     template <typename PipelineProblem>
     using GemmPipeline = ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>;
     template <typename PipelineProblem>
     using UniversalGemmPipeline = ck_tile::BaseAQuantGemmPipelineAgBgCrCompV3<PipelineProblem>;
+};
+
+template <>
+struct PipelineTypeTraits<CK_TILE_PIPELINE_BQUANT_COMPUTE_V3>
+{
+    template <typename PipelineProblem>
+    using GemmPipeline = ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>;
+    template <typename PipelineProblem>
+    using UniversalGemmPipeline = ck_tile::BaseBQuantGemmPipelineAgBgCrCompV3<PipelineProblem>;
 };
 
 auto create_args(int argc, char* argv[])
@@ -326,11 +354,10 @@ auto create_args(int argc, char* argv[])
         .insert("n", "4096", "n dimension")
         .insert("k", "2048", "k dimension")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
-        .insert("aq_layout", "R", "Aq tensor data layout - Row by default")
         .insert("b_layout", "C", "B tensor data layout - Column by default")
         .insert("c_layout", "R", "C tensor data layout - Row by default")
         .insert("stride_a", "0", "Tensor A stride")
-        .insert("stride_q", "0", "Tensor AQ stride")
+        .insert("stride_q", "0", "Tensor AQ/BQ stride")
         .insert("stride_b", "0", "Tensor B stride")
         .insert("stride_c", "0", "Tensor C stride")
         .insert("v", "1", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
@@ -340,8 +367,8 @@ auto create_args(int argc, char* argv[])
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("split_k", "1", "splitK value")
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
-        .insert("persistent", "0", "0:non-persistent, 1:persistent")
-        .insert("as_br_cr", "false", "Choose between as_br_cr and as_bs_cr");
+        .insert("persistent", "0", "0:non-persistent, 1:persistent");
+        //.insert("as_br_cr", "false", "Choose between as_br_cr and as_bs_cr");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
