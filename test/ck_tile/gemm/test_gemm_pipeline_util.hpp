@@ -80,23 +80,22 @@ class TestCkTileGemmPipeline : public ::testing::Test
     using BDataType                    = std::tuple_element_t<4, Tuple>;
     using AccDataType                  = std::tuple_element_t<5, Tuple>;
     using CDataType                    = std::tuple_element_t<6, Tuple>;
-    static constexpr auto Scheduler    = std::tuple_element_t<11, Tuple>::value;
-    static constexpr auto PipelineType = std::tuple_element_t<12, Tuple>::value;
+    static constexpr auto Scheduler    = std::tuple_element_t<13, Tuple>::value;
+    static constexpr auto PipelineType = std::tuple_element_t<14, Tuple>::value;
 
     static constexpr ck_tile::index_t M_Tile = std::tuple_element_t<7, Tuple>{};
-    static constexpr ck_tile::index_t N_Tile = std::tuple_element_t<7, Tuple>{};
-    static constexpr ck_tile::index_t K_Tile = std::tuple_element_t<8, Tuple>{};
+    static constexpr ck_tile::index_t N_Tile = std::tuple_element_t<8, Tuple>{};
+    static constexpr ck_tile::index_t K_Tile = std::tuple_element_t<9, Tuple>{};
 
-    static constexpr ck_tile::index_t M_Warp_Tile = std::tuple_element_t<9, Tuple>{};
-    static constexpr ck_tile::index_t N_Warp_Tile = std::tuple_element_t<9, Tuple>{};
-    static constexpr ck_tile::index_t K_Warp_Tile = std::tuple_element_t<10, Tuple>{};
+    static constexpr ck_tile::index_t M_Warp_Tile = std::tuple_element_t<10, Tuple>{};
+    static constexpr ck_tile::index_t N_Warp_Tile = std::tuple_element_t<11, Tuple>{};
+    static constexpr ck_tile::index_t K_Warp_Tile = std::tuple_element_t<12, Tuple>{};
 
     using DsLayout   = ck_tile::tuple<>;
     using DsDataType = ck_tile::tuple<>;
 
     static constexpr bool Persistent =
-        ck_tile::tuple_element_or_default_t<Tuple, 13, std::false_type>::value;
-    // TODO: expose tile size through test t-param ?
+        ck_tile::tuple_element_or_default_t<Tuple, 15, std::false_type>::value;
 
     template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
     void invoke_gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
