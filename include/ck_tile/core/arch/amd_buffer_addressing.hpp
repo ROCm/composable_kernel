@@ -2160,6 +2160,52 @@ CK_TILE_DEVICE void amd_buffer_store_raw_impl(const thread_buffer<T, N>& dst_thr
     }
 }
 
+#if defined(__gfx11__)
+template <typename T, typename ComputeType>
+extern CK_TILE_HOST_DEVICE T add(const T& a, const T& b);
+
+template <typename T, index_t N>
+CK_TILE_DEVICE void atomic_add_impl(T* p_dst, const thread_buffer<T, N>& x)
+{
+    static_assert(std::is_same<T, fp16_t>::value && (N == 2 || N == 4 || N == 8),
+                  "wrong! not implemented");
+
+    static_for<0, N / 2, 1>{}([&](auto i) {
+        union U32F162_ADDR
+        {
+            uint32_t* u32_a;
+            fp16x2_t* f162_a;
+        };
+
+        union U32F162
+        {
+            uint32_t u32;
+            fp16x2_t f162;
+        };
+
+        U32F162_ADDR dword_addr;
+        U32F162 cur_v;
+        U32F162 new_;
+        uint32_t old_v, new_v;
+        dword_addr.f162_a = c_style_pointer_cast<fp16x2_t*>(p_dst) + i;
+        cur_v.u32         = *dword_addr.u32_a;
+
+        do
+        {
+            old_v     = cur_v.u32;
+            new_.f162 = [](const fp16x2_t& a, const fp16x2_t& b) {
+                fp16x2_t rtn;
+                rtn[0] = add<fp16_t, float>(a[0], b[0]);
+                rtn[1] = add<fp16_t, float>(a[1], b[1]);
+                return rtn;
+            }(cur_v.f162, x.template get_as<fp16x2_t>()[i]);
+            new_v     = new_.u32;
+            cur_v.u32 = atomicCAS(dword_addr.u32_a, old_v, new_v);
+        } while(cur_v.u32 != old_v);
+    });
+}
+#endif
+
 template <typename T, index_t N>
 CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_thread_data,
                                                int32x4_t dst_wave_buffer_resource,
@@ -2666,6 +2712,17 @@ CK_TILE_DEVICE void amd_buffer_atomic_add(const thread_buffer<T, N>& src_thread_
                                           const bool dst_thread_element_valid,
                                           const index_t dst_element_space_size)
 {
+#if defined(__gfx11__)
+    if constexpr(std::is_same<T, fp16_t>::value)
+    {
+        // gfx11 does not support buffer atomic add in fp16 format.
+        // Thus, call the fallback method instead
+        ignore = dst_thread_element_valid;
+        ignore = dst_element_space_size;
+        atomic_add_impl<T, N>(&p_dst_wave[dst_thread_element_offset], src_thread_data);
+        return;
+    }
+#else
     const int32x4_t dst_wave_buffer_resource =
         make_wave_buffer_resource(p_dst_wave, dst_element_space_size * sizeof(T));
 
@@ -2682,6 +2739,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add(const thread_buffer<T, N>& src_thread_
         amd_buffer_atomic_add_impl<T, N>(
             src_thread_data, dst_wave_buffer_resource, dst_thread_addr_offset, 0);
     }
+#endif
 #endif
 }
 
