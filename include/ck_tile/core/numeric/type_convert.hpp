@@ -26,7 +26,7 @@ CK_TILE_HOST_DEVICE constexpr remove_cvref_t<Y> type_convert(const X& x)
 template <typename Y,
           typename X,
           std::enable_if_t<!(std::is_const_v<Y> || std::is_const_v<X>), bool> = false>
-CK_TILE_HOST_DEVICE constexpr Y type_convert(X x)
+CK_TILE_HOST_DEVICE constexpr Y type_convert(X x, [[maybe_unused]] float scale = 1.0)
 {
     static_assert(!std::is_reference_v<Y> && !std::is_reference_v<X>);
     return static_cast<Y>(x);
@@ -36,7 +36,7 @@ CK_TILE_HOST_DEVICE constexpr Y type_convert(X x)
 template <typename Y,
           typename X,
           std::enable_if_t<std::is_const_v<Y> || std::is_const_v<X>, bool> = false>
-CK_TILE_HOST_DEVICE constexpr Y type_convert(X x)
+CK_TILE_HOST_DEVICE constexpr Y type_convert(X x, [[maybe_unused]] float scale = 1.0)
 {
     static_assert(!std::is_reference_v<Y> && !std::is_reference_v<X>);
 
@@ -45,11 +45,18 @@ CK_TILE_HOST_DEVICE constexpr Y type_convert(X x)
     return static_cast<Y>(type_convert<non_const_y, non_const_x>(x));
 }
 
-#define CK_TILE_TYPE_CONVERT(dtype_, dname_, stype_, sname_)                    \
-    template <>                                                                 \
-    CK_TILE_HOST_DEVICE constexpr dtype_ type_convert<dtype_, stype_>(stype_ x) \
-    {                                                                           \
-        return sname_##_to_##dname_(x);                                         \
+#define CK_TILE_TYPE_CONVERT(dtype_, dname_, stype_, sname_)                           \
+    template <>                                                                        \
+    CK_TILE_HOST_DEVICE constexpr dtype_ type_convert<dtype_, stype_>(stype_ x, float) \
+    {                                                                                  \
+        return sname_##_to_##dname_(x);                                                \
+    }
+
+#define CK_TILE_SCALED_TYPE_CONVERT(dtype_, dname_, stype_, sname_)                          \
+    template <>                                                                              \
+    CK_TILE_HOST_DEVICE constexpr dtype_ type_convert<dtype_, stype_>(stype_ x, float scale) \
+    {                                                                                        \
+        return sname_##_to_##dname_(x, scale);                                               \
     }
 
 CK_TILE_TYPE_CONVERT(float, float, fp16_t, fp16)
@@ -71,15 +78,18 @@ CK_TILE_TYPE_CONVERT(int8_t, int8, float, float)
 
 namespace ck_tile {
 
-CK_TILE_TYPE_CONVERT(pk_fp4_t, pk_fp4, fp32x2_t, fp32x2)
-CK_TILE_TYPE_CONVERT(fp32x2_t, fp32x2, pk_fp4_t, pk_fp4)
-CK_TILE_TYPE_CONVERT(pk_fp4_t, pk_fp4, fp16x2_t, fp16x2)
-CK_TILE_TYPE_CONVERT(fp16x2_t, fp16x2, pk_fp4_t, pk_fp4)
-CK_TILE_TYPE_CONVERT(pk_fp4_t, pk_fp4, bf16x2_t, bf16x2)
-CK_TILE_TYPE_CONVERT(bf16x2_t, bf16x2, pk_fp4_t, pk_fp4)
-CK_TILE_TYPE_CONVERT(pk_fp4_t, pk_fp4, float, float)
-CK_TILE_TYPE_CONVERT(pk_fp4_t, pk_fp4, bf16_t, bf16)
-CK_TILE_TYPE_CONVERT(pk_fp4_t, pk_fp4, fp16_t, fp16)
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp4_t, pk_fp4, fp32x2_t, fp32x2)
+CK_TILE_SCALED_TYPE_CONVERT(fp32x2_t, fp32x2, pk_fp4_t, pk_fp4)
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp4_t, pk_fp4, fp16x2_t, fp16x2)
+CK_TILE_SCALED_TYPE_CONVERT(fp16x2_t, fp16x2, pk_fp4_t, pk_fp4)
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp4_t, pk_fp4, bf16x2_t, bf16x2)
+CK_TILE_SCALED_TYPE_CONVERT(bf16x2_t, bf16x2, pk_fp4_t, pk_fp4)
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp4_t, pk_fp4, float, float)
+CK_TILE_SCALED_TYPE_CONVERT(float, float, pk_fp4_t, pk_fp4)
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp4_t, pk_fp4, bf16_t, bf16)
+CK_TILE_SCALED_TYPE_CONVERT(bf16_t, bf16, pk_fp4_t, pk_fp4)
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp4_t, pk_fp4, fp16_t, fp16)
+CK_TILE_SCALED_TYPE_CONVERT(fp16_t, fp16, pk_fp4_t, pk_fp4)
 #undef CK_TILE_TYPE_CONVERT
 #endif
 
