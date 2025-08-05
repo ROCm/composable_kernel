@@ -50,7 +50,7 @@ void benchmark_gemm_multi_d(const ck_tile::ArgParser& arg_parser)
     {
         auto kernel_func = get_kernel_func_by_trait(arg_parser);
         profiler.benchmark(gemm_multi_d_problem, kernel_func);
-        // profiler.select_best_instance(static_cast<Metric>(arg_parser.get_int("metric")));
+        profiler.select_best_instance(static_cast<Metric>(arg_parser.get_int("metric")));
     }
     catch(const std::exception& e)
     {
