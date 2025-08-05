@@ -190,7 +190,7 @@ def buildDocker(install_prefix){
     }
     else if(params.RUN_AITER_TESTS){
         image_name = "rocm/composable_kernel:ck_aiter"
-        dockerArgs = dockerArgs + " --no-cache -f Dockerfile.aiter . "
+        dockerArgs = dockerArgs + " --no-cache -f Dockerfile.aiter --build-arg AITER_BRANCH='${params.aiter_branch}' . "
     }
     else{
         dockerArgs = dockerArgs + " -f Dockerfile . "
@@ -846,7 +846,8 @@ def run_aiter_tests(Map conf=[:]){
                 sh "python3 --version"
                 sh "rocminfo"
                 sh "python3 ../aiter/op_tests/test_gemm_a8w8_blockscale.py"
-                //sh "python3 ../aiter/op_tests/test_mha.py"
+                sh "python3 ../aiter/op_tests/test_layernorm2d.py"
+                sh "python3 ../aiter/op_tests/test_mha.py"
             }
             catch(e){
                 echo "Throwing error exception while running AITER tests"
@@ -1009,6 +1010,10 @@ pipeline {
             name: "RUN_AITER_TESTS",
             defaultValue: false,
             description: "Run AITER tests with latest CK develop branch (default: OFF)")
+        string(
+            name: 'aiter_branch',
+            defaultValue: 'main',
+            description: 'Specify which branch of AITER to use (default: main)')
     }
     environment{
         dbuser = "${dbuser}"
@@ -1093,13 +1098,13 @@ pipeline {
         {
             parallel
             {
-                stage("Run AITER Tests on gfx90a")
+                stage("Run AITER Tests on gfx942")
                 {
                     when {
                         beforeAgent true
                         expression { params.RUN_AITER_TESTS.toBoolean() }
                     }
-                    agent{ label rocmnode("gfx90a")}
+                    agent{ label rocmnode("gfx942")}
                     steps{
                         run_aiter_tests()
                         cleanWs()
