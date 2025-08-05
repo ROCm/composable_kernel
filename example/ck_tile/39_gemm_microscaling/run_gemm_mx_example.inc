@@ -24,21 +24,21 @@ template <typename ADataType,
           typename BScaleLayout,
           typename CLayout,
           uint32_t BlockScaleSize>
-float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
-                  ck_tile::DeviceMem& a_m_k_scale_dev_buf,
-                  ck_tile::DeviceMem& b_k_n_dev_buf,
-                  ck_tile::DeviceMem& b_k_n_scale_dev_buf,
-                  ck_tile::DeviceMem& c_m_n_dev_buf,
-                  ck_tile::index_t M,
-                  ck_tile::index_t N,
-                  ck_tile::index_t K,
-                  ck_tile::index_t stride_A,
-                  ck_tile::index_t stride_AQ,
-                  ck_tile::index_t stride_B,
-                  ck_tile::index_t stride_C,
-                  ck_tile::index_t kbatch,
-                  int n_warmup,
-                  int n_repeat)
+float invoke_gemm_mx(ck_tile::DeviceMem& a_m_k_dev_buf,
+                     ck_tile::DeviceMem& a_m_k_scale_dev_buf,
+                     ck_tile::DeviceMem& b_k_n_dev_buf,
+                     ck_tile::DeviceMem& b_k_n_scale_dev_buf,
+                     ck_tile::DeviceMem& c_m_n_dev_buf,
+                     ck_tile::index_t M,
+                     ck_tile::index_t N,
+                     ck_tile::index_t K,
+                     ck_tile::index_t stride_A,
+                     ck_tile::index_t stride_AQ,
+                     ck_tile::index_t stride_B,
+                     ck_tile::index_t stride_C,
+                     ck_tile::index_t kbatch,
+                     int n_warmup,
+                     int n_repeat)
 {
     ck_tile::GemmMXKernelArgs args;
     args.a_ptr          = a_m_k_dev_buf.GetDeviceBuffer();
@@ -102,13 +102,13 @@ template <typename TypeConfig,
           typename BLayout,
           typename BScaleLayout,
           typename CLayout>
-int run_gemm_example_with_layouts(int argc,
-                                  char* argv[],
-                                  const ALayout a_layout                  = ALayout{},
-                                  const AScaleLayout a_scale_layout       = AScaleLayout{},
-                                  const BLayout b_layout                  = BLayout{},
-                                  const BScaleLayout b_scale_layout       = BScaleLayout{},
-                                  [[maybe_unused]] const CLayout c_layout = CLayout{})
+int run_gemm_mx_example_with_layouts(int argc,
+                                     char* argv[],
+                                     const ALayout a_layout                  = ALayout{},
+                                     const AScaleLayout a_scale_layout       = AScaleLayout{},
+                                     const BLayout b_layout                  = BLayout{},
+                                     const BScaleLayout b_scale_layout       = BScaleLayout{},
+                                     [[maybe_unused]] const CLayout c_layout = CLayout{})
 {
     auto [result, arg_parser] = create_args(argc, argv);
     if(!result)
@@ -224,33 +224,33 @@ int run_gemm_example_with_layouts(int argc,
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
-    invoke_gemm<ADataType,
-                XPackedDataType,
-                BDataType,
-                XPackedDataType,
-                AccDataType,
-                CDataType,
-                ALayout,
-                AScaleLayout,
-                BLayout,
-                BScaleLayout,
-                CLayout,
-                BlockScaleSize>(a_m_k_dev_buf,
-                                a_m_k_scale_dev_buf,
-                                b_k_n_dev_buf,
-                                b_k_n_scale_dev_buf,
-                                c_m_n_dev_buf,
-                                M,
-                                N,
-                                K,
-                                stride_A,
-                                Scale_Stride_A,
-                                stride_B,
-                                Scale_Stride_B,
-                                stride_C,
-                                kbatch,
-                                n_warmup,
-                                n_repeat);
+    invoke_gemm_mx<ADataType,
+                   XPackedDataType,
+                   BDataType,
+                   XPackedDataType,
+                   AccDataType,
+                   CDataType,
+                   ALayout,
+                   AScaleLayout,
+                   BLayout,
+                   BScaleLayout,
+                   CLayout,
+                   BlockScaleSize>(a_m_k_dev_buf,
+                                   a_m_k_scale_dev_buf,
+                                   b_k_n_dev_buf,
+                                   b_k_n_scale_dev_buf,
+                                   c_m_n_dev_buf,
+                                   M,
+                                   N,
+                                   K,
+                                   stride_A,
+                                   Scale_Stride_A,
+                                   stride_B,
+                                   Scale_Stride_B,
+                                   stride_C,
+                                   kbatch,
+                                   n_warmup,
+                                   n_repeat);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass = true;
@@ -261,13 +261,9 @@ int run_gemm_example_with_layouts(int argc,
             ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
         c_m_n_host_ref.SetZero();
 
-        ck_tile::reference_gemm_quant<ADataType,
-                                      AQDataType,
-                                      BDataType,
-                                      AccDataType,
-                                      CDataType,
-                                      QuantGroupSize,
-                                      true>(a_m_k, aq_m_aqk, b_k_n, c_m_n_host_ref);
+        ck_tile::reference_gemm_mx<ADataType, BDataType, AScaleDataType, AccDataType, CDataType>(
+            a_m_k, a_m_k_scale, b_k_n, b_k_n_scale, c_m_n_host_ref);
+
         const float max_accumulated_value =
             *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
         const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(

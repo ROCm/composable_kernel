@@ -154,7 +154,10 @@ float gemm_mx_calc(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::strea
 #include "run_gemm_mx_example.inc"
 
 template <typename TypeConfig, uint32_t BlockScaleSize>
-int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
+int run_gemm_mx_example_prec_type(std::string a_layout,
+                                  std::string b_layout,
+                                  int argc,
+                                  char* argv[])
 {
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
@@ -163,7 +166,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     {
         if(a_layout == "R" && b_layout == "C")
         {
-            return run_gemm_example_with_layouts<TypeConfig, BlockScaleSize>(
+            return run_gemm_mx_example_with_layouts<TypeConfig, BlockScaleSize>(
                 argc, argv, Row{}, Row{}, Col{}, Col{}, Row{});
         }
         else
@@ -196,7 +199,7 @@ int run_gemm_mx_example(int argc, char* argv[])
                                                      ck_tile::e8m0_bexp_t,
                                                      int32_t,
                                                      ck_tile::half_t>{});
-        return run_gemm_example_prec_type<TypeConfig, 32>(a_layout, b_layout, argc, argv);
+        return run_gemm_mx_example_prec_type<TypeConfig, 32>(a_layout, b_layout, argc, argv);
     }
     else
     {
