@@ -51,7 +51,7 @@ CK_TILE_HOST_DEVICE float convert_to_float(typename T::raw_type data, float scal
     int exp     = (utils::is_subnormal(data) ? 1 : utils::get_exponent(data)) - utils::bias;
     float mant  = utils::get_mantissa(data);
 
-    return std::ldexp(sign * mant * scale, exp); // + scale_exp - e8m0_bias);
+    return std::ldexp(sign * mant * scale, exp);
 }
 
 template <typename T>
