@@ -4,9 +4,11 @@
 
 #include "gemm_builder.h"
 #include "run_utils.hpp"
+#include "test_utils.hpp"
 
 namespace ckb = ck_tile::builder;
 namespace ckr = ck_tile::runtime;
+namespace ckt = ck_tile::test;
 
 namespace example {
 
@@ -47,6 +49,8 @@ int main()
         auto a_dev = ckr::AllocDevMem<ck_tile::bf16_t>(M * K);
         auto b_dev = ckr::AllocDevMem<ck_tile::bf16_t>(K * N);
         auto c_dev = ckr::AllocDevMem<ck_tile::bf16_t>(M * N);
+        ckt::FillUniformRandomBf16(a_dev.get(), M * K);
+        ckt::FillUniformRandomBf16(b_dev.get(), K * N);
 
         auto kernel_args = example::Builder::KernelArgs{
             .as_ptr    = {a_dev.get()}, // Address of tensor A in device memory.
@@ -80,6 +84,12 @@ int main()
 
         ckr::CheckHipError(hipDeviceSynchronize());
         std::cout << "GEMM completed successfully!" << std::endl;
+
+        // Validate the result.
+        auto c_dev_check = ckr::AllocDevMem<ck_tile::bf16_t>(M * N);
+        ckt::FillUniformRandomBf16(c_dev_check.get(), M * N);
+        ckt::RunReferenceGemm(a_dev.get(), b_dev.get(), c_dev_check.get(), M, N, K, M, N, M);
+        ckr::CheckHipError(hipDeviceSynchronize());
     }
     catch(const std::exception& e)
     {
