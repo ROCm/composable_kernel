@@ -32,7 +32,7 @@ args:
 
 ## CK Tile Architecture Components
 
-The CK Tile framework is built around four key architectural components that work together to define and execute GPU kernels:
+The CK Tile framework is built around four key architectural components that work together to define and execute GPU kernels: shape, policy, problem, and pipeline.
 
 ### **1. Shape**
 Defines the **hierarchical tile structure** and **memory layout** of the kernel:
