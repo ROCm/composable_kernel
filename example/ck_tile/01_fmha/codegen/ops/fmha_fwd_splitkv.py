@@ -835,6 +835,17 @@ def get_fwd_splitkv_combine_blobs(kernel_filter : Optional[str], receipt, optdim
                     cond = dtype in ['fp16', 'bf16']
                     if not cond:
                         continue
+
+                # fp32 only, all variations
+                if receipt == 800:
+                    cond = dtype == 'fp32'
+                    if not cond:
+                        continue
+                else:
+                    # Don't build fp32 by default
+                    if dtype == 'fp32':
+                        continue
+
                 gen.append(k)
 
     return gen

@@ -165,7 +165,7 @@ float fmha_fwd(fmha_fwd_traits t, fmha_fwd_args a, const ck_tile::stream_config&
         return get_num_thread_blocks(a.batch, a.nhead_q, a.max_seqlen_q, kM0);
     }};
     
-    const bool has_load_tr = ck_tile::is_load_tr_supported();
+    [[maybe_unused]] const bool has_load_tr = ck_tile::is_load_tr_supported();
 
 {F_dispatch}
     return r;
@@ -710,6 +710,29 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
                     cond &= pipeline.F_vlayout == 'row'
                     cond &= pipeline.F_squant == 'f'
                     if not cond:
+                        continue
+
+                # fp32 only, all variations
+                if receipt == 800:
+                    cond = dtype == 'fp32'
+                    if not cond:
+                        continue
+                # fp32 only, minimal set of parameters
+                elif receipt == 801:
+                    cond = dtype == 'fp32'
+                    cond &= hdim in [48, 128]
+                    cond &= mode == 'batch'
+                    cond &= pipeline.F_bias == 'no'
+                    cond &= pipeline.F_lse == 'f'
+                    cond &= pipeline.F_dropout == 'f'
+                    cond &= pipeline.F_skip == 'f'
+                    cond &= pipeline.F_logits == 'f'
+                    cond &= pipeline.F_mask == 's_no'
+                    if not cond:
+                        continue
+                else:
+                    # Don't build fp32 by default
+                    if dtype == 'fp32':
                         continue
 
                 api_pool.register_traits(k.api_trait())

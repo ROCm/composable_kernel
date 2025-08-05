@@ -601,6 +601,17 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
                     cond &= pipeline.F_squant == 'f'
                     if not cond:
                         continue
+
+                # fp32 only, all variations
+                if receipt == 800:
+                    cond = dtype == 'fp32'
+                    if not cond:
+                        continue
+                else:
+                    # Don't build fp32 by default
+                    if dtype == 'fp32':
+                        continue
+
                 api_pool.register_traits(k.api_trait())
                 gen.append(k)
 
