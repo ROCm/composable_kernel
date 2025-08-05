@@ -17,9 +17,9 @@ namespace ck_tile {
 /**
  * @brief Tile copy shape configuration
  *
- * @tparam BlockWaves Number of warps along seq<M, N>
+ * @tparam BlockWaves Number of waves along seq<M, N>
  * @tparam BlockTile Block size, seq<M, N>
- * @tparam WaveTile Warp size, seq<M, N>
+ * @tparam WaveTile Wave size, seq<M, N>
  * @tparam Vector Contiguous elements (vector size) along seq<M, N>
  */
 template <typename BlockWaves, typename BlockTile, typename WaveTile, typename Vector>
@@ -29,42 +29,42 @@ struct TileCopyShape
     static constexpr index_t Vector_M = Vector::at(number<0>{});
     static constexpr index_t Vector_N = Vector::at(number<1>{});
 
-    // Warp tile dimensions
-    static constexpr index_t Warp_Tile_M = WaveTile::at(number<0>{});
-    static constexpr index_t Warp_Tile_N = WaveTile::at(number<1>{});
+    // Wave tile dimensions
+    static constexpr index_t Wave_Tile_M = WaveTile::at(number<0>{});
+    static constexpr index_t Wave_Tile_N = WaveTile::at(number<1>{});
 
     // Block tile dimensions
     static constexpr index_t Block_Tile_M = BlockTile::at(number<0>{});
     static constexpr index_t Block_Tile_N = BlockTile::at(number<1>{});
 
-    // Warps per block configuration
-    static constexpr index_t Warps_Per_Block_M = BlockWaves::at(number<0>{});
-    static constexpr index_t Warps_Per_Block_N = BlockWaves::at(number<1>{});
+    // Waves per block configuration
+    static constexpr index_t Waves_Per_Block_M = BlockWaves::at(number<0>{});
+    static constexpr index_t Waves_Per_Block_N = BlockWaves::at(number<1>{});
 
-    // Calculate warp repetition to cover entire block tile
-    static constexpr index_t WarpRepetitionPerBlock_M =
-        Block_Tile_M / (Warps_Per_Block_M * Warp_Tile_M);
-    static constexpr index_t WarpRepetitionPerBlock_N =
-        Block_Tile_N / (Warps_Per_Block_N * Warp_Tile_N);
+    // Calculate wave repetition to cover entire block tile
+    static constexpr index_t WaveRepetitionPerBlock_M =
+        Block_Tile_M / (Waves_Per_Block_M * Wave_Tile_M);
+    static constexpr index_t WaveRepetitionPerBlock_N =
+        Block_Tile_N / (Waves_Per_Block_N * Wave_Tile_N);
 
     // Hardware configuration
-    static constexpr index_t WarpSize  = get_warp_size();
-    static constexpr index_t BlockSize = 256;
+    static constexpr index_t WaveSize  = get_warp_size();
+    static constexpr index_t BlockSize = Waves_Per_Block_M * Waves_Per_Block_N * WaveSize;
 
     // Configuration validation
     static_assert(Block_Tile_M > 0 && Block_Tile_N > 0, "Block tile dimensions must be positive");
-    static_assert(Warp_Tile_M > 0 && Warp_Tile_N > 0, "Warp tile dimensions must be positive");
+    static_assert(Wave_Tile_M > 0 && Wave_Tile_N > 0, "Wave tile dimensions must be positive");
     static_assert(Vector_M > 0 && Vector_N > 0, "Vector dimensions must be positive");
-    static_assert(Warps_Per_Block_M > 0 && Warps_Per_Block_N > 0,
-                  "Warps per block must be positive");
-    static_assert(Warps_Per_Block_M * Warp_Tile_M > 0,
-                  "Invalid warp configuration for M dimension");
-    static_assert(Warps_Per_Block_N * Warp_Tile_N > 0,
-                  "Invalid warp configuration for N dimension");
+    static_assert(Waves_Per_Block_M > 0 && Waves_Per_Block_N > 0,
+                  "Waves per block must be positive");
+    static_assert(Waves_Per_Block_M * Wave_Tile_M > 0,
+                  "Invalid wave configuration for M dimension");
+    static_assert(Waves_Per_Block_N * Wave_Tile_N > 0,
+                  "Invalid wave configuration for N dimension");
 
-    // Ensure warp tile dimensions align with warp size
-    static_assert(Warp_Tile_M / Vector_M * Warp_Tile_N / Vector_N == WarpSize,
-                  "(Warp_Tile_M/Vector_M) * (Warp_Tile_N/Vector_N) != WarpSize");
+    // Ensure wave tile dimensions align with wave size
+    static_assert(Wave_Tile_M / Vector_M * Wave_Tile_N / Vector_N == WaveSize,
+                  "(Wave_Tile_M/Vector_M) * (Wave_Tile_N/Vector_N) != WaveSize");
 };
 
 /**
@@ -94,16 +94,16 @@ struct TileCopyPolicy
     {
         using S = typename Problem::BlockShape;
 
-        constexpr index_t warp_size  = S::WarpSize;
+        constexpr index_t wave_size  = S::WaveSize;
         constexpr index_t block_size = S::BlockSize;
 
         // Distribution calculation to ensure all threads participate
         constexpr index_t N1 = S::Vector_N;          // Elements per thread along N
         constexpr index_t N0 = S::Block_Tile_N / N1; // Threads needed along N
 
-        constexpr index_t M2 = warp_size / N0;              // Threads per warp along M
-        constexpr index_t M1 = block_size / warp_size;      // Warps possible along M
-        constexpr index_t M0 = S::Block_Tile_M / (M1 * M2); // Warp iterations along M
+        constexpr index_t M2 = wave_size / N0;              // Threads per wave along M
+        constexpr index_t M1 = block_size / wave_size;      // Waves possible along M
+        constexpr index_t M0 = S::Block_Tile_M / (M1 * M2); // Wave iterations along M
 
         // Validate complete coverage
         static_assert(M0 * M1 * M2 * N0 * N1 == S::Block_Tile_M * S::Block_Tile_N,

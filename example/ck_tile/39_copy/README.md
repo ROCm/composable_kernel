@@ -14,7 +14,7 @@ mkdir build && cd build
 # (for example gfx90a or gfx942) or leave it blank
 sh ../script/cmake-ck-dev.sh  ../ <arch>
 # Make the copy kernel executable
-make copy_basic -j
+make tile_example_copy -j
 ```
 This will result in an executable `build/bin/test_copy_basic`
 
@@ -23,7 +23,7 @@ This will result in an executable `build/bin/test_copy_basic`
 args:
           -m        input matrix rows. (default 64)
           -n        input matrix cols. (default 8)
-          -id       warp to use for computation. (default 0)
+          -id       wave to use for computation. (default 0)
           -v        validation flag to check device results. (default 1)
           -prec     datatype precision to use. (default fp16)
           -warmup   no. of warmup iterations. (default 50)
@@ -42,12 +42,12 @@ using Shape = ck_tile::TileCopyShape<BlockWaves, BlockTile, WaveTile, Vector>;
 ```
 
 **Components:**
-- **BlockWaves**: Number of concurrent warps per block (e.g., `seq<4, 1>` for 4 warps along M, 1 along N)
+- **BlockWaves**: Number of concurrent waves per block (e.g., `seq<4, 1>` for 4 waves along M, 1 along N)
 - **BlockTile**: Total elements processed by one block (e.g., `seq<512, 8>`)
-- **WaveTile**: Elements processed by one warp (e.g., `seq<32, 8>`)
+- **WaveTile**: Elements processed by one wave (e.g., `seq<32, 8>`)
 - **Vector**: Elements processed by one thread (e.g., `seq<1, 4>` for 4 contiguous elements)
 
-**Purpose**: Defines the **work distribution hierarchy** from threads → warps → blocks.
+**Purpose**: Defines the **work distribution hierarchy** from threads → waves → blocks.
 
 ### **2. Problem**
 Defines the **data types** and **kernel configuration**:
@@ -131,34 +131,34 @@ The CK Tile framework organizes work in a hierarchical manner:
    - Enables vectorized memory loads/stores
    - Example: `Vector = seq<1, 4>` means each thread loads 4 contiguous elements along the N dimension
 
-2. **WarpTile**: Number of elements covered by a single warp (32/64 threads)
-   - Must satisfy: `Warp_Tile_M / Vector_M * Warp_Tile_N / Vector_N == WarpSize`
-   - This ensures the number of threads needed equals the warp size
-   - Example: `WaveTile = seq<32, 4>` with `Vector = seq<1, 4>` means:
+2. **WaveTile**: Number of elements covered by a single wave (64 threads on AMD)
+   - Must satisfy: `Wave_Tile_M / Vector_M * Wave_Tile_N / Vector_N == WaveSize`
+   - This ensures the number of threads needed equals the wave size
+   - Example: `WaveTile = seq<64, 4>` with `Vector = seq<1, 4>` means:
      - Each thread handles 4 elements (Vector_N = 4)
-     - Warp needs 32×4/4 = 32 threads to cover 32×4 = 128 elements
-     - Total elements = 128, which requires WarpSize = 32 threads
+     - Wave needs 64×4/4 = 64 threads to cover 64×4 = 256 elements
+     - Total elements = 256, which requires WaveSize = 64 threads
 
 3. **BlockTile**: Number of elements covered by one block (typically mapped to one CU)
    - Example: `BlockTile = seq<256, 64>` means each block processes 256×64 elements
 
-4. **BlockWarps**: Number of concurrent warps active in a block
-   - Usually 4 warps per block on modern GPUs
-   - Example: `BlockWaves = seq<4, 1>` means 4 warps along M dimension, 1 along N
+4. **BlockWaves**: Number of concurrent waves active in a block
+   - Usually 4 waves per block on modern AMD GPUs
+   - Example: `BlockWaves = seq<4, 1>` means 4 waves along M dimension, 1 along N
 
-### Warp Repetition
+### Wave Repetition
 
-In many scenarios, the total work (BlockTile) is larger than what the available warps can cover in a single iteration. This requires **warp repetition**:
+In many scenarios, the total work (BlockTile) is larger than what the available waves can cover in a single iteration. This requires **wave repetition**:
 
 ```cpp
-// Calculate how many times a warp needs to repeat to cover the entire block tile
-static constexpr index_t WarpRepetitionPerBlock_M =
-    Block_Tile_M / (Warps_Per_Block_M * Warp_Tile_M);
-static constexpr index_t WarpRepetitionPerBlock_N =
-    Block_Tile_N / (Warps_Per_Block_N * Warp_Tile_N);
+// Calculate how many times a wave needs to repeat to cover the entire block tile
+static constexpr index_t WaveRepetitionPerBlock_M =
+    Block_Tile_M / (Waves_Per_Block_M * Wave_Tile_M);
+static constexpr index_t WaveRepetitionPerBlock_N =
+    Block_Tile_N / (Waves_Per_Block_N * Wave_Tile_N);
 ```
 
-**Key Insight**: When warps repeat, the effective work per thread becomes `Vector * Repeat`, not just `Vector`.
+**Key Insight**: When waves repeat, the effective work per thread becomes `Vector * Repeat`, not just `Vector`.
 
 ## Tile Distribution Encoding
 
@@ -177,9 +177,9 @@ constexpr auto outer_encoding =
 ### Encoding Parameters Explained
 
 - **M0, M1, M2**: Hierarchical distribution along M dimension
-  - M0: Number of warp iterations along M
-  - M1: Number of warps along M  
-  - M2: Number of threads per warp along M
+  - M0: Number of wave iterations along M
+  - M1: Number of waves along M  
+  - M2: Number of threads per wave along M
 - **N0, N1**: Distribution along N dimension
   - N0: Number of threads along N
   - N1: Vector size (elements per thread)
