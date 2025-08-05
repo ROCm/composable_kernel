@@ -1,19 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
-#include <gtest/gtest.h>
-#include <gtest/gtest-spi.h>
-
+#include "test_print_common.hpp"
 #include "ck_tile/core/utility/print.hpp"
 #include "ck_tile/core/container/sequence.hpp"
 
 namespace ck_tile {
 
-class PrintSequenceTest : public ::testing::Test
+class PrintSequenceTest : public PrintTest
 {
-    protected:
-    void SetUp() override {}
-    void TearDown() override {}
 };
 
 TEST_F(PrintSequenceTest, PrintSimpleSequence)
@@ -21,14 +16,7 @@ TEST_F(PrintSequenceTest, PrintSimpleSequence)
     // Test printing sequence<1, 5, 8>
     constexpr auto seq = sequence<1, 5, 8>{};
 
-    // Capture stdout
-    testing::internal::CaptureStdout();
-
-    // Call print function
-    print(seq);
-
-    // Get captured output
-    std::string output = testing::internal::GetCapturedStdout();
+    std::string output = CapturePrintOutput(seq);
 
     // Verify the output format
     EXPECT_EQ(output, "sequence<1, 5, 8>");
@@ -39,9 +27,7 @@ TEST_F(PrintSequenceTest, PrintSingleElementSequence)
     // Test printing sequence<42>
     constexpr auto seq = sequence<42>{};
 
-    testing::internal::CaptureStdout();
-    print(seq);
-    std::string output = testing::internal::GetCapturedStdout();
+    std::string output = CapturePrintOutput(seq);
 
     EXPECT_EQ(output, "sequence<42>");
 }
@@ -51,9 +37,7 @@ TEST_F(PrintSequenceTest, PrintEmptySequence)
     // Test printing sequence<> (empty sequence)
     constexpr auto seq = sequence<>{};
 
-    testing::internal::CaptureStdout();
-    print(seq);
-    std::string output = testing::internal::GetCapturedStdout();
+    std::string output = CapturePrintOutput(seq);
 
     EXPECT_EQ(output, "sequence<>");
 }

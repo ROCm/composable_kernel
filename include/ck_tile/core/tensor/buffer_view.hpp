@@ -1272,21 +1272,6 @@ make_buffer_view(T* p, BufferSizeType buffer_size, X invalid_element_value)
         p, buffer_size, invalid_element_value};
 }
 
-// Helper function to convert address space enum to string
-constexpr const char* address_space_to_string(address_space_enum addr_space)
-{
-    switch(addr_space)
-    {
-    case address_space_enum::generic: return "generic";
-    case address_space_enum::global: return "global";
-    case address_space_enum::lds: return "lds";
-    case address_space_enum::sgpr: return "sgpr";
-    case address_space_enum::constant: return "constant";
-    case address_space_enum::vgpr: return "vgpr";
-    default: return "unknown";
-    }
-}
-
 // Generalized print function for all buffer_view variants
 template <address_space_enum BufferAddressSpace,
           typename T,

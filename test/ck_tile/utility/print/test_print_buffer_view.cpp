@@ -1,19 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
-#include <gtest/gtest.h>
-#include <gtest/gtest-spi.h>
-
+#include "test_print_common.hpp"
 #include "ck_tile/core/tensor/buffer_view.hpp"
 #include "ck_tile/core/utility/print.hpp"
 
 namespace ck_tile {
 
-class PrintBufferViewTest : public ::testing::Test
+class PrintBufferViewTest : public PrintTest
 {
-    protected:
-    void SetUp() override {}
-    void TearDown() override {}
 };
 
 TEST_F(PrintBufferViewTest, PrintGenericBufferView)
@@ -22,9 +17,7 @@ TEST_F(PrintBufferViewTest, PrintGenericBufferView)
     float data[4] = {100.f, 200.f, 300.f, 400.f};
     auto bv       = make_buffer_view<address_space_enum::generic>(&data, 4);
 
-    testing::internal::CaptureStdout();
-    print(bv);
-    std::string output = testing::internal::GetCapturedStdout();
+    std::string output = CapturePrintOutput(bv);
 
     // Verify the output contains expected information
     EXPECT_TRUE(output.find("buffer_view{AddressSpace: generic") != std::string::npos);
@@ -40,9 +33,7 @@ TEST_F(PrintBufferViewTest, PrintGlobalBufferView)
     float data[4] = {100.f, 200.f, 300.f, 400.f};
     auto bv       = make_buffer_view<address_space_enum::global>(&data, 4);
 
-    testing::internal::CaptureStdout();
-    print(bv);
-    std::string output = testing::internal::GetCapturedStdout();
+    std::string output = CapturePrintOutput(bv);
 
     // Verify the output contains expected information
     EXPECT_TRUE(output.find("buffer_view{AddressSpace: global") != std::string::npos);
@@ -58,9 +49,7 @@ TEST_F(PrintBufferViewTest, PrintLdsBufferView)
     float data[4] = {100.f, 200.f, 300.f, 400.f};
     auto bv       = make_buffer_view<address_space_enum::lds>(data, 4);
 
-    testing::internal::CaptureStdout();
-    print(bv);
-    std::string output = testing::internal::GetCapturedStdout();
+    std::string output = CapturePrintOutput(bv);
 
     // Verify the output contains expected information
     EXPECT_TRUE(output.find("buffer_view{AddressSpace: lds") != std::string::npos);
@@ -76,9 +65,7 @@ TEST_F(PrintBufferViewTest, PrintVgprBufferView)
     float data[4] = {1.5f, 2.5f, 3.5f, 4.5f};
     auto bv       = make_buffer_view<address_space_enum::vgpr>(data, 4);
 
-    testing::internal::CaptureStdout();
-    print(bv);
-    std::string output = testing::internal::GetCapturedStdout();
+    std::string output = CapturePrintOutput(bv);
 
     // Verify the output contains expected information
     EXPECT_TRUE(output.find("buffer_view{AddressSpace: vgpr") != std::string::npos);
