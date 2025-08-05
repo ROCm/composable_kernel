@@ -55,7 +55,7 @@ CSHUFFLE_EPILOGUE = """
                                                              EDataType,
                                                              DsLayout,
                                                              ELayout,
-                                                             MultiplyMultiply,
+                                                             CDElementwise,
                                                              GemmPipelineProblem::kBlockSize,
                                                              TilePartitioner::MPerBlock,
                                                              TilePartitioner::NPerBlock,
