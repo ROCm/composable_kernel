@@ -11,10 +11,10 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using device_grouped_conv2d_fwd_bias_bn_clamp_xdl_nhwgc_gkyxc_nhwgk_f16_comp_instances = std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-                                                                NHWGC,
-                                                                GKYXC, Tuple<NHWGK, NHWGK, NHWGK, NHWGK, NHWGK>,
-                                                                NHWGK,
+using device_grouped_conv3d_fwd_bias_bn_clamp_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_instances = std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC, Tuple<NDHWGK, NDHWGK, NDHWGK, NDHWGK, NDHWGK>,
+                                                                NDHWGK,
                                                                 F16,
                                                                 F16,
                                                                 Tuple<F16, F16, F16, F16, F16>,
@@ -25,33 +25,33 @@ using device_grouped_conv2d_fwd_bias_bn_clamp_xdl_nhwgc_gkyxc_nhwgk_f16_comp_ins
 
 // Compilation parameters for in[n, hi, wi, g, c] * wei[g, k, y, x, c] = out[n, ho, wo, g, k]
 template <int Shards, int ShardIndex>
-void add_device_grouped_conv2d_fwd_bias_bn_clamp_xdl_nhwgc_gkyxc_nhwgk_f16_comp_instances_shard(device_grouped_conv2d_fwd_bias_bn_clamp_xdl_nhwgc_gkyxc_nhwgk_f16_comp_instances& instances)
+void add_device_grouped_conv3d_fwd_bias_bn_clamp_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_instances_shard(device_grouped_conv3d_fwd_bias_bn_clamp_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_instances& instances)
 {
     add_device_operation_instances(
         instances, ck::util::filter_tuple_by_modulo_t<
-        device_grouped_conv_fwd_xdl_f16_comp_instances<2,
-                                                       NHWGC,
-                                                       GKYXC, Tuple<NHWGK, NHWGK, NHWGK, NHWGK, NHWGK>,
-                                                       NHWGK,
+        device_grouped_conv_fwd_xdl_f16_comp_instances<3,
+                                                       NDHWGC,
+                                                       GKZYXC, Tuple<NDHWGK, NDHWGK, NDHWGK, NDHWGK, NDHWGK>,
+                                                       NDHWGK,
                                                        ConvFwdDefault,Tuple<F16, F16, F16, F16, F16>, BiasNormalizeInInferClamp>,
                                        Shards,
                                        ShardIndex>{});
 
     add_device_operation_instances(instances, ck::util::filter_tuple_by_modulo_t<
-                                   device_grouped_conv_fwd_xdl_f16_comp_instances<2,
-                                                                                  NHWGC,
-                                                                                  GKYXC, Tuple<NHWGK, NHWGK, NHWGK, NHWGK, NHWGK>,
-                                                                                  NHWGK,
+                                   device_grouped_conv_fwd_xdl_f16_comp_instances<3,
+                                                                                  NDHWGC,
+                                                                                  GKZYXC, Tuple<NDHWGK, NDHWGK, NDHWGK, NDHWGK, NDHWGK>,
+                                                                                  NDHWGK,
                                                                                   ConvFwd1x1P0,Tuple<F16, F16, F16, F16, F16>, BiasNormalizeInInferClamp>,
                                        Shards,
                                        ShardIndex>{});
 
     add_device_operation_instances(
         instances, ck::util::filter_tuple_by_modulo_t<
-        device_grouped_conv_fwd_xdl_f16_comp_instances<2,
-                                                       NHWGC,
-                                                       GKYXC, Tuple<NHWGK, NHWGK, NHWGK, NHWGK, NHWGK>,
-                                                       NHWGK,
+        device_grouped_conv_fwd_xdl_f16_comp_instances<3,
+                                                       NDHWGC,
+                                                       GKZYXC, Tuple<NDHWGK, NDHWGK, NDHWGK, NDHWGK, NDHWGK>,
+                                                       NDHWGK,
                                                        ConvFwd1x1S1P0,Tuple<F16, F16, F16, F16, F16>, BiasNormalizeInInferClamp>,
                                        Shards,
                                        ShardIndex>{});
