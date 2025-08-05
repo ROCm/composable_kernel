@@ -11,6 +11,8 @@ struct GridGemm
     using ADataType        = typename Problem::ADataType;
     using BDataType        = typename Problem::BDataType;
     using CDataType        = typename Problem::CDataType;
+    using WeightType       = typename Problem::WeightType;
+    using IndexType        = typename Problem::IndexType;
     using AccDataType      = typename Problem::AccDataType;
     using ComputeDataType  = float;
     using CElementFunction = typename Problem::CElementFunction;
@@ -18,15 +20,17 @@ struct GridGemm
     static constexpr auto kMPerBlock = Policy::kMPerBlock;
     static constexpr auto kNPerBlock = Policy::kNPerBlock;
     static constexpr auto kKPerBlock = Policy::kKPerBlock;
+    static constexpr auto topk = Policy::kTopKPerBlock;
 
-    template <typename AGridTensorView, typename BGridTensorView, typename CGridTensorView>
+    template <typename AGridTensorView, typename BGridTensorView, typename ValueGridTensorView, typename IndexGridTensorView>
     CK_TILE_DEVICE void operator()(const AGridTensorView& a_grid,
                                    const BGridTensorView& b_grid,
-                                   CGridTensorView& c_grid,
+                                   ValueGridTensorView& value_grid,
+                                   IndexGridTensorView& index_grid,
                                    const CElementFunction& c_element_func) const
     {
         const auto M = a_grid.get_tensor_descriptor().get_length(number<0>{});
-        const auto N = c_grid.get_tensor_descriptor().get_length(number<1>{});
+        const auto N = b_grid.get_tensor_descriptor().get_length(number<0>{});
         const auto K = a_grid.get_tensor_descriptor().get_length(number<1>{});
 
         // divide problem
@@ -56,22 +60,52 @@ struct GridGemm
 
         __shared__ char p_smem_char[block_gemm_pipeline.GetStaticLdsSize()];
 
-        // store C
-        auto c_window = make_tile_window(
-            c_grid, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {iM, iN});
+        // // store C
+        // auto c_window = make_tile_window(
+        //     c_grid, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {iM, iN});
 
-        // block_gemm_pipeline(a_block_window, b_block_window, c_window, K / kKPerBlock, p_smem_char, c_element_func);
+        // store value and index
+        auto value_window = make_tile_window(
+            value_grid, make_tuple(number<kMPerBlock>{}, number<topk>{}), {iM, iN},
+            make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                    tuple<sequence<2, 4, 16>, sequence<4, 4>>,
+                                    tuple<sequence<1>, sequence<1, 2>>,
+                                    tuple<sequence<1>, sequence<2, 0>>,
+                                    sequence<1, 2>,
+                                    sequence<0, 1>>{}));
+        auto index_window = make_tile_window(
+            index_grid, make_tuple(number<kMPerBlock>{}, number<topk>{}), {iM, iN},
+            make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                    tuple<sequence<2, 4, 16>, sequence<4, 4>>,
+                                    tuple<sequence<1>, sequence<1, 2>>,
+                                    tuple<sequence<1>, sequence<2, 0>>,
+                                    sequence<1, 2>,
+                                    sequence<0, 1>>{}));
 
-        const auto acc_block_tile =
-            block_gemm_pipeline(a_block_window, b_block_window, K / kKPerBlock, p_smem_char);
+        using ValueBlockTileDistr = decltype(value_window.get_tile_distribution());
+        using IndexBlockTileDistr = decltype(index_window.get_tile_distribution());
 
-        // cast to CDataType and apply CElementFunction
-        const auto c_block_tile = tile_elementwise_in(
-            [&](const auto& acc) { return c_element_func(type_convert<CDataType>(acc)); },
-            acc_block_tile);
+        using ValueBlockTile = decltype(make_static_distributed_tensor<WeightType>(ValueBlockTileDistr{}));
+        using IndexBlockTile = decltype(make_static_distributed_tensor<IndexType>(IndexBlockTileDistr{}));
 
+        ValueBlockTile value_block_tile;
+        IndexBlockTile index_block_tile;
 
-        store_tile(c_window, c_block_tile);
+        block_gemm_pipeline(a_block_window, b_block_window, value_block_tile, index_block_tile, K / kKPerBlock, p_smem_char);
+
+        // cast DataType and apply CElementFunction
+        const auto value_cast_block_tile = tile_elementwise_in(
+            [&](const auto& value) { return c_element_func(type_convert<WeightType>(value)); },
+            value_block_tile);
+
+        // const auto index_cast_block_tile = tile_elementwise_in(
+        //     [&](const auto& index) { return c_element_func(type_convert<IndexType>(index)); },
+        //     index_block_tile);
+
+        store_tile(value_window, value_cast_block_tile);
+        store_tile(index_window, index_cast_block_tile);
     }
 };
 

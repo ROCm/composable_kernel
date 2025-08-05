@@ -18,6 +18,8 @@ template <typename ADataType_,
           typename BDataType_,
           typename AccDataType_,
           typename CDataType_,
+          typename WeightType_,
+          typename IndexType_,
           typename CElementFunction_>
 struct GridGemmProblem
 {
@@ -25,21 +27,26 @@ struct GridGemmProblem
     using BDataType   = BDataType_;
     using AccDataType = AccDataType_;
     using CDataType   = CDataType_;
+    using WeightType   = WeightType_;
+    using IndexType   = IndexType_;
 
     using CElementFunction = CElementFunction_;
 };
 
-template <index_t kMPerTile, index_t kNPerTile, index_t kKPerTile>
+template <index_t kMPerTile, index_t kNPerTile, index_t kKPerTile, index_t TopkKPerTile>
 struct TileGemmShape
 {
     static constexpr index_t kM = kMPerTile;
     static constexpr index_t kN = kNPerTile;
     static constexpr index_t kK = kKPerTile;
+    static constexpr index_t kTopK = TopkKPerTile;
 };
 
 template <typename ADataType_,
           typename BDataType_,
           typename CDataType_,
+          typename WeightType_,
+          typename IndexType_,
           index_t kBlockSize_,
           typename BlockGemmShape_>
 struct BlockGemmPipelineProblem
@@ -47,6 +54,8 @@ struct BlockGemmPipelineProblem
     using ADataType      = remove_cvref_t<ADataType_>;
     using BDataType      = remove_cvref_t<BDataType_>;
     using CDataType      = remove_cvref_t<CDataType_>;
+    using WeightType      = remove_cvref_t<WeightType_>;
+    using IndexType      = remove_cvref_t<IndexType_>;
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
     static constexpr index_t kBlockSize = kBlockSize_;
@@ -57,18 +66,21 @@ template <typename ADataType,
           typename BDataType,
           typename AccDataType,
           typename CDataType,
+          typename WeightType,
+          typename IndexType,
           typename CElementFunction,
           index_t kAAlignment,
           index_t kBAlignment,
-          index_t kCAlignment,
+          index_t kOutAlignment,
           index_t kBlockSize_,
           index_t kMPerBlock_,
           index_t kNPerBlock_,
-          index_t kKPerBlock_>
+          index_t kKPerBlock_,
+          index_t kTopKPerBlock_>
 struct Gemm
 {
     using GridGemmProblem =
-        GridGemmProblem<ADataType, BDataType, AccDataType, CDataType, CElementFunction>;
+        GridGemmProblem<ADataType, BDataType, AccDataType, CDataType, WeightType, IndexType, CElementFunction>;
 
     struct GridGemmPolicy
     {
@@ -76,6 +88,7 @@ struct Gemm
         static constexpr index_t kMPerBlock = kMPerBlock_;
         static constexpr index_t kNPerBlock = kNPerBlock_;
         static constexpr index_t kKPerBlock = kKPerBlock_;
+        static constexpr index_t kTopKPerBlock = kTopKPerBlock_;
 
         template <typename Problem>
         CK_TILE_HOST_DEVICE static constexpr auto MakeBlock2TileMap(index_t M0, index_t N0)
@@ -154,8 +167,10 @@ struct Gemm
                 BlockGemmPipelineProblem<ADataType,
                                          BDataType,
                                          AccDataType,
+                                         WeightType,
+                                         IndexType,
                                          kBlockSize,
-                                         TileGemmShape<kMPerBlock, kNPerBlock, kKPerBlock>>;
+                                         TileGemmShape<kMPerBlock, kNPerBlock, kKPerBlock, kTopKPerBlock>>;
             return BlockGemmSoftmaxPipelineAGmemBGmemCReg<BlockGemmPipelineProblem_>{};
         }
     };
@@ -164,13 +179,15 @@ struct Gemm
 
     CK_TILE_DEVICE void operator()(const ADataType* p_a,
                                    const BDataType* p_b,
-                                   CDataType* p_c,
+                                   WeightType* p_value,
+                                   IndexType* p_index,
                                    const index_t M,
                                    const index_t N,
                                    const index_t K,
+                                   const index_t topK,
                                    const index_t Lda,
                                    const index_t Ldb,
-                                   const index_t Ldc,
+                                   const index_t Ldout,
                                    const CElementFunction& c_element_func) const
     {
         const auto a_dram = [&] {
@@ -183,12 +200,17 @@ struct Gemm
                 p_b, make_tuple(N, K), make_tuple(Ldb, 1), number<kBAlignment>{}, number<1>{});
         }();
 
-        const auto c_dram = [&] {
+        const auto value_dram = [&] {
             return make_naive_tensor_view<address_space_enum::global>(
-                p_c, make_tuple(M, N), make_tuple(Ldc, 1), number<kCAlignment>{}, number<1>{});
+                p_value, make_tuple(M, topK), make_tuple(Ldout, 1), number<kOutAlignment>{}, number<1>{});
         }();
 
-        GridGemm{}(a_dram, b_dram, c_dram, c_element_func);
+        const auto index_dram = [&] {
+            return make_naive_tensor_view<address_space_enum::global>(
+                p_index, make_tuple(M, topK), make_tuple(Ldout, 1), number<kOutAlignment>{}, number<1>{});
+        }();
+
+        GridGemm{}(a_dram, b_dram, value_dram, index_dram, c_element_func);
     }
 };
 

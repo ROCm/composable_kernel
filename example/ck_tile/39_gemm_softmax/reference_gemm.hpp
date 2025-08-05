@@ -6,13 +6,17 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/host_tensor.hpp"
 
-template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
-void reference_basic_gemm_softmax(const ck_tile::HostTensor<ADataType>& a_m_k,
+template <typename ADataType, typename BDataType, typename AccDataType, typename WeightType, typename IndexType>
+void reference_basic_gemm_softmax_topk(const ck_tile::HostTensor<ADataType>& a_m_k,
                           const ck_tile::HostTensor<BDataType>& b_n_k,
-                          ck_tile::HostTensor<CDataType>& c_m_n)
+                          ck_tile::HostTensor<WeightType>& y_values,
+                          ck_tile::HostTensor<IndexType>& y_indices,
+                          ck_tile::index_t topk)
 {
+    const int M = a_m_k.mDesc.get_lengths()[0];
     const int N = b_n_k.mDesc.get_lengths()[0];
     const int K = b_n_k.mDesc.get_lengths()[1];
+    ck_tile::HostTensor<AccDataType> c_m_n({M, N}, {N, 1});
 
     auto f = [&](auto m) {
         for(int n = 0; n < N; ++n)
@@ -62,4 +66,6 @@ void reference_basic_gemm_softmax(const ck_tile::HostTensor<ADataType>& a_m_k,
 
     ck_tile::make_ParallelTensorFunctor(f, c_m_n.mDesc.get_lengths()[0])(
         std::thread::hardware_concurrency());
+
+    reference_topk(c_m_n, y_values, y_indices, topk);
 }
