@@ -218,8 +218,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             return std::string(", st:") + std::to_string(stride);
     }();
 
-    std::cout << "[" << api_str << "|" << prec_str << "]"
-              << " t:" << tokens;
+    std::cout << "[" << api_str << "|" << prec_str << "]" << " t:" << tokens;
 
     if(is_local_token)
     {

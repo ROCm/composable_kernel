@@ -15,7 +15,7 @@
 #define CK_TILE_PIPELINE_COMPUTE_V4 3
 
 #ifndef CK_TILE_PIPELINE_DEFAULT
-#define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE_V3
+#define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE_V4
 #endif
 
 #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
@@ -54,7 +54,7 @@ using BDataType   = Types::BDataType;
 using AccDataType = Types::AccDataType;
 using CDataType   = Types::CDataType;
 
-using grouped_gemm_kargs = ck_tile::GemmHostArgs</*NumDTensor = 0*/>;
+using grouped_gemm_kargs = ck_tile::GroupedGemmHostArgs;
 
 auto create_args(int argc, char* argv[])
 {

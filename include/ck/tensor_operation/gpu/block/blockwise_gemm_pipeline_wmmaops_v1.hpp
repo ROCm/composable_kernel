@@ -132,6 +132,8 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
     using Base::a_block_desc_k0_m0_m1_m2_k1;
     using Base::b_block_desc_k0_n0_n1_n2_k1;
 
+    using typename Base::Empty;
+
     static constexpr index_t PrefetchStages  = 1;
     static constexpr index_t PrefillStages   = 1;
     static constexpr index_t GlobalBufferNum = 1;
@@ -158,7 +160,8 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
               typename BGridBuffer,
               typename BBlockBuffer,
               typename BBlockTransferStep,
-              typename CThreadBuffer>
+              typename CThreadBuffer,
+              typename BScaleStruct>
     __device__ void Run(const AGridDesc& a_grid_desc,
                         const ABlockDesc& a_block_desc,
                         ABlockTransfer& a_blockwise_copy,
@@ -172,7 +175,10 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                         BBlockBuffer& b_block_buf,
                         const BBlockTransferStep& b_block_copy_step,
                         CThreadBuffer& c_thread_buf,
-                        index_t num_loop) const
+                        // BScaleThreadCopy
+                        BScaleStruct& b_scale_struct,
+                        index_t num_loop,
+                        index_t num_loop_per_scale) const
     {
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeA>(
             a_thread_desc_.GetElementSpaceSize());
@@ -186,6 +192,8 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
+        b_scale_struct.template GlobalLoad<0>(num_loop_per_scale == 1);
+
         // Local prefill 1
         a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
         b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
@@ -195,20 +203,42 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
 
         auto blockwise_gemm_func = [&]() {
             static_for<0, KRepeat, 1>{}([&](auto k0) {
-                a_thread_copy_.Run(
-                    a_block_desc_k0_m0_m1_m2_k1,
-                    make_tuple(Number<k0 * KPack / A_K1 / A_KRow>{}, I0, I0, I0, I0, I0),
-                    a_block_buf,
-                    a_thread_desc_,
-                    make_tuple(I0, I0, k0, I0, I0, I0),
-                    a_thread_buf);
-                b_thread_copy_.Run(
-                    b_block_desc_k0_n0_n1_n2_k1,
-                    make_tuple(Number<k0 * KPack / B_K1 / B_KRow>{}, I0, I0, I0, I0, I0),
-                    b_block_buf,
-                    b_thread_desc_,
-                    make_tuple(I0, I0, k0, I0, I0, I0),
-                    b_thread_buf);
+                static_for<0, MRepeat, 1>{}([&](auto m0) {
+                    a_thread_copy_.Run(
+                        a_block_desc_k0_m0_m1_m2_k1,
+                        make_tuple(Number<k0 * KPack / A_K1 / A_KRow>{}, m0, I0, I0, I0, I0),
+                        a_block_buf,
+                        a_thread_desc_,
+                        make_tuple(I0, m0, k0, I0, I0, I0),
+                        a_thread_buf);
+                });
+                if constexpr(ck::is_same<BScaleStruct, Empty>::value == true)
+                {
+                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                        b_thread_copy_.Run(
+                            b_block_desc_k0_n0_n1_n2_k1,
+                            make_tuple(Number<k0 * KPack / B_K1 / B_KRow>{}, n0, I0, I0, I0, I0),
+                            b_block_buf,
+                            b_thread_desc_,
+                            make_tuple(I0, n0, k0, I0, I0, I0),
+                            b_thread_buf);
+                    });
+                }
+                else
+                {
+                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                        b_thread_copy_.Run(
+                            b_block_desc_k0_n0_n1_n2_k1,
+                            make_tuple(Number<k0 * KPack / B_K1 / B_KRow>{}, n0, I0, I0, I0, I0),
+                            b_block_buf,
+                            b_scale_struct.b_scale_thread_bufs(
+                                I0)[Number<n0 * BScaleStruct::num_scale_k_block +
+                                           k0 / BScaleStruct::num_scale_krepeat>{}],
+                            b_thread_desc_,
+                            make_tuple(I0, n0, k0, I0, I0, I0),
+                            b_thread_buf);
+                    });
+                }
 
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
@@ -258,6 +288,7 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                 blockwise_gemm_func();
 
                 block_sync_lds();
+                b_scale_struct.template GlobalLoad<0>((i + 2) % num_loop_per_scale == 0);
                 a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
                 b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
 
@@ -378,6 +409,8 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
     using Base::a_block_desc_k0_m0_m1_m2_k1;
     using Base::b_block_desc_k0_n0_n1_n2_k1;
 
+    using typename Base::Empty;
+
     static constexpr index_t NumKClusters      = CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING_MAC_CLUSTERS;
     static constexpr index_t KRepeatPerCluster = math::max(KRepeat / NumKClusters, 1);
 
@@ -407,7 +440,8 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
               typename BGridBuffer,
               typename BBlockBuffer,
               typename BBlockTransferStep,
-              typename CThreadBuffer>
+              typename CThreadBuffer,
+              typename BScaleStruct>
     __device__ void Run(const AGridDesc& a_grid_desc,
                         const ABlockDesc& a_block_desc,
                         ABlockTransfer& a_blockwise_copy,
@@ -421,7 +455,10 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                         BBlockBuffer& b_block_buf,
                         const BBlockTransferStep& b_block_copy_step,
                         CThreadBuffer& c_thread_buf,
-                        index_t num_loop) const
+                        // BScaleThreadCopy
+                        BScaleStruct& b_scale_struct,
+                        index_t num_loop,
+                        index_t num_loop_per_scale) const
     {
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeA>(
             a_thread_desc_.GetElementSpaceSize());
@@ -435,6 +472,8 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
+        b_scale_struct.template GlobalLoad<0>(num_loop_per_scale == 1);
+
         // Local prefill 1
         a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
         b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
@@ -445,30 +484,57 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
         auto blockwise_gemm_func = [&]() {
             static_for<0, KRepeat, KRepeatPerCluster>{}([&](auto k0_offset) {
                 static_for<0, KRepeatPerCluster, 1>{}([&](auto k0_inner) {
-                    a_thread_copy_.Run(
-                        a_block_desc_k0_m0_m1_m2_k1,
-                        make_tuple(Number<(k0_offset + k0_inner) * KPack / A_K1 / A_KRow>{},
-                                   I0,
-                                   I0,
-                                   I0,
-                                   I0,
-                                   I0),
-                        a_block_buf,
-                        a_thread_desc_,
-                        make_tuple(I0, I0, k0_inner, I0, I0, I0),
-                        a_thread_buf);
-                    b_thread_copy_.Run(
-                        b_block_desc_k0_n0_n1_n2_k1,
-                        make_tuple(Number<(k0_offset + k0_inner) * KPack / B_K1 / B_KRow>{},
-                                   I0,
-                                   I0,
-                                   I0,
-                                   I0,
-                                   I0),
-                        b_block_buf,
-                        b_thread_desc_,
-                        make_tuple(I0, I0, k0_inner, I0, I0, I0),
-                        b_thread_buf);
+                    static_for<0, MRepeat, 1>{}([&](auto m0) {
+                        a_thread_copy_.Run(
+                            a_block_desc_k0_m0_m1_m2_k1,
+                            make_tuple(Number<(k0_offset + k0_inner) * KPack / A_K1 / A_KRow>{},
+                                       m0,
+                                       I0,
+                                       I0,
+                                       I0,
+                                       I0),
+                            a_block_buf,
+                            a_thread_desc_,
+                            make_tuple(I0, m0, k0_inner, I0, I0, I0),
+                            a_thread_buf);
+                    });
+                    if constexpr(ck::is_same<BScaleStruct, Empty>::value == true)
+                    {
+                        static_for<0, NRepeat, 1>{}([&](auto n0) {
+                            b_thread_copy_.Run(
+                                b_block_desc_k0_n0_n1_n2_k1,
+                                make_tuple(Number<(k0_offset + k0_inner) * KPack / B_K1 / B_KRow>{},
+                                           n0,
+                                           I0,
+                                           I0,
+                                           I0,
+                                           I0),
+                                b_block_buf,
+                                b_thread_desc_,
+                                make_tuple(I0, n0, k0_inner, I0, I0, I0),
+                                b_thread_buf);
+                        });
+                    }
+                    else
+                    {
+                        static_for<0, NRepeat, 1>{}([&](auto n0) {
+                            b_thread_copy_.Run(
+                                b_block_desc_k0_n0_n1_n2_k1,
+                                make_tuple(Number<(k0_offset + k0_inner) * KPack / B_K1 / B_KRow>{},
+                                           n0,
+                                           I0,
+                                           I0,
+                                           I0,
+                                           I0),
+                                b_block_buf,
+                                b_scale_struct.b_scale_thread_bufs(I0)[Number<
+                                    n0 * BScaleStruct::num_scale_k_block +
+                                    (k0_offset + k0_inner) / BScaleStruct::num_scale_krepeat>{}],
+                                b_thread_desc_,
+                                make_tuple(I0, n0, k0_inner, I0, I0, I0),
+                                b_thread_buf);
+                        });
+                    }
                 });
 
                 __builtin_amdgcn_sched_barrier(0);
@@ -564,6 +630,7 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                 block_sync_lds();
                 blockwise_gemm_func();
 
+                b_scale_struct.template GlobalLoad<0>((i + 2) % num_loop_per_scale == 0);
                 a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
                 b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
 
@@ -613,7 +680,7 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                                          ComputeTypeA,
                                          decltype(a_block_desc_k0_m0_m1_m2_k1),
                                          decltype(a_thread_desc_),
-                                         Sequence<KPack / A_K1 / A_KRow, MRepeat, 1, 1, 1, A_K1>,
+                                         Sequence<KPack / A_K1 / A_KRow, 1, 1, 1, 1, A_K1>,
                                          Sequence<0, 1, 2, 3, 4, 5>,
                                          5,
                                          A_K1,
@@ -624,7 +691,7 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                                          ComputeTypeB,
                                          decltype(b_block_desc_k0_n0_n1_n2_k1),
                                          decltype(b_thread_desc_),
-                                         Sequence<KPack / B_K1 / B_KRow, NRepeat, 1, 1, 1, B_K1>,
+                                         Sequence<KPack / B_K1 / B_KRow, 1, 1, 1, 1, B_K1>,
                                          Sequence<0, 1, 2, 3, 4, 5>,
                                          5,
                                          B_K1,

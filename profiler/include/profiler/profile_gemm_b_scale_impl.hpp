@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -173,7 +173,7 @@ bool profile_gemm_b_scale_impl(int do_verification,
             }
         }
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
-                                                                                BDataType,
+                                                                                AccDataType,
                                                                                 CDataType,
                                                                                 AccDataType,
                                                                                 AElementOp,

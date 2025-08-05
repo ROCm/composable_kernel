@@ -32,7 +32,7 @@ struct BatchedTransposeKernel
     using Pipeline                        = remove_cvref_t<Pipeline_>;
     using Problem                         = remove_cvref_t<typename Pipeline::Problem>;
 
-    using Type = typename Problem::InputType;
+    using Type = typename Problem::DataType;
 
     struct BatchedTransposeKargs
     {
@@ -67,7 +67,7 @@ struct BatchedTransposeKernel
         return k;
     }
 
-    CK_TILE_HOST_DEVICE static constexpr auto BlockSize() { return Problem::kBlockSize; }
+    CK_TILE_HOST static constexpr auto BlockSize() { return Problem::kBlockSize; }
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
