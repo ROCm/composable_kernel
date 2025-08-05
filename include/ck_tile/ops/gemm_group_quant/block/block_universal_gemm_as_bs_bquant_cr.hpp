@@ -43,7 +43,7 @@ struct BlockGemmBQuantBase
         return scale_reg_f;
     }
 
-    //can be inherited from A
+    // can be inherited from A
     template <typename WarpWindow, typename WarpTile>
     CK_TILE_DEVICE static void load_interleaved_pk_type(WarpTile& warp_tile,
                                                         const WarpWindow& warp_window)
@@ -372,9 +372,7 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
                         //
                         // These scales can be obtained using __builtin_amdgcn_ds_bpermute.
 
-
-                        constexpr index_t reg_offset =
-                            nIter * Traits::BQPerBlock + kQScale;
+                        constexpr index_t reg_offset = nIter * Traits::BQPerBlock + kQScale;
 
                         constexpr auto tbuf_offset =
                             number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(

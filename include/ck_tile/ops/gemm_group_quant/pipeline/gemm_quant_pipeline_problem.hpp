@@ -118,7 +118,6 @@ using GemmAQuantPipelineProblem = GemmAQuantPipelineProblemBase<ADataType_,
                                                                 HasHotLoop_,
                                                                 TailNum_>;
 
-
 template <typename ADataType_,
           typename BDataType_,
           typename BQDataType_,
@@ -196,9 +195,7 @@ struct GemmBQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_
         return VectorLoadSize / sizeof(BQDataType);
     }
 
-    static constexpr index_t VectorSizeBQ = []() {
-        return kPadK ? 1 : GetAlignmentBQ();
-    }();
+    static constexpr index_t VectorSizeBQ = []() { return kPadK ? 1 : GetAlignmentBQ(); }();
 };
 
 template <typename ADataType_,
@@ -223,5 +220,5 @@ using GemmBQuantPipelineProblem = GemmBQuantPipelineProblemBase<ADataType_,
                                                                 Scheduler_,
                                                                 HasHotLoop_,
                                                                 TailNum_>;
-                                                                
+
 } // namespace ck_tile

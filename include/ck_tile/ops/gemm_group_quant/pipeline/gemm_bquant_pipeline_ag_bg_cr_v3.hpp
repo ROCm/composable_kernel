@@ -388,7 +388,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
 
                     Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
                     Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
-                     Base::GlobalPrefetch(bq_block_tile[(currIdx + 1) % 2],
+                    Base::GlobalPrefetch(bq_block_tile[(currIdx + 1) % 2],
                                          bq_copy_dram_window,
                                          bq_dram_tile_window_step);
 

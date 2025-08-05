@@ -34,32 +34,32 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
 }
 
 invoke_gemm<GemmConfig,
-                ADataType,
-                BDataType,
-                BQDataType,
-                ck_tile::tuple<>,
-                AccDataType,
-                CDataType,
-                ALayout,
-                BLayout,
-                BQLayout,
-                ck_tile::tuple<>,
-                CLayout,
-                QuantGroupSize>(a_m_k_dev_buf,
-                                b_k_n_dev_buf,
-                                bq_bqk_n_dev_buf,
-                                c_m_n_dev_buf,
-                                M,
-                                N,
-                                K,
-                                BQK,
-                                stride_A,
-                                stride_B,
-                                stride_BQ,
-                                stride_C,
-                                kbatch,
-                                n_warmup,
-                                n_repeat);
+            ADataType,
+            BDataType,
+            BQDataType,
+            ck_tile::tuple<>,
+            AccDataType,
+            CDataType,
+            ALayout,
+            BLayout,
+            BQLayout,
+            ck_tile::tuple<>,
+            CLayout,
+            QuantGroupSize>(a_m_k_dev_buf,
+                            b_k_n_dev_buf,
+                            bq_bqk_n_dev_buf,
+                            c_m_n_dev_buf,
+                            M,
+                            N,
+                            K,
+                            BQK,
+                            stride_A,
+                            stride_B,
+                            stride_BQ,
+                            stride_C,
+                            kbatch,
+                            n_warmup,
+                            n_repeat);
 
 template <typename GemmConfig,
           typename ADataType,
@@ -234,7 +234,7 @@ int run_gemm_example_with_layouts(int argc,
     {
         a_m_k.SetZero();
         b_k_n.SetZero();
-        bq_bqk_n.SetZero();  
+        bq_bqk_n.SetZero();
     }
 
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());

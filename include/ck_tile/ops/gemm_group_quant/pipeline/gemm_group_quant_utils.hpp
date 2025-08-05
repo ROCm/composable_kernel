@@ -92,7 +92,7 @@ struct TileDistributionEncodingPatternAQ : public TileDistributionEncodingPatter
     }
 };
 
-//TODO:: might need to update
+// TODO:: might need to update
 template <typename BlockGemmShape,
           typename WarpGemm,
           index_t BlockSize,

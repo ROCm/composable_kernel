@@ -31,7 +31,6 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         return GetABQGlobalVectorLoadSize<Problem, BQDataType, NPerBlock, KPerBlockBQ>();
     }
 
-
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBQDramTileDistribution()
     {

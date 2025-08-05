@@ -200,7 +200,8 @@ int run_gemm_example(int argc, char* argv[])
     }
     else if(data_type == "bf8")
     {
-        using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_til::half_t>{});
+        using TypeConfig =
+            decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_til::half_t>{});
         return run_gemm_example_prec_type<GemmConfig, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
