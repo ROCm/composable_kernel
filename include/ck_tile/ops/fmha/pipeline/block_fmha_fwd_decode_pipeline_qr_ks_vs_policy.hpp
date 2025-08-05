@@ -193,7 +193,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
                                        tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
                                        tuple<sequence<1, 0>>,
                                        tuple<sequence<1, 0>>,
-                                       sequence<2, 1>,
+                                       sequence<1, 2>,
                                        sequence<0, 0>>{};
 
         constexpr auto q_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
@@ -500,19 +500,22 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
         return v_lds_block_desc;
     }
 
-    template <typename Problem>
+    template <typename Problem, bool NLoadOnce = true>
     CK_TILE_HOST_DEVICE static constexpr auto GetQKBlockGemm()
     {
-        using GemmProblem =
-            BlockGemmProblem<typename Problem::QDataType,
-                             typename Problem::KDataType,
-                             typename Problem::SaccDataType,
-                             Problem::kBlockSize,
-                             TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
-                                                    Problem::BlockFmhaShape::kN0,
-                                                    Problem::BlockFmhaShape::kK0>,
-                                           typename Problem::BlockFmhaShape::Gemm0BlockWarps,
-                                           typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
+        constexpr index_t GemmN = NLoadOnce
+                                      ? Problem::BlockFmhaShape::kN0
+                                      : Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{});
+        using GemmProblem       = BlockGemmProblem<
+            typename Problem::QDataType,
+            typename Problem::KDataType,
+            typename Problem::SaccDataType,
+            Problem::kBlockSize,
+            TileGemmShape<
+                sequence<Problem::BlockFmhaShape::kM0, GemmN, Problem::BlockFmhaShape::kK0>,
+                typename Problem::BlockFmhaShape::Gemm0BlockWarps,
+                typename Problem::BlockFmhaShape::Gemm0WarpTile>,
+            GemmLoopOrder::MNK>;
 
         using WarpGemm =
             WarpGemmMfmaDispatcher<typename Problem::QDataType,
@@ -545,7 +548,8 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
                                                     Problem::BlockFmhaShape::kN1,
                                                     Problem::BlockFmhaShape::kK1>,
                                            typename Problem::BlockFmhaShape::Gemm1BlockWarps,
-                                           typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
+                                           typename Problem::BlockFmhaShape::Gemm1WarpTile>,
+                             GemmLoopOrder::KMN>;
 
         using WarpGemm = WarpGemmMfmaDispatcher<
             typename Problem::PDataType,
@@ -574,17 +578,17 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
         return BlockGemmARegBRegCRegV1<GemmProblem, BlockGemmPolicy>{};
     }
 
-    template <typename Problem>
+    template <typename Problem, bool NloadOnce = true>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKRegTileDistribution()
     {
-        using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
+        using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem, NloadOnce>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
 
         constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<0>{});
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
 
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
+        constexpr index_t kNPerBlock = NloadOnce ? Problem::BlockFmhaShape::kN0 : WarpGemm::kN;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
 
         constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
@@ -597,7 +601,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
                                        tuple<sequence<NIterPerWarp, NWarp>, sequence<KIterPerWarp>>,
                                        tuple<sequence<0, 1>>,
                                        tuple<sequence<0, 1>>,
-                                       sequence<2, 1>,
+                                       sequence<1, 2>,
                                        sequence<0, 0>>{};
 
         constexpr auto k_block_dstr_encode = detail::make_embed_tile_distribution_encoding(

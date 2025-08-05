@@ -105,7 +105,7 @@ struct native_t<bfloat16_t>
 using bf16_t     = bfloat16_t;
 using bf16_raw_t = typename bf16_t::raw_type;
 #else
-#if 1 // ROCm 7.0
+#if defined(__gfx950__)
 using bfloat16_t = __bf16;
 #else
 using bfloat16_t = ushort;

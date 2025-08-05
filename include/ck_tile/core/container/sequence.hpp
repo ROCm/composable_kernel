@@ -1081,8 +1081,26 @@ struct sorted_sequence_histogram<h_idx, sequence<x>, sequence<r, rs...>>
         {
             h.template at<h_idx>() += 1;
         }
+        else
+        {
+            sorted_sequence_histogram<h_idx + 1, sequence<x>, sequence<rs...>>{}(h);
+        }
     }
 };
+
+template <index_t h_idx, index_t x, index_t r>
+struct sorted_sequence_histogram<h_idx, sequence<x>, sequence<r>>
+{
+    template <typename Histogram>
+    constexpr auto operator()(Histogram& h)
+    {
+        if constexpr(x < r)
+        {
+            h.template at<h_idx>() += 1;
+        }
+    }
+};
+
 } // namespace detail
 
 template <typename, index_t>

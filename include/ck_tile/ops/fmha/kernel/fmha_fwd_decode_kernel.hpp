@@ -996,7 +996,7 @@ struct FmhaFwdDecodeKernel
                 v_dram_naive,
                 make_tuple(number<FmhaPipeline::kK1>{}, number<FmhaPipeline::kN1>{}),
                 sequence<kPadSeqLenK, false>{});
-                
+
 #if CK_TILE_FMHA_HANDLE_XOR_LENGTH_FOLD
             constexpr index_t LDSLayerSize  = 256 / sizeof(VDataType);
             constexpr index_t XorLengthFold = LDSLayerSize / (FmhaPipeline::kQKHeaddim);

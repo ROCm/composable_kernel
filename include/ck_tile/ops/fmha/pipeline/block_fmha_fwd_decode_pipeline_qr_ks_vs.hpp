@@ -678,11 +678,8 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
         ignore = position_encoding;
 
         // Block GEMM
-        constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
+        constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem, false>();
         constexpr auto gemm_1 = Policy::template GetPVBlockGemm<Problem>();
-
-        using SaccBlockTileType = decltype(gemm_0.MakeCBlockTile());
-        auto s_acc              = SaccBlockTileType{};
 
         // reduction function for softmax
         const auto f_max = [](auto e0, auto e1) { return max(e0, e1); };
@@ -790,9 +787,9 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
 
         auto k_lds_read_window =
             make_tile_window(k_lds_read_view,
-                             make_tuple(number<kN0>{}, number<kK0>{}),
+                             make_tuple(number<kNXdl>{}, number<kK0>{}),
                              {0, 0},
-                             Policy::template MakeKRegTileDistribution<Problem>());
+                             Policy::template MakeKRegTileDistribution<Problem, false>());
 
         // S tile in LDS
         auto s_lds = make_tensor_view<address_space_enum::lds>(
@@ -833,14 +830,22 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
         // block_sync_lds_direct_load<0>();
         // auto q_tile = load_tile(q_lds_read_window);
 
+        constexpr auto gemm_0_full  = Policy::template GetQKBlockGemm<Problem>();
+        using SaccBlockTileType     = decltype(gemm_0_full.MakeCBlockTile());
+        auto s_acc                  = SaccBlockTileType{};
+        using SaccSubNBlockTileType = decltype(gemm_0.MakeCBlockTile());
+        auto s_acc_subn             = SaccSubNBlockTileType{};
+
         const index_t num_total_loop =
             integer_divide_ceil(physical_seqlen_k_end - aligned_physical_seqlen_k_start, kN0);
 
         index_t i_total_loops      = 0;
         constexpr index_t k0_loops = kQKHeaddim / kK0;
+        constexpr index_t n0_loops = kN0 / kNXdl;
         constexpr index_t k1_loops = kN0 / kK1;
 
-        static_assert(1 <= k0_loops);
+        static_assert(1 == k0_loops);
+        static_assert(1 <= n0_loops);
         static_assert(1 <= k1_loops);
         block_sync_lds<0>();
         async_load_tile(k_lds_write_window, k_dram_window);
@@ -881,32 +886,34 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
             async_load_tile(v_lds_write_window, v_dram_window);
 
             // STAGE 1, QK gemm
-            clear_tile(s_acc); // initialize C
+            clear_tile(s_acc_subn); // initialize C
 
-            if constexpr(1 < k0_loops)
+            if constexpr(1 < n0_loops)
             {
-                static_for<0, k0_loops - 1, 1>{}([&](auto i_k0) {
+                static_for<0, n0_loops - 1, 1>{}([&](auto i_n0) {
+                    ignore = i_n0;
                     // loop over along the [K]ey head dimension
-                    move_tile_window(k_lds_read_window, {0, kK0});
+                    move_tile_window(k_lds_read_window, {kNXdl, 0});
                     auto k_tile_switch = load_tile(k_lds_read_window);
 
-                    gemm_0(s_acc,
-                           get_slice_tile(q_tile,
-                                          sequence<0, i_k0 * kK0>{},
-                                          sequence<kM0, (i_k0 + 1) * kK0>{}),
-                           k_tile);
+                    gemm_0(s_acc_subn, q_tile, k_tile);
 
+                    set_slice_tile(s_acc,
+                                   s_acc_subn,
+                                   sequence<0, i_n0 * kNXdl>{},
+                                   sequence<kM0, (i_n0 + 1) * kNXdl>{});
+
+                    clear_tile(s_acc_subn);
                     k_tile = k_tile_switch;
                 });
                 // move back to the origin
-                move_tile_window(k_lds_read_window, {0, -kK0 * (k0_loops - 1)});
+                move_tile_window(k_lds_read_window, {-kNXdl * (n0_loops - 1), 0});
             }
 
-            gemm_0(s_acc,
-                   get_slice_tile(q_tile,
-                                  sequence<0, (k0_loops - 1) * kK0>{},
-                                  sequence<kM0, k0_loops * kK0>{}),
-                   k_tile);
+            gemm_0(s_acc_subn, q_tile, k_tile);
+
+            set_slice_tile(
+                s_acc, s_acc_subn, sequence<0, (n0_loops - 1) * kNXdl>{}, sequence<kM0, kN0>{});
 
             block_sync_lds_direct_load<k_vmem_insts + v_vmem_insts>();
             v_lds_read_window.set_bottom_tensor_view_data_ptr(v_lds_read_ptr);
