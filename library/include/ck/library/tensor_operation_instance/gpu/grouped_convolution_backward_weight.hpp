@@ -1017,6 +1017,13 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                         op_ptrs);
                     add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_f16_pad0_pipev1_instances(
                         op_ptrs);
+
+                    add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ndhwgc_gkzyxc_ndhwgk_f16_pipev1_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ndhwgc_gkzyxc_ndhwgk_f16_pipev1_part2_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ndhwgc_gkzyxc_ndhwgk_f16_pipev1_irregular_instances(
+                        op_ptrs);
                 }
 #endif
 #ifdef CK_ENABLE_BF16
@@ -1040,6 +1047,13 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                         op_ptrs);
                     add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_bf16_pad0_pipev1_instances(
                         op_ptrs);
+
+                    add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ndhwgc_gkzyxc_ndhwgk_bf16_pipev1_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ndhwgc_gkzyxc_ndhwgk_bf16_pipev1_part2_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ndhwgc_gkzyxc_ndhwgk_bf16_pipev1_irregular_instances(
+                        op_ptrs);
                 }
 #endif
             }
@@ -1053,6 +1067,10 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                 {
                     add_device_grouped_conv3d_bwd_weight_wmma_ngcdhw_gkczyx_ngkdhw_f16_instances(
                         op_ptrs);
+                    add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ngcdhw_gkczyx_ngkdhw_f16_pipev1_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ngcdhw_gkczyx_ngkdhw_f16_pipev1_part2_instances(
+                        op_ptrs);
                 }
 #endif
 #ifdef CK_ENABLE_BF16
@@ -1064,12 +1082,39 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                 {
                     add_device_grouped_conv3d_bwd_weight_wmma_ngcdhw_gkczyx_ngkdhw_bf16_instances(
                         op_ptrs);
+                    add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ngcdhw_gkczyx_ngkdhw_bf16_pipev1_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ngcdhw_gkczyx_ngkdhw_bf16_pipev1_part2_instances(
+                        op_ptrs);
                 }
 #endif
             }
         }
 #endif
-
+        if constexpr(is_same_v<InLayout, NGCDHW> && is_same_v<WeiLayout, GKZYXC> &&
+                     is_same_v<OutLayout, NGKDHW>)
+        {
+#ifdef CK_ENABLE_FP16
+            if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+                         is_same_v<OutDataType, half_t> && is_same_v<ComputeTypeA, half_t> &&
+                         is_same_v<ComputeTypeB, half_t>)
+            {
+                add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ngcdhw_gkzyxc_ngkdhw_f16_pipev1_instances(
+                    op_ptrs);
+            }
+#endif
+#ifdef CK_ENABLE_BF16
+            if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
+                         is_same_v<WeiDataType, ck::bhalf_t> &&
+                         is_same_v<OutDataType, ck::bhalf_t> &&
+                         is_same_v<ComputeTypeA, ck::bhalf_t> &&
+                         is_same_v<ComputeTypeB, ck::bhalf_t>)
+            {
+                add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ngcdhw_gkzyxc_ngkdhw_bf16_pipev1_instances(
+                    op_ptrs);
+            }
+#endif
+        }
         return op_ptrs;
     }
 };
