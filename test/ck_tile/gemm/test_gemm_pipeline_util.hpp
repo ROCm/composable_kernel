@@ -107,7 +107,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
         constexpr ck_tile::index_t M_Tile = 256;
         constexpr ck_tile::index_t N_Tile = 256;
         constexpr ck_tile::index_t K_Tile =
-            (PipelineType == GemmPipelineType::CompV4 || PipelineType == GemmPipelineType::CompV5)
+            (PipelineType == GemmPipelineType::CompV4 || PipelineType == GemmPipelineType::CompV6)
                 ? 32
                 : 64;
 

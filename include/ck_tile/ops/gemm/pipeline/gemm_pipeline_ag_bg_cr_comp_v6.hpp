@@ -140,6 +140,9 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
     static constexpr auto TailNum    = Problem::TailNum;
     static constexpr auto Scheduler  = Problem::Scheduler;
 
+    static constexpr auto is_a_load_tr_v = bool_constant<BasePImpl::is_a_load_tr>{};
+    static constexpr auto is_b_load_tr_v = bool_constant<BasePImpl::is_b_load_tr>{};
+
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
@@ -197,20 +200,15 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
                                                 (BlockSize / WaveSize) /
                                                 (MPerXDL * NPerXDL * KPerXDL);
 
-            constexpr auto num_bytes_per_ds_read_a =
-                A_LDS_Read_Width * sizeof(ADataType) / APackedSize;
-            constexpr auto num_bytes_per_ds_read_b =
-                B_LDS_Read_Width * sizeof(BDataType) / BPackedSize;
-
-            constexpr auto num_ds_read_inst_a =
-                num_bytes_per_ds_read_a == 16 ? A_LDS_Read_Inst_Num / 2 : A_LDS_Read_Inst_Num;
-            constexpr auto num_ds_read_inst_b =
-                num_bytes_per_ds_read_b == 16 ? B_LDS_Read_Inst_Num / 2 : B_LDS_Read_Inst_Num;
+            constexpr auto num_ds_read_inst_a = A_LDS_Read_Width * sizeof(ADataType) / APackedSize == 16 ? A_LDS_Read_Inst_Num
+                                                                                                         : A_LDS_Read_Inst_Num / 2;
+            constexpr auto num_ds_read_inst_b = B_LDS_Read_Width * sizeof(BDataType) / BPackedSize == 16 ? B_LDS_Read_Inst_Num
+                                                                                                         : B_LDS_Read_Inst_Num / 2;
 
             constexpr auto mfma_cycle = NPerXDL == 16 ? 16 : 32;
 
-            constexpr auto ds_read_a_issue_cycle = num_bytes_per_ds_read_a == 16 ? 4 : 8;
-            constexpr auto ds_read_b_issue_cycle = num_bytes_per_ds_read_b == 16 ? 4 : 8;
+            constexpr auto ds_read_a_issue_cycle = A_LDS_Read_Width * sizeof(ADataType) / APackedSize == 16 ? 8 : 4;
+            constexpr auto ds_read_b_issue_cycle = B_LDS_Read_Width * sizeof(BDataType) / BPackedSize == 16 ? 8 : 4;
 
             constexpr auto ds_read_a_mfma_rate =
                 (mfma_cycle - 4 + 2 * ds_read_a_issue_cycle - 1) / (2 * ds_read_a_issue_cycle);
@@ -330,6 +328,7 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
                 }
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
             });
+            __builtin_amdgcn_sched_barrier(0);
         }
 
         template <bool HasHotLoop,
@@ -481,7 +480,7 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
             // Local prefill 1
-            if constexpr(is_a_col_major)
+            if constexpr(is_a_col_major && !is_a_load_tr_v())
             {
                 auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
                     Policy::template MakeShuffledARegTileDistribution<Problem>());
@@ -492,7 +491,7 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
             {
                 BasePImpl::LocalPrefill(a_copy_lds_window, a_block_tile[I0], a_element_func);
             }
-            if constexpr(is_b_row_major)
+            if constexpr(is_b_row_major && !is_b_load_tr_v())
             {
                 auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
                     Policy::template MakeShuffledBRegTileDistribution<Problem>());
@@ -531,7 +530,7 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
                         block_sync_lds();
 
                         // Local prefill 2
-                        if constexpr(is_a_col_major)
+                        if constexpr(is_a_col_major && !is_a_load_tr_v())
                         {
                             auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
                                 Policy::template MakeShuffledARegTileDistribution<Problem>());
@@ -544,7 +543,7 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
                             BasePImpl::LocalPrefill(
                                 a_copy_lds_window, a_block_tile[vmem_buf_idx], a_element_func);
                         }
-                        if constexpr(is_b_row_major)
+                        if constexpr(is_b_row_major && !is_b_load_tr_v())
                         {
                             auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
                                 Policy::template MakeShuffledBRegTileDistribution<Problem>());
@@ -575,7 +574,6 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
                         BasePImpl::LocalPrefetch(b_lds_tile, b_lds_gemm_window);
 
                         HotLoopScheduler();
-                        __builtin_amdgcn_sched_barrier(0);
                     };
 
                     LoopFunc(I0);
@@ -589,7 +587,7 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
                 block_sync_lds();
 
                 // Local prefill 3
-                if constexpr(is_a_col_major)
+                if constexpr(is_a_col_major && !is_a_load_tr_v())
                 {
                     auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
                         Policy::template MakeShuffledARegTileDistribution<Problem>());
@@ -601,7 +599,7 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
                     BasePImpl::LocalPrefill(
                         a_copy_lds_window, a_block_tile[vmem_buf_idx], a_element_func);
                 }
-                if constexpr(is_b_row_major)
+                if constexpr(is_b_row_major && !is_b_load_tr_v())
                 {
                     auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
                         Policy::template MakeShuffledBRegTileDistribution<Problem>());
