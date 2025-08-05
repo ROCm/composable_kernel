@@ -280,11 +280,11 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
-                                       tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<1>, sequence<2, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 1>>{});
+                                    tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
+                                    tuple<sequence<1>, sequence<1, 2>>,
+                                    tuple<sequence<1>, sequence<2, 0>>,
+                                    sequence<1, 2>,
+                                    sequence<0, 1>>{});
     }
 
 #if defined(ENABLE_INSTRUCTION_SCH)

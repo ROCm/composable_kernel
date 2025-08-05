@@ -194,10 +194,11 @@ int main(int argc, char* argv[])
 
     using gemm_softmax_topk_kernel = ck_tile::GemmSoftmaxTopk<ADataType,
                                       BDataType,
+                                      CDataType,
                                       AccDataType,
                                       WeightType,
                                       IndexType,
-                                    //   CElementFunction,
+                                      CElementFunction,
                                       kAAlignment,
                                       kBAlignment,
                                       kOutAlignment,
