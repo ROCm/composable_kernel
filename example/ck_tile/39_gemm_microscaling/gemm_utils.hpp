@@ -375,86 +375,51 @@ struct GemmConfigPreshufle_2 : public GemmConfigBase
     static constexpr bool DoubleSmemBuffer     = false;
 };
 
-template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>
-struct GemmTypeConfig;
+// template <typename ADataType,
+//           typename BDataType     = ADataType,
+//           typename ScaleDatatype = ADataType,
+//           typename CDataType     = ADataType>
+// struct GemmTypeConfig;
 
-template <>
-struct GemmTypeConfig<ck_tile::half_t>
-{
-    using ADataType   = ck_tile::half_t;
-    using BDataType   = ck_tile::half_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-    // ToDo: Add more bias config to support different categories of GEMM.
-};
-
-template <>
-struct GemmTypeConfig<ck_tile::bf16_t, ck_tile::bf16_t, ck_tile::bf16_t>
-{
-    using ADataType   = ck_tile::bf16_t;
-    using BDataType   = ck_tile::bf16_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::bf16_t;
-};
-
-template <>
-struct GemmTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>
-{
-    using ADataType   = ck_tile::fp8_t;
-    using BDataType   = ck_tile::fp8_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
-
-template <>
-struct GemmTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>
-{
-    using ADataType   = ck_tile::bf8_t;
-    using BDataType   = ck_tile::bf8_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
-
-template <>
-struct GemmTypeConfig<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>
-{
-    using ADataType   = ck_tile::half_t;
-    using BDataType   = ck_tile::pk_int4_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
-
-template <>
-struct GemmTypeConfig<ck_tile::int8_t, ck_tile::int8_t, int32_t>
-{
-    using ADataType   = ck_tile::int8_t;
-    using BDataType   = ck_tile::int8_t;
-    using AccDataType = int32_t;
-    using CDataType   = int32_t;
-};
+// template <>
+// struct GemmTypeConfig<ck_tile::half_t>
+// {
+//     using ADataType   = ck_tile::half_t;
+//     using BDataType   = ck_tile::half_t;
+//     using AccDataType = float;
+//     using CDataType   = ck_tile::half_t;
+//     // ToDo: Add more bias config to support different categories of GEMM MX.
+// };
 
 template <typename ADataType_,
-          typename BDataType_ = ADataType_,
-          typename CDataType_ = ADataType_,
-          typename QDataType_ = float>
+          typename BDataType_         = ADataType_,
+          typename ScaleDataType_     = ADataType_,
+          typename ScalePackDataType_ = ScaleDataType_,
+          typename CDataType_         = ADataType_>
 struct GemmMXTypeConfig
 {
-    using ADataType   = ADataType_;
-    using QDataType   = QDataType_;
-    using BDataType   = BDataType_;
-    using AccDataType = float;
-    using CDataType   = CDataType_;
+    using ADataType         = ADataType_;
+    using BDataType         = BDataType_;
+    using ScaleDataType     = ScaleDataType_;
+    using ScalePackDataType = ScalePackDataType_;
+    using AccDataType       = float;
+    using CDataType         = CDataType_;
 };
 
 // microscaling gemm
 template <>
-struct GemmMXTypeConfig<ck_tile::pk_fp4_t, ck_tile::pk_fp4_t, ck_tile::half_t, ck_tile::e8m0_bexp_t>
+struct GemmMXTypeConfig<ck_tile::pk_fp4_t,
+                        ck_tile::pk_fp4_t,
+                        ck_tile::e8m0_bexp_t,
+                        int32_t,
+                        ck_tile::half_t>
 {
-    using ADataType   = ck_tile::pk_fp4_t;
-    using BDataType   = ck_tile::pk_fp4_t;
-    using QDataType   = ck_tile::e8m0_bexp_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
+    using ADataType         = ck_tile::pk_fp4_t;
+    using BDataType         = ck_tile::pk_fp4_t;
+    using ScaleDataType     = ck_tile::e8m0_bexp_t;
+    using ScalePackDataType = int32_t;
+    using AccDataType       = float;
+    using CDataType         = ck_tile::half_t;
 }
 
 template <typename T>

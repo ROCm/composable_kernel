@@ -32,7 +32,6 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   ck_tile::index_t M,
                   ck_tile::index_t N,
                   ck_tile::index_t K,
-                  ck_tile::index_t AQK,
                   ck_tile::index_t stride_A,
                   ck_tile::index_t stride_AQ,
                   ck_tile::index_t stride_B,
@@ -41,46 +40,54 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   int n_warmup,
                   int n_repeat)
 {
-    ck_tile::AQuantGemmHostArgs args;
-    args.a_ptr     = a_m_k_dev_buf.GetDeviceBuffer();
-    args.aq_ptr    = aq_m_aqk_dev_buf.GetDeviceBuffer();
-    args.b_ptr     = b_k_n_dev_buf.GetDeviceBuffer();
-    args.c_ptr     = c_m_n_dev_buf.GetDeviceBuffer();
-    args.k_batch   = kbatch;
-    args.M         = M;
-    args.N         = N;
-    args.K         = K;
-    args.QK        = AQK;
-    args.stride_A  = stride_A;
-    args.stride_B  = stride_B;
-    args.stride_C  = stride_C;
-    args.stride_AQ = stride_AQ;
+    ck_tile::GemmMXKernelArgs args;
+    args.a_ptr          = a_m_k_dev_buf.GetDeviceBuffer();
+    args.a_scale_ptr_   = a_m_k_scale_dev_buf.GetDeviceBuffer();
+    args.b_ptr          = b_k_n_dev_buf.GetDeviceBuffer();
+    args.b_scale_ptr_   = b_k_n_scale_dev_buf.GetDeviceBuffer();
+    args.c_ptr          = c_m_n_dev_buf.GetDeviceBuffer();
+    args.k_batch        = kbatch;
+    args.M              = M;
+    args.N              = N;
+    args.K              = K;
+    args.stride_A       = stride_A;
+    args.stride_scale_A = stride_scale_A; // stride for A scale
+    args.stride_B       = stride_B;
+    args.stride_scale_B = stride_scale_B; // stride for B scale
+    args.stride_C       = stride_C;
 
-    float ave_time = gemm_calc_aquant<ADataType,
-                                      AQDataType,
-                                      BDataType,
-                                      AccDataType,
-                                      CDataType,
-                                      BDataType,
-                                      ALayout,
-                                      BLayout,
-                                      CLayout,
-                                      QuantGroupSize>(
+    float ave_time = gemm_mx_calc<ADataType,
+                                  AScaleDataType,
+                                  BDataType,
+                                  BScaleDataType,
+                                  AccDataType,
+                                  CDataType,
+                                  BDataType,
+                                  ALayout,
+                                  BLayout,
+                                  CLayout,
+                                  BlockScaleSize>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
-    std::size_t flop     = std::size_t(2) * M * N * K;
-    std::size_t num_byte = sizeof(ADataType) * M * K + sizeof(AQDataType) * M * AQK +
-                           sizeof(BDataType) * N * K + sizeof(CDataType) * M * N;
+    std::size_t flop = std::size_t(2) * M * N * K + std::size_t(2) * M * N * K / BlockScaleSize;
+    std::size_t num_byte =
+        sizeof(ADataType) * M * K / ck_tile::numeric_traits<ADataType>::PackedSize +
+        sizeof(BDataType) * K * N / ck_tile::numeric_traits<BDataType>::PackedSize +
+        sizeof(ck_tile::e8m0_bexp_t) * M * K / BlockScaleSize +
+        sizeof(ck_tile::e8m0_bexp_t) * K * N / BlockScaleSize + sizeof(CDataType) * M * N;
+
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_byte / 1.E6 / ave_time;
 
     std::cout << "Run Gemm kernel with M =" << M << " N =" << N << " K =" << K
-              << " StrideA =" << stride_A << " StrideAQ =" << stride_AQ << " StrideB =" << stride_B
+              << " StrideA =" << stride_A << " StrideScaleA =" << stride_scale_A
+              << " StrideB =" << stride_B << " StrideScaleB =" << stride_scale_B
               << " StrideC =" << stride_C << " A_Layout =" << ALayout::name
               << " B_Layout =" << BLayout::name << " C_Layout =" << CLayout::name
               << " A_Type = " << DataTypeTraits<ADataType>::name
-              << " AQ_Type = " << DataTypeTraits<AQDataType>::name
+              << " A_Scale_Type = " << DataTypeTraits<AScaleDataType>::name
               << " B_Type = " << DataTypeTraits<BDataType>::name
+              << " B_Scale_Type = " << DataTypeTraits<BScaleDataType>::name
               << " Acc_Type = " << DataTypeTraits<AccDataType>::name
               << " C_Type = " << DataTypeTraits<CDataType>::name << " : " << ave_time << " ms, "
               << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
@@ -107,12 +114,13 @@ int run_gemm_example_with_layouts(int argc,
     if(!result)
         return -1;
 
-    using ADataType      = typename TypeConfig::ADataType;
-    using AScaleDataType = typename TypeConfig::QDataType;
-    using BDataType      = typename TypeConfig::BDataType;
-    using BScaleDataType = typename TypeConfig::QDataType;
-    using AccDataType    = typename TypeConfig::AccDataType;
-    using CDataType      = typename TypeConfig::CDataType;
+    using ADataType       = typename TypeConfig::ADataType;
+    using AScaleDataType  = typename TypeConfig::ScaleDataType;
+    using BDataType       = typename TypeConfig::BDataType;
+    using BScaleDataType  = typename TypeConfig::ScaleDataType;
+    using XPackedDataType = typename TypeConfig::ScalePackDataType;
+    using AccDataType     = typename TypeConfig::AccDataType;
+    using CDataType       = typename TypeConfig::CDataType;
 
     ck_tile::index_t M = arg_parser.get_int("m");
     ck_tile::index_t N = arg_parser.get_int("n");
@@ -177,23 +185,24 @@ int run_gemm_example_with_layouts(int argc,
 
     if(init_method == 0)
     {
-        ck_tile::FillUniformDistribution<ADataType>{-1.0f, 1.0f, fill_seed(gen)}(a_m_k);
-        ck_tile::FillUniformDistribution<BDataType>{-1.0f, 1.0f, fill_seed(gen)}(b_k_n);
-        ck_tile::FillUniformDistribution<ASCaleDataType>{-1.0f, 1.0f, fill_seed(gen)}(a_m_k_scale);
-        ck_tile::FillUniformDistribution<BScaleDataType>{-1.0f, 1.0f, fill_seed(gen)}(b_k_n_scale);
+        ck_tile::FillUniformDistribution<ADataType>{-1.0f, 1.0f}(a_m_k);
+        ck_tile::FillUniformDistribution<BDataType>{-1.0f, 1.0f}(b_k_n);
+        ck_tile::FillUniformDistribution<ASCaleDataType>{-1.0f, 1.0f}(a_m_k_scale);
+        ck_tile::FillUniformDistribution<BScaleDataType>{-1.0f, 1.0f}(b_k_n_scale);
     }
     else if(init_method == 1)
     {
-        ck_tile::FillConstant<ADataType>{ck_tile::type_convert<ADataType>(ck_tile::float2_t(0.5f))}(
-            a_m_k);
-        ck_tile::FillConstant<AQDataType>{static_cast<AQDataType>(0.5f)}(aq_m_aqk);
-        ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x38)}(b_k_n);
+        ck_tile::FillConstant<ADataType>{1.0f, 1.0f}(a_m_k);
+        ck_tile::FillConstant<BDataType>{1.0f, 1.0f}(b_k_n);
+        ck_tile::FillConstant<ASCaleDataType>{1.0f, 1.0f}(a_m_k_scale);
+        ck_tile::FillConstant<BScaleDataType>{1.0f, 1.0f}(b_k_n_scale);
     }
     else
     {
         a_m_k.SetZero();
-        aq_m_aqk.SetZero();
         b_k_n.SetZero();
+        a_m_k_scale.SetZero();
+        b_k_n_scale.SetZero();
     }
 
     // Shuffle A, B scale tensors
@@ -216,9 +225,9 @@ int run_gemm_example_with_layouts(int argc,
     c_m_n_dev_result.SetZero();
 
     invoke_gemm<ADataType,
-                AScaleDataType,
+                XPackedDataType,
                 BDataType,
-                BScaleDataType,
+                XPackedDataType,
                 AccDataType,
                 CDataType,
                 ALayout,
