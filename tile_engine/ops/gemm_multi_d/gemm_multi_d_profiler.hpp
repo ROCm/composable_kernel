@@ -168,8 +168,6 @@ class GemmProfiler
         else
         {
             std::cout << "Verification failed, skip kernel: " << name << std::endl;
-            kernel_instances_.emplace_back(
-                kernel_instance); // Remove this line if you don't want to keep failed instances
         }
 
         e_m_n_dev_buf.SetZero();
@@ -218,7 +216,6 @@ class GemmProfiler
                 const auto& name    = kernel_instance.name_;
                 const auto& perf    = kernel_instance.perf_result_;
 
-                // TODO: Add all parameters for Multi D GEMM
                 file << get_rocm_version() << "," << ck_tile::get_device_name() << ","
                      << problem.split_k_ << "," << problem.m_ << "," << problem.n_ << ","
                      << problem.k_ << "," << problem.stride_a_ << "," << problem.stride_b_ << ","

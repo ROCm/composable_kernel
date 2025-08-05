@@ -91,7 +91,7 @@ void gemm_multi_d_host_reference(int verify,
                                            DsDataType,
                                            AccDataType,
                                            EDataType,
-                                           MultiplyMultiply>(
+                                           ck_tile::element_wise::PassThrough>(
             a_m_k, b_k_n, {d0_m_n, d1_m_n}, e_m_n_host_result);
     }
     std::cout << "Exiting gemm_multi_d_host_reference function" << std::endl;
