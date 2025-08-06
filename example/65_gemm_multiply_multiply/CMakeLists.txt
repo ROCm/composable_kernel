@@ -40,6 +40,8 @@ foreach(gpu IN LISTS GPU_TARGETS)
 endforeach()
 
 set(GEMM_OPTIONS "SHELL: -mllvm -greedy-reverse-local-assignment=1")
+
+list(APPEND GEMM_OPTIONS -Wno-error --save-temps)
 set(BLOCKSCALE_GEMM_OPTIONS )
 check_cxx_compiler_flag("-mllvm --misched-bottomup=1" HAS_MISCHED_BOTTOMUP)
 check_cxx_compiler_flag("-mllvm --misched-prera-direction=bottomup" HAS_MISCHED_PRERA_DIRECTION)
