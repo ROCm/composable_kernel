@@ -13,7 +13,7 @@ for p in sorted(Path("./").rglob("*")):
 # formatting
 for x in all_files:
     subprocess.Popen(f'dos2unix {str(x)}', shell=True)
-    cmd = f'clang-format-12 -style=file -i {str(x)}'
+    cmd = f'clang-format-18 -style=file -i {str(x)}'
     #for xp in x.parents:
     #print(get_file_base(x))
     subprocess.Popen(cmd, shell=True)
