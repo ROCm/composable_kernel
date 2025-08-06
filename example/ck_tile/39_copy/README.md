@@ -194,7 +194,7 @@ auto desc = make_naive_tensor_descriptor(
     make_tuple(M, N),           // tensor dimensions
     make_tuple(N, 1),           // strides
     number<Vector_N>{},         // vector length for vectorized access
-    number<1>{}                 // stride in vectorized load
+    number<1>{}                 // guaranteed last dimension vector stride
 );
 ```
 
@@ -206,7 +206,7 @@ auto x_m_n = make_naive_tensor_view<address_space_enum::global>(
     make_tuple(M, N),           // dimensions
     make_tuple(N, 1),           // strides  
     number<S::Vector_N>{},      // vector length
-    number<1>{}                 // scalar per vector
+    number<1>{}                 // guaranteed last dimension vector stride
 );
 ```
 
