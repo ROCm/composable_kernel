@@ -5,6 +5,7 @@
 #include <iostream>
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
+#include "practice_gemm.hpp"
 
 int main()
 {
@@ -42,17 +43,17 @@ int main()
     ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_host);
 
     // Print the tensors using the new print_first_n member function
-    std::cout << "Tensor A (first 5 elements): ";
-    a_host.print_first_n(5);
-    std::cout << std::endl;
+    // std::cout << "Tensor A (first 5 elements): ";
+    // a_host.print_first_n(5);
+    // std::cout << std::endl;
 
-    std::cout << "Tensor B (first 5 elements): ";
-    b_host.print_first_n(5);
-    std::cout << std::endl;
+    // std::cout << "Tensor B (first 5 elements): ";
+    // b_host.print_first_n(5);
+    // std::cout << std::endl;
 
-    std::cout << "Tensor C (first 5 elements): ";
-    c_host.print_first_n(5);
-    std::cout << std::endl;
+    // std::cout << "Tensor C (first 5 elements): ";
+    // c_host.print_first_n(5);
+    // std::cout << std::endl;
 
     // Create device tensors of same size as host tensors and copy data
     ck_tile::DeviceMem a_device(a_host);
@@ -61,6 +62,54 @@ int main()
 
     (void)verification;
     (void)AccDataType{}; // Fake usage to suppress unused warning
+
+    // TODO: BlockTileConfig
+    // constexpr ck_tile::index_t warpSize    = 64;
+    constexpr ck_tile::index_t kBlockSize = 256;
+
+    using BlockTile = ck_tile::sequence<256, 32, 128>;
+    using WaveTile  = ck_tile::sequence<16, 16, 16>;
+
+    using PracticeGemmShape = ck_tile::PracticeGemmShape<BlockTile, WaveTile>;
+
+    ck_tile::index_t kGridSize =
+        (M / PracticeGemmShape::BlockTile_M) * (N / PracticeGemmShape::BlockTile_N);
+
+    std::cout << "kGridSize: " << kGridSize << std::endl;
+
+    constexpr ck_tile::index_t kWarpPerCU    = 8; // two warps per CU
+    constexpr ck_tile::index_t kWarpPerBlock = kBlockSize / warpSize;
+    constexpr ck_tile::index_t kBlockPerCU   = kWarpPerCU / kWarpPerBlock;
+
+    std::cout << "kBlockSize: " << kBlockSize << std::endl;
+    std::cout << "kWarpPerBlock: " << kWarpPerBlock << std::endl;
+    std::cout << "kBlockPerCU: " << kBlockPerCU << std::endl;
+
+    std::cout << "PracticeGemmShape: " << PracticeGemmShape::GetName() << std::endl;
+
+    // using gemm_kernel = ck_tile::GemmKernel<ADataType,
+    //                                         BDataType,
+    //                                         CDataType,
+    //                                         AccDataType,
+    //                                         BlockTile_M,
+    //                                         BlockTile_N,
+    //                                         BlockTile_K>;
+
+    // float ave_time = ck_tile::launch_kernel(ck_tile::stream_config{nullptr, true, 0, 5, 1000},
+    //                                         ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
+    //                                             gemm_kernel{},
+    //                                             kGridSize,
+    //                                             kBlockSize,
+    //                                             0,
+    //                                             static_cast<ADataType*>(a_buf.GetDeviceBuffer()),
+    //                                             static_cast<BDataType*>(b_buf.GetDeviceBuffer()),
+    //                                             static_cast<CDataType*>(c_buf.GetDeviceBuffer()),
+    //                                             M,
+    //                                             N,
+    //                                             K,
+    //                                             stride_a,
+    //                                             stride_b,
+    //                                             stride_c);
 
     return 0;
 }
