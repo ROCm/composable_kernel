@@ -190,7 +190,7 @@ def buildDocker(install_prefix){
     }
     else if(params.RUN_AITER_TESTS){
         image_name = "rocm/composable_kernel:ck_aiter"
-        dockerArgs = dockerArgs + " --no-cache -f Dockerfile.aiter --build-arg AITER_BRANCH='${params.aiter_branch}' . "
+        dockerArgs = dockerArgs + " --no-cache -f Dockerfile.aiter --build-arg AITER_BRANCH='${params.aiter_branch}' --build-arg CK_AITER_BRANCH='${params.ck_aiter_branch}' . "
     }
     else{
         dockerArgs = dockerArgs + " -f Dockerfile . "
@@ -845,8 +845,9 @@ def run_aiter_tests(Map conf=[:]){
             try{
                 sh "python3 --version"
                 sh "rocminfo"
+                sh "python3 ../aiter/op_tests/test_gemm_a8w8.py"
                 sh "python3 ../aiter/op_tests/test_gemm_a8w8_blockscale.py"
-                sh "python3 ../aiter/op_tests/test_layernorm2d.py"
+                sh "python3 ../aiter/op_tests/test_batch_prefill.py"
                 sh "python3 ../aiter/op_tests/test_mha.py"
             }
             catch(e){
@@ -1014,6 +1015,10 @@ pipeline {
             name: 'aiter_branch',
             defaultValue: 'main',
             description: 'Specify which branch of AITER to use (default: main)')
+        string(
+            name: 'ck_aiter_branch',
+            defaultValue: 'develop',
+            description: 'Specify which branch of CK to test with AITER (default: develop)')
     }
     environment{
         dbuser = "${dbuser}"
