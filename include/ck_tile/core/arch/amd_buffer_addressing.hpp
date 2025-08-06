@@ -2831,7 +2831,7 @@ CK_TILE_DEVICE void amd_direct_load_global_to_lds(const T* global_base_ptr,
 
 #if defined(__gfx950__)
 template <typename T, index_t N, address_space_enum BufferAddressSpace>
-__device__ auto amd_transpose_load_to_vgpr(const T* in_ptr)
+__device__ auto amd_transpose_load_to_vgpr(const T* __restrict__ in_ptr)
 {
 
     static_assert(__has_builtin(__builtin_amdgcn_raw_buffer_load_b32),
