@@ -158,28 +158,6 @@ function(build_gemm_for_datatype datatype layout)
             endif()
         endif()
     endforeach()
-
-    # Master executable including all traits
-    set(all_trait_libs)
-    foreach(trait IN LISTS unique_traits)
-        if (TARGET gemm_lib_${trait}_${datatype}_${layout})
-            list(APPEND all_trait_libs "gemm_lib_${trait}_${datatype}_${layout}")
-        endif()
-    endforeach()
-
-    if (all_trait_libs)
-        add_executable(benchmark_gemm_${datatype}_${layout} benchmark_gemm.cpp)
-        target_link_libraries(benchmark_gemm_${datatype}_${layout} PRIVATE ${all_trait_libs})
-        target_include_directories(benchmark_gemm_${datatype}_${layout} PRIVATE
-            "${CMAKE_CURRENT_LIST_DIR}"
-            "${working_path}"
-        )
-        target_compile_options(benchmark_gemm_${datatype}_${layout} PRIVATE
-            -Wno-undefined-func-template
-            -Wno-float-equal
-            --offload-compress
-        )
-    endif()
 endfunction()
 
 # Process each datatype/layout
