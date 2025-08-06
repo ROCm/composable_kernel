@@ -172,6 +172,7 @@ static const auto kTestingValues = ::testing::Values(
     std::tuple{1, 32, 1, 32, true},
     std::tuple{1, 64, 1, 64, true},
     std::tuple{1, 32, 1, 64, true},
+    std::tuple{1, 64, 1, 32, true},
     std::tuple{2, 12, 1, 32, false},
     std::tuple{3, 1334, 1, 37, false},
     std::tuple{4, 27, 1, 32, true},
@@ -274,10 +275,27 @@ class ZZZU
 {
 };
 
+class ZZZU2
+    : public TestCkTileBatchedTranspose<
+          PipelineConfig<ck_tile::half_t, PipelineTag::Universal, 64, 32, 1, 1, false, false>>
+{
+};
+
 class ZZZL : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t,
                                                               PipelineTag::LDSLoadTranspose,
                                                               32,
                                                               64,
+                                                              1,
+                                                              1,
+                                                              false,
+                                                              false>>
+{
+};
+
+class ZZZL2 : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t,
+                                                              PipelineTag::LDSLoadTranspose,
+                                                              64,
+                                                              32,
                                                               1,
                                                               1,
                                                               false,
@@ -298,6 +316,8 @@ TEST_P(XXX, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(YYY, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(ZZZU, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(ZZZL, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(ZZZU2, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(ZZZL2, TestCorrectness) { this->Run(GetParam()); }
 
 // clang-format off
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalf, kTestingValues);
@@ -313,5 +333,7 @@ INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, XXX, kTestingValues);
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, YYY, kTestingValues);
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, ZZZU, kTestingValues);
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, ZZZL, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, ZZZU2, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, ZZZL2, kTestingValues);
 
 // clang-format on

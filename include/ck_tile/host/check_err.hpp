@@ -429,7 +429,7 @@ check_err(const Range& out,
     }
     if (!mismatched_indices.empty()) 
     {
-        std::cerr << "Mismatched indices: " << mismatched_indices << std::endl;
+        // std::cerr << "Mismatched indices: " << mismatched_indices << std::endl;
     }
     if(!res)
     {
