@@ -8,6 +8,7 @@ endif()
 if(CK_USE_OCP_FP8 OR CK_USE_FNUZ_FP8)
     add_gtest_executable(test_ck_tile_fp8 test_fp8.cpp)
     target_compile_options(test_ck_tile_fp8 PRIVATE -Wno-float-equal)
+    target_compile_definitions(test_ck_tile_fp8 PUBLIC GTEST_HAS_RTTI=0)
     # conditionally specify the use of OCP_FP8
     if(CK_USE_OCP_FP8)
         target_compile_options(test_ck_tile_fp8 PRIVATE -DCK_TILE_USE_OCP_FP8)
