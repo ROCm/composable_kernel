@@ -114,7 +114,22 @@ struct tile_distribution
         }
         else if constexpr(NDimP == 2)
         {
-            return array<index_t, 2>{get_warp_id(), get_lane_id()};
+            return array<index_t, 2>{get_warp_id_to_sgpr(), get_lane_id()};
+        }
+    }
+
+    CK_TILE_HOST_DEVICE static auto _get_partition_index_v2()
+    {
+        // only support warp-tile and block-tile
+        static_assert(NDimP == 1 or NDimP == 2, "wrong!");
+
+        if constexpr(NDimP == 1)
+        {
+            return array<index_t, 1>{get_lane_id()};
+        }
+        else if constexpr(NDimP == 2)
+        {
+            return array<index_t, 2>{get_warp_id_to_vgpr(), get_lane_id()};
         }
     }
 
