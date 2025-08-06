@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_wmma_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_wmma_cshuffle_v3.hpp"
 
 using InDataType  = F16;
 using WeiDataType = F16;
@@ -16,11 +16,20 @@ using OutElementOp = PassThrough;
 
 template <ck::index_t NDimSpatial>
 using DeviceConvBwdWeightInstance =
-    ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Wmma_CShuffle<
+    ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Wmma_CShuffleV3<
         NDimSpatial,
-        ck::tensor_layout::convolution::GNDHWC,
-        ck::tensor_layout::convolution::GKZYXC,
-        ck::tensor_layout::convolution::GNDHWK,
+        ck::tuple_element_t<NDimSpatial - 1,
+                            ck::Tuple<ck::tensor_layout::convolution::GNWC,
+                                      ck::tensor_layout::convolution::GNHWC,
+                                      ck::tensor_layout::convolution::GNDHWC>>,
+        ck::tuple_element_t<NDimSpatial - 1,
+                            ck::Tuple<ck::tensor_layout::convolution::GKXC,
+                                      ck::tensor_layout::convolution::GKYXC,
+                                      ck::tensor_layout::convolution::GKZYXC>>,
+        ck::tuple_element_t<NDimSpatial - 1,
+                            ck::Tuple<ck::tensor_layout::convolution::GNWK,
+                                      ck::tensor_layout::convolution::GNHWK,
+                                      ck::tensor_layout::convolution::GNDHWK>>,
         InDataType,           // InDataType
         WeiDataType,          // WeiDataType
         OutDataType,          // OutDataType
@@ -32,30 +41,30 @@ using DeviceConvBwdWeightInstance =
         256,                  // BlockSize
         128,                  // MPerBlock
         128,                  // NPerBlock
-        4,                    // K0PerBlock
+        32,                   // KPerBlock
         8,                    // K1
-        16,                   // MPerWMMA
-        16,                   // NPerWMMA
+        16,                   // MPerWmma
+        16,                   // NPerWmma
         4,                    // MRepeat
         2,                    // NRepeat
-        S<4, 64, 1>,          // ABlockTransferThreadClusterLengths_AK0_M_AK1
-        S<0, 2, 1>,           // ABlockTransferThreadClusterArrangeOrder
-        S<0, 2, 1>,           // ABlockTransferSrcAccessOrder
+        S<4, 16, 1>,          // ABlockTransferThreadClusterLengths_K0_M_K1
+        S<2, 0, 1>,           // ABlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,           // ABlockTransferSrcAccessOrder
         1,                    // ABlockTransferSrcVectorDim
         1,                    // ABlockTransferSrcScalarPerVector
-        8,                    // ABlockTransferDstScalarPerVector_AK1
-        true,                 // ABlockLdsExtraM
-        S<4, 64, 1>,          // BBlockTransferThreadClusterLengths_BK0_N_BK1
-        S<0, 2, 1>,           // BBlockTransferThreadClusterArrangeOrder
-        S<0, 2, 1>,           // BBlockTransferSrcAccessOrder
+        2,                    // ABlockTransferDstScalarPerVector_K1
+        false,                // ABlockLdsAddExtraM
+        S<4, 16, 1>,          // BBlockTransferThreadClusterLengths_K0_N_K1
+        S<2, 0, 1>,           // BBlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,           // BBlockTransferSrcAccessOrder
         1,                    // BBlockTransferSrcVectorDim
         1,                    // BBlockTransferSrcScalarPerVector
-        8,                    // BBlockTransferDstScalarPerVector_BK1
-        true,                 // BBlockLdsExtraN
-        4,
-        2,
-        S<1, 32, 1, 8>,
-        1>;
+        2,                    // BBlockTransferDstScalarPerVector_K1
+        false,                // BBlockLdsAddExtraN
+        1,                    // CShuffleMRepeatPerShuffle
+        1,                    // CShuffleNRepeatPerShuffle
+        S<1, 32, 1, 4>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+        128 / (sizeof(WeiDataType) * CHAR_BIT)>; // CShuffleBlockTransferScalarPerVector_NPerBlock
 
 template <ck::index_t NDimSpatial>
 using HostConvBwdWeightInstance = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
@@ -80,6 +89,8 @@ int main(int argc, char* argv[])
 
     switch(conv_param.num_dim_spatial_)
     {
+    case 1: return !run_grouped_conv_bwd_weight<1>(config, conv_param);
+    case 2: return !run_grouped_conv_bwd_weight<2>(config, conv_param);
     case 3: return !run_grouped_conv_bwd_weight<3>(config, conv_param);
     default: break;
     }

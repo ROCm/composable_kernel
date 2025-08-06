@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 template <ck::index_t NDimSpatial>
 bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
                                  const ck::utils::conv::ConvParam& conv_param)
 {
-    // Dl and WMMA ops don't support split_k > 1
+    // Dl ops don't support split_k > 1
     constexpr ck::index_t split_k = 1;
 
     const auto in_g_n_c_wis_desc =
