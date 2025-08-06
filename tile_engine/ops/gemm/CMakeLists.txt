@@ -94,7 +94,7 @@ function(build_gemm_for_datatype datatype layout)
 
         if (trait_files)
             # Create object libraries with chunking
-            set(chunk_size 2)  # adjust as needed for memory vs parallelism
+            set(chunk_size 12)  # adjust as needed for memory vs parallelism
             list(LENGTH trait_files num_files)
             math(EXPR num_chunks "( ${num_files} + ${chunk_size} - 1 ) / ${chunk_size}")
 
@@ -122,11 +122,6 @@ function(build_gemm_for_datatype datatype layout)
                         --offload-compress
                         -O3
                         -fno-exceptions
-                    )
-
-                    set_target_properties(${obj_lib_name} PROPERTIES
-                        UNITY_BUILD ON
-                        UNITY_BUILD_BATCH_SIZE 2
                     )
 
                     list(APPEND trait_obj_libs "${obj_lib_name}")
