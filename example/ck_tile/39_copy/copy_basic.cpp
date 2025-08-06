@@ -115,7 +115,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     {
         // Copy results back to host
         y_buf.FromDevice(y_host_dev.mData.data());
-        pass = ck_tile::check_err(y_host_dev, x_host);
+        // Use exact equality (tolerance = 0) for copy operations since copy should be exact
+        pass = ck_tile::check_err(y_host_dev, x_host, "Error: Copy operation failed!", 0.0, 0.0);
         std::cout << "valid:" << (pass ? "y" : "n") << std::flush << std::endl;
     }
 
