@@ -62,7 +62,8 @@ void add_device_gemm_bilinear_wmma_c_shuffle_f16_f16_f16_f16_km_kn_mn_mn_instanc
         device_gemm_bilinear_wmma_c_shuffle_f16_f16_f16_f16_km_kn_mn_mn_instances<GemmDefault>{});
     add_device_operation_instances(
         instances,
-        device_gemm_bilinear_wmma_c_shuffle_f16_f16_f16_f16_km_kn_mn_mn_instances<GemmMNKPadding>{});
+        device_gemm_bilinear_wmma_c_shuffle_f16_f16_f16_f16_km_kn_mn_mn_instances<
+            GemmMNKPadding>{});
 }
 
 } // namespace instance

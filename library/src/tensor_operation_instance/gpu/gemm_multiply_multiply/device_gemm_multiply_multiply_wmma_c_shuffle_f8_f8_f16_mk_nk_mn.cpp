@@ -25,8 +25,7 @@ static constexpr auto V3 = BlockGemmPipelineVersion::v3;
 static constexpr auto V1 = BlockGemmPipelineVersion::v1;
 
 template <GemmSpecialization GemmSpec>
-using device_gemm_multiply_multiply_wmma_f8_f8_f16_mk_nk_mn_instances =
-    std::tuple<
+using device_gemm_multiply_multiply_wmma_f8_f8_f16_mk_nk_mn_instances = std::tuple<
     // clang-format off
         //##################################| ALayout| BLayout|      DsLayout| ELayout| AData| BData|        DsData| EData| AccData| CShuffle|           A|           B|              CDE| GemmSpec| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MRepeat| NRepeat|    ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|    BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|   CShuffle|   CShuffle| CShuffleBlockTransfer| CDEShuffleBlockTransfer|    BlkGemm|     BlkGemm| Compute| Compute|
         //##################################|        |        |              |        |  Type|  Type|          Type|  Type|    Type| DataType| Elementwise| Elementwise|      Elementwise|         |  Size| Block| Block| Block|    |    | Wmma| Wmma|        |        |     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN|    MRepeat|    NRepeat|        ClusterLengths|        ScalarPerVectors|  PipeSched| PipelineVer|   TypeA|   TypeB|
@@ -60,8 +59,7 @@ void add_device_gemm_multiply_multiply_wmma_c_shuffle_f8_f8_f16_km_nk_mn_instanc
                                                           MultiplyMultiply>>>& instances)
 {
     add_device_operation_instances(
-        instances,
-        device_gemm_multiply_multiply_wmma_f8_f8_f16_mk_nk_mn_instances<GemmDefault>{});
+        instances, device_gemm_multiply_multiply_wmma_f8_f8_f16_mk_nk_mn_instances<GemmDefault>{});
     add_device_operation_instances(
         instances,
         device_gemm_multiply_multiply_wmma_f8_f8_f16_mk_nk_mn_instances<GemmMNKPadding>{});

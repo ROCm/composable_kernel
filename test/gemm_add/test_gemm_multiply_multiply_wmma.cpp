@@ -34,7 +34,8 @@ class TestGemmMultiplyMultiply : public ::testing::Test
     constexpr static auto ProfileGemmMultiplyMultiplyImpl =
         ck::profiler::profile_gemm_multiply_multiply_impl<ADataType,
                                                           BDataType,
-                                                          AccDataType, // ComputeDataType for reference gemm
+                                                          AccDataType, // ComputeDataType for
+                                                                       // reference gemm
                                                           AccDataType,
                                                           D0DataType,
                                                           D1DataType,
@@ -64,9 +65,22 @@ class TestGemmMultiplyMultiply : public ::testing::Test
             int StrideD1 = ck::is_same_v<D1Layout, Row> ? N : M;
             int StrideE  = ck::is_same_v<ELayout, Row> ? N : M;
 
-            all_success =
-                all_success &
-                ProfileGemmMultiplyMultiplyImpl(1, 1, false, true, M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideE, 1, 1, 1, 0);
+            all_success = all_success & ProfileGemmMultiplyMultiplyImpl(1,
+                                                                        1,
+                                                                        false,
+                                                                        true,
+                                                                        M,
+                                                                        N,
+                                                                        K,
+                                                                        StrideA,
+                                                                        StrideB,
+                                                                        StrideD0,
+                                                                        StrideD1,
+                                                                        StrideE,
+                                                                        1,
+                                                                        1,
+                                                                        1,
+                                                                        0);
         }
 
         EXPECT_TRUE(all_success);

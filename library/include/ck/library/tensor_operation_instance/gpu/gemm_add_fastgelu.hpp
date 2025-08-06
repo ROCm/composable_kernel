@@ -222,7 +222,7 @@ struct DeviceOperationInstanceFactory<DeviceGemmMultipleDSplitK<ALayout,
                     op_ptrs);
             }
         }
-        
+
 #endif // CK_ENABLE_FP16
 #endif // CK_USE_WMMA
 

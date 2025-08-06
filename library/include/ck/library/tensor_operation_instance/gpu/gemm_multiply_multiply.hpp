@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -466,7 +466,7 @@ void add_device_gemm_multiply_multiply_xdl_f8_f8_f16_mk_nk_mn_mem_v2_kpadding_in
                                                           MultiplyMultiply>>>& instances);
 #endif // CK_ENABLE_FP16
 
-#if (defined(CK_ENABLE_FP16) || defined(CK_ENABLE_INT8))
+#if(defined(CK_ENABLE_FP16) || defined(CK_ENABLE_INT8))
 void add_device_gemm_multiply_multiply_xdl_i8_i8_f16_mk_nk_mn_comp_default_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
                                                           Col,
@@ -722,7 +722,7 @@ struct DeviceOperationInstanceFactory<DeviceGemmMultipleDSplitK<ALayout,
         }
 #endif // CK_ENABLE_FP16
 #endif // CK_ENABLE_FP8
-#if (defined(CK_ENABLE_FP16) || defined(CK_ENABLE_INT8))
+#if(defined(CK_ENABLE_FP16) || defined(CK_ENABLE_INT8))
         if constexpr(is_same_v<ADataType, int8_t> && is_same_v<BDataType, int8_t> &&
                      is_same_v<CDataType, half_t>)
         {

@@ -55,7 +55,7 @@ using device_gemm_add_add_fastgelu_wmma_c_shuffle_f16_f16_f16_f16_f16_mk_nk_mn_m
         DeviceGemmMultipleD_Wmma_CShuffleV3<      Row,     Col, Row_Row_Tuple,     Row,   F16,   F16, F16_F16_Tuple,   F16,     F32,      F32, PassThrough, PassThrough, AddAddFastGelu, GemmSpec,   128,   128,   128,    32,   8,   8,   16,   16,       4,       4,       S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,       S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,          1,          1,        S<1, 32, 1, 4>,              S<8, 8, 8>,  Intrawave,         V3>,
         DeviceGemmMultipleD_Wmma_CShuffleV3<      Row,     Col, Row_Row_Tuple,     Row,   F16,   F16, F16_F16_Tuple,   F16,     F32,      F32, PassThrough, PassThrough, AddAddFastGelu, GemmSpec,    64,    32,    64,    64,   8,   8,   16,   16,       2,       2,       S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         0,       S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         0,          1,          1,        S<1, 16, 1, 4>,              S<8, 8, 8>,  Intrawave,         V3>
         // clang-format on
-    >;
+        >;
 
 void add_device_gemm_add_add_fastgelu_wmma_c_shuffle_f16_f16_f16_f16_f16_mk_nk_mn_mn_mn_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
@@ -72,10 +72,12 @@ void add_device_gemm_add_add_fastgelu_wmma_c_shuffle_f16_f16_f16_f16_f16_mk_nk_m
 {
     add_device_operation_instances(
         instances,
-        device_gemm_add_add_fastgelu_wmma_c_shuffle_f16_f16_f16_f16_f16_mk_nk_mn_mn_mn_instances<GemmDefault>{});
+        device_gemm_add_add_fastgelu_wmma_c_shuffle_f16_f16_f16_f16_f16_mk_nk_mn_mn_mn_instances<
+            GemmDefault>{});
     add_device_operation_instances(
         instances,
-        device_gemm_add_add_fastgelu_wmma_c_shuffle_f16_f16_f16_f16_f16_mk_nk_mn_mn_mn_instances<GemmMNKPadding>{});
+        device_gemm_add_add_fastgelu_wmma_c_shuffle_f16_f16_f16_f16_f16_mk_nk_mn_mn_mn_instances<
+            GemmMNKPadding>{});
 }
 
 } // namespace instance

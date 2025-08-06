@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -93,11 +93,11 @@ int profile_gemm_multiply_multiply(int argc, char* argv[])
     using BF16 = ck::bhalf_t;
     using F16  = ck::half_t;
 #if defined(CK_USE_XDL) || defined(CK_USE_WMMA_FP8)
-    using F8   = ck::f8_t;
+    using F8 = ck::f8_t;
 #endif
 #ifdef CK_ENABLE_INT8
-    using I8   = int8_t;
-    using I32  = int;
+    using I8  = int8_t;
+    using I32 = int;
 #endif
 
     using Row = ck::tensor_layout::gemm::RowMajor;

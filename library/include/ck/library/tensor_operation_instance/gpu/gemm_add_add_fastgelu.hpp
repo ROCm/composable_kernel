@@ -220,18 +220,17 @@ template <typename ALayout,
           typename D0DataType,
           typename D1DataType,
           typename EDataType>
-struct DeviceOperationInstanceFactory<
-    DeviceGemmMultipleD<ALayout,
-                        BLayout,
-                        ck::Tuple<D0Layout, D1Layout>,
-                        ELayout,
-                        ADataType,
-                        BDataType,
-                        ck::Tuple<D0DataType, D1DataType>,
-                        EDataType,
-                        PassThrough,
-                        PassThrough,
-                        AddAddFastGelu>>
+struct DeviceOperationInstanceFactory<DeviceGemmMultipleD<ALayout,
+                                                          BLayout,
+                                                          ck::Tuple<D0Layout, D1Layout>,
+                                                          ELayout,
+                                                          ADataType,
+                                                          BDataType,
+                                                          ck::Tuple<D0DataType, D1DataType>,
+                                                          EDataType,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          AddAddFastGelu>>
 {
     using DeviceOp = DeviceGemmMultipleD<ALayout,
                                          BLayout,
@@ -253,7 +252,6 @@ struct DeviceOperationInstanceFactory<
         constexpr bool IsAllDRowLayout = is_same_v<D0Layout, Row> && is_same_v<D1Layout, Row>;
         constexpr bool IsAllDFloat16 =
             is_same_v<D0DataType, half_t> && is_same_v<D1DataType, half_t>;
-
 
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
                      is_same_v<EDataType, half_t> && IsAllDRowLayout && IsAllDFloat16)

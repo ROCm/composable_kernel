@@ -66,10 +66,12 @@ void add_device_gemm_add_add_fastgelu_wmma_c_shuffle_f16_f16_f16_f16_f16_km_nk_m
 {
     add_device_operation_instances(
         instances,
-        device_gemm_add_add_fastgelu_wmma_c_shuffle_f16_f16_f16_f16_f16_km_nk_mn_mn_mn_instances<GemmDefault>{});
+        device_gemm_add_add_fastgelu_wmma_c_shuffle_f16_f16_f16_f16_f16_km_nk_mn_mn_mn_instances<
+            GemmDefault>{});
     add_device_operation_instances(
         instances,
-        device_gemm_add_add_fastgelu_wmma_c_shuffle_f16_f16_f16_f16_f16_km_nk_mn_mn_mn_instances<GemmMNKPadding>{});
+        device_gemm_add_add_fastgelu_wmma_c_shuffle_f16_f16_f16_f16_f16_km_nk_mn_mn_mn_instances<
+            GemmMNKPadding>{});
 }
 
 } // namespace instance

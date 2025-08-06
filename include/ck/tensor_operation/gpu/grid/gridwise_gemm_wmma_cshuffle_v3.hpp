@@ -354,12 +354,8 @@ struct GridwiseGemm_wmma_cshuffle_v3
 
         __host__ void Print() const
         {
-            std::cout << "problem {"
-                      << "M:" << M << ", "
-                      << "N:" << N << ", "
-                      << "K:" << K << ", "
-                      << "SA:" << StrideA << ", "
-                      << "SB:" << StrideB << ", ";
+            std::cout << "problem {" << "M:" << M << ", " << "N:" << N << ", " << "K:" << K << ", "
+                      << "SA:" << StrideA << ", " << "SB:" << StrideB << ", ";
             if constexpr(NumDTensor > 0)
             {
                 std::cout << "SDs: { ";
@@ -368,15 +364,10 @@ struct GridwiseGemm_wmma_cshuffle_v3
                 });
                 std::cout << " }, ";
             }
-            std::cout << "SE:" << StrideE << ", "
-                      << "MP:" << MPadded << ", "
-                      << "NP:" << NPadded << ", "
-                      << "KRead:" << KRead << ", "
-                      << "KP:" << KPadded << ", "
-                      << "AK0:" << AK0 << ", "
-                      << "BK0:" << BK0 << ", "
-                      << "MBlock: " << MBlock << ", "
-                      << "NBlock: " << NBlock << "}" << std::endl;
+            std::cout << "SE:" << StrideE << ", " << "MP:" << MPadded << ", " << "NP:" << NPadded
+                      << ", " << "KRead:" << KRead << ", " << "KP:" << KPadded << ", "
+                      << "AK0:" << AK0 << ", " << "BK0:" << BK0 << ", " << "MBlock: " << MBlock
+                      << ", " << "NBlock: " << NBlock << "}" << std::endl;
         }
 
         index_t M;

@@ -13,16 +13,15 @@ class TestGemmAdd : public TestGemmD0Common<Tuple>
 
     ProfileCall GetImpl() override
     {
-        return ck::profiler::profile_gemm_add_impl<
-            typename TestGemmD0Common<Tuple>::ADataType,
-            typename TestGemmD0Common<Tuple>::BDataType,
-            typename TestGemmD0Common<Tuple>::AccDataType,
-            typename TestGemmD0Common<Tuple>::D0DataType,
-            typename TestGemmD0Common<Tuple>::EDataType,
-            typename TestGemmD0Common<Tuple>::ALayout,
-            typename TestGemmD0Common<Tuple>::BLayout,
-            typename TestGemmD0Common<Tuple>::D0Layout,
-            typename TestGemmD0Common<Tuple>::ELayout>;
+        return ck::profiler::profile_gemm_add_impl<typename TestGemmD0Common<Tuple>::ADataType,
+                                                   typename TestGemmD0Common<Tuple>::BDataType,
+                                                   typename TestGemmD0Common<Tuple>::AccDataType,
+                                                   typename TestGemmD0Common<Tuple>::D0DataType,
+                                                   typename TestGemmD0Common<Tuple>::EDataType,
+                                                   typename TestGemmD0Common<Tuple>::ALayout,
+                                                   typename TestGemmD0Common<Tuple>::BLayout,
+                                                   typename TestGemmD0Common<Tuple>::D0Layout,
+                                                   typename TestGemmD0Common<Tuple>::ELayout>;
     }
 };
 
