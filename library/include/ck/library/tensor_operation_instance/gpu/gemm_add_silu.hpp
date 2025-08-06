@@ -115,7 +115,8 @@ struct DeviceOperationInstanceFactory<
         // no split-k xdl implementations
 #endif // CL_USE_XDL
 #if defined(CK_USE_WMMA)
-        if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
+#if defined(CK_ENABLE_FP16)
+	if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
                      is_same_v<D0DataType, half_t> && is_same_v<EDataType, half_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
@@ -125,8 +126,8 @@ struct DeviceOperationInstanceFactory<
                     op_ptrs);
             }
         }
-
-        #if defined(CK_ENABLE_BF16)
+#endif // CK_ENABLE_FP16
+#if defined(CK_ENABLE_BF16)
         if constexpr(is_same_v<ADataType, ck::bhalf_t> && is_same_v<BDataType, ck::bhalf_t> &&
                      is_same_v<D0DataType, ck::bhalf_t> && is_same_v<EDataType, ck::bhalf_t>)
         {
