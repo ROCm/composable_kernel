@@ -131,11 +131,12 @@ struct TileCopyKernel
     {
         using S = typename Problem::BlockShape;
 
-        // Calculate block origin and validate bounds
+        // Calculate tile block origin and validate bounds
         // Use __builtin_amdgcn_readfirstlane to broadcast the same value to all threads in a wave
         // This saves VGPR usage by avoiding per-thread storage of the same value
-        const auto iM = __builtin_amdgcn_readfirstlane(get_block_id() * S::Block_Tile_M);
-        if(iM >= M)
+        const auto tile_block_origin_m =
+            __builtin_amdgcn_readfirstlane(get_block_id() * S::Block_Tile_M);
+        if(tile_block_origin_m >= M)
         {
             return; // Early exit for out-of-bounds blocks
         }
@@ -151,16 +152,19 @@ struct TileCopyKernel
         auto x_window =
             make_tile_window(x_m_n,
                              make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                             {iM, 0},
+                             {tile_block_origin_m, 0},
                              Policy::template MakeDRAMDistribution<Problem>());
 
         auto y_window =
             make_tile_window(y_m_n,
                              make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                             {iM, 0},
+                             {tile_block_origin_m, 0},
                              Policy::template MakeDRAMDistribution<Problem>());
 
         // Calculate iterations needed to cover N dimension
+        // Note: This kernel uses data parallelism only in the M dimension.
+        // Each block processes one tile in M dimension, but iterates through N dimension tiles.
+        // This design choice is for simplicity and to avoid complex tile distribution.
         index_t num_n_tile_iteration =
             __builtin_amdgcn_readfirstlane(integer_divide_ceil(N, S::Block_Tile_N));
 
@@ -168,7 +172,7 @@ struct TileCopyKernel
         auto DramTileDist   = x_window.get_tile_distribution();
         using dram_reg_tile = decltype(make_static_distributed_tensor<XDataType>(DramTileDist));
 
-        // Main copy loop
+        // Main copy loop - processes N dimension tiles sequentially within each block
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
             dram_reg_tile dram_tile;
@@ -205,8 +209,9 @@ struct ElementWiseTileCopyKernel
         // Calculate block origin and validate bounds
         // Use __builtin_amdgcn_readfirstlane to broadcast the same value to all threads in a wave
         // This saves VGPR usage by avoiding per-thread storage of the same value
-        const auto iM = __builtin_amdgcn_readfirstlane(get_block_id() * S::Block_Tile_M);
-        if(iM >= M)
+        const auto tile_block_origin_m =
+            __builtin_amdgcn_readfirstlane(get_block_id() * S::Block_Tile_M);
+        if(tile_block_origin_m >= M)
         {
             return; // Early exit for out-of-bounds blocks
         }
@@ -222,20 +227,23 @@ struct ElementWiseTileCopyKernel
         auto x_window =
             make_tile_window(x_m_n,
                              make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                             {iM, 0},
+                             {tile_block_origin_m, 0},
                              Policy::template MakeDRAMDistribution<Problem>());
 
         auto y_window =
             make_tile_window(y_m_n,
                              make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                             {iM, 0},
+                             {tile_block_origin_m, 0},
                              Policy::template MakeDRAMDistribution<Problem>());
 
         // Calculate iterations needed to cover N dimension
+        // Note: This kernel uses data parallelism only in the M dimension.
+        // Each block processes one tile in M dimension, but iterates through N dimension tiles.
+        // This design choice is for simplicity and to avoid complex tile distribution.
         index_t num_n_tile_iteration =
             __builtin_amdgcn_readfirstlane(integer_divide_ceil(N, S::Block_Tile_N));
 
-        // Main element-wise copy loop
+        // Main element-wise copy loop - processes N dimension tiles sequentially within each block
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
             // Element-wise copy implementation for data transformation
@@ -281,8 +289,9 @@ struct TileCopyKernel_LDS
         // Calculate block origin and validate bounds
         // Use __builtin_amdgcn_readfirstlane to broadcast the same value to all threads in a wave
         // This saves VGPR usage by avoiding per-thread storage of the same value
-        const auto iM = __builtin_amdgcn_readfirstlane(get_block_id() * S::Block_Tile_M);
-        if(iM >= M)
+        const auto tile_block_origin_m =
+            __builtin_amdgcn_readfirstlane(get_block_id() * S::Block_Tile_M);
+        if(tile_block_origin_m >= M)
         {
             return; // Early exit for out-of-bounds blocks
         }
@@ -320,17 +329,23 @@ struct TileCopyKernel_LDS
         auto x_window =
             make_tile_window(x_m_n,
                              make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                             {iM, 0},
+                             {tile_block_origin_m, 0},
                              Policy::template MakeDRAMDistribution<Problem>());
 
-        auto y_window = make_tile_window(
-            y_m_n, make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}), {iM, 0});
+        auto y_window =
+            make_tile_window(y_m_n,
+                             make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
+                             {tile_block_origin_m, 0});
 
         // Calculate iterations needed to cover N dimension
+        // Note: This kernel uses data parallelism only in the M dimension.
+        // Each block processes one tile in M dimension, but iterates through N dimension tiles.
+        // This design choice is for simplicity and to avoid complex tile distribution.
         index_t num_n_tile_iteration =
             __builtin_amdgcn_readfirstlane(integer_divide_ceil(N, S::Block_Tile_N));
 
-        // Main copy loop with LDS staging
+        // Main copy loop with LDS staging - processes N dimension tiles sequentially within each
+        // block
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
             // Global memory to LDS
