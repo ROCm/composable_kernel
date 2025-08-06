@@ -179,10 +179,18 @@ struct tile_window_with_static_distribution
 #else
         // TODO: this use less register for FA, but more register for GEMM
         // need investigation
+
+        const auto partition_index = [&]() {
+            if constexpr(BottomTensorView::buffer_view::get_address_space() ==
+                         address_space_enum::lds)
+                return detail::get_partition_index_v2(tile_dstr_);
+            else
+                return detail::get_partition_index(tile_dstr_);
+        }();
+
         const auto window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
             tile_distribution.get_ps_ys_to_xs_adaptor(),
-            container_concat(detail::get_partition_index(tile_distribution),
-                             array<index_t, NDimY>{0}));
+            container_concat(partition_index, array<index_t, NDimY>{0}));
 #endif
 
         BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
@@ -911,11 +919,19 @@ struct tile_window_with_static_distribution
                                                AdaptorTopIndex{get_warp_id(), get_lane_id(), 0});
         }
 #else
+        const auto partition_index = [&]() {
+            if constexpr(BottomTensorView::buffer_view::get_address_space() ==
+                         address_space_enum::lds)
+                return detail::get_partition_index_v2(tile_dstr_);
+            else
+                return detail::get_partition_index(tile_dstr_);
+        }();
+
         // TODO: this use less register for FA, but more register for GEMM
         // need investigation
         const auto window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
             tile_dstr_.get_ps_ys_to_xs_adaptor(),
-            container_concat(detail::get_partition_index(tile_dstr_), array<index_t, NDimY>{0}));
+            container_concat(partition_index, array<index_t, NDimY>{0}));
 #endif
 
         BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
