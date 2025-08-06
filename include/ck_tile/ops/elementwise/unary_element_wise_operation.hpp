@@ -278,14 +278,14 @@ struct PassThrough
         /*  otherwise (r-value or const)     → do nothing  */
     }
 
-    template <typename Y, typename X, typename... Rest>
-    CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x, Rest&&... rest) const
+    template <typename E, typename C, typename... Ds>
+    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const Ds&... ds) const -> void
     {
-        // first pair
-        (*this)(y, x);
-        // recurse on the remaining pairs (if any)
-        if constexpr(sizeof...(rest) > 0)
-            (*this)(std::forward<Rest>(rest)...);
+        // Suppress unused parameter warning for ds
+        ((void)ds, ...);
+
+        // Just assign e with c
+        e = ck_tile::type_convert<E>(c);
     }
 };
 
