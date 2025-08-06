@@ -44,7 +44,7 @@ struct to_integer_type<1>
 template <int bytes>
 using to_integer_type = typename detail::to_integer_type<bytes>::type;
 
-// host API (shoule come from codegen)
+// host API (should come from codegen)
 float permute(permute_traits t, permute_args a, const ck_tile::stream_config& s)
 {
     if(t.data_type.compare("fp8") == 0)
