@@ -7,7 +7,7 @@
 #include "ck_tile/host/host_tensor.hpp"
 
 template <typename ADataType, typename BDataType, typename AccDataType, typename WeightType, typename IndexType>
-void reference_basic_gemm_softmax_topk(const ck_tile::HostTensor<ADataType>& a_m_k,
+void reference_basic_gemm_softmax_grouped_topk(const ck_tile::HostTensor<ADataType>& a_m_k,
                           const ck_tile::HostTensor<BDataType>& b_n_k,
                           ck_tile::HostTensor<WeightType>& y_values,
                           ck_tile::HostTensor<IndexType>& y_indices,

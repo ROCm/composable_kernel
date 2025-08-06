@@ -18,7 +18,7 @@ namespace ck_tile {
 //  B Tile Window: global memory
 //  C Distributed tensor: register
 template <typename Problem, typename Policy = ck_tile::BlockGemmPipelineAGmemBGmemCRegDefaultPolicy>
-struct BlockGemmSoftmaxPipelineAGmemBGmemCReg
+struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
 {
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;

@@ -5,8 +5,8 @@
 
 #include "config.h"
 #include "ck_tile/host.hpp"
-#include "gemm.hpp"
-#include "reference_gemm.hpp"
+#include "gemm_softmax_grouped_topk.hpp"
+#include "reference_gemm_softmax_grouped_topk.hpp"
 
 /*
  * Toy code of GEMM
@@ -227,21 +227,13 @@ int main(int argc, char* argv[])
                                                 Ldb,
                                                 Ldout,
                                                 CElementFunction{}));
-    // auto pass      = true;
+
     bool rtn = true;
     if(verification)
     {
-        // reference gemm
-        // ck_tile::HostTensor<CDataType> c_host_ref(c_lengths, c_strides);
-        // reference_basic_gemm_softmax<ADataType, ADataType, AccDataType, CDataType>(
-        //     a_host, b_host, c_host_ref);
-        // c_buf.FromDevice(c_host_dev.mData.data());
-        // pass &= ck_tile::check_err(c_host_dev, c_host_ref);
-        // std::cout << "valid:" << (pass ? "y" : "n") << std::endl;
-
         ck_tile::HostTensor<WeightType> value_ref(out_lengths, out_strides);
         ck_tile::HostTensor<IndexType> index_ref(out_lengths, out_strides);
-        reference_basic_gemm_softmax_topk<ADataType, ADataType, AccDataType, WeightType, IndexType>(
+        reference_basic_gemm_softmax_grouped_topk<ADataType, ADataType, AccDataType, WeightType, IndexType>(
             a_host, b_host, value_ref, index_ref, topk);
         value_buf.FromDevice(value_host_dev.mData.data());
         index_buf.FromDevice(index_host_dev.mData.data());
@@ -285,6 +277,5 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
               << std::endl;
 
-    // return !pass;
     return rtn;
 }

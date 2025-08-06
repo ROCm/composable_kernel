@@ -8,9 +8,9 @@
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
 
-#include "block_gemm_pipeline_agmem_bgmem_creg.hpp"
+#include "block_gemm_softmax_grouped_topk_pipeline_agmem_bgmem_creg.hpp"
 #include "config.h"
-#include "grid_gemm.hpp"
+#include "grid_gemm_softmax_grouped_topk.hpp"
 
 namespace ck_tile {
 
@@ -171,7 +171,7 @@ struct Gemm
                                          IndexType,
                                          kBlockSize,
                                          TileGemmShape<kMPerBlock, kNPerBlock, kKPerBlock, kTopKPerBlock>>;
-            return BlockGemmSoftmaxPipelineAGmemBGmemCReg<BlockGemmPipelineProblem_>{};
+            return BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg<BlockGemmPipelineProblem_>{};
         }
     };
 

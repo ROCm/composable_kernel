@@ -1,9 +1,9 @@
-set(EXAMPLE_REDUCE "tile_example_basic_gemm_softmax")
+set(EXAMPLE_REDUCE "tile_example_basic_gemm_softmax_grouped_topk")
 # not using add_example_executable() to add this target, since we don't want this to have
 # to be included in "make all/install/check"
 message("adding example ${EXAMPLE_REDUCE}")
 
-add_executable(${EXAMPLE_REDUCE} EXCLUDE_FROM_ALL gemm_softmax.cpp)
+add_executable(${EXAMPLE_REDUCE} EXCLUDE_FROM_ALL gemm_softmax_grouped_topk.cpp)
 target_include_directories(${EXAMPLE_REDUCE} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 set(EXAMPLE_REDUCE_COMPILE_OPTIONS)
 
