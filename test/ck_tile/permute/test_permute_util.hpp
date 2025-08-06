@@ -11,6 +11,7 @@
 #include <functional>
 #include <numeric>
 #include <ostream>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -363,7 +364,7 @@ class TestCkTilePermute : public ::testing::Test
         }
         else
         {
-            throw "invalid precision";
+            throw std::runtime_error("invalid precision");
         }
     }
 };
