@@ -74,8 +74,9 @@ struct tile_window_linear
         static constexpr auto get_num_non_linear_access()
         {
             constexpr auto sfc_access_lens = Base::Traits::SFC_Ys::access_lengths;
-            using ys_to_rhs_major          = typename decltype(
-                typename Base::TileDstr{}.get_static_tile_distribution_encoding())::Ys2RHsMajor;
+            using ys_to_rhs_major =
+                typename decltype(typename Base::TileDstr{}
+                                      .get_static_tile_distribution_encoding())::Ys2RHsMajor;
 
             constexpr auto non_linear = [&]() {
                 index_t cnt = 1;
@@ -109,8 +110,9 @@ struct tile_window_linear
         static constexpr auto get_non_linear_access_map()
         {
             constexpr auto sfc_access_lens = Base::Traits::SFC_Ys::access_lengths;
-            using ys_to_rhs_major          = typename decltype(
-                typename Base::TileDstr{}.get_static_tile_distribution_encoding())::Ys2RHsMajor;
+            using ys_to_rhs_major =
+                typename decltype(typename Base::TileDstr{}
+                                      .get_static_tile_distribution_encoding())::Ys2RHsMajor;
             constexpr auto non_linear_map = [&]() {
                 array<index_t, Base::Traits::NumAccess> m_{0};
                 index_t cumulative_len_            = 1;
@@ -244,8 +246,9 @@ struct tile_window_linear
     {
         using SFC_Ys          = typename Base::Traits::SFC_Ys;
         constexpr auto idx_ys = SFC_Ys::get_index(number<i_access>{});
-        using ys_to_rhs_major = typename decltype(
-            typename Base::TileDstr{}.get_static_tile_distribution_encoding())::Ys2RHsMajor;
+        using ys_to_rhs_major =
+            typename decltype(typename Base::TileDstr{}
+                                  .get_static_tile_distribution_encoding())::Ys2RHsMajor;
 
         constexpr auto modified_idx_ys = generate_tuple(
             [&](auto i_dim_y) {
