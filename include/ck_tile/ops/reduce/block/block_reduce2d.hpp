@@ -7,20 +7,55 @@
 
 namespace ck_tile {
 
+// BlockReduce2d implements a hierarchical 2D reduction operator that reduces data along the second
+// dimension using a user-specified reduction function.
+//
+// The reduction is performed in a three-stage hierarchical approach:
+//
+// STAGE 1: Thread-level reduction (BlockReduce2d)
+// ===============================================
+// - Each thread processes multiple elements from the input tensor within its assigned data
+// partition
+// - Reduction is performed locally within each thread by iterating over assigned elements
+// - ReducePacksPerXDim controls how many elements sweep_tile processes in one iteration per
+// dimension
+//   (e.g., {1,1} = 1 element at a time from each dimension, {2,4} = 2 from dim0, 4 from dim1)
+// - Results are accumulated into a thread-local output tensor stored in registers
+// - The output tensor distribution is derived from the input tensor's distribution using
+//   make_reduce_tile_distribution_encoding() to handle dimension reduction
+//
+// STAGE 2: Warp-level reduction (BlockReduce2dSync)
+// ================================================
+// - Performs inter-thread reduction within each warp
+// - Uses warp shuffle operations to exchange data between threads in the same warp
+// - Implements a tree-reduction pattern with power-of-2 stages
+// - Only reduces along dimensions that map to lane IDs within the warp
+//
+// STAGE 3: Cross-warp reduction (BlockReduce2dCrossWarpSync)
+// ========================================================
+// - Performs reduction across multiple warps within the same thread block
+// - Uses shared memory (LDS) to facilitate data exchange between warps
+// - Each warp's lane-0 thread stores its partial results to shared memory
+// - All threads participate in loading and reducing data from shared memory
+// - Implements block-level synchronization to ensure memory consistency
+
+// BlockReduce2d: Thread-level reduction (Stage 1)
 template <typename Problem_, typename Policy_ = void>
 struct BlockReduce2d
 {
-    // in-thread reduction
+    // Thread-level reduction implementation
     using Problem         = remove_cvref_t<Problem_>;
     using XDataType       = typename Problem::XDataType;
     using ComputeDataType = typename Problem::ComputeDataType;
 
     CK_TILE_DEVICE constexpr BlockReduce2d() {}
 
-    template <typename XDistributedTensor_,
-              typename YDistributedTensor_,
-              typename ReduceFunc,
-              typename ReducePacksPerXDim = uniform_sequence_gen_t<2, 1>>
+    template <
+        typename XDistributedTensor_,
+        typename YDistributedTensor_,
+        typename ReduceFunc,
+        typename ReducePacksPerXDim =
+            uniform_sequence_gen_t<2, 1>> // {1,1} = process 1 element at a time from each dimension
     CK_TILE_DEVICE void operator()(const XDistributedTensor_& x_tensor,
                                    YDistributedTensor_& y_tensor,
                                    const ReduceFunc& reduce_func,
@@ -33,6 +68,7 @@ struct BlockReduce2d
                     y_tensor(idx_0), ck_tile::type_convert<ComputeDataType>(x_tensor[idx_])...);
             },
             ReducePacksPerXDim{});
+
 #if 0
         constexpr auto I0 = number<0>{};
         constexpr auto I1 = number<1>{};
@@ -75,6 +111,8 @@ struct BlockReduce2d
         return tensor;
     }
 
+    // uniform_sequence_gen_t<NSize, Value> generates sequence of NSize elements filled with Value
+    // e.g., uniform_sequence_gen_t<2, 1> → {1, 1} and uniform_sequence_gen_t<3, 4> → {4, 4, 4}
     template <typename XDistributedTensor_,
               typename ReduceFunc,
               typename ReducePacksPerXDim = uniform_sequence_gen_t<2, 1>>
@@ -91,6 +129,7 @@ struct BlockReduce2d
     }
 };
 
+// BlockReduce2dSync: Warp-level reduction (Stage 2)
 template <typename Problem_, typename Policy_ = void>
 struct BlockReduce2dSync
 {
@@ -145,8 +184,15 @@ struct BlockReduce2dSync
                         // pull data from remote lane
                         const auto v_remote = warp_shuffle(v_local, src_lane);
 
-                        // reduce
-                        v_local = reduce_func(v_local, v_remote);
+                        // For reduce, use combine_partial_results for operations that require it
+                        if constexpr(ReduceFunc::requires_special_combine)
+                        {
+                            v_local = reduce_func.combine_partial_results(v_local, v_remote);
+                        }
+                        else
+                        {
+                            v_local = reduce_func(v_local, v_remote);
+                        }
                     });
                 }
             });
@@ -157,6 +203,7 @@ struct BlockReduce2dSync
     }
 };
 
+// BlockReduce2dCrossWarpSync: Cross-warp reduction (Stage 3)
 template <typename Problem_, typename Policy_ = void>
 struct BlockReduce2dCrossWarpSync
 {
@@ -263,8 +310,15 @@ struct BlockReduce2dCrossWarpSync
                 constexpr auto i_1      = number<i_1_n1 + 1>{};
                 const DataType v_remote = all_scratch[i_0 * num_reduce_warps + i_1];
 
-                // reduce
-                v_local = reduce_func(v_local, v_remote);
+                // For reduce, use combine_partial_results for operations that require it
+                if constexpr(ReduceFunc::requires_special_combine)
+                {
+                    v_local = reduce_func.combine_partial_results(v_local, v_remote);
+                }
+                else
+                {
+                    v_local = reduce_func(v_local, v_remote);
+                }
             });
 
             y_tensor.get_thread_buffer()(i_0) = v_local;
