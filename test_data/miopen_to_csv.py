@@ -31,25 +31,26 @@ def parse_miopen_command(command_line):
     params = {}
     
     # Parameter mapping: flag -> description
+    # Support both short (-D) and long (--in_d) parameter formats
     param_patterns = {
         'n': r'-n\s+(\d+)',      # batch size
         'c': r'-c\s+(\d+)',      # input channels  
         'k': r'-k\s+(\d+)',      # output channels
         'H': r'-H\s+(\d+)',      # input height
         'W': r'-W\s+(\d+)',      # input width
-        'D': r'-D\s+(\d+)',      # input depth (3D only)
+        'D': r'(?:-D|--in_d)\s+(\d+)',      # input depth (3D only) - supports both -D and --in_d
         'y': r'-y\s+(\d+)',      # kernel height
         'x': r'-x\s+(\d+)',      # kernel width  
-        'z': r'-z\s+(\d+)',      # kernel depth (3D only)
+        'z': r'(?:-z|--fil_d)\s+(\d+)',      # kernel depth (3D only) - supports both -z and --fil_d
         'u': r'-u\s+(\d+)',      # stride height
         'v': r'-v\s+(\d+)',      # stride width
-        'w': r'-w\s+(\d+)',      # stride depth (3D only)
+        'w': r'(?:-w|--conv_stride_d)\s+(\d+)',      # stride depth (3D only) - supports both -w and --conv_stride_d
         'p': r'-p\s+(\d+)',      # pad height
         'q': r'-q\s+(\d+)',      # pad width
-        's': r'-s\s+(\d+)',      # pad depth (3D only)
+        's': r'(?:-s|--pad_d)\s+(\d+)',      # pad depth (3D only) - supports both -s and --pad_d
         'l': r'-l\s+(\d+)',      # dilation height
         'j': r'-j\s+(\d+)',      # dilation width
-        'r': r'-r\s+(\d+)',      # dilation depth (3D only)
+        'r': r'(?:-r|--dilation_d)\s+(\d+)',      # dilation depth (3D only) - supports both -r and --dilation_d
         'g': r'-g\s+(\d+)',      # groups
         'F': r'-F\s+(\d+)',      # direction (1=fwd, 2=bwd_weight, 4=bwd_data)
     }
@@ -221,6 +222,8 @@ def main():
                        help='Output CSV file for 3D cases')
     parser.add_argument('--filter-duplicates', action='store_true',
                        help='Remove duplicate test cases')
+    parser.add_argument('--model-name', type=str, default='MIOpen',
+                       help='Model name to use in test case names (default: MIOpen)')
     
     args = parser.parse_args()
     
@@ -272,8 +275,8 @@ def main():
                 if not conv_param:
                     continue
                 
-                # Add line number to test name
-                conv_param['TestName'] = f"{conv_param['TestName']}_line_{line_num}"
+                # Add model name to test name
+                conv_param['TestName'] = f"{args.model_name}_{conv_param['NDim']}D_fwd"
                 
                 # Separate 2D and 3D cases
                 if conv_param['NDim'] == 2:

@@ -1,125 +1,136 @@
 #!/usr/bin/env python3
 """
-Simple PyTorch Model Runner with MIOpen Command Logging
+PyTorch Model Runner with MIOpen Command Logging using torchvision models
 
 Usage:
-    MIOPEN_ENABLE_LOGGING_CMD=1 python3 run_model_with_miopen.py --model resnet 2> miopen_commands.txt
+    MIOPEN_ENABLE_LOGGING_CMD=1 python3 run_model_with_miopen.py --model resnet18 2> miopen_commands.txt
+    
+Available 2D models: alexnet, vgg11, vgg16, resnet18, resnet50, mobilenet_v2, etc.
+Available 3D models: r3d_18, mc3_18, r2plus1d_18
 """
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torchvision.models as models
+import torchvision.models.video as video_models
 import argparse
 import os
 
-class SimpleConvNet(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.conv1 = nn.Conv2d(3, 32, 3, padding=1)
-        self.conv2 = nn.Conv2d(32, 64, 3, stride=2, padding=1)  
-        self.conv3 = nn.Conv2d(64, 128, 3, stride=2, padding=1)
-        self.conv4 = nn.Conv2d(128, 256, 1)  # 1x1 conv
-        
-    def forward(self, x):
-        x = F.relu(self.conv1(x))
-        x = F.relu(self.conv2(x))
-        x = F.relu(self.conv3(x))
-        x = F.relu(self.conv4(x))
-        return x
+# Define available models
+MODELS_2D = [
+    'alexnet', 'vgg11', 'vgg11_bn', 'vgg13', 'vgg13_bn', 'vgg16', 'vgg16_bn', 'vgg19', 'vgg19_bn',
+    'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152',
+    'resnext50_32x4d', 'resnext101_32x8d', 'resnext101_64x4d',
+    'wide_resnet50_2', 'wide_resnet101_2',
+    'densenet121', 'densenet161', 'densenet169', 'densenet201',
+    'inception_v3', 'googlenet',
+    'shufflenet_v2_x0_5', 'shufflenet_v2_x1_0', 'shufflenet_v2_x1_5', 'shufflenet_v2_x2_0',
+    'mobilenet_v2', 'mobilenet_v3_large', 'mobilenet_v3_small',
+    'mnasnet0_5', 'mnasnet0_75', 'mnasnet1_0', 'mnasnet1_3',
+    'squeezenet1_0', 'squeezenet1_1'
+]
 
-class MobileNetBlock(nn.Module):
-    def __init__(self, in_ch, out_ch, stride=1):
-        super().__init__()
-        # Depthwise (grouped) convolution
-        self.depthwise = nn.Conv2d(in_ch, in_ch, 3, stride=stride, padding=1, groups=in_ch)
-        # Pointwise convolution  
-        self.pointwise = nn.Conv2d(in_ch, out_ch, 1)
-        
-    def forward(self, x):
-        x = F.relu(self.depthwise(x))
-        x = F.relu(self.pointwise(x))
-        return x
+MODELS_3D = [
+    'r3d_18', 'mc3_18', 'r2plus1d_18'
+]
 
-class SimpleMobileNet(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.conv1 = nn.Conv2d(3, 32, 3, stride=2, padding=1)
-        self.block1 = MobileNetBlock(32, 64)
-        self.block2 = MobileNetBlock(64, 128, stride=2)
-        self.block3 = MobileNetBlock(128, 256, stride=2)
-        
-    def forward(self, x):
-        x = F.relu(self.conv1(x))
-        x = self.block1(x)
-        x = self.block2(x)
-        x = self.block3(x)
-        return x
-
-class ResNetBlock(nn.Module):
-    def __init__(self, in_ch, out_ch, stride=1):
-        super().__init__()
-        self.conv1 = nn.Conv2d(in_ch, out_ch, 1, stride=stride)
-        self.conv2 = nn.Conv2d(out_ch, out_ch, 3, padding=1)
-        self.conv3 = nn.Conv2d(out_ch, out_ch * 4, 1)
-        
-    def forward(self, x):
-        out = F.relu(self.conv1(x))
-        out = F.relu(self.conv2(out))
-        out = self.conv3(out)
-        return out
-
-class SimpleResNet(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.conv1 = nn.Conv2d(3, 64, 7, stride=2, padding=3)
-        self.block1 = ResNetBlock(64, 64)
-        self.block2 = ResNetBlock(256, 128, stride=2)
-        self.block3 = ResNetBlock(512, 256, stride=2)
-        
-    def forward(self, x):
-        x = F.relu(self.conv1(x))
-        x = self.block1(x)
-        x = self.block2(x)
-        x = self.block3(x)
-        return x
+ALL_MODELS = MODELS_2D + MODELS_3D
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--model', choices=['simple', 'mobilenet', 'resnet'], default='simple')
-    parser.add_argument('--batch-size', type=int, default=4)
-    parser.add_argument('--input-size', type=int, default=224)
+    parser = argparse.ArgumentParser(description='PyTorch Model Runner with MIOpen Command Logging')
+    
+    # Model selection
+    parser.add_argument('--model', choices=ALL_MODELS, default='resnet18', 
+                       help='Model to run')
+    
+    # Input tensor dimensions
+    parser.add_argument('--batch-size', type=int, default=4, 
+                       help='Batch size')
+    parser.add_argument('--channels', type=int, default=3, 
+                       help='Input channels (e.g., 3 for RGB, 1 for grayscale)')
+    parser.add_argument('--height', type=int, default=224, 
+                       help='Input height')
+    parser.add_argument('--width', type=int, default=224, 
+                       help='Input width')
+    parser.add_argument('--input-size', type=int, 
+                       help='Input size (sets both height and width to same value)')
+    parser.add_argument('--temporal-size', type=int, default=16, 
+                       help='Temporal dimension for 3D models')
+    
+    # Device and precision
+    parser.add_argument('--device', choices=['cuda', 'cpu', 'auto'], default='auto',
+                       help='Device to run on')
+    parser.add_argument('--precision', choices=['fp32', 'fp16', 'bf16'], default='fp32',
+                       help='Floating point precision')
+    
+    
+    # Output control
+    parser.add_argument('--quiet', action='store_true',
+                       help='Suppress output except errors')
+    parser.add_argument('--verbose', action='store_true',
+                       help='Verbose output')
+    
     args = parser.parse_args()
     
+    # Handle input-size override
+    if args.input_size:
+        args.height = args.input_size
+        args.width = args.input_size
+    
     # Check MIOpen logging
-    if not os.environ.get('MIOPEN_ENABLE_LOGGING_CMD'):
+    if not os.environ.get('MIOPEN_ENABLE_LOGGING_CMD') and not args.quiet:
         print("WARNING: Set MIOPEN_ENABLE_LOGGING_CMD=1 to capture commands")
     
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"Using device: {device}")
+    # Device selection
+    if args.device == 'auto':
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    else:
+        device = torch.device(args.device)
     
-    # Create model
-    if args.model == 'simple':
-        model = SimpleConvNet()
-    elif args.model == 'mobilenet':
-        model = SimpleMobileNet()
-    elif args.model == 'resnet':
-        model = SimpleResNet()
+    if not args.quiet:
+        print(f"Using device: {device}")
+    
+    # Create model using torchvision
+    if args.model in MODELS_3D:
+        # 3D Video models
+        model = getattr(video_models, args.model)(weights=None)
+        # 3D input: (batch, channels, temporal, height, width)
+        input_tensor = torch.randn(args.batch_size, args.channels, args.temporal_size, args.height, args.width)
+        if not args.quiet:
+            print(f"3D model: {args.model}")
+            print(f"Input shape: {input_tensor.shape} (B, C, T, H, W)")
+    else:
+        # 2D Image models
+        model = getattr(models, args.model)(weights=None)
+        # 2D input: (batch, channels, height, width)
+        input_tensor = torch.randn(args.batch_size, args.channels, args.height, args.width)
+        if not args.quiet:
+            print(f"2D model: {args.model}")
+            print(f"Input shape: {input_tensor.shape} (B, C, H, W)")
+    
+    # Set precision
+    if args.precision == 'fp16':
+        model = model.half()
+        input_tensor = input_tensor.half()
+    elif args.precision == 'bf16':
+        model = model.bfloat16()
+        input_tensor = input_tensor.bfloat16()
     
     model = model.to(device)
-    input_tensor = torch.randn(args.batch_size, 3, args.input_size, args.input_size).to(device)
+    input_tensor = input_tensor.to(device)
     
-    print(f"Running {args.model} model...")
-    print(f"Input shape: {input_tensor.shape}")
+    if not args.quiet:
+        print(f"Running {args.model} model...")
     
-    # Run inference (triggers MIOpen commands)
+    # Run inference
     model.eval()
     with torch.no_grad():
-        for i in range(3):
-            print(f"Iteration {i+1}")
-            output = model(input_tensor)
+        output = model(input_tensor)
+        if not args.quiet:
             print(f"Output shape: {output.shape}")
     
-    print("Done! MIOpen commands logged to stderr")
+    if not args.quiet:
+        print("Done! MIOpen commands logged to stderr")
 
 if __name__ == "__main__":
     main()
