@@ -121,7 +121,7 @@ struct BlockDropout
             sequence<1, 2>,
             sequence<0, 0>>{};
 
-        // Use Bwd WarpGemm to ensure that Fwd's random values ​​are consistent with Bwd.
+        // Use Bwd WarpGemm to ensure that Fwd's random values are consistent with Bwd.
         constexpr auto randval_block_inner_part_dstr_encoding = []() {
             if constexpr(std::is_same_v<typename BlockGemm::ADataType, half_t> &&
                          std::is_same_v<typename BlockGemm::BDataType, half_t> &&
@@ -443,7 +443,7 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
             sequence<1, 2>,
             sequence<0, 0>>{};
 
-        // Use Bwd WarpGemm to ensure that Fwd's random values ​​are consistent with Bwd.
+        // Use Bwd WarpGemm to ensure that Fwd's random values are consistent with Bwd.
         // except headdim256.
         constexpr auto randval_block_inner_part_dstr_encoding = []() {
             if constexpr(std::is_same_v<typename BlockGemm::ADataType, half_t> &&

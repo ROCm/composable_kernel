@@ -7,6 +7,7 @@
 #include <string>
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/core/config.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/host/concat.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
@@ -83,6 +84,29 @@ struct GemmHostArgs
 template <index_t NumDTensor = 0>
 struct GemmKernelArgs
 {
+    constexpr GemmKernelArgs(index_t M_,
+                             index_t N_,
+                             index_t K_,
+                             index_t stride_A_,
+                             index_t stride_B_,
+                             const std::array<index_t, NumDTensor>& stride_Ds_,
+                             index_t stride_E_,
+                             index_t k_batch_)
+        : a_ptr{nullptr},
+          b_ptr{nullptr},
+          ds_ptr{}, // Default-initialized array of nullptrs
+          e_ptr{nullptr},
+          M{M_},
+          N{N_},
+          K{K_},
+          stride_A{stride_A_},
+          stride_B{stride_B_},
+          stride_Ds{stride_Ds_},
+          stride_E{stride_E_},
+          k_batch{k_batch_}
+    {
+    }
+
     /// @brief The A input tensor's pointer to device memory.
     const void* a_ptr;
     /// @brief The B input tensor's pointer to device memory.
@@ -200,7 +224,7 @@ struct GemmKernel
         // clang-format on
     }
 
-    CK_TILE_HOST static constexpr auto GridSize(index_t M, index_t N, index_t KBatch)
+    CK_TILE_HOST_DEVICE static constexpr auto GridSize(index_t M, index_t N, index_t KBatch)
     {
         return dim3(TilePartitioner::GridSize(M, N), 1, KBatch);
     }
@@ -222,9 +246,9 @@ struct GemmKernel
         return dim3(grid_size, 1, 1);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
+    CK_TILE_HOST_DEVICE static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
 
-    CK_TILE_HOST static constexpr KernelArgs
+    CK_TILE_HOST_DEVICE static constexpr KernelArgs
     MakeKernelArgs(const GemmHostArgs<NumDTensor>& hostArgs)
     {
 
@@ -288,18 +312,26 @@ struct GemmKernel
         index_t splitted_k;
     };
 
-    CK_TILE_HOST static bool IsSupportedArgument(const KernelArgs& kargs)
+    template<bool EnableLogging = true> 
+    CK_TILE_HOST_DEVICE static constexpr bool IsSupportedArgument(const KernelArgs& kargs)
     {
+        constexpr auto conditional_log = [](const auto& message) {
+            if constexpr(EnableLogging)
+            {
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR(message);
+                }
+            }
+            return false;
+        };
+
         if constexpr(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                      is_any_of<EDataType, fp16_t, bf16_t>::value)
         {
             if(kargs.k_batch != 1)
             {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR("Conditions not met for Kbatch >1 !");
-                }
-                return false;
+                return conditional_log("Conditions not met for Kbatch >1 !");
             }
         }
 
@@ -308,40 +340,25 @@ struct GemmKernel
             if(kargs.K % (TilePartitioner::KPerBlock * kargs.k_batch) != 0 &&
                GemmPipeline::kPadK == false) // k_batch is extra compared to flatmm
             {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR("Can't support K that is not a multiple of k_batch * KPerBlock "
-                                  "without padding!");
-                }
-                return false;
+                return conditional_log(
+                    "Can't support K that is not a multiple of k_batch * KPerBlock "
+                    "without padding!");
             }
             if(kargs.K % GemmPipeline::GetVectorSizeA() != 0)
             {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR("K is not a multiple of vector load size for A tensor!");
-                }
-                return false;
+                return conditional_log("K is not a multiple of vector load size for A tensor!");
             }
         }
         else
         {
             if(kargs.M % TilePartitioner::MPerBlock != 0 && GemmPipeline::kPadM == false)
             {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR(
-                        "Can't support M that is not a multiple of MPerBlock without padding!");
-                }
-                return false;
+                return conditional_log(
+                    "Can't support M that is not a multiple of MPerBlock without padding!");
             }
             if(kargs.M % GemmPipeline::GetVectorSizeA() != 0)
             {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR("M is not a multiple of vector load size for A tensor!");
-                }
-                return false;
+                return conditional_log("M is not a multiple of vector load size for A tensor!");
             }
         }
 
@@ -349,20 +366,12 @@ struct GemmKernel
         {
             if(kargs.N % TilePartitioner::NPerBlock != 0 && GemmPipeline::kPadN == false)
             {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR(
-                        "Can't support N that is not a multiple of NPerBlock without padding!");
-                }
-                return false;
+                return conditional_log(
+                    "Can't support N that is not a multiple of NPerBlock without padding!");
             }
             if(kargs.N % GemmPipeline::GetVectorSizeB() != 0)
             {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR("N is not a multiple of vector load size for B tensor!");
-                }
-                return false;
+                return conditional_log("N is not a multiple of vector load size for B tensor!");
             }
         }
         else
@@ -370,20 +379,12 @@ struct GemmKernel
             if(kargs.K % (TilePartitioner::KPerBlock * kargs.k_batch) != 0 &&
                GemmPipeline::kPadK == false) // again k_batch is extra compared to flatmm
             {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR("Can't support K that is not a multiple of k_batch * KPerBlock "
-                                  "without padding!");
-                }
-                return false;
+                return conditional_log("Can't support K that is not a multiple of k_batch * KPerBlock "
+                                "without padding!");
             }
             if(kargs.K % GemmPipeline::GetVectorSizeB() != 0)
             {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR("K is not a multiple of vector load size for B tensor!");
-                }
-                return false;
+                return conditional_log("K is not a multiple of vector load size for B tensor!");
             }
         }
 
@@ -398,40 +399,27 @@ struct GemmKernel
             {
                 if(kargs.N % TilePartitioner::NPerBlock != 0 && GemmPipeline::kPadN == false)
                 {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                    {
-                        CK_TILE_ERROR("Can't support N for tensor D that is not a multiple of "
-                                      "NPerBlock without padding!");
-                    }
-                    DTesnorIsValid = false;
+                    DTesnorIsValid =
+                        conditional_log("Can't support N for tensor D that is not a multiple of "
+                                        "NPerBlock without padding!");
                 }
                 if(kargs.N % EpiloguePipeline::GetVectorSizeD(index) != 0)
                 {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                    {
-                        CK_TILE_ERROR("N is not a multiple of vector load size for D tensor!");
-                    }
-                    DTesnorIsValid = false;
+                        DTesnorIsValid = conditional_log("N is not a multiple of vector load size for D tensor!");
                 }
             }
             else
             {
                 if(kargs.M % TilePartitioner::MPerBlock != 0 && GemmPipeline::kPadM == false)
                 {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                    {
-                        CK_TILE_ERROR("Can't support M for tensor D that is not a multiple of "
-                                      "MPerBlock without padding!");
-                    }
-                    DTesnorIsValid = false;
+                    DTesnorIsValid =
+                        conditional_log("Can't support M for tensor D that is not a multiple of "
+                                        "MPerBlock without padding!");
                 }
                 if(kargs.M % EpiloguePipeline::GetVectorSizeD(index) != 0)
                 {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                    {
-                        CK_TILE_ERROR("M is not a multiple of vector load size for D tensor!");
-                    }
-                    DTesnorIsValid = false;
+                    DTesnorIsValid =
+                        conditional_log("M is not a multiple of vector load size for D tensor!");
                 }
             }
         });
@@ -440,40 +428,24 @@ struct GemmKernel
         {
             if(kargs.N % TilePartitioner::NPerBlock != 0 && GemmPipeline::kPadN == false)
             {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR(
-                        "Can't support N that is not a multiple of NPerBlock without padding!");
-                }
-                return false;
+                return conditional_log(
+                    "Can't support N that is not a multiple of NPerBlock without padding!");
             }
             if(kargs.N % EpiloguePipeline::GetVectorSizeC() != 0)
             {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR("N is not a multiple of vector load size for C tensor!");
-                }
-                return false;
+                return conditional_log("N is not a multiple of vector load size for C tensor!");
             }
         }
         else
         {
             if(kargs.M % TilePartitioner::MPerBlock != 0 && GemmPipeline::kPadM == false)
             {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR(
-                        "Can't support M that is not a multiple of MPerBlock without padding!");
-                }
-                return false;
+                return conditional_log(
+                    "Can't support M that is not a multiple of MPerBlock without padding!");
             }
             if(kargs.M % EpiloguePipeline::GetVectorSizeC() != 0)
             {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR("M is not a multiple of vector load size for C tensor!");
-                }
-                return false;
+                return conditional_log("M is not a multiple of vector load size for C tensor!");
             }
         }
         return DTesnorIsValid;

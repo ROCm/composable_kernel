@@ -277,6 +277,7 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(const std::vector<src
 
 static kernel hiprtc_compile_kernel(const std::vector<src_file>& srcs, compile_options options)
 {
+    std::cout << "HIPRTC" << std::endl;
     options.flags += " -I. -O3";
     options.flags += " -std=c++17";
     options.flags += " -DCK_CODE_GEN_RTC";
@@ -292,11 +293,12 @@ static kernel hiprtc_compile_kernel(const std::vector<src_file>& srcs, compile_o
 
 kernel compile_kernel(const std::vector<src_file>& srcs, compile_options options)
 {
-#ifdef HIPRTC_FOR_CODEGEN_TESTS
-    return hiprtc_compile_kernel(srcs, options);
-#else
     return clang_compile_kernel(srcs, options);
-#endif
+// #ifdef HIPRTC_FOR_CODEGEN_TESTS
+//     return hiprtc_compile_kernel(srcs, options);
+// #else
+//     return clang_compile_kernel(srcs, options);
+// #endif
 }
 
 } // namespace rtc

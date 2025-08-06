@@ -11,7 +11,7 @@ import argparse
 import itertools
 from pathlib import Path
 from typing import List, Optional
-from json_config import GemmConfig, RangeConfigParam
+from json_config import GemmConfig, RangeConfigParam, EnumConfigParam
 from codegen_utils import (
     DATA_TYPE_MAP,
     LAYOUT_MAP,
@@ -780,6 +780,44 @@ private:
 """
         (self.output_dir / "gemm_dispatcher.hpp").write_text(content)
 
+    def generate_mgx_instance_file(self):
+        pipeline_to_pipeline_enum = {
+            "mem": "Pipeline::Mem",
+            "compv3": "Pipeline::V3",
+            "compv4": "Pipeline::V4",
+        }
+        epilogue_to_epilogue_enum = {
+            "default": "Epilogue::Default2D",
+            "cshuffle": "Epilogue::CShuffle",
+        }
+        scheduler_to_scheduler_enum = {
+            "default": "Scheduler::Default",
+            "intrawave": "Scheduler::IntraWave",
+            "interwave": "Scheduler::InterWave",
+        }
+        self._generate_all_traits()
+        self._get_valid_trait_tile_combinations()
+        instance_strings = []
+        for traits in self.valid_trait_tile_combinations.keys():
+            pipeline, epilogue, scheduler = traits.split("_")[:3]
+            for tiles in self.valid_trait_tile_combinations[traits][0]:
+                instance_strings.append(
+                    "GemmKernelInstanceParams{"
+                    + f"{pipeline_to_pipeline_enum[pipeline]}, {scheduler_to_scheduler_enum[scheduler]}, {epilogue_to_epilogue_enum[epilogue]}, "
+                    + ", ".join(map(str, tiles))
+                    + "}"
+                )
+
+        a_type = self.config.problem.datatype_map["matrix_a"]
+        b_type = self.config.problem.datatype_map["matrix_b"]
+        c_type = self.config.problem.datatype_map["matrix_c"]
+        instances = (
+            f"constexpr inline std::array<GemmKernelInstanceParams, {len(instance_strings)}> {a_type}_{b_type}_{c_type}_instance_params{{\n\t"
+            + ",\n\t".join(instance_strings)
+            + "\n};"
+        )
+        return instances
+
 
 def do_list_blobs(
     args: argparse.Namespace, user_provide_config: Optional[GemmConfig] = None
@@ -795,6 +833,47 @@ def do_gen_blobs(
     generator.generate_all_instance_files()
 
 
+def do_gen_mgx(
+    args: argparse.Namespace, user_provided_config: Optional[GemmConfig] = None
+):
+    input_type_combinations = [
+        ("fp16", "fp16", "fp16"),
+        ("bf16", "bf16", "bf16"),
+        ("fp8", "fp8", "fp16"),
+        ("bf8", "bf8", "fp16"),
+    ]
+
+    all_instances = []
+    for a_type, b_type, c_type in input_type_combinations:
+        user_provided_config.problem.datatypes = (
+            EnumConfigParam(values=[a_type]),
+            EnumConfigParam(values=[b_type]),
+            EnumConfigParam(values=[c_type]),
+        )
+        generator = GemmCodeGenerator(args.working_path, user_provided_config)
+        # a and b data types are used in is_tile_valid, combination can be invalid based on that
+        # layout isn't used to validate
+        all_instances.append(generator.generate_mgx_instance_file())
+        
+    all_instances_str = "\n\n".join(all_instances)
+    file_content = f"""
+#pragma once
+
+#include "ck/host/prototype_header.hpp"
+#include <array>
+
+namespace ck::host {{
+
+    {all_instances_str}
+
+}}  // namespace ck::host
+"""
+    w_p = Path(args.working_path)
+    file_path = w_p / "mgx_instances.hpp"
+    with file_path.open("w") as f:
+        f.write(file_content)
+
+
 def main(args):
     gemm_config = (
         GemmConfig.from_json(args.config_json, args.datatype, args.layout)
@@ -806,6 +885,8 @@ def main(args):
         do_list_blobs(args, gemm_config)
     elif args.gen_blobs:
         do_gen_blobs(args, gemm_config)
+    elif args.gen_mgx:
+        do_gen_mgx(args, gemm_config)
     else:
         logging.warning(
             "No mode specified (use --list_blobs or --gen_blobs). Generating by default..."
@@ -854,6 +935,12 @@ if __name__ == "__main__":
         "--gen_blobs",
         action="store_true",
         help="Generate all kernel instances into different files",
+    )
+    parser.add_argument(
+        "-mgx",
+        "--gen_mgx",
+        action="store_true",
+        help="Generate instances for use with MIGraphX",
     )
 
     args = parser.parse_args()

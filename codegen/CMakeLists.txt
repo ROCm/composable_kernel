@@ -15,10 +15,13 @@ include(ROCMTest)
 
 rocm_setup_version(VERSION 1.0)
 
+execute_process(COMMAND python3 ${CK_ROOT}/tile_engine/ops/gemm/gemm_instance_builder.py -d fp16 -ly rrr --gen_mgx -j ${CMAKE_CURRENT_SOURCE_DIR}/mgx_config.json -w ${CMAKE_CURRENT_SOURCE_DIR}/include/ck/host)
+
 list(APPEND CMAKE_MODULE_PATH ${CK_ROOT}/cmake)
 include(Embed)
 file(GLOB_RECURSE KERNEL_FILES CONFIGURE_DEPENDS
-    ${CK_ROOT}/include/ck/*.hpp)
+    ${CK_ROOT}/include/ck/*.hpp
+    ${CK_ROOT}/include/ck_tile/*.hpp)
 
 add_embed_library(ck_headers ${KERNEL_FILES} RELATIVE ${CK_ROOT}/include)
 

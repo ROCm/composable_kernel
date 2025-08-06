@@ -6,6 +6,7 @@
 #include <rtc/hip.hpp>
 #include <stdexcept>
 #include <cassert>
+#include <iostream>
 
 // extern declare the function since hip/hip_ext.h header is broken
 extern hipError_t hipExtModuleLaunchKernel(hipFunction_t, // NOLINT
@@ -68,13 +69,11 @@ kernel::kernel(const char* image, const std::string& name) : impl(std::make_shar
 
 void launch_kernel(hipFunction_t fun,
                    hipStream_t stream,
-                   std::size_t global,
-                   std::size_t local,
+                   dim3 grid_dims,
+                   dim3 block_dims,
                    void* kernargs,
                    std::size_t size)
 {
-    assert(global > 0);
-    assert(local > 0);
     void* config[] = {HIP_LAUNCH_PARAM_BUFFER_POINTER,
                       kernargs,
                       HIP_LAUNCH_PARAM_BUFFER_SIZE,
@@ -82,12 +81,12 @@ void launch_kernel(hipFunction_t fun,
                       HIP_LAUNCH_PARAM_END};
 
     auto status = hipExtModuleLaunchKernel(fun,
-                                           global,
-                                           1,
-                                           1,
-                                           local,
-                                           1,
-                                           1,
+                                           grid_dims.x,
+                                           grid_dims.y,
+                                           grid_dims.z,
+                                           block_dims.x,
+                                           block_dims.y,
+                                           block_dims.z,
                                            0,
                                            stream,
                                            nullptr,
@@ -96,6 +95,44 @@ void launch_kernel(hipFunction_t fun,
                                            nullptr);
     if(status != hipSuccess)
         throw std::runtime_error("Failed to launch kernel: " + hip_error(status));
+}
+
+void launch_kernel(hipFunction_t fun,
+                   hipStream_t stream,
+                   std::size_t global,
+                   std::size_t local,
+                   void* kernargs,
+                   std::size_t size)
+{
+    assert(global > 0);
+    assert(local > 0);
+    launch_kernel(fun,
+                  stream,
+                  dim3{static_cast<uint32_t>(global), 1, 1},
+                  dim3{static_cast<uint32_t>(local), 1, 1},
+                  kernargs,
+                  size);
+    // void* config[] = {HIP_LAUNCH_PARAM_BUFFER_POINTER,
+    //                   kernargs,
+    //                   HIP_LAUNCH_PARAM_BUFFER_SIZE,
+    //                   &size,
+    //                   HIP_LAUNCH_PARAM_END};
+
+    // auto status = hipExtModuleLaunchKernel(fun,
+    //                                        global,
+    //                                        1,
+    //                                        1,
+    //                                        local,
+    //                                        1,
+    //                                        1,
+    //                                        0,
+    //                                        stream,
+    //                                        nullptr,
+    //                                        reinterpret_cast<void**>(&config),
+    //                                        nullptr,
+    //                                        nullptr);
+    // if(status != hipSuccess)
+    //     throw std::runtime_error("Failed to launch kernel: " + hip_error(status));
 }
 
 void kernel::launch(hipStream_t stream,
@@ -108,6 +145,18 @@ void kernel::launch(hipStream_t stream,
     std::size_t size = args.size() * sizeof(void*);
 
     launch_kernel(impl->fun, stream, global, local, kernargs, size);
+}
+
+void kernel::launch(hipStream_t stream,
+                    dim3 grid_dims,
+                    dim3 block_dims,
+                    const std::vector<kernel_argument>& args) const
+{
+    assert(impl != nullptr);
+    std::vector<char> kernargs = pack_args(args);
+    std::size_t size           = kernargs.size();
+
+    launch_kernel(impl->fun, stream, grid_dims, block_dims, kernargs.data(), size);
 }
 
 void kernel::launch(hipStream_t stream,

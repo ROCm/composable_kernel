@@ -260,7 +260,7 @@ struct GemmSpatiallyLocalTilePartitioner
      * @param K         GEMM's K dimension.
      * @return index_t  The number of loop iterations over K dimension.
      */
-    CK_TILE_HOST_DEVICE static auto GetLoopNum(index_t K) noexcept -> index_t
+    CK_TILE_HOST_DEVICE static constexpr auto GetLoopNum(index_t K) noexcept -> index_t
     {
         return integer_divide_ceil(K, KPerBlock);
     }
