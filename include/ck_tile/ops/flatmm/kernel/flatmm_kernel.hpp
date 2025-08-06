@@ -350,6 +350,7 @@ struct FlatmmKernel
                         const KernelArgs& kargs,
                         const SplitKBatchOffset& splitk_batch_offset)
     {
+        static_assert(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>);
         const auto& a_tensor_view = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
             {
