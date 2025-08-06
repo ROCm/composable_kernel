@@ -122,8 +122,7 @@ class TestCkTileBatchedTranspose //              N    C    H    W    layout_in==
         if(Config::kPipelineId == PipelineTag::LDSLoadTranspose &&
            device_name.find("gfx950") == std::string::npos)
         {
-            GTEST_SKIP_(
-                std::format("LDS Load Transpose cannot be launched with {}", device_name).c_str());
+            GTEST_SKIP_("LDS Load Transpose cannot be launched with this device");
         }
 
         const auto host_args = ck_tile::BatchedTransposeHostArgs{x_dev.GetDeviceBuffer(),
