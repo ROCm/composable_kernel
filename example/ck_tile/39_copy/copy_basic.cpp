@@ -126,10 +126,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     // Print results for debugging
-    std::cout << "Input matrix (x_host):" << std::endl;
-    std::cout << x_host << std::endl;
-    std::cout << "Output matrix (y_host_dev):" << std::endl;
-    std::cout << y_host_dev << std::endl;
+    // std::cout << "Input matrix (x_host):" << std::endl;
+    // std::cout << x_host << std::endl;
+    // std::cout << "Output matrix (y_host_dev):" << std::endl;
+    // std::cout << y_host_dev << std::endl;
 
     return pass;
 }
