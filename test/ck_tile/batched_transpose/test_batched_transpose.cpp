@@ -143,6 +143,7 @@ class TestCkTileBatchedTranspose //              N    C    H    W    layout_in==
         constexpr dim3 block_size = Kernel::BlockSize();
         ck_tile::launch_kernel(
             sc, ck_tile::make_kernel<block_size.x, 1>(Kernel{}, grid_size, block_size, 0, kargs));
+        HIP_CHECK_ERROR(hipDeviceSynchronize());
         y_dev.FromDevice(y_host.data());
         ck_tile::reference_batched_transpose<DataType>(x_host, y_ref, layout_in, layout_out);
 
@@ -151,7 +152,7 @@ class TestCkTileBatchedTranspose //              N    C    H    W    layout_in==
                 << " layout_out=" << layout_out << " grid_size={" << grid_size.x << ", "
                 << grid_size.y << ", " << grid_size.z << "} block_size=" << block_size.x
                 << " device_name=" << device_name;
-
+        HIP_CHECK_ERROR(hipDeviceSynchronize());
         // NB: order of output and reference matters
         bool pass = ck_tile::check_err(
             /* out */ y_host,
