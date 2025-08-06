@@ -33,34 +33,6 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
-invoke_gemm<GemmConfig,
-            ADataType,
-            BDataType,
-            BQDataType,
-            ck_tile::tuple<>,
-            AccDataType,
-            CDataType,
-            ALayout,
-            BLayout,
-            BQLayout,
-            ck_tile::tuple<>,
-            CLayout,
-            QuantGroupSize>(a_m_k_dev_buf,
-                            b_k_n_dev_buf,
-                            bq_bqk_n_dev_buf,
-                            c_m_n_dev_buf,
-                            M,
-                            N,
-                            K,
-                            BQK,
-                            stride_A,
-                            stride_B,
-                            stride_BQ,
-                            stride_C,
-                            kbatch,
-                            n_warmup,
-                            n_repeat);
-
 template <typename GemmConfig,
           typename ADataType,
           typename BDataType,
@@ -197,7 +169,7 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::HostTensor<BDataType> b_k_n(
         ck_tile::host_tensor_descriptor(K, N, stride_B, is_row_major(b_layout)));
     ck_tile::HostTensor<BQDataType> bq_bqk_n(
-        ck_tile::host_tensor_descriptor(BQK, B, stride_BQ, is_row_major(bq_layout)));
+        ck_tile::host_tensor_descriptor(BQK, N, stride_BQ, is_row_major(bq_layout)));
     ck_tile::HostTensor<CDataType> c_m_n_dev_result(
         ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 

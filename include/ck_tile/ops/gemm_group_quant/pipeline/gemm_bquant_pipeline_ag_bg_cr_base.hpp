@@ -36,7 +36,7 @@ struct GemmBQuantPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Prob
     CK_TILE_DEVICE constexpr auto
     GetBQDramLoadWindow(const BQDramBlockWindowTmp& bq_dram_block_window_tmp) const
     {
-        static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColMajor>);
+        static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
 
         using YPerTile = number<NPerBlock>;
         using XPerTile = number<KPerBlockBQ>;

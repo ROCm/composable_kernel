@@ -201,7 +201,7 @@ int run_gemm_example(int argc, char* argv[])
     else if(data_type == "bf8")
     {
         using TypeConfig =
-            decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_til::half_t>{});
+            decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>{});
         return run_gemm_example_prec_type<GemmConfig, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
@@ -247,7 +247,7 @@ int main(int argc, char* argv[])
 {
     try
     {
-        return !run_gemm_example<GemmConfigBQunatComputeV3>(argc, argv);
+        return !run_gemm_example<GemmConfigBQuantComputeV3>(argc, argv);
     }
     catch(const std::runtime_error& e)
     {

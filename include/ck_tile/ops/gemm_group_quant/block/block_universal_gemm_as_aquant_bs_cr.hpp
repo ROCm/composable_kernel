@@ -167,7 +167,7 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
     using ComputeDataType = remove_cvref_t<typename Traits::ComputeDataType>;
     using CDataType       = remove_cvref_t<typename Traits::CDataType>;
 
-    using Base = BlockGemmQuantBase<Problem_>;
+    using Base = BlockGemmAQuantBase<Problem_>;
 
     using WarpGemm = remove_cvref_t<typename Traits::WarpGemm>;
 

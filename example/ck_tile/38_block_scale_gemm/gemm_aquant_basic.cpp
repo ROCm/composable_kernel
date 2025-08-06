@@ -246,7 +246,7 @@ int main(int argc, char* argv[])
 {
     try
     {
-        return !run_gemm_example<GemmConfigAQunatComputeV3>(argc, argv);
+        return !run_gemm_example<GemmConfigAQuantComputeV3>(argc, argv);
     }
     catch(const std::runtime_error& e)
     {

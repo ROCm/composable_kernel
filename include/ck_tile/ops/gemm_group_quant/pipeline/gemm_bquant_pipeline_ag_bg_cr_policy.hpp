@@ -51,7 +51,7 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                                                                WarpTile::at(I2),
                                                                Problem::TransposeC>;
 
-        static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColMajor>);
+        static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
         using TileEncodingPattern = TileDistributionEncodingPatternBQ<BlockGemmShape,
                                                                       WarpGemm,
                                                                       BlockSize,

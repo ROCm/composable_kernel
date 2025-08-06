@@ -49,7 +49,7 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_AQUANT_COMPUTE_V3;
 };
 
-struct GemmConfigAQunatComputeV3 : public GemmConfigBase
+struct GemmConfigAQuantComputeV3 : public GemmConfigBase
 {
     // Compute V3 only support Intrawave scheduler
     static constexpr ck_tile::index_t M_Tile = 16;
@@ -84,7 +84,7 @@ struct GemmConfigBQuantComputeV3 : public GemmConfigBase
 
     static constexpr bool DoubleSmemBuffer     = false;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_BQUANT_COMPUTE_V3;
-}
+};
 
 template <typename ADataType_,
           typename BDataType_ = ADataType_,

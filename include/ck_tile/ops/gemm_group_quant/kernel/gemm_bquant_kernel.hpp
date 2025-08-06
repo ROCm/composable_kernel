@@ -205,7 +205,7 @@ struct BQuantGemmKernel
             return false;
         }
 
-        static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColMajor>);
+        static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
         if(kargs.QK % GemmPipeline::GetVectorSizeBQ() != 0)
         {
             if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
@@ -373,7 +373,7 @@ struct BQuantGemmKernel
         }();
 
         const auto& bq_tensor_view = [&]() {
-            static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColMajor>);
+            static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
             return make_naive_tensor_view<address_space_enum::global>(
                 bq_ptr,
                 make_tuple(kargs.N, kargs.QK),
@@ -569,7 +569,7 @@ struct BQuantGemmKernel
         }();
 
         const auto& bq_block_window = [&]() {
-            static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColMajor>);
+            static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
             return make_tile_window(
                 bq_pad_view,
                 make_tuple(number<TilePartitioner::NPerBlock>{},

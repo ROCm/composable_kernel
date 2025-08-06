@@ -168,7 +168,7 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
     using ComputeDataType = remove_cvref_t<typename Traits::ComputeDataType>;
     using CDataType       = remove_cvref_t<typename Traits::CDataType>;
 
-    using Base = BlockGemmQuantBase<Problem_>;
+    using Base = BlockGemmBQuantBase<Problem_>;
 
     using WarpGemm = remove_cvref_t<typename Traits::WarpGemm>;
 
@@ -381,8 +381,8 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
                                    CBlockTensor::PackedSize>{};
 
                         auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
-                        float scale_reg_f = cvt_scale_to_fp32(scale_reg);
-                        static_for<0, WG::kM / 2, 1>{}([&](auto c_row) {
+                        float scale_reg_f = Base::cvt_scale_to_fp32(scale_reg);
+                        static_for<0, WarpGemm::kM / 2, 1>{}([&](auto c_row) {
                             c_block_tensor.get_thread_buffer()[tbuf_offset + c_row] +=
                                 (c_warp_tensor.get_thread_buffer()[c_row] * scale_reg_f *
                                  kA_cvt_scale * kB_cvt_scale);
