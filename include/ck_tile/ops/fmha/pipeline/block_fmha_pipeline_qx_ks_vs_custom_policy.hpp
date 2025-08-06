@@ -914,21 +914,21 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             }
             else
             {
-                constexpr index_t kKPerIter = 32;
-                static_assert(kKPerBlock % kKPerIter == 0);
-                constexpr index_t K0_m = kKPerBlock / kKPerIter;
-                constexpr index_t K2   = 2;
-                constexpr index_t K1_m = kKPerIter / K2;
-                constexpr index_t N2_m = get_warp_size() / K1_m;
-                constexpr index_t N0_m = kNPerBlock / (N2_m * N1);
-                constexpr auto dstr_m  = make_static_tile_distribution(
+                static_assert(kKPerBlock % 16 == 0);
+                constexpr index_t kKPerIter = kKPerBlock % 32 == 0 ? 32 : 16;
+                constexpr index_t K0_m      = kKPerBlock / kKPerIter;
+                constexpr index_t K2        = 2;
+                constexpr index_t K1_m      = kKPerIter / K2;
+                constexpr index_t N2_m      = get_warp_size() / K1_m;
+                constexpr index_t N0_m      = kNPerBlock / (N2_m * N1);
+                constexpr auto dstr_m       = make_static_tile_distribution(
                     tile_distribution_encoding<
-                         sequence<1>,
-                         tuple<sequence<N0_m, N1, N2_m>, sequence<K0_m, K1_m, K2>>,
-                         tuple<sequence<1>, sequence<1, 2>>, // N1, N2 K1
-                         tuple<sequence<1>, sequence<2, 1>>,
-                         sequence<2, 1, 2>, // K0 N0 K2
-                         sequence<0, 0, 2>>{});
+                              sequence<1>,
+                              tuple<sequence<N0_m, N1, N2_m>, sequence<K0_m, K1_m, K2>>,
+                              tuple<sequence<1>, sequence<1, 2>>, // N1, N2 K1
+                              tuple<sequence<1>, sequence<2, 1>>,
+                              sequence<2, 1, 2>, // K0 N0 K2
+                              sequence<0, 0, 2>>{});
                 static_assert(container_reduce(dstr_m.get_lengths(),
                                                std::multiplies<index_t>{},
                                                1) == kNPerBlock * kKPerBlock);
