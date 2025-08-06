@@ -120,7 +120,7 @@ float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
                       << ", Vector size C: " << ConvEpilogue::GetVectorSizeC() << std::endl;
         }
 
-        float ave_time = ck_tile::launch_kernel_preprocess(
+        float ave_time = ck_tile::launch_kernel_time_mask(
             s,
             Kernel::Preprocess(kargs, s),
             ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
