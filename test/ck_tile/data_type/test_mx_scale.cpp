@@ -9,7 +9,6 @@
 
 using ck_tile::bf16_t;
 using ck_tile::bf16x2_t;
-using ck_tile::e8m0_t;
 using ck_tile::fp16_t;
 using ck_tile::fp16x2_t;
 using ck_tile::fp32_t;
@@ -20,21 +19,24 @@ using ck_tile::pk_fp4_t;
 template <typename SRC, typename DST, bool is_device>
 CK_TILE_HOST void test_convert();
 
+using ck_tile::e8m0_raw_t;
+using ck_tile::e8m0_t;
+
 TEST(OCP_Scale, NumericLimits)
 {
     EXPECT_EQ(ck_tile::numeric<e8m0_t>::has_inf(), false);
     EXPECT_EQ(ck_tile::numeric<e8m0_t>::zero(), ck_tile::numeric<e8m0_t>::signaling_NaN());
-    EXPECT_EQ(ck_tile::numeric<e8m0_t>::min(), e8m0_t{0b00000000});
-    EXPECT_EQ(ck_tile::numeric<e8m0_t>::max(), e8m0_t{0b11111110});
+    EXPECT_EQ(ck_tile::numeric<e8m0_t>::min(), e8m0_t{e8m0_raw_t{0b00000000}});
+    EXPECT_EQ(ck_tile::numeric<e8m0_t>::max(), e8m0_t{e8m0_raw_t{0b11111110}});
 }
 TEST(OCP_Scale, NumericBasic)
 {
     auto scale_1 = e8m0_t{1.0f};
-    auto scale_2 = e8m0_t{ck_tile::numeric_traits<e8m0_t>::bias}; // 2^0
+    auto scale_2 = e8m0_t{e8m0_raw_t{ck_tile::numeric_traits<e8m0_t>::bias}}; // 2^0
     EXPECT_EQ(scale_1, scale_2);
 
     auto scale_3 = e8m0_t{8.0f};
-    auto scale_4 = e8m0_t{3 + ck_tile::numeric_traits<e8m0_t>::bias}; // 2^3
+    auto scale_4 = e8m0_t{e8m0_raw_t{3 + ck_tile::numeric_traits<e8m0_t>::bias}}; // 2^3
     EXPECT_EQ(scale_3, scale_4);
 }
 

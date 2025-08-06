@@ -30,13 +30,10 @@ struct e8m0_bexp_t
 
     raw_type data;
 
-    CK_TILE_HOST_DEVICE constexpr e8m0_bexp_t() : data{type{}} {}
-    template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-    CK_TILE_HOST_DEVICE constexpr e8m0_bexp_t(T init) : data{static_cast<type>(init)}
-    {
-    }
+    CK_TILE_HOST_DEVICE constexpr e8m0_bexp_t() : data{type{0b11111111}} {}
+    CK_TILE_HOST_DEVICE explicit constexpr e8m0_bexp_t(type init) : data{init} {}
     CK_TILE_HOST_DEVICE explicit constexpr e8m0_bexp_t(float scale)
-        : e8m0_bexp_t(numeric_utils<float>::get_exponent(scale))
+        : e8m0_bexp_t(static_cast<type>(numeric_utils<float>::get_exponent(scale)))
     {
     }
     CK_TILE_HOST_DEVICE constexpr operator type() const { return data; }
@@ -73,11 +70,10 @@ struct numeric<e8m0_t>
     static constexpr e8m0_raw_t binary_min = 0b00000000; // 2^-127
     static constexpr e8m0_raw_t binary_max = 0b11111110; // 2^127
     static constexpr e8m0_raw_t binary_nan = 0b11111111;
-    CK_TILE_HOST_DEVICE static constexpr e8m0_t min() { return binary_min; }
-    CK_TILE_HOST_DEVICE static constexpr e8m0_t max() { return binary_max; }
-    CK_TILE_HOST_DEVICE static constexpr e8m0_t lowest() { return binary_min; }
-    CK_TILE_HOST_DEVICE static constexpr e8m0_t quiet_NaN() { return binary_nan; }
-    CK_TILE_HOST_DEVICE static constexpr e8m0_t signaling_NaN() { return binary_nan; }
+    CK_TILE_HOST_DEVICE static constexpr e8m0_t min() { return e8m0_t{binary_min}; }
+    CK_TILE_HOST_DEVICE static constexpr e8m0_t max() { return e8m0_t{binary_max}; }
+    CK_TILE_HOST_DEVICE static constexpr e8m0_t quiet_NaN() { return e8m0_t{binary_nan}; }
+    CK_TILE_HOST_DEVICE static constexpr e8m0_t signaling_NaN() { return e8m0_t{binary_nan}; }
     CK_TILE_HOST_DEVICE static constexpr bool has_inf() { return false; }
 
     CK_TILE_HOST_DEVICE static constexpr e8m0_t epsilon() { return signaling_NaN(); }
@@ -95,7 +91,7 @@ CK_TILE_HOST_DEVICE constexpr e8m0_bexp_t::operator float() const
     }
     else if(data == 0)
     {
-        return bit_cast<float>(0x00800000);
+        return std::numeric_limits<float>::min();
     }
     else
     {

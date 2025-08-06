@@ -16,12 +16,15 @@ struct numeric_utils : numeric_traits<T>
 
     static constexpr int exp_mask = (1 << traits::exp) - 1;
 
-    static constexpr int get_exponent(raw_type x)
+    static constexpr raw_type get_exponent(raw_type x)
     {
         // TODO: check if repeated calls are optimized.
         return (x >> traits::mant) & exp_mask;
     }
-    static constexpr int get_exponent(const T& x) { return get_exponent(bit_cast<raw_type>(x)); }
+    static constexpr raw_type get_exponent(const T& x)
+    {
+        return get_exponent(bit_cast<raw_type>(x));
+    }
     static constexpr bool is_positive(raw_type x)
     {
         return (x >> (traits::exp + traits::mant)) == _numeric::binary_zero;
@@ -34,7 +37,7 @@ struct numeric_utils : numeric_traits<T>
     static constexpr double get_mantissa(raw_type x)
     {
         double mantissa = is_subnormal(x) ? 0.0f : 1.0f;
-        for(uint32_t i = 0; i < traits::mant; ++i)
+        for(raw_type i = 0; i < traits::mant; ++i)
         {
             mantissa += std::ldexp(static_cast<float>(x & 0b1), -(traits::mant - i));
             x >>= 1;
