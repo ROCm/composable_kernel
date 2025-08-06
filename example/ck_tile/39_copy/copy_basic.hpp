@@ -132,6 +132,8 @@ struct TileCopyKernel
         using S = typename Problem::BlockShape;
 
         // Calculate block origin and validate bounds
+        // Use __builtin_amdgcn_readfirstlane to broadcast the same value to all threads in a wave
+        // This saves VGPR usage by avoiding per-thread storage of the same value
         const auto iM = __builtin_amdgcn_readfirstlane(get_block_id() * S::Block_Tile_M);
         if(iM >= M)
         {
@@ -201,6 +203,8 @@ struct ElementWiseTileCopyKernel
         using S = typename Problem::BlockShape;
 
         // Calculate block origin and validate bounds
+        // Use __builtin_amdgcn_readfirstlane to broadcast the same value to all threads in a wave
+        // This saves VGPR usage by avoiding per-thread storage of the same value
         const auto iM = __builtin_amdgcn_readfirstlane(get_block_id() * S::Block_Tile_M);
         if(iM >= M)
         {
@@ -275,6 +279,8 @@ struct TileCopyKernel_LDS
         using S = typename Problem::BlockShape;
 
         // Calculate block origin and validate bounds
+        // Use __builtin_amdgcn_readfirstlane to broadcast the same value to all threads in a wave
+        // This saves VGPR usage by avoiding per-thread storage of the same value
         const auto iM = __builtin_amdgcn_readfirstlane(get_block_id() * S::Block_Tile_M);
         if(iM >= M)
         {
