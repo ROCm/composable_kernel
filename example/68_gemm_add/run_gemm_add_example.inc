@@ -100,6 +100,7 @@ bool run_gemm_add(const ProblemSize& problem_size, const ExecutionConfig& config
 
     e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
+    bool pass = true;
     if(config.do_verification)
     {
         Tensor<CShuffleDataType> c_m_n({M, N});
@@ -129,10 +130,10 @@ bool run_gemm_add(const ProblemSize& problem_size, const ExecutionConfig& config
 
         e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
-        return ck::utils::check_err(e_m_n_device_result, e_m_n_host_result);
+        pass &= ck::utils::check_err(e_m_n_device_result, e_m_n_host_result);
     }
 
-    return true;
+    return pass;
 }
 
 bool run_gemm_add_example(int argc, char* argv[])
