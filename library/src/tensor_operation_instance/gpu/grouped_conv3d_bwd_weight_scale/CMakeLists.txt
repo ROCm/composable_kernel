@@ -11,6 +11,7 @@ endif()
 
 list(APPEND GROUPED_CONV3D_BWD_WEIGHT_SCALE
     wmma/device_grouped_conv3d_bwd_weight_wmma_scale_ndhwgc_gkzyxc_ndhwgk_f16_instance.cpp
+    wmma/device_grouped_conv3d_bwd_weight_wmma_scale_ndhwgc_gkzyxc_ndhwgk_bf16_instance.cpp
     )
 
 add_instance_library(device_grouped_conv3d_bwd_weight_scale_instance ${GROUPED_CONV3D_BWD_WEIGHT_SCALE})

@@ -323,8 +323,8 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
         remove_cvref_t<decltype(GetElementwiseCGridDesc<NDimSpatial>())>;
 
     using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3<
-        tensor_layout::gemm::RowMajor,
         tensor_layout::gemm::ColumnMajor,
+        tensor_layout::gemm::RowMajor,
         Tuple<>,
         tensor_layout::gemm::RowMajor,
         Tuple<ADataType>,

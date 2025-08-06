@@ -33,6 +33,22 @@ void add_device_grouped_conv3d_bwd_weight_wmma_scale_ndhwgc_gkzyxc_ndhwgk_f16_in
                                                                     Scale,
                                                                     PassThrough>>>& instances);
 #endif
+
+#ifdef CK_ENABLE_BF16
+void add_device_grouped_conv3d_bwd_weight_wmma_scale_ndhwgc_gkzyxc_ndhwgk_bf16_f32_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeightMultipleD<3,
+                                                                    NDHWGC,
+                                                                    GKZYXC,
+                                                                    NDHWGK,
+                                                                    Tuple<>,
+                                                                    BF16,
+                                                                    F32,
+                                                                    BF16,
+                                                                    Tuple<>,
+                                                                    PassThrough,
+                                                                    Scale,
+                                                                    PassThrough>>>& instances);
+#endif
 #endif
 
 #ifdef CK_USE_XDL
@@ -159,6 +175,16 @@ struct DeviceOperationInstanceFactory<
                              is_same_v<ComputeTypeB, half_t>)
                 {
                     add_device_grouped_conv3d_bwd_weight_wmma_scale_ndhwgc_gkzyxc_ndhwgk_f16_instances(
+                        op_ptrs);
+                }
+#endif
+#ifdef CK_ENABLE_BF16
+                if constexpr(is_same_v<InDataType, ck::bhalf_t> && is_same_v<WeiDataType, float> &&
+                             is_same_v<OutDataType, ck::bhalf_t> &&
+                             is_same_v<ComputeTypeA, ck::bhalf_t> &&
+                             is_same_v<ComputeTypeB, ck::bhalf_t>)
+                {
+                    add_device_grouped_conv3d_bwd_weight_wmma_scale_ndhwgc_gkzyxc_ndhwgk_bf16_f32_bf16_instances(
                         op_ptrs);
                 }
 #endif
