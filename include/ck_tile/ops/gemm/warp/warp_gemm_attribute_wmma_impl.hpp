@@ -76,12 +76,9 @@ struct WarpGemmAttributeWmmaImpl
     }
 };
 
+using DeviceIp = remove_cvref_t<decltype(ck_tile::get_device_ip())>;
 using WarpGemmAttributeWmmaImpl_f32_16x16x16_f16_f16 = WarpGemmAttributeWmmaImpl<WmmaTraits<
-#if defined(__gfx11__)
-    gfx11_t,
-#else // if defined(__gfx12__)
-    gfx12_t,
-#endif
+    DeviceIp,
     fp16_t,
     fp16_t,
     float,
@@ -90,11 +87,7 @@ using WarpGemmAttributeWmmaImpl_f32_16x16x16_f16_f16 = WarpGemmAttributeWmmaImpl
     16>>;
 
 using WarpGemmAttributeWmmaImpl_f32_16x16x16_bf16_bf16 = WarpGemmAttributeWmmaImpl<WmmaTraits<
-#if defined(__gfx11__)
-    gfx11_t,
-#else // if defined(__gfx12__)
-    gfx12_t,
-#endif
+    DeviceIp,
     bf16_t,
     bf16_t,
     float,
@@ -103,11 +96,7 @@ using WarpGemmAttributeWmmaImpl_f32_16x16x16_bf16_bf16 = WarpGemmAttributeWmmaIm
     16>>;
 
 using WarpGemmAttributeWmmaImpl_i32_16x16x16_i8_i8 = WarpGemmAttributeWmmaImpl<WmmaTraits<
-#if defined(__gfx11__)
-    gfx11_t,
-#else // if defined(__gfx12__)
-    gfx12_t,
-#endif
+    DeviceIp,
     int8_t,
     int8_t,
     int32_t,

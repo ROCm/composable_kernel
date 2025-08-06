@@ -246,4 +246,13 @@ struct gfx12_t
 {
 };
 
+CK_TILE_DEVICE static constexpr auto get_device_ip()
+{
+#if defined(__gfx11__)
+    return gfx11_t{};
+#else // if defined(__gfx12__)
+    return gfx12_t{};
+#endif
+}
+
 } // namespace ck_tile
