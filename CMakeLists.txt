@@ -707,3 +707,4 @@ rocm_create_package(
 
 # Add the experimental subdirectory
 add_subdirectory(experimental/gemm_builder)
+add_subdirectory(experimental/convolution_builder)
