@@ -9,9 +9,6 @@
 #include "ck_tile/host.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 
-// Feature flag for element-wise copy implementation
-#define ELEMENT_WISE_COPY 0
-
 namespace ck_tile {
 
 /**
@@ -174,7 +171,69 @@ struct TileCopyKernel
         {
             dram_reg_tile dram_tile;
 
-#if ELEMENT_WISE_COPY == 1
+            // Direct copy implementation
+            load_tile(dram_tile, x_window);
+            store_tile(y_window, dram_tile);
+
+            // Move to next N tile
+            move_tile_window(x_window, {0, S::Block_Tile_N});
+            move_tile_window(y_window, {0, S::Block_Tile_N});
+        }
+    }
+};
+
+/**
+ * @brief Element-wise copy kernel for data transformation scenarios
+ *
+ * This kernel performs element-wise copy operations, allowing for data transformation
+ * during the copy process. Useful when data needs to be processed or converted
+ * between different formats.
+ */
+template <typename Problem_, typename Policy_>
+struct ElementWiseTileCopyKernel
+{
+    using Problem   = ck_tile::remove_cvref_t<Problem_>;
+    using XDataType = typename Problem::XDataType;
+    using Policy    = ck_tile::remove_cvref_t<Policy_>;
+
+    CK_TILE_DEVICE void operator()(const XDataType* p_x, XDataType* p_y, index_t M, index_t N) const
+    {
+        using S = typename Problem::BlockShape;
+
+        // Calculate block origin and validate bounds
+        const auto iM = __builtin_amdgcn_readfirstlane(get_block_id() * S::Block_Tile_M);
+        if(iM >= M)
+        {
+            return; // Early exit for out-of-bounds blocks
+        }
+
+        // Create tensor views for input and output
+        const auto x_m_n = make_naive_tensor_view<address_space_enum::global>(
+            p_x, make_tuple(M, N), make_tuple(N, 1), number<S::Vector_N>{}, number<1>{});
+
+        const auto y_m_n = make_naive_tensor_view<address_space_enum::global>(
+            p_y, make_tuple(M, N), make_tuple(N, 1), number<S::Vector_N>{}, number<1>{});
+
+        // Create tile windows with DRAM distribution
+        auto x_window =
+            make_tile_window(x_m_n,
+                             make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
+                             {iM, 0},
+                             Policy::template MakeDRAMDistribution<Problem>());
+
+        auto y_window =
+            make_tile_window(y_m_n,
+                             make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
+                             {iM, 0},
+                             Policy::template MakeDRAMDistribution<Problem>());
+
+        // Calculate iterations needed to cover N dimension
+        index_t num_n_tile_iteration =
+            __builtin_amdgcn_readfirstlane(integer_divide_ceil(N, S::Block_Tile_N));
+
+        // Main element-wise copy loop
+        for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
+        {
             // Element-wise copy implementation for data transformation
             const auto xa  = load_tile(x_window);
             auto y_compute = load_tile(y_window);
@@ -190,11 +249,6 @@ struct TileCopyKernel
             });
 
             store_tile(y_window, y_compute);
-#else
-            // Direct copy implementation
-            load_tile(dram_tile, x_window);
-            store_tile(y_window, dram_tile);
-#endif
 
             // Move to next N tile
             move_tile_window(x_window, {0, S::Block_Tile_N});

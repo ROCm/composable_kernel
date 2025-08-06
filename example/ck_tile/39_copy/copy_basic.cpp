@@ -68,8 +68,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using Shape   = ck_tile::TileCopyShape<BlockWaves, BlockTile, WaveTile, Vector>;
     using Problem = ck_tile::TileCopyProblem<XDataType, Shape>;
     using Policy  = ck_tile::TileCopyPolicy<Problem>;
-    using Kernel  = ck_tile::TileCopyKernel<Problem, Policy>;
-    // using LDSKernel = ck_tile::TileCopyKernel_LDS<Problem, Policy>;
+    // using Kernel  = ck_tile::TileCopyKernel<Problem, Policy>;
+    // using Kernel = ck_tile::TileCopyKernel_LDS<Problem, Policy>;
+    using Kernel = ck_tile::ElementWiseTileCopyKernel<Problem, Policy>;
 
     constexpr ck_tile::index_t kBlockSize = Shape::BlockSize;
 
