@@ -125,26 +125,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
         std::cout << "valid:" << (pass ? "y" : "n") << std::flush << std::endl;
     }
 
-    // // Print results for debugging
-    // std::cout << "Input matrix (x_host): " << std::endl;
-    // for(int i = 0; i < m; i++)
-    // {
-    //     for(int j = 0; j < n; j++)
-    //     {
-    //         std::cout << static_cast<float>(x_host(i, j)) << " ";
-    //     }
-    //     std::cout << std::endl;
-    // }
-
-    // std::cout << "Output matrix (y_host_dev): " << std::endl;
-    // for(int i = 0; i < m; i++)
-    // {
-    //     for(int j = 0; j < n; j++)
-    //     {
-    //         std::cout << static_cast<float>(y_host_dev(i, j)) << " ";
-    //     }
-    //     std::cout << std::endl;
-    // }
+    // Print results for debugging
+    std::cout << "Input matrix (x_host):" << std::endl;
+    std::cout << x_host << std::endl;
+    std::cout << "Output matrix (y_host_dev):" << std::endl;
+    std::cout << y_host_dev << std::endl;
 
     return pass;
 }

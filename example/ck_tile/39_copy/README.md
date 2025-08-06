@@ -128,8 +128,9 @@ using Kernel  = ck_tile::TileCopyKernel<Problem, Policy>;
 The CK Tile framework organizes work in a hierarchical manner:
 
 1. **Vector**: Number of contiguous elements processed by a single thread
-   - Enables vectorized memory loads/stores
+   - Enables vectorized memory loads/stores.
    - Example: `Vector = seq<1, 4>` means each thread loads 4 contiguous elements along the N dimension
+   - A Vector can be imagined as a thread-level tile
 
 2. **WaveTile**: Number of elements covered by a single wave (64 threads on AMD)
    - Must satisfy: `Wave_Tile_M / Vector_M * Wave_Tile_N / Vector_N == WaveSize`
