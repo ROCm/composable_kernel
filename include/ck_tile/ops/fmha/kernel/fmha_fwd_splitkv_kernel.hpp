@@ -533,21 +533,41 @@ struct FmhaFwdSplitKVKernel
                                                 ck_tile::index_t nhead_kv,
                                                 ck_tile::index_t max_seqlen_q,
                                                 ck_tile::index_t hdim_v,
-                                                ck_tile::index_t num_splits)
+                                                ck_tile::index_t num_splits,
+                                                bool has_padded_seqlen_k=false)
     {
         ck_tile::index_t nhead_ = kMergeNumHeadGroupsSeqLenQ ? nhead_kv : nhead_q;
         ck_tile::index_t max_seqlen_q_ =
             max_seqlen_q * (kMergeNumHeadGroupsSeqLenQ ? nhead_q / nhead_kv : 1);
 
         // TODO: this may need tuning
-        return dim3(ck_tile::integer_divide_ceil(max_seqlen_q_, FmhaPipeline::kM0) *
+        if(has_padded_seqlen_k && kIsGroupMode)
+        {
+            // TODO: this may need tuning
+            return dim3(nhead_,
+                    batch_size,
+                    ck_tile::integer_divide_ceil(max_seqlen_q_, FmhaPipeline::kM0) *
+                        ck_tile::integer_divide_ceil(hdim_v, FmhaPipeline::kN1) * num_splits);
+        }
+        else
+        {
+            // TODO: this may need tuning
+            return dim3(ck_tile::integer_divide_ceil(max_seqlen_q_, FmhaPipeline::kM0) *
                         ck_tile::integer_divide_ceil(hdim_v, FmhaPipeline::kN1) * num_splits,
-                    nhead_,
-                    batch_size);
+                        nhead_,
+                        batch_size);
+        }
+
+        
     }
 
     CK_TILE_DEVICE static constexpr auto GetTileIndex(const Kargs& kargs)
     {
+        bool has_padded_seqlen_k = false;
+
+        if constexpr(kIsGroupMode)
+            has_padded_seqlen_k = (kargs.seqlen_k_ptr != nullptr);
+
         const index_t num_tile_n1 = ck_tile::integer_divide_ceil(kargs.hdim_v, FmhaPipeline::kN1);
 
         const auto f = [](index_t dividend, index_t divisor) {
@@ -556,20 +576,49 @@ struct FmhaFwdSplitKVKernel
             return ck_tile::make_tuple(quotient, modulus);
         };
 
-        const auto [mn, i_split]        = f(blockIdx.x, kargs.num_splits);
-        const auto [i_tile_m, i_tile_n] = f(mn, num_tile_n1);
-        const index_t i_nhead           = blockIdx.y;
-        const index_t i_batch           = blockIdx.z;
-
-        if constexpr(kHasMask)
+        if(has_padded_seqlen_k)
         {
-            // assume that num_tile_n1 is always 1
-            return ck_tile::make_tuple(
-                (gridDim.x / kargs.num_splits) - 1 - i_tile_m, i_tile_n, i_split, i_nhead, i_batch);
+            // const index_t num_tile_m0 = seqlen_q / kM0;
+            const auto [mn, i_split]        = f(blockIdx.z, kargs.num_splits);
+            const auto [i_tile_m, i_tile_n] = f(mn, num_tile_n1);
+            const index_t i_nhead           = blockIdx.x;
+            const index_t i_batch           = blockIdx.y;
+
+            if constexpr(kHasMask)
+            {
+                // assume that num_tile_n1 is always 1
+                return ck_tile::make_tuple((gridDim.z / kargs.num_splits) - 1 - i_tile_m,
+                                           i_tile_n,
+                                           i_split,
+                                           i_nhead,
+                                           i_batch);
+            }
+            else
+            {
+                return ck_tile::make_tuple(i_tile_m, i_tile_n, i_split, i_nhead, i_batch);
+            }
         }
         else
         {
-            return ck_tile::make_tuple(i_tile_m, i_tile_n, i_split, i_nhead, i_batch);
+            // const index_t num_tile_m0 = seqlen_q / kM0;
+            const auto [mn, i_split]        = f(blockIdx.x, kargs.num_splits);
+            const auto [i_tile_m, i_tile_n] = f(mn, num_tile_n1);
+            const index_t i_nhead           = blockIdx.y;
+            const index_t i_batch           = blockIdx.z;
+
+            if constexpr(kHasMask)
+            {
+                // assume that num_tile_n1 is always 1
+                return ck_tile::make_tuple((gridDim.x / kargs.num_splits) - 1 - i_tile_m,
+                                           i_tile_n,
+                                           i_split,
+                                           i_nhead,
+                                           i_batch);
+            }
+            else
+            {
+                return ck_tile::make_tuple(i_tile_m, i_tile_n, i_split, i_nhead, i_batch);
+            }
         }
     }
 
