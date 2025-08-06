@@ -125,9 +125,14 @@ struct GemmMXPipelineAgBgCrCompV3 : public BaseGemmMXPipelineAgBgCrCompV3<Proble
     static constexpr index_t GetVectorSizeA() { return Policy::template GetVectorSizeA<Problem>(); }
     static constexpr index_t GetVectorSizeB() { return Policy::template GetVectorSizeB<Problem>(); }
     static constexpr index_t GetVectorSizeC() { return Policy::template GetVectorSizeC<Problem>(); }
-    static constexpr index_t GetVectorSizeScale()
+
+    static constexpr index_t GetVectorSizeAScale()
     {
-        return Policy::template GetVectorSizeAQ<Problem>();
+        return Policy::template GetVectorSizeAScale<Problem>();
+    }
+    static constexpr index_t GetVectorSizeBScale()
+    {
+        return Policy::template GetVectorSizeBScale<Problem>();
     }
 
     static constexpr index_t GetSmemPackA() { return Policy::template GetSmemPackA<Problem>(); }

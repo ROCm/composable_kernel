@@ -25,7 +25,7 @@ template <typename ADataType,
           typename BScaleCLayout,
           typename CLayout,
           uint32_t BlockScaleSize>
-float gemm_mx_calc(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::stream_config& s)
+float gemm_mx_calc(const ck_tile::GemmMXHostArgs& args, const ck_tile::stream_config& s)
 {
     constexpr bool kPadM = false;
     constexpr bool kPadN = false;
@@ -37,7 +37,7 @@ float gemm_mx_calc(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::strea
 
     constexpr ck_tile::index_t M_Tile = 64;
     constexpr ck_tile::index_t N_Tile = 64;
-    constexpr ck_tile::index_t K_Tile = 256;
+    constexpr ck_tile::index_t K_Tile = 128;
 
     constexpr ck_tile::index_t M_Warp = 2;
     constexpr ck_tile::index_t N_Warp = 2;
@@ -45,7 +45,7 @@ float gemm_mx_calc(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::strea
 
     constexpr ck_tile::index_t M_Warp_Tile = 16;
     constexpr ck_tile::index_t N_Warp_Tile = 16;
-    constexpr ck_tile::index_t K_Warp_Tile = 128;
+    constexpr ck_tile::index_t K_Warp_Tile = 256;
 
     using CodegenGemmShape =
         ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,

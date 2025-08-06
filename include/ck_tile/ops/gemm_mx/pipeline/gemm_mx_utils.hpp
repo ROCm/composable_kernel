@@ -8,7 +8,7 @@
 namespace ck_tile {
 
 template <typename Problem, typename DataType, index_t YPerTile, index_t XPerTile>
-CK_TILE_HOST_DEVICE static constexpr auto GetAScaleGlobalVectorLoadSize()
+CK_TILE_HOST_DEVICE static constexpr auto GetScaleGlobalVectorLoadSize()
 {
     using I1                 = number<1>;
     constexpr index_t NWarps = Problem::BlockGemmShape::BlockWarps::at(I1{});

@@ -28,7 +28,20 @@ struct GemmMXPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgCrPol
         constexpr index_t KPerBlockScale = KPerBlock / Problem::kBlockScaleSize;
 
         static_assert(std::is_same_v<AScaleLayout, ck_tile::tensor_layout::gemm::RowMajor>);
-        return GetAScaleGlobalVectorLoadSize<Problem, AScaleDataType, MPerBlock, KPerBlockScale>();
+        return GetScaleGlobalVectorLoadSize<Problem, AScaleDataType, MPerBlock, KPerBlockScale>();
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeBScale()
+    {
+        using BScaleLayout               = remove_cvref_t<typename Problem::BScaleLayout>;
+        using BScaleDataType             = remove_cvref_t<typename Problem::BScaleDataType>;
+        constexpr index_t NPerBlock      = Problem::BlockGemmShape::kN;
+        constexpr index_t KPerBlock      = Problem::BlockGemmShape::kK;
+        constexpr index_t KPerBlockScale = KPerBlock / Problem::kBlockScaleSize;
+
+        static_assert(std::is_same_v<BScaleLayout, ck_tile::tensor_layout::gemm::ColumnMajor>);
+        return GetScaleGlobalVectorLoadSize<Problem, BScaleDataType, NPerBlock, KPerBlockScale>();
     }
 
     template <typename Problem>

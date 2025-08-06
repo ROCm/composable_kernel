@@ -169,10 +169,10 @@ struct UniversalGemmBasePolicy
             constexpr index_t BlockSize   = Problem::kBlockSize;
             constexpr index_t VecLoadSize = GetVectorSizeB<Problem>();
             using TileEncodingPattern     = TileDistributionEncodingPattern2D<BlockSize,
-                                                                              KPerBlock,
-                                                                              NPerBlock,
-                                                                              VecLoadSize,
-                                                                              BTileAccessPattern>;
+                                                                          KPerBlock,
+                                                                          NPerBlock,
+                                                                          VecLoadSize,
+                                                                          BTileAccessPattern>;
 
             constexpr auto BK0 = number<TileEncodingPattern::X1>{};
             constexpr auto BK1 = number<TileEncodingPattern::Y0>{};
@@ -324,7 +324,14 @@ struct UniversalGemmBasePolicy
         else if constexpr(XPerTile % (PackedSize * 16 / sizeof(DataType)) == 0 &&
                           elements_per_thread % (PackedSize * 16 / sizeof(DataType)) == 0)
         {
-            return (PackedSize * 16 / sizeof(DataType));
+            if constexpr(std::is_same_v(remove_cvref_t<DataType>, ck_tile::pk_fp4_t >))
+            {
+                return 16; // special procssing for packed fp4 to avoid re-packing
+            }
+            else
+            {
+                return (PackedSize * 16 / sizeof(DataType));
+            }
         }
         else if constexpr(XPerTile % (PackedSize * 8 / sizeof(DataType)) == 0 &&
                           elements_per_thread % (PackedSize * 8 / sizeof(DataType)) == 0)
@@ -636,15 +643,15 @@ struct UniversalGemmPipelineAgBgCrPolicy
                                                               : WGAttrNumAccessEnum::Invalid;
 
         using WarpGemm        = WarpGemmMfmaDispatcher<typename Problem::ComputeDataType,
-                                                       typename Problem::ComputeDataType,
-                                                       typename Problem::CDataType,
-                                                       WarpTile::at(I0),
-                                                       WarpTile::at(I1),
-                                                       WarpTile::at(I2),
-                                                       Problem::TransposeC,
-                                                       false,
-                                                       Problem::UseStructuredSparsity,
-                                                       wg_attr_num_access>;
+                                                typename Problem::ComputeDataType,
+                                                typename Problem::CDataType,
+                                                WarpTile::at(I0),
+                                                WarpTile::at(I1),
+                                                WarpTile::at(I2),
+                                                Problem::TransposeC,
+                                                false,
+                                                Problem::UseStructuredSparsity,
+                                                wg_attr_num_access>;
         using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
                                                                       typename Problem::BDataType,
                                                                       typename Problem::CDataType,
