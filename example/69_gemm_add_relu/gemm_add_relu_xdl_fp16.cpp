@@ -77,6 +77,6 @@ using DeviceOpInstance =
                                                                    S<1, 32, 1, 8>,
                                                                    8>;
 
-#include "run_gem_add_relu_example.inc"
+#include "run_gemm_add_relu_example.inc"
 
 int main(int argc, char* argv[]) { return !run_gemm_add_example(argc, argv); }
