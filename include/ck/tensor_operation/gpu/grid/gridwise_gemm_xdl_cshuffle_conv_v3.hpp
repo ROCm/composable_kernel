@@ -991,14 +991,13 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
                 if constexpr (is_gfx950_and_bf16_input_)
                 {
                     auto c_thread_packed_cast = PackedCast<
-                            decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                             M2,
                             M4,
                             CShuffleMXdlPerWavePerShuffle,
                             CShuffleNXdlPerWavePerShuffle
                         >{};
                     c_thread_packed_cast.Run(
-                            c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2, // source desc
+                            c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2, // source desc (TensorDescriptor struct)
                             sfc_c_vgpr.GetIndexTupleOfNumber(access_id),  // source slice origin
                             c_thread_buf // source buffer
                     );
@@ -1380,7 +1379,6 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
                 if constexpr (is_gfx950_and_bf16_input_)
                 {
                     auto c_thread_packed_cast = PackedCast<
-                            decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                             M2,
                             M4,
                             CShuffleMXdlPerWavePerShuffle,
