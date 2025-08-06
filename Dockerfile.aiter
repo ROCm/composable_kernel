@@ -3,8 +3,8 @@ FROM $BASE_DOCKER
 ARG AITER_BRANCH="main"
 ARG CK_AITER_BRANCH="develop"
 RUN groupadd -g 109 render && \
-    usermod -u 1000 jenkins && \
-    groupmod -g 1000 jenkins && \
+    usermod -u 1001 jenkins && \
+    groupmod -g 1001 jenkins && \
     pip install pandas zmq einops && \
     pip install numpy==1.26.2 && \
     sudo mkdir /home/jenkins && \
