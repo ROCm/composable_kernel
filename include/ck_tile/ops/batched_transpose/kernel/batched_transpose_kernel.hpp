@@ -80,11 +80,16 @@ struct BatchedTransposeKernel
 
         const auto iM   = __builtin_amdgcn_readfirstlane(blockIdx.x * kMPerBlock);
         const auto iN   = __builtin_amdgcn_readfirstlane(blockIdx.y * kNPerBlock);
-        const auto iDim = blockIdx.z;
+        const auto offset_x = __builtin_amdgcn_readfirstlane(blockIdx.z * kargs.height * kargs.width);
+        const auto offset_y = __builtin_amdgcn_readfirstlane(blockIdx.z * kargs.height * kargs.width);
+
+        if (threadIdx.x == 0) {
+            // printf("block x=%u y=%u z=%u iM=%d iN=%d offset_x=%d offset_y=%d\n", blockIdx.x, blockIdx.y, blockIdx.z, iM, iN, offset_x, offset_y);
+        }
 
         const auto x_m_n = [&]() {
             const auto x_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                static_cast<const Type*>(kargs.p_input) + iDim * kargs.dim_stride,
+                static_cast<const Type*>(kargs.p_input) + offset_x,
                 make_tuple(kargs.height, kargs.width),
                 make_tuple(kargs.width, 1),
                 number<VectorSizeInput>{},
@@ -97,7 +102,7 @@ struct BatchedTransposeKernel
 
         const auto y_n_m = [&]() {
             const auto y_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                static_cast<Type*>(kargs.p_output) + iDim * kargs.dim_stride,
+                static_cast<Type*>(kargs.p_output) + offset_y,
                 make_tuple(kargs.width, kargs.height),
                 make_tuple(kargs.height, 1),
                 number<VectorSizeOutput>{},

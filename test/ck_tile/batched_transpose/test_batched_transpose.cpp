@@ -133,8 +133,8 @@ class TestCkTileBatchedTranspose //              N    C    H    W    layout_in==
                                                                  height,
                                                                  width,
                                                                  height * width,
-                                                                 Config::BlockTile::at(1),
-                                                                 Config::BlockTile::at(0)};
+                                                                 Config::BlockTile::at(0),
+                                                                 Config::BlockTile::at(1)};
         auto kargs           = Kernel::MakeKargs(host_args);
 
         auto sc                   = ck_tile::stream_config{};
