@@ -100,9 +100,9 @@ struct GridGemm
             [&](const auto& value) { return c_element_func(type_convert<WeightType>(value)); },
             value_block_tile);
 
-        // const auto index_cast_block_tile = tile_elementwise_in(
-        //     [&](const auto& index) { return c_element_func(type_convert<IndexType>(index)); },
-        //     index_block_tile);
+        const auto index_cast_block_tile = tile_elementwise_in(
+            [&](const auto& index) { return c_element_func(type_convert<IndexType>(index)); },
+            index_block_tile);
 
         store_tile(value_window, value_cast_block_tile);
         store_tile(index_window, index_cast_block_tile);

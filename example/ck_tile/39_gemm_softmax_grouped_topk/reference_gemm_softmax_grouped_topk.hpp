@@ -27,7 +27,6 @@ void reference_basic_gemm_softmax_grouped_topk(const ck_tile::HostTensor<ADataTy
             {
                 ADataType v_a = a_m_k(m, k);
                 BDataType v_b = b_n_k(n, k);
-
                 v_acc += ck_tile::type_convert<AccDataType>(v_a) *
                          ck_tile::type_convert<AccDataType>(v_b);
             }
@@ -41,7 +40,6 @@ void reference_basic_gemm_softmax_grouped_topk(const ck_tile::HostTensor<ADataTy
         for(int n = 0; n < N; ++n)
         {
             const AccDataType v_c = c_m_n(m, n);
-
             v_max = v_max < v_c ? v_c : v_max;
         }
 
@@ -51,7 +49,6 @@ void reference_basic_gemm_softmax_grouped_topk(const ck_tile::HostTensor<ADataTy
         for(int n = 0; n < N; ++n)
         {
             const AccDataType v_c = c_m_n(m, n);
-
             v_exp_sum += ck_tile::exp(v_c - v_max);
         }
 
@@ -59,7 +56,6 @@ void reference_basic_gemm_softmax_grouped_topk(const ck_tile::HostTensor<ADataTy
         for(int n = 0; n < N; ++n)
         {
             const AccDataType v_c = c_m_n(m, n);
-
             c_m_n(m, n) = ck_tile::exp(v_c - v_max) / v_exp_sum;
         }
     };
@@ -68,4 +64,5 @@ void reference_basic_gemm_softmax_grouped_topk(const ck_tile::HostTensor<ADataTy
         std::thread::hardware_concurrency());
 
     reference_topk(c_m_n, y_values, y_indices, topk);
+    // reference_grouped_topk(c_m_n, y_values, y_indices, topk, num_expert_group, topk_group, dim, largest, sorted);
 }
