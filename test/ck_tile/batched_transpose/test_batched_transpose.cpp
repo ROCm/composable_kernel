@@ -252,54 +252,57 @@ class CaseHalfPadMultiWarpLoadTranspose
 {
 };
 
-class XXX : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t,
-                                                             PipelineTag::LDSLoadTranspose,
-                                                             128,
-                                                             128,
-                                                             2,
-                                                             2,
-                                                             false,
-                                                             false>>
+class CaseHalfPadMultiWarp128MNLoadTranspose
+    : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t,
+                                                       PipelineTag::LDSLoadTranspose,
+                                                       128,
+                                                       128,
+                                                       2,
+                                                       2,
+                                                       false,
+                                                       false>>
 {
 };
 
-class YYY
+class CaseHalfPadMultiWarp128MN
     : public TestCkTileBatchedTranspose<
           PipelineConfig<ck_tile::half_t, PipelineTag::Universal, 128, 128, 2, 2, false, false>>
 {
 };
 
-class ZZZU
+class CaseHalfPadRectTile1
     : public TestCkTileBatchedTranspose<
           PipelineConfig<ck_tile::half_t, PipelineTag::Universal, 32, 64, 1, 1, false, false>>
 {
 };
 
-class ZZZU2
+class CaseHalfPadRectTile2
     : public TestCkTileBatchedTranspose<
           PipelineConfig<ck_tile::half_t, PipelineTag::Universal, 64, 32, 1, 1, false, false>>
 {
 };
 
-class ZZZL : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t,
-                                                              PipelineTag::LDSLoadTranspose,
-                                                              32,
-                                                              64,
-                                                              1,
-                                                              1,
-                                                              false,
-                                                              false>>
+class CaseHalfPadRectTile1LoadTranspose
+    : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t,
+                                                       PipelineTag::LDSLoadTranspose,
+                                                       32,
+                                                       64,
+                                                       1,
+                                                       1,
+                                                       false,
+                                                       false>>
 {
 };
 
-class ZZZL2 : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t,
-                                                               PipelineTag::LDSLoadTranspose,
-                                                               64,
-                                                               32,
-                                                               1,
-                                                               1,
-                                                               false,
-                                                               false>>
+class CaseHalfPadRectTile2LoadTranspose
+    : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t,
+                                                       PipelineTag::LDSLoadTranspose,
+                                                       64,
+                                                       32,
+                                                       1,
+                                                       1,
+                                                       false,
+                                                       false>>
 {
 };
 
@@ -312,12 +315,12 @@ TEST_P(CaseHalfPad, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseHalfPadLoadTranspose, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseHalfPadMultiWarp, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseHalfPadMultiWarpLoadTranspose, TestCorrectness) { this->Run(GetParam()); }
-TEST_P(XXX, TestCorrectness) { this->Run(GetParam()); }
-TEST_P(YYY, TestCorrectness) { this->Run(GetParam()); }
-TEST_P(ZZZU, TestCorrectness) { this->Run(GetParam()); }
-TEST_P(ZZZL, TestCorrectness) { this->Run(GetParam()); }
-TEST_P(ZZZU2, TestCorrectness) { this->Run(GetParam()); }
-TEST_P(ZZZL2, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(CaseHalfPadMultiWarp128MN, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(CaseHalfPadMultiWarp128MNLoadTranspose, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(CaseHalfPadRectTile1, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(CaseHalfPadRectTile1LoadTranspose, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(CaseHalfPadRectTile2, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(CaseHalfPadRectTile2LoadTranspose, TestCorrectness) { this->Run(GetParam()); }
 
 // clang-format off
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalf, kTestingValues);
@@ -329,11 +332,11 @@ INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPad, kTestingV
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadLoadTranspose, kTestingValues);
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadMultiWarp, kTestingValues);
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadMultiWarpLoadTranspose, kTestingValues);
-INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, XXX, kTestingValues);
-INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, YYY, kTestingValues);
-INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, ZZZU, kTestingValues);
-INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, ZZZL, kTestingValues);
-INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, ZZZU2, kTestingValues);
-INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, ZZZL2, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadMultiWarp128MN, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadMultiWarp128MNLoadTranspose, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadRectTile1, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadRectTile1LoadTranspose, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadRectTile2, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadRectTile2LoadTranspose, kTestingValues);
 
 // clang-format on
