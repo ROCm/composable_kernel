@@ -254,6 +254,11 @@ int main(int argc, char* argv[])
                                           std::string("] Value Error:"),
                                       rtol,
                                       atol);
+            // for(std::size_t i = 0; i < s_value_ref.size(); ++i) {
+            //     const double o = *std::next(std::begin(s_value_host), i);
+            //     const double r = *std::next(std::begin(s_value_ref), i);
+            //     std::cout << " out[" << i << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+            // }
             auto s_index_host = index_host_dev.slice(s_begin, s_end);
             auto s_index_ref  = index_ref.slice(s_begin, s_end);
             rtn &= ck_tile::check_err(s_index_host,
@@ -262,6 +267,11 @@ int main(int argc, char* argv[])
                                           std::string("] Index Error:"),
                                       rtol,
                                       atol);
+            // for(std::size_t i = 0; i < s_index_ref.size(); ++i) {
+            //     const double o = *std::next(std::begin(s_index_host), i);
+            //     const double r = *std::next(std::begin(s_index_ref), i);
+            //     std::cout << " out[" << i << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+            // }
         }
         std::cout << "valid:" << (rtn ? "y" : "n") << std::endl;
     }
