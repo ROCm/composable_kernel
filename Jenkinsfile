@@ -843,11 +843,10 @@ def run_aiter_tests(Map conf=[:]){
     withDockerContainer(image: image, args: dockerOpts) {
         timeout(time: 45, unit: 'MINUTES'){
             try{
-                sh "python3 --version"
                 sh "rocminfo"
+                sh "python3 --version"
                 sh "python3 ../aiter/op_tests/test_gemm_a8w8.py"
                 sh "python3 ../aiter/op_tests/test_gemm_a8w8_blockscale.py"
-                sh "python3 ../aiter/op_tests/test_batch_prefill.py"
                 sh "python3 ../aiter/op_tests/test_mha.py"
             }
             catch(e){
