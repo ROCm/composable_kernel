@@ -144,7 +144,8 @@ inline auto create_args(int argc, char* argv[])
         .insert("pad_k",
                 "false",
                 "Whether pad or not in k direction. Possible values are true or false. Default is "
-                "false.");
+                "false.")
+        .insert("persistent", "false", "Whether to use persistent kernel. Default is false.");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -208,12 +209,13 @@ void permute_vectors_i4x4_b(Tensor& tensor)
 auto get_kernel_func_by_trait(const ck_tile::ArgParser& arg_parser)
 {
     KernelTraits trait;
-    trait.pipeline  = arg_parser.get_str("pipeline");
-    trait.scheduler = arg_parser.get_str("scheduler");
-    trait.epilogue  = arg_parser.get_str("epilogue");
-    trait.pad_m     = arg_parser.get_bool("pad_m");
-    trait.pad_n     = arg_parser.get_bool("pad_n");
-    trait.pad_k     = arg_parser.get_bool("pad_k");
+    trait.pipeline   = arg_parser.get_str("pipeline");
+    trait.scheduler  = arg_parser.get_str("scheduler");
+    trait.epilogue   = arg_parser.get_str("epilogue");
+    trait.pad_m      = arg_parser.get_bool("pad_m");
+    trait.pad_n      = arg_parser.get_bool("pad_n");
+    trait.pad_k      = arg_parser.get_bool("pad_k");
+    trait.persistent = arg_parser.get_bool("persistent");
 
     bool structured_sparsity = arg_parser.get_bool("structured_sparsity");
 
