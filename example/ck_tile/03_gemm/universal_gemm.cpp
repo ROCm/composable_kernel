@@ -221,51 +221,35 @@ int run_gemm_example_prec_type(std::string a_layout,
             "Preshuffle is supported only for A(Row major), B(column major) input matrices!");
     }
 
-    if constexpr(std::is_same_v<BPrecType, ck_tile::pk_int4_t>)
-    {
-        if(a_layout == "R" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                arg_parser, Row{}, Col{}, Row{});
-        }
-        else if(a_layout == "C" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                arg_parser, Col{}, Col{}, Row{});
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported memory layout for the input matrices when "
-                                     "BPrecType is ck_tile::pk_int4_t!");
-        }
-    }
-    else
-    {
-        if(a_layout == "R" && b_layout == "R")
-        {
-            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                arg_parser, Row{}, Row{}, Row{});
-        }
-        else if(a_layout == "R" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                arg_parser, Row{}, Col{}, Row{});
-        }
-        else if(a_layout == "C" && b_layout == "R")
-        {
-            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                arg_parser, Col{}, Row{}, Row{});
-        }
-        else if(a_layout == "C" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                arg_parser, Col{}, Col{}, Row{});
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported memory layout for the input matrices!");
-        }
-    }
+    using LayoutVariant = std::variant<Row, Col>;
+
+    auto string_to_layout = [](const std::string& layout) -> LayoutVariant {
+        if(layout == "R")
+            return Row{};
+        if(layout == "C")
+            return Col{};
+        throw std::runtime_error("Unsupported layout: " + layout);
+    };
+
+    auto a_layout_variant = string_to_layout(a_layout);
+    auto b_layout_variant = string_to_layout(b_layout);
+
+    return std::visit(
+        [&](auto a_layout_type, auto b_layout_type) -> int {
+            if constexpr(std::is_same_v<BPrecType, ck_tile::pk_int4_t> &&
+                         std::is_same_v<decltype(b_layout_type), Row>)
+            {
+                throw std::runtime_error("Unsupported memory layout for the input matrices when "
+                                         "BPrecType is ck_tile::pk_int4_t!");
+            }
+            else
+            {
+                return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
+                    arg_parser, a_layout_type, b_layout_type, Row{});
+            }
+        },
+        a_layout_variant,
+        b_layout_variant);
 }
 
 template <template <typename PrecType> typename GemmConfig>
