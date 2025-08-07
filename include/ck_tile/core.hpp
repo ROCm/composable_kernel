@@ -27,6 +27,7 @@
 #include "ck_tile/core/container/thread_buffer.hpp"
 #include "ck_tile/core/container/tuple.hpp"
 #include "ck_tile/core/numeric/bfloat16.hpp"
+#include "ck_tile/core/numeric/e8m0.hpp"
 #include "ck_tile/core/numeric/float8.hpp"
 #include "ck_tile/core/numeric/half.hpp"
 #include "ck_tile/core/numeric/int8.hpp"

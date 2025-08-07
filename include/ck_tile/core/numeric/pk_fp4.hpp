@@ -23,14 +23,11 @@ using fp32x2_t = float __attribute__((ext_vector_type(2)));
 using fp16x2_t = _Float16 __attribute__((ext_vector_type(2)));
 using bf16x2_t = bf16_raw_t __attribute__((ext_vector_type(2)));
 
-CK_TILE_HOST_DEVICE constexpr uint8_t float_to_e2m1(float);
+CK_TILE_HOST_DEVICE constexpr uint8_t float_to_e2m1(float x, float scale = 1.f);
 
 // TODO: Add stochastic method
 struct pk_float4_e2m1_t
 {
-    static constexpr int exponent = 2;
-    static constexpr int mantissa = 1;
-    static constexpr int bias     = 1;
     // TODO: Can we merge raw_type and type?
     using raw_type = uint8_t;
     using type     = raw_type;
@@ -41,18 +38,27 @@ struct pk_float4_e2m1_t
     CK_TILE_HOST_DEVICE constexpr pk_float4_e2m1_t(T init) : data{static_cast<type>(init)}
     {
     }
-    CK_TILE_HOST_DEVICE explicit constexpr pk_float4_e2m1_t(float init) : data{float_to_e2m1(init)}
+    CK_TILE_HOST_DEVICE explicit constexpr pk_float4_e2m1_t(float init, float scale = 1.f)
+        : data{float_to_e2m1(init, scale)}
     {
     }
     CK_TILE_HOST_DEVICE constexpr operator type() const { return data; }
     CK_TILE_HOST_DEVICE constexpr raw_type& get() { return data; }
     CK_TILE_HOST_DEVICE constexpr raw_type get() const { return data; }
-    CK_TILE_HOST_DEVICE constexpr operator float() const;
-    CK_TILE_HOST_DEVICE constexpr operator fp32x2_t() const;
-    CK_TILE_HOST_DEVICE constexpr operator fp16_t() const;
-    CK_TILE_HOST_DEVICE constexpr operator fp16x2_t() const;
-    CK_TILE_HOST_DEVICE constexpr operator bf16_t() const;
-    CK_TILE_HOST_DEVICE constexpr operator bf16x2_t() const;
+
+    CK_TILE_HOST_DEVICE constexpr float to_float(float scale = 1.f) const;
+    CK_TILE_HOST_DEVICE constexpr fp32x2_t to_fp32x2(float scale = 1.f) const;
+    CK_TILE_HOST_DEVICE constexpr fp16_t to_fp16(float scale = 1.f) const;
+    CK_TILE_HOST_DEVICE constexpr fp16x2_t to_fp16x2(float scale = 1.f) const;
+    CK_TILE_HOST_DEVICE constexpr bf16_t to_bf16(float scale = 1.f) const;
+    CK_TILE_HOST_DEVICE constexpr bf16x2_t to_bf16x2(float scale = 1.f) const;
+
+    CK_TILE_HOST_DEVICE constexpr operator float() const { return to_float(); }
+    CK_TILE_HOST_DEVICE constexpr operator fp32x2_t() const { return to_fp32x2(); }
+    CK_TILE_HOST_DEVICE constexpr operator fp16_t() const { return to_fp16(); }
+    CK_TILE_HOST_DEVICE constexpr operator fp16x2_t() const { return to_fp16x2(); }
+    CK_TILE_HOST_DEVICE constexpr operator bf16_t() const { return to_bf16(); }
+    CK_TILE_HOST_DEVICE constexpr operator bf16x2_t() const { return to_bf16x2(); }
 
     template <index_t I>
     CK_TILE_HOST_DEVICE constexpr raw_type unpack(number<I>) const;
@@ -191,131 +197,160 @@ CK_TILE_DEVICE pk_fp4_raw_t _to_f4(T src, float scale = 1.0f)
 } // namespace impl
 #endif
 
-CK_TILE_HOST_DEVICE constexpr pk_fp4_t::operator bf16_t() const
+CK_TILE_HOST_DEVICE constexpr bf16_t pk_fp4_t::to_bf16(float scale) const
 {
 #if CK_TILE_FP4_CVT_DEVICE
-    return impl::_from_f4<bf16_t>(data);
+    return impl::_from_f4<bf16_t>(data, scale);
 #else
-    return bf16_t{type_convert<bf16_t>(convert_to_float<pk_fp4_t>(unpack(number<0>{})))};
+    return bf16_t{type_convert<bf16_t>(convert_to_float<pk_fp4_t>(unpack(number<0>{}), scale))};
 #endif
 }
-CK_TILE_HOST_DEVICE constexpr pk_fp4_t::operator bf16x2_t() const
+
+CK_TILE_HOST_DEVICE constexpr bf16x2_t pk_fp4_t::to_bf16x2(float scale) const
 {
 #if CK_TILE_FP4_CVT_DEVICE
-    return impl::_from_f4<bf16x2_t>(data);
+    return impl::_from_f4<bf16x2_t>(data, scale);
 #else
-    return bf16x2_t{type_convert<bf16_t>(convert_to_float<pk_fp4_t>(unpack(number<0>{}))),
-                    type_convert<bf16_t>(convert_to_float<pk_fp4_t>(unpack(number<1>{})))};
+    return bf16x2_t{type_convert<bf16_t>(convert_to_float<pk_fp4_t>(unpack(number<0>{}), scale)),
+                    type_convert<bf16_t>(convert_to_float<pk_fp4_t>(unpack(number<1>{}), scale))};
 #endif
 }
 
 // TODO: make float_to_e2m1 generic so that we can convert from directrly.
-CK_TILE_HOST_DEVICE constexpr pk_fp4_raw_t float_to_e2m1(float x)
+CK_TILE_HOST_DEVICE constexpr pk_fp4_raw_t float_to_e2m1(float x, float scale)
 {
 #if CK_TILE_FP4_CVT_DEVICE
-    return impl::_to_f4(x);
+    return impl::_to_f4(x, scale);
 #else
-    return convert_to_type<pk_fp4_t>(x);
+    return convert_to_type<pk_fp4_t>(x, scale);
 #endif
 }
-CK_TILE_HOST_DEVICE constexpr fp32x2_t pk_fp4_to_fp32x2(const pk_fp4_t& x) { return fp32x2_t(x); }
-CK_TILE_HOST_DEVICE constexpr fp16x2_t pk_fp4_to_fp16x2(const pk_fp4_t& x) { return fp16x2_t(x); }
-CK_TILE_HOST_DEVICE constexpr bf16x2_t pk_fp4_to_bf16x2(const pk_fp4_t& x) { return bf16x2_t(x); }
-CK_TILE_HOST_DEVICE constexpr pk_fp4_t float_to_pk_fp4(const float& x) { return float_to_e2m1(x); }
-CK_TILE_HOST_DEVICE constexpr pk_fp4_t fp16_to_pk_fp4(const fp16_t& x)
+CK_TILE_HOST_DEVICE constexpr pk_fp4_t float_to_pk_fp4(const float& x, float scale)
+{
+    return float_to_e2m1(x, scale);
+}
+CK_TILE_HOST_DEVICE constexpr pk_fp4_t fp16_to_pk_fp4(const fp16_t& x, float scale)
 {
 #if CK_TILE_FP4_CVT_DEVICE
-    return impl::_to_f4(x);
+    return impl::_to_f4(x, scale);
 #else
-    return float_to_e2m1(type_convert<float>(x));
+    return float_to_e2m1(type_convert<float>(x), scale);
 #endif
 }
-CK_TILE_HOST_DEVICE constexpr pk_fp4_t bf16_to_pk_fp4(const bf16_t& x)
+CK_TILE_HOST_DEVICE constexpr pk_fp4_t bf16_to_pk_fp4(const bf16_t& x, float scale)
 {
 #if CK_TILE_FP4_CVT_DEVICE
-    return impl::_to_f4(x);
+    return impl::_to_f4(x, scale);
 #else
-    return float_to_e2m1(type_convert<float>(x));
+    return float_to_e2m1(type_convert<float>(x), scale);
 #endif
 }
-CK_TILE_HOST_DEVICE constexpr pk_fp4_t fp16x2_to_pk_fp4(const fp16x2_t& x)
+CK_TILE_HOST_DEVICE constexpr pk_fp4_t fp16x2_to_pk_fp4(const fp16x2_t& x, float scale)
 {
 #if CK_TILE_FP4_CVT_DEVICE
-    return impl::_to_f4(x);
+    return impl::_to_f4(x, scale);
 #else
-    return pk_fp4_t::pack(float_to_e2m1(type_convert<float>(x[0])),
-                          float_to_e2m1(type_convert<float>(x[1])));
+    return pk_fp4_t::pack(float_to_e2m1(type_convert<float>(x[0]), scale),
+                          float_to_e2m1(type_convert<float>(x[1]), scale));
 #endif
 }
-CK_TILE_HOST_DEVICE constexpr pk_fp4_t bf16x2_to_pk_fp4(const bf16x2_t& x)
+CK_TILE_HOST_DEVICE constexpr pk_fp4_t bf16x2_to_pk_fp4(const bf16x2_t& x, float scale)
 {
 #if CK_TILE_FP4_CVT_DEVICE
-    return impl::_to_f4(x);
+    return impl::_to_f4(x, scale);
 #else
-    return pk_fp4_t::pack(float_to_e2m1(type_convert<float>(x[0])),
-                          float_to_e2m1(type_convert<float>(x[1])));
+    return pk_fp4_t::pack(float_to_e2m1(type_convert<float>(x[0]), scale),
+                          float_to_e2m1(type_convert<float>(x[1]), scale));
 #endif
 }
-CK_TILE_HOST_DEVICE constexpr pk_fp4_t fp32x2_to_pk_fp4(const fp32x2_t& x)
+CK_TILE_HOST_DEVICE constexpr pk_fp4_t fp32x2_to_pk_fp4(const fp32x2_t& x, float scale)
 {
 #if CK_TILE_FP4_CVT_DEVICE
-    return impl::_to_f4(x);
+    return impl::_to_f4(x, scale);
 #else
-    return pk_fp4_t::pack(float_to_e2m1(x[0]), float_to_e2m1(x[1]));
+    return pk_fp4_t::pack(float_to_e2m1(x[0], scale), float_to_e2m1(x[1], scale));
 #endif
 }
 
+CK_TILE_HOST_DEVICE constexpr fp32x2_t pk_fp4_to_fp32x2(const pk_fp4_t& x, float scale)
+{
+    return x.to_fp32x2(scale);
+}
+CK_TILE_HOST_DEVICE constexpr fp16x2_t pk_fp4_to_fp16x2(const pk_fp4_t& x, float scale)
+{
+    return x.to_fp16x2(scale);
+}
+CK_TILE_HOST_DEVICE constexpr bf16x2_t pk_fp4_to_bf16x2(const pk_fp4_t& x, float scale)
+{
+    return x.to_bf16x2(scale);
+}
+CK_TILE_HOST_DEVICE constexpr float pk_fp4_to_float(const pk_fp4_t& x, float scale)
+{
+    return x.to_float(scale);
+}
+CK_TILE_HOST_DEVICE constexpr fp16_t pk_fp4_to_fp16(const pk_fp4_t& x, float scale)
+{
+    return x.to_fp16(scale);
+}
+CK_TILE_HOST_DEVICE constexpr bf16_t pk_fp4_to_bf16(const pk_fp4_t& x, float scale)
+{
+    return x.to_bf16(scale);
+}
+
 #if TEST_convert_with_table == 0
-CK_TILE_HOST_DEVICE constexpr pk_fp4_t::operator float() const
+CK_TILE_HOST_DEVICE constexpr float pk_fp4_t::to_float(float scale) const
 {
 #if CK_TILE_FP4_CVT_DEVICE
-    return impl::_from_f4<fp32_t>(data);
+    return impl::_from_f4<fp32_t>(data, scale);
 #else
-    return convert_to_float<pk_fp4_t>(unpack(number<0>{}));
+    return convert_to_float<pk_fp4_t>(unpack(number<0>{}), scale);
 #endif
 }
-CK_TILE_HOST_DEVICE constexpr pk_fp4_t::operator fp32x2_t() const
+CK_TILE_HOST_DEVICE constexpr fp32x2_t pk_fp4_t::to_fp32x2(float scale) const
 {
 #if CK_TILE_FP4_CVT_DEVICE
-    return impl::_from_f4<fp32x2_t>(data);
+    return impl::_from_f4<fp32x2_t>(data, scale);
 #else
-    return fp32x2_t{convert_to_float<pk_fp4_t>(unpack(number<0>{})),
-                    convert_to_float<pk_fp4_t>(unpack(number<1>{}))};
+    return fp32x2_t{convert_to_float<pk_fp4_t>(unpack(number<0>{}), scale),
+                    convert_to_float<pk_fp4_t>(unpack(number<1>{}), scale)};
 #endif
 }
-CK_TILE_HOST_DEVICE constexpr pk_fp4_t::operator fp16_t() const
+
+CK_TILE_HOST_DEVICE constexpr fp16_t pk_fp4_t::to_fp16(float scale) const
 {
 #if CK_TILE_FP4_CVT_DEVICE
-    return impl::_from_f4<fp16_t>(data);
+    return impl::_from_f4<fp16_t>(data, scale);
 #else
-    return fp16_t{type_convert<fp16_t>(convert_to_float<pk_fp4_t>(unpack(number<0>{})))};
+    return fp16_t{type_convert<fp16_t>(convert_to_float<pk_fp4_t>(unpack(number<0>{}), scale))};
 #endif
 }
-CK_TILE_HOST_DEVICE constexpr pk_fp4_t::operator fp16x2_t() const
+CK_TILE_HOST_DEVICE constexpr fp16x2_t pk_fp4_t::to_fp16x2(float scale) const
 {
 #if CK_TILE_FP4_CVT_DEVICE
-    return impl::_from_f4<fp16x2_t>(data);
+    return impl::_from_f4<fp16x2_t>(data, scale);
 #else
-    return fp16x2_t{type_convert<fp16_t>(convert_to_float<pk_fp4_t>(unpack(number<0>{}))),
-                    type_convert<fp16_t>(convert_to_float<pk_fp4_t>(unpack(number<1>{})))};
+    return fp16x2_t{type_convert<fp16_t>(convert_to_float<pk_fp4_t>(unpack(number<0>{}), scale)),
+                    type_convert<fp16_t>(convert_to_float<pk_fp4_t>(unpack(number<1>{}), scale))};
 #endif
 }
 #else
-CK_TILE_HOST_DEVICE constexpr pk_fp4_t::operator float() const
+CK_TILE_HOST_DEVICE constexpr float pk_fp4_t::to_float(float scale) const
 {
-    return e2m1_to_fp32_table[data & 0xf];
+    return e2m1_to_fp32_table[unpack(number<0>{})] * scale;
 }
-CK_TILE_HOST_DEVICE constexpr pk_fp4_t::operator fp32x2_t() const
+CK_TILE_HOST_DEVICE constexpr fp32x2_t pk_fp4_t::to_fp32x2(float scale) const
 {
-    return fp32x2_t{e2m1_to_fp32_table[data & 0xf], e2m1_to_fp32_table[data >> 4]};
+    return fp32x2_t{e2m1_to_fp32_table[unpack(number<0>{})] * scale, e2m1_to_fp32_table[unpack(number<1>{}] * scale};
 }
-CK_TILE_HOST_DEVICE constexpr pk_fp4_t::operator fp16_t() const
+CK_TILE_HOST_DEVICE constexpr fp16_t pk_fp4_t::to_fp16(float scale) const
 {
-    return e2m1_to_fp16_table[data & 0xf];
+    return type_convert<float>(e2m1_to_fp16_table[unpack(number<0>{})]) * scale;
 }
-CK_TILE_HOST_DEVICE constexpr pk_fp4_t::operator fp16x2_t() const
+CK_TILE_HOST_DEVICE constexpr fp16x2_t pk_fp4_t::to_fp16x2(float scale) const
 {
-    return fp16x2_t{e2m1_to_fp16_table[data & 0xf], e2m1_to_fp16_table[data >> 4]};
+    return fp16x2_t{
+        type_convert<fp16_t>(type_convert<float>(e2m1_to_fp16_table[unpack(number<0>{})]) * scale),
+        type_convert<fp16_t>(type_convert<float>(e2m1_to_fp16_table[unpack(number<1>{})]) * scale)};
 }
 #endif
 
