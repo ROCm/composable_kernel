@@ -445,6 +445,8 @@ struct DeviceOperationInstanceFactory<
                 {
                     add_device_grouped_conv2d_bwd_data_wmma_v3_nhwgk_gkyxc_nhwgc_f16_instances(
                         op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_wmma_v3_nhwgk_gkyxc_nhwgc_f16_16_16_instances(
+                        op_ptrs);
                     add_device_grouped_conv2d_bwd_data_wmma_nhwgk_gkyxc_nhwgc_f16_instances(
                         op_ptrs);
                     add_device_grouped_conv2d_bwd_data_wmma_nhwgk_gkyxc_nhwgc_f16_1x1s1p0_instances(
@@ -471,6 +473,8 @@ struct DeviceOperationInstanceFactory<
                              is_same_v<ComputeTypeB, F16>)
                 {
                     add_device_grouped_conv2d_bwd_data_wmma_v3_ngkhw_gkcyx_ngchw_f16_instances(
+                        op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_wmma_v3_ngkhw_gkcyx_ngchw_f16_16_16_instances(
                         op_ptrs);
                     add_device_grouped_conv2d_bwd_data_wmma_v3_ngkhw_gkcyx_ngchw_f16_vec_transpose_instances(
                         op_ptrs);
