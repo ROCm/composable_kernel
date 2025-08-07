@@ -148,7 +148,8 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
         // clang-format off
         return concat('_', "pipeline_AgBgCrCompV6", BlockSize,
                       concat('x', GetVectorSizeA(), GetVectorSizeB(),  GetVectorSizeC()),
-                      concat('x', kPadM, kPadN, kPadK));
+                      concat('x', kPadM, kPadN, kPadK),
+                      concat('x', TailNum));
         // clang-format on
     }
 
@@ -200,15 +201,19 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
                                                 (BlockSize / WaveSize) /
                                                 (MPerXDL * NPerXDL * KPerXDL);
 
-            constexpr auto num_ds_read_inst_a = A_LDS_Read_Width * sizeof(ADataType) / APackedSize == 16 ? A_LDS_Read_Inst_Num
-                                                                                                         : A_LDS_Read_Inst_Num / 2;
-            constexpr auto num_ds_read_inst_b = B_LDS_Read_Width * sizeof(BDataType) / BPackedSize == 16 ? B_LDS_Read_Inst_Num
-                                                                                                         : B_LDS_Read_Inst_Num / 2;
+            constexpr auto num_ds_read_inst_a =
+                A_LDS_Read_Width * sizeof(ADataType) / APackedSize == 16 ? A_LDS_Read_Inst_Num
+                                                                         : A_LDS_Read_Inst_Num / 2;
+            constexpr auto num_ds_read_inst_b =
+                B_LDS_Read_Width * sizeof(BDataType) / BPackedSize == 16 ? B_LDS_Read_Inst_Num
+                                                                         : B_LDS_Read_Inst_Num / 2;
 
             constexpr auto mfma_cycle = NPerXDL == 16 ? 16 : 32;
 
-            constexpr auto ds_read_a_issue_cycle = A_LDS_Read_Width * sizeof(ADataType) / APackedSize == 16 ? 8 : 4;
-            constexpr auto ds_read_b_issue_cycle = B_LDS_Read_Width * sizeof(BDataType) / BPackedSize == 16 ? 8 : 4;
+            constexpr auto ds_read_a_issue_cycle =
+                A_LDS_Read_Width * sizeof(ADataType) / APackedSize == 16 ? 8 : 4;
+            constexpr auto ds_read_b_issue_cycle =
+                B_LDS_Read_Width * sizeof(BDataType) / BPackedSize == 16 ? 8 : 4;
 
             constexpr auto ds_read_a_mfma_rate =
                 (mfma_cycle - 4 + 2 * ds_read_a_issue_cycle - 1) / (2 * ds_read_a_issue_cycle);
@@ -623,12 +628,13 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
 
             auto ReadCompFunc = [&]() {
                 block_gemm(c_block_tile, a_lds_tile, b_lds_tile);
+                __syncthreads();
 
                 // Local prefetch 4
                 BasePImpl::LocalPrefetch(a_lds_tile, a_lds_gemm_window);
                 BasePImpl::LocalPrefetch(b_lds_tile, b_lds_gemm_window);
 
-                block_gemm(c_block_tile, a_lds_tile, b_lds_tile);
+                __syncthreads();
 
                 HotLoopScheduler();
             };
