@@ -285,7 +285,14 @@ struct PassThrough
         ((void)ds, ...);
 
         // Just assign e with c
-        e = ck_tile::type_convert<E>(c);
+        if constexpr(std::is_same_v<E, C>)
+        {
+            e = c;
+        }
+        else
+        {
+            e = ck_tile::type_convert<E>(c);
+        }
     }
 };
 
@@ -297,7 +304,7 @@ struct MultiDMultiply
         // Start with the base value c
         float result = ck_tile::type_convert<float>(c);
 
-        // Multiply by each D parameter using fold expression (C++17)
+        // Multiply by each D parameter using fold expression
         ((result *= ck_tile::type_convert<float>(ds)), ...);
 
         e = ck_tile::type_convert<E>(result);
@@ -312,7 +319,7 @@ struct MultiDAdd
         // Start with the base value c
         float result = ck_tile::type_convert<float>(c);
 
-        // Multiply by each D parameter using fold expression (C++17)
+        // Add by each D parameter using fold expression
         ((result += ck_tile::type_convert<float>(ds)), ...);
 
         e = ck_tile::type_convert<E>(result);

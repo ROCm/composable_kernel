@@ -19,29 +19,26 @@ If user does not provide kernel configuration, the tile engine uses default kern
 mkdir build && cd build
 # build composable kernel
 # replace [Arch] with the appropriate architecture or leave blank and 
-# replace [Datatype1;Datatype2;...] in comma separated datatypes string (possible datatypes are [fp8, bf8, int8, fp16, bf16])
+# replace [Datatype] in comma separated datatypes string (possible datatypes are [fp16])
 # replace [Layout1;Layout2;...] in comma separated datatypes string (possible layouts are [rcr, rrr, crr, ccr])
 # replace "mul" with either of mul,add,passthrough for Elementwise function as Multiply, Add or Passthrough respectively. If this is not specified it is considered as mul by default.
-sh ../script/cmake-ck-dev.sh  ../ [Arch] -DGEMM_DATATYPE="[Datatype1;Datatype2]" -DGEMM_LAYOUT="[Layout1;Layout2]" -DGEMM_MULTI_D_ELEMENTWISE_FUNCTION="mul"
+sh ../script/cmake-ck-dev.sh  ../ [Arch] -DGEMM_DATATYPE="[Datatype]" -DGEMM_LAYOUT="[Layout1;Layout2]" -DGEMM_MULTI_D_ELEMENTWISE_FUNCTION="mul"
 # generate different executable for each passed datatype
-make benchmark_gemm_multi_d_[Datatype1]_[Layout1] -j
-make benchmark_gemm_multi_d_[Datatype1]_[Layout2] -j
-make benchmark_gemm_multi_d_[Datatype2]_[Layout1] -j
-make benchmark_gemm_multi_d_[Datatype2]_[Layout2] -j
+make benchmark_gemm_multi_d_[Datatype]_[Layout1] -j
+make benchmark_gemm_multi_d_[Datatype]_[Layout2] -j
 ```
 `benchmark_gemm_multi_d_[Datatype]_[Layout]` will be located in the `./bin/` directory.
 
 `benchmark_gemm_multi_d_[Datatype]_[Layout]` must be rebuilt everytime if configuration file is modified.
 
 ``` bash
-rm -rf tile_engine/ && make benchmark_gemm_[Datatypes]_[Layout] -j  # rebuild
+rm -rf tile_engine/ && make benchmark_gemm_[Datatype]_[Layout] -j  # rebuild
 ```
 
-## For eaxmple build for gfx942 for fp8 and fp16 datatypes with rcr layout
+## For eaxmple build for gfx942 for datatype with rcr layout
 ``` bash
 mkdir build && cd build
-sh ../script/cmake-ck-dev.sh  ../ gfx942 -DGEMM_DATATYPE="fp8;fp16" -DGEMM_LAYOUT="rcr" 
-make benchmark_gemm_multi_d_fp8_rcr -j
+sh ../script/cmake-ck-dev.sh  ../ gfx942 -DGEMM_DATATYPE="fp16" -DGEMM_LAYOUT="rcr" 
 make benchmark_gemm_multi_d_fp16_rcr -j
 
 ## benchmark_gemm inputs
