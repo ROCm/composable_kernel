@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -89,7 +89,6 @@ struct matrix_core_swizzle_kernel
     using harg = matrix_core_swizzle_host_args;
 
     static constexpr int BLOCK_SIZE      = BLOCK_SIZE_;
-    static constexpr int KernelBlockSize = BLOCK_SIZE;
     static constexpr int WavesPerBlock_N = 4;
     static constexpr int WavesPerBlock_K = 1;
     static_assert(WavesPerBlock_N * WavesPerBlock_K * 64 == BLOCK_SIZE);
@@ -121,7 +120,7 @@ struct matrix_core_swizzle_kernel
 
     struct kernel
     {
-        static constexpr int KernelBlockSize = BLOCK_SIZE;
+        static constexpr int kBlockSize = BLOCK_SIZE;
         __device__ static constexpr auto get_src_dist()
         {
             using namespace ck_tile;

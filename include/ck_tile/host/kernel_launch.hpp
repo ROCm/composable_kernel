@@ -17,7 +17,7 @@ namespace ck_tile {
 
 template <int MinBlockPerCu, typename Kernel, typename... Args>
 #if CK_TILE_USE_LAUNCH_BOUNDS
-__launch_bounds__(Kernel::KernelBlockSize, MinBlockPerCu)
+__launch_bounds__(Kernel::kBlockSize, MinBlockPerCu)
 #endif
     __global__ void kentry(Args... args)
 {

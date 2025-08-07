@@ -43,7 +43,6 @@ struct FmhaBwdDQDKDVKernel
         ck_tile::fmha_bwd_qr_qtr_dor_pipeline_c<FmhaPipeline>;
     static_assert(!kUseQrQtrDorPipeline || !std::is_same_v<QGradEpiloguePipeline_, void>,
                   "QrQtrDorPipeline needs QGradEpiloguePipeline");
-    static constexpr ck_tile::index_t KernelBlockSize = kBlockSize;
 
     using QDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::QDataType>;
     using KDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::KDataType>;
@@ -1170,12 +1169,11 @@ struct FmhaBwdDQDKDVKernel
 template <typename FmhaBwdOGradDotO_>
 struct FmhaBwdOGradDotOKernel
 {
-    using FmhaBwdOGradDotO                            = ck_tile::remove_cvref_t<FmhaBwdOGradDotO_>;
-    static constexpr ck_tile::index_t kBlockSize      = FmhaBwdOGradDotO::kBlockSize;
-    static constexpr ck_tile::index_t kBlockPerCu     = FmhaBwdOGradDotO::kBlockPerCu;
-    static constexpr ck_tile::index_t KernelBlockSize = kBlockSize;
-    static constexpr ck_tile::index_t kM0             = kBlockSize;
-    static constexpr ck_tile::index_t kVHeaddim       = FmhaBwdOGradDotO::kVHeaddim;
+    using FmhaBwdOGradDotO                        = ck_tile::remove_cvref_t<FmhaBwdOGradDotO_>;
+    static constexpr ck_tile::index_t kBlockSize  = FmhaBwdOGradDotO::kBlockSize;
+    static constexpr ck_tile::index_t kBlockPerCu = FmhaBwdOGradDotO::kBlockPerCu;
+    static constexpr ck_tile::index_t kM0         = kBlockSize;
+    static constexpr ck_tile::index_t kVHeaddim   = FmhaBwdOGradDotO::kVHeaddim;
 
     using DDataType     = ck_tile::remove_cvref_t<typename FmhaBwdOGradDotO::DDataType>;
     using ODataType     = ck_tile::remove_cvref_t<typename FmhaBwdOGradDotO::ODataType>;
@@ -1429,10 +1427,9 @@ struct FmhaBwdConvertQGradKernel
     using FmhaBwdConvertQGrad                     = ck_tile::remove_cvref_t<FmhaBwdConvertQGrad_>;
     static constexpr ck_tile::index_t kBlockSize  = FmhaBwdConvertQGrad::kBlockSize;
     static constexpr ck_tile::index_t kBlockPerCu = FmhaBwdConvertQGrad::kBlockPerCu;
-    static constexpr ck_tile::index_t KernelBlockSize = kBlockSize;
-    static constexpr ck_tile::index_t kM0             = FmhaBwdConvertQGrad::kM0;
-    static constexpr ck_tile::index_t kN0             = FmhaBwdConvertQGrad::kN0;
-    static constexpr ck_tile::index_t kQKHeaddim      = FmhaBwdConvertQGrad::kQKHeaddim;
+    static constexpr ck_tile::index_t kM0         = FmhaBwdConvertQGrad::kM0;
+    static constexpr ck_tile::index_t kN0         = FmhaBwdConvertQGrad::kN0;
+    static constexpr ck_tile::index_t kQKHeaddim  = FmhaBwdConvertQGrad::kQKHeaddim;
 
     using AccDataType   = ck_tile::remove_cvref_t<typename FmhaBwdConvertQGrad::AccDataType>;
     using QGradDataType = ck_tile::remove_cvref_t<typename FmhaBwdConvertQGrad::QGradDataType>;

@@ -103,8 +103,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                           static_cast<XDataType*>(x_buf.GetDeviceBuffer()),
                                           static_cast<YDataType*>(y_buf.GetDeviceBuffer()),
                                           input_shape,
-                                       input_strides,
-                                       kept_dim,
+                                          input_strides,
+                                          kept_dim,
                                           reduce_dims));
 
     std::size_t num_btype = sizeof(XDataType) * N * C * H * W + sizeof(YDataType) * N * C;

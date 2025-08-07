@@ -64,7 +64,7 @@ struct BatchedGemmKernel
     /// functions.
     using UniversalGemmKernel =
         UniversalGemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
-    static constexpr index_t KernelBlockSize = UniversalGemmKernel::KernelBlockSize;
+    static constexpr index_t kBlockSize = UniversalGemmKernel::kBlockSize;
 
     using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
     using GemmPipeline     = remove_cvref_t<GemmPipeline_>;
@@ -126,11 +126,11 @@ struct BatchedGemmKernel
     {
         if(ck_tile::is_wave32())
         {
-            return dim3(UniversalGemmKernel::KernelBlockSize / 2);
+            return dim3(UniversalGemmKernel::kBlockSize / 2);
         }
         else
         {
-            return dim3(UniversalGemmKernel::KernelBlockSize);
+            return dim3(UniversalGemmKernel::kBlockSize);
         }
     }
 

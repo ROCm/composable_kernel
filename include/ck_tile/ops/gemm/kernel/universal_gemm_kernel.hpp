@@ -196,7 +196,7 @@ struct UniversalGemmKernel
     using ELayout   = remove_cvref_t<typename GemmPipeline::CLayout>;
     using EDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
-    static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
+    static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
 
     // Get the persistent kernel if the pipeline has it available
     struct has_persistent_kernel
@@ -288,11 +288,11 @@ struct UniversalGemmKernel
     {
         if(ck_tile::is_wave32())
         {
-            return dim3(KernelBlockSize / 2);
+            return dim3(kBlockSize / 2);
         }
         else
         {
-            return dim3(KernelBlockSize);
+            return dim3(kBlockSize);
         }
     }
 

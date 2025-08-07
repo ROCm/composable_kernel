@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -34,7 +34,7 @@ struct TopkSoftmaxKernel
     using WeightType = typename Problem::WeightType;
     using IndexType  = typename Problem::IndexType;
 
-    static constexpr index_t KernelBlockSize = Problem::BlockSize;
+    static constexpr index_t kBlockSize = Problem::BlockSize;
 
     struct TopkSoftmaxKargs
     {

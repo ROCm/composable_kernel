@@ -1,5 +1,5 @@
-// Copyright © Advanced Micro Devices, Inc., or its affiliates.
-// SPDX-License-Identifier:  MIT
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -120,7 +120,7 @@ struct matrix_core_swizzle_kernel
 
     struct kernel
     {
-        static constexpr ck_tile::index_t KernelBlockSize = BLOCK_SIZE;
+        static constexpr ck_tile::index_t kBlockSize = BLOCK_SIZE;
         __device__ static constexpr auto get_src_dist()
         {
             using namespace ck_tile;

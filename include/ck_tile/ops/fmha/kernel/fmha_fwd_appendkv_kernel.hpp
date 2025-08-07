@@ -13,10 +13,10 @@ namespace ck_tile {
 template <typename FmhaPipeline_>
 struct FmhaFwdAppendKVKernel
 {
-    using FmhaPipeline                                = ck_tile::remove_cvref_t<FmhaPipeline_>;
-    static constexpr ck_tile::index_t kBlockSize      = FmhaPipeline::kBlockSize;
-    static constexpr ck_tile::index_t kBlockPerCu     = FmhaPipeline::kBlockPerCu;
-    static constexpr ck_tile::index_t KernelBlockSize = kBlockSize;
+    using FmhaPipeline                            = ck_tile::remove_cvref_t<FmhaPipeline_>;
+    static constexpr ck_tile::index_t kBlockSize  = FmhaPipeline::kBlockSize;
+    static constexpr ck_tile::index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
+
     static_assert(kBlockPerCu > 0);
     static constexpr ck_tile::index_t kBlockPerCuInput = FmhaPipeline::Problem::kBlockPerCu;
 
