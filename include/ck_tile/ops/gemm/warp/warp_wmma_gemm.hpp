@@ -8,30 +8,30 @@ namespace ck_tile {
 
 template <bool kTransC = false>
 using WarpGemmWmma_f32_16x16x16_f16_f16 =
-    WarpGemmImpl<WarpGemmAtrributeWmma<WarpGemmAttributeWmmaImpl_f32_16x16x16_f16_f16, kTransC>>;
+    WarpGemmImpl<WarpGemmAttributeWmma<WarpGemmAttributeWmmaImpl_f32_16x16x16_f16_f16, kTransC>>;
 
 template <bool kTransC = false>
 using WarpGemmWmma_f32_16x16x16_bf16_bf16 =
-    WarpGemmImpl<WarpGemmAtrributeWmma<WarpGemmAttributeWmmaImpl_f32_16x16x16_bf16_bf16, kTransC>>;
+    WarpGemmImpl<WarpGemmAttributeWmma<WarpGemmAttributeWmmaImpl_f32_16x16x16_bf16_bf16, kTransC>>;
 
 template <bool kTransC = false>
 using WarpGemmWmma_i32_16x16x16_i8_i8 =
-    WarpGemmImpl<WarpGemmAtrributeWmma<WarpGemmAttributeWmmaImpl_i32_16x16x16_i8_i8, kTransC>>;
+    WarpGemmImpl<WarpGemmAttributeWmma<WarpGemmAttributeWmmaImpl_i32_16x16x16_i8_i8, kTransC>>;
 
 template <bool kTransC = false>
 using WarpGemmWmma_f32_16x16x16_f8_f8 =
-    WarpGemmImpl<WarpGemmAtrributeWmma<WarpGemmAttributeWmmaImpl_f32_16x16x16_f8_f8, kTransC>>;
+    WarpGemmImpl<WarpGemmAttributeWmma<WarpGemmAttributeWmmaImpl_f32_16x16x16_f8_f8, kTransC>>;
 
 template <bool kTransC = false>
 using WarpGemmWmma_f32_16x16x16_bf8_bf8 =
-    WarpGemmImpl<WarpGemmAtrributeWmma<WarpGemmAttributeWmmaImpl_f32_16x16x16_bf8_bf8, kTransC>>;
+    WarpGemmImpl<WarpGemmAttributeWmma<WarpGemmAttributeWmmaImpl_f32_16x16x16_bf8_bf8, kTransC>>;
 
 template <bool kTransC = false>
 using WarpGemmWmma_f32_16x16x16_f8_bf8 =
-    WarpGemmImpl<WarpGemmAtrributeWmma<WarpGemmAttributeWmmaImpl_f32_16x16x16_f8_bf8, kTransC>>;
+    WarpGemmImpl<WarpGemmAttributeWmma<WarpGemmAttributeWmmaImpl_f32_16x16x16_f8_bf8, kTransC>>;
 
 template <bool kTransC = false>
 using WarpGemmWmma_f32_16x16x16_bf8_f8 =
-    WarpGemmImpl<WarpGemmAtrributeWmma<WarpGemmAttributeWmmaImpl_f32_16x16x16_bf8_f8, kTransC>>;
+    WarpGemmImpl<WarpGemmAttributeWmma<WarpGemmAttributeWmmaImpl_f32_16x16x16_bf8_f8, kTransC>>;
 
 } // namespace ck_tile

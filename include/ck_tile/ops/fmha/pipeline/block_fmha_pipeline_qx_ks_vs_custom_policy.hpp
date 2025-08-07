@@ -948,7 +948,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             {
                 return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<>{};
                 // return
-                // WarpGemmImpl<WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB<
+                // WarpGemmImpl<WarpGemmAttributeMfmaTransposedCDistribution_SwizzleB<
                 //         WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<typename
                 //         Problem::PDataType, typename Problem::VDataType>>>{};
             }

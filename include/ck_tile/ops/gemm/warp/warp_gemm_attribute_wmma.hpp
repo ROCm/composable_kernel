@@ -51,7 +51,7 @@ struct CWarpDstrEncodingTrait
 };
 
 template <typename WarpGemmAttributeWmmaImpl_, bool kTransC = false>
-struct WarpGemmAtrributeWmma
+struct WarpGemmAttributeWmma
 {
     using Impl = remove_cvref_t<WarpGemmAttributeWmmaImpl_>;
 

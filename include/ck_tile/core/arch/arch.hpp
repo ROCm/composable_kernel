@@ -246,7 +246,7 @@ struct gfx12_t
 {
 };
 
-CK_TILE_DEVICE static constexpr auto get_device_ip()
+CK_TILE_DEVICE static constexpr auto get_device_arch()
 {
 #if defined(__gfx11__)
     return gfx11_t{};
