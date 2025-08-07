@@ -218,4 +218,19 @@ CK_TILE_HOST_DEVICE constexpr index_t get_smem_capacity()
 #endif
 }
 
+/// Helper function to convert address space enum to string
+CK_TILE_HOST_DEVICE constexpr const char* address_space_to_string(address_space_enum addr_space)
+{
+    switch(addr_space)
+    {
+    case address_space_enum::generic: return "generic";
+    case address_space_enum::global: return "global";
+    case address_space_enum::lds: return "lds";
+    case address_space_enum::sgpr: return "sgpr";
+    case address_space_enum::constant: return "constant";
+    case address_space_enum::vgpr: return "vgpr";
+    default: return "unknown";
+    }
+}
+
 } // namespace ck_tile
