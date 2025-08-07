@@ -1,6 +1,10 @@
 #pragma once
-#include <iostream>
 #include <concepts>
+
+enum class ProblemDescriptorVersion
+{
+    V1
+};
 
 enum class GemmImplementationType
 {
@@ -79,7 +83,8 @@ enum class ElementwiseOperation {
 
 
 template <typename T>
-concept SolutionDescriptorV1 = requires {
+concept ProblemDescriptorV1 = requires {
+    {T::ProblemDescriptorVersion_} -> std::convertible_to<ProblemDescriptorVersion>;
     {T::GemmImplementationType_} -> std::convertible_to<GemmImplementationType>;
     {T::ConvolutionDirection_} -> std::convertible_to<ConvolutionDirection>;
     {T::GemmPipelineVersion_} -> std::convertible_to<const GemmPipelineVersion>;
@@ -89,7 +94,7 @@ concept SolutionDescriptorV1 = requires {
     {T::LargeTensorSupport_} -> std::convertible_to<const LargeTensorSupport>;
     {T::ImplementationType_} -> std::convertible_to<const ImplementationType>;
     {T::ElementwiseOperation_} -> std::convertible_to<const ElementwiseOperation>;
-};
+} && (T::ProblemDescriptorVersion_ == ProblemDescriptorVersion::V1);
 
 struct GroupedConvBase {
     static constexpr GemmPipelineVersion GemmPipelineVersion_ = GemmPipelineVersion::V1;
@@ -104,3 +109,8 @@ struct GroupedConvBase {
 struct GroupedConvBaseXdl : public GroupedConvBase {
     static constexpr GemmImplementationType GemmImplementationType_ = GemmImplementationType::XDL;
 };
+
+struct GroupedConvBaseXdlV1 : public GroupedConvBaseXdl {
+    static constexpr ProblemDescriptorVersion ProblemDescriptorVersion_ = ProblemDescriptorVersion::V1;
+};
+
