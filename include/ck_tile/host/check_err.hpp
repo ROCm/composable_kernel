@@ -427,7 +427,7 @@ check_err(const Range& out,
             mismatched_indices.push_back(i);
         }
     }
-    if (!mismatched_indices.empty()) 
+    if(!mismatched_indices.empty())
     {
         // std::cerr << "Mismatched indices: " << mismatched_indices << std::endl;
     }

@@ -293,13 +293,13 @@ class ZZZL : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t,
 };
 
 class ZZZL2 : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t,
-                                                              PipelineTag::LDSLoadTranspose,
-                                                              64,
-                                                              32,
-                                                              1,
-                                                              1,
-                                                              false,
-                                                              false>>
+                                                               PipelineTag::LDSLoadTranspose,
+                                                               64,
+                                                               32,
+                                                               1,
+                                                               1,
+                                                               false,
+                                                               false>>
 {
 };
 
