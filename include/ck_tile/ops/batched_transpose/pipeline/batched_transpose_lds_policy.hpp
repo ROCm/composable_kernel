@@ -35,8 +35,8 @@ struct BatchedTransposeLdsPolicy : public BatchedTransposeCommonPolicy
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto MakeLdsStoreBlockDescriptor()
     {
-        constexpr index_t kLeadDimPerBlock   = Problem::kLeadSizePerBlock;
-        constexpr index_t kSecondDimPerBlock = Problem::kSecondSizePerBlock;
+        constexpr index_t kLeadDimPerBlock   = Problem::kNPerBlock;
+        constexpr index_t kSecondDimPerBlock = Problem::kMPerBlock;
         constexpr index_t kVectorSize        = Problem::LDSVectorSize;
 
         constexpr auto lds_block_desc_0 = make_naive_tensor_descriptor(
