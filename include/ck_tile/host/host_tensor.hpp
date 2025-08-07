@@ -378,7 +378,7 @@ struct HostTensor
     ~HostTensor() = default;
 
     HostTensor& operator=(const HostTensor&) = default;
-    HostTensor& operator=(HostTensor&&) = default;
+    HostTensor& operator=(HostTensor&&)      = default;
 
     template <typename FromT>
     explicit HostTensor(const HostTensor<FromT>& other) : HostTensor(other.template CopyAsType<T>())

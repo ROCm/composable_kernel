@@ -94,7 +94,7 @@ kernel clang_compile_kernel(const std::vector<src_file>& srcs, compile_options o
     assert(not srcs.empty());
     tmp_dir td{"compile"};
     options.flags += " -I. -O3";
-    options.flags += " -std=c++17";
+    options.flags += " -std=c++20";
     options.flags += " --offload-arch=" + get_device_name();
     std::string out;
 
@@ -278,7 +278,7 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(const std::vector<src
 static kernel hiprtc_compile_kernel(const std::vector<src_file>& srcs, compile_options options)
 {
     options.flags += " -I. -O3";
-    options.flags += " -std=c++17";
+    options.flags += " -std=c++20";
     options.flags += " -DCK_CODE_GEN_RTC";
     options.flags += " --offload-arch=" + get_device_name();
     auto cos = compile_hip_src_with_hiprtc(srcs, options);
