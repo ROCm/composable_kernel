@@ -70,13 +70,14 @@ TEST(OCP_Scale, tensorInit)
     scales.SetZero();
 }
 
+#define toPF4(x, y) ck_tile::scaled_type_convert<pk_fp4_t>(x, y)
+#define toDST(x, y) ck_tile::scaled_type_convert<DST>(x, y)
+#define toDSTx2(x, y) ck_tile::scaled_type_convert<DSTx2_t>(x, y)
+
 #define toF32(x) ck_tile::type_convert<float>(x)
-#define toPF4(x, y) ck_tile::type_convert<pk_fp4_t>(x, y)
 #define toPF4_(x) ck_tile::type_convert<pk_fp4_t>(x)
 #define toSRC(x) ck_tile::type_convert<SRC>(x)
-#define toDST(x, y) ck_tile::type_convert<DST>(x, y)
 #define toDST_(x) ck_tile::type_convert<DST>(x)
-#define toDSTx2(x, y) ck_tile::type_convert<DSTx2_t>(x, y)
 
 template <typename Kernel, typename... Args>
 __global__ void MyKernel(Args... args)
