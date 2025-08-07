@@ -22,7 +22,7 @@ mkdir build && cd build
 # replace [Datatype] in comma separated datatypes string (possible datatypes are [fp16])
 # replace [Layout1;Layout2;...] in comma separated datatypes string (possible layouts are [rcr, rrr, crr, ccr])
 # replace "mul" with either of mul,add,passthrough for Elementwise function as Multiply, Add or Passthrough respectively. If this is not specified it is considered as mul by default.
-sh ../script/cmake-ck-dev.sh  ../ [Arch] -DGEMM_DATATYPE="[Datatype]" -DGEMM_LAYOUT="[Layout1;Layout2]" -DGEMM_MULTI_D_ELEMENTWISE_FUNCTION="mul"
+sh ../script/cmake-ck-dev.sh  ../ [Arch] -DGEMM_MULTI_D_DATATYPE="[Datatype]" -DGEMM_MULTI_D_LAYOUT="[Layout1;Layout2]" -DGEMM_MULTI_D_ELEMENTWISE_FUNCTION="mul"
 # generate different executable for each passed datatype
 make benchmark_gemm_multi_d_[Datatype]_[Layout1] -j
 make benchmark_gemm_multi_d_[Datatype]_[Layout2] -j
@@ -32,14 +32,14 @@ make benchmark_gemm_multi_d_[Datatype]_[Layout2] -j
 `benchmark_gemm_multi_d_[Datatype]_[Layout]` must be rebuilt everytime if configuration file is modified.
 
 ``` bash
-rm -rf tile_engine/ && make benchmark_gemm_[Datatype]_[Layout] -j  # rebuild
+rm -rf tile_engine/ && make benchmark_gemm_multi_d_[Datatype]_[Layout] -j  # rebuild
 ```
 
 ## For eaxmple build for gfx942 for datatype with rcr layout
 ``` bash
 mkdir build && cd build
-sh ../script/cmake-ck-dev.sh  ../ gfx942 -DGEMM_DATATYPE="fp16" -DGEMM_LAYOUT="rcr" 
-make benchmark_gemm_multi_d_fp16_rcr -j
+sh ../script/cmake-ck-dev.sh  ../ gfx942 -DGEMM_MULTI_D_DATATYPE="fp16" -DGEMM_MULTI_D_LAYOUT="rcrr" 
+make benchmark_gemm_multi_d_fp16_rcrr -j
 
 ## benchmark_gemm inputs
 ```
@@ -99,13 +99,13 @@ The following JSON file specifies parameters used to generate and build GEMM ker
       "values": ["intrawave", "interwave"]
     },
     "epilogue": {
-      "values": ["default", "cshuffle"]
+      "values": ["cshuffle"]
     }
 }
 ```
 
 At runtime, a specific subset of the generated kernels can be selected using command-line arguments.
 ``` bash
-./bin/benchmark_gemm_[Datatype]_[Layout] -pipeline=compv3 -scheduler=intrawave -epilogue=default 
+./bin/benchmark_gemm_multi_d_[Datatype]_[Layout] -pipeline=compv3 -scheduler=intrawave -epilogue=cshuffle 
 ```
-The above command runs kernels configured with the compv3 pipeline, intrawave scheduler, and default epilogue, while sweeping over different BlockTile sizes, WarpTile sizes, and WarpTile mappings.
+The above command runs kernels configured with the compv3 pipeline, intrawave scheduler, and cshuffle epilogue, while sweeping over different BlockTile sizes, WarpTile sizes, and WarpTile mappings.
