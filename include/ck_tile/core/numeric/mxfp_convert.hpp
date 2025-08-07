@@ -12,14 +12,18 @@ struct numeric_utils : numeric_traits<T>
 
     using traits   = numeric_traits<T>;
     using _numeric = numeric<T>;
-    using raw_type = typename T::raw_type;
+    using raw_type = typename traits::bitwise_type;
 
     static constexpr int exp_mask = (1 << traits::exp) - 1;
 
-    static constexpr int get_exponent(raw_type x)
+    static constexpr raw_type get_exponent(raw_type x)
     {
         // TODO: check if repeated calls are optimized.
         return (x >> traits::mant) & exp_mask;
+    }
+    static constexpr raw_type get_exponent(const T& x)
+    {
+        return get_exponent(bit_cast<raw_type>(x));
     }
     static constexpr bool is_positive(raw_type x)
     {
@@ -33,7 +37,7 @@ struct numeric_utils : numeric_traits<T>
     static constexpr double get_mantissa(raw_type x)
     {
         double mantissa = is_subnormal(x) ? 0.0f : 1.0f;
-        for(uint32_t i = 0; i < traits::mant; ++i)
+        for(raw_type i = 0; i < traits::mant; ++i)
         {
             mantissa += std::ldexp(static_cast<float>(x & 0b1), -(traits::mant - i));
             x >>= 1;
@@ -43,21 +47,22 @@ struct numeric_utils : numeric_traits<T>
 };
 
 template <typename T>
-CK_TILE_HOST_DEVICE float convert_to_float(typename T::raw_type data, int scale_exp = 127)
+CK_TILE_HOST_DEVICE float convert_to_float(typename T::raw_type data, float scale = 1.f)
 {
-    using utils                    = numeric_utils<T>;
-    static constexpr int e8m0_bias = 127; // TODO: make it generic.
-    float sign                     = utils::is_positive(data) ? 1.0 : -1.0;
-    int exp    = (utils::is_subnormal(data) ? 1 : utils::get_exponent(data)) - utils::bias;
-    float mant = utils::get_mantissa(data);
+    using utils = numeric_utils<T>;
+    float sign  = utils::is_positive(data) ? 1.0 : -1.0;
+    int exp     = (utils::is_subnormal(data) ? 1 : utils::get_exponent(data)) - utils::bias;
+    float mant  = utils::get_mantissa(data);
 
-    return std::ldexp(sign * mant, exp + scale_exp - e8m0_bias);
+    return std::ldexp(sign * mant * scale, exp);
 }
 
 template <typename T>
-CK_TILE_HOST_DEVICE typename T::raw_type convert_to_type(float value)
+CK_TILE_HOST_DEVICE typename T::raw_type convert_to_type(float value, float scale = 1.f)
 {
     using bitwise_type = typename numeric_traits<T>::bitwise_type;
+
+    value /= scale;
 
     if(std::abs(value) > float(numeric<T>::max()))
     {
