@@ -104,6 +104,27 @@ bool profile_gemm_blockscale_weighpreshuffle_impl(int do_verification,
                                       ? ((K + ScaleBlockK - 1) / ScaleBlockK)
                                       : ((N + ScaleBlockN - 1) / ScaleBlockN);
 
+    if(ck::is_same_v<BLayout, ck::tensor_layout::gemm::ColumnMajor>)
+    {
+        if(StrideB < K)
+        {
+            throw std::runtime_error("Error: For ColumnMajor layout, StrideB (" + 
+                                   std::to_string(StrideB) + 
+                                   ") must be greater than or equal to K (" + 
+                                   std::to_string(K) + ")");
+        }
+    }
+    else // RowMajor
+    {
+        if(StrideB < N)
+        {
+            throw std::runtime_error("Error: For RowMajor layout, StrideB (" + 
+                                   std::to_string(StrideB) + 
+                                   ") must be greater than or equal to N (" + 
+                                   std::to_string(N) + ")");
+        }
+    }
+
     Tensor<A0DataType> a0_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<A1DataType> a1_m_k(f_host_tensor_descriptor((M + ScaleBlockM - 1) / ScaleBlockM,
                                                        (K + ScaleBlockK - 1) / ScaleBlockK,
