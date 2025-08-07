@@ -19,14 +19,18 @@ struct constant
     CK_TILE_HOST_DEVICE static constexpr bool is_static() { return true; }
 };
 
+template <auto v>
+CK_TILE_HOST_DEVICE static void print(const constant<v>&)
+{
+    printf("%ld", static_cast<long>(v));
+}
+
 template <typename T, T v>
 struct integral_constant : constant<v>
 {
     using value_type         = T;
     using type               = integral_constant; // using injected-class-name
     static constexpr T value = v;
-    // constexpr CK_TILE_HOST_DEVICE operator   value_type() const noexcept { return value; }
-    // constexpr CK_TILE_HOST_DEVICE value_type operator()() const noexcept { return value; } //
 };
 
 template <index_t v>

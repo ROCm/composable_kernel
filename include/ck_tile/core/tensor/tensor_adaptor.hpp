@@ -305,41 +305,44 @@ struct tensor_adaptor
                           get_container_subset(vector_strides, top_dims));
     }
 
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("tensor_adaptor{");
-
-        //
-        printf("transforms: ");
-        print(transforms_);
-        printf(", ");
-
-        //
-        printf("LowerDimensionHiddenIds: ");
-        print(LowerDimensionHiddenIdss{});
-        printf(", ");
-
-        //
-        printf("UpperDimensionHiddenIds: ");
-        print(UpperDimensionHiddenIdss{});
-        printf(", ");
-
-        //
-        printf("BottomDimensionHiddenIds: ");
-        print(BottomDimensionHiddenIds{});
-        printf(", ");
-
-        //
-        printf("TopDimensionHiddenIds: ");
-        print(TopDimensionHiddenIds{});
-
-        printf("}");
-    }
-
     private:
     Transforms transforms_;
     ElementSize element_size_;
 };
+
+template <typename Transforms,
+          typename LowerDimensionHiddenIdss,
+          typename UpperDimensionHiddenIdss,
+          typename BottomDimensionHiddenIds,
+          typename TopDimensionHiddenIds>
+CK_TILE_HOST_DEVICE static void print(const tensor_adaptor<Transforms,
+                                                           LowerDimensionHiddenIdss,
+                                                           UpperDimensionHiddenIdss,
+                                                           BottomDimensionHiddenIds,
+                                                           TopDimensionHiddenIds>& adaptor)
+{
+    printf("tensor_adaptor{\n");
+    printf("    transforms: [");
+    print(adaptor.get_transforms());
+    printf("],\n");
+
+    printf("    LowerDimensionHiddenIds: [");
+    print(LowerDimensionHiddenIdss{});
+    printf("],\n");
+
+    printf("    UpperDimensionHiddenIds: [");
+    print(UpperDimensionHiddenIdss{});
+    printf("],\n");
+
+    printf("    BottomDimensionHiddenIds: [");
+    print(BottomDimensionHiddenIds{});
+    printf("],\n");
+
+    //
+    printf("    TopDimensionHiddenIds: [");
+    print(TopDimensionHiddenIds{});
+    printf("]\n}\n");
+}
 
 // Transforms: Tuple<transforms...>
 // LowerDimensionOldTopIdss: Tuple<Sequence<...>, ...>

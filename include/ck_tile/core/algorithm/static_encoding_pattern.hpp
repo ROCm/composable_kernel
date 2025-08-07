@@ -77,6 +77,7 @@
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/tensor/tile_distribution.hpp"
 #include "ck_tile/core/tensor/tile_distribution_encoding.hpp"
+#include "ck_tile/core/utility/print.hpp"
 
 namespace ck_tile {
 
@@ -316,5 +317,52 @@ struct TileDistributionEncodingPattern2D<BlockSize,
                                        sequence<1, 0>>{}); // -> <X1, Y0>
     }
 };
+
+// Helper function to convert enum to string
+constexpr const char* tile_distribution_pattern_to_string(tile_distribution_pattern pattern)
+{
+    switch(pattern)
+    {
+    case tile_distribution_pattern::thread_raked: return "thread_raked";
+    case tile_distribution_pattern::warp_raked: return "warp_raked";
+    case tile_distribution_pattern::block_raked: return "block_raked";
+    default: return "unknown";
+    }
+}
+
+template <index_t BlockSize,
+          index_t YPerTile,
+          index_t XPerTile,
+          index_t VecSize,
+          tile_distribution_pattern DistributionPattern,
+          index_t NumWaveGroups>
+CK_TILE_HOST_DEVICE void print(const TileDistributionEncodingPattern2D<BlockSize,
+                                                                       YPerTile,
+                                                                       XPerTile,
+                                                                       VecSize,
+                                                                       DistributionPattern,
+                                                                       NumWaveGroups>&)
+{
+    using PatternType = TileDistributionEncodingPattern2D<BlockSize,
+                                                          YPerTile,
+                                                          XPerTile,
+                                                          VecSize,
+                                                          DistributionPattern,
+                                                          NumWaveGroups>;
+
+    printf("TileDistributionEncodingPattern2D<BlockSize:%d, YPerTile:%d, XPerTile:%d, "
+           "VecSize:%d, %s>: ",
+           BlockSize,
+           YPerTile,
+           XPerTile,
+           VecSize,
+           tile_distribution_pattern_to_string(DistributionPattern));
+    printf("{<Y0, Y1, Y2>: <%d, %d, %d>, <X0, X1>: <%d, %d>}\n",
+           PatternType::Y0,
+           PatternType::Y1,
+           PatternType::Y2,
+           PatternType::X0,
+           PatternType::X1);
+}
 
 } // namespace ck_tile
