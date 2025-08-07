@@ -108,20 +108,18 @@ bool profile_gemm_blockscale_weighpreshuffle_impl(int do_verification,
     {
         if(StrideB < K)
         {
-            throw std::runtime_error("Error: For ColumnMajor layout, StrideB (" + 
-                                   std::to_string(StrideB) + 
-                                   ") must be greater than or equal to K (" + 
-                                   std::to_string(K) + ")");
+            throw std::runtime_error(
+                "Error: For ColumnMajor layout, StrideB (" + std::to_string(StrideB) +
+                ") must be greater than or equal to K (" + std::to_string(K) + ")");
         }
     }
     else // RowMajor
     {
         if(StrideB < N)
         {
-            throw std::runtime_error("Error: For RowMajor layout, StrideB (" + 
-                                   std::to_string(StrideB) + 
-                                   ") must be greater than or equal to N (" + 
-                                   std::to_string(N) + ")");
+            throw std::runtime_error(
+                "Error: For RowMajor layout, StrideB (" + std::to_string(StrideB) +
+                ") must be greater than or equal to N (" + std::to_string(N) + ")");
         }
     }
 
