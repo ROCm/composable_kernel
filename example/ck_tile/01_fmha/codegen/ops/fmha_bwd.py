@@ -185,13 +185,16 @@ FMHA_BWD_API_PER_HDIM_CASE="""        {F_if} (t.hdim_q <= {F_hdim} && t.hdim_v <
 
 FMHA_BWD_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_dbias == {F_dbias}) && ({F_dropout_check}) &&
                         ({F_scheck}) && ({F_dcheck}) && ({F_dvcheck}) && (t.is_deterministic == {F_deterministic})) {{
-                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad1}, {F_dvpad}>;
+                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad1d}, {F_dvpad}>;
                 using dq_dk_dv_trait_ = fmha_bwd_dq_dk_dv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_mask}, {F_dropout}, {F_bias}, {F_dbias}, {F_dpad}, {F_dvpad}, {F_deterministic}>;
-                using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad1}, {F_dpad}, {F_deterministic}>;
+                using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad1d}, {F_dpad}, {F_deterministic}>;
                 r = fmha_bwd_<dot_do_o_trait_, dq_dk_dv_trait_, convert_dq_trait_>(s, a);
                 return r;
             }}
 """
+
+# M0 size for 1d kernels (dot/convert)
+M0_1D = 64
 
 # GEMM0: Q@K=S^T
 # GEMM1: P^T@dO^T=dV(This was chosen as G1 to match fwd, but N1 must be equal to headdim_v)
@@ -351,7 +354,7 @@ using fmha_bwd_dot_do_o_pipeline_problem_{F_idx} = ck_tile::BlockFmhaBwdOGradDot
     typename FmhaBwdTypeConfig<fmha_dtype_{F_idx}>::ODataType,
     typename FmhaBwdTypeConfig<fmha_dtype_{F_idx}>::OGradDataType,
     typename FmhaBwdTypeConfig<fmha_dtype_{F_idx}>::DDataType,
-    /* BlockSize = */ 64,
+    /* BlockSize = M0 = */ 64,
     {F_hdim},
     {F_mode},
     fmha_bwd_dot_do_o_trait_{F_idx}>;
@@ -565,8 +568,7 @@ class FmhaBwdApiTrait:
     bias          : str
     dbias         : str
     dropout       : str
-    spad          : str
-    spad1         : str # spad for dot/convert kernel
+    spad1d        : str # spad for 1d kernels (dot/convert)
     dpad          : str
     dvpad         : str
     deterministic : str
@@ -585,15 +587,14 @@ class FmhaBwdApiTrait:
     def bhdv(self) -> int:
         return self.tile.F_bhdv
 
-    def scheck(self, spad1 : str) -> str:
+    @property
+    def scheck(self) -> str:
         if self.mode == 'group':
             return 'true' # always support
-        elif self.spad == 't' and spad1 == 't':
-            return f'a.seqlen_q % {self.bm0} != 0'
-        elif self.spad == 'f' and spad1 == 't':
-            return f'a.seqlen_q % {self.bm0} == 0 and a.seqlen_q % 64 != 0'
-        else: # self.spad == 'f' and spad1 == 'f'
-            return 'a.seqlen_q % 64 == 0'
+        elif self.spad1d == 't':
+            return f'a.seqlen_q % {M0_1D} != 0'
+        else: # self.spad1d == 'f'
+            return f'a.seqlen_q % {M0_1D} == 0'
 
     @property
     def dcheck(self) -> str:
@@ -612,7 +613,7 @@ class FmhaBwdApiTrait:
         def get_occupancy(dtype, hdim):
             return 2
 
-        return FmhaBwdOGradDotOKernel(F_idx=self.idx, F_hdim=self.hdim, F_dtype=self.dtype, F_spad=self.spad1,
+        return FmhaBwdOGradDotOKernel(F_idx=self.idx, F_hdim=self.hdim, F_dtype=self.dtype, F_spad=self.spad1d,
             F_dvpad=self.dvpad, F_mode=self.mode, F_occupancy=get_occupancy(self.dtype, self.hdim))
 
     @property
@@ -629,7 +630,7 @@ class FmhaBwdApiTrait:
             return 2
 
         return FmhaBwdConvertQGradKernel(F_idx=self.idx, F_hdim=self.hdim, F_dtype=self.dtype,
-            F_bm0=64, F_bn0=self.tile.F_bn0, F_spad=self.spad, F_dpad=self.dpad,
+            F_bm0=M0_1D, F_bn0=self.tile.F_bn0, F_spad=self.spad1d, F_dpad=self.dpad,
             F_mode=self.mode, F_occupancy=get_occupancy(self.dtype, self.hdim),
             F_deterministic=self.deterministic)
 
@@ -650,16 +651,13 @@ class FmhaBwdApiPool:
         inners = ""
         i = 0 
         for trait in traits:
-            for spad1 in ["t", "f"]:
-                if (spad1 == "f" and (trait.spad == "t" or trait.mode == "group")):
-                    continue
-                inners += FMHA_BWD_API_INNER_DISPATCH.format(F_if=self.if_(i), F_mode=MODE_MAP[trait.mode],
-                    F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask], F_mask=get_mask_map(self.mask_impl)[trait.mask], F_bias_check=BIAS_CHECK_MAP[trait.bias],
-                    F_bias=BIAS_MAP[trait.bias], F_dbias=BOOL_MAP[trait.dbias], F_dropout_check=DROPOUT_CHECK_MAP[trait.dropout], F_dropout=DROPOUT_MAP[trait.dropout],
-                    F_scheck=trait.scheck(spad1=spad1), F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck, F_hdim=trait.hdim, F_dtype=BWD_DTYPE_MAP[trait.dtype],
-                    F_spad1=BOOL_MAP[spad1], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
-                    F_deterministic=BOOL_MAP[trait.deterministic])
-                i += 1
+            inners += FMHA_BWD_API_INNER_DISPATCH.format(F_if=self.if_(i), F_mode=MODE_MAP[trait.mode],
+                F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask], F_mask=get_mask_map(self.mask_impl)[trait.mask], F_bias_check=BIAS_CHECK_MAP[trait.bias],
+                F_bias=BIAS_MAP[trait.bias], F_dbias=BOOL_MAP[trait.dbias], F_dropout_check=DROPOUT_CHECK_MAP[trait.dropout], F_dropout=DROPOUT_MAP[trait.dropout],
+                F_scheck=trait.scheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck, F_hdim=trait.hdim, F_dtype=BWD_DTYPE_MAP[trait.dtype],
+                F_spad1d=BOOL_MAP[trait.spad1d], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
+                F_deterministic=BOOL_MAP[trait.deterministic])
+            i += 1
         return inners
 
     @property
@@ -696,18 +694,16 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[Fm
         d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype)
         if d is None:
             continue
-        for hdim_str, mode, mask, bias, dbias, dropout, spad, spad1, dpad, dvpad, deterministic in itertools.product(d.keys(), MODE_MAP.keys(), get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], DROPOUT_MAP.keys(), *([["t", "f"]] * 5)):
+        for hdim_str, mode, mask, bias, dbias, dropout, spad1d, dpad, dvpad, deterministic in itertools.product(d.keys(), MODE_MAP.keys(), get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], DROPOUT_MAP.keys(), *([["t", "f"]] * 4)):
             tile = d[hdim_str]
             hdim = int(hdim_str)
-            if (mode == "group") and (spad == "f"):
-                continue
-            if (spad1 == "f") and (spad == "t" or mode == "group"):
+            if (mode == "group") and (spad1d == "f"):
                 continue
             if ((bias == "no" or bias == "alibi") and dbias == "t"):
                 continue
             if ("wg32" in dropout):
                 continue
-            t = FmhaBwdApiTrait(idx=0, hdim=hdim, dtype=dtype, mode=mode,tile=tile,mask=mask, bias=bias, dbias=dbias, dropout=dropout, spad=spad, spad1=spad1, dpad=dpad, dvpad=dvpad, deterministic=deterministic, mask_impl=mask_impl)
+            t = FmhaBwdApiTrait(idx=0, hdim=hdim, dtype=dtype, mode=mode,tile=tile,mask=mask, bias=bias, dbias=dbias, dropout=dropout, spad1d=spad1d, dpad=dpad, dvpad=dvpad, deterministic=deterministic, mask_impl=mask_impl)
 
             if not fnmatch.fnmatch(t.dot_do_o_kernel.name, filter_dot_do_o):
                 continue
