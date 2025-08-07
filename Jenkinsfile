@@ -845,9 +845,9 @@ def run_aiter_tests(Map conf=[:]){
             try{
                 sh "rocminfo"
                 sh "python3 --version"
-                sh "python3 ../aiter/op_tests/test_gemm_a8w8.py"
-                sh "python3 ../aiter/op_tests/test_gemm_a8w8_blockscale.py"
-                sh "python3 ../aiter/op_tests/test_mha.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha.py"
             }
             catch(e){
                 echo "Throwing error exception while running AITER tests"
