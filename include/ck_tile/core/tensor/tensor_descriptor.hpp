@@ -140,24 +140,36 @@ struct tensor_descriptor : public tensor_adaptor<Transforms,
             to_array<index_t, ndim_hidden_>(GuaranteedVectorStrides{}));
     }
 
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("tensor_descriptor{");
-
-        // tensor_adaptor
-        Base::print();
-        printf(", ");
-
-        // element_space_size_
-        printf("element_space_size_: ");
-        print(element_space_size_);
-
-        printf("}");
-    }
-
     // TODO make these private
     ElementSpaceSize element_space_size_;
 };
+
+template <typename Transforms,
+          typename LowerDimensionHiddenIdss,
+          typename UpperDimensionHiddenIdss,
+          typename TopDimensionHiddenIds,
+          typename ElementSpaceSize,
+          typename GuaranteedVectorLengths,
+          typename GuaranteedVectorStrides>
+CK_TILE_HOST_DEVICE static void print(const tensor_descriptor<Transforms,
+                                                              LowerDimensionHiddenIdss,
+                                                              UpperDimensionHiddenIdss,
+                                                              TopDimensionHiddenIds,
+                                                              ElementSpaceSize,
+                                                              GuaranteedVectorLengths,
+                                                              GuaranteedVectorStrides>& descriptor)
+{
+    printf("tensor_descriptor{\n");
+    // first print the tensor adaptor part of the descriptor using the base class print
+    print(static_cast<const typename decltype(descriptor)::Base&>(descriptor));
+    printf("element_space_size_: %ld,\n",
+           static_cast<long>(descriptor.get_element_space_size().value));
+    printf("guaranteed_vector_lengths: ");
+    print(GuaranteedVectorLengths{});
+    printf(",\nguaranteed_vector_strides: ");
+    print(GuaranteedVectorStrides{});
+    printf("}\n}\n");
+}
 
 template <typename Adaptor, typename ElementSpaceSize>
 CK_TILE_HOST_DEVICE constexpr auto
