@@ -1,116 +1,58 @@
 #pragma once
 #include <concepts>
 
+#include "ck/utility/data_type.hpp"
+#include "ck/utility/sequence.hpp"
+#include "ck/utility/tuple.hpp"
+#include "ck/ck.hpp"
+
 enum class ProblemDescriptorVersion
 {
     V1
 };
 
-enum class GemmImplementationType
-{
-    XDL,
-    WMMA,
-    DL
+enum class ConvolutionLayout {
+    NHWGC_GKYXC_NHWGK,
+    NGCHW_GKCYX_NGKHW
 };
-
-enum class ConvolutionDirection
-{
-    Forward,
-    BackwardData,
-    BackwardWeight
-};
-
-
-enum class GemmPipelineVersion
-{
-    V1,
-    V2,
-    V3,
-    V4,
-    V5
-};
-
-enum class GemmPipelineScheduler
-{
-    Intrawave,
-    Interwave
-};
-
-enum class SplitKSupport
-{
-    Supported,
-    SupportedTwoStage,
-    NotSupported
-};
-
-enum class MergedGroups
-{
-    X16,
-    X8,
-    X4,
-    X2,
-    NotSupported
-};
-
-enum class LargeTensorSupport
-{
-    Supported,
-    SplitBatch,
-    NotSupported
-};
-
-enum class ImplementationType
-{
-    ExplicitDefault,
-    ExplicitMPadding,
-    ExplicitNPadding,
-    ExplicitKPadding,
-    ExplicitMNPadding,
-    ExplicitMKPadding,
-    ExplicitNKPadding,
-    ExplicitMNKPadding,
-    Implicit
-};
-
-enum class ElementwiseOperation {
-    Bias,
-    BiasClamp,
-    Bilinear,
-    Clamp,
-    Scale,
-    PassThrough
-};
-
 
 template <typename T>
 concept ProblemDescriptorV1 = requires {
     {T::ProblemDescriptorVersion_} -> std::convertible_to<ProblemDescriptorVersion>;
-    {T::GemmImplementationType_} -> std::convertible_to<GemmImplementationType>;
-    {T::ConvolutionDirection_} -> std::convertible_to<ConvolutionDirection>;
-    {T::GemmPipelineVersion_} -> std::convertible_to<const GemmPipelineVersion>;
-    {T::GemmPipelineScheduler_} -> std::convertible_to<const GemmPipelineScheduler>;
-    {T::SplitKSupport_} -> std::convertible_to<const SplitKSupport>;
-    {T::MergedGroups_} -> std::convertible_to<const MergedGroups>;
-    {T::LargeTensorSupport_} -> std::convertible_to<const LargeTensorSupport>;
-    {T::ImplementationType_} -> std::convertible_to<const ImplementationType>;
-    {T::ElementwiseOperation_} -> std::convertible_to<const ElementwiseOperation>;
+    {T::NDimSpatial_} -> std::convertible_to<int>;
+    typename T::DataType;
+    typename T::ElementwiseOpDataTypes;
+    {T::ConvolutionLayout_} -> std::convertible_to<ConvolutionLayout>;
 } && (T::ProblemDescriptorVersion_ == ProblemDescriptorVersion::V1);
 
-struct GroupedConvBase {
-    static constexpr GemmPipelineVersion GemmPipelineVersion_ = GemmPipelineVersion::V1;
-    static constexpr GemmPipelineScheduler GemmPipelineScheduler_ = GemmPipelineScheduler::Intrawave;
-    static constexpr SplitKSupport SplitKSupport_ = SplitKSupport::NotSupported;
-    static constexpr MergedGroups MergedGroups_ = MergedGroups::NotSupported;
-    static constexpr LargeTensorSupport LargeTensorSupport_ = LargeTensorSupport::NotSupported;
-    static constexpr ImplementationType ImplementationType_ = ImplementationType::Implicit;
-    static constexpr ElementwiseOperation ElementwiseOperation_ = ElementwiseOperation::PassThrough;
-};
-
-struct GroupedConvBaseXdl : public GroupedConvBase {
-    static constexpr GemmImplementationType GemmImplementationType_ = GemmImplementationType::XDL;
-};
-
-struct GroupedConvBaseXdlV1 : public GroupedConvBaseXdl {
+struct ProblemBaseV1 {
     static constexpr ProblemDescriptorVersion ProblemDescriptorVersion_ = ProblemDescriptorVersion::V1;
+    using ElementwiseOpDataTypes = ck::Tuple<>;
 };
 
+struct BF16ProblemBaseV1 : public ProblemBaseV1 {
+    using DataType = ck::bhalf_t;
+};
+
+struct F32ProblemBaseV1 : public ProblemBaseV1  {
+    using DataType = float;
+};
+
+struct F16ProblemBaseV1 : public ProblemBaseV1  {
+    using DataType = ck::half_t;
+};
+
+struct NWGCProblemBaseV1 : public ProblemBaseV1  {
+    static constexpr int NDimSpatial_ = 1;
+    static constexpr ConvolutionLayout ConvolutionLayout_ = ConvolutionLayout::NHWGC_GKYXC_NHWGK;
+};
+
+struct NHWGCProblemBaseV1 : public ProblemBaseV1  {
+    static constexpr int NDimSpatial_ = 2;
+    static constexpr ConvolutionLayout ConvolutionLayout_ = ConvolutionLayout::NHWGC_GKYXC_NHWGK;
+};
+
+struct NDHWGCProblemBaseV1 : public ProblemBaseV1  {
+    static constexpr int NDimSpatial_ = 3;
+    static constexpr ConvolutionLayout ConvolutionLayout_ = ConvolutionLayout::NHWGC_GKYXC_NHWGK;
+};
