@@ -41,6 +41,10 @@ struct HstuBlockMaskWithLocal
     {
         max_uih_len = seqlen - num_target_;
 
+        // assuming min_full_attn_seqlen has higher priority, ensure contextual scope not collide
+        // with min_full_attn_seqlen scope
+        contextual_seqlen = min(contextual_seqlen, max_uih_len - min_full_attn_seqlen);
+
         if(contextual_seqlen > 0)
             max_id = max_uih_len - (contextual_seqlen - 1);
         else
