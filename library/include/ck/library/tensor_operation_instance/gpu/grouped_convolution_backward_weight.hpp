@@ -21,6 +21,7 @@
 #endif
 #ifdef CK_USE_WMMA
 #include "grouped_convolution_backward_weight_wmma.inc"
+#include "grouped_convolution_backward_weight_explicit_wmma.inc"
 #endif
 namespace ck {
 namespace tensor_operation {
@@ -395,21 +396,24 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     add_device_grouped_conv2d_bwd_weight_two_stage_xdl_nhwgc_gkyxc_nhwgk_f16_pipev5_irregular_instances(
                         op_ptrs);
                     // Explicit GEMM
-                    add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_comp_default_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_f16_f16_f16_exp_comp_default_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_comp_mnkpadding_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_f16_f16_f16_exp_comp_mnkpadding_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_mem_v1_default_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_f16_f16_f16_exp_mem_v1_default_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_mem_v1_mnkpadding_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_f16_f16_f16_exp_mem_v1_mnkpadding_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_mem_v2_default_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_f16_f16_f16_exp_mem_v2_default_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_mem_v2_mnkpadding_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_f16_f16_f16_exp_mem_v2_mnkpadding_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_odd_mn_instances(op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_odd_n_instances(op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_odd_m_instances(op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_xdl_f16_f16_f16_exp_odd_mn_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_xdl_f16_f16_f16_exp_odd_n_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_xdl_f16_f16_f16_exp_odd_m_instances(
+                        op_ptrs);
                 }
 #endif
 #ifdef CK_ENABLE_BF16
@@ -452,23 +456,23 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     add_device_grouped_conv2d_bwd_weight_two_stage_xdl_nhwgc_gkyxc_nhwgk_bf16_pipev5_irregular_instances(
                         op_ptrs);
                     // Explicit GEMM
-                    add_device_grouped_convnd_bwd_weight_bf16_bf16_bf16_exp_comp_default_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_bf16_bf16_bf16_exp_comp_default_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_bf16_bf16_bf16_exp_comp_mnkpadding_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_bf16_bf16_bf16_exp_comp_mnkpadding_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_bf16_bf16_bf16_exp_mem_v1_default_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_bf16_bf16_bf16_exp_mem_v1_default_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_bf16_bf16_bf16_exp_mem_v1_mnkpadding_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_bf16_bf16_bf16_exp_mem_v1_mnkpadding_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_bf16_bf16_bf16_exp_mem_v2_default_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_bf16_bf16_bf16_exp_mem_v2_default_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_bf16_bf16_bf16_exp_mem_v2_mnkpadding_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_bf16_bf16_bf16_exp_mem_v2_mnkpadding_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_bf16_bf16_bf16_exp_odd_mn_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_bf16_bf16_bf16_exp_odd_mn_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_bf16_bf16_bf16_exp_odd_m_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_bf16_bf16_bf16_exp_odd_m_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_bf16_bf16_bf16_exp_odd_n_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_bf16_bf16_bf16_exp_odd_n_instances(
                         op_ptrs);
                 }
 #endif
@@ -641,21 +645,24 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     add_device_grouped_conv3d_bwd_weight_two_stage_xdl_ndhwgc_gkzyxc_ndhwgk_f16_pipev5_irregular_instances(
                         op_ptrs);
                     // Explicit GEMM
-                    add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_comp_default_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_f16_f16_f16_exp_comp_default_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_comp_mnkpadding_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_f16_f16_f16_exp_comp_mnkpadding_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_mem_v1_default_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_f16_f16_f16_exp_mem_v1_default_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_mem_v1_mnkpadding_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_f16_f16_f16_exp_mem_v1_mnkpadding_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_mem_v2_default_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_f16_f16_f16_exp_mem_v2_default_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_mem_v2_mnkpadding_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_f16_f16_f16_exp_mem_v2_mnkpadding_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_odd_mn_instances(op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_odd_n_instances(op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_odd_m_instances(op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_xdl_f16_f16_f16_exp_odd_mn_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_xdl_f16_f16_f16_exp_odd_n_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_xdl_f16_f16_f16_exp_odd_m_instances(
+                        op_ptrs);
                 }
 #endif
 #ifdef CK_ENABLE_BF16
@@ -698,23 +705,23 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     add_device_grouped_conv3d_bwd_weight_two_stage_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_pipev5_irregular_instances(
                         op_ptrs);
                     // Explicit GEMM
-                    add_device_grouped_convnd_bwd_weight_bf16_bf16_bf16_exp_comp_default_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_bf16_bf16_bf16_exp_comp_default_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_bf16_bf16_bf16_exp_comp_mnkpadding_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_bf16_bf16_bf16_exp_comp_mnkpadding_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_bf16_bf16_bf16_exp_mem_v1_default_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_bf16_bf16_bf16_exp_mem_v1_default_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_bf16_bf16_bf16_exp_mem_v1_mnkpadding_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_bf16_bf16_bf16_exp_mem_v1_mnkpadding_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_bf16_bf16_bf16_exp_mem_v2_default_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_bf16_bf16_bf16_exp_mem_v2_default_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_bf16_bf16_bf16_exp_mem_v2_mnkpadding_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_bf16_bf16_bf16_exp_mem_v2_mnkpadding_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_bf16_bf16_bf16_exp_odd_mn_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_bf16_bf16_bf16_exp_odd_mn_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_bf16_bf16_bf16_exp_odd_m_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_bf16_bf16_bf16_exp_odd_m_instances(
                         op_ptrs);
-                    add_device_grouped_convnd_bwd_weight_bf16_bf16_bf16_exp_odd_n_instances(
+                    add_device_grouped_convnd_bwd_weight_xdl_bf16_bf16_bf16_exp_odd_n_instances(
                         op_ptrs);
                 }
 #endif
@@ -888,6 +895,25 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                         op_ptrs);
                     add_device_grouped_conv2d_bwd_weight_two_stage_wmma_nhwgc_gkyxc_nhwgk_f16_pipev1_irregular_instances(
                         op_ptrs);
+                    // Explicit GEMM
+                    add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_comp_default_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_comp_mnkpadding_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_mem_v1_default_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_mem_v1_mnkpadding_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_mem_v2_default_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_mem_v2_mnkpadding_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_odd_mn_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_odd_n_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_odd_m_instances(
+                        op_ptrs);
                 }
 #endif
 #ifdef CK_ENABLE_BF16
@@ -917,6 +943,25 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     add_device_grouped_conv2d_bwd_weight_two_stage_wmma_nhwgc_gkyxc_nhwgk_bf16_pipev1_part2_instances(
                         op_ptrs);
                     add_device_grouped_conv2d_bwd_weight_two_stage_wmma_nhwgc_gkyxc_nhwgk_bf16_pipev1_irregular_instances(
+                        op_ptrs);
+                    // Explicit GEMM
+                    add_device_grouped_convnd_bwd_weight_wmma_bf16_bf16_bf16_exp_comp_default_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_bf16_bf16_bf16_exp_mem_v1_default_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_bf16_bf16_bf16_exp_odd_m_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_bf16_bf16_bf16_exp_odd_n_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_bf16_bf16_bf16_exp_odd_mn_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_bf16_bf16_bf16_exp_comp_mnkpadding_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_bf16_bf16_bf16_exp_mem_v1_mnkpadding_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_bf16_bf16_bf16_exp_mem_v2_default_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_bf16_bf16_bf16_exp_mem_v2_mnkpadding_instances(
                         op_ptrs);
                 }
 #endif
@@ -1024,6 +1069,25 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                         op_ptrs);
                     add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ndhwgc_gkzyxc_ndhwgk_f16_pipev1_irregular_instances(
                         op_ptrs);
+                    // Explicit GEMM
+                    add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_comp_default_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_comp_mnkpadding_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_mem_v1_default_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_mem_v1_mnkpadding_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_mem_v2_default_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_mem_v2_mnkpadding_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_odd_mn_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_odd_n_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_odd_m_instances(
+                        op_ptrs);
                 }
 #endif
 #ifdef CK_ENABLE_BF16
@@ -1053,6 +1117,25 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ndhwgc_gkzyxc_ndhwgk_bf16_pipev1_part2_instances(
                         op_ptrs);
                     add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ndhwgc_gkzyxc_ndhwgk_bf16_pipev1_irregular_instances(
+                        op_ptrs);
+                    // Explicit GEMM
+                    add_device_grouped_convnd_bwd_weight_wmma_bf16_bf16_bf16_exp_comp_default_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_bf16_bf16_bf16_exp_mem_v1_default_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_bf16_bf16_bf16_exp_odd_m_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_bf16_bf16_bf16_exp_odd_n_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_bf16_bf16_bf16_exp_odd_mn_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_bf16_bf16_bf16_exp_comp_mnkpadding_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_bf16_bf16_bf16_exp_mem_v1_mnkpadding_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_bf16_bf16_bf16_exp_mem_v2_default_instances(
+                        op_ptrs);
+                    add_device_grouped_convnd_bwd_weight_wmma_bf16_bf16_bf16_exp_mem_v2_mnkpadding_instances(
                         op_ptrs);
                 }
 #endif

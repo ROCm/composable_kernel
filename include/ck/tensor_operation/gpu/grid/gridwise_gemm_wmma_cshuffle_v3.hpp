@@ -332,6 +332,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
 
     struct Problem
     {
+        __host__ Problem() = default;
         __host__ Problem(index_t M_,
                          index_t N_,
                          index_t K_,
@@ -406,6 +407,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
     // Argument
     struct Argument : public tensor_operation::device::BaseArgument, public Problem
     {
+        __host__ Argument() = default;
         __host__ Argument(std::array<const void*, NumATensor> p_as_grid_,
                           std::array<const void*, NumBTensor> p_bs_grid_,
                           std::array<const void*, NumDTensor> p_ds_grid_,
@@ -472,9 +474,9 @@ struct GridwiseGemm_wmma_cshuffle_v3
         DsGridPointer p_ds_grid;
         EDataType* p_e_grid;
 
-        const AElementwiseOperation a_element_op;
-        const BElementwiseOperation b_element_op;
-        const CDEElementwiseOperation cde_element_op;
+        AElementwiseOperation a_element_op;
+        BElementwiseOperation b_element_op;
+        CDEElementwiseOperation cde_element_op;
 
         // TODO: it can be used with SplitK+reduction but currently only used with SplitK+atomicAdd
         bool is_reduce;

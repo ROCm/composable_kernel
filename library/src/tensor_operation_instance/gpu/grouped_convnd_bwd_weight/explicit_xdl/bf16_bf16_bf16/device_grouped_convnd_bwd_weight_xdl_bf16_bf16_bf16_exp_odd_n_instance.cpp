@@ -9,14 +9,14 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_odd_m_instances(
+void add_device_grouped_convnd_bwd_weight_xdl_bf16_bf16_bf16_exp_odd_n_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
                                                            NHWGC,
                                                            GKYXC,
                                                            NHWGK,
-                                                           F16,
-                                                           F16,
-                                                           F16,
+                                                           BF16,
+                                                           BF16,
+                                                           BF16,
                                                            PassThrough,
                                                            PassThrough,
                                                            PassThrough>>>& instances)
@@ -26,25 +26,24 @@ void add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_odd_m_instances(
         NHWGC,
         GKYXC,
         NHWGK,
-        F16,
-        F16,
-        F16,
+        BF16,
+        BF16,
+        BF16,
         PassThrough,
         PassThrough,
         PassThrough,
-        device_gemm_xdl_universal_km_kn_mn_irregular_odd_m_instances<F16,
-                                                                     Intrawave,
-                                                                     GemmMNKPadding>>(instances);
+        device_gemm_xdl_universal_km_kn_mn_odd_n_instances<BF16, Intrawave, GemmMNKPadding>>(
+        instances);
 }
 
-void add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_odd_m_instances(
+void add_device_grouped_convnd_bwd_weight_xdl_bf16_bf16_bf16_exp_odd_n_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
                                                            NDHWGC,
                                                            GKZYXC,
                                                            NDHWGK,
-                                                           F16,
-                                                           F16,
-                                                           F16,
+                                                           BF16,
+                                                           BF16,
+                                                           BF16,
                                                            PassThrough,
                                                            PassThrough,
                                                            PassThrough>>>& instances)
@@ -54,15 +53,14 @@ void add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_odd_m_instances(
         NDHWGC,
         GKZYXC,
         NDHWGK,
-        F16,
-        F16,
-        F16,
+        BF16,
+        BF16,
+        BF16,
         PassThrough,
         PassThrough,
         PassThrough,
-        device_gemm_xdl_universal_km_kn_mn_irregular_odd_m_instances<F16,
-                                                                     Intrawave,
-                                                                     GemmMNKPadding>>(instances);
+        device_gemm_xdl_universal_km_kn_mn_odd_n_instances<BF16, Intrawave, GemmMNKPadding>>(
+        instances);
 }
 
 } // namespace instance

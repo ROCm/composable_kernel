@@ -350,6 +350,11 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                   BatchStrideA_, BatchStrideB_, BatchStrideDs_, BatchStrideE_}
         {
         }
+        template <typename EType>
+        void SetEPointer(void* ptr)
+        {
+            this->p_c_grid = static_cast<EType*>(ptr);
+        }
     };
     using Argument = ArgumentBase<GridwiseGemm64>;
 

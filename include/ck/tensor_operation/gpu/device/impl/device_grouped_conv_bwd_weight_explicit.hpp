@@ -32,7 +32,7 @@ template <ck::index_t NDimSpatial,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation,
           typename DeviceGemmV3Op>
-struct DeviceGroupedConvBwdWeight_Explicit_Xdl
+struct DeviceGroupedConvBwdWeight_Explicit
     : public DeviceGroupedConvBwdWeight<NDimSpatial,
                                         InLayout,
                                         WeiLayout,
@@ -56,7 +56,7 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
         sizeof(WeiDataType) % 4 != 0 &&
         DeviceGemmV3Op::CDEShuffleBlockTransferScalarPerVectors_::At(I0) % 2 != 0;
 
-    using DeviceOp                 = DeviceGroupedConvBwdWeight_Explicit_Xdl;
+    using DeviceOp                 = DeviceGroupedConvBwdWeight_Explicit;
     using TwoStageIntermediateType = typename DeviceGemmV3Op::CDataType_;
 
     static constexpr index_t ElementwiseBlockSize = 256;
@@ -288,8 +288,8 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
             {
                 // Modify to use workspace as output
                 GemmArgument explicit_gemm_args_with_workspace = arg.explicit_gemm_args;
-                explicit_gemm_args_with_workspace.p_c_grid =
-                    static_cast<TwoStageIntermediateType*>(arg.p_workspace_);
+                explicit_gemm_args_with_workspace.template SetEPointer<TwoStageIntermediateType>(
+                    arg.p_workspace_);
                 float avg_time =
                     explicit_gemm_op.Run(explicit_gemm_args_with_workspace, stream_config);
                 const index_t grid_size =
@@ -494,7 +494,7 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGroupedConvBwdWeight_Explicit_Xdl"
+        str << "DeviceGroupedConvBwdWeight_Explicit"
             << "<" << DeviceGemmV3Op{}.GetTypeString() << ">";
         // clang-format on
 

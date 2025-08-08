@@ -1,0 +1,111 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_multiple_d_wmma_cshuffle_v3.hpp"
+
+#include "ck/library/tensor_operation_instance/add_grouped_conv_bwd_wei_exp_device_operation_instance.hpp"
+
+namespace ck {
+namespace tensor_operation {
+namespace device {
+namespace instance {
+
+using namespace ck::tensor_layout::convolution;
+
+using BF16 = bhalf_t;
+using F16  = half_t;
+using F32  = float;
+
+using Row = tensor_layout::gemm::RowMajor;
+using Col = tensor_layout::gemm::ColumnMajor;
+
+template <index_t... Is>
+using S = Sequence<Is...>;
+
+using PassThrough = element_wise::PassThrough;
+
+static constexpr auto GemmDefault    = GemmSpecialization::Default;
+static constexpr auto GemmKPadding   = GemmSpecialization::KPadding;
+static constexpr auto GemmMPadding   = GemmSpecialization::MPadding;
+static constexpr auto GemmMNPadding  = GemmSpecialization::MNPadding;
+static constexpr auto GemmMKPadding  = GemmSpecialization::MKPadding;
+static constexpr auto GemmMNKPadding = GemmSpecialization::MNKPadding;
+
+static constexpr auto Intrawave = BlockGemmPipelineScheduler::Intrawave;
+static constexpr auto Interwave = BlockGemmPipelineScheduler::Interwave;
+
+template <typename InOutDataType, GemmSpecialization GemmSpec>
+using device_gemm_wmma_universal_km_kn_mn_comp_instances = std::tuple<
+    // clang-format off
+        //#####################################| ALayout| BLayout| DsLayout |ELayout|     ADataType|     BDataType| DsDataType|     CDataType|   AccDataType|      CShuffle|           A|           B|         CDE|           GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MRepeat| NRepeat|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CShuffleBlockTransferClusterLengths|  CShuffleBlockTransfer|                          BlockwiseGemm|                BlockwiseGemm|
+        //#####################################|        |        |          |       |              |              |           |              |              |      DataType| Elementwise| Elementwise| Elementwise| Specialization|  Size| Block| Block| Block|    |    | Wmma| Wmma|        |        |   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN|     MRepeat|     NRepeat|  _MBlock_MPerBlock_NBlock_NPerBlock|       ScalarPerVectors|                               Pipeline|                     Pipeline|
+        //#####################################|        |        |          |       |              |              |           |              |              |              |   Operation|   Operation|   Operation|               |      |      |      |      |    |    |     |     |        |        | Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|                                    |                       |                              Scheduler|                     Verision|
+        //#####################################|        |        |          |       |              |              |           |              |              |              |            |            |            |               |      |      |      |      |    |    |     |     |        |        |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                                    |                       |                                       |                             |
+        DeviceBatchedGemmMultiD_Wmma_CShuffleV3<     Col,     Row,   Tuple<>,    Row, InOutDataType, InOutDataType,    Tuple<>, InOutDataType,           F32, InOutDataType, PassThrough, PassThrough, PassThrough,       GemmSpec,   256,   256,   256,    32,   4,   4,   16,   16,       8,       4,     S<8, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              8,              4,         0,     S<8, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              8,              4,         0,           1,           1,                     S<1, 16, 1, 16>,               S<4,4,4>,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v1>
+    // clang-format on
+    >;
+
+template <typename InOutDataType,
+          BlockGemmPipelineScheduler BlkGemmPipeSched,
+          GemmSpecialization GemmSpec>
+using device_gemm_wmma_universal_km_kn_mn_mem_instances = std::tuple<
+    // clang-format off
+        //#####################################| ALayout| BLayout| DsLayout |ELayout|     ADataType|     BDataType| DsDataType|     CDataType|   AccDataType|      CShuffle|           A|           B|         CDE|           GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MRepeat| NRepeat|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CShuffleBlockTransferClusterLengths|  CShuffleBlockTransfer|     BlockwiseGemm|                BlockwiseGemm|
+        //#####################################|        |        |          |       |              |              |           |              |              |      DataType| Elementwise| Elementwise| Elementwise| Specialization|  Size| Block| Block| Block|    |    | Wmma| Wmma|        |        |   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN|     MRepeat|     NRepeat|  _MBlock_MPerBlock_NBlock_NPerBlock|       ScalarPerVectors|          Pipeline|                     Pipeline|
+        //#####################################|        |        |          |       |              |              |           |              |              |              |   Operation|   Operation|   Operation|               |      |      |      |      |    |    |     |     |        |        | Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|                                    |                       |         Scheduler|                     Verision|
+        //#####################################|        |        |          |       |              |              |           |              |              |              |            |            |            |               |      |      |      |      |    |    |     |     |        |        |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                                    |                       |                  |                             |
+        // Latency friendly
+        DeviceBatchedGemmMultiD_Wmma_CShuffleV3<     Col,     Row,   Tuple<>,    Row, InOutDataType, InOutDataType,    Tuple<>, InOutDataType,           F32, InOutDataType, PassThrough, PassThrough, PassThrough,       GemmSpec,    64,    32,    16,    64,   4,   4,   16,   16,       1,       1,    S<16,  4, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              4,              4,         0,    S<16,  4, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              4,         0,           1,           1,                     S<1,  8, 1,  8>,               S<2,2,2>,  BlkGemmPipeSched, BlockGemmPipelineVersion::v1>
+        // Memory friendly
+    // clang-format on
+    >;
+
+template <typename InOutDataType,
+          BlockGemmPipelineScheduler BlkGemmPipeSched,
+          GemmSpecialization GemmSpec>
+using device_gemm_wmma_universal_km_kn_mn_irregular_odd_m_instances = std::tuple<
+    // clang-format off
+    //#####################################| ALayout| BLayout| DsLayout |ELayout|     ADataType|     BDataType| DsDataType|     CDataType|   AccDataType|      CShuffle|           A|           B|         CDE|           GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MRepeat| NRepeat|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CShuffleBlockTransferClusterLengths|  CShuffleBlockTransfer|     BlockwiseGemm|                BlockwiseGemm|
+    //#####################################|        |        |          |       |              |              |           |              |              |      DataType| Elementwise| Elementwise| Elementwise| Specialization|  Size| Block| Block| Block|    |    | Wmma| Wmma|        |        |   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN|     MRepeat|     NRepeat|  _MBlock_MPerBlock_NBlock_NPerBlock|       ScalarPerVectors|          Pipeline|                     Pipeline|
+    //#####################################|        |        |          |       |              |              |           |              |              |              |   Operation|   Operation|   Operation|               |      |      |      |      |    |    |     |     |        |        | Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|                                    |                       |         Scheduler|                     Verision|
+    //#####################################|        |        |          |       |              |              |           |              |              |              |            |            |            |               |      |      |      |      |    |    |     |     |        |        |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                                    |                       |                  |                             |
+    // Latency friendly
+    DeviceBatchedGemmMultiD_Wmma_CShuffleV3<     Col,     Row,   Tuple<>,    Row, InOutDataType, InOutDataType,    Tuple<>, InOutDataType,           F32, InOutDataType, PassThrough, PassThrough, PassThrough,       GemmSpec,    64,    32,    16,    64,   4,   4,   16,   16,       1,       1,    S<16,  4, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              4,         0,    S<16,  4, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              4,         0,           1,           1,                     S<1,  8, 1,  8>,               S<2,2,2>,  BlkGemmPipeSched, BlockGemmPipelineVersion::v1>
+    // clang-format on
+    >;
+
+template <typename InOutDataType,
+          BlockGemmPipelineScheduler BlkGemmPipeSched,
+          GemmSpecialization GemmSpec>
+using device_gemm_wmma_universal_km_kn_mn_odd_n_instances = std::tuple<
+    // clang-format off
+    //#####################################| ALayout| BLayout| DsLayout |ELayout|     ADataType|     BDataType| DsDataType|     CDataType|   AccDataType|      CShuffle|           A|           B|         CDE|           GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MRepeat| NRepeat|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CShuffleBlockTransferClusterLengths|  CShuffleBlockTransfer|     BlockwiseGemm|                BlockwiseGemm|
+    //#####################################|        |        |          |       |              |              |           |              |              |      DataType| Elementwise| Elementwise| Elementwise| Specialization|  Size| Block| Block| Block|    |    | Wmma| Wmma|        |        |   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN|     MRepeat|     NRepeat|  _MBlock_MPerBlock_NBlock_NPerBlock|       ScalarPerVectors|          Pipeline|                     Pipeline|
+    //#####################################|        |        |          |       |              |              |           |              |              |              |   Operation|   Operation|   Operation|               |      |      |      |      |    |    |     |     |        |        | Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|                                    |                       |         Scheduler|                     Verision|
+    //#####################################|        |        |          |       |              |              |           |              |              |              |            |            |            |               |      |      |      |      |    |    |     |     |        |        |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                                    |                       |                  |                             |
+    // Latency friendly
+    DeviceBatchedGemmMultiD_Wmma_CShuffleV3<     Col,     Row,   Tuple<>,    Row, InOutDataType, InOutDataType,    Tuple<>,           F32,           F32, InOutDataType, PassThrough, PassThrough, PassThrough,       GemmSpec,    64,    32,    16,    64,   4,   4,   16,   16,       1,       1,    S<16,  4, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              4,              4,         0,    S<16,  4, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              1,              4,         0,           1,           1,                     S<1,  8, 1,  8>,               S<1,1,1>,  BlkGemmPipeSched, BlockGemmPipelineVersion::v1>
+    // clang-format on
+    >;
+
+template <typename InOutDataType,
+          BlockGemmPipelineScheduler BlkGemmPipeSched,
+          GemmSpecialization GemmSpec>
+using device_gemm_wmma_universal_km_kn_mn_irregular_odd_mn_instances = std::tuple<
+    // clang-format off
+    //#####################################| ALayout| BLayout| DsLayout |ELayout|     ADataType|     BDataType| DsDataType|     CDataType|   AccDataType|      CShuffle|           A|           B|         CDE|           GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MRepeat| NRepeat|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CShuffleBlockTransferClusterLengths|  CShuffleBlockTransfer|     BlockwiseGemm|                BlockwiseGemm|
+    //#####################################|        |        |          |       |              |              |           |              |              |      DataType| Elementwise| Elementwise| Elementwise| Specialization|  Size| Block| Block| Block|    |    | Wmma| Wmma|        |        |   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN|     MRepeat|     NRepeat|  _MBlock_MPerBlock_NBlock_NPerBlock|       ScalarPerVectors|          Pipeline|                     Pipeline|
+    //#####################################|        |        |          |       |              |              |           |              |              |              |   Operation|   Operation|   Operation|               |      |      |      |      |    |    |     |     |        |        | Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|                                    |                       |         Scheduler|                     Verision|
+    //#####################################|        |        |          |       |              |              |           |              |              |              |            |            |            |               |      |      |      |      |    |    |     |     |        |        |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                                    |                       |                  |                             |
+    // Latency friendly
+    DeviceBatchedGemmMultiD_Wmma_CShuffleV3<     Col,     Row,   Tuple<>,    Row, InOutDataType, InOutDataType,    Tuple<>,           F32,           F32, InOutDataType, PassThrough, PassThrough, PassThrough,       GemmSpec,    64,    32,    16,    64,   4,   4,   16,   16,       1,       1,    S<16,  4, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              4,         0,    S<16,  4, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              1,              4,         0,           1,           1,                     S<1,  8, 1,  8>,               S<1,1,1>,  BlkGemmPipeSched, BlockGemmPipelineVersion::v1>
+    // clang-format on
+    >;
+
+} // namespace instance
+} // namespace device
+} // namespace tensor_operation
+} // namespace ck
