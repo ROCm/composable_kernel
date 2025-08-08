@@ -8,7 +8,7 @@
 
 namespace ck_tile {
 
-struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgCrPolicy
+struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgCrPolicy
 {
     using Base = UniversalGemmPipelineAgBgCrPolicy;
     using Base::I0;
@@ -19,29 +19,29 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
     using Base::BTileAccessPattern;
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeAQ()
+    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeBQ()
     {
-        using AQLayout                = remove_cvref_t<typename Problem::AQLayout>;
-        using AQDataType              = remove_cvref_t<typename Problem::AQDataType>;
-        constexpr index_t MPerBlock   = Problem::BlockGemmShape::kM;
+        using BQLayout                = remove_cvref_t<typename Problem::BQLayout>;
+        using BQDataType              = remove_cvref_t<typename Problem::BQDataType>;
+        constexpr index_t NPerBlock   = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
-        constexpr index_t KPerBlockAQ = KPerBlock / Problem::kQuantGroupSize;
+        constexpr index_t KPerBlockBQ = KPerBlock / Problem::kQuantGroupSize;
 
-        static_assert(std::is_same_v<AQLayout, ck_tile::tensor_layout::gemm::RowMajor>);
-        return GetABQGlobalVectorLoadSize<Problem, AQDataType, MPerBlock, KPerBlockAQ>();
+        static_assert(std::is_same_v<BQLayout, ck_tile::tensor_layout::gemm::ColumnMajor>);
+        return GetABQGlobalVectorLoadSize<Problem, BQDataType, NPerBlock, KPerBlockBQ>();
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeAQDramTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeBQDramTileDistribution()
     {
-        using AQLayout       = remove_cvref_t<typename Problem::AQLayout>;
+        using BQLayout       = remove_cvref_t<typename Problem::BQLayout>;
         using BlockGemmShape = typename Problem::BlockGemmShape;
 
         constexpr index_t BlockSize   = Problem::kBlockSize;
-        constexpr index_t MPerBlock   = Problem::BlockGemmShape::kM;
+        constexpr index_t NPerBlock   = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
-        constexpr index_t KPerBlockAQ = KPerBlock / Problem::kQuantGroupSize;
-        constexpr index_t VecLoadSize = GetVectorSizeAQ<Problem>();
+        constexpr index_t KPerBlockBQ = KPerBlock / Problem::kQuantGroupSize;
+        constexpr index_t VecLoadSize = GetVectorSizeBQ<Problem>();
         using WarpTile                = typename Problem::BlockGemmShape::WarpTile;
         using WarpGemm                = WarpGemmMfmaDispatcher<typename Problem::ComputeDataType,
                                                                typename Problem::ComputeDataType,
@@ -51,12 +51,12 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                                                                WarpTile::at(I2),
                                                                Problem::TransposeC>;
 
-        static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
-        using TileEncodingPattern = TileDistributionEncodingPatternAQ<BlockGemmShape,
+        static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
+        using TileEncodingPattern = TileDistributionEncodingPatternBQ<BlockGemmShape,
                                                                       WarpGemm,
                                                                       BlockSize,
-                                                                      MPerBlock,
-                                                                      KPerBlockAQ,
+                                                                      NPerBlock,
+                                                                      KPerBlockBQ,
                                                                       VecLoadSize>;
 
         return TileEncodingPattern::Make2DStaticTileDistribution();
@@ -86,7 +86,7 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                                                                       typename Problem::CDataType,
                                                                       BlockWarps,
                                                                       WarpGemm>;
-        return AQuantBlockUniversalGemmAsBsCr<Problem, BlockGemmPolicy>{};
+        return BQuantBlockUniversalGemmAsBsCr<Problem, BlockGemmPolicy>{};
     }
 };
 
