@@ -157,7 +157,7 @@ auto gemm_multi_d(const gemm_multi_d_kargs& args, const ck_tile::stream_config& 
                                                  UniversalGemmProblem::TransposeC,
                                                  memory_operation>>;
 
-            using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+            using Kernel = ck_tile::GemmKernelMultiD<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
 
             const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
@@ -170,10 +170,9 @@ auto gemm_multi_d(const gemm_multi_d_kargs& args, const ck_tile::stream_config& 
 
             if(s.log_level_ > 0)
             {
-                std::cout << "Launching kernel with args:"
-                          << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                          << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
-                          << "}" << std::endl;
+                std::cout << "Launching kernel with args:" << " grid: {" << grids.x << ", "
+                          << grids.y << ", " << grids.z << "}" << ", blocks: {" << blocks.x << ", "
+                          << blocks.y << ", " << blocks.z << "}" << std::endl;
             }
 
             ave_time = ck_tile::launch_kernel(

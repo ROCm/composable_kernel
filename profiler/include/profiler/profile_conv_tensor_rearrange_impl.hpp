@@ -288,9 +288,8 @@ bool profile_conv_tensor_rearrange_impl(int do_verification,
         }
     }
 
-    std::cout << "Best configuration parameters:"
-              << "\nname: " << best_op_name << "\navg_time: " << best_avg_time
-              << "\nGB/s: " << best_gb_per_sec << std::endl;
+    std::cout << "Best configuration parameters:" << "\nname: " << best_op_name
+              << "\navg_time: " << best_avg_time << "\nGB/s: " << best_gb_per_sec << std::endl;
 
     return is_supporting_instance && pass;
 }

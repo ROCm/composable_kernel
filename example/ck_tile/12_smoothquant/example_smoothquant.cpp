@@ -216,10 +216,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
             }
         }
 
-        std::cout << "[" << data_type << "]"
-                  << " m:" << m << ", n:" << n << ", x_stride:" << x_stride
-                  << ", y_stride:" << y_stride << ", valid:" << (pass ? "y" : "n") << std::flush
-                  << std::endl;
+        std::cout << "[" << data_type << "]" << " m:" << m << ", n:" << n
+                  << ", x_stride:" << x_stride << ", y_stride:" << y_stride
+                  << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
     }
 
     return pass;
