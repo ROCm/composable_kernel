@@ -428,109 +428,7 @@ struct tile_distribution_encoding
         {
             return get_sorted_info(get_uniformed_idx_y_to_h(), get_h_dim_lengths_prefix_sum());
         }
-
-        CK_TILE_HOST_DEVICE void print() const
-        {
-            printf("tile_distribution_encoding::detail{");
-            //
-            printf("ndim_rh_major_: ");
-            print(ndim_rh_major_);
-            printf(", ");
-            //
-            printf("ndim_span_major_: ");
-            print(ndim_span_major_);
-            printf(", ");
-            //
-            printf("ndims_rhs_minor_: ");
-            print(ndims_rhs_minor_);
-            printf(", ");
-            //
-            printf("ndim_rh_major_: ");
-            print(ndim_rh_major_);
-            printf(", ");
-            //
-            printf("max_ndim_rh_minor_: ");
-            print(max_ndim_rh_minor_);
-            printf(", ");
-            //
-            printf("rhs_lengthss_: ");
-            print(rhs_lengthss_);
-            printf(", ");
-            //
-            printf("ys_lengths_: ");
-            print(ys_lengths_);
-            printf(", ");
-            //
-            printf("rhs_major_minor_to_ys_: ");
-            print(rhs_major_minor_to_ys_);
-            printf(", ");
-            //
-            printf("ndims_span_minor_: ");
-            print(ndims_span_minor_);
-            printf(", ");
-            //
-            printf("max_ndim_span_minor_: ");
-            print(max_ndim_span_minor_);
-            printf(", ");
-            //
-            printf("ys_to_span_major_: ");
-            print(ys_to_span_major_);
-            printf(", ");
-            //
-            printf("ys_to_span_minor_: ");
-            print(ys_to_span_minor_);
-            printf(", ");
-            //
-            printf("distributed_spans_lengthss_: ");
-            print(distributed_spans_lengthss_);
-            printf(", ");
-            //
-            printf("ndims_distributed_spans_minor_: ");
-            print(ndims_distributed_spans_minor_);
-            printf(", ");
-            //
-            printf("ps_over_rs_derivative_: ");
-            print(ps_over_rs_derivative_);
-            //
-            printf("}");
-        }
     };
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("tile_distribution_encoding{");
-        //
-        printf("NDimX: %d, NDimP: %d, NDimY: %d, ", NDimX, NDimP, NDimY);
-        //
-        printf("rs_lengths_: ");
-        print(rs_lengths_);
-        printf(", ");
-        //
-        printf("hs_lengthss_: ");
-        print(hs_lengthss_);
-        printf(", ");
-        //
-        printf("ps_to_rhss_major_: ");
-        print(ps_to_rhss_major_);
-        printf(", ");
-        //
-        printf("ps_to_rhss_minor_: ");
-        print(ps_to_rhss_minor_);
-        printf(", ");
-        //
-        printf("ys_to_rhs_major_: ");
-        print(ys_to_rhs_major_);
-        printf(", ");
-        //
-        printf("ys_to_rhs_minor_: ");
-        print(ys_to_rhs_minor_);
-        printf(", ");
-        //
-        printf("detail: ");
-        print(detail{});
-        //
-        printf("}");
-    }
 };
 
 template <typename encoding, typename shuffle>
@@ -896,4 +794,106 @@ make_reduce_tile_distribution_encoding(InDstr, sequence<InReduceDimXs...> reduce
 }
 
 } // namespace detail
+
+// Free print function for tile_distribution_encoding::detail
+template <typename RsLengths_,
+          typename HsLengthss_,
+          typename Ps2RHssMajor_,
+          typename Ps2RHssMinor_,
+          typename Ys2RHsMajor_,
+          typename Ys2RHsMinor_>
+CK_TILE_HOST_DEVICE void
+print(const typename tile_distribution_encoding<RsLengths_,
+                                                HsLengthss_,
+                                                Ps2RHssMajor_,
+                                                Ps2RHssMinor_,
+                                                Ys2RHsMajor_,
+                                                Ys2RHsMinor_>::detail& detail_obj)
+{
+    printf("tile_distribution_encoding::detail{");
+    printf("ndim_rh_major_: ");
+    print(detail_obj.ndim_rh_major_);
+    printf(", ");
+    printf("ndim_span_major_: ");
+    print(detail_obj.ndim_span_major_);
+    printf(", ");
+    printf("ndims_rhs_minor_: ");
+    print(detail_obj.ndims_rhs_minor_);
+    printf(", ");
+    printf("ndim_rh_major_: ");
+    print(detail_obj.ndim_rh_major_);
+    printf(", ");
+    printf("max_ndim_rh_minor_: ");
+    print(detail_obj.max_ndim_rh_minor_);
+    printf(", ");
+    printf("rhs_lengthss_: ");
+    print(detail_obj.rhs_lengthss_);
+    printf(", ");
+    printf("ys_lengths_: ");
+    print(detail_obj.ys_lengths_);
+    printf(", ");
+    printf("rhs_major_minor_to_ys_: ");
+    print(detail_obj.rhs_major_minor_to_ys_);
+    printf(", ");
+    printf("ndims_span_minor_: ");
+    print(detail_obj.ndims_span_minor_);
+    printf(", ");
+    printf("max_ndim_span_minor_: ");
+    print(detail_obj.max_ndim_span_minor_);
+    printf(", ");
+    printf("ys_to_span_major_: ");
+    print(detail_obj.ys_to_span_major_);
+    printf(", ");
+    printf("ys_to_span_minor_: ");
+    print(detail_obj.ys_to_span_minor_);
+    printf(", ");
+    printf("distributed_spans_lengthss_: ");
+    print(detail_obj.distributed_spans_lengthss_);
+    printf(", ");
+    printf("ndims_distributed_spans_minor_: ");
+    print(detail_obj.ndims_distributed_spans_minor_);
+    printf(", ");
+    printf("ps_over_rs_derivative_: ");
+    print(detail_obj.ps_over_rs_derivative_);
+    printf("}");
+}
+
+// Free print function for tile_distribution_encoding
+template <typename RsLengths_,
+          typename HsLengthss_,
+          typename Ps2RHssMajor_,
+          typename Ps2RHssMinor_,
+          typename Ys2RHsMajor_,
+          typename Ys2RHsMinor_>
+CK_TILE_HOST_DEVICE void print(const tile_distribution_encoding<RsLengths_,
+                                                                HsLengthss_,
+                                                                Ps2RHssMajor_,
+                                                                Ps2RHssMinor_,
+                                                                Ys2RHsMajor_,
+                                                                Ys2RHsMinor_>& encoding)
+{
+    printf("tile_distribution_encoding{");
+
+    printf("NDimX: %d, NDimP: %d, NDimY: %d, ", encoding.NDimX, encoding.NDimP, encoding.NDimY);
+    printf("rs_lengths_: ");
+    print(encoding.rs_lengths_);
+    printf(", ");
+    printf("hs_lengthss_: ");
+    print(encoding.hs_lengthss_);
+    printf(", ");
+    printf("ps_to_rhss_major_: ");
+    print(encoding.ps_to_rhss_major_);
+    printf(", ");
+    printf("ps_to_rhss_minor_: ");
+    print(encoding.ps_to_rhss_minor_);
+    printf(", ");
+    printf("ys_to_rhs_major_: ");
+    print(encoding.ys_to_rhs_major_);
+    printf(", ");
+    printf("ys_to_rhs_minor_: ");
+    print(encoding.ys_to_rhs_minor_);
+    printf(", ");
+    printf("}");
+}
+
 } // namespace ck_tile
