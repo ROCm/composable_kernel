@@ -532,9 +532,6 @@ struct BlockFmhaBspPipelineQRKSVSAsync
                     move_tile_window(
                         v_dram_window,
                         {0, kK1}); // will have scratch if move this right after load_tile(v_dram)...
-                    // move_tile_window(
-                    //     v_dram_window,
-                    //     {0, 0}); // will have scratch if move this right after load_tile(v_dram)...
                     v_buf = load_tile(
                         v_dram_window, number<-1>{}, bool_constant<false>{}); // load next v_buf
                 }
@@ -713,12 +710,13 @@ struct BlockFmhaBspPipelineQRKSVSAsync
             do
             {
                 coltodo--;
-                i_total_loops += (coltodo == 0) ? 1 : 0;
+                bool next_col_mask = coltodo == 0;
+                i_total_loops += next_col_mask;
                 coloff = column_mask_ptr[2*i_total_loops];
-                k_step = (coltodo == 0) ? (coloff - kv_cursor) : kN0;
-                v_step = (coltodo == 0) ? (coloff - kv_cursor - kN0) : 0;
+                k_step = (next_col_mask * (coloff - kv_cursor)) + ((1-next_col_mask) * kN0);
+                v_step = next_col_mask * (coloff - kv_cursor - kN0);
                 kv_cursor += k_step;
-                coltodo = (coltodo == 0) ? column_mask_ptr[2*i_total_loops + 1] : coltodo;
+                coltodo += next_col_mask * column_mask_ptr[2*i_total_loops + 1];
                 
                 // STAGE 1, QK gemm
                 clear_tile(s_acc); // initialize C

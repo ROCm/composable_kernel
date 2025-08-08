@@ -1409,7 +1409,7 @@ struct FmhaBspFwdKernel
         // TODO: head pointers
         // ColumnMaskDataType* column_mask_ptr = reinterpret_cast<ColumnMaskDataType*>(kargs.column_mask_ptr) + kargs.stride_column_mask_h * i_nhead + kargs.stride_column_mask_m * i_tile_m;
         ColumnMaskDataType* column_mask_ptr = reinterpret_cast<ColumnMaskDataType*>(kargs.column_mask_ptr) 
-                                            + static_cast<long_index_t>(kargs.stride_column_mask_h) * (mask_select-1)
+                                            + static_cast<long_index_t>(kargs.stride_column_mask_h) * (mask_select - (mask_select > 0))
                                             + (static_cast<long_index_t>(kargs.stride_column_mask_m) * i_tile_m);
         const DocumentIdDataType* document_id_ptr = reinterpret_cast<const DocumentIdDataType*>(kargs.document_id_ptr);
 
@@ -1417,7 +1417,7 @@ struct FmhaBspFwdKernel
             if constexpr(kDoFp8StaticQuant)
             {
                 return FmhaBspPipeline{}(
-                                        is_language | (mask_select == 0),
+                                        is_language || (mask_select == 0),
                                         column_mask_ptr,
                                         document_id_ptr,
                                         q_dram_window,
@@ -1443,7 +1443,7 @@ struct FmhaBspFwdKernel
             else
             {
                 return FmhaBspPipeline{}(
-                                      is_language | (mask_select==0),
+                                      is_language || (mask_select == 0),
                                       column_mask_ptr,
                                       document_id_ptr,
                                       q_dram_window,

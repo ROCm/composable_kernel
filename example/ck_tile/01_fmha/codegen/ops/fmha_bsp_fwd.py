@@ -437,12 +437,9 @@ class FmhaBspFwdKernel:
 # TODO: design a more practical way to do it
 # this is current supported tile size per hdim
 def get_fmha_bsp_fwd_tile_dict_from_dtype(dtype : str, sparse_factor : int) -> Optional[dict]:
-    if sparse_factor == 0:
+    if sparse_factor == 128:
         if dtype == 'fp16' or dtype == 'bf16':
             return {
-                '32'  : FmhaBspFwdTileSize(128, 64,  16, 32,  32,  32,   2, 1, 1,  2, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-                '64'  : FmhaBspFwdTileSize(128, 64,  32, 64,  32,  64,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-            ### '96'  : FmhaBspFwdTileSize(128, 128, 32, 128, 32,  96,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
                 '128' : FmhaBspFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
                 '192' : FmhaBspFwdTileSize(128, 128, 32, 128, 32,  192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
                 '256' : FmhaBspFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
@@ -453,7 +450,7 @@ def get_fmha_bsp_fwd_tile_dict_from_dtype(dtype : str, sparse_factor : int) -> O
                 '128' : FmhaBspFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
                 '256' : FmhaBspFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
             }
-    elif sparse_factor == 1:
+    elif sparse_factor == 64:
         if dtype == 'fp16' or dtype == 'bf16':
             return {
                 '32'  : FmhaBspFwdTileSize(128, 64,  16, 32,  32,  32,   2, 1, 1,  2, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
@@ -526,7 +523,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
     gen = list()
     api_pool = FmhaBspFwdApiPool(mask_impl)
 
-    for sparse_factor in [0, 1]:
+    for sparse_factor in [64, 128]:
         for dtype in FWD_DTYPE_MAP.keys():
             d = get_fmha_bsp_fwd_tile_dict_from_dtype(dtype, sparse_factor)
             if d == None:
