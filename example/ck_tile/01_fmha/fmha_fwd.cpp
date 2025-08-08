@@ -56,7 +56,7 @@ auto create_args(int argc, char* argv[])
             "3328",
             "seqlen_q. if group-mode, means the average value of seqlen_q\n"
             "total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary\n"
-            "also with \"-s=s0,s1,s2...\" comma seperated int to set per batch seqlen(group-mode)")
+            "also with \"-s=s0,s1,s2...\" comma-separated ints to set per batch seqlen(group-mode)")
         .insert("s_k", "-1", "seqlen_k (including new key/value), -1 means equal to s")
         .insert("s_knew",
                 "0",
@@ -123,11 +123,12 @@ auto create_args(int argc, char* argv[])
                 "random seed used for initializing input tensors. 0 for "
                 "non-deterministic seed")
         .insert("p_drop", "0", "0~1 probability of dropout")
-        .insert("drop_seed", "1", "seed for random number generator")
-        .insert("drop_offset", "0", "offset for random number generator")
-        .insert("drop_prefs",
-                "0",
-                "seed and offset values are present on GPU; 0 - host, 1 - device/GPU")
+        .insert("drop_seed", "1", "seed for dropout random number generator")
+        .insert("drop_offset", "0", "offset for dropout random number generator")
+        .insert(
+            "drop_prefs",
+            "0",
+            "whether dropout seed and offset values are present on GPU; 0 - host, 1 - device/GPU")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert(
             "rotary_dim", "0", "RoPE rotary dimension. rotary_dim <= 0 means not apply RoPE at all")
@@ -261,11 +262,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
         return false;
     }
 
-    std::optional<uint32_t> seed = arg_parser.get_uint32("seed");
-    if(*seed == 0)
-    {
-        seed.reset();
-    }
+    const uint32_t seed = arg_parser.get_uint32("seed");
+    std::mt19937 random_engine(seed != 0 ? seed : std::random_device{}());
+    auto next_seed = [&random_engine]() { return static_cast<unsigned int>(random_engine()); };
 
     ck_tile::index_t hdim_q = arg_parser.get_int("d");
     ck_tile::index_t hdim_v = arg_parser.get_int("d_v");
@@ -283,7 +282,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 #endif
     if(seqlen_knew < 0)
     {
-        seqlen_knew = randint<ck_tile::index_t>(1, arg_parser.get_int("s"), seed);
+        seqlen_knew = randint<ck_tile::index_t>(1, arg_parser.get_int("s"), random_engine);
     }
 
     ck_tile::index_t rotary_dim = arg_parser.get_int("rotary_dim");
@@ -375,7 +374,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                       arg_parser.get_str("s_k"),
                       arg_parser.get_str("s_kpad"),
                       /*seqlen_k_min=*/0 < seqlen_knew ? seqlen_knew : 0,
-                      need_append_kvcache);
+                      need_append_kvcache,
+                      random_engine);
     // compute kvcache seqlen_k (before appending knew/vnew)
     auto cache_seqlen_ks = seqlen_ks;
     std::transform(cache_seqlen_ks.begin(),
@@ -651,39 +651,41 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(init_method == "ui" || init_method == "0")
     {
-        ck_tile::FillUniformDistributionIntegerValue<QDataType>{-3.f, 3.f, seed}(q_host);
-        ck_tile::FillUniformDistributionIntegerValue<KDataType>{-3.f, 3.f, seed}(k_host);
-        ck_tile::FillUniformDistributionIntegerValue<KDataType>{-3.f, 3.f, seed}(knew_host);
-        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-3.f, 3.f, seed}(v_host);
-        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-3.f, 3.f, seed}(vnew_host);
-        ck_tile::FillUniformDistributionIntegerValue<BiasDataType>{-3.f, 3.f, seed}(bias_host);
+        ck_tile::FillUniformDistributionIntegerValue<QDataType>{-3.f, 3.f, next_seed()}(q_host);
+        ck_tile::FillUniformDistributionIntegerValue<KDataType>{-3.f, 3.f, next_seed()}(k_host);
+        ck_tile::FillUniformDistributionIntegerValue<KDataType>{-3.f, 3.f, next_seed()}(knew_host);
+        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-3.f, 3.f, next_seed()}(v_host);
+        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-3.f, 3.f, next_seed()}(vnew_host);
+        ck_tile::FillUniformDistributionIntegerValue<BiasDataType>{-3.f, 3.f, next_seed()}(
+            bias_host);
     }
     else if(init_method == "ni")
     {
-        ck_tile::FillNormalDistributionIntegerValue<QDataType>{-3.f, 3.f, seed}(q_host);
-        ck_tile::FillNormalDistributionIntegerValue<KDataType>{-3.f, 3.f, seed}(k_host);
-        ck_tile::FillNormalDistributionIntegerValue<KDataType>{-3.f, 3.f, seed}(knew_host);
-        ck_tile::FillNormalDistributionIntegerValue<VDataType>{-3.f, 3.f, seed}(v_host);
-        ck_tile::FillNormalDistributionIntegerValue<VDataType>{-3.f, 3.f, seed}(vnew_host);
-        ck_tile::FillNormalDistributionIntegerValue<BiasDataType>{-3.f, 3.f, seed}(bias_host);
+        ck_tile::FillNormalDistributionIntegerValue<QDataType>{-3.f, 3.f, next_seed()}(q_host);
+        ck_tile::FillNormalDistributionIntegerValue<KDataType>{-3.f, 3.f, next_seed()}(k_host);
+        ck_tile::FillNormalDistributionIntegerValue<KDataType>{-3.f, 3.f, next_seed()}(knew_host);
+        ck_tile::FillNormalDistributionIntegerValue<VDataType>{-3.f, 3.f, next_seed()}(v_host);
+        ck_tile::FillNormalDistributionIntegerValue<VDataType>{-3.f, 3.f, next_seed()}(vnew_host);
+        ck_tile::FillNormalDistributionIntegerValue<BiasDataType>{-3.f, 3.f, next_seed()}(
+            bias_host);
     }
     else if(init_method == "uf" || init_method == "1")
     {
-        ck_tile::FillUniformDistribution<QDataType>{0.f, 1.f, seed}(q_host);
-        ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(k_host);
-        ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(knew_host);
-        ck_tile::FillUniformDistribution<VDataType>{0.f, 1.f, seed}(v_host);
-        ck_tile::FillUniformDistribution<VDataType>{0.f, 1.f, seed}(vnew_host);
-        ck_tile::FillUniformDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
+        ck_tile::FillUniformDistribution<QDataType>{0.f, 1.f, next_seed()}(q_host);
+        ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, next_seed()}(k_host);
+        ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, next_seed()}(knew_host);
+        ck_tile::FillUniformDistribution<VDataType>{0.f, 1.f, next_seed()}(v_host);
+        ck_tile::FillUniformDistribution<VDataType>{0.f, 1.f, next_seed()}(vnew_host);
+        ck_tile::FillUniformDistribution<BiasDataType>{0.f, 1.f, next_seed()}(bias_host);
     }
     else if(init_method == "nf")
     {
-        ck_tile::FillNormalDistribution<QDataType>{0.f, 3.f, seed}(q_host);
-        ck_tile::FillNormalDistribution<KDataType>{0.f, 3.f, seed}(k_host);
-        ck_tile::FillNormalDistribution<KDataType>{0.f, 3.f, seed}(knew_host);
-        ck_tile::FillNormalDistribution<VDataType>{0.f, 3.f, seed}(v_host);
-        ck_tile::FillNormalDistribution<VDataType>{0.f, 3.f, seed}(vnew_host);
-        ck_tile::FillNormalDistribution<BiasDataType>{0.f, 3.f, seed}(bias_host);
+        ck_tile::FillNormalDistribution<QDataType>{0.f, 3.f, next_seed()}(q_host);
+        ck_tile::FillNormalDistribution<KDataType>{0.f, 3.f, next_seed()}(k_host);
+        ck_tile::FillNormalDistribution<KDataType>{0.f, 3.f, next_seed()}(knew_host);
+        ck_tile::FillNormalDistribution<VDataType>{0.f, 3.f, next_seed()}(v_host);
+        ck_tile::FillNormalDistribution<VDataType>{0.f, 3.f, next_seed()}(vnew_host);
+        ck_tile::FillNormalDistribution<BiasDataType>{0.f, 3.f, next_seed()}(bias_host);
     }
     else if(init_method == "tf" || init_method == "2")
     {
@@ -697,16 +699,24 @@ bool run(const ck_tile::ArgParser& arg_parser)
     else if(init_method == "ufq" || init_method == "uf:q" ||
             init_method == "3") // suitable for fp8 quantization
     {
-        ck_tile::FillUniformDistribution<QDataType>{-q_dtype_max, q_dtype_max, seed}(q_host);
-        ck_tile::FillUniformDistribution<KDataType>{-k_dtype_max, k_dtype_max, seed}(k_host);
-        ck_tile::FillUniformDistribution<KDataType>{-k_dtype_max, k_dtype_max, seed}(knew_host);
-        ck_tile::FillUniformDistribution<VDataType>{-v_dtype_max, v_dtype_max, seed}(v_host);
-        ck_tile::FillUniformDistribution<VDataType>{-v_dtype_max, v_dtype_max, seed}(vnew_host);
+        ck_tile::FillUniformDistribution<QDataType>{-q_dtype_max, q_dtype_max, next_seed()}(q_host);
+        ck_tile::FillUniformDistribution<KDataType>{-k_dtype_max, k_dtype_max, next_seed()}(k_host);
+        ck_tile::FillUniformDistribution<KDataType>{-k_dtype_max, k_dtype_max, next_seed()}(
+            knew_host);
+        ck_tile::FillUniformDistribution<VDataType>{-v_dtype_max, v_dtype_max, next_seed()}(v_host);
+        ck_tile::FillUniformDistribution<VDataType>{-v_dtype_max, v_dtype_max, next_seed()}(
+            vnew_host);
 
         // bias_fp8 = qscale_bias * bias_fp32
         float qscale_bias = (q_dtype_max / range_q) * (k_dtype_max / range_k);
         // Assume bias is in [-1.f, 1.f] in original fp32
-        ck_tile::FillUniformDistribution<BiasDataType>{-qscale_bias, qscale_bias, seed}(bias_host);
+        ck_tile::FillUniformDistribution<BiasDataType>{-qscale_bias, qscale_bias, next_seed()}(
+            bias_host);
+    }
+    else
+    {
+        std::cerr << "Unknown value for -init argument: " << init_method << std::endl;
+        return false;
     }
     if(bias.type == bias_enum::alibi)
     {
@@ -726,8 +736,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
             }
         }
     }
-    iota_shuffle(block_table_host.begin(), block_table_host.end(), 0);
-    iota_shuffle(cache_batch_idx_host.begin(), cache_batch_idx_host.end(), 0);
+    iota_shuffle(block_table_host.begin(), block_table_host.end(), 0, random_engine);
+    iota_shuffle(cache_batch_idx_host.begin(), cache_batch_idx_host.end(), 0, random_engine);
 
     ck_tile::DeviceMem q_buf(q_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem k_buf(k_host.get_element_space_size_in_bytes());

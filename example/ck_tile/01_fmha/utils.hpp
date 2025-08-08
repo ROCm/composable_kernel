@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -39,12 +39,13 @@ std::vector<int32_t> to_seqstarts(ck_tile::span<const int32_t> seqlens)
     return seqstarts;
 }
 
+template <typename RandomEngine>
 std::vector<int32_t> generate_seqlens(mode_enum mode,
                                       unsigned count,
                                       int32_t seqlen_avg,
-                                      int32_t seqlen_min = -1, // if not negative, clamp min
-                                      int32_t seqlen_max = -1, // if not negative, clamp max
-                                      std::optional<unsigned> seed = std::nullopt)
+                                      int32_t seqlen_min, // if not negative, clamp min
+                                      int32_t seqlen_max, // if not negative, clamp max
+                                      RandomEngine& random_engine)
 {
     assert(0 < count);
 
@@ -58,7 +59,6 @@ std::vector<int32_t> generate_seqlens(mode_enum mode,
     {
         using size_type = std::vector<int32_t>::size_type;
 
-        std::mt19937 random_engine(seed.has_value() ? *seed : std::random_device{}());
         std::uniform_int_distribution<size_type> idx_dist(0, count - 1);
         auto next_idx = std::bind(idx_dist, std::ref(random_engine));
 
@@ -89,39 +89,39 @@ std::vector<int32_t> generate_seqlens(mode_enum mode,
     return seqlens;
 }
 
+template <typename RandomEngine>
 std::vector<int32_t> generate_seqstarts(mode_enum mode,
                                         unsigned count,
                                         int32_t seqlen_avg,
-                                        int32_t seqlen_min           = -1,
-                                        int32_t seqlen_max           = -1,
-                                        std::optional<unsigned> seed = std::nullopt)
+                                        RandomEngine& random_engine,
+                                        int32_t seqlen_min = -1,
+                                        int32_t seqlen_max = -1)
 {
-    return to_seqstarts(generate_seqlens(mode, count, seqlen_avg, seqlen_min, seqlen_max, seed));
+    return to_seqstarts(
+        generate_seqlens(mode, count, seqlen_avg, seqlen_min, seqlen_max, random_engine));
 }
 
 // return random integer generated uniformly in range [low, high]
-template <typename Int = int>
-auto randint(Int low, Int high, std::optional<unsigned> seed = std::nullopt)
-    -> std::enable_if_t<std::is_integral_v<Int>, Int>
+template <typename Int = int, typename RandomEngine>
+auto randint(Int low,
+             Int high,
+             RandomEngine& random_engine) -> std::enable_if_t<std::is_integral_v<Int>, Int>
 {
-    std::mt19937 engine(seed.has_value() ? *seed : std::random_device{}());
     std::uniform_int_distribution<Int> dist(low, high);
-    return dist(engine);
+    return dist(random_engine);
 }
 
 // return random integers generated uniformly in range [low, high]
-template <typename Int, typename ForwardIterator>
+template <typename Int, typename ForwardIterator, typename RandomEngine>
 auto randints(ForwardIterator first,
               ForwardIterator last,
               Int low,
               Int high,
-              std::optional<unsigned> seed = std::nullopt)
-    -> std::enable_if_t<std::is_integral_v<Int>>
+              RandomEngine& random_engine) -> std::enable_if_t<std::is_integral_v<Int>>
 {
-    std::mt19937 engine(seed.has_value() ? *seed : std::random_device{}());
     std::uniform_int_distribution<Int> dist(low, high);
 
-    std::generate(first, last, [&] { return dist(engine); });
+    std::generate(first, last, [&] { return dist(random_engine); });
 }
 
 /*
@@ -136,6 +136,7 @@ auto randints(ForwardIterator first,
  *   q_val=1,2   k_val=4,5,6 -> not OK, k must have same splits with q
  *   q_val=1,2   k_val=4     -> not OK, k must have same splits with q
  */
+template <typename RandomEngine>
 std::tuple<std::vector<ck_tile::index_t>,
            std::vector<ck_tile::index_t>,
            std::vector<ck_tile::index_t>>
@@ -144,9 +145,9 @@ decode_seqlen(mode_enum mode,
               std::string q_val,
               std::string k_val,
               std::string k_pad_val,
-              ck_tile::index_t seqlen_k_min = 0,
-              bool need_append_kvcache      = false,
-              std::optional<unsigned> seed  = std::nullopt)
+              ck_tile::index_t seqlen_k_min,
+              bool need_append_kvcache,
+              RandomEngine& random_engine)
 {
 #define _S2I_(str_) static_cast<ck_tile::index_t>(std::atoi((str_).c_str()))
     if(mode == mode_enum::batch)
@@ -166,7 +167,7 @@ decode_seqlen(mode_enum mode,
                          seqlen_ks.end(),
                          seqlen_k_min,
                          seqlen_k_max,
-                         seed);
+                         random_engine);
                 return seqlen_ks;
             }
 
@@ -231,9 +232,10 @@ decode_seqlen(mode_enum mode,
         }
         if(idx < batch)
         {
-            auto rem_q = generate_seqlens(mode, batch - idx, s_q.back(), 1, s_kpad.back(), seed);
-            auto rem_k =
-                generate_seqlens(mode, batch - idx, s_k.back(), seqlen_k_min, s_kpad.back(), seed);
+            auto rem_q =
+                generate_seqlens(mode, batch - idx, s_q.back(), 1, s_kpad.back(), random_engine);
+            auto rem_k = generate_seqlens(
+                mode, batch - idx, s_k.back(), seqlen_k_min, s_kpad.back(), random_engine);
 
             s_q.insert(s_q.end(), rem_q.begin(), rem_q.end());
             s_k.insert(s_k.end(), rem_k.begin(), rem_k.end());
@@ -244,23 +246,12 @@ decode_seqlen(mode_enum mode,
 #undef _S2I_
 }
 
-int env_get_int(const char* var_name, int default_int)
-{
-    char* v = getenv(var_name);
-    int r   = default_int;
-    if(v)
-        r = std::atoi(v);
-    return r;
-}
-
-template <typename RandomAccessIterator, typename Int>
+template <typename RandomAccessIterator, typename Int, typename RandomEngine>
 std::enable_if_t<std::is_integral_v<Int>> iota_shuffle(RandomAccessIterator first,
                                                        RandomAccessIterator last,
                                                        Int value,
-                                                       std::optional<unsigned> seed = std::nullopt)
+                                                       RandomEngine& random_engine)
 {
     std::iota(first, last, value);
-
-    std::mt19937 engine(seed.has_value() ? *seed : std::random_device{}());
-    std::shuffle(first, last, engine);
+    std::shuffle(first, last, random_engine);
 }

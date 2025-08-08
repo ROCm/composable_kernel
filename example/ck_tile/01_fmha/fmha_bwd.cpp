@@ -36,7 +36,7 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("v", "1", "weather do CPU validation or not")
+    arg_parser.insert("v", "1", "whether do CPU validation or not")
         .insert("mode", "0", "kernel mode. 0:batch, 1:group")
         .insert("b", "2", "batch size")
         .insert("h", "8", "num of head, for q")
@@ -83,17 +83,18 @@ auto create_args(int argc, char* argv[])
                 "random seed used for initializing input tensors. 0 for "
                 "non-deterministic seed")
         .insert("p_drop", "0", "0~1 probability of dropout")
-        .insert("drop_seed", "1", "seed for random number generator")
-        .insert("drop_offset", "0", "offset for random number generator")
-        .insert("drop_prefs",
-                "0",
-                "seed and offset values are present on GPU; 0 - host, 1 - device/GPU")
+        .insert("drop_seed", "1", "seed for dropout random number generator")
+        .insert("drop_offset", "0", "offset for dropout random number generator")
+        .insert(
+            "drop_prefs",
+            "0",
+            "whether dropout seed and offset values are present on GPU; 0 - host, 1 - device/GPU")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "20", "number of iterations to benchmark the kernel")
         .insert("deterministic",
                 "0",
-                "if set to 1 will use multi-buffer reduction strategy for dq, atomic opeartion "
+                "if set to 1 will use multi-buffer reduction strategy for dq, atomic operation "
                 "will not be used");
 
     bool result = arg_parser.parse(argc, argv);
@@ -187,12 +188,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     mask_info mask = mask_info::decode(arg_parser.get_str("mask"), seqlen_q, seqlen_k);
 
-    int init_method              = arg_parser.get_int("init");
-    std::optional<uint32_t> seed = arg_parser.get_uint32("seed");
-    if(*seed == 0)
-    {
-        seed.reset();
-    }
+    const int init_method = arg_parser.get_int("init");
+    const uint32_t seed   = arg_parser.get_uint32("seed");
+    std::mt19937 random_engine(seed != 0 ? seed : std::random_device{}());
+    auto next_seed = [&random_engine]() { return static_cast<unsigned int>(random_engine()); };
 
     int stream_warmup  = arg_parser.get_int("warmup");
     int stream_repeat  = arg_parser.get_int("repeat");
@@ -206,8 +205,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                          stream_repeat,
                                          arg_parser.get_str("timer") == std::string("gpu")};
 
-    const auto seqstart_q_host = generate_seqstarts(mode, batch, seqlen_q);
-    const auto seqstart_k_host = generate_seqstarts(mode, batch, seqlen_k);
+    const auto seqstart_q_host = generate_seqstarts(mode, batch, seqlen_q, random_engine);
+    const auto seqstart_k_host = generate_seqstarts(mode, batch, seqlen_k, random_engine);
 
     using TypeConfig = FmhaBwdTypeConfig<DataTypeConfig>;
 
@@ -330,19 +329,21 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(init_method == 0)
     {
-        ck_tile::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f, seed}(q_host);
-        ck_tile::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f, seed}(k_host);
-        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f, seed}(v_host);
-        ck_tile::FillUniformDistributionIntegerValue<BiasDataType>{-2.f, 2.f, seed}(bias_host);
-        ck_tile::FillUniformDistributionIntegerValue<OGradDataType>{-2.f, 2.f, seed}(do_host);
+        ck_tile::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f, next_seed()}(q_host);
+        ck_tile::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f, next_seed()}(k_host);
+        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f, next_seed()}(v_host);
+        ck_tile::FillUniformDistributionIntegerValue<BiasDataType>{-2.f, 2.f, next_seed()}(
+            bias_host);
+        ck_tile::FillUniformDistributionIntegerValue<OGradDataType>{-2.f, 2.f, next_seed()}(
+            do_host);
     }
     else if(init_method == 1)
     {
-        ck_tile::FillUniformDistribution<QDataType>{0.f, 1.f, seed}(q_host);
-        ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(k_host);
-        ck_tile::FillUniformDistribution<VDataType>{0.f, 1.f, seed}(v_host);
-        ck_tile::FillUniformDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
-        ck_tile::FillUniformDistribution<OGradDataType>{0.f, 1.f, seed}(do_host);
+        ck_tile::FillUniformDistribution<QDataType>{0.f, 1.f, next_seed()}(q_host);
+        ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, next_seed()}(k_host);
+        ck_tile::FillUniformDistribution<VDataType>{0.f, 1.f, next_seed()}(v_host);
+        ck_tile::FillUniformDistribution<BiasDataType>{0.f, 1.f, next_seed()}(bias_host);
+        ck_tile::FillUniformDistribution<OGradDataType>{0.f, 1.f, next_seed()}(do_host);
     }
     else if(init_method == 2)
     {
@@ -351,6 +352,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::FillTrigValue<VDataType>{}(v_host);
         ck_tile::FillTrigValue<BiasDataType>{}(bias_host);
         ck_tile::FillTrigValue<OGradDataType>{}(do_host);
+    }
+    else
+    {
+        std::cerr << "Unknown value for init argument: " << init_method << std::endl;
+        return false;
     }
     if(bias.type == bias_enum::alibi)
     {
@@ -420,11 +426,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
               << ", dbias:" << use_dbias << ", p_drop:" << p_drop << ", s_randval:" << s_randval
               << ", deterministic:" << deterministic << ", mask:" << mask << std::flush;
 
-    std::size_t workspace_size =
-        dq_acc_host.get_element_space_size_in_bytes() * sizeof(AccDataType) / (1024 * 1024);
-
     if(deterministic == 1)
     {
+        std::size_t workspace_size =
+            dq_acc_host.get_element_space_size_in_bytes() * sizeof(AccDataType) / (1024 * 1024);
         std::cout << "\nDeterministic mode ON: " << workspace_size
                   << " MByte memory workspace allocated" << std::endl;
     }
