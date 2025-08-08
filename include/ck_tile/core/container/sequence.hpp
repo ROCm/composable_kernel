@@ -9,12 +9,9 @@
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/utility/to_sequence.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
-#include "ck_tile/core/utility/functional.hpp"
+#include "ck_tile/core/utility/print.hpp"
 
 namespace ck_tile {
-
-template <index_t, index_t, index_t>
-struct static_for;
 
 template <index_t...>
 struct sequence;
@@ -196,14 +193,23 @@ struct sequence
     {
         return sequence<f(Is)...>{};
     }
-
-    CK_TILE_HOST_DEVICE static void print()
-    {
-        printf("sequence{size: %d, data: [", size());
-        ((printf("%d ", Is)), ...);
-        printf("]}");
-    }
 };
+
+template <index_t... Is>
+CK_TILE_HOST_DEVICE static void print(const sequence<Is...>&)
+{
+    printf("sequence<");
+    if constexpr(sizeof...(Is) > 0)
+    {
+        bool first = true;
+        (([&first](index_t value) {
+             printf("%s%d", first ? "" : ", ", value);
+             first = false;
+         }(Is)),
+         ...);
+    }
+    printf(">");
+}
 
 namespace impl {
 template <typename T, T... Ints>
@@ -1236,9 +1242,8 @@ constexpr auto reverse_slice_sequence(Seq,
 template <typename Seq,
           index_t SliceSize,
           typename Mask = typename uniform_sequence_gen<Seq::size(), 1>::type>
-constexpr auto slice_sequence(Seq,
-                              number<SliceSize>,
-                              Mask = typename uniform_sequence_gen<Seq::size(), 1>::type{})
+constexpr auto
+slice_sequence(Seq, number<SliceSize>, Mask = typename uniform_sequence_gen<Seq::size(), 1>::type{})
 {
     constexpr auto r =
         reverse_slice_sequence(Seq{}.reverse(), number<SliceSize>{}, Mask{}.reverse());

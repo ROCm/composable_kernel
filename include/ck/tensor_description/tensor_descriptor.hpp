@@ -365,7 +365,7 @@ transform_tensor_descriptor(const OldTensorDescriptor& old_tensor_desc,
         Sequence<0>{}, inclusive_scan_sequence(up_dim_numbers, math::plus<index_t>{}, Number<0>{}));
 
     constexpr auto up_dim_hidden_idss = generate_tuple(
-        [ old_hidden_dim_number, up_dim_numbers_scan ](auto i) constexpr {
+        [old_hidden_dim_number, up_dim_numbers_scan](auto i) constexpr {
             return
                 typename arithmetic_sequence_gen<old_hidden_dim_number + up_dim_numbers_scan[i],
                                                  old_hidden_dim_number + up_dim_numbers_scan[i + 1],
@@ -374,12 +374,12 @@ transform_tensor_descriptor(const OldTensorDescriptor& old_tensor_desc,
         Number<num_new_transform>{});
 
     // new visible dimension's hidden ids
-    constexpr auto unordered_new_visible_dim_hidden_ids = unpack(
-        [](auto... xs) constexpr { return merge_sequences(xs...); }, up_dim_hidden_idss);
+    constexpr auto unordered_new_visible_dim_hidden_ids =
+        unpack([](auto... xs) constexpr { return merge_sequences(xs...); }, up_dim_hidden_idss);
 
-    constexpr auto new_visible_dim_unordered2ordered = unpack(
-        [](auto... xs) constexpr { return merge_sequences(xs...); },
-        NewUpperDimensionNewVisibleIdss{});
+    constexpr auto new_visible_dim_unordered2ordered =
+        unpack([](auto... xs) constexpr { return merge_sequences(xs...); },
+               NewUpperDimensionNewVisibleIdss{});
 
     constexpr auto new_visible_dim_hidden_ids =
         unordered_new_visible_dim_hidden_ids.ReorderGivenOld2New(new_visible_dim_unordered2ordered);

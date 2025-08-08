@@ -142,22 +142,15 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase<Problem_>
         // 2. bf8, fp32, bf8 -> f32
         // 3. i4, (fp8/fp32) fp8 -> f32
         // 4. i4, (fp8/fp32) bf8 -> f32
-        static_assert(
-            (std::is_same_v<ADataType, pk_int4_t> || std::is_same_v<ADataType, fp8_t> ||
-             std::is_same_v<
-                 ADataType,
-                 bf8_t>)&&(std::is_same_v<BDataType, fp8_t> ||
-                           std::is_same_v<
-                               BDataType,
-                               bf8_t>)&&(std::is_same_v<AQDataType, float> ||
-                                         std::is_same_v<AQDataType, ck_tile::fp8_t> ||
-                                         std::is_same_v<
-                                             AQDataType,
-                                             ck_tile::bf8_t>)&&(std::is_same_v<ComputeDataType,
-                                                                               fp8_t> ||
-                                                                std::is_same_v<ComputeDataType,
-                                                                               bf8_t>)&&std::
-                is_same_v<CDataType, fp32_t>);
+        static_assert((std::is_same_v<ADataType, pk_int4_t> || std::is_same_v<ADataType, fp8_t> ||
+                       std::is_same_v<ADataType, bf8_t>) &&
+                      (std::is_same_v<BDataType, fp8_t> || std::is_same_v<BDataType, bf8_t>) &&
+                      (std::is_same_v<AQDataType, float> ||
+                       std::is_same_v<AQDataType, ck_tile::fp8_t> ||
+                       std::is_same_v<AQDataType, ck_tile::bf8_t>) &&
+                      (std::is_same_v<ComputeDataType, fp8_t> ||
+                       std::is_same_v<ComputeDataType, bf8_t>) &&
+                      std::is_same_v<CDataType, fp32_t>);
 
         static constexpr index_t InterWaveSchedulingMacClusters = 1;
 

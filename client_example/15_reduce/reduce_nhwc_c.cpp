@@ -68,15 +68,15 @@ int main(int argc, char* argv[])
     SimpleDeviceMem out(sizeof(OutDataType) * num_out_elements);
 
     using DeviceOp     = ck::tensor_operation::device::DeviceReduce<InDataType,
-                                                                AccDataType,
-                                                                OutDataType,
-                                                                Rank,
-                                                                NumReduceDim,
-                                                                ReduceAdd,
-                                                                PassThrough,
-                                                                UnaryDivide,
-                                                                PropagateNan,
-                                                                OutputIndex>;
+                                                                    AccDataType,
+                                                                    OutDataType,
+                                                                    Rank,
+                                                                    NumReduceDim,
+                                                                    ReduceAdd,
+                                                                    PassThrough,
+                                                                    UnaryDivide,
+                                                                    PropagateNan,
+                                                                    OutputIndex>;
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
 

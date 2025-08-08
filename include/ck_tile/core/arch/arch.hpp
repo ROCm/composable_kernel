@@ -13,7 +13,7 @@
 #define CK_TILE_S_CNT_MAX 0b1100'1111'0111'1111
 #define CK_TILE_VMCNT(cnt)                                              \
     ([]() { static_assert(!((cnt) >> 6), "VMCNT only has 6 bits"); }(), \
-     ((cnt)&0b1111) | (((cnt)&0b110000) << 10))
+     ((cnt) & 0b1111) | (((cnt) & 0b110000) << 10))
 #define CK_TILE_EXPCNT(cnt) \
     ([]() { static_assert(!((cnt) >> 3), "EXP only has 3 bits"); }(), ((cnt) << 4))
 #define CK_TILE_LGKMCNT(cnt) \
@@ -174,22 +174,6 @@ CK_TILE_DEVICE void s_waitcnt_barrier()
     __builtin_amdgcn_s_barrier();
 }
 
-CK_TILE_DEVICE void block_sync_lds_direct_load()
-{
-#if 1
-    // invoke clang builtins which *should* produce the same result as the inline asm below
-    // difference: inline asm is being compiled to wait vmcnt(0) after the barrier
-    s_waitcnt_barrier<0, waitcnt_arg::kMaxExpCnt, 0>();
-#else
-    // same content as in old CK (#999)
-    asm volatile("\
-    s_waitcnt vmcnt(0) \n \
-    s_waitcnt lgkmcnt(0) \n \
-    s_barrier \
-    " ::);
-#endif
-}
-
 CK_TILE_DEVICE void s_nop(index_t cnt = 0)
 {
 #if 1
@@ -232,6 +216,21 @@ CK_TILE_HOST_DEVICE constexpr index_t get_smem_capacity()
 #else
     return 65536;
 #endif
+}
+
+/// Helper function to convert address space enum to string
+CK_TILE_HOST_DEVICE constexpr const char* address_space_to_string(address_space_enum addr_space)
+{
+    switch(addr_space)
+    {
+    case address_space_enum::generic: return "generic";
+    case address_space_enum::global: return "global";
+    case address_space_enum::lds: return "lds";
+    case address_space_enum::sgpr: return "sgpr";
+    case address_space_enum::constant: return "constant";
+    case address_space_enum::vgpr: return "vgpr";
+    default: return "unknown";
+    }
 }
 
 } // namespace ck_tile
