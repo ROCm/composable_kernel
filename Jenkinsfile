@@ -190,7 +190,7 @@ def buildDocker(install_prefix){
     }
     else if(params.RUN_AITER_TESTS){
         image_name = "rocm/composable_kernel:ck_aiter"
-        dockerArgs = dockerArgs + " --no-cache -f Dockerfile.aiter . "
+        dockerArgs = dockerArgs + " --no-cache -f Dockerfile.aiter --build-arg AITER_BRANCH='${params.aiter_branch}' --build-arg CK_AITER_BRANCH='${params.ck_aiter_branch}' . "
     }
     else{
         dockerArgs = dockerArgs + " -f Dockerfile . "
@@ -843,10 +843,10 @@ def run_aiter_tests(Map conf=[:]){
     withDockerContainer(image: image, args: dockerOpts) {
         timeout(time: 45, unit: 'MINUTES'){
             try{
-                sh "python3 --version"
                 sh "rocminfo"
-                sh "python3 ../aiter/op_tests/test_gemm_a8w8_blockscale.py"
-                //sh "python3 ../aiter/op_tests/test_mha.py"
+                sh "python3 --version"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py"
             }
             catch(e){
                 echo "Throwing error exception while running AITER tests"
@@ -1009,6 +1009,14 @@ pipeline {
             name: "RUN_AITER_TESTS",
             defaultValue: false,
             description: "Run AITER tests with latest CK develop branch (default: OFF)")
+        string(
+            name: 'aiter_branch',
+            defaultValue: 'main',
+            description: 'Specify which branch of AITER to use (default: main)')
+        string(
+            name: 'ck_aiter_branch',
+            defaultValue: 'develop',
+            description: 'Specify which branch of CK to test with AITER (default: develop)')
     }
     environment{
         dbuser = "${dbuser}"
@@ -1093,13 +1101,13 @@ pipeline {
         {
             parallel
             {
-                stage("Run AITER Tests on gfx90a")
+                stage("Run AITER Tests on gfx942")
                 {
                     when {
                         beforeAgent true
                         expression { params.RUN_AITER_TESTS.toBoolean() }
                     }
-                    agent{ label rocmnode("gfx90a")}
+                    agent{ label rocmnode("gfx942")}
                     steps{
                         run_aiter_tests()
                         cleanWs()
