@@ -63,7 +63,6 @@ bool profile_gemm_universal_impl(int do_verification,
             }
         };
 
-    
     if(ck::is_same_v<ALayout, ck::tensor_layout::gemm::ColumnMajor>)
     {
         if(StrideA < M)
@@ -107,7 +106,8 @@ bool profile_gemm_universal_impl(int do_verification,
         if(StrideC < M)
         {
             throw std::runtime_error(
-                "Error: For ColumnMajor layout, StrideC must be greater than or equal to M (" + std::to_string(M) + ")");
+                "Error: For ColumnMajor layout, StrideC must be greater than or equal to M (" +
+                std::to_string(M) + ")");
         }
     }
     else // RowMajor
@@ -115,7 +115,8 @@ bool profile_gemm_universal_impl(int do_verification,
         if(StrideC < N)
         {
             throw std::runtime_error(
-                "Error: For RowMajor layout, StrideC must be greater than or equal to N (" + std::to_string(N) + ")");
+                "Error: For RowMajor layout, StrideC must be greater than or equal to N (" +
+                std::to_string(N) + ")");
         }
     }
 

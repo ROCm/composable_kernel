@@ -61,7 +61,7 @@ bool profile_gemm_splitk_impl(int do_verification,
                 return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
-    
+
     if(ck::is_same_v<ALayout, ck::tensor_layout::gemm::ColumnMajor>)
     {
         if(StrideA < M)
@@ -104,7 +104,8 @@ bool profile_gemm_splitk_impl(int do_verification,
         if(StrideC < M)
         {
             throw std::runtime_error(
-                "Error: For ColumnMajor layout, StrideC must be greater than or equal to M (" + std::to_string(M) + ")");
+                "Error: For ColumnMajor layout, StrideC must be greater than or equal to M (" +
+                std::to_string(M) + ")");
         }
     }
     else // RowMajor
@@ -112,10 +113,11 @@ bool profile_gemm_splitk_impl(int do_verification,
         if(StrideC < N)
         {
             throw std::runtime_error(
-                "Error: For RowMajor layout, StrideC must be greater than or equal to N (" + std::to_string(N) + ")");
+                "Error: For RowMajor layout, StrideC must be greater than or equal to N (" +
+                std::to_string(N) + ")");
         }
     }
-    
+
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));

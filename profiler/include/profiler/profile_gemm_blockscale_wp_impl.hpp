@@ -103,7 +103,7 @@ bool profile_gemm_blockscale_weighpreshuffle_impl(int do_verification,
     ck::index_t Scale_Stride_BN = ck::is_same_v<BLayout, ck::tensor_layout::gemm::ColumnMajor>
                                       ? ((K + ScaleBlockK - 1) / ScaleBlockK)
                                       : ((N + ScaleBlockN - 1) / ScaleBlockN);
-    
+
     if(ck::is_same_v<ALayout, ck::tensor_layout::gemm::ColumnMajor>)
     {
         if(StrideA < M)
