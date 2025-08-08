@@ -24,11 +24,6 @@ jobs:
       AMDGPU_FAMILIES: "gfx94X-dcgpu"
       TEATIME_FORCE_INTERACTIVE: 0
     steps:
-      - name: "Checking out repository for rocm-libraries"
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          repository: "ROCm/rocm-libraries"
-      
       - name: Checkout TheRock repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -57,13 +52,12 @@ jobs:
       
       - name: Fetch sources
         run: |
-          ./TheRock/build_tools/fetch_sources.py --jobs 12 --no-include-math-libs
+          ./TheRock/build_tools/fetch_sources.py --jobs 12 --include-rocm-libraries
 
       - name: Patch monorepo
         run: |
           python TheRock/build_tools/patch_rocm_libraries.py \
-            --repo ./ \
-            --include-rocm-libraries
+            --repo ./
 
       - name: Install python deps
         run: |
