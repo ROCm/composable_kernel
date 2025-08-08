@@ -63,7 +63,7 @@ jobs:
         run: |
           python TheRock/build_tools/patch_rocm_libraries.py \
             --repo ./ \
-            --projects rocm-libraries
+            --include-rocm-libraries
 
       - name: Install python deps
         run: |
