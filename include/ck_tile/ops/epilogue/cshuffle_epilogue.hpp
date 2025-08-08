@@ -349,7 +349,6 @@ struct CShuffleEpilogue
                                               XPerIterationShuffle,
                                               GetVectorSizeC(),
                                               tile_distribution_pattern::thread_raked>;
-        printf("VectorSizeC: %d\n", GetVectorSizeC());
         constexpr auto dram_tile_distribution = TileEncodingPattern::Make2DStaticTileDistribution();
 
         auto d_dram_windows = generate_tuple(

@@ -32,39 +32,33 @@ using NonPersistent = std::false_type;
 
 // clang-format off
 using KernelTypesMem = ::testing::Types<
-    // std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem>,
-    // std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem>,
-    // std::tuple<    Row,     Row,     Row,       F8,       F8,         F32,       F16,             Interwave,         Mem>,
-    // std::tuple<    Row,     Row,     Row,       F8,       F8,         F32,       F16,             Intrawave,         Mem>,
-    // std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem>,
-    // std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem>,
-    // std::tuple<    Row,     Col,     Row,       F8,       F8,         F32,       F16,             Interwave,         Mem>,
-    // std::tuple<    Row,     Col,     Row,       F8,       F8,         F32,       F16,             Intrawave,         Mem>,
-    // std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem>,
-    // std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem>,
-    // std::tuple<    Col,     Row,     Row,       F8,       F8,         F32,       F16,             Intrawave,         Mem>,
-    // std::tuple<    Col,     Row,     Row,       F8,       F8,         F32,       F16,             Interwave,         Mem>,
-    // std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem>,
-    // std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem>,
-    // std::tuple<    Col,     Col,     Row,       F8,       F8,         F32,       F16,             Intrawave,         Mem>,
-    // std::tuple<    Col,     Col,     Row,       F8,       F8,         F32,       F16,             Interwave,         Mem>,
-    std::tuple<     Col,    Col,    Col,        F16,        F16,        F32,     F16,               Intrawave,       Mem>
-    //std::tuple<    Row,     Row,     Col,       F16,       F16,         F32,       F32,             Intrawave,         Mem>,
-    //std::tuple<    Row,     Row,     Col,       F16,       F16,         F32,       F32,             Interwave,         Mem>,
-    //std::tuple<    Row,     Row,     Col,       F8,       F8,         F32,       F32,             Interwave,         Mem>,
-    //std::tuple<    Row,     Row,     Col,       F8,       F8,         F32,       F32,             Intrawave,         Mem>,
-    //std::tuple<    Row,     Col,     Col,       F16,       F16,         F32,       F32,             Intrawave,         Mem>,
-    //std::tuple<    Row,     Col,     Col,       F16,       F16,         F32,       F32,             Interwave,         Mem>,
-    //std::tuple<    Row,     Col,     Col,       F8,       F8,         F32,       F32,             Interwave,         Mem>,
-    //std::tuple<    Row,     Col,     Col,       F8,       F8,         F32,       F32,             Intrawave,         Mem>,
-    //std::tuple<    Col,     Row,     Col,       F16,       F16,         F32,       F32,             Intrawave,         Mem>,
-    //std::tuple<    Col,     Row,     Col,       F16,       F16,         F32,       F32,             Interwave,         Mem>,
-    //std::tuple<    Col,     Row,     Col,       F8,       F8,         F32,       F32,             Intrawave,         Mem>,
-    //std::tuple<    Col,     Row,     Col,       F8,       F8,         F32,       F32,             Interwave,         Mem>,
-    //std::tuple<    Col,     Col,     Col,       F16,       F16,         F32,       F32,             Intrawave,         Mem>,
-    //std::tuple<    Col,     Col,     Col,       F16,       F16,         F32,       F32,             Interwave,         Mem>,
-    //std::tuple<    Col,     Col,     Col,       F8,       F8,         F32,       F32,             Intrawave,         Mem>,
-    //std::tuple<    Col,     Col,     Col,       F8,       F8,         F32,       F32,             Interwave,         Mem>
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem>,
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem>,
+    std::tuple<    Row,     Row,     Row,       F8,       F8,         F32,       F16,             Interwave,         Mem>,
+    std::tuple<    Row,     Row,     Row,       F8,       F8,         F32,       F16,             Intrawave,         Mem>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem>,
+    std::tuple<    Row,     Col,     Row,       F8,       F8,         F32,       F16,             Interwave,         Mem>,
+    std::tuple<    Row,     Col,     Row,       F8,       F8,         F32,       F16,             Intrawave,         Mem>,
+    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem>,
+    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem>,
+    std::tuple<    Col,     Row,     Row,       F8,       F8,         F32,       F16,             Intrawave,         Mem>,
+    std::tuple<    Col,     Row,     Row,       F8,       F8,         F32,       F16,             Interwave,         Mem>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem>,
+    std::tuple<    Col,     Col,     Row,       F8,       F8,         F32,       F16,             Intrawave,         Mem>,
+    std::tuple<    Col,     Col,     Row,       F8,       F8,         F32,       F16,             Interwave,         Mem>
+>;
+
+using KernelTypesMemCol = ::testing::Types<
+    std::tuple<    Col,     Row,     Col,       F16,       F16,         F32,       F32,             Intrawave,         Mem>,
+    std::tuple<    Col,     Row,     Col,       F16,       F16,         F32,       F32,             Interwave,         Mem>,
+    std::tuple<    Col,     Row,     Col,       F8,       F8,         F32,       F32,             Intrawave,         Mem>,
+    std::tuple<    Col,     Row,     Col,       F8,       F8,         F32,       F32,             Interwave,         Mem>,
+    std::tuple<    Col,     Col,     Col,       F16,       F16,         F32,       F32,             Intrawave,         Mem>,
+    std::tuple<    Col,     Col,     Col,       F16,       F16,         F32,       F32,             Interwave,         Mem>,
+    std::tuple<    Col,     Col,     Col,       F8,       F8,         F32,       F32,             Intrawave,         Mem>,
+    std::tuple<    Col,     Col,     Col,       F8,       F8,         F32,       F32,             Interwave,         Mem>
 >;
 
 using KernelTypesCompV3 = ::testing::Types<
