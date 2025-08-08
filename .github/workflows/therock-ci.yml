@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - develop
+      - users/geomin12/add-therock-ci
   pull_request:
     types:
       - opened
@@ -33,7 +34,7 @@ jobs:
     uses: ./.github/workflows/therock-ci-linux.yml
     secrets: inherit
     with:
-      cmake_options: "-DTHEROCK_USE_EXTERNAL_ROCM_LIBRARIES=ON -DTHEROCK_ROCM_LIBRARIES_SOURCE_DIR=../ -DTHEROCK_ENABLE_COMPOSABLE_KERNEL=ON -DTHEROCK_ENABLE_MIOPEN=ON -DTHEROCK_ENABLE_ALL=OFF"
+      cmake_options: "-DTHEROCK_ENABLE_COMPOSABLE_KERNEL=ON -DTHEROCK_ENABLE_MIOPEN=ON -DTHEROCK_ENABLE_ALL=OFF"
 
   therock_ci_summary:
     name: TheRock CI Summary
