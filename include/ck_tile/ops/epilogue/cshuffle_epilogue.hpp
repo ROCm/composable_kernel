@@ -211,11 +211,6 @@ struct CShuffleEpilogue
     static constexpr index_t MPerIterationShuffle = std::get<0>(MNPerIterationShuffle);
     static constexpr index_t NPerIterationShuffle = std::get<1>(MNPerIterationShuffle);
 
-    /*
-     * NEW TEST CODE TODO
-     */
-    // Below we assume {Y, X} tile dimensions, where X is always the contigyous one.
-
     static constexpr index_t NumYXdlPerWavePerShuffle =
         IsCRowMajor ? NumMXdlPerWavePerShuffle : NumNXdlPerWavePerShuffle;
     static constexpr index_t NumXXdlPerWavePerShuffle =
@@ -249,31 +244,6 @@ struct CShuffleEpilogue
         return make_naive_tensor_descriptor(
             make_tuple(number<YPerIterationShuffle>{}, number<XPerIterationShuffle>{}),
             make_tuple(number<XPerIterationShuffle>{}, number<1>{}));
-        /*
-         * NEW TEST CODE TODO
-         */
-
-        /*Old code
-
-        // N is contiguous dimension
-        if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
-        {
-            return make_naive_tensor_descriptor(
-                make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
-                make_tuple(number<NPerIterationShuffle>{}, number<1>{}));
-        }
-        // M is contiguous dimension
-        else if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::ColumnMajor>)
-        {
-            return make_naive_tensor_descriptor(
-                make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
-                make_tuple(number<1>{}, number<MPerIterationShuffle>{}));
-        }
-        else
-        {
-            static_assert(false, "Unsupported ELayout!");
-        }
-         */
     }
 
     CK_TILE_DEVICE static constexpr auto MakeLdsDistributionEncode()
@@ -286,17 +256,6 @@ struct CShuffleEpilogue
                                        tuple<sequence<1, 1>>,
                                        sequence<1, 2>,
                                        sequence<0, 0>>{};
-        /* OLD CODE */
-        /*
-        constexpr auto block_outer_dstr_encoding =
-            tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
-                                             sequence<NumNXdlPerWavePerShuffle, NWave>>,
-                                       tuple<sequence<1, 2>>,
-                                       tuple<sequence<1, 1>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 0>>{};
-        */
 
         constexpr auto block_dstr_encoding = detail::make_embed_tile_distribution_encoding(
             block_outer_dstr_encoding, typename CWarpDstr::DstrEncode{});
@@ -334,10 +293,6 @@ struct CShuffleEpilogue
             make_tuple(number<YPerIterationShuffle>{}, number<XPerIterationShuffle>{}),
             {0, 0});
 
-        // TODO alt code
-        // using SFC                    = space_filling_curve<sequence<YPerBlock, XPerBlock>,
-        //                                 sequence<0, 1>,
-        //                                 sequence<YPerIterationShuffle, XPerIterationShuffle>>;
         using SFC                    = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
                                                            sequence<0, 1>,
                                                            sequence<MPerIterationShuffle, NPerIterationShuffle>>;
@@ -364,24 +319,10 @@ struct CShuffleEpilogue
         static_for<0, num_access, 1>{}([&](auto iAccess) {
             block_sync_lds();
             constexpr auto idx_y_start = SFC::get_index(iAccess);
-
-            /* OLD CODE */
-            /*
-            constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (MPerIterationShuffle)>{};
-            constexpr auto nIter = number<idx_y_start.at(number<1>{}) / (NPerIterationShuffle)>{};
-
-            lds_tile.get_thread_buffer() = o_acc_tile.get_y_sliced_thread_data(
-                merge_sequences(
-                    sequence<mIter * NumMXdlPerWavePerShuffle, nIter * NumNXdlPerWavePerShuffle>{},
-                    c_warp_y_index_zeros),
-                merge_sequences(sequence<NumMXdlPerWavePerShuffle, NumNXdlPerWavePerShuffle>{},
-                                c_warp_y_lengths));
-            */
             constexpr auto yIter = number<idx_y_start.at(number<0>{}) / YPerIterationShuffle>{};
             constexpr auto xIter = number<idx_y_start.at(number<1>{}) / XPerIterationShuffle>{};
 
             lds_tile.get_thread_buffer() = [&]() {
-                // TODO: here I might want to think of IsCTransposed ?
                 return o_acc_tile.get_y_sliced_thread_data(
                     merge_sequences(sequence<yIter * NumYXdlPerWavePerShuffle,
                                              xIter * NumXXdlPerWavePerShuffle>{},
