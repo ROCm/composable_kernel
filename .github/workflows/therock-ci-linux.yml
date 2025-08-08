@@ -28,18 +28,6 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: "ROCm/rocm-libraries"
-          sparse-checkout: |
-            .github
-            projects/miopen
-            projects/hipblaslt
-            projects/hipblas
-            projects/hipblas-common
-            projects/rocblas
-            projects/rocrand
-            projects/hiprand
-            shared/mxdatagenerator
-            shared/rocroller
-            shared/tensile
       
       - name: Checkout TheRock repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
