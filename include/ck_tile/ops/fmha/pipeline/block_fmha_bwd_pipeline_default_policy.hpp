@@ -1028,7 +1028,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                        tuple<sequence<NIterPerWarp, NWarp>, sequence<KIterPerWarp>>,
                                        tuple<sequence<0, 1>>,
                                        tuple<sequence<0, 1>>,
-                                       sequence<1, 2>,
+                                       sequence<2, 1>,
                                        sequence<0, 0>>{};
 
         constexpr auto k_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
@@ -1086,7 +1086,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                        tuple<sequence<NIterPerWarp, NWarp>, sequence<KIterPerWarp>>,
                                        tuple<sequence<0, 1>>,
                                        tuple<sequence<0, 1>>,
-                                       sequence<1, 2>,
+                                       sequence<2, 1>,
                                        sequence<0, 0>>{};
 
         constexpr auto v_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
@@ -1180,7 +1180,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                        tuple<sequence<NIterPerWarp, NWarp>, sequence<KIterPerWarp>>,
                                        tuple<sequence<0, 1>>,
                                        tuple<sequence<0, 1>>,
-                                       sequence<1, 2>,
+                                       sequence<2, 1>,
                                        sequence<0, 0>>{};
 
         constexpr auto kt_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
@@ -1239,7 +1239,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                        tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
                                        tuple<sequence<1, 0>>,
                                        tuple<sequence<1, 0>>,
-                                       sequence<1, 2>,
+                                       sequence<2, 1>,
                                        sequence<0, 0>>{};
 
         constexpr auto q_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
@@ -1334,7 +1334,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                        tuple<sequence<NIterPerWarp, NWarp>, sequence<KIterPerWarp>>,
                                        tuple<sequence<0, 1>>,
                                        tuple<sequence<0, 1>>,
-                                       sequence<1, 2>,
+                                       sequence<2, 1>,
                                        sequence<0, 0>>{};
 
         constexpr auto qt_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
@@ -1369,7 +1369,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                        tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
                                        tuple<sequence<1, 0>>,
                                        tuple<sequence<1, 0>>,
-                                       sequence<1, 2>,
+                                       sequence<2, 1>,
                                        sequence<0, 0>>{};
 
         constexpr auto dst_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
@@ -1480,7 +1480,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                        tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
                                        tuple<sequence<1, 0>>,
                                        tuple<sequence<1, 0>>,
-                                       sequence<1, 2>,
+                                       sequence<2, 1>,
                                        sequence<0, 0>>{};
 
         constexpr auto do_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
@@ -1579,7 +1579,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                        tuple<sequence<NIterPerWarp, NWarp>, sequence<KIterPerWarp>>,
                                        tuple<sequence<0, 1>>,
                                        tuple<sequence<0, 1>>,
-                                       sequence<1, 2>,
+                                       sequence<2, 1>,
                                        sequence<0, 0>>{};
 
         constexpr auto dot_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
@@ -1613,7 +1613,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                        tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
                                        tuple<sequence<1, 0>>,
                                        tuple<sequence<1, 0>>,
-                                       sequence<1, 2>,
+                                       sequence<2, 1>,
                                        sequence<0, 0>>{};
 
         constexpr auto pt_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
@@ -1657,7 +1657,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                        tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
                                        tuple<sequence<1, 0>>,
                                        tuple<sequence<1, 0>>,
-                                       sequence<1, 2>,
+                                       sequence<2, 1>,
                                        sequence<0, 0>>{};
 
         constexpr auto ds_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
