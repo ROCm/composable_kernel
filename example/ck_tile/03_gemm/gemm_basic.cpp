@@ -117,13 +117,28 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 
 #include "run_gemm_example.inc"
 
-template <typename APrecType, typename BPrecType = APrecType, typename CPrecType = APrecType>
+template <typename GemmConfig,
+          typename APrecType,
+          typename BPrecType = APrecType,
+          typename CPrecType = APrecType>
 int run_gemm_example_prec_type(std::string a_layout,
                                std::string b_layout,
                                ck_tile::ArgParser& arg_parser)
 {
-    using Row = ck_tile::tensor_layout::gemm::RowMajor;
-    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
+    using Row       = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col       = ck_tile::tensor_layout::gemm::ColumnMajor;
+    bool preshuffle = GemmConfig::Preshuffle;
+
+    if(preshuffle && std::is_same_v<BPrecType, ck_tile::pk_int4_t>)
+    {
+        throw std::runtime_error("Preshuffle is not supported for this int4 datatype!");
+    }
+
+    if(preshuffle && a_layout != "R" && b_layout != "C")
+    {
+        throw std::runtime_error(
+            "Preshuffle is supported only for A(Row major), B(column major) input matrices!");
+    }
 
     using LayoutVariant = std::variant<Row, Col>;
 
@@ -148,10 +163,7 @@ int run_gemm_example_prec_type(std::string a_layout,
             }
             else
             {
-                return run_gemm_example_with_layouts<GemmConfigBase,
-                                                     APrecType,
-                                                     BPrecType,
-                                                     CPrecType>(
+                return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
                     arg_parser, a_layout_type, b_layout_type, Row{});
             }
         },
@@ -165,36 +177,46 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
 
+    using GemmConfig = GemmConfigBase;
+
     if(data_type == "fp16")
     {
-        return run_gemm_example_prec_type<ck_tile::half_t>(a_layout, b_layout, arg_parser);
+        return run_gemm_example_prec_type<GemmConfig, ck_tile::half_t>(
+            a_layout, b_layout, arg_parser);
     }
     else if(data_type == "bf16")
     {
-        return run_gemm_example_prec_type<ck_tile::bf16_t>(a_layout, b_layout, arg_parser);
+        return run_gemm_example_prec_type<GemmConfig, ck_tile::bf16_t>(
+            a_layout, b_layout, arg_parser);
     }
     else if(data_type == "fp8")
     {
-        return run_gemm_example_prec_type<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>(
-            a_layout, b_layout, arg_parser);
+        return run_gemm_example_prec_type<GemmConfig,
+                                          ck_tile::fp8_t,
+                                          ck_tile::fp8_t,
+                                          ck_tile::half_t>(a_layout, b_layout, arg_parser);
     }
     else if(data_type == "bf8")
     {
-        return run_gemm_example_prec_type<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>(
-            a_layout, b_layout, arg_parser);
+        return run_gemm_example_prec_type<GemmConfig,
+                                          ck_tile::bf8_t,
+                                          ck_tile::bf8_t,
+                                          ck_tile::half_t>(a_layout, b_layout, arg_parser);
     }
     else if(data_type == "i8")
     {
-        return run_gemm_example_prec_type<ck_tile::int8_t, ck_tile::int8_t, int32_t>(
+        return run_gemm_example_prec_type<GemmConfig, ck_tile::int8_t, ck_tile::int8_t, int32_t>(
             a_layout, b_layout, arg_parser);
     }
     else if(data_type == "pk_int4_t")
     {
         // TODO: Add support for bhalf_t ADataType
-        if constexpr(GemmConfigBase::Pipeline == CK_TILE_PIPELINE_COMPUTE_V3)
+        if constexpr(GemmConfig::Pipeline == CK_TILE_PIPELINE_COMPUTE_V3)
         {
-            return run_gemm_example_prec_type<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>(
-                a_layout, b_layout, arg_parser);
+            return run_gemm_example_prec_type<GemmConfig,
+                                              ck_tile::half_t,
+                                              ck_tile::pk_int4_t,
+                                              ck_tile::half_t>(a_layout, b_layout, arg_parser);
         }
         else
         {
