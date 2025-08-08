@@ -1071,20 +1071,20 @@ struct FmhaFwdSplitKVKernel
             {
                 return FmhaPipeline{}(q_dram_window,
                                       k_dram_window_lengths,
-                                      //   k_page_block_navigator,
+                                      k_page_block_navigator,
                                       v_dram_window_lengths,
-                                      //   v_page_block_navigator,
+                                      v_page_block_navigator,
                                       bias_dram_window,
                                       lse_acc_dram_window,
-                                      //   kargs.num_splits,
-                                      //   i_split_,
+                                      kargs.num_splits,
+                                      i_split_,
                                       mask,
                                       position_encoding,
                                       kargs.scale_s,
                                       variant,
                                       variant_params,
                                       block_indices,
-                                      //   kv_l2p_offset,
+                                      kv_l2p_offset,
                                       smem_ptr);
             }
         }();

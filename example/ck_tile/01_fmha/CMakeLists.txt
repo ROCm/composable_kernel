@@ -13,9 +13,9 @@ foreach(api ${FMHA_FWD_ENABLE_APIS})
 endforeach()
 
 # "fwd" is a must-have api for the fmha_fwd example, add it if not specified
-# if(NOT "fwd" IN_LIST FMHA_FWD_ENABLE_APIS)
-#   list(APPEND FMHA_FWD_ENABLE_APIS "fwd")
-# endif()
+if(NOT "fwd" IN_LIST FMHA_FWD_ENABLE_APIS)
+  list(APPEND FMHA_FWD_ENABLE_APIS "fwd")
+endif()
 
 file(GLOB_RECURSE CODE_GEN_SCRIPTS CONFIGURE_DEPENDS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
@@ -109,7 +109,6 @@ if(FMHA_FWD_FAST_EXP2)
 else()
   list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -DCK_TILE_FMHA_FWD_FAST_EXP2=0)
 endif()
-# list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -v --save-temps -Wno-gnu-line-marker)
 list(APPEND EXAMPLE_FMHA_BWD_COMPILE_OPTIONS -Wno-undefined-func-template -fgpu-flush-denormals-to-zero)
 
 # conditionally enable call to the fwd_splitkv API in fmha_fwd example

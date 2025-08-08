@@ -516,8 +516,7 @@ struct tile_window_linear
                 sizeof(LdsDataType) -
             size_per_buf;
 
-        const index_t m0_init_value =
-            __builtin_amdgcn_readfirstlane(size_per_buf + size_per_wave * get_warp_id());
+        const index_t m0_init_value = size_per_buf + size_per_wave * get_warp_id();
         m0_set_with_memory(m0_init_value); // This should be wave independent
 
         using vector_t = typename Base::Traits::vector_t;

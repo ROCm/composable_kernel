@@ -288,8 +288,7 @@ struct tile_window_with_static_distribution
                 sizeof(LdsDataType) -
             size_per_buf;
 
-        const index_t m0_init_value =
-            __builtin_amdgcn_readfirstlane(size_per_buf + size_per_wave * get_warp_id());
+        const index_t m0_init_value = size_per_buf + size_per_wave * get_warp_id();
         m0_set_with_memory(m0_init_value); // This should be wave independent
 
         using Traits = typename Base::Traits;
@@ -434,8 +433,6 @@ struct tile_window_with_static_distribution
                 // data index [y0, y1, ...]
                 constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
 
-                // printf("Tid: %03d, tr_load_idx: %d\n",
-                //    get_thread_local_1d_id(),bottom_tensor_thread_coord.get_offset());
                 // read from bottom tensor
                 const vector_t vec_value =
                     this->get_bottom_tensor_view()
