@@ -1708,7 +1708,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                         merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
                     pt_out.set_y_sliced_thread_data(
-                        merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                        merge_sequences(sequence<kIter, mIter>{}, a_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, a_warp_y_lengths),
                         pt_warp_tensor.get_thread_buffer());
                 });
@@ -1758,7 +1758,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                         merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
                     dst_out.set_y_sliced_thread_data(
-                        merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                        merge_sequences(sequence<kIter, mIter>{}, a_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, a_warp_y_lengths),
                         dst_warp_tensor.get_thread_buffer());
                 });
