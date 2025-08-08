@@ -202,9 +202,9 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    __host__ static auto CalculateGridSize(index_t M, index_t N, index_t KBatch)
+    __host__ static auto CalculateGridSize(index_t M, index_t N, index_t KBatch, index_t Batch = 1)
     {
-        return std::make_tuple(Block2CTileMapDefault::CalculateGridSize(M, N), 1, KBatch);
+        return std::make_tuple(Block2CTileMapDefault::CalculateGridSize(M, N), Batch, KBatch);
     }
 
     __host__ __device__ static auto CalculateMPadded(index_t M)
@@ -1328,7 +1328,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                                const AGridDesc_AK0_M_K1& a_grid_desc_ak0_m_ak1,
                                const BGridDesc_BK0_N_K1& b_grid_desc_bk0_n_bk1,
                                const DsGridDesc_M_N& ds_grid_desc_m_n,
-                               const CGridDesc_M_N& c_grid_desc_m_n)
+                               const CGridDesc_M_N& c_grid_desc_m_n,
+                               const index_t k_id = 0)
     {
 
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -1398,7 +1399,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                                                 true,
                                                 BlockwiseGemmPipe::GlobalBufferNum>(
                 a_grid_desc_ak0_m_ak1,
-                make_multi_index(0, m_block_data_idx_on_grid, 0),
+                make_multi_index(k_id, m_block_data_idx_on_grid, 0),
                 a_element_op,
                 a_block_desc_ak0_m_ak1,
                 make_multi_index(0, 0, 0),
@@ -1429,7 +1430,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                                                 true,
                                                 BlockwiseGemmPipe::GlobalBufferNum>(
                 b_grid_desc_bk0_n_bk1,
-                make_multi_index(0, n_block_data_idx_on_grid, 0),
+                make_multi_index(k_id, n_block_data_idx_on_grid, 0),
                 b_element_op,
                 b_block_desc_bk0_n_bk1,
                 make_multi_index(0, 0, 0),
@@ -1458,7 +1459,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
 
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
-            KPerBlock);
+            (KPerBlock * problem.KBatch));
 
         blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(a_grid_desc_ak0_m_ak1,
                                                                          a_block_desc_ak0_m_ak1,
@@ -1851,7 +1852,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                                     const AGridDesc_AK0_M_K1& a_grid_desc_ak0_m_ak1,
                                     const BGridDesc_BK0_N_K1& b_grid_desc_bk0_n_bk1,
                                     const DsGridDesc_M_N& ds_grid_desc_m_n,
-                                    const CGridDesc_M_N& c_grid_desc_m_n)
+                                    const CGridDesc_M_N& c_grid_desc_m_n,
+                                    const index_t k_id = 0)
     {
 
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
@@ -1920,7 +1922,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                                                 true,
                                                 BlockwiseGemmPipe::GlobalBufferNum>(
                 a_grid_desc_ak0_m_ak1,
-                make_multi_index(0, m_block_data_idx_on_grid, 0),
+                make_multi_index(k_id, m_block_data_idx_on_grid, 0),
                 a_element_op,
                 a_block_desc_ak0_m_ak1,
                 make_multi_index(0, 0, 0),
@@ -1951,7 +1953,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                                                 true,
                                                 BlockwiseGemmPipe::GlobalBufferNum>(
                 b_grid_desc_bk0_n_bk1,
-                make_multi_index(0, n_block_data_idx_on_grid, 0),
+                make_multi_index(k_id, n_block_data_idx_on_grid, 0),
                 b_element_op,
                 b_block_desc_bk0_n_bk1,
                 make_multi_index(0, 0, 0),
@@ -1990,7 +1992,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
 
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
-            KPerBlock);
+            (KPerBlock * problem.KBatch));
 
         blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(a_grid_desc_ak0_m_ak1,
                                                                          a_block_desc_ak0_m_ak1,
