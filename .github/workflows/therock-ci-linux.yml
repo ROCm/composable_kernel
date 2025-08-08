@@ -24,14 +24,6 @@ jobs:
       AMDGPU_FAMILIES: "gfx94X-dcgpu"
       TEATIME_FORCE_INTERACTIVE: 0
     steps:
-      - name: Generate a token for rocm-libraries
-        id: generate-token
-        uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2.0.6
-        with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-
       - name: "Checking out repository for rocm-libraries"
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -47,13 +39,18 @@ jobs:
             shared/mxdatagenerator
             shared/rocroller
             shared/tensile
-          token: ${{ steps.generate-token.outputs.token }}
       
       - name: Checkout TheRock repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: "ROCm/TheRock"
+          ref: ec1c2ef4f2636bce7733fd8c95e1dbb6692c8a57
           path: "TheRock"
+
+      - name: Checkout composable_kernel repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: "composable_kernel"
 
       - name: Runner Health Settings
         run: |
@@ -77,7 +74,7 @@ jobs:
         run: |
           python TheRock/build_tools/patch_rocm_libraries.py \
             --repo ./ \
-            --projects hipBLASLt rocBLAS hipBLAS
+            --projects rocm-libraries
 
       - name: Install python deps
         run: |
@@ -88,7 +85,7 @@ jobs:
         env:
           amdgpu_families: ${{ env.AMDGPU_FAMILIES }}
           package_version: ADHOCBUILD
-          extra_cmake_options: "-DTHEROCK_USE_EXTERNAL_ROCM_LIBRARIES=ON -DTHEROCK_ROCM_LIBRARIES_SOURCE_DIR=../ ${{ inputs.cmake_options }}"
+          extra_cmake_options: "-DTHEROCK_USE_EXTERNAL_CK=ON -DTHEROCK_CK_SOURCE_DIR=composable_kernel/ ${{ inputs.cmake_options }}"
           BUILD_DIR: build
         run: |
           python3 TheRock/build_tools/github_actions/build_configure.py
