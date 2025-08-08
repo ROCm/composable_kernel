@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include "ck_tile/core.hpp"
@@ -26,7 +29,7 @@ struct PracticeGemmPipeline
         // Size of the entire problem
         const auto M = a_dram.get_tensor_descriptor().get_length(number<0>{}); // M x K
         const auto N = c_dram.get_tensor_descriptor().get_length(number<1>{}); // M x N
-        // const auto K = a_dram.get_tensor_descriptor().get_length(number<1>{}); // M x K
+        const auto K = a_dram.get_tensor_descriptor().get_length(number<1>{}); // M x K
 
         // Size of the block tile
         const auto MPerBlock = BlockTile::at(number<0>{});
@@ -63,16 +66,18 @@ struct PracticeGemmPipeline
         (void)a_block_window;
         (void)b_block_window;
 
-        // constexpr auto block_gemm_pipeline = Policy::template GetBlockGemmPipeline<Problem>();
+        constexpr auto block_gemm_pipeline =
+            Policy::template GetPracticeGemmBlockPipeline<Problem>();
 
-        // int num_loops_k = integer_divide_ceil(K, KPerBlock);
+        int num_loops_k = integer_divide_ceil(K, KPerBlock);
 
-        //__shared__ char p_smem_char[block_gemm_pipeline.GetStaticLDSSize()];
-        // const auto c_block_tile = block_gemm_pipeline(a_block_window, b_block_window,
-        // num_loops_k, p_smem_char); auto c_window = make_tile_window(c_dram,
-        // make_tuple(number<MPerBlock>{}, number<NPerBlock>{}), {tile_origin_m, tile_origin_n});
-        // store_tile(c_window, c_block_tile);
-        // initialize a block tile with 0 and then transfer it to the tile window
+        __shared__ char p_smem_char[block_gemm_pipeline.GetStaticLDSSize()];
+        const auto c_block_tile =
+            block_gemm_pipeline(a_block_window, b_block_window, num_loops_k, p_smem_char);
+        auto c_window = make_tile_window(c_dram,
+                                         make_tuple(number<MPerBlock>{}, number<NPerBlock>{}),
+                                         {tile_origin_m, tile_origin_n});
+        store_tile(c_window, c_block_tile);
     }
 };
 } // namespace ck_tile

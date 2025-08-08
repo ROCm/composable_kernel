@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "practice_gemm_pipeline.hpp"
+#include "practice_gemm_block_pipeline_agmem_bgmem_creg.hpp"
 
 namespace ck_tile {
 
@@ -21,13 +22,6 @@ struct PracticeGemmProblem
     using CDataType   = CDataType_;
     using AccDataType = AccDataType_;
     using Shape       = remove_cvref_t<Shape_>;
-    CK_TILE_HOST static std::string GetName()
-    {
-        // clang-format off
-        return concat('_', "practice_gemm_problem",
-                      concat('x', ADataType::GetName(), BDataType::GetName(), CDataType::GetName(), AccDataType::GetName()));
-        // clang-format on
-    }
 };
 
 template <typename BlockTile_, typename WaveTile_>
@@ -66,6 +60,18 @@ struct PracticeGemmPolicy
 
             return make_multi_index(unmerged.at(number<1>{}), unmerged.at(number<0>{}));
         };
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetPracticeGemmBlockPipeline()
+    {
+        using PracticeGemmBlockPipelineProblem_ =
+            PracticeGemmBlockPipelineProblem<typename Problem::ADataType,
+                                             typename Problem::BDataType,
+                                             typename Problem::CDataType,
+                                             typename Problem::AccDataType,
+                                             typename Problem::Shape>;
+        return PracticeGemmBlockPipelineAGmemBGmemCreg<PracticeGemmBlockPipelineProblem_>{};
     }
 };
 

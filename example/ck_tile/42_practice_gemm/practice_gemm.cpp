@@ -70,7 +70,11 @@ int main()
     using BlockTile = ck_tile::sequence<256, 32, 128>;
     using WaveTile  = ck_tile::sequence<16, 16, 16>;
 
-    using PracticeGemmShape = ck_tile::PracticeGemmShape<BlockTile, WaveTile>;
+    std::cout << "Creating PracticeGemmShape, PracticeGemmProblem, PracticeGemmPolicy" << std::endl;
+    using PracticeGemmShape   = ck_tile::PracticeGemmShape<BlockTile, WaveTile>;
+    using PracticeGemmProblem = ck_tile::
+        PracticeGemmProblem<ADataType, BDataType, CDataType, AccDataType, PracticeGemmShape>;
+    using PracticeGemmPolicy = ck_tile::PracticeGemmPolicy;
 
     ck_tile::index_t kGridSize =
         (M / PracticeGemmShape::BlockTile_M) * (N / PracticeGemmShape::BlockTile_N);
@@ -87,13 +91,8 @@ int main()
 
     std::cout << "PracticeGemmShape: " << PracticeGemmShape::GetName() << std::endl;
 
-    // using gemm_kernel = ck_tile::GemmKernel<ADataType,
-    //                                         BDataType,
-    //                                         CDataType,
-    //                                         AccDataType,
-    //                                         BlockTile_M,
-    //                                         BlockTile_N,
-    //                                         BlockTile_K>;
+    using gemm_kernel = ck_tile::PracticeGemmKernel<PracticeGemmProblem, PracticeGemmPolicy>;
+    static_cast<void>(sizeof(gemm_kernel));
 
     // float ave_time = ck_tile::launch_kernel(ck_tile::stream_config{nullptr, true, 0, 5, 1000},
     //                                         ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
