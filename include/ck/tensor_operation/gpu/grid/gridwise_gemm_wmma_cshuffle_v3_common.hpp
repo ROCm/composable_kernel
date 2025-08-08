@@ -1065,6 +1065,20 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             }
         }
 
+        if constexpr(is_same<remove_cvref_t<EDataType>, int8_t>::value)
+        {
+            if(karg.KBatch > 1)
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "int8_t does not support KBatch > 1. KBatch: " << karg.KBatch
+                              << " " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                              << std::endl;
+                }
+                return false;
+            }
+        }
+
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
         return true;
     }

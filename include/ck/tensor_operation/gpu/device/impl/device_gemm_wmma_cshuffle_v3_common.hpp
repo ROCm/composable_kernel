@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <iostream>
 #include <sstream>
 
@@ -171,8 +172,8 @@ struct DeviceGemm_Wmma_CShuffleV3_Common
             // other hand, Split K for 16-bit outputs uses packed atomics so ScalarPerVectors cannot
             // be odd.
             constexpr bool AtomicsImplementationExists =
-                !(std::is_same_v<EDataType, ck::half_t> ||
-                  std::is_same_v<EDataType, ck::bhalf_t>) ||
+                !(std::is_same_v<EDataType, ck::half_t> || std::is_same_v<EDataType, ck::bhalf_t> ||
+                  std::is_same_v<EDataType, int8_t>) ||
                 (CDEShuffleBlockTransferScalarPerVectors{}[0] % 2 == 0);
 
             if(has_main_k_block_loop)

@@ -20,6 +20,12 @@ list(APPEND GEMM_QUANT_SRC
     gemm/device_gemm_quantization_dl_c_shuffle_i8_i8_i8_mk_kn_mn_instance.cpp
     gemm/device_gemm_quantization_dl_c_shuffle_i8_i8_i8_mk_nk_mn_instance.cpp)
 
+list(APPEND GEMM_QUANT_SRC
+    gemm/device_gemm_quantization_wmma_c_shuffle_i8_i8_i8_km_kn_mn_instance.cpp
+    gemm/device_gemm_quantization_wmma_c_shuffle_i8_i8_i8_km_nk_mn_instance.cpp
+    gemm/device_gemm_quantization_wmma_c_shuffle_i8_i8_i8_mk_kn_mn_instance.cpp
+    gemm/device_gemm_quantization_wmma_c_shuffle_i8_i8_i8_mk_nk_mn_instance.cpp)
+
 add_instance_library(device_quantization_instance
     ${CONV2D_PERLAYER_QUANT_SRC}
     ${CONV2D_PERCHANNEL_QUANT_SRC}
