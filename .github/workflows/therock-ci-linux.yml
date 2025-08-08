@@ -52,10 +52,10 @@ jobs:
         run: |
           ./TheRock/build_tools/fetch_sources.py --jobs 12 --include-rocm-libraries
 
-      - name: Patch monorepo
-        run: |
-          python TheRock/build_tools/patch_rocm_libraries.py \
-            --repo ./
+      # - name: Patch monorepo
+      #   run: |
+      #     python TheRock/build_tools/patch_rocm_libraries.py \
+      #       --repo ./
 
       - name: Install python deps
         run: |
