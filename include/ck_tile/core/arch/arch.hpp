@@ -68,16 +68,13 @@ CK_TILE_DEVICE index_t get_block_1d_id() { return blockIdx.x; }
 // Use these instead
 CK_TILE_DEVICE index_t get_lane_id() { return __lane_id(); }
 
-CK_TILE_DEVICE index_t get_warp_id_to_vgpr() { return threadIdx.x / get_warp_size(); }
-
-CK_TILE_DEVICE index_t get_warp_id_to_sgpr()
+template <bool save_warp_id_in_sgpr = true>
+CK_TILE_DEVICE index_t get_warp_id(bool_constant<save_warp_id_in_sgpr> = {})
 {
-    return __builtin_amdgcn_readfirstlane(threadIdx.x / get_warp_size());
-}
-
-CK_TILE_DEVICE index_t get_warp_id()
-{
-    return __builtin_amdgcn_readfirstlane(threadIdx.x / get_warp_size());
+    if constexpr(save_warp_id_in_sgpr)
+        return __builtin_amdgcn_readfirstlane(threadIdx.x / get_warp_size());
+    else
+        return threadIdx.x / get_warp_size();
 }
 
 CK_TILE_DEVICE index_t get_thread_id() { return threadIdx.x; }

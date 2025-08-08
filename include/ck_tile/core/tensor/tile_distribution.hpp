@@ -18,16 +18,10 @@
 namespace ck_tile {
 
 namespace detail {
-template <typename Distribution>
-CK_TILE_HOST_DEVICE auto get_partition_index(Distribution)
+template <typename Distribution, bool save_warp_id_in_sgpr = true>
+CK_TILE_HOST_DEVICE auto get_partition_index(Distribution, bool_constant<save_warp_id_in_sgpr> = {})
 {
-    return Distribution::_get_partition_index();
-}
-
-template <typename Distribution>
-CK_TILE_HOST_DEVICE auto get_partition_index_v2(Distribution)
-{
-    return Distribution::_get_partition_index_v2();
+    return Distribution::_get_partition_index(bool_constant<save_warp_id_in_sgpr>{});
 }
 } // namespace detail
 
@@ -97,7 +91,8 @@ struct tile_distribution
     CK_TILE_HOST_DEVICE static constexpr index_t get_num_of_dimension_p() { return NDimP; }
     CK_TILE_HOST_DEVICE static constexpr index_t get_num_of_dimension_r() { return NDimR; }
 
-    CK_TILE_HOST_DEVICE static auto _get_partition_index()
+    template <bool save_warp_id_in_sgpr = true>
+    CK_TILE_HOST_DEVICE static auto _get_partition_index(bool_constant<save_warp_id_in_sgpr> = {})
     {
         // only support warp-tile and block-tile
         static_assert(NDimP == 1 or NDimP == 2, "wrong!");
@@ -108,22 +103,8 @@ struct tile_distribution
         }
         else if constexpr(NDimP == 2)
         {
-            return array<index_t, 2>{get_warp_id_to_sgpr(), get_lane_id()};
-        }
-    }
-
-    CK_TILE_HOST_DEVICE static auto _get_partition_index_v2()
-    {
-        // only support warp-tile and block-tile
-        static_assert(NDimP == 1 or NDimP == 2, "wrong!");
-
-        if constexpr(NDimP == 1)
-        {
-            return array<index_t, 1>{get_lane_id()};
-        }
-        else if constexpr(NDimP == 2)
-        {
-            return array<index_t, 2>{get_warp_id_to_vgpr(), get_lane_id()};
+            return array<index_t, 2>{get_warp_id(bool_constant<save_warp_id_in_sgpr>{}),
+                                     get_lane_id()};
         }
     }
 

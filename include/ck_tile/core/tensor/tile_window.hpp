@@ -183,9 +183,9 @@ struct tile_window_with_static_distribution
         const auto partition_index = [&]() {
             if constexpr(BottomTensorView::buffer_view::get_address_space() ==
                          address_space_enum::lds)
-                return detail::get_partition_index_v2(tile_dstr_);
+                return detail::get_partition_index(tile_dstr_, bool_constant<false>{});
             else
-                return detail::get_partition_index(tile_dstr_);
+                return detail::get_partition_index(tile_dstr_, bool_constant<true>{});
         }();
 
         const auto window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
@@ -922,9 +922,9 @@ struct tile_window_with_static_distribution
         const auto partition_index = [&]() {
             if constexpr(BottomTensorView::buffer_view::get_address_space() ==
                          address_space_enum::lds)
-                return detail::get_partition_index_v2(tile_dstr_);
+                return detail::get_partition_index(tile_dstr_, bool_constant<false>{});
             else
-                return detail::get_partition_index(tile_dstr_);
+                return detail::get_partition_index(tile_dstr_, bool_constant<true>{});
         }();
 
         // TODO: this use less register for FA, but more register for GEMM
