@@ -181,7 +181,7 @@ int run(int argc, char* argv[])
 #ifdef CK_MHA_USE_RCCR_LAYOUT
                                      b1_g_o_n_strides[1], // StrideB1,
 #else
-                                     b1_g_o_n_strides[2],   // StrideB1,
+                                     b1_g_o_n_strides[2], // StrideB1,
 #endif
                                      c_g_m_o_strides[1],  // StrideC,
                                      a_g_m_k_strides[0],  // BatchStrideA
