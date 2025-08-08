@@ -386,11 +386,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
     {
         namespace ctc = tensor_layout::convolution;
         using Layout  = std::conditional_t<
-            is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>(),
-            ctc::NHWGC,
-            std::conditional_t<is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>(),
-                               ctc::NDHWGC,
-                               ALay>>;
+             is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>(),
+             ctc::NHWGC,
+             std::conditional_t<is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>(),
+                                ctc::NDHWGC,
+                                ALay>>;
 
         const auto in_gemmmraw_gemmkraw_desc =
             conv_to_gemm_transformer.template MakeADescriptor_M_K<Layout>();
@@ -430,11 +430,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
     {
         namespace ctc = tensor_layout::convolution;
         using Layout  = std::conditional_t<
-            is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>(),
-            ctc::GKYXC,
-            std::conditional_t<is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>(),
-                               ctc::GKZYXC,
-                               BLay>>;
+             is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>(),
+             ctc::GKYXC,
+             std::conditional_t<is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>(),
+                                ctc::GKZYXC,
+                                BLay>>;
 
         const auto wei_gemmnraw_gemmkraw_desc =
             conv_to_gemm_transformer.template MakeBDescriptor_N_K<Layout>();
@@ -1049,7 +1049,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                 }
 
                 if constexpr(is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>() ||
-                is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>())
+                             is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>())
                 {
                     a_grid_size = arg.elementwise_block_2_ctile_map_transpose_a_.CalculateGridSize(
                         arg.a_in_transpose_desc_);
@@ -1138,11 +1138,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                 if(stream_config.flush_cache)
                 {
                     typename GridwiseGemmType::Argument gemm_arg_ = gemm_arg;
-                    ck::utility::RotatingMemWrapper<typename GridwiseGemmType::Argument> rotating_mem(
-                        gemm_arg_,
-                        stream_config.rotating_count,
-                        gemm_arg_.M * gemm_arg_.K * sizeof(ADataType),
-                        gemm_arg_.K * gemm_arg_.N * sizeof(BDataType));
+                    ck::utility::RotatingMemWrapper<typename GridwiseGemmType::Argument>
+                        rotating_mem(gemm_arg_,
+                                     stream_config.rotating_count,
+                                     gemm_arg_.M * gemm_arg_.K * sizeof(ADataType),
+                                     gemm_arg_.K * gemm_arg_.N * sizeof(BDataType));
                     rotating_mem.Print();
 
                     auto run_flush_cache = [&]() {
@@ -1172,22 +1172,22 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                 }
                 else
                 {
-                    ave_time += launch_and_time_kernel_with_preprocess(
-                                                       stream_config,
-                                                       clear_workspace,
-                                                       kernel,
-                                                       dim3(gdx, gdy, gdz),
-                                                       dim3(BlockSize),
-                                                       0,
-                                                       gemm_arg,
-                                                       arg.a_grid_desc_ak0_m_ak1_,
-                                                       arg.b_grid_desc_bk0_n_bk1_,
-                                                       arg.ds_grid_desc_m_n_,
-                                                       arg.e_grid_desc_m_n_,
-                                                       arg.compute_ptr_offset_of_groups_,
-                                                       arg.compute_ptr_offset_of_n_,
-                                                       num_k_per_block,
-                                                       arg.num_group_);
+                    ave_time +=
+                        launch_and_time_kernel_with_preprocess(stream_config,
+                                                               clear_workspace,
+                                                               kernel,
+                                                               dim3(gdx, gdy, gdz),
+                                                               dim3(BlockSize),
+                                                               0,
+                                                               gemm_arg,
+                                                               arg.a_grid_desc_ak0_m_ak1_,
+                                                               arg.b_grid_desc_bk0_n_bk1_,
+                                                               arg.ds_grid_desc_m_n_,
+                                                               arg.e_grid_desc_m_n_,
+                                                               arg.compute_ptr_offset_of_groups_,
+                                                               arg.compute_ptr_offset_of_n_,
+                                                               num_k_per_block,
+                                                               arg.num_group_);
                 }
             };
 
@@ -1227,7 +1227,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                                                                     TailNumber::One>;
                         Run(kernel);
                     }
-                    else if(GridwiseGemmType::CalculateKBlockLoopTailNum(K_split) == TailNumber::Full)
+                    else if(GridwiseGemmType::CalculateKBlockLoopTailNum(K_split) ==
+                            TailNumber::Full)
                     {
                         const auto kernel =
                             kernel_grouped_conv_fwd_xdl_cshuffle_v3<GridwiseGemmType,
@@ -1264,7 +1265,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
 
                     if constexpr(GridwiseGemmType::BlockwiseGemmPipe::PrefetchStages > 3)
                     {
-                        if(GridwiseGemmType::CalculateKBlockLoopTailNum(K_split) == TailNumber::Three)
+                        if(GridwiseGemmType::CalculateKBlockLoopTailNum(K_split) ==
+                           TailNumber::Three)
                         {
                             const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
                                 GridwiseGemmType,
@@ -1283,7 +1285,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
 
                     if constexpr(GridwiseGemmType::BlockwiseGemmPipe::PrefetchStages > 4)
                     {
-                        if(GridwiseGemmType::CalculateKBlockLoopTailNum(K_split) == TailNumber::Four)
+                        if(GridwiseGemmType::CalculateKBlockLoopTailNum(K_split) ==
+                           TailNumber::Four)
                         {
                             const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
                                 GridwiseGemmType,
@@ -1302,7 +1305,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
 
                     if constexpr(GridwiseGemmType::BlockwiseGemmPipe::PrefetchStages > 5)
                     {
-                        if(GridwiseGemmType::CalculateKBlockLoopTailNum(K_split) == TailNumber::Five)
+                        if(GridwiseGemmType::CalculateKBlockLoopTailNum(K_split) ==
+                           TailNumber::Five)
                         {
                             const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
                                 GridwiseGemmType,
@@ -1340,7 +1344,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
 
                     if constexpr(GridwiseGemmType::BlockwiseGemmPipe::PrefetchStages > 7)
                     {
-                        if(GridwiseGemmType::CalculateKBlockLoopTailNum(K_split) == TailNumber::Seven)
+                        if(GridwiseGemmType::CalculateKBlockLoopTailNum(K_split) ==
+                           TailNumber::Seven)
                         {
                             const auto kernel = kernel_grouped_conv_fwd_xdl_cshuffle_v3<
                                 GridwiseGemmType,
@@ -1456,7 +1461,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             {
                 // Transpose to NGHWC layout
                 if constexpr(is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>() ||
-                is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>())
+                             is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>())
                 {
                     auto kernel_transpose =
                         kernel_elementwise_dual<GridwiseElementwiseInputTranspose,
@@ -1473,24 +1478,24 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                                                 Block2TileMapElementwise,
                                                 element_wise::PassThrough>;
 
-                    avg_time +=
-                        launch_and_time_kernel(stream_config,
-                                               kernel_transpose,
-                                               dim3(launch_config.a_grid_size + launch_config.b_grid_size),
-                                               dim3(ElementwiseBlocksize),
-                                               0,
-                                               make_tuple(arg.a_in_transpose_desc_),
-                                               make_tuple(arg.b_in_transpose_desc_),
-                                               make_tuple(arg.a_out_transpose_desc_),
-                                               make_tuple(arg.b_out_transpose_desc_),
-                                               make_tuple(arg.p_a_grid_),
-                                               make_tuple(arg.p_b_grid_),
-                                               make_tuple(const_cast<ADataType*>(launch_config.p_a_grid)),
-                                               make_tuple(const_cast<BDataType*>(launch_config.p_b_grid)),
-                                               arg.elementwise_block_2_ctile_map_transpose_a_,
-                                               arg.elementwise_block_2_ctile_map_transpose_b_,
-                                               element_wise::PassThrough{},
-                                               launch_config.a_grid_size);
+                    avg_time += launch_and_time_kernel(
+                        stream_config,
+                        kernel_transpose,
+                        dim3(launch_config.a_grid_size + launch_config.b_grid_size),
+                        dim3(ElementwiseBlocksize),
+                        0,
+                        make_tuple(arg.a_in_transpose_desc_),
+                        make_tuple(arg.b_in_transpose_desc_),
+                        make_tuple(arg.a_out_transpose_desc_),
+                        make_tuple(arg.b_out_transpose_desc_),
+                        make_tuple(arg.p_a_grid_),
+                        make_tuple(arg.p_b_grid_),
+                        make_tuple(const_cast<ADataType*>(launch_config.p_a_grid)),
+                        make_tuple(const_cast<BDataType*>(launch_config.p_b_grid)),
+                        arg.elementwise_block_2_ctile_map_transpose_a_,
+                        arg.elementwise_block_2_ctile_map_transpose_b_,
+                        element_wise::PassThrough{},
+                        launch_config.a_grid_size);
                 }
 
                 const index_t GemmM = arg.a_grid_desc_ak0_m_ak1_.GetLength(I1);
@@ -1500,23 +1505,24 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
 
                 if(arg.two_stage_)
                 {
-                    typename GridwiseGemmTwoStage::Argument gemm_arg{launch_config.p_a_grid,
-                                                                    launch_config.p_b_grid,
-                                                                    arg.p_ds_grid_,
-                                                                    launch_config.p_acc_grid,
-                                                                    GemmM,
-                                                                    GemmN,
-                                                                    GemmK,
-                                                                    // No need to set strides, we pass descs to kernel
-                                                                    I0,
-                                                                    I0,
-                                                                    {},
-                                                                    I0,
-                                                                    arg.k_batch_,
-                                                                    arg.a_element_op_,
-                                                                    arg.b_element_op_,
-                                                                    arg.cde_element_op_};
-                    
+                    typename GridwiseGemmTwoStage::Argument gemm_arg{
+                        launch_config.p_a_grid,
+                        launch_config.p_b_grid,
+                        arg.p_ds_grid_,
+                        launch_config.p_acc_grid,
+                        GemmM,
+                        GemmN,
+                        GemmK,
+                        // No need to set strides, we pass descs to kernel
+                        I0,
+                        I0,
+                        {},
+                        I0,
+                        arg.k_batch_,
+                        arg.a_element_op_,
+                        arg.b_element_op_,
+                        arg.cde_element_op_};
+
                     std::cout << "DEBUG:" << std::endl;
                     gemm_arg.Print();
 
@@ -1527,7 +1533,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                         static_cast<index_t>(arg.compute_ptr_offset_of_groups_.BatchStrideE_)};
 
                     if constexpr(is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>() ||
-                                is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>())
+                                 is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>())
                     {
                         const auto kernel =
                             kernel_elementwise<GridwiseElementwiseOutputTransposeCast,
@@ -1583,23 +1589,24 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                 }
                 else
                 {
-                    typename GridwiseGemm::Argument gemm_arg{launch_config.p_a_grid,
-                                                            launch_config.p_b_grid,
-                                                            arg.p_ds_grid_,
-                                                            launch_config.p_e_grid,
-                                                            GemmM,
-                                                            GemmN,
-                                                            GemmK,
-                                                            // No need to set strides, we pass descs to kernel
-                                                            I0,
-                                                            I0,
-                                                            {},
-                                                            I0,
-                                                            arg.k_batch_,
-                                                            arg.a_element_op_,
-                                                            arg.b_element_op_,
-                                                            arg.cde_element_op_};
-                    
+                    typename GridwiseGemm::Argument gemm_arg{
+                        launch_config.p_a_grid,
+                        launch_config.p_b_grid,
+                        arg.p_ds_grid_,
+                        launch_config.p_e_grid,
+                        GemmM,
+                        GemmN,
+                        GemmK,
+                        // No need to set strides, we pass descs to kernel
+                        I0,
+                        I0,
+                        {},
+                        I0,
+                        arg.k_batch_,
+                        arg.a_element_op_,
+                        arg.b_element_op_,
+                        arg.cde_element_op_};
+
                     std::cout << "DEBUG:" << std::endl;
                     gemm_arg.Print();
 
@@ -1615,7 +1622,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                     }
 
                     if constexpr(is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>() ||
-                                is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>())
+                                 is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>())
                     {
                         auto kernel_transpose =
                             kernel_elementwise<GridwiseElementwiseOutputTranspose,
