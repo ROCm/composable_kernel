@@ -103,6 +103,25 @@ bool profile_gemm_blockscale_weighpreshuffle_impl(int do_verification,
     ck::index_t Scale_Stride_BN = ck::is_same_v<BLayout, ck::tensor_layout::gemm::ColumnMajor>
                                       ? ((K + ScaleBlockK - 1) / ScaleBlockK)
                                       : ((N + ScaleBlockN - 1) / ScaleBlockN);
+    
+    if(ck::is_same_v<ALayout, ck::tensor_layout::gemm::ColumnMajor>)
+    {
+        if(StrideA < M)
+        {
+            throw std::runtime_error(
+                "Error: For ColumnMajor layout, StrideA must be greater than or equal to 
+                M (" + std::to_string(M) + ")");
+        }
+    }
+    else // RowMajor
+    {
+        if(StrideA < K)
+        {
+            throw std::runtime_error(
+                "Error: For RowMajor layout, StrideA must be greater than or equal 
+                to K (" + std::to_string(K) + ")");
+        }
+    }
 
     if(ck::is_same_v<BLayout, ck::tensor_layout::gemm::ColumnMajor>)
     {
@@ -118,8 +137,8 @@ bool profile_gemm_blockscale_weighpreshuffle_impl(int do_verification,
         if(StrideB < N)
         {
             throw std::runtime_error(
-                "Error: For RowMajor layout, StrideB (" + std::to_string(StrideB) +
-                ") must be greater than or equal to N (" + std::to_string(N) + ")");
+                "Error: For RowMajor layout, StrideB must be greater than or equal to 
+                N (" + std::to_string(N) + ")");
         }
     }
 
