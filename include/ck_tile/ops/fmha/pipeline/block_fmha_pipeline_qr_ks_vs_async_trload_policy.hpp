@@ -193,7 +193,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
                                        tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
                                        tuple<sequence<1, 0>>,
                                        tuple<sequence<1, 0>>,
-                                       sequence<2, 1>,
+                                       sequence<1, 2>,
                                        sequence<0, 0>>{};
 
         constexpr auto q_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
@@ -512,7 +512,8 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
                                                     Problem::BlockFmhaShape::kN0,
                                                     Problem::BlockFmhaShape::kK0>,
                                            typename Problem::BlockFmhaShape::Gemm0BlockWarps,
-                                           typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
+                                           typename Problem::BlockFmhaShape::Gemm0WarpTile>,
+                             GemmLoopOrder::MNK>;
 
         using WarpGemm =
             WarpGemmMfmaDispatcher<typename Problem::QDataType,
@@ -545,7 +546,8 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
                                                     Problem::BlockFmhaShape::kN1,
                                                     Problem::BlockFmhaShape::kK1>,
                                            typename Problem::BlockFmhaShape::Gemm1BlockWarps,
-                                           typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
+                                           typename Problem::BlockFmhaShape::Gemm1WarpTile>,
+                             GemmLoopOrder::KMN>;
 
         using WarpGemm = WarpGemmMfmaDispatcher<
             typename Problem::PDataType,
@@ -597,7 +599,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
                                        tuple<sequence<NIterPerWarp, NWarp>, sequence<KIterPerWarp>>,
                                        tuple<sequence<0, 1>>,
                                        tuple<sequence<0, 1>>,
-                                       sequence<2, 1>,
+                                       sequence<1, 2>,
                                        sequence<0, 0>>{};
 
         constexpr auto k_block_dstr_encode = detail::make_embed_tile_distribution_encoding(

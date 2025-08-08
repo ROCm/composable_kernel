@@ -199,6 +199,7 @@
 #else
 #define CK_TILE_USE_LLVM_BUILTIN_BF16 0
 #endif
+#endif
 
 #ifndef CK_TILE_DEBUG_LOG
 #define CK_TILE_DEBUG_LOG 0
