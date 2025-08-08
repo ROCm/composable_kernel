@@ -279,7 +279,7 @@ struct Subtract
 
 struct Bilinear
 {
-    Bilinear(float alpha = 1.f, float beta = 1.f) : alpha_(alpha), beta_(beta) {};
+    Bilinear(float alpha = 1.f, float beta = 1.f) : alpha_(alpha), beta_(beta){};
 
     template <typename Y, typename X0, typename X1>
     __host__ __device__ constexpr void operator()(Y&, const X0&, const X1&) const;
@@ -354,7 +354,7 @@ struct Bilinear
 struct AddClamp
 {
     AddClamp(float floor = 0.f, float ceil = NumericLimits<float>::Max())
-        : floor_(floor), ceil_(ceil) {};
+        : floor_(floor), ceil_(ceil){};
 
     template <typename Y, typename X0, typename X1>
     __host__ __device__ constexpr void operator()(Y& y, const X0& x0, const X1& x1) const;
