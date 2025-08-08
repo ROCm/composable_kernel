@@ -453,8 +453,10 @@ int run_flatmm_example(int argc, char* argv[])
             {
                 if(persistent_opt == 0)
                 {
-                    run_flatmm_example_with_layouts<ck_tile::fp8_t, FlatmmConfig<ck_tile::fp8_t>>(
-                        argc, argv, Row{}, Col{}, Row{});
+                    run_flatmm_example_with_layouts<ck_tile::fp8_t,
+                                                    FlatmmConfig<ck_tile::fp8_t>,
+                                                    1,
+                                                    1>(argc, argv, Row{}, Col{}, Row{});
                 }
                 else
                 {

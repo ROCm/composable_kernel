@@ -338,6 +338,7 @@ struct FlatmmKernel
         template <class KernelArgs>
         __device__ SplitKBatchOffset(const KernelArgs& kargs, const std::size_t k_id = blockIdx.z)
         {
+            constexpr auto N1   = TilePartitioner::BlockGemmShape::WarpTile::at(number<1>{});
             constexpr auto K1   = TilePartitioner::BlockGemmShape::WarpTile::at(number<2>{});
             const index_t K_t   = kargs.k_batch * K1;
             const index_t KRead = (kargs.K + K_t - 1) / K_t * K1;
@@ -353,11 +354,11 @@ struct FlatmmKernel
 
             if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
             {
-                b_k_split_offset = k_id * KRead * kargs.stride_B;
+                b_k_split_offset = k_id * KRead * kargs.stride_B * N1;
             }
             else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
-                b_k_split_offset = k_id * KRead;
+                b_k_split_offset = k_id * KRead * N1;
             }
 
             if(k_id < static_cast<uint32_t>(kargs.k_batch - 1))
@@ -559,8 +560,8 @@ struct FlatmmKernel
             }
         }();
 
-        index_t kFlatK = FlatmmPipeline::flatKPerWarp * (splitk_batch_offset.splitted_k /
-                                                         BlockGemmShape::WarpTile::at(number<2>{}));
+        index_t kFlatK = FlatmmPipeline::flatKPerWarp * (kargs.K /
+                                                         BlockGemmShape::WarpTile::at(I2));
         index_t kFlatN = kargs.N * kargs.K / kFlatK;
         const auto& b_flat_tensor_view = [&]() {
             return make_naive_tensor_view<address_space_enum::global>(
@@ -600,7 +601,7 @@ struct FlatmmKernel
         const auto& e_tensor_view = [&]() {
             if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
             {
-                return make_naive_tensor_view<address_space_enum::global>(
+                return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
                     e_ptr,
                     make_tuple(kargs.M, kargs.N),
                     make_tuple(kargs.stride_E, 1),
@@ -609,7 +610,7 @@ struct FlatmmKernel
             }
             else
             {
-                return make_naive_tensor_view<address_space_enum::global>(
+                return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
                     e_ptr,
                     make_tuple(kargs.N, kargs.M),
                     make_tuple(kargs.stride_E, 1),
