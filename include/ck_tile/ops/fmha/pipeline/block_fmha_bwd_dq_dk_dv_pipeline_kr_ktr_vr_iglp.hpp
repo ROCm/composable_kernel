@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -49,8 +49,6 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
     static constexpr index_t kVHeaddim  = BlockFmhaShape::kVHeaddim;
 
     static constexpr bool kIsGroupMode     = Problem::kIsGroupMode;
-    static constexpr bool kPadSeqLenQ      = Problem::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK      = Problem::kPadSeqLenK;
     static constexpr bool kPadHeadDimQ     = Problem::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV     = Problem::kPadHeadDimV;
     static constexpr auto BiasEnum         = Problem::BiasEnum;
@@ -72,8 +70,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
         kPadHeadDimQ ? 1 : Policy::template GetAlignmentKGrad<Problem>();
     static constexpr index_t kAlignmentVGrad =
         kPadHeadDimV ? 1 : Policy::template GetAlignmentVGrad<Problem>();
-    static constexpr index_t kAlignmentBias =
-        kPadSeqLenK ? 1 : Policy::template GetTransposedAlignmentBias<Problem>();
+    static constexpr index_t kAlignmentBias = 1;
 
     static constexpr const char* name = "kr_ktr_vr_iglp";
 
@@ -182,7 +179,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
 
         auto k_lds_read_window =
             make_tile_window(k_lds_write_window.get_bottom_tensor_view(),
-                             make_tuple(number<kN0>{}, number<kK0>{}),
+                             make_tuple(number<kN0>{}, number<kQKHeaddim>{}),
                              k_lds_write_window.get_window_origin(),
                              Policy::template MakeKRegBlockDescriptor<Problem>());
 
@@ -208,7 +205,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
 
         auto v_lds_read_window =
             make_tile_window(v_lds_write_window.get_bottom_tensor_view(),
-                             make_tuple(number<kN0>{}, number<kK2>{}),
+                             make_tuple(number<kN0>{}, number<kVHeaddim>{}),
                              v_lds_write_window.get_window_origin(),
                              Policy::template MakeVRegBlockDescriptor<Problem>());
 
@@ -590,7 +587,6 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                 });
             }
 
-            if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
                 bool need_perpixel_check = mask.IsEdgeTile(
                     seqlen_q_step, k_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
@@ -738,6 +734,11 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
 
             gemm_3(dk_acc, dst_reg_tensor, qt_reg_tensor);
 
+            if constexpr(kHasBiasGrad)
+            {
+                // SGrad and BiasGrad use the same address in LDS.
+                block_sync_lds();
+            }
             store_tile(ds_lds_window, ds_gemm);
 
             block_sync_lds();
@@ -844,7 +845,6 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             });
         }
 
-        if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
         {
             bool need_perpixel_check = mask.IsEdgeTile(
                 seqlen_q_step, k_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
@@ -976,6 +976,12 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                                                   decltype(ds_gemm)>(dst_reg_tensor, ds_gemm);
 
         gemm_3(dk_acc, dst_reg_tensor, qt_reg_tensor);
+
+        if constexpr(kHasBiasGrad)
+        {
+            // SGrad and BiasGrad use the same address in LDS.
+            block_sync_lds();
+        }
         store_tile(ds_lds_window, ds_gemm);
 
         block_sync_lds();

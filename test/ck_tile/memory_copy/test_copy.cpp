@@ -20,8 +20,8 @@ struct MemoryCopyParam
     ck_tile::index_t warp_id;
 };
 
-template <typename DataType>
-class TestCkTileMemoryCopy : public ::testing::Test
+template <typename DataType, bool AsyncCopy = true>
+class TestCkTileMemoryCopy : public ::testing::TestWithParam<std::tuple<int, int, int>>
 {
     protected:
     void Run(const MemoryCopyParam& memcpy_params)
@@ -45,13 +45,14 @@ class TestCkTileMemoryCopy : public ::testing::Test
         std::cout << "input: " << x_host.mDesc << std::endl;
         std::cout << "output: " << y_host_dev.mDesc << std::endl;
 
-        ck_tile::half_t value = 1;
+        ck_tile::index_t value = 1;
         for(int i = 0; i < m; i++)
         {
             value = 1;
             for(int j = 0; j < n; j++)
             {
-                x_host(i, j) = value++;
+                value        = (value + 1) % 127;
+                x_host(i, j) = static_cast<DataType>(value);
             }
         }
 
@@ -60,11 +61,10 @@ class TestCkTileMemoryCopy : public ::testing::Test
 
         x_buf.ToDevice(x_host.data());
 
-        using BlockWaves         = ck_tile::sequence<2, 1>;
-        using BlockTile          = ck_tile::sequence<64, 8>;
-        using WaveTile           = ck_tile::sequence<64, 8>;
-        using Vector             = ck_tile::sequence<1, 2>;
-        constexpr bool AsyncCopy = true;
+        using BlockWaves = ck_tile::sequence<2, 1>;
+        using BlockTile  = ck_tile::sequence<64, 8>;
+        using WaveTile   = ck_tile::sequence<64, 8>;
+        using Vector     = ck_tile::sequence<1, dword_bytes / sizeof(DataType)>;
 
         ck_tile::index_t kGridSize =
             ck_tile::integer_divide_ceil(m, BlockTile::at(ck_tile::number<0>{}));
@@ -76,17 +76,21 @@ class TestCkTileMemoryCopy : public ::testing::Test
         constexpr ck_tile::index_t kBlockSize  = 128;
         constexpr ck_tile::index_t kBlockPerCu = 1;
 
-        launch_kernel(ck_tile::stream_config{},
-                      ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
-                          Kernel{},
-                          kGridSize,
-                          kBlockSize,
-                          0,
-                          static_cast<XDataType*>(x_buf.GetDeviceBuffer()),
-                          static_cast<YDataType*>(y_buf.GetDeviceBuffer()),
-                          m,
-                          n,
-                          warp_id));
+        auto ms = launch_kernel(ck_tile::stream_config{nullptr, true},
+                                ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
+                                    Kernel{},
+                                    kGridSize,
+                                    kBlockSize,
+                                    0,
+                                    static_cast<XDataType*>(x_buf.GetDeviceBuffer()),
+                                    static_cast<YDataType*>(y_buf.GetDeviceBuffer()),
+                                    m,
+                                    n,
+                                    warp_id));
+
+        auto bytes = 2 * m * n * sizeof(DataType);
+        std::cout << "elapsed: " << ms << " (ms)" << std::endl;
+        std::cout << (bytes * 1e-6 / ms) << " (GB/s)" << std::endl;
 
         // reference
         y_buf.FromDevice(y_host_dev.mData.data());
@@ -96,34 +100,94 @@ class TestCkTileMemoryCopy : public ::testing::Test
     }
 };
 
-class TestCkTileMemoryCopyHalf : public TestCkTileMemoryCopy<ck_tile::half_t>
+class TestCkTileMemoryCopyHalfAsync : public TestCkTileMemoryCopy<ck_tile::half_t>
 {
 };
 
-class TestCkTileMemoryCopyBFloat : public TestCkTileMemoryCopy<ck_tile::bf16_t>
+class TestCkTileMemoryCopyHalfSync : public TestCkTileMemoryCopy<ck_tile::half_t, false>
 {
 };
 
-TEST_F(TestCkTileMemoryCopyHalf, TestCorrectness)
+class TestCkTileMemoryCopyFloatAsync : public TestCkTileMemoryCopy<float>
 {
-    this->Run({64, 8, 0});
-    this->Run({63, 8, 0});
-    this->Run({63, 2, 0});
-    this->Run({127, 30, 0});
-    this->Run({64, 8, 1});
-    this->Run({63, 8, 1});
-    this->Run({63, 2, 1});
-    this->Run({127, 30, 1});
+};
+
+class TestCkTileMemoryCopyFP8Async : public TestCkTileMemoryCopy<ck_tile::fp8_t>
+{
+};
+
+TEST_P(TestCkTileMemoryCopyHalfAsync, TestCorrectness)
+{
+    auto [M, N, warp_id] = GetParam();
+    this->Run({M, N, warp_id});
 }
 
-TEST_F(TestCkTileMemoryCopyBFloat, TestCorrectness)
+TEST_P(TestCkTileMemoryCopyHalfSync, TestCorrectness)
 {
-    this->Run({64, 8, 0});
-    this->Run({63, 8, 0});
-    this->Run({63, 2, 0});
-    this->Run({127, 30, 0});
-    this->Run({64, 8, 1});
-    this->Run({63, 8, 1});
-    this->Run({63, 2, 1});
-    this->Run({127, 30, 1});
+    auto [M, N, warp_id] = GetParam();
+    this->Run({M, N, warp_id});
 }
+
+TEST_P(TestCkTileMemoryCopyFloatAsync, TestCorrectness)
+{
+    auto [M, N, warp_id] = GetParam();
+    this->Run({M, N, warp_id});
+}
+
+TEST_P(TestCkTileMemoryCopyFP8Async, TestCorrectness)
+{
+    auto [M, N, warp_id] = GetParam();
+    this->Run({M, N, warp_id});
+}
+
+INSTANTIATE_TEST_SUITE_P(TestCkTileMemCopySuite,
+                         TestCkTileMemoryCopyHalfAsync,
+                         ::testing::Values(std::tuple{64, 8, 0},
+                                           std::tuple{63, 8, 0},
+                                           std::tuple{63, 2, 0},
+                                           std::tuple{127, 30, 0},
+                                           std::tuple{64, 8, 1},
+                                           std::tuple{63, 8, 1},
+                                           std::tuple{63, 2, 1},
+                                           std::tuple{127, 30, 1},
+                                           std::tuple{16384, 16384, 0},
+                                           std::tuple{16384, 16384, 1}));
+
+INSTANTIATE_TEST_SUITE_P(TestCkTileMemCopySuite,
+                         TestCkTileMemoryCopyHalfSync,
+                         ::testing::Values(std::tuple{64, 8, 0},
+                                           std::tuple{63, 8, 0},
+                                           std::tuple{63, 2, 0},
+                                           std::tuple{127, 30, 0},
+                                           std::tuple{64, 8, 1},
+                                           std::tuple{63, 8, 1},
+                                           std::tuple{63, 2, 1},
+                                           std::tuple{127, 30, 1},
+                                           std::tuple{16384, 16384, 0},
+                                           std::tuple{16384, 16384, 1}));
+
+INSTANTIATE_TEST_SUITE_P(TestCkTileMemCopySuite,
+                         TestCkTileMemoryCopyFloatAsync,
+                         ::testing::Values(std::tuple{64, 8, 0},
+                                           std::tuple{63, 8, 0},
+                                           std::tuple{63, 2, 0},
+                                           std::tuple{127, 30, 0},
+                                           std::tuple{64, 8, 1},
+                                           std::tuple{63, 8, 1},
+                                           std::tuple{63, 2, 1},
+                                           std::tuple{127, 30, 1},
+                                           std::tuple{16384, 16384, 0},
+                                           std::tuple{16384, 16384, 1}));
+
+INSTANTIATE_TEST_SUITE_P(TestCkTileMemCopySuite,
+                         TestCkTileMemoryCopyFP8Async,
+                         ::testing::Values(std::tuple{64, 8, 0},
+                                           std::tuple{63, 8, 0},
+                                           std::tuple{63, 4, 0},
+                                           std::tuple{127, 20, 0},
+                                           std::tuple{64, 8, 1},
+                                           std::tuple{63, 8, 1},
+                                           std::tuple{63, 4, 1},
+                                           std::tuple{127, 20, 1},
+                                           std::tuple{16384, 16384, 0},
+                                           std::tuple{16384, 16384, 1}));

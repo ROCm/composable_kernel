@@ -84,7 +84,7 @@ using ext_vector_t = typename impl::ext_vector<T, N>::type;
 
 // by default, any type will result in a vector_size=1 with scalar_type=T traits.
 // ... unless we have other vector_traits specialization
-template <typename T, typename>
+template <typename T, typename = void>
 struct vector_traits
 {
     using scalar_type =
@@ -94,7 +94,7 @@ struct vector_traits
 
 // specialization for ext_vector_type()
 template <typename T, index_t N>
-struct vector_traits<T __attribute__((ext_vector_type(N)))>
+struct vector_traits<T __attribute__((ext_vector_type(N))), void>
 {
     using scalar_type = std::conditional_t<std::is_same_v<T, pk_int4_t>, int8_t, T>;
     static constexpr index_t vector_size = N;
