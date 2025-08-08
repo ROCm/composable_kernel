@@ -98,6 +98,12 @@ add_compile_options(-Wno-pass-failed)
 add_compile_options(-Wno-switch-default)
 add_compile_options(-Wno-unique-object-duplication)
 
+# add -Og -gdwarf64 for debug builds
+add_compile_options(
+    "$<$<CONFIG:Debug>:-Og>"
+    "$<$<CONFIG:Debug>:-gdwarf64>"
+)
+
 # Recent change in compiler makes this warning ON by default, which led to compile errors.
 add_compile_options(-Wno-nrvo)
 
