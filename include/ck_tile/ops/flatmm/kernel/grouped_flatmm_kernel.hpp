@@ -31,8 +31,8 @@ struct GroupedFlatmmHostArgs
                                        void** c_ptr_,
                                        index_t* stride_C_,
                                        index_t k_batch_,
-                                       ScaleM scale_m_ = nullptr,
-                                       ScaleN scale_n_ = nullptr)
+                                       ScaleM* scale_m_ = nullptr,
+                                       ScaleN* scale_n_ = nullptr)
         : group_count(group_count_),
           M(M_),
           N(N_),
@@ -68,8 +68,8 @@ struct GroupedFlatmmHostArgs
     };
     index_t* stride_C;
     index_t k_batch;
-    ScaleM scale_m = nullptr;
-    ScaleN scale_n = nullptr;
+    ScaleM* scale_m = nullptr;
+    ScaleN* scale_n = nullptr;
 };
 
 template <class ScaleM       = FlatmmScalePointer<-1>,
@@ -253,8 +253,8 @@ struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Epi
 
         const int persistent_block_size = prop.multiProcessorCount * maxActiveBlocksPerCU;
 
-        std::cout << "maxActiveBlocksPerCU: " << maxActiveBlocksPerCU
-                  << ", persistent_block_size: " << persistent_block_size << std::endl;
+        // std::cout << "maxActiveBlocksPerCU: " << maxActiveBlocksPerCU
+        //           << ", persistent_block_size: " << persistent_block_size << std::endl;
 
         assert(kernelArgs.k_batch == 1);
         return dim3(persistent_block_size, 1, kernelArgs.k_batch);
@@ -285,9 +285,9 @@ struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Epi
         const int persistent_block_size = prop.multiProcessorCount * maxActiveBlocksPerCU;
         const int total_work_tile_cnt   = TilePartitioner::GridSize(kernelArgs.M, kernelArgs.N);
 
-        std::cout << "maxActiveBlocksPerCU: " << maxActiveBlocksPerCU
-                  << ", persistent_block_size: " << persistent_block_size
-                  << ", total_work_tile_cnt: " << total_work_tile_cnt << std::endl;
+        // std::cout << "maxActiveBlocksPerCU: " << maxActiveBlocksPerCU
+        //           << ", persistent_block_size: " << persistent_block_size
+        //           << ", total_work_tile_cnt: " << total_work_tile_cnt << std::endl;
 
         assert(kernelArgs.k_batch == 1);
         return dim3(min(persistent_block_size, total_work_tile_cnt), 1, kernelArgs.k_batch);
@@ -318,8 +318,8 @@ struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Epi
         const int persistent_block_size = prop.multiProcessorCount * maxActiveBlocksPerCU;
         // const int total_work_tile_cnt   = TilePartitioner::GridSize(kernelArgs.M, kernelArgs.N);
 
-        std::cout << "maxActiveBlocksPerCU: " << maxActiveBlocksPerCU
-                  << ", persistent_block_size: " << persistent_block_size << std::endl;
+        // std::cout << "maxActiveBlocksPerCU: " << maxActiveBlocksPerCU
+        //           << ", persistent_block_size: " << persistent_block_size << std::endl;
 
         assert(kernelArgs.k_batch == 1);
         return dim3(persistent_block_size, 1, kernelArgs.k_batch);
@@ -374,6 +374,8 @@ struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Epi
                     kargs.stride_Ds,
                     kargs.stride_C[group_idx],
                     kargs.k_batch,
+                    kargs.scale_m[group_idx],
+                    kargs.scale_n[group_idx]
                 };
                 // call the underlying flatmm kernel
                 underlying_kernel(impl_kargs, block_linear_idx);
@@ -413,6 +415,8 @@ struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Epi
                 kargs.stride_Ds,
                 kargs.stride_C,
                 kargs.k_batch,
+                kargs.scale_m,
+                kargs.scale_n
             };
             // call the underlying flatmm kernel
             underlying_kernel(impl_kargs, block_linear_idx);
@@ -452,6 +456,8 @@ struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Epi
                     kargs.stride_Ds,
                     kargs.stride_C,
                     kargs.k_batch,
+                    kargs.scale_m + group_idx * kargs.M,
+                    kargs.scale_n + group_idx * kargs.N
                 };
                 // call the underlying flatmm kernel
                 underlying_kernel(impl_kargs, block_linear_idx);
