@@ -105,7 +105,8 @@ struct native_t<bfloat16_t>
 using bf16_t     = bfloat16_t;
 using bf16_raw_t = typename bf16_t::raw_type;
 #else
-#if 1 // ROCm 7.0
+#if(HIP_VERSION_MAJOR == 6 && HIP_VERSION_MINOR == 5 && HIP_VERSION_PATCH >= 50421) || \
+    (HIP_VERSION_MAJOR >= 7)
 using bfloat16_t = __bf16;
 #else
 using bfloat16_t = ushort;

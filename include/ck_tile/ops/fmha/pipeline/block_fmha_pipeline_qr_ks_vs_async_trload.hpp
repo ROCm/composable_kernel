@@ -5,14 +5,14 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
-#include "ck_tile/ops/fmha/pipeline/block_fmha_fwd_decode_pipeline_qr_ks_vs_policy.hpp"
+#include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_async_trload_policy.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
 namespace ck_tile {
 
 // This pipeline is qkv all located in LDS
-template <typename Problem_, typename Policy_ = BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy>
-struct BlockFmhaFwdDecodePipelineQRKSVS
+template <typename Problem_, typename Policy_ = BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy>
+struct BlockFmhaPipelineQRKSVSAsyncTrload
 {
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};

@@ -1078,8 +1078,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                     args.drop_seed_offset = std::make_pair(drop_seed, drop_offset);
                 }
             }
-            else if constexpr(std::is_same_v<fmha_fwd_splitkv_args, std::decay_t<decltype(args)>> ||
-                              std::is_same_v<fmha_fwd_decode_args, std::decay_t<decltype(args)>>)
+            else if constexpr(std::is_same_v<fmha_fwd_splitkv_args, std::decay_t<decltype(args)>>)
             {
                 args.lse_acc_ptr = lse_acc_buf.GetDeviceBuffer();
                 args.o_acc_ptr   = o_acc_buf.GetDeviceBuffer();

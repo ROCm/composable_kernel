@@ -18,7 +18,7 @@
 #define CK_TILE_FMHA_HANDLE_XOR_LENGTH_FOLD 0
 namespace ck_tile {
 // This pipeline is qkv all located in LDS
-struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
+struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
     : BlockFmhaPipelineQXKSVSCustomPolicy</* QLoadOnce = */ true,
                                           /* AsyncCopy = */ false,
                                           /* NumPrefetchK = */ 1,
