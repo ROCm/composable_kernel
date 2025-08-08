@@ -29,7 +29,7 @@ set(FMHA_FWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
   --api ${FMHA_FWD_APIS}
   --optdim 32,64,128,256
-  --filter fmha_fwd_d128_bf16_batch_b128x64x32x128x16x128_r4x1x1_r4x1x1_w32x32x16_w32x32x16_qr_async_trload_vr_npad_nlogits_nbias_nmask_nlse_ndropout_nskip_nsquant_trload
+  # --filter fmha_fwd...
 )
 set(FMHA_BWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
