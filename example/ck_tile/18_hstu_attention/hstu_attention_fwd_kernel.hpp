@@ -664,18 +664,33 @@ struct HstuAttentionFwdKernel
         {
             if(kargs.min_full_attn_seqlen > 0)
             {
-                seqlen_in_first_split = kargs.seqlen - kargs.min_full_attn_seqlen - num_target;
+                // need consider for cases where min_full_attn_seqlen be bigger than max_uih_len
+                if(kargs.seqlen - num_target > kargs.min_full_attn_seqlen)
+                {
+                    seqlen_in_first_split = kargs.seqlen - num_target - kargs.min_full_attn_seqlen;
 
-                index_t num_tile_in_first_split =
-                    ck_tile::integer_divide_ceil(seqlen_in_first_split, HstuAttentionPipeline::kM0);
+                    index_t num_tile_in_first_split = ck_tile::integer_divide_ceil(
+                        seqlen_in_first_split, HstuAttentionPipeline::kM0);
 
-                is_tile_in_first_split = (i_tile_m < num_tile_in_first_split);
+                    is_tile_in_first_split = (i_tile_m < num_tile_in_first_split);
 
-                i_m0 = is_tile_in_first_split
-                           ? __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM0)
-                           : __builtin_amdgcn_readfirstlane((i_tile_m - num_tile_in_first_split) *
-                                                            HstuAttentionPipeline::kM0) +
-                                 seqlen_in_first_split;
+                    i_m0 =
+                        is_tile_in_first_split
+                            ? __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM0)
+                            : __builtin_amdgcn_readfirstlane((i_tile_m - num_tile_in_first_split) *
+                                                             HstuAttentionPipeline::kM0) +
+                                  seqlen_in_first_split;
+                }
+                else
+                {
+                    seqlen_in_first_split  = 0;
+                    is_tile_in_first_split = false;
+
+                    // adjust the min_full_attn_seqlen to be passed to HstuBlockMask constructor
+                    kargs.min_full_attn_seqlen = kargs.seqlen - num_target;
+
+                    i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM0);
+                };
             }
             else
                 i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM0);
