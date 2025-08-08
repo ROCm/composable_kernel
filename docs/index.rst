@@ -36,7 +36,7 @@ The Composable Kernel repository is located at `https://github.com/ROCm/composab
     * :doc:`Composable Kernel custom types <./reference/Composable_Kernel_custom_types>`
     * :doc:`Composable Kernel vector utilities <./reference/Composable_Kernel_vector_utilities>`
     * :ref:`wrapper`    
-    * :doc:`Composable Kernel API reference <./doxygen/html/index>`
+    * `blah blah blah <./doxygen/html/index.html>`_
     * :doc:`CK Tile API reference <./doxygen/html/namespaceck__tile>`
     * :doc:`Composable Kernel complete API class list <./doxygen/html/annotated>`
     
