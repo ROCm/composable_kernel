@@ -848,7 +848,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                   << (is_rotary_interleaved ? "inter" : "half") << ")";
     }
 #endif
-#if CK_TILE_FMHA_FWD_SPLITKV_API || CK_TILE_FMHA_FWD_PAGEDKV_API || CK_TILE_FMHA_FWD_DECODE_API
+#if CK_TILE_FMHA_FWD_SPLITKV_API || CK_TILE_FMHA_FWD_PAGEDKV_API
     if(1 < num_splits)
     {
         std::cout << ", num_splits:" << num_splits;
@@ -1145,14 +1145,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
             return fmha_fwd_splitkv(fmha_splitkv_traits, fmha_splitkv_args, stream_config);
         }
-#elif CK_TILE_FMHA_FWD_DECODE_API
-        fmha_fwd_decode_traits fmha_decode_traits;
-        init_traits(fmha_decode_traits);
-
-        fmha_fwd_decode_args fmha_decode_args;
-        init_args(fmha_decode_args);
-
-        return fmha_fwd_decode(fmha_decode_traits, fmha_decode_args, stream_config);
 #elif CK_TILE_FMHA_FWD_PAGEDKV_API
         if(use_kvcache)
         {

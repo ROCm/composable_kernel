@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/fmha.hpp"
@@ -1279,6 +1280,7 @@ template <ck_tile::index_t HDim_,
           bool kPadSK_,
           bool kPadD_,
           bool kPadDv_,
+          bool kUseTrLoad_,
           bool kSkipMinSeqlenQ_ = false>
 struct fmha_fwd_traits_
 {
@@ -1303,6 +1305,7 @@ struct fmha_fwd_traits_
     static constexpr bool kPadSK                     = kPadSK_;
     static constexpr bool kPadD                      = kPadD_;
     static constexpr bool kPadDv                     = kPadDv_;
+    static constexpr bool kUseTrLoad                 = kUseTrLoad_;
     static constexpr bool kSkipMinSeqlenQ            = kSkipMinSeqlenQ_;
 };
 

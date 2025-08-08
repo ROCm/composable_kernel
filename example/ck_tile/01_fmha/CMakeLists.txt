@@ -1,9 +1,7 @@
 # validate user-specified fmha_fwd API list
-set(FMHA_FWD_KNOWN_APIS "fwd;fwd_splitkv;fwd_appendkv;pagedkv_prefill;fwd_decode")
-set(FMHA_FWD_ENABLE_APIS "fwd_decode" CACHE STRING
-    "semicolon-separated list of APIs to generate (${FMHA_FWD_KNOWN_APIS}) & link, or \"all\".")
-# set(FMHA_FWD_ENABLE_APIS "fwd" CACHE STRING
-#   "semicolon-separated list of APIs to generate (${FMHA_FWD_KNOWN_APIS}) & link, or \"all\".")
+set(FMHA_FWD_KNOWN_APIS "fwd;fwd_splitkv;fwd_appendkv;pagedkv_prefill")
+set(FMHA_FWD_ENABLE_APIS "fwd" CACHE STRING
+  "semicolon-separated list of APIs to generate (${FMHA_FWD_KNOWN_APIS}) & link, or \"all\".")
 if(FMHA_FWD_ENABLE_APIS STREQUAL "all")
   set(FMHA_FWD_ENABLE_APIS ${FMHA_FWD_KNOWN_APIS})
 endif()
@@ -30,8 +28,8 @@ string(REPLACE ";" "," FMHA_FWD_APIS "${FMHA_FWD_ENABLE_APIS}")
 set(FMHA_FWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
   --api ${FMHA_FWD_APIS}
-  # --filter @fmha_fwd_decode_d64_bf16_batch_b16x32x64x64x32x64_r1x1x1_r1x1x1_w16x16x32_w16x16x32_decode_qr_vr_nlogits_nbias_nmask_nlse_nsquant_npagedkv
-)
+  # --filter fmha_fwd_d64_fp16_batch_b16x32x64x64x32x64_r1x1x1_r1x1x1_w16x16x32_w16x16x32_qr_async_trload_vr_npad_nlogits_nbias_nmask_nlse_ndropout_nskip_nsquant_trload
+  )
 set(FMHA_BWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
   --api bwd
@@ -109,7 +107,7 @@ if(FMHA_FWD_FAST_EXP2)
 else()
   list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -DCK_TILE_FMHA_FWD_FAST_EXP2=0)
 endif()
-list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -v --save-temps -Wno-gnu-line-marker)
+# list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -v --save-temps -Wno-gnu-line-marker)
 list(APPEND EXAMPLE_FMHA_BWD_COMPILE_OPTIONS -Wno-undefined-func-template -fgpu-flush-denormals-to-zero)
 
 # conditionally enable call to the fwd_splitkv API in fmha_fwd example
@@ -124,13 +122,6 @@ if("fwd_appendkv" IN_LIST FMHA_FWD_ENABLE_APIS)
   list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_APPENDKV_API=1)
 else()
   list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_APPENDKV_API=0)
-endif()
-
-# conditionally enable call to the fwd_appendkv API in fmha_fwd example
-if("fwd_decode" IN_LIST FMHA_FWD_ENABLE_APIS)
-  list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_DECODE_API=1)
-else()
-  list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_DECODE_API=0)
 endif()
 
 # conditionally enable call to the pagedkv_prefill API in fmha_fwd example

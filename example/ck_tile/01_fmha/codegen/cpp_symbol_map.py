@@ -5,9 +5,9 @@
 FWD_DTYPE_MAP = {
     "fp16"   : "FmhaFwdFp16",
     "bf16"   : "FmhaFwdBf16",
-    # "fp8"    : "FmhaFwdFp8",
-    # "fp8fp16": "FmhaFwdFp8Fp16",
-    # "fp8bf16": "FmhaFwdFp8Bf16"
+    "fp8"    : "FmhaFwdFp8",
+    "fp8fp16": "FmhaFwdFp8Fp16",
+    "fp8bf16": "FmhaFwdFp8Bf16"
 }
 
 BWD_DTYPE_MAP = {
@@ -22,7 +22,7 @@ MASK_IMPL = {
 
 _MASK_SIMPLIFIED_MAP = {
     "s_no" : "ck_tile::SimplifiedGenericAttentionMask<false>",
-    # "s_mask" : "ck_tile::SimplifiedGenericAttentionMask<true>",
+    "s_mask" : "ck_tile::SimplifiedGenericAttentionMask<true>",
 }
 
 _MASK_MAP = {
@@ -62,8 +62,8 @@ def get_mask_check_map(mask : str):
 
 BIAS_MAP = {
     "no" : "ck_tile::BlockAttentionBiasEnum::NO_BIAS",
-    # "bias"  : "ck_tile::BlockAttentionBiasEnum::ELEMENTWISE_BIAS",
-    # "alibi" : "ck_tile::BlockAttentionBiasEnum::ALIBI"
+    "bias"  : "ck_tile::BlockAttentionBiasEnum::ELEMENTWISE_BIAS",
+    "alibi" : "ck_tile::BlockAttentionBiasEnum::ALIBI"
 }
 
 # TODO: this is ugly
@@ -112,19 +112,19 @@ LAYOUT_MAP = {
 }
 
 PIPELINE_MAP = {
-    # "qr" : "ck_tile::BlockFmhaPipelineQRKSVS",
-    # "qr_async" : "ck_tile::BlockFmhaPipelineQRKSVSAsync",
-    # "qs" : "ck_tile::BlockFmhaPipelineQSKSVS",
-    "decode_qr" : "ck_tile::BlockFmhaFwdDecodePipelineQRKSVS",
+    "qr" : "ck_tile::BlockFmhaPipelineQRKSVS",
+    "qr_async" : "ck_tile::BlockFmhaPipelineQRKSVSAsync",
+    "qs" : "ck_tile::BlockFmhaPipelineQSKSVS",
+    "qr_async_trload" : "ck_tile::BlockFmhaFwdDecodePipelineQRKSVS",
 }
 
 PIPELINE_ENUM_MAP = {
-    # "qr" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS",
-    # "qr_async" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS_ASYNC",
-    # "qr_nwarp_sshuffle" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS",
-    # "qs" : "ck_tile::BlockFmhaPipelineEnum::QSKSVS",
-    # "qr_pagedkv" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS",
-    "decode_qr" : "ck_tile::BlockFmhaPipelineEnum::DECODE_QRKSVS",
+    "qr" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS",
+    "qr_async" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS_ASYNC",
+    "qr_nwarp_sshuffle" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS",
+    "qs" : "ck_tile::BlockFmhaPipelineEnum::QSKSVS",
+    "qr_pagedkv" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS",
+    "qr_async_trload" : "ck_tile::BlockFmhaPipelineEnum::DECODE_QRKSVS",
 }
 
 BOOL_MAP = {
