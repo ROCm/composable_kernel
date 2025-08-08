@@ -36,9 +36,9 @@ The Composable Kernel repository is located at `https://github.com/ROCm/composab
     * :doc:`Composable Kernel custom types <./reference/Composable_Kernel_custom_types>`
     * :doc:`Composable Kernel vector utilities <./reference/Composable_Kernel_vector_utilities>`
     * :ref:`wrapper`    
-    * `blah blah blah <./doxygen/html/index.html>`_
-    * :doc:`CK Tile API reference <./doxygen/html/namespaceck__tile>`
-    * :doc:`Composable Kernel complete API class list <./doxygen/html/annotated>`
+    * :doc:`Composable Kernel API reference <https://github.com/spolifroni-amd/composable_kernel/blob/spolifroni-amd/fix-sphinx/docs/doxygen/html/index.html>`
+    * :doc:`CK Tile API reference <./doxygen/html/namespaceck__tile.html>`
+    * :doc:`Composable Kernel complete API class list <./doxyge/html/annotated.html>`
     
 To contribute to the documentation refer to `Contributing to ROCm  <https://rocm.docs.amd.com/en/latest/contribute/contributing.html>`_.
 
