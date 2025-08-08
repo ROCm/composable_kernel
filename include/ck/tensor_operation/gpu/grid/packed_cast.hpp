@@ -6,7 +6,6 @@
 
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/type_convert.hpp"
-#include "ck/host_utility/hip_check_error.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 namespace ck {
