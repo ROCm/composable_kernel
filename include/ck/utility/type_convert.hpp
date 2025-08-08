@@ -71,7 +71,7 @@ inline __device__ bhalf2_t static_cast_float2_to_bhalf2_rne(float2_t x)
 // TODO: Why do we need the host instance?
 inline __host__ __device__ void static_cast_float_to_bhalf_packed(float& x, float& y)
 {
-#if defined(__gfx950__)
+#if defined(__gfx950__) && defined(__HIP_DEVICE_COMPILE__)
     uint32_t result;
     asm volatile("v_cvt_pk_bf16_f32 %0, %1, %2" 
         : "=v"(result) 
@@ -89,6 +89,7 @@ inline __host__ __device__ void static_cast_float_to_bhalf_packed(float& x, floa
     y_parts[1] = bf16_values[1];
 #else
     // Skip conversion for non-GFX950 architectures
+    // TODO: Implement the conversion.
     x = static_cast<float>(static_cast<bhalf_t>(x));
     y = static_cast<float>(static_cast<bhalf_t>(y));
 #endif
@@ -106,7 +107,7 @@ __host__ __device__ constexpr Y bf16_convert_rtn(X x);
 template <>
 inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(float x)
 {
-#if defined(__gfx950__)
+#if defined(__gfx950__) && defined(__HIP_DEVICE_COMPILE__)
     return static_cast_float_to_bf16(x);
 #else
     // Nan check
