@@ -424,6 +424,15 @@ struct DeviceOperationInstanceFactory<
                         op_ptrs);
                 }
 #endif
+#ifdef CK_ENABLE_BF16
+                if constexpr(is_same_v<InDataType, BF16> && is_same_v<WeiDataType, BF16> &&
+                             is_same_v<OutDataType, BF16> && is_same_v<ComputeTypeA, BF16> &&
+                             is_same_v<ComputeTypeB, BF16>)
+                {
+                    add_device_grouped_conv2d_bwd_data_wmma_v3_gnhwk_gkyxc_gnhwc_bf16_instances(
+                        op_ptrs);
+                }
+#endif
 #ifdef CK_ENABLE_INT8
                 if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
                              is_same_v<OutDataType, int8_t> && is_same_v<ComputeTypeA, int8_t> &&
@@ -450,6 +459,17 @@ struct DeviceOperationInstanceFactory<
                     add_device_grouped_conv2d_bwd_data_wmma_nhwgk_gkyxc_nhwgc_f16_instances(
                         op_ptrs);
                     add_device_grouped_conv2d_bwd_data_wmma_nhwgk_gkyxc_nhwgc_f16_1x1s1p0_instances(
+                        op_ptrs);
+                }
+#endif
+#ifdef CK_ENABLE_BF16
+                if constexpr(is_same_v<InDataType, BF16> && is_same_v<WeiDataType, BF16> &&
+                             is_same_v<OutDataType, BF16> && is_same_v<ComputeTypeA, BF16> &&
+                             is_same_v<ComputeTypeB, BF16>)
+                {
+                    add_device_grouped_conv2d_bwd_data_wmma_v3_nhwgk_gkyxc_nhwgc_bf16_instances(
+                        op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_wmma_v3_nhwgk_gkyxc_nhwgc_bf16_16_16_instances(
                         op_ptrs);
                 }
 #endif
@@ -480,6 +500,19 @@ struct DeviceOperationInstanceFactory<
                         op_ptrs);
                 }
 #endif
+#ifdef CK_ENABLE_BF16
+                if constexpr(is_same_v<InDataType, BF16> && is_same_v<WeiDataType, BF16> &&
+                             is_same_v<OutDataType, BF16> && is_same_v<ComputeTypeA, BF16> &&
+                             is_same_v<ComputeTypeB, BF16>)
+                {
+                    add_device_grouped_conv2d_bwd_data_wmma_v3_ngkhw_gkcyx_ngchw_bf16_instances(
+                        op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_wmma_v3_ngkhw_gkcyx_ngchw_bf16_16_16_instances(
+                        op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_wmma_v3_ngkhw_gkcyx_ngchw_bf16_vec_transpose_instances(
+                        op_ptrs);
+                }
+#endif
             }
             if constexpr(is_same_v<InLayout, NGCHW> && is_same_v<WeiLayout, GKYXC> &&
                          is_same_v<OutLayout, NGKHW>)
@@ -493,68 +526,78 @@ struct DeviceOperationInstanceFactory<
                         op_ptrs);
                 }
 #endif
-            }
-        }
-        if constexpr(NumDimSpatial == 3)
-        {
-            if constexpr(is_same_v<InLayout, GNDHWC> && is_same_v<WeiLayout, GKZYXC> &&
-                         is_same_v<OutLayout, GNDHWK>)
-            {
-#ifdef CK_ENABLE_FP16
-                if constexpr(is_same_v<InDataType, F16> && is_same_v<WeiDataType, F16> &&
-                             is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
-                             is_same_v<ComputeTypeB, F16>)
                 {
-                    add_device_grouped_conv3d_bwd_data_wmma_gndhwk_gkzyxc_gndhwc_f16_instances(
-                        op_ptrs);
-                    add_device_grouped_conv3d_bwd_data_wmma_gndhwk_gkzyxc_gndhwc_f16_1x1s1p0_instances(
-                        op_ptrs);
+#ifdef CK_ENABLE_BF16
+                    if constexpr(is_same_v<InDataType, BF16> && is_same_v<WeiDataType, BF16> &&
+                                 is_same_v<OutDataType, BF16> && is_same_v<ComputeTypeA, BF16> &&
+                                 is_same_v<ComputeTypeB, BF16>)
+                    {
+                        add_device_grouped_conv2d_bwd_data_wmma_v3_ngkhw_gkyxc_ngchw_bf16_instances(
+                            op_ptrs);
+                    }
+#endif
                 }
+            }
+            if constexpr(NumDimSpatial == 3)
+            {
+                if constexpr(is_same_v<InLayout, GNDHWC> && is_same_v<WeiLayout, GKZYXC> &&
+                             is_same_v<OutLayout, GNDHWK>)
+                {
+#ifdef CK_ENABLE_FP16
+                    if constexpr(is_same_v<InDataType, F16> && is_same_v<WeiDataType, F16> &&
+                                 is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
+                                 is_same_v<ComputeTypeB, F16>)
+                    {
+                        add_device_grouped_conv3d_bwd_data_wmma_gndhwk_gkzyxc_gndhwc_f16_instances(
+                            op_ptrs);
+                        add_device_grouped_conv3d_bwd_data_wmma_gndhwk_gkzyxc_gndhwc_f16_1x1s1p0_instances(
+                            op_ptrs);
+                    }
 #endif
 #ifdef CK_ENABLE_INT8
-                if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
-                             is_same_v<OutDataType, int8_t> && is_same_v<ComputeTypeA, int8_t> &&
-                             is_same_v<ComputeTypeB, int8_t>)
-                {
-                    add_device_grouped_conv3d_bwd_data_wmma_gndhwk_gkzyxc_gndhwc_i8_instances(
-                        op_ptrs);
-                    add_device_grouped_conv3d_bwd_data_wmma_gndhwk_gkzyxc_gndhwc_i8_1x1s1p0_instances(
-                        op_ptrs);
-                }
+                    if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
+                                 is_same_v<OutDataType, int8_t> &&
+                                 is_same_v<ComputeTypeA, int8_t> && is_same_v<ComputeTypeB, int8_t>)
+                    {
+                        add_device_grouped_conv3d_bwd_data_wmma_gndhwk_gkzyxc_gndhwc_i8_instances(
+                            op_ptrs);
+                        add_device_grouped_conv3d_bwd_data_wmma_gndhwk_gkzyxc_gndhwc_i8_1x1s1p0_instances(
+                            op_ptrs);
+                    }
 #endif
-            }
-            else if constexpr(is_same_v<InLayout, NDHWGC> && is_same_v<WeiLayout, GKZYXC> &&
-                              is_same_v<OutLayout, NDHWGK>)
-            {
-#ifdef CK_ENABLE_FP16
-                if constexpr(is_same_v<InDataType, F16> && is_same_v<WeiDataType, F16> &&
-                             is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
-                             is_same_v<ComputeTypeB, F16>)
-                {
-                    add_device_grouped_conv3d_bwd_data_wmma_ndhwgk_gkzyxc_ndhwgc_f16_instances(
-                        op_ptrs);
-                    add_device_grouped_conv3d_bwd_data_wmma_ndhwgk_gkzyxc_ndhwgc_f16_1x1s1p0_instances(
-                        op_ptrs);
                 }
+                else if constexpr(is_same_v<InLayout, NDHWGC> && is_same_v<WeiLayout, GKZYXC> &&
+                                  is_same_v<OutLayout, NDHWGK>)
+                {
+#ifdef CK_ENABLE_FP16
+                    if constexpr(is_same_v<InDataType, F16> && is_same_v<WeiDataType, F16> &&
+                                 is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
+                                 is_same_v<ComputeTypeB, F16>)
+                    {
+                        add_device_grouped_conv3d_bwd_data_wmma_ndhwgk_gkzyxc_ndhwgc_f16_instances(
+                            op_ptrs);
+                        add_device_grouped_conv3d_bwd_data_wmma_ndhwgk_gkzyxc_ndhwgc_f16_1x1s1p0_instances(
+                            op_ptrs);
+                    }
 #endif
 #ifdef CK_ENABLE_INT8
-                if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
-                             is_same_v<OutDataType, int8_t> && is_same_v<ComputeTypeA, int8_t> &&
-                             is_same_v<ComputeTypeB, int8_t>)
-                {
-                    add_device_grouped_conv3d_bwd_data_wmma_ndhwgk_gkzyxc_ndhwgc_i8_instances(
-                        op_ptrs);
-                    add_device_grouped_conv3d_bwd_data_wmma_ndhwgk_gkzyxc_ndhwgc_i8_1x1s1p0_instances(
-                        op_ptrs);
-                }
+                    if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
+                                 is_same_v<OutDataType, int8_t> &&
+                                 is_same_v<ComputeTypeA, int8_t> && is_same_v<ComputeTypeB, int8_t>)
+                    {
+                        add_device_grouped_conv3d_bwd_data_wmma_ndhwgk_gkzyxc_ndhwgc_i8_instances(
+                            op_ptrs);
+                        add_device_grouped_conv3d_bwd_data_wmma_ndhwgk_gkzyxc_ndhwgc_i8_1x1s1p0_instances(
+                            op_ptrs);
+                    }
 #endif
+                }
             }
-        }
 #endif
 
-        return op_ptrs;
-    }
-};
+            return op_ptrs;
+        }
+    };
 
 } // namespace instance
 } // namespace device

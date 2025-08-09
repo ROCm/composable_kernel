@@ -335,6 +335,106 @@ void add_device_grouped_conv3d_bwd_data_wmma_ndhwgk_gkzyxc_ndhwgc_i8_1x1s1p0_ins
                                                                   PassThrough>>>& instances);
 #endif
 
+#ifdef CK_ENABLE_BF16
+void add_device_grouped_conv2d_bwd_data_wmma_v3_gnhwk_gkyxc_gnhwc_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
+                                                                  GNHWK,
+                                                                  GKYXC,
+                                                                  Empty_Tuple,
+                                                                  GNHWC,
+                                                                  BF16,
+                                                                  BF16,
+                                                                  Empty_Tuple,
+                                                                  B16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+
+void add_device_grouped_conv2d_bwd_data_wmma_v3_nhwgk_gkyxc_nhwgc_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
+                                                                  NHWGK,
+                                                                  GKYXC,
+                                                                  Empty_Tuple,
+                                                                  NHWGC,
+                                                                  BF16,
+                                                                  BF16,
+                                                                  Empty_Tuple,
+                                                                  BF16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+
+void add_device_grouped_conv2d_bwd_data_wmma_v3_nhwgk_gkyxc_nhwgc_bf16_16_16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
+                                                                  NHWGK,
+                                                                  GKYXC,
+                                                                  Empty_Tuple,
+                                                                  NHWGC,
+                                                                  BF16,
+                                                                  BF16,
+                                                                  Empty_Tuple,
+                                                                  BF16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+
+void add_device_grouped_conv2d_bwd_data_wmma_v3_ngkhw_gkcyx_ngchw_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
+                                                                  NGKHW,
+                                                                  GKCYX,
+                                                                  Empty_Tuple,
+                                                                  NGCHW,
+                                                                  BF16,
+                                                                  BF16,
+                                                                  Empty_Tuple,
+                                                                  BF16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+
+void add_device_grouped_conv2d_bwd_data_wmma_v3_ngkhw_gkcyx_ngchw_bf16_16_16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
+                                                                  NGKHW,
+                                                                  GKCYX,
+                                                                  Empty_Tuple,
+                                                                  NGCHW,
+                                                                  BF16,
+                                                                  BF16,
+                                                                  Empty_Tuple,
+                                                                  BF16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+
+void add_device_grouped_conv2d_bwd_data_wmma_v3_ngkhw_gkcyx_ngchw_bf16_vec_transpose_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
+                                                                  NGKHW,
+                                                                  GKCYX,
+                                                                  Empty_Tuple,
+                                                                  NGCHW,
+                                                                  BF16,
+                                                                  BF16,
+                                                                  Empty_Tuple,
+                                                                  BF16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+
+void add_device_grouped_conv2d_bwd_data_wmma_v3_ngkhw_gkyxc_ngchw_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
+                                                                  NGKHW,
+                                                                  GKYXC,
+                                                                  Empty_Tuple,
+                                                                  NGCHW,
+                                                                  BF16,
+                                                                  BF16,
+                                                                  Empty_Tuple,
+                                                                  BF16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+#endif
+
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation
