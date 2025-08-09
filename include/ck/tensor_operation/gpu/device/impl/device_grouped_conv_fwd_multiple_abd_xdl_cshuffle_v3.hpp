@@ -1101,11 +1101,13 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                 arg.a_g_n_c_wis_lengths_[I1] / arg.conv_N_per_block_;
 
             index_t gdx, gdy, gdz;
+            // KBatch -> Z
+            // num group && splitN -> Y
             std::tie(gdx, gdy, gdz) =
                 GridwiseGemmType::CalculateGridSize(gemm_arg.M,
                                                     gemm_arg.N,
-                                                    arg.num_group_ * num_workgroups_per_Conv_N,
-                                                    gemm_arg.KBatch);
+                                                    gemm_arg.KBatch,
+                                                    arg.num_group_ * num_workgroups_per_Conv_N);
 
             const auto num_k_per_block = arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) / gemm_arg.KBatch;
 
