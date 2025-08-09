@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - develop
-      - users/geomin12/add-therock-ci
   pull_request:
     types:
       - opened
