@@ -39,11 +39,11 @@ public:
             {GemmPipelineScheduler::Interwave, "Interwave"}};
 
         std::map<GemmPipelineVersion, std::string> GemmPipelineVersionToString{
-            {GemmPipelineVersion::V1, "v1"},
-            {GemmPipelineVersion::V2, "v2"},
-            {GemmPipelineVersion::V3, "v3"},
-            {GemmPipelineVersion::V4, "v4"},
-            {GemmPipelineVersion::V5, "v5"}};
+            {GemmPipelineVersion::Naive, "v1"},
+            {GemmPipelineVersion::ComputeFriendly, "v2"},
+            {GemmPipelineVersion::MemFriendly, "v3"},
+            {GemmPipelineVersion::ComputeFriendlyDoubleLDS, "v4"},
+            {GemmPipelineVersion::ComputeFriendlyDoubleGlobalPrefetch, "v5"}};
 
         std::map<MFMAInstructionSize, std::string> MFMAInstructionSizeToString{
             {MFMAInstructionSize::M16N16, "16x16"},
@@ -55,12 +55,12 @@ public:
             {ConvolutionSpecialization::Filter1x1Stride1Pad0, "Filter1x1Stride1Pad0"},
             {ConvolutionSpecialization::Filter3x3, "Filter3x3"}};
 
-        std::map<MergedGroups, std::string> MergedGroupsToString{
-            {MergedGroups::X16, "16"},
-            {MergedGroups::X8, "8"},
-            {MergedGroups::X4, "4"},
-            {MergedGroups::X2, "2"},
-            {MergedGroups::NotSupported, "1"}};
+        std::map<DepthwiseOptimization, std::string> DepthwiseOptimizationToString{
+            {DepthwiseOptimization::X16, "16"},
+            {DepthwiseOptimization::X8, "8"},
+            {DepthwiseOptimization::X4, "4"},
+            {DepthwiseOptimization::X2, "2"},
+            {DepthwiseOptimization::NotSupported, "1"}};
 
         // clang-format off
         str << KernelToString[GetKernel()]
@@ -79,9 +79,9 @@ public:
             << std::get<1>(ImplementationDesc::GlobalTransferVectorSize_) << ", "
             << std::get<1>(ImplementationDesc::LDSStoreVectorSize_) << ", "
             << std::get<2>(ImplementationDesc::GlobalTransferVectorSize_) << ", "
-            << GemmPipelineSchedulerToString[KernelDesc::GemmPipelineScheduler_] << ", "
-            << GemmPipelineVersionToString[KernelDesc::GemmPipelineVersion_] << ", "
-            << MergedGroupsToString[KernelDesc::MergedGroups_] << ">";
+            << GemmPipelineSchedulerToString[ImplementationDesc::GemmPipelineScheduler_] << ", "
+            << GemmPipelineVersionToString[ImplementationDesc::GemmPipelineVersion_] << ", "
+            << DepthwiseOptimizationToString[KernelDesc::DepthwiseOptimization_] << ">";
         // clang-format on
 
         return str.str();

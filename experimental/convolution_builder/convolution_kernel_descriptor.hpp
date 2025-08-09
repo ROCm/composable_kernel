@@ -20,20 +20,9 @@ enum class ConvolutionDirection
     BackwardWeight
 };
 
-
-enum class GemmPipelineVersion
-{
-    V1,
-    V2,
-    V3,
-    V4,
-    V5
-};
-
-enum class GemmPipelineScheduler
-{
-    Intrawave,
-    Interwave
+enum class UniversalGemmSupport {
+    Supported,
+    NotSupported
 };
 
 enum class SplitKSupport
@@ -43,7 +32,7 @@ enum class SplitKSupport
     NotSupported
 };
 
-enum class MergedGroups
+enum class DepthwiseOptimization
 {
     X16,
     X8,
@@ -87,20 +76,18 @@ concept KernelDescriptorV1 = requires {
     {T::KernelDescriptorVersion_} -> std::convertible_to<KernelDescriptorVersion>;
     {T::GemmImplementationType_} -> std::convertible_to<GemmImplementationType>;
     {T::ConvolutionDirection_} -> std::convertible_to<ConvolutionDirection>;
-    {T::GemmPipelineVersion_} -> std::convertible_to<const GemmPipelineVersion>;
-    {T::GemmPipelineScheduler_} -> std::convertible_to<const GemmPipelineScheduler>;
+    {T::UniversalGemmSupport_} -> std::convertible_to<const UniversalGemmSupport>;
     {T::SplitKSupport_} -> std::convertible_to<const SplitKSupport>;
-    {T::MergedGroups_} -> std::convertible_to<const MergedGroups>;
+    {T::DepthwiseOptimization_} -> std::convertible_to<const DepthwiseOptimization>;
     {T::LargeTensorSupport_} -> std::convertible_to<const LargeTensorSupport>;
     {T::ImplementationType_} -> std::convertible_to<const ImplementationType>;
     {T::ElementwiseOperation_} -> std::convertible_to<const ElementwiseOperation>;
 } && (T::KernelDescriptorVersion_ == KernelDescriptorVersion::V1);
 
 struct GroupedConvBase {
-    static constexpr GemmPipelineVersion GemmPipelineVersion_ = GemmPipelineVersion::V1;
-    static constexpr GemmPipelineScheduler GemmPipelineScheduler_ = GemmPipelineScheduler::Intrawave;
+    static constexpr UniversalGemmSupport UniversalGemmSupport_ = UniversalGemmSupport::NotSupported;
     static constexpr SplitKSupport SplitKSupport_ = SplitKSupport::NotSupported;
-    static constexpr MergedGroups MergedGroups_ = MergedGroups::NotSupported;
+    static constexpr DepthwiseOptimization DepthwiseOptimization_ = DepthwiseOptimization::NotSupported;
     static constexpr LargeTensorSupport LargeTensorSupport_ = LargeTensorSupport::NotSupported;
     static constexpr ImplementationType ImplementationType_ = ImplementationType::Implicit;
     static constexpr ElementwiseOperation ElementwiseOperation_ = ElementwiseOperation::PassThrough;

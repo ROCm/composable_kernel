@@ -11,6 +11,20 @@ enum class ImplementationDescriptorVersion
     V1
 };
 
+enum class GemmPipelineVersion
+{
+    Naive,
+    ComputeFriendly,
+    MemFriendly,
+    ComputeFriendlyDoubleLDS,
+    ComputeFriendlyDoubleGlobalPrefetch
+};
+
+enum class GemmPipelineScheduler
+{
+    Intrawave,
+    Interwave
+};
 
 enum class ConvolutionSpecialization {
     Default,
@@ -29,6 +43,8 @@ template <typename T>
 concept ImplementationDescriptorV1 = requires {
     {T::ImplementationDescriptorVersion_} -> std::convertible_to<ImplementationDescriptorVersion>;
     {T::ConvolutionSpecialization_} -> std::convertible_to<ConvolutionSpecialization>;
+    {T::GemmPipelineVersion_} -> std::convertible_to<GemmPipelineVersion>;
+    {T::GemmPipelineScheduler_} -> std::convertible_to<GemmPipelineScheduler>;
     {T::BlockSize_} -> std::convertible_to<int>;
     {T::TileSizes_} -> std::convertible_to<std::tuple<int, int, int>>;
     {T::K1_} -> std::convertible_to<int>;
@@ -41,4 +57,6 @@ concept ImplementationDescriptorV1 = requires {
 struct ImplementationDefaultV1 {
     static constexpr ImplementationDescriptorVersion ImplementationDescriptorVersion_ = ImplementationDescriptorVersion::V1;
     static constexpr ConvolutionSpecialization ConvolutionSpecialization_ = ConvolutionSpecialization::Default;
+    static constexpr GemmPipelineVersion GemmPipelineVersion_ = GemmPipelineVersion::Naive;
+    static constexpr GemmPipelineScheduler GemmPipelineScheduler_ = GemmPipelineScheduler::Intrawave;
 };
