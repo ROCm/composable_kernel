@@ -8,7 +8,8 @@
 
 namespace ck_tile {
 
-struct GemmWeightPreshuffleBQuantPipelineAgBgCrPolicy : public UniversalWeightPreshufflePipelineAgBgCrPolicy
+struct GemmWeightPreshuffleBQuantPipelineAgBgCrPolicy
+    : public UniversalWeightPreshufflePipelineAgBgCrPolicy
 {
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeBQ()
@@ -28,7 +29,7 @@ struct GemmWeightPreshuffleBQuantPipelineAgBgCrPolicy : public UniversalWeightPr
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetBlockWeightPreshuffle()
+    CK_TILE_HOST_DEVICE static constexpr auto GetBlockWeightPreshuffleBQuant()
     {
         using AccDataType = float;
         using BlockWarps  = typename Problem::BlockGemmShape::BlockWarps;
@@ -47,7 +48,7 @@ struct GemmWeightPreshuffleBQuantPipelineAgBgCrPolicy : public UniversalWeightPr
                                                                       typename Problem::CDataType,
                                                                       BlockWarps,
                                                                       WarpGemm>;
-        return BlockGemmBQuantASmemBRegCRegV1<Problem, BlockGemmPolicy>{};
+        return BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1<Problem, BlockGemmPolicy>{};
     }
 };
 

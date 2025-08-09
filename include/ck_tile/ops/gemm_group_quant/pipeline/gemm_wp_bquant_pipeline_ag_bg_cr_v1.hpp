@@ -15,13 +15,16 @@
 namespace ck_tile {
 
 template <typename Problem>
-struct BaseWeightPreshuffleBQuantPipelineAgBgCrV1 : public BaseWeightPreshufflePipelineAGmemBGmemCRegV1<Problem>
+struct BaseWeightPreshuffleBQuantPipelineAgBgCrV1
+    : public BaseWeightPreshufflePipelineAGmemBGmemCRegV1<Problem>
 {
-     //Added Just to maintain same structure in host code while preparing pipeline
+    // Added Just to maintain same structure in host code while preparing pipeline
 };
 
-template <typename Problem, typename Policy = GemmWeightPreshuffleBQuantPipelineAgBgCrPolicy>
-struct WeightPreshuffleBQuantPipelineAgBgCrV1 : public BaseWeightPreshuffleBQuantPipelineAgBgCrV1<Problem> 
+template <typename Problem,
+          typename PipelinePolicy = GemmWeightPreshuffleBQuantPipelineAgBgCrPolicy>
+struct WeightPreshuffleBQuantPipelineAgBgCrV1
+    : public BaseWeightPreshuffleBQuantPipelineAgBgCrV1<Problem>
 {
     using Base           = BaseWeightPreshuffleBQuantPipelineAgBgCrV1<Problem>;
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
@@ -35,33 +38,40 @@ struct WeightPreshuffleBQuantPipelineAgBgCrV1 : public BaseWeightPreshuffleBQuan
     using BQLayout = remove_cvref_t<typename Problem::BQLayout>;
     using CLayout  = remove_cvref_t<typename Problem::CLayout>;
 
-    using BlockWeightPreshuffle = remove_cvref_t<decltype(Policy::template GetBlockWeightPreshuffleBQuant<Problem>())>;
+    using BlockWeightPreshuffle = remove_cvref_t<
+        decltype(PipelinePolicy::template GetBlockWeightPreshuffleBQuant<Problem>())>;
 
-    static constexpr index_t BlockSize      = Problem::kBlockSize;
+    static constexpr index_t BlockSize = Problem::kBlockSize;
 
-    static constexpr index_t kMPerBlock      = BlockGemmShape::kM;
-    static constexpr index_t kNPerBlock      = BlockGemmShape::kN;
-    static constexpr index_t kKPerBlock      = BlockGemmShape::kK;
+    static constexpr index_t kMPerBlock     = BlockGemmShape::kM;
+    static constexpr index_t kNPerBlock     = BlockGemmShape::kN;
+    static constexpr index_t kKPerBlock     = BlockGemmShape::kK;
     static constexpr index_t QuantGroupSize = Problem::kQuantGroupSize;
     static constexpr index_t KPerBlockBQ    = BlockGemmShape::kK / QuantGroupSize;
 
     static constexpr index_t flatKPerWarp = BlockGemmShape::flatKPerWarp;
     static constexpr index_t flatNPerWarp = BlockGemmShape::flatNPerWarp;
 
-    static constexpr index_t GetVectorSizeA() { return Policy::template GetVectorSizeA<Problem>(); }
-    static constexpr index_t GetVectorSizeB() { return Policy::template GetVectorSizeB<Problem>(); }
+    static constexpr index_t GetVectorSizeA()
+    {
+        return PipelinePolicy::template GetVectorSizeA<Problem>();
+    }
+    static constexpr index_t GetVectorSizeB()
+    {
+        return PipelinePolicy::template GetVectorSizeB<Problem>();
+    }
     static constexpr index_t GetVectorSizeBQ()
     {
-        return Policy::template GetVectorSizeBQ<Problem>();
+        return PipelinePolicy::template GetVectorSizeBQ<Problem>();
     }
 
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
 
-    static constexpr auto I0   = number<0>();
-    static constexpr auto I1   = number<1>();
-    static constexpr auto I2   = number<2>();
+    static constexpr auto I0 = number<0>();
+    static constexpr auto I1 = number<1>();
+    static constexpr auto I2 = number<2>();
 
     using BlockTile  = remove_cvref_t<typename BlockGemmShape::BlockTile>;
     using BlockWarps = remove_cvref_t<typename BlockGemmShape::BlockWarps>;
@@ -70,12 +80,11 @@ struct WeightPreshuffleBQuantPipelineAgBgCrV1 : public BaseWeightPreshuffleBQuan
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
     static constexpr bool Preshuffle       = Problem::Preshuffle;
 
-
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
-        constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(I0{});
-        constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
+        constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(I0);
+        constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1);
         return concat('_', "bquant_pipeline_AgBgCrCompV3", 
                       concat('x', kMPerBlock, kNPerBlock, kKPerBlock),
                       BlockSize,
@@ -89,7 +98,7 @@ struct WeightPreshuffleBQuantPipelineAgBgCrV1 : public BaseWeightPreshuffleBQuan
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
-        return Policy::template GetSmemSize<Problem>();
+        return PipelinePolicy::template GetSmemSize<Problem>();
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto HotLoopScheduler()
@@ -200,7 +209,7 @@ struct WeightPreshuffleBQuantPipelineAgBgCrV1 : public BaseWeightPreshuffleBQuan
 
         constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
         static_assert(!is_b_row_major, "B must be col major (row major not supported yet)");
-        
+
         constexpr auto config =
             BlockWeightPreshuffle::BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
 
@@ -225,7 +234,7 @@ struct WeightPreshuffleBQuantPipelineAgBgCrV1 : public BaseWeightPreshuffleBQuan
         ADataType* p_a_lds = static_cast<ADataType*>(p_smem);
 
         constexpr auto a_lds_block_desc =
-            Policy::template MakeALdsBlockDescriptor<Problem>();
+            PipelinePolicy::template MakeALdsBlockDescriptor<Problem>();
 
         auto a_lds_block = make_tensor_view<address_space_enum::lds>(p_a_lds, a_lds_block_desc);
 
@@ -234,7 +243,7 @@ struct WeightPreshuffleBQuantPipelineAgBgCrV1 : public BaseWeightPreshuffleBQuan
             make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
                              make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
                              a_dram_block_window_tmp.get_window_origin(),
-                             Policy::template MakeADramTileDistribution<Problem>());
+                             PipelinePolicy::template MakeADramTileDistribution<Problem>());
 
         // A LDS tile window for store
         auto a_copy_lds_window = make_tile_window(
@@ -254,7 +263,7 @@ struct WeightPreshuffleBQuantPipelineAgBgCrV1 : public BaseWeightPreshuffleBQuan
             statically_indexed_array<decltype(a_warp_window_tmp), KIterPerWarp>,
             MIterPerWarp>
             a_warp_windows;
-            
+
         static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 a_warp_windows(mIter)(kIter) = a_warp_window_tmp;
@@ -269,21 +278,21 @@ struct WeightPreshuffleBQuantPipelineAgBgCrV1 : public BaseWeightPreshuffleBQuan
 
         // B flat DRAM window for load
         auto b_flat_distribution =
-            Policy::template MakeBFlatDramTileDistribution<Problem>();
+            PipelinePolicy::template MakeBFlatDramTileDistribution<Problem>();
         auto b_flat_dram_window =
             make_tile_window(b_flat_dram_block_window_tmp.get_bottom_tensor_view(),
                              make_tuple(number<flatNPerWarp>{}, number<flatKPerWarp>{}),
                              b_flat_dram_block_window_tmp.get_window_origin(),
                              b_flat_distribution);
 
-         // BQ DRAM window for load
+        // BQ DRAM window for load
         auto bq_copy_dram_window =
             make_tile_window(bq_dram_block_window_tmp.get_bottom_tensor_view(),
                              make_tuple(number<kNPerBlock>{}, number<KPerBlockBQ>{}),
                              bq_dram_block_window_tmp.get_window_origin(),
                              PipelinePolicy::template MakeBQDramTileDistribution<Problem>());
-                             
-         // Acc register tile
+
+        // Acc register tile
         auto c_block_tile = block_flatmm.MakeCBlockTile();
 
         // prefetch
@@ -369,7 +378,6 @@ struct WeightPreshuffleBQuantPipelineAgBgCrV1 : public BaseWeightPreshuffleBQuan
                 });
             });
 
-            
             bq_block_tile_2 = load_tile(bq_copy_dram_window);
 
             // move A to i + 2
@@ -386,7 +394,7 @@ struct WeightPreshuffleBQuantPipelineAgBgCrV1 : public BaseWeightPreshuffleBQuan
             store_tile(a_copy_lds_window, a_block_tile_tmp);
             HotLoopScheduler();
             block_sync_lds();
-            
+
             // global read i + 2
             a_block_tile = load_tile(a_copy_dram_window);
 

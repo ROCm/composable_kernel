@@ -372,9 +372,10 @@ template <>
 struct PipelineTypeTraits<CK_TILE_PIPELINE_PRESHUFFLEB_BQUANT_V1>
 {
     template <typename PipelineProblem>
-    using GemmPipeline = ck_tile::WeightPreshuffleBQuantPipelineAGememBGmemCRegV1<PipelineProblem>;
+    using GemmPipeline = ck_tile::WeightPreshuffleBQuantPipelineAgBgCrV1<PipelineProblem>;
     template <typename PipelineProblem>
-    using UniversalGemmPipeline = ck_tile::BaseWeightPreshuffleBQuantPipelineAGememBGmemCRegV1<PipelineProblem>;
+    using UniversalGemmPipeline =
+        ck_tile::BaseWeightPreshuffleBQuantPipelineAgBgCrV1<PipelineProblem>;
 };
 
 auto create_args(int argc, char* argv[])
@@ -391,7 +392,7 @@ auto create_args(int argc, char* argv[])
         .insert("stride_b", "0", "Tensor B stride")
         .insert("stride_c", "0", "Tensor C stride")
         .insert("v", "1", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
-        .insert("prec", "i4fp8", "data type. fp8/bf8/i4fp8/i4bf8/i4f32fp8/i4f32bf8")
+        .insert("prec", "fp8", "data type. fp8/bf8/i4fp8/i4bf8/i4f32fp8/i4f32bf8")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")

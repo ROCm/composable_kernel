@@ -115,10 +115,14 @@ struct BQuantGemmKernel
     static constexpr auto I2 = number<2>();
     static constexpr auto I3 = number<3>();
 
+    static constexpr auto idxM = I0;
+    static constexpr auto idxN = I1;
+    static constexpr auto idxK = I2;
+
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
-        return concat('_', "gemm", gemm_prec_str<ADataType, BDataType>, GemmPipeline::GetName());
+        return concat('_', "gemm", GemmPipeline::GetName());
         // clang-format on
     }
 
@@ -435,12 +439,30 @@ struct BQuantGemmKernel
                 }
                 else
                 {
-                    return make_naive_tensor_view<address_space_enum::global>(
-                        b_ptr,
-                        make_tuple(kargs.N, splitk_batch_offset.splitted_k),
-                        make_tuple(kargs.stride_B, 1),
-                        number<GemmPipeline::GetVectorSizeB()>{},
-                        number<1>{});
+                    if constexpr(GemmPipeline::Preshuffle)
+                    {
+                        index_t kFlatK =
+                            GemmPipeline::flatKPerWarp *
+                            (splitk_batch_offset.splitted_k /
+                             TilePartitioner::BlockGemmShape::WarpTile::at(number<2>{}));
+                        index_t kFlatN = kargs.N * kargs.K / kFlatK;
+
+                        return make_naive_tensor_view<address_space_enum::global>(
+                            b_ptr,
+                            make_tuple(kFlatN, kFlatK),
+                            make_tuple(kFlatK, 1),
+                            number<GemmPipeline::GetVectorSizeB()>{},
+                            number<1>{});
+                    }
+                    else
+                    {
+                        return make_naive_tensor_view<address_space_enum::global>(
+                            b_ptr,
+                            make_tuple(kargs.N, splitk_batch_offset.splitted_k),
+                            make_tuple(kargs.stride_B, 1),
+                            number<GemmPipeline::GetVectorSizeB()>{},
+                            number<1>{});
+                    }
                 }
             }
         }();
@@ -502,6 +524,8 @@ struct BQuantGemmKernel
                 sequence<false, false>{});
         }();
 
+        const auto& b_flat_pad_view = views.at(I2);
+
         const auto& b_pad_view = [&]() {
             const auto& b_tensor_view = views.at(I2);
             if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
@@ -539,7 +563,14 @@ struct BQuantGemmKernel
             }
         }();
 
-        return make_tuple(a_pad_view, bq_pad_view, b_pad_view, c_pad_view);
+        if constexpr(GemmPipeline::Preshuffle)
+        {
+            return make_tuple(a_pad_view, bq_pad_view, b_flat_pad_view, c_pad_view);
+        }
+        else
+        {
+            return make_tuple(a_pad_view, bq_pad_view, b_pad_view, c_pad_view);
+        }
     }
 
     template <typename PadView>
@@ -578,19 +609,32 @@ struct BQuantGemmKernel
         }();
 
         const auto& b_block_window = [&]() {
-            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
+            if constexpr(GemmPipeline::Preshuffle)
             {
-                return make_tile_window(b_pad_view,
-                                        make_tuple(number<TilePartitioner::NPerBlock>{},
-                                                   number<TilePartitioner::KPerBlock>{}),
-                                        {i_n, 0});
+                return make_tile_window(
+                    b_pad_view,
+                    make_tuple(number<GemmPipeline::flatNPerWarp>{},
+                               number<GemmPipeline::flatKPerWarp>{}),
+                    {static_cast<int>(i_n / TilePartitioner::BlockGemmShape::WarpTile::at(idxN)),
+                     0});
             }
             else
             {
-                return make_tile_window(b_pad_view,
-                                        make_tuple(number<TilePartitioner::KPerBlock>{},
-                                                   number<TilePartitioner::NPerBlock>{}),
-                                        {0, i_n});
+
+                if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
+                {
+                    return make_tile_window(b_pad_view,
+                                            make_tuple(number<TilePartitioner::NPerBlock>{},
+                                                       number<TilePartitioner::KPerBlock>{}),
+                                            {i_n, 0});
+                }
+                else
+                {
+                    return make_tile_window(b_pad_view,
+                                            make_tuple(number<TilePartitioner::KPerBlock>{},
+                                                       number<TilePartitioner::NPerBlock>{}),
+                                            {0, i_n});
+                }
             }
         }();
 

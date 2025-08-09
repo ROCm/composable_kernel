@@ -39,7 +39,7 @@ template <bool kPadM_,
           typename BLayout_,
           typename CLayout_,
           typename BQLayout_ = BLayout_,
-          bool preshuffle_ = false>
+          bool Preshuffle_   = false>
 struct TileGemmBQuantTraits
 {
     static constexpr bool kPadM = kPadM_;
@@ -56,7 +56,7 @@ struct TileGemmBQuantTraits
     static constexpr bool TransposeC            = false;
     static constexpr bool UseStructuredSparsity = false;
     static constexpr index_t NumWaveGroups      = 1;
-     static constexpr bool Preshuffle           = Preshuffle_; 
+    static constexpr bool Preshuffle            = Preshuffle_;
 };
 
 } // namespace ck_tile

@@ -5,6 +5,7 @@
 
 #include "ck_tile/ops/gemm_group_quant/block/block_universal_gemm_as_aquant_bs_cr.hpp"
 #include "ck_tile/ops/gemm_group_quant/block/block_universal_gemm_as_bs_bquant_cr.hpp"
+#include "ck_tile/ops/gemm_group_quant/block/block_universal_gemm_as_br_bquant_cr.hpp"
 #include "ck_tile/ops/gemm_group_quant/kernel/gemm_aquant_kernel.hpp"
 #include "ck_tile/ops/gemm_group_quant/kernel/gemm_bquant_kernel.hpp"
 #include "ck_tile/ops/gemm_group_quant/pipeline/gemm_aquant_pipeline_ag_bg_cr_base.hpp"

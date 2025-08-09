@@ -44,7 +44,7 @@ float gemm_calc_bquant(const ck_tile::BQuantGemmHostArgs& args, const ck_tile::s
                                                  ALayout,
                                                  BLayout,
                                                  ELayout,
-                                                 BLayout, //for BQLayout
+                                                 BLayout, // for BQLayout
                                                  GemmConfig::Preshuffle>;
 
     using GemmPipelineProblem = ck_tile::GemmPipelineProblemBase<ADataType,
