@@ -13,6 +13,7 @@
 
 #define CK_TILE_PIPELINE_AQUANT_COMPUTE_V3 1
 #define CK_TILE_PIPELINE_BQUANT_COMPUTE_V3 2
+#define CK_TILE_PIPELINE_PRESHUFFLEB_BQUANT_V1 3
 
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile()
@@ -47,6 +48,7 @@ struct GemmConfigBase
     static constexpr int kBlockPerCu           = 1;
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_AQUANT_COMPUTE_V3;
+    static constexpr bool Preshuffle           = false;
 };
 
 struct GemmConfigAQuantComputeV3 : public GemmConfigBase
@@ -84,6 +86,25 @@ struct GemmConfigBQuantComputeV3 : public GemmConfigBase
 
     static constexpr bool DoubleSmemBuffer     = false;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_BQUANT_COMPUTE_V3;
+};
+
+struct GemmConfigPreshuffleB_BQuant : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 256;
+
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+
+    static constexpr bool DoubleSmemBuffer     = false;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLEB_BQUANT_V1;
+    static constexpr bool Preshuffle           = true;
 };
 
 template <typename ADataType_,
@@ -345,6 +366,15 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_BQUANT_COMPUTE_V3>
     using GemmPipeline = ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>;
     template <typename PipelineProblem>
     using UniversalGemmPipeline = ck_tile::BaseBQuantGemmPipelineAgBgCrCompV3<PipelineProblem>;
+};
+
+template <>
+struct PipelineTypeTraits<CK_TILE_PIPELINE_PRESHUFFLEB_BQUANT_V1>
+{
+    template <typename PipelineProblem>
+    using GemmPipeline = ck_tile::WeightPreshuffleBQuantPipelineAGememBGmemCRegV1<PipelineProblem>;
+    template <typename PipelineProblem>
+    using UniversalGemmPipeline = ck_tile::BaseWeightPreshuffleBQuantPipelineAGememBGmemCRegV1<PipelineProblem>;
 };
 
 auto create_args(int argc, char* argv[])

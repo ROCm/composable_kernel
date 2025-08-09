@@ -13,6 +13,8 @@
 #include "ck_tile/ops/gemm_group_quant/pipeline/gemm_bquant_pipeline_ag_bg_cr_base.hpp"
 #include "ck_tile/ops/gemm_group_quant/pipeline/gemm_bquant_pipeline_ag_bg_cr_policy.hpp"
 #include "ck_tile/ops/gemm_group_quant/pipeline/gemm_bquant_pipeline_ag_bg_cr_v3.hpp"
+#include "ck_tile/ops/gemm_group_quant/pipeline/gemm_wp_bquant_pipeline_ag_bg_cr_base_policy.hpp"
+#include "ck_tile/ops/gemm_group_quant/pipeline/gemm_wp_bquant_pipeline_ag_bg_cr_v1.hpp"
 #include "ck_tile/ops/gemm_group_quant/pipeline/gemm_quant_pipeline_problem.hpp"
 #include "ck_tile/ops/gemm_group_quant/pipeline/gemm_group_quant_utils.hpp"
 #include "ck_tile/ops/gemm_group_quant/pipeline/tile_gemm_quant_traits.hpp"

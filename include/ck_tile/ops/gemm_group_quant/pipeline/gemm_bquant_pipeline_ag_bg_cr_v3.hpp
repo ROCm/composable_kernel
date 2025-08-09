@@ -151,7 +151,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
                       BlockSize,
                       concat('x', WaveNumM, WaveNumN),
                       concat('x', BlockGemm::WarpGemm::kM, BlockGemm::WarpGemm::kN, BlockGemm::WarpGemm::kK),
-                      concat('x', kPadM, kPadN, kPadK), "QuantGroupSize", QuantGroupSize);
+                      concat('x', kPadM, kPadN, kPadK), QuantGroupSize);
         // clang-format on
     }
 
