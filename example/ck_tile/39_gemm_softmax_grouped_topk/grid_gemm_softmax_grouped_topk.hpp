@@ -21,6 +21,7 @@ struct GridGemm
     static constexpr auto kNPerBlock = Policy::kNPerBlock;
     static constexpr auto kKPerBlock = Policy::kKPerBlock;
     static constexpr auto topk = Policy::kTopKPerBlock;
+    static constexpr auto kBlockSize = Policy::kBlockSize;
 
     template <typename AGridTensorView, typename BGridTensorView, typename ValueGridTensorView, typename IndexGridTensorView>
     CK_TILE_DEVICE void operator()(const AGridTensorView& a_grid,
@@ -65,11 +66,22 @@ struct GridGemm
         //     c_grid, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {iM, iN});
 
         // store value and index
+        // constexpr index_t kBlockSize = Problem::kBlockSize;
+        // constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
+        // constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
+
+        constexpr index_t K1 = 16 / sizeof( WeightType);
+        constexpr index_t K0 = topk / K1;
+        constexpr index_t M2 = get_warp_size() / K0;
+        // coalesce reading for each blocks
+        constexpr index_t M1 = kBlockSize / get_warp_size();
+        constexpr index_t M0 = kMPerBlock / (M2 * M1);
+
         auto value_window = make_tile_window(
             value_grid, make_tuple(number<kMPerBlock>{}, number<topk>{}), {iM, iN},
             make_static_tile_distribution(
             tile_distribution_encoding<sequence<1>,
-                                    tuple<sequence<2, 4, 16>, sequence<4, 4>>,
+                                    tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
                                     tuple<sequence<1>, sequence<1, 2>>,
                                     tuple<sequence<1>, sequence<2, 0>>,
                                     sequence<1, 2>,
@@ -78,7 +90,7 @@ struct GridGemm
             index_grid, make_tuple(number<kMPerBlock>{}, number<topk>{}), {iM, iN},
             make_static_tile_distribution(
             tile_distribution_encoding<sequence<1>,
-                                    tuple<sequence<2, 4, 16>, sequence<4, 4>>,
+                                    tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
                                     tuple<sequence<1>, sequence<1, 2>>,
                                     tuple<sequence<1>, sequence<2, 0>>,
                                     sequence<1, 2>,
@@ -92,6 +104,10 @@ struct GridGemm
 
         ValueBlockTile value_block_tile;
         IndexBlockTile index_block_tile;
+
+        // Initialize value_block_tile and index_block_tile
+        tile_elementwise_inout([](auto& value) { value = 0; }, value_block_tile);
+        tile_elementwise_inout([](auto& index) { index = 0; }, index_block_tile);
 
         block_gemm_pipeline(a_block_window, b_block_window, value_block_tile, index_block_tile, K / kKPerBlock, p_smem_char);
 

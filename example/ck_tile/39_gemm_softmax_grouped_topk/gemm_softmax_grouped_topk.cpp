@@ -7,6 +7,7 @@
 #include "ck_tile/host.hpp"
 #include "gemm_softmax_grouped_topk.hpp"
 #include "reference_gemm_softmax_grouped_topk.hpp"
+#include <random>
 
 /*
  * Toy code of GEMM
@@ -158,6 +159,29 @@ int main(int argc, char* argv[])
     ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_host);
     ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_host);
 
+    // std::random_device rd;
+    // std::mt19937 gen(rd());
+    // std::uniform_real_distribution<> dist_a(0.f, 0.01f);
+    // std::uniform_real_distribution<> dist_b(0.01f, 0.05f);
+
+    // for(int m = 0; m < M; ++m) {
+    //     for(int k = 0; k < K; ++k) {
+    //         a_host(m, k) = dist_a(gen);
+    //     }
+    // }
+
+    // for(int n = 0; n < K; ++n) {
+    //     for(int k = 0; k < K; ++k) {
+    //         b_host(n, k) = dist_b(gen);
+    //     }
+    // }
+
+    // for(std::size_t i = 0; i < 20; ++i) {
+    //     const double a = *std::next(std::begin(a_host), i);
+    //     const double b = *std::next(std::begin(b_host), i);
+    //     std::cout << " a[" << i << "]: " << a << " " << "b[" << i << "]: " << b << std::endl;
+    // }
+
     ck_tile::DeviceMem a_buf(a_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_buf(b_host.get_element_space_size_in_bytes());
     // ck_tile::DeviceMem c_buf(c_host_dev.get_element_space_size_in_bytes());
@@ -209,7 +233,7 @@ int main(int argc, char* argv[])
                                       kGemmKPerBlock,
                                       kGemmTopKPerBlock>;
 
-    float ave_time = ck_tile::launch_kernel(ck_tile::stream_config{nullptr, true, 0, 5, 1000},
+    float ave_time = ck_tile::launch_kernel(ck_tile::stream_config{nullptr, true, 0, 0, 1},
                                             ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
                                                 gemm_kernel{},
                                                 kGridSize,
