@@ -4,14 +4,9 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 
 namespace ck_tile {
-
-enum struct GemmLoopOrder
-{
-    KMN = 0,
-    MNK = 1,
-};
 
 // Problem Description for BlockGemm
 template <typename ADataType_,
