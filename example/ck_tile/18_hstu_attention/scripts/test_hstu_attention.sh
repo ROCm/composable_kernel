@@ -50,5 +50,7 @@ for dtype in "fp16" "bf16"; do
     ## jagged causal+local+context+target (minfull_len > max_uih_len)
     $EXE -v=1 -prec=$dtype -b=10 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=300,300,290,280,310 -causal=1 -local_len=5 -context_len=8 -minfull_len=290 -targets=8 -attn_scale=$attn_scale
 
+    ## jagged no-causal+local+context+target (minfull_len > max_uih_len)
+    $EXE -v=1 -prec=$dtype -b=10 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=300,300,290,280,310 -causal=0 -local_len=5 -context_len=3 -minfull_len=290 -targets=8 -attn_scale=$attn_scale
     set +x
 done
