@@ -21,8 +21,8 @@ struct HstuBlockMaskWithLocal
     int seqlen;
     int contextual_seqlen;
 
-    int max_attn_len;
     int min_full_attn_seqlen;
+    int max_attn_len;
 
     int max_uih_len;
     int max_id;
@@ -36,10 +36,12 @@ struct HstuBlockMaskWithLocal
         : is_tile_in_first_split(is_tile_in_first_split_),
           seqlen(seqlen_),
           contextual_seqlen(contextual_seqlen_),
-          max_attn_len(max_attn_len_),
           min_full_attn_seqlen(min_full_attn_seqlen_)
     {
         max_uih_len = seqlen - num_target_;
+
+        // in case user provided max_attn_len_ could be bigger than max_uih_len
+        max_attn_len = min(max_uih_len, max_attn_len_);
 
         // assuming min_full_attn_seqlen has higher priority, ensure contextual scope not collide
         // with min_full_attn_seqlen scope
