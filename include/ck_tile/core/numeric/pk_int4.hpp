@@ -158,9 +158,9 @@ CK_TILE_HOST_DEVICE bf16x2_t pk_int4_t_to_bfloat16x2_t(const pk_int4_t& x)
     float x_h = ((x_u8 & 0xf0) >> 4) - 8.f;
 
 #ifdef CK_TILE_USE_PK4_LAYOUT_SHUFFLE
-    bf16x2_t res = {static_cast<bf16_t>(x_h), static_cast<bf16_t>(x_l)};
+    bf16x2_t res = {type_convert<bf16_t>(x_h), type_convert<bf16_t>(x_l)};
 #elif
-    bf16x2_t res = {static_cast<bf16_t>(x_l), static_cast<bf16_t>(x_h)};
+    bf16x2_t res = {type_convert<bf16_t>(x_l), type_convert<bf16_t>(x_h)};
 #endif
     return res;
 }
