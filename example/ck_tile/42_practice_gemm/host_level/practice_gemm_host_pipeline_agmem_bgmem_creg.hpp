@@ -7,8 +7,8 @@
 #include "ck_tile/host.hpp"
 
 namespace ck_tile {
-template <typename Problem_, typename Policy_>
-struct PracticeGemmPipeline
+template <typename Problem_, typename Policy_ = PracticeGemmHostPolicy>
+struct PracticeGemmHostPipeline
 {
     using ADataType   = typename Problem_::ADataType;
     using BDataType   = typename Problem_::BDataType;

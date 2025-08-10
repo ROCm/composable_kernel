@@ -6,27 +6,29 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
 #include "practice_gemm.hpp"
+#include "reference_gemm.hpp"
 
 int main()
 {
     // TODO: GemmTypeConfig
     using ADataType   = ck_tile::half_t;
     using BDataType   = ck_tile::half_t;
-    using CDataType   = ck_tile::half_t;
-    using AccDataType = ck_tile::half_t;
+    using CDataType   = float;
+    using AccDataType = float;
 
     // ArgParser
     ck_tile::index_t M            = 1024;
     ck_tile::index_t N            = 1024;
     ck_tile::index_t K            = 1024;
-    ck_tile::index_t verification = 0;
+    ck_tile::index_t verification = 1;
 
     ck_tile::index_t stride_a = K;
     ck_tile::index_t stride_b = K;
     ck_tile::index_t stride_c = N;
 
     auto a_lengths = std::array<ck_tile::index_t, 2>{M, K};
-    auto b_lengths = std::array<ck_tile::index_t, 2>{K, N};
+    // B is treated as [N, K] in reference and device views
+    auto b_lengths = std::array<ck_tile::index_t, 2>{N, K};
     auto c_lengths = std::array<ck_tile::index_t, 2>{M, N};
 
     auto a_strides = std::array<ck_tile::index_t, 2>{stride_a, 1};
@@ -67,22 +69,22 @@ int main()
     // constexpr ck_tile::index_t warpSize    = 64;
     constexpr ck_tile::index_t kBlockSize = 256;
 
-    using BlockTile = ck_tile::sequence<256, 32, 128>;
+    using BlockTile = ck_tile::sequence<256, 32, 64>;
     using WaveTile  = ck_tile::sequence<16, 16, 16>;
 
     std::cout << "Creating PracticeGemmShape, PracticeGemmProblem, PracticeGemmPolicy" << std::endl;
-    using PracticeGemmShape   = ck_tile::PracticeGemmShape<BlockTile, WaveTile>;
-    using PracticeGemmProblem = ck_tile::
-        PracticeGemmProblem<ADataType, BDataType, CDataType, AccDataType, PracticeGemmShape>;
-    using PracticeGemmPolicy = ck_tile::PracticeGemmPolicy;
+    using PracticeGemmShape       = ck_tile::PracticeGemmShape<BlockTile, WaveTile>;
+    using PracticeGemmHostProblem = ck_tile::
+        PracticeGemmHostProblem<ADataType, BDataType, CDataType, AccDataType, PracticeGemmShape>;
+    using PracticeGemmHostPolicy = ck_tile::PracticeGemmHostPolicy;
 
-    ck_tile::index_t kGridSize =
-        (M / PracticeGemmShape::BlockTile_M) * (N / PracticeGemmShape::BlockTile_N);
+    ck_tile::index_t kGridSize = ck_tile::integer_divide_ceil(M, PracticeGemmShape::BlockTile_M) *
+                                 ck_tile::integer_divide_ceil(N, PracticeGemmShape::BlockTile_N);
 
     std::cout << "kGridSize: " << kGridSize << std::endl;
 
     constexpr ck_tile::index_t kWarpPerCU    = 8; // two warps per CU
-    constexpr ck_tile::index_t kWarpPerBlock = kBlockSize / warpSize;
+    constexpr ck_tile::index_t kWarpPerBlock = kBlockSize / ck_tile::get_warp_size();
     constexpr ck_tile::index_t kBlockPerCU   = kWarpPerCU / kWarpPerBlock;
 
     std::cout << "kBlockSize: " << kBlockSize << std::endl;
@@ -91,24 +93,50 @@ int main()
 
     std::cout << "PracticeGemmShape: " << PracticeGemmShape::GetName() << std::endl;
 
-    using gemm_kernel = ck_tile::PracticeGemmKernel<PracticeGemmProblem, PracticeGemmPolicy>;
+    using gemm_kernel =
+        ck_tile::PracticeGemmKernel<PracticeGemmHostProblem, PracticeGemmHostPolicy>;
     static_cast<void>(sizeof(gemm_kernel));
 
-    // float ave_time = ck_tile::launch_kernel(ck_tile::stream_config{nullptr, true, 0, 5, 1000},
-    //                                         ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
-    //                                             gemm_kernel{},
-    //                                             kGridSize,
-    //                                             kBlockSize,
-    //                                             0,
-    //                                             static_cast<ADataType*>(a_buf.GetDeviceBuffer()),
-    //                                             static_cast<BDataType*>(b_buf.GetDeviceBuffer()),
-    //                                             static_cast<CDataType*>(c_buf.GetDeviceBuffer()),
-    //                                             M,
-    //                                             N,
-    //                                             K,
-    //                                             stride_a,
-    //                                             stride_b,
-    //                                             stride_c);
+    float ave_time = ck_tile::launch_kernel(ck_tile::stream_config{nullptr, true, 0, 5, 1000},
+                                            ck_tile::make_kernel<kBlockSize, kBlockPerCU>(
+                                                gemm_kernel{},
+                                                kGridSize,
+                                                kBlockSize,
+                                                0,
+                                                static_cast<ADataType*>(a_device.GetDeviceBuffer()),
+                                                static_cast<BDataType*>(b_device.GetDeviceBuffer()),
+                                                static_cast<CDataType*>(c_device.GetDeviceBuffer()),
+                                                M,
+                                                N,
+                                                K,
+                                                stride_a,
+                                                stride_b,
+                                                stride_c));
 
-    return 0;
+    auto pass = true;
+
+    if(verification)
+    {
+        // reference gemm
+        ck_tile::HostTensor<CDataType> c_host_ref(c_lengths, c_strides);
+        reference_basic_gemm<ADataType, BDataType, AccDataType, CDataType>(
+            a_host, b_host, c_host_ref);
+        ck_tile::HostTensor<CDataType> c_host_dev(c_lengths, c_strides);
+        c_device.FromDevice(c_host_dev.data());
+        pass &= ck_tile::check_err(c_host_dev, c_host_ref);
+        std::cout << "valid:" << (pass ? "y" : "n") << std::endl;
+    }
+
+    std::size_t flop = std::size_t(2) * M * N * K;
+    std::size_t num_btype =
+        sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
+
+    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+
+    float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
+              << std::endl;
+
+    return !pass;
 }

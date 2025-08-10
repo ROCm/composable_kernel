@@ -4,25 +4,12 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "practice_gemm_pipeline.hpp"
-#include "practice_gemm_block_pipeline_agmem_bgmem_creg.hpp"
+#include "ck_tile/host.hpp"
+
+#include "host_level/practice_gemm_host_policy_agmem_bgmem_creg.hpp"
+#include "host_level/practice_gemm_host_pipeline_agmem_bgmem_creg.hpp"
 
 namespace ck_tile {
-
-// Problem: defines the nature of the data and the function to apply to the result
-template <typename ADataType_,
-          typename BDataType_,
-          typename CDataType_,
-          typename AccDataType_,
-          typename Shape_>
-struct PracticeGemmProblem
-{
-    using ADataType   = ADataType_;
-    using BDataType   = BDataType_;
-    using CDataType   = CDataType_;
-    using AccDataType = AccDataType_;
-    using Shape       = remove_cvref_t<Shape_>;
-};
 
 template <typename BlockTile_, typename WaveTile_>
 struct PracticeGemmShape
@@ -45,33 +32,6 @@ struct PracticeGemmShape
                       concat('x', BlockTile_M, BlockTile_N, BlockTile_K),
                       concat('x', WaveTile_M, WaveTile_N, WaveTile_K));
         // clang-format on
-    }
-};
-
-struct PracticeGemmPolicy
-{
-    CK_TILE_HOST_DEVICE static constexpr auto MakeBlock2TileMap(index_t M0, index_t N0)
-    {
-        const auto unmerge = make_merge_transform(make_tuple(N0, M0));
-
-        return [unmerge](index_t block_id) {
-            multi_index<2> unmerged;
-            unmerge.calculate_lower_index(unmerged, make_multi_index(block_id));
-
-            return make_multi_index(unmerged.at(number<1>{}), unmerged.at(number<0>{}));
-        };
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetPracticeGemmBlockPipeline()
-    {
-        using PracticeGemmBlockPipelineProblem_ =
-            PracticeGemmBlockPipelineProblem<typename Problem::ADataType,
-                                             typename Problem::BDataType,
-                                             typename Problem::CDataType,
-                                             typename Problem::AccDataType,
-                                             typename Problem::Shape>;
-        return PracticeGemmBlockPipelineAGmemBGmemCreg<PracticeGemmBlockPipelineProblem_>{};
     }
 };
 
@@ -106,7 +66,7 @@ struct PracticeGemmKernel
                 p_c, make_tuple(M, N), make_tuple(stride_c, 1), number<8>{}, number<1>{});
         }();
 
-        PracticeGemmPipeline<Problem, Policy>{}(a_dram, b_dram, c_dram);
+        PracticeGemmHostPipeline<Problem, Policy>{}(a_dram, b_dram, c_dram);
     }
 };
 
