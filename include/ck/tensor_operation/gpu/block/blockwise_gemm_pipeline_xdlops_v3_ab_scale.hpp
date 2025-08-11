@@ -532,6 +532,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
                     });
                 });
 
+                // TODO: check if moving the scheduler below the a/b scale copy is better
                 HotLoopScheduler();
                 __builtin_amdgcn_sched_barrier(0);
 
@@ -563,6 +564,9 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
                                         b_scale_thread_buf);
 
                 b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc, b_scale_thread_copy_step);
+
+                // HotLoopScheduler();
+                // __builtin_amdgcn_sched_barrier(0);
 
                 i += 1;
             } while(i < (num_loop - 1));
