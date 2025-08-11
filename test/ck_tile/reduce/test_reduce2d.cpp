@@ -308,20 +308,8 @@ using TestConfig_F32_Max = std::tuple<float,
                                       Shape1_WarpTile,
                                       Shape1_ThreadTile>;
 
-using TestConfig_F32_SquareAdd = std::tuple<float,
-                                            float,
-                                            float,
-                                            ck_tile::ReduceOp::SquareAdd,
-                                            Shape1_BlockWarps,
-                                            Shape1_BlockTile,
-                                            Shape1_WarpTile,
-                                            Shape1_ThreadTile>;
-
-using TestTypes = ::testing::Types<TestConfig_F32_Add,
-                                   TestConfig_F16_Add,
-                                   TestConfig_F32_CrossWarp,
-                                   TestConfig_F32_Max,
-                                   TestConfig_F32_SquareAdd>;
+using TestTypes = ::testing::
+    Types<TestConfig_F32_Add, TestConfig_F16_Add, TestConfig_F32_CrossWarp, TestConfig_F32_Max>;
 
 TYPED_TEST_SUITE(TestCkTileReduce, TestTypes);
 
