@@ -345,7 +345,7 @@ void add_device_grouped_conv2d_bwd_data_wmma_v3_gnhwk_gkyxc_gnhwc_bf16_instances
                                                                   BF16,
                                                                   BF16,
                                                                   Empty_Tuple,
-                                                                  B16,
+                                                                  BF16,
                                                                   PassThrough,
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
@@ -426,6 +426,111 @@ void add_device_grouped_conv2d_bwd_data_wmma_v3_ngkhw_gkyxc_ngchw_bf16_instances
                                                                   GKYXC,
                                                                   Empty_Tuple,
                                                                   NGCHW,
+                                                                  BF16,
+                                                                  BF16,
+                                                                  Empty_Tuple,
+                                                                  BF16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+#endif
+
+// conv3dbwdData
+#ifdef CK_ENABLE_BF16
+void add_device_grouped_conv3d_bwd_data_wmma_v3_gndhwk_gkzyxc_gndhwc_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  GNDHWK,
+                                                                  GKZYXC,
+                                                                  Empty_Tuple,
+                                                                  GNDHWC,
+                                                                  BF16,
+                                                                  BF16,
+                                                                  Empty_Tuple,
+                                                                  BF16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+#endif
+#ifdef CK_ENABLE_BF16
+void add_device_grouped_conv3d_bwd_data_wmma_v3_ndhwgk_gkzyxc_ndhwgc_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NDHWGK,
+                                                                  GKZYXC,
+                                                                  Empty_Tuple,
+                                                                  NDHWGC,
+                                                                  BF16,
+                                                                  BF16,
+                                                                  Empty_Tuple,
+                                                                  BF16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+
+void add_device_grouped_conv3d_bwd_data_wmma_v3_ndhwgk_gkzyxc_ndhwgc_bf16_16_16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NDHWGK,
+                                                                  GKZYXC,
+                                                                  Empty_Tuple,
+                                                                  NDHWGC,
+                                                                  BF16,
+                                                                  BF16,
+                                                                  Empty_Tuple,
+                                                                  BF16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+#endif
+#ifdef CK_ENABLE_BF16
+void add_device_grouped_conv3d_bwd_data_wmma_v3_ngkdhw_gkzyxc_ngcdhw_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NGKDHW,
+                                                                  GKZYXC,
+                                                                  Empty_Tuple,
+                                                                  NGCDHW,
+                                                                  BF16,
+                                                                  BF16,
+                                                                  Empty_Tuple,
+                                                                  BF16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+
+#endif
+#ifdef CK_ENABLE_BF16
+void add_device_grouped_conv3d_bwd_data_wmma_v3_ngkdhw_gkczyx_ngcdhw_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NGKDHW,
+                                                                  GKCZYX,
+                                                                  Empty_Tuple,
+                                                                  NGCDHW,
+                                                                  BF16,
+                                                                  BF16,
+                                                                  Empty_Tuple,
+                                                                  BF16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+
+void add_device_grouped_conv3d_bwd_data_wmma_v3_ngkdhw_gkczyx_ngcdhw_bf16_16_16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NGKDHW,
+                                                                  GKCZYX,
+                                                                  Empty_Tuple,
+                                                                  NGCDHW,
+                                                                  BF16,
+                                                                  BF16,
+                                                                  Empty_Tuple,
+                                                                  BF16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+
+void add_device_grouped_conv3d_bwd_data_wmma_v3_ngkdhw_gkczyx_ngcdhw_bf16_vec_transpose_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NGKDHW,
+                                                                  GKCZYX,
+                                                                  Empty_Tuple,
+                                                                  NGCDHW,
                                                                   BF16,
                                                                   BF16,
                                                                   Empty_Tuple,
