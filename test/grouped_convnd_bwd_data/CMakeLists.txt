@@ -26,3 +26,8 @@ add_gtest_executable(test_grouped_convnd_bwd_data_interface_wmma test_grouped_co
 if(result EQUAL 0)
     target_link_libraries(test_grouped_convnd_bwd_data_interface_wmma PRIVATE utility device_grouped_conv2d_bwd_data_instance)
 endif()
+if(result EQUAL 0)
+    add_executable(test_grouped_convnd_bwd_data_wmma_large_cases test_grouped_convnd_bwd_data_wmma_large_cases.cpp)
+    target_compile_options(test_grouped_convnd_bwd_data_wmma_large_cases PRIVATE -Wno-global-constructors -Wno-undef)
+    target_link_libraries(test_grouped_convnd_bwd_data_wmma_large_cases PRIVATE gtest_main getopt::getopt utility device_grouped_conv2d_bwd_data_instance device_grouped_conv3d_bwd_data_instance)
+endif()
