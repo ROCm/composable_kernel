@@ -1525,9 +1525,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                         arg.b_element_op_,
                         arg.cde_element_op_};
 
-                    std::cout << "DEBUG:" << std::endl;
-                    gemm_arg.Print();
-
                     avg_time += RunGemm<GridwiseGemmTwoStage, InMemoryDataOperationEnum::AtomicAdd>(
                         arg, gemm_arg, stream_config);
 
