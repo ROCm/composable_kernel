@@ -89,18 +89,21 @@ inline auto create_args(int argc, char* argv[])
         .insert("verify",
                 "1",
                 "The type of validation. Set to 0 for no validation, 1 for validation on CPU, or 2 "
-                "for validation on GPU. Default is 1, validation on CPU, as validation on GPU is not supported.")
+                "for validation on GPU. Default is 1, validation on CPU, as validation on GPU is "
+                "not supported.")
         .insert("log",
                 "false",
                 "Wether output kernel instance information or not. Possible values are true or "
                 "false. Default is false")
-        .insert(
-            "warmup", "50", "The number of iterations before benchmark the kernel. Default is 50.")
-        .insert(
-            "repeat", "100", "The number of iterations to benchmark the kernel. Default is 100.")
+        .insert("warmup",
+                "50",
+                "The number of iterations before benchmarking the kernel. Default is 50.")
+        .insert("repeat",
+                "100",
+                "The number of iterations for benchmarking the kernel. Default is 100.")
         .insert("timer",
                 "true",
-                "Whether if the timer is gpu timer or not. Possible values are false or true. "
+                "Indicates whether the timer is a GPU timer. Possible values are true or false. "
                 "Default is true.")
         .insert("init",
                 "0",
@@ -117,7 +120,7 @@ inline auto create_args(int argc, char* argv[])
                 "tflops, or 2 for bandwidth. Default is 0, latency.")
         .insert("csv_filename",
                 "gemm_multi_d_kernel",
-                "The filename of benchmark result. Default is gemm_kernel.")
+                "The filename of benchmark result. Default is set to gemm_multi_d_kernel.")
         .insert(
             "pipeline",
             "compv3",
@@ -157,5 +160,5 @@ auto get_kernel_func_by_trait(const ck_tile::ArgParser& arg_parser)
     trait.pad_n     = arg_parser.get_bool("pad_n");
     trait.pad_k     = arg_parser.get_bool("pad_k");
 
-    return GemmDispatcher::dispatch(trait);
+    return GemmMultiDDispatcher::dispatch(trait);
 }

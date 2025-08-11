@@ -68,12 +68,10 @@ void gemm_multi_d_host_reference(int verify,
                                  ck_tile::HostTensor<D1DataType>& d1_m_n,
                                  ck_tile::HostTensor<EDataType>& e_m_n_host_result)
 {
-    std::cout << "Inside gemm_multi_d_host_reference function" << std::endl;
     if(verify > 0)
     {
         // Currently supporting on CPU verification for Gemm Multi D
         // e_m_n_host_result.SetZero();
-
         ck_tile::reference_gemm_multiple_d<ADataType,
                                            BDataType,
                                            DsDataType,
@@ -82,7 +80,6 @@ void gemm_multi_d_host_reference(int verify,
                                            ElementWiseFn>(
             a_m_k, b_k_n, {d0_m_n, d1_m_n}, e_m_n_host_result);
     }
-    std::cout << "Exiting gemm_multi_d_host_reference function" << std::endl;
 }
 
 enum class Metric
@@ -146,10 +143,8 @@ struct KernelInstance
     friend std::ostream& operator<<(std::ostream& os, const KernelInstance& obj)
     {
         os << "{\n"
-           << " \"name\": \""
-           << "{\n"
-           << obj.name_ << "\n}"
-           << "\",\n"
+           << " \"name\": \"" << "{\n"
+           << obj.name_ << "\n}" << "\",\n"
            << " \"problem\": \"" << obj.problem_ << "\",\n"
            << " \"perf_result\": " << obj.perf_result_ << "\n"
            << "}";
@@ -178,6 +173,7 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
 
     using ComputeType =
         std::conditional_t<sizeof(ComputeTypeAB) < sizeof(D0DataType), ComputeTypeAB, D0DataType>;
+
     // Calculate thresholds
     const auto rtol = ck_tile::get_relative_threshold<ComputeType, EDataType, AccDataType>(
         ck_tile::integer_divide_ceil(K, kbatch));

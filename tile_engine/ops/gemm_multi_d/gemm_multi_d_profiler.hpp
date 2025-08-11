@@ -11,19 +11,20 @@
 #include "ck_tile/ops/gemm.hpp"
 #include "benchmark_gemm_multi_d.hpp"
 
-class GemmProfiler
+class GemmMultiDProfiler
 {
     public:
-    static GemmProfiler& instance(Setting setting)
+    static GemmMultiDProfiler& instance(Setting setting)
     {
-        static GemmProfiler instance{setting};
+        static GemmMultiDProfiler instance{setting};
         return instance;
     }
 
     void benchmark(
-        GemmMultiDProblem& gemm_problem,
+        GemmMultiDProblem& gemm_multi_d_problem,
         std::vector<std::function<std::tuple<std::string, float>(
-            ck_tile::GemmHostArgs<DsDataType::size()>&, const ck_tile::stream_config&)>>& callables)
+            ck_tile::GemmMultiDHostArgs<DsDataType::size()>&, const ck_tile::stream_config&)>>&
+            callables)
     {
         const ALayout layout_a   = ALayout{};
         const BLayout layout_b   = BLayout{};
@@ -31,27 +32,54 @@ class GemmProfiler
         const D1Layout layout_d1 = D1Layout{};
         const ELayout layout_e   = ELayout{};
 
-        gemm_problem.stride_a_ = ck_tile::get_default_stride(
-            gemm_problem.m_, gemm_problem.k_, gemm_problem.stride_a_, is_row_major(layout_a));
-        gemm_problem.stride_b_ = ck_tile::get_default_stride(
-            gemm_problem.k_, gemm_problem.n_, gemm_problem.stride_b_, is_row_major(layout_b));
-        gemm_problem.stride_d0_ = ck_tile::get_default_stride(
-            gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_d0_, is_row_major(layout_d0));
-        gemm_problem.stride_d1_ = ck_tile::get_default_stride(
-            gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_d1_, is_row_major(layout_d1));
-        gemm_problem.stride_e_ = ck_tile::get_default_stride(
-            gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_e_, is_row_major(layout_e));
+        gemm_multi_d_problem.stride_a_ = ck_tile::get_default_stride(gemm_multi_d_problem.m_,
+                                                                     gemm_multi_d_problem.k_,
+                                                                     gemm_multi_d_problem.stride_a_,
+                                                                     is_row_major(layout_a));
+        gemm_multi_d_problem.stride_b_ = ck_tile::get_default_stride(gemm_multi_d_problem.k_,
+                                                                     gemm_multi_d_problem.n_,
+                                                                     gemm_multi_d_problem.stride_b_,
+                                                                     is_row_major(layout_b));
+        gemm_multi_d_problem.stride_d0_ =
+            ck_tile::get_default_stride(gemm_multi_d_problem.m_,
+                                        gemm_multi_d_problem.n_,
+                                        gemm_multi_d_problem.stride_d0_,
+                                        is_row_major(layout_d0));
+        gemm_multi_d_problem.stride_d1_ =
+            ck_tile::get_default_stride(gemm_multi_d_problem.m_,
+                                        gemm_multi_d_problem.n_,
+                                        gemm_multi_d_problem.stride_d1_,
+                                        is_row_major(layout_d1));
+        gemm_multi_d_problem.stride_e_ = ck_tile::get_default_stride(gemm_multi_d_problem.m_,
+                                                                     gemm_multi_d_problem.n_,
+                                                                     gemm_multi_d_problem.stride_e_,
+                                                                     is_row_major(layout_e));
 
-        ck_tile::HostTensor<ADataType> a_m_k(ck_tile::host_tensor_descriptor(
-            gemm_problem.m_, gemm_problem.k_, gemm_problem.stride_a_, is_row_major(layout_a)));
-        ck_tile::HostTensor<BDataType> b_k_n(ck_tile::host_tensor_descriptor(
-            gemm_problem.k_, gemm_problem.n_, gemm_problem.stride_b_, is_row_major(layout_b)));
-        ck_tile::HostTensor<D0DataType> d0_m_n(ck_tile::host_tensor_descriptor(
-            gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_d0_, is_row_major(layout_d0)));
-        ck_tile::HostTensor<D1DataType> d1_m_n(ck_tile::host_tensor_descriptor(
-            gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_d1_, is_row_major(layout_d1)));
-        ck_tile::HostTensor<EDataType> e_m_n_device_result(ck_tile::host_tensor_descriptor(
-            gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_e_, is_row_major(layout_e)));
+        ck_tile::HostTensor<ADataType> a_m_k(
+            ck_tile::host_tensor_descriptor(gemm_multi_d_problem.m_,
+                                            gemm_multi_d_problem.k_,
+                                            gemm_multi_d_problem.stride_a_,
+                                            is_row_major(layout_a)));
+        ck_tile::HostTensor<BDataType> b_k_n(
+            ck_tile::host_tensor_descriptor(gemm_multi_d_problem.k_,
+                                            gemm_multi_d_problem.n_,
+                                            gemm_multi_d_problem.stride_b_,
+                                            is_row_major(layout_b)));
+        ck_tile::HostTensor<D0DataType> d0_m_n(
+            ck_tile::host_tensor_descriptor(gemm_multi_d_problem.m_,
+                                            gemm_multi_d_problem.n_,
+                                            gemm_multi_d_problem.stride_d0_,
+                                            is_row_major(layout_d0)));
+        ck_tile::HostTensor<D1DataType> d1_m_n(
+            ck_tile::host_tensor_descriptor(gemm_multi_d_problem.m_,
+                                            gemm_multi_d_problem.n_,
+                                            gemm_multi_d_problem.stride_d1_,
+                                            is_row_major(layout_d1)));
+        ck_tile::HostTensor<EDataType> e_m_n_device_result(
+            ck_tile::host_tensor_descriptor(gemm_multi_d_problem.m_,
+                                            gemm_multi_d_problem.n_,
+                                            gemm_multi_d_problem.stride_e_,
+                                            is_row_major(layout_e)));
 
         ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k);
         ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n);
@@ -75,26 +103,29 @@ class GemmProfiler
         std::array<const void*, DsDataType::size()> ds_ptr_buf = {d0_m_n_dev_buf.GetDeviceBuffer(),
                                                                   d1_m_n_dev_buf.GetDeviceBuffer()};
 
-        std::array<ck_tile::index_t, DsDataType::size()> stridesDs = {gemm_problem.stride_d0_,
-                                                                      gemm_problem.stride_d1_};
+        std::array<ck_tile::index_t, DsDataType::size()> stridesDs = {
+            gemm_multi_d_problem.stride_d0_, gemm_multi_d_problem.stride_d1_};
 
-        ck_tile::GemmHostArgs<DsDataType::size()> gemm_args = {
+        ck_tile::GemmMultiDHostArgs<DsDataType::size()> gemm_multi_d_args = {
             a_m_k_dev_buf.GetDeviceBuffer(),
             b_k_n_dev_buf.GetDeviceBuffer(),
             ds_ptr_buf,
             e_m_n_dev_buf.GetDeviceBuffer(),
-            gemm_problem.split_k_,
-            gemm_problem.m_,
-            gemm_problem.n_,
-            gemm_problem.k_,
-            gemm_problem.stride_a_,
-            gemm_problem.stride_b_,
+            gemm_multi_d_problem.split_k_,
+            gemm_multi_d_problem.m_,
+            gemm_multi_d_problem.n_,
+            gemm_multi_d_problem.k_,
+            gemm_multi_d_problem.stride_a_,
+            gemm_multi_d_problem.stride_b_,
             stridesDs,
-            gemm_problem.stride_e_,
+            gemm_multi_d_problem.stride_e_,
         };
 
-        ck_tile::HostTensor<EDataType> e_m_n_host_result(ck_tile::host_tensor_descriptor(
-            gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_e_, is_row_major(layout_e)));
+        ck_tile::HostTensor<EDataType> e_m_n_host_result(
+            ck_tile::host_tensor_descriptor(gemm_multi_d_problem.m_,
+                                            gemm_multi_d_problem.n_,
+                                            gemm_multi_d_problem.stride_e_,
+                                            is_row_major(layout_e)));
 
         if(setting_.verify_)
         {
@@ -104,27 +135,22 @@ class GemmProfiler
 
         for(auto& callable : callables)
         {
-            printf("Inside Callable loop\n");
-            printf("Running kernel: %s\n", callable.target_type().name());
             auto kernel_run_result =
-                callable(gemm_args,
+                callable(gemm_multi_d_args,
                          ck_tile::stream_config{
                              nullptr, true, setting_.log_, setting_.n_warmup_, setting_.n_repeat_});
 
             auto [kernel_name, execution_time] = kernel_run_result;
-            std::cout << "Kernel result - Name: " << kernel_name
-                      << ", Execution time: " << execution_time << " ms" << std::endl;
 
-            process_result(gemm_problem,
+            process_result(gemm_multi_d_problem,
                            e_m_n_dev_buf,
                            e_m_n_host_result,
                            e_m_n_device_result,
                            kernel_run_result);
-            printf("Exiting Callable loop\n");
         }
     }
 
-    void process_result(const GemmMultiDProblem& gemm_problem,
+    void process_result(const GemmMultiDProblem& gemm_multi_d_problem,
                         ck_tile::DeviceMem& e_m_n_dev_buf,
                         ck_tile::HostTensor<EDataType>& e_m_n_host_result,
                         ck_tile::HostTensor<EDataType>& e_m_n_dev_result,
@@ -132,20 +158,21 @@ class GemmProfiler
     {
         auto [name, avg_time] = kernel_run_result;
 
-        KernelInstance kernel_instance{name, gemm_problem, {-1.0f, -1.0f, -1.0f}};
+        KernelInstance kernel_instance{name, gemm_multi_d_problem, {-1.0f, -1.0f, -1.0f}};
 
         static constexpr ck_tile::index_t NumDTensor = DsDataType::size();
         std::size_t flop = 0, num_byte = 0;
-        flop += std::size_t(2) * gemm_problem.m_ * gemm_problem.n_ * gemm_problem.k_;
+        flop += std::size_t(2) * gemm_multi_d_problem.m_ * gemm_multi_d_problem.n_ *
+                gemm_multi_d_problem.k_;
         ck_tile::static_for<0, NumDTensor, 1>{}([&](auto i) {
             num_byte += sizeof(ck_tile::remove_cvref_t<std::tuple_element_t<i, DsDataType>>) *
-                        gemm_problem.m_ * gemm_problem.n_;
+                        gemm_multi_d_problem.m_ * gemm_multi_d_problem.n_;
             flop += sizeof(ck_tile::remove_cvref_t<std::tuple_element_t<i, DsDataType>>) *
-                    gemm_problem.m_ * gemm_problem.n_;
+                    gemm_multi_d_problem.m_ * gemm_multi_d_problem.n_;
         });
-        num_byte += sizeof(ADataType) * gemm_problem.m_ * gemm_problem.k_ +
-                    sizeof(BDataType) * gemm_problem.k_ * gemm_problem.n_ +
-                    sizeof(EDataType) * gemm_problem.m_ * gemm_problem.n_;
+        num_byte += sizeof(ADataType) * gemm_multi_d_problem.m_ * gemm_multi_d_problem.k_ +
+                    sizeof(BDataType) * gemm_multi_d_problem.k_ * gemm_multi_d_problem.n_ +
+                    sizeof(EDataType) * gemm_multi_d_problem.m_ * gemm_multi_d_problem.n_;
 
         kernel_instance.perf_result_.latency_   = avg_time;
         kernel_instance.perf_result_.tflops_    = static_cast<float>(flop) / 1.E9 / avg_time;
@@ -156,10 +183,10 @@ class GemmProfiler
             std::cout << kernel_instance << std::endl;
         }
 
-        // Result verification
         e_m_n_dev_buf.FromDevice(e_m_n_dev_result.data());
-        bool verified_correct = !setting_.verify_ ||
-                                compare(name, gemm_problem.k_, e_m_n_dev_result, e_m_n_host_result);
+        bool verified_correct =
+            !setting_.verify_ ||
+            compare(name, gemm_multi_d_problem.k_, e_m_n_dev_result, e_m_n_host_result);
 
         if(verified_correct)
         {
@@ -205,10 +232,8 @@ class GemmProfiler
                 {
                     file << "rocm_version,device_name,"
                          << "split_k,m,n,k,stride_a,stride_b,stride_c,"
-                         << "dtype_a,dtype_b,dtype_acc,dtype_c,"
-                         << "layout_a,layout_b,layout_c,"
-                         << "structured_sparsity,"
-                         << "name,"
+                         << "dtype_a,dtype_b,dtype_acc,dtype_c," << "layout_a,layout_b,layout_c,"
+                         << "structured_sparsity," << "name,"
                          << "latency(ms),tflops(TFlops),bandwidth(GB/s),metric\n";
                 }
 
@@ -224,11 +249,11 @@ class GemmProfiler
                      << problem.dtype_d0_ << "," << problem.dtype_d1_ << "," << problem.dtype_acc_
                      << "," << problem.dtype_e_ << "," << problem.layout_a_ << ","
                      << problem.layout_b_ << "," << problem.layout_d0_ << "," << problem.layout_d1_
-                     << "," << problem.layout_e_ << ","
-                     << "," << name << "," << std::fixed << std::setprecision(4) << perf.latency_
-                     << "," << std::fixed << std::setprecision(4) << perf.tflops_ << ","
-                     << std::fixed << std::setprecision(4) << perf.bandwidth_ << ","
-                     << get_metric_name(metric) << "\n";
+                     << "," << problem.layout_e_ << "," << "," << name << "," << std::fixed
+                     << std::setprecision(4) << perf.latency_ << "," << std::fixed
+                     << std::setprecision(4) << perf.tflops_ << "," << std::fixed
+                     << std::setprecision(4) << perf.bandwidth_ << "," << get_metric_name(metric)
+                     << "\n";
 
                 if(!file)
                 {
@@ -240,12 +265,12 @@ class GemmProfiler
         return kernel_instance;
     }
 
-    GemmProfiler(const GemmProfiler&) = delete;
-    GemmProfiler& operator=(const GemmProfiler&) = delete;
+    GemmMultiDProfiler(const GemmMultiDProfiler&)            = delete;
+    GemmMultiDProfiler& operator=(const GemmMultiDProfiler&) = delete;
 
     private:
-    ~GemmProfiler() { kernel_instances_.clear(); }
-    GemmProfiler(Setting setting) : setting_(setting) {}
+    ~GemmMultiDProfiler() { kernel_instances_.clear(); }
+    GemmMultiDProfiler(Setting setting) : setting_(setting) {}
 
     Setting setting_;
 

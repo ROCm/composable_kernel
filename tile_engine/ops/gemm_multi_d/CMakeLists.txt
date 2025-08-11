@@ -7,10 +7,14 @@ function(build_gemm_multi_d_for_datatype_layout datatype layout)
     set(working_path "${CMAKE_CURRENT_BINARY_DIR}/${datatype}/${layout}")
 
     # Comment this if-else block when using user_provided_config
-    # set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_config.json")
+    if(layout STREQUAL "rcrr")
+        set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_config.json")
+    else()
+        set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/custom_ci_config.json")
+    endif()
 
     # uncomment this if you want to use user_provided_config.json
-    set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/user_provided_config.json")
+    # set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/user_provided_config.json")
     
     # Generate kernel list
     execute_process(
