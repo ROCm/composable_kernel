@@ -137,7 +137,7 @@ def plot_perf_difference(perf_difference, output_dir, label=""):
                   f"25th Percentile: {p25:.2f}%\n"
                   f"75th Percentile: {p75:.2f}%")
     
-    title = "Performance of packed cast vs. baseline elementwise"
+    title = label
     size = 12
     plt.title(title, 
               fontsize=size, fontweight='bold')
