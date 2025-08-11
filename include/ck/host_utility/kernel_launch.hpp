@@ -10,6 +10,34 @@
 #include "ck/stream_config.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
 
+
+template <class it>
+typename std::iterator_traits<it>::value_type median(it begin, it end)
+{
+    if(begin == end)
+    {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    auto n  = std::distance(begin, end);
+    auto n2 = n / 2;
+    std::nth_element(begin, begin + n2, end);
+    return (n % 2) ? begin[n2] : (*std::max_element(begin, begin + n2) + begin[n2]) / 2.0;
+}
+
+inline void remove_outliers(std::vector<float>& v)
+{
+    // 1.5x IQR method to detect and remove outliers
+    auto n2 = v.size() / 2;
+    std::nth_element(v.begin(), v.begin() + n2, v.end());
+    auto q1  = median(v.begin(), v.begin() + n2);
+    auto q3  = median(v.begin() + ((v.size() % 2) ? n2 + 1 : n2), v.end());
+    auto iqr = q3 - q1;
+    auto lb  = q1 - 1.5 * iqr;
+    auto ub  = q3 + 1.5 * iqr;
+    v.erase(std::remove_if(v.begin(), v.end(), [&](float f) { return f < lb || f > ub; }), v.end());
+}
+
+
 template <typename... Args, typename F>
 float launch_and_time_kernel(const StreamConfig& stream_config,
                              F kernel,
