@@ -106,7 +106,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
                                        true,  // do_verification
                                        1,     // init_method: integer value
                                        false, // do_log
-                                       false, // time_kernel
+                                       true, // time_kernel
                                        param,
                                        std::to_string(split_k));
                 }
