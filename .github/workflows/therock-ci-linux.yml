@@ -18,9 +18,6 @@ jobs:
     container:
       image: ghcr.io/rocm/therock_build_manylinux_x86_64@sha256:044b113562629f4bd2ec5d2e64b32eee11562d48fb1a75d7493daec9dd8d8292
     env:
-      CACHE_DIR: ${{ github.workspace }}/.container-cache
-      CCACHE_DIR: "${{ github.workspace }}/.container-cache/ccache"
-      CCACHE_MAXSIZE: "700M"
       AMDGPU_FAMILIES: "gfx94X-dcgpu"
       TEATIME_FORCE_INTERACTIVE: 0
     steps:
@@ -36,10 +33,7 @@ jobs:
 
       - name: Runner Health Settings
         run: |
-          echo "CCACHE_DIR=${CCACHE_DIR}"
           df -h
-          ccache -z
-          mkdir -p $CCACHE_DIR
           cmake --version
           echo "Installed Python versions:"
           ls -d /opt/python
@@ -61,7 +55,7 @@ jobs:
         env:
           amdgpu_families: ${{ env.AMDGPU_FAMILIES }}
           package_version: ADHOCBUILD
-          extra_cmake_options: "-DTHEROCK_USE_EXTERNAL_CK=ON -DTHEROCK_CK_SOURCE_DIR=../ ${{ inputs.cmake_options }}"
+          extra_cmake_options: ${{ inputs.cmake_options }}
           BUILD_DIR: build
         run: |
           python3 TheRock/build_tools/github_actions/build_configure.py
@@ -84,9 +78,6 @@ jobs:
           echo "Artifacts:"
           echo "----------"
           du -h -d 1 TheRock/build/artifacts
-          echo "CCache Stats:"
-          echo "-------------"
-          ccache -s
 
       - name: Configure AWS Credentials
         if: always()
