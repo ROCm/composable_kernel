@@ -984,7 +984,9 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
 
 int main(int argc, char* argv[])
 {
-    auto [result, arg_parser] = create_args(argc, argv);
+    auto arg_parser = create_args();
+    auto result     = arg_parser.parse(argc, argv);
+
     if(!result)
         return -1;
 

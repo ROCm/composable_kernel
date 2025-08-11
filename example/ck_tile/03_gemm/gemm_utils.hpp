@@ -471,7 +471,7 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_PRESHUFFLE_V2>
         ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<PipelineProblem>;
 };
 
-auto create_args(int argc, char* argv[])
+auto create_args()
 {
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("m", "3840", "m dimension")
@@ -493,9 +493,7 @@ auto create_args(int argc, char* argv[])
         .insert("persistent", "0", "0:non-persistent, 1:persistent")
         .insert("flush_cache", "true", "flush cache before running the kernel, defaults to true")
         .insert("rotating_count", "1000", "rotating count, defaults to 1000");
-
-    bool result = arg_parser.parse(argc, argv);
-    return std::make_tuple(result, arg_parser);
+    return arg_parser;
 }
 
 // Type aliases for memory operation integral constants
