@@ -89,21 +89,6 @@ CK_TILE_DEVICE index_t get_thread_id() { return threadIdx.x; }
 
 CK_TILE_DEVICE index_t get_block_id() { return blockIdx.x; }
 
-template <index_t lgkmcnt = 0>
-CK_TILE_DEVICE void block_sync_lds()
-{
-    if constexpr(lgkmcnt > 15)
-    {
-        __builtin_amdgcn_s_waitcnt(CK_TILE_S_CNT_MAX & CK_TILE_LGKMCNT(15));
-    }
-    else
-    {
-        __builtin_amdgcn_s_waitcnt(CK_TILE_S_CNT_MAX & CK_TILE_LGKMCNT(lgkmcnt));
-    }
-
-    __builtin_amdgcn_s_barrier();
-}
-
 CK_TILE_DEVICE void block_sync_load_raw(index_t cnt = 0)
 {
 #ifdef __gfx12__
@@ -122,13 +107,6 @@ CK_TILE_DEVICE void block_sync_load_raw(index_t cnt = 0)
 #endif
 }
 
-template <index_t vmcnt>
-CK_TILE_DEVICE void block_sync_lds_direct_load()
-{
-    // We don't sync the lds insts here.
-    __builtin_amdgcn_s_waitcnt(CK_TILE_S_CNT_MAX & CK_TILE_VMCNT(vmcnt));
-    __builtin_amdgcn_s_barrier();
-}
 // https://llvm.org/docs/AMDGPU/gfx9_waitcnt.html
 struct waitcnt_arg
 {
@@ -179,6 +157,18 @@ CK_TILE_DEVICE void s_waitcnt_barrier()
 {
     s_waitcnt<vmcnt, expcnt, lgkmcnt>();
     __builtin_amdgcn_s_barrier();
+}
+
+template <index_t lgkmcnt = 0>
+CK_TILE_DEVICE void block_sync_lds()
+{
+    s_waitcnt_barrier<waitcnt_arg::kMaxVmCnt, waitcnt_arg::kMaxExpCnt, lgkmcnt>();
+}
+
+template <index_t vmcnt   = 0>
+CK_TILE_DEVICE void block_sync_lds_direct_load()
+{
+    s_waitcnt_barrier<vmcnt, waitcnt_arg::kMaxExpCnt, waitcnt_arg::kMaxLgkmCnt>();
 }
 
 CK_TILE_DEVICE void s_nop(index_t cnt = 0)
