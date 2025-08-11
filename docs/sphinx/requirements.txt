@@ -182,7 +182,7 @@ ptyprocess==0.7.0
     # via pexpect
 pure-eval==0.2.3
     # via stack-data
-pybtex==0.24.0
+pybtex==0.25.1
     # via
     #   pybtex-docutils
     #   sphinxcontrib-bibtex
@@ -244,9 +244,7 @@ rpds-py==0.24.0
     #   jsonschema
     #   referencing
 six==1.17.0
-    # via
-    #   pybtex
-    #   python-dateutil
+    # via python-dateutil
 smmap==5.0.2
     # via gitdb
 snowballstemmer==2.2.0
