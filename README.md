@@ -96,7 +96,7 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
 4. Build the entire CK library:
 
     ```bash
-    make -j
+    make -j"$(nproc)"
     ```
 
 5. Install CK:
