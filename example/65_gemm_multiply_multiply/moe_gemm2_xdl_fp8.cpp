@@ -123,15 +123,15 @@ using BElementOp   = PassThrough;
 using CDEElementOp = MulABScaleExpertWeight;
 
 static constexpr auto GemmSpec         = ck::tensor_operation::device::GemmSpecialization::Default;
-static constexpr ck::index_t MPerBlock = 256;
+static constexpr ck::index_t MPerBlock = 128;
 static constexpr ck::index_t BLOCKSIZE = 256;
-static constexpr ck::index_t MXDLPerWave = 16;
+static constexpr ck::index_t MXDLPerWave = 4;
 static constexpr ck::index_t NXDLPerWave = 4;
-static constexpr ck::index_t NPerBlock   = 256;
+static constexpr ck::index_t NPerBlock   = 128;
 static constexpr ck::index_t MNPerXDL    = 16;
-static constexpr ck::index_t KPerBlock   = 128 / sizeof(A0DataType);
+static constexpr ck::index_t KPerBlock   = 256 / sizeof(A0DataType);
 
-static constexpr ck::index_t CShuffleNLane = 32;
+static constexpr ck::index_t CShuffleNLane = 64;
 static constexpr ck::index_t CShuffleMLane = BLOCKSIZE / CShuffleNLane;
 static constexpr ck::index_t AK1           = 16 / sizeof(A0DataType);
 static constexpr ck::index_t BK1           = 16 / sizeof(B0DataType);
@@ -169,7 +169,7 @@ using DeviceOpInstance                     = ck::tensor_operation::device::Devic
                //    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
                //    MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
                 //  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
-               2,        2,         S<1, CShuffleMLane, 1, CShuffleNLane>, S<EVec, D0Vec, D1Vec, D2Vec>,
+               2,        4,         S<1, CShuffleMLane, 1, CShuffleNLane>, S<EVec, D0Vec, D1Vec, D2Vec>,
                ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, 0, false, false, MulRoutedWeight, PerTokenQuant, int32_t, A0DataType>;
         // kernel 2: 128->32x128x128
         //  <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   128,   32,   128,    128,  16,  16,  32,   32,    1,    2,     S<8, 16, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,     S<8, 16, 1>,    S<1, 0, 2>,     S<1, 0, 2>,             2,              16,             16,          0,          1,           1,               S<1, 16, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, EDataType>;
@@ -182,6 +182,7 @@ int main(int argc, char* argv[])
     int init_method      = 1;
     bool time_kernel     = true;
 
+    #if 0
     // per expert:
     // GEMM shape
     ck::index_t N               = 4096;
@@ -193,6 +194,20 @@ int main(int argc, char* argv[])
     ck::index_t valid_size      = valid_tile_num * MPerBlock;
     ck::index_t tokens          = 16384;
     ck::index_t topk            = 2;
+    #else
+
+    //ds shape TP
+    ck::index_t N               = 7168;
+    ck::index_t K               = 256;
+    ck::index_t experts         = 256;
+    ck::index_t tokens          = 4096;
+    ck::index_t topk            = 8;
+    ck::index_t valid_tile_num  = tokens * topk / MPerBlock;
+    ck::index_t sorted_tile_num = valid_tile_num;
+    ck::index_t sorted_size     = sorted_tile_num * MPerBlock;
+    ck::index_t valid_size      = valid_tile_num * MPerBlock;
+    #endif
+
 
     if(argc == 1)
     {

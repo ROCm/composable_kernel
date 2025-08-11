@@ -202,6 +202,7 @@ int main(int argc, char* argv[])
     int init_method      = 1;
     bool time_kernel     = true;
 
+    #if 0
     // GEMM shape
     ck::index_t N               = 4096;
     ck::index_t K               = 6144;
@@ -210,6 +211,16 @@ int main(int argc, char* argv[])
     ck::index_t valid_tile_num  = 256;
     ck::index_t tokens          = 16384;
     ck::index_t topk            = 2;
+    #endif
+
+    //ds shape TP
+    ck::index_t N               = 256;
+    ck::index_t K               = 7168;
+    ck::index_t experts         = 256;
+    ck::index_t sorted_tile_num = 256;
+    ck::index_t valid_tile_num  = 256;
+    ck::index_t tokens          = 4096;
+    ck::index_t topk            = 8;
 
     if(argc == 1)
     {
