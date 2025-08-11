@@ -300,9 +300,7 @@ class GemmMultiDCodeGenerator:
 
         acc_type = "float"  # As we are currently supporting only fp16
 
-        content = f"""// SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
-
+        content = f"""
 #pragma once
 
 #include "ck_tile/core.hpp"
@@ -349,9 +347,7 @@ using ElementWiseFn = ck_tile::element_wise::{self.args.function_name};
         pipeline, epilogue, scheduler, pad_m, pad_n, pad_k = trait.split("_")
         filename = f"gemm_multi_d_{trait}.hpp"
 
-        content = f"""// SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
-
+        content = f"""
 #pragma once
 
 #include "gemm_multi_d_common.hpp"
@@ -385,12 +381,12 @@ template <int TileM, int TileN, int TileK,
           int WarpM, int WarpN, int WarpK,
           int WarpTileM, int WarpTileN, int WarpTileK,
           typename CDEElementWise = ElementWiseFn>
-struct GemmKernel {{
+struct GemmKernelMultiD {{
     static constexpr bool kPadM = {pad_m};
     static constexpr bool kPadN = {pad_n};
     static constexpr bool kPadK = {pad_k};
 
-    static float launch(ck_tile::GemmHostArgs<DsDataType::size()>& args, const ck_tile::stream_config& stream) {{
+    static float launch(ck_tile::GemmMultiDHostArgs<DsDataType::size()>& args, const ck_tile::stream_config& stream) {{
         static constexpr bool DoubleSmemBuffer ={"true" if pipeline == "compv4" else "false"};
         
         static constexpr bool TransposeC = false;
@@ -403,7 +399,6 @@ struct GemmKernel {{
             ck_tile::TileGemmShape<ck_tile::sequence<TileM, TileN, TileK>,
                                    ck_tile::sequence<WarpM, WarpN, WarpK>,
                                    ck_tile::sequence<WarpTileM, WarpTileN, WarpTileK>>;
-
 
         using TilePartitioner =
             ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
@@ -448,7 +443,7 @@ struct GemmKernel {{
 
             using GemmPipeline = {PIPELINE_MAP[pipeline][1]}<UniversalGemmProblem>;
             {EPILOGUE_MAP[epilogue]}
-            using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+            using Kernel = ck_tile::GemmKernelMultiD<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
 
             const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
@@ -542,10 +537,6 @@ struct GemmKernel {{
                 )
 
                 content = f"""
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
-
-
 #include "gemm_multi_d_{trait}.hpp" 
 
 """
@@ -558,7 +549,7 @@ struct GemmKernel {{
                     content = (
                         content
                         + f"""
-template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}>;"""
+template struct {trait}::GemmKernelMultiD<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}>;"""
                     )
                 content += """
 """
@@ -570,8 +561,7 @@ template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {war
 
     def _generate_common_instance_header_file(self):
         """Generate common instance header into file."""
-        content = """// SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+        content = """
 #pragma once
 """
         for trait in self.valid_trait_names:
@@ -581,9 +571,6 @@ template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {war
     def _generate_dispatcher_file(self):
         """Generate the code block of dispatch mechanism."""
         content = """
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
-
 #pragma once
 
 #include <unordered_map>
@@ -611,12 +598,12 @@ struct KernelTraits
     bool pad_k;
 };
 
-struct GemmDispatcher {
+struct GemmMultiDDispatcher {
     static auto& get_kernel_map() {
         // Use a static local variable
         static std::unordered_map<
             std::string,
-            std::vector<std::function<std::tuple<std::string, float>(ck_tile::GemmHostArgs<DsDataType::size()>&, const ck_tile::stream_config&)>>>
+            std::vector<std::function<std::tuple<std::string, float>(ck_tile::GemmMultiDHostArgs<DsDataType::size()>&, const ck_tile::stream_config&)>>>
             kernel_map;
         return kernel_map;
     }
@@ -641,10 +628,10 @@ struct GemmDispatcher {
                         warp_tile_n,
                         warp_tile_k,
                     ) = tile[j]
-                    content += """[=](ck_tile::GemmHostArgs<DsDataType::size()>& args, const ck_tile::stream_config& stream) { """
+                    content += """[=](ck_tile::GemmMultiDHostArgs<DsDataType::size()>& args, const ck_tile::stream_config& stream) { """
 
                     content += f"""
-                        return run_kernel<{trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}>>(args, stream);"""
+                        return run_kernel<{trait}::GemmKernelMultiD<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}>>(args, stream);"""
 
                     if j == len(tile) - 1:
                         content += """
@@ -658,7 +645,7 @@ struct GemmDispatcher {
         content += """    }
 
     template <typename Kernel>
-    static std::tuple<std::string, float> run_kernel(ck_tile::GemmHostArgs<DsDataType::size()>& args, const ck_tile::stream_config& stream)
+    static std::tuple<std::string, float> run_kernel(ck_tile::GemmMultiDHostArgs<DsDataType::size()>& args, const ck_tile::stream_config& stream)
     {
         std::string name = Kernel::get_name();
         float avg_time = Kernel::launch(args, stream);
@@ -708,23 +695,23 @@ def do_gen_blobs(
 
 
 def main(args):
-    gemm_config = JsonConfig.from_json(args.config_json)
+    gemm_multi_d_config = JsonConfig.from_json(args.config_json)
 
     if args.list_blobs:
-        do_list_blobs(args, gemm_config)
+        do_list_blobs(args, gemm_multi_d_config)
     elif args.gen_blobs:
-        do_gen_blobs(args, gemm_config)
+        do_gen_blobs(args, gemm_multi_d_config)
     else:
         logging.warning(
             "No mode specified (use --list_blobs or --gen_blobs). Generating by default..."
         )
-        do_gen_blobs(args, gemm_config)
+        do_gen_blobs(args, gemm_multi_d_config)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog="generate",
-        description="gen API for CK gemm kernel",
+        description="gen API for CK gemm multi D kernel",
     )
     parser.add_argument(
         "-w",
