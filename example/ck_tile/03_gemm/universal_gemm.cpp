@@ -268,7 +268,7 @@ int run_gemm_example_prec_type(std::string a_layout,
     }
 }
 
-template <template <typename PreType> typename GemmConfig>
+template <template <typename PrecType> typename GemmConfig>
 int run_gemm_example(ck_tile::ArgParser& arg_parser)
 {
     std::string data_type = arg_parser.get_str("prec");
