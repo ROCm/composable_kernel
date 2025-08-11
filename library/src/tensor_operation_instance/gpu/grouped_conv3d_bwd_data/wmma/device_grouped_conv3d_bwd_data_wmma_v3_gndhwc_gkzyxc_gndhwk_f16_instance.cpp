@@ -9,16 +9,16 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_grouped_conv3d_bwd_data_wmma_v3_gndhwk_gkzyxc_gndhwc_bf16_instances(
+void add_device_grouped_conv3d_bwd_data_wmma_v3_gndhwk_gkzyxc_gndhwc_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
                                                                   GNDHWK,
                                                                   GKZYXC,
                                                                   Empty_Tuple,
                                                                   GNDHWC,
-                                                                  BF16,
-                                                                  BF16,
+                                                                  F16,
+                                                                  F16,
                                                                   Empty_Tuple,
-                                                                  BF16,
+                                                                  F16,
                                                                   PassThrough,
                                                                   PassThrough,
                                                                   PassThrough>>>& instances)
@@ -26,15 +26,15 @@ void add_device_grouped_conv3d_bwd_data_wmma_v3_gndhwk_gkzyxc_gndhwc_bf16_instan
     // 1. Default
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_data_wmma_bf16_16_16_v3_instances<3,
-                                                                  GNDHWK,
-                                                                  GKZYXC,
-                                                                  Empty_Tuple,
-                                                                  GNDHWC,
-                                                                  ConvBwdDataDefault>{});
+        device_grouped_conv_bwd_data_wmma_f16_16_16_v3_instances<3,
+                                                                 GNDHWK,
+                                                                 GKZYXC,
+                                                                 Empty_Tuple,
+                                                                 GNDHWC,
+                                                                 ConvBwdDataDefault>{});
     // 2. Filter1x1Stride1Pad0
     add_device_operation_instances(instances,
-                                   device_grouped_conv_bwd_data_wmma_bf16_16_16_v3_instances<
+                                   device_grouped_conv_bwd_data_wmma_f16_16_16_v3_instances<
                                        3,
                                        GNDHWK,
                                        GKZYXC,

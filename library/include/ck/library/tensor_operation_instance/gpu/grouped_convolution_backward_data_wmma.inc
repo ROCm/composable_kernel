@@ -1,5 +1,6 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -535,6 +536,110 @@ void add_device_grouped_conv3d_bwd_data_wmma_v3_ngkdhw_gkczyx_ngcdhw_bf16_vec_tr
                                                                   BF16,
                                                                   Empty_Tuple,
                                                                   BF16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+#endif
+
+#ifdef CK_ENABLE_FP16
+void add_device_grouped_conv3d_bwd_data_wmma_v3_gndhwk_gkzyxc_gndhwc_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  GNDHWK,
+                                                                  GKZYXC,
+                                                                  Empty_Tuple,
+                                                                  GNDHWC,
+                                                                  F16,
+                                                                  F16,
+                                                                  Empty_Tuple,
+                                                                  F16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+#endif
+#ifdef CK_ENABLE_FP16
+void add_device_grouped_conv3d_bwd_data_wmma_v3_ndhwgk_gkzyxc_ndhwgc_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NDHWGK,
+                                                                  GKZYXC,
+                                                                  Empty_Tuple,
+                                                                  NDHWGC,
+                                                                  F16,
+                                                                  F16,
+                                                                  Empty_Tuple,
+                                                                  F16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+
+void add_device_grouped_conv3d_bwd_data_wmma_v3_ndhwgk_gkzyxc_ndhwgc_f16_16_16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NDHWGK,
+                                                                  GKZYXC,
+                                                                  Empty_Tuple,
+                                                                  NDHWGC,
+                                                                  F16,
+                                                                  F16,
+                                                                  Empty_Tuple,
+                                                                  F16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+#endif
+#ifdef CK_ENABLE_FP16
+void add_device_grouped_conv3d_bwd_data_wmma_v3_ngkdhw_gkzyxc_ngcdhw_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NGKDHW,
+                                                                  GKZYXC,
+                                                                  Empty_Tuple,
+                                                                  NGCDHW,
+                                                                  F16,
+                                                                  F16,
+                                                                  Empty_Tuple,
+                                                                  F16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+
+#endif
+#ifdef CK_ENABLE_FP16
+void add_device_grouped_conv3d_bwd_data_wmma_v3_ngkdhw_gkczyx_ngcdhw_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NGKDHW,
+                                                                  GKCZYX,
+                                                                  Empty_Tuple,
+                                                                  NGCDHW,
+                                                                  F16,
+                                                                  F16,
+                                                                  Empty_Tuple,
+                                                                  F16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+
+void add_device_grouped_conv3d_bwd_data_wmma_v3_ngkdhw_gkczyx_ngcdhw_f16_16_16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NGKDHW,
+                                                                  GKCZYX,
+                                                                  Empty_Tuple,
+                                                                  NGCDHW,
+                                                                  F16,
+                                                                  F16,
+                                                                  Empty_Tuple,
+                                                                  F16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+
+void add_device_grouped_conv3d_bwd_data_wmma_v3_ngkdhw_gkczyx_ngcdhw_f16_vec_transpose_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NGKDHW,
+                                                                  GKCZYX,
+                                                                  Empty_Tuple,
+                                                                  NGCDHW,
+                                                                  F16,
+                                                                  F16,
+                                                                  Empty_Tuple,
+                                                                  F16,
                                                                   PassThrough,
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
