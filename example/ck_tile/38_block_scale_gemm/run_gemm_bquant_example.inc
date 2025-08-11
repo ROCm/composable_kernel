@@ -88,6 +88,7 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                       ADataType, // computeDatatype
                                       ALayout,
                                       BLayout,
+                                      BQLayout,
                                       DsLayout,
                                       CLayout,
                                       QuantGroupSize,

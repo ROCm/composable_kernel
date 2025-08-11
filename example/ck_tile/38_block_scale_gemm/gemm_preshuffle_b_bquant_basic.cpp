@@ -22,6 +22,7 @@ template <typename GemmConfig,
           typename ComputeDataType,
           typename ALayout,
           typename BLayout,
+          typename BQLayout,
           typename DsLayout,
           typename ELayout,
           uint32_t QuantGroupSize,
@@ -44,7 +45,7 @@ float gemm_calc_bquant(const ck_tile::BQuantGemmHostArgs& args, const ck_tile::s
                                                  ALayout,
                                                  BLayout,
                                                  ELayout,
-                                                 BLayout, // for BQLayout
+                                                 BQLayout,
                                                  GemmConfig::Preshuffle>;
 
     using GemmPipelineProblem = ck_tile::GemmPipelineProblemBase<ADataType,

@@ -72,17 +72,17 @@ struct GemmConfigAQuantComputeV3 : public GemmConfigBase
 
 struct GemmConfigBQuantComputeV3 : public GemmConfigBase
 {
-    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t M_Tile = 16;
     static constexpr ck_tile::index_t N_Tile = 64;
     static constexpr ck_tile::index_t K_Tile = 256;
 
-    static constexpr ck_tile::index_t M_Warp = 2;
-    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
     static constexpr ck_tile::index_t K_Warp = 1;
 
-    static constexpr ck_tile::index_t M_Warp_Tile = 32;
-    static constexpr ck_tile::index_t N_Warp_Tile = 32;
-    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 32;
 
     static constexpr bool DoubleSmemBuffer     = false;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_BQUANT_COMPUTE_V3;
@@ -102,6 +102,7 @@ struct GemmConfigPreshuffleB_BQuant : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
+    static constexpr int kBlockPerCu           = 2;
     static constexpr bool DoubleSmemBuffer     = false;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLEB_BQUANT_V1;
     static constexpr bool Preshuffle           = true;

@@ -22,6 +22,7 @@ template <typename GemmConfig,
           typename ComputeDataType,
           typename ALayout,
           typename BLayout,
+          typename BQLayout,
           typename DsLayout,
           typename ELayout,
           uint32_t QuantGroupSize,
@@ -37,13 +38,16 @@ float gemm_calc_bquant(const ck_tile::BQuantGemmHostArgs& args, const ck_tile::s
             sequence<GemmConfig::M_Warp_Tile, GemmConfig::N_Warp_Tile, GemmConfig::K_Warp_Tile>>;
 
     using TilePartitioner = ck_tile::GemmTile1DPartitioner<GemmShape>;
+    std::cout << "Preshuffle is: " << GemmConfig::Preshuffle << std::endl;
 
     using Traits = ck_tile::TileGemmBQuantTraits<GemmConfig::kPadM,
                                                  GemmConfig::kPadN,
                                                  GemmConfig::kPadK,
                                                  ALayout,
                                                  BLayout,
-                                                 ELayout>;
+                                                 ELayout,
+                                                 BQLayout,
+                                                 GemmConfig::Preshuffle>;
 
     using GemmPipelineProblem = ck_tile::GemmPipelineProblemBase<ADataType,
                                                                  BDataType,
