@@ -95,6 +95,22 @@ inline __host__ __device__ void static_cast_float_to_bhalf_packed(float& x, floa
 #endif
 }
 
+// TODO: Why do we need the host instance?
+inline __host__ __device__ void static_cast_float_to_bhalf_packed_v2(float& x, float& y)
+{
+#if defined(__gfx950__) && defined(__HIP_DEVICE_COMPILE__)
+    // Pack the result to the first argument.
+    asm volatile("v_cvt_pk_bf16_f32 %0, %1, %2" 
+        : "=v"(x) 
+        : "v"(x), "v"(y));
+#else
+    // Skip conversion for non-GFX950 architectures
+    // TODO: Implement the conversion.
+    x = static_cast<float>(static_cast<bhalf_t>(x));
+    y = static_cast<float>(static_cast<bhalf_t>(y));
+#endif
+}
+
 // Declare a template function for conversion of bf16 vector of two values using RNE
 template <typename Y, typename X>
 __host__ __device__ constexpr Y bf16x2_convert_rne(X x);
