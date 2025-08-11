@@ -16,61 +16,21 @@
 #include "ck_tile/host.hpp"
 #include "grouped_gemm.hpp"
 
-template <typename ALayout, typename BLayout, typename CLayout>
+template <typename GemmConfig,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout,
+          typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType>
 float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                             const ck_tile::index_t num_groups,
                             void* kargs_ptr,
-                            bool splitk)
+                            bool splitk,
+                            bool flush_cache,
+                            int rotating_count)
 {
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
-    // Memory friendly for Interwave scheduler
-    constexpr ck_tile::index_t M_Tile = 128;
-    constexpr ck_tile::index_t N_Tile = 32;
-    constexpr ck_tile::index_t K_Tile = 64;
-
-    constexpr ck_tile::index_t M_Warp = 4;
-    constexpr ck_tile::index_t N_Warp = 1;
-    constexpr ck_tile::index_t K_Warp = 1;
-
-    constexpr ck_tile::index_t M_Warp_Tile = 32;
-    constexpr ck_tile::index_t N_Warp_Tile = 32;
-    constexpr ck_tile::index_t K_Warp_Tile = 8;
-
-    constexpr bool DoubleSmemBuffer = false;
-#endif
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
-    // Compute friendly for Intrawave scheduler
-    constexpr ck_tile::index_t M_Tile = 256;
-    constexpr ck_tile::index_t N_Tile = 256;
-    constexpr ck_tile::index_t K_Tile = 64;
-
-    constexpr ck_tile::index_t M_Warp = 2;
-    constexpr ck_tile::index_t N_Warp = 2;
-    constexpr ck_tile::index_t K_Warp = 1;
-
-    constexpr ck_tile::index_t M_Warp_Tile = 32;
-    constexpr ck_tile::index_t N_Warp_Tile = 32;
-    constexpr ck_tile::index_t K_Warp_Tile = 16;
-
-    constexpr bool DoubleSmemBuffer = false;
-#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V4)
-    // Compute friendly for Intrawave scheduler
-    // Using the ping pong reader in the lds level
-    constexpr ck_tile::index_t M_Tile = 256;
-    constexpr ck_tile::index_t N_Tile = 256;
-    constexpr ck_tile::index_t K_Tile = 32;
-
-    constexpr ck_tile::index_t M_Warp = 2;
-    constexpr ck_tile::index_t N_Warp = 2;
-    constexpr ck_tile::index_t K_Warp = 1;
-
-    constexpr ck_tile::index_t M_Warp_Tile = 32;
-    constexpr ck_tile::index_t N_Warp_Tile = 32;
-    constexpr ck_tile::index_t K_Warp_Tile = 16;
-
-    constexpr bool DoubleSmemBuffer = true;
-#endif
-
     constexpr bool kPadM = false;
     constexpr bool kPadN = false;
     constexpr bool kPadK = false;
@@ -79,28 +39,30 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
     constexpr ck_tile::index_t TileParitionerGroupNum = 8;
     constexpr ck_tile::index_t TileParitionerM01      = 4;
 
-    using GemmShape =
-        ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
-                               ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
-                               ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
+    using GemmShape = ck_tile::TileGemmShape<
+        ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
+        ck_tile::sequence<GemmConfig::M_Warp, GemmConfig::N_Warp, GemmConfig::K_Warp>,
+        ck_tile::
+            sequence<GemmConfig::M_Warp_Tile, GemmConfig::N_Warp_Tile, GemmConfig::K_Warp_Tile>>;
     using TilePartitioner = ck_tile::
         GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
     using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
-    using GemmUniversalTraits = ck_tile::PersistentTileGemmUniversalTraits<kPadM,
-                                                                           kPadN,
-                                                                           kPadK,
-                                                                           DoubleSmemBuffer,
-                                                                           ALayout,
-                                                                           BLayout,
-                                                                           CLayout>;
+    using GemmUniversalTraits =
+        ck_tile::PersistentTileGemmUniversalTraits<GemmConfig::kPadM,
+                                                   GemmConfig::kPadN,
+                                                   GemmConfig::kPadK,
+                                                   GemmConfig::DoubleSmemBuffer,
+                                                   ALayout,
+                                                   BLayout,
+                                                   CLayout>;
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
     float ave_time{0};
 
     const auto Run = [&](const auto memory_operation_) {
-        constexpr auto scheduler        = GEMM_PIPELINE_SCHEDULER;
+        constexpr auto scheduler        = GemmConfig::Scheduler;
         constexpr auto memory_operation = memory_operation_.value;
 
         // We create the GEMM pipeline without specifying hotloop or tailnumber.
@@ -112,7 +74,8 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                                                                            GemmUniversalTraits,
                                                                            scheduler>;
 
-        using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
+        using GemmPipeline = typename PipelineTypeTraits<
+            GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
                                              BDataType,
@@ -125,11 +88,11 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                                              GemmPipelineProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,
-                                             M_Warp,
-                                             N_Warp,
-                                             M_Warp_Tile,
-                                             N_Warp_Tile,
-                                             K_Warp_Tile,
+                                             GemmConfig::M_Warp,
+                                             GemmConfig::N_Warp,
+                                             GemmConfig::M_Warp_Tile,
+                                             GemmConfig::N_Warp_Tile,
+                                             GemmConfig::K_Warp_Tile,
                                              UniversalGemmProblem::TransposeC,
                                              memory_operation>>;
         using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
@@ -143,6 +106,38 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                       << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << std::endl;
         }
 
+        if(s.flush_cache_)
+        {
+            std::cout << "Flushing cache..." << std::endl;
+
+            ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
+                args.M, args.K, args.stride_A, is_row_major(ALayout{})));
+            ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
+                args.K, args.N, args.stride_B, is_row_major(BLayout{})));
+
+            auto size_a_buffer = a_m.get_element_space_size_in_bytes();
+            auto size_b_buffer = b_n.get_element_space_size_in_bytes();
+
+            ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
+                kargs.as_ptr[0], kargs.bs_ptr[0], s.rotating_count_, size_a_buffer, size_b_buffer);
+            rotating_mem.Print();
+
+            auto run_flush_cache = [&]() {
+                // flush icache
+                ck_tile::flush_icache();
+                // rotating mem
+                rotating_mem.Next();
+                // clear c mem
+                if(args.k_batch > 1)
+                    hipGetErrorString(hipMemsetAsync(
+                        args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
+            };
+            ave_time = ck_tile::launch_kernel_time_mask(
+                s,
+                run_flush_cache,
+                ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(
+                    Kernel{}, grids, blocks, 0, kargs));
+        }
         ave_time =
             ck_tile::launch_kernel(s,
                                    ck_tile::make_kernel<blocks.x, kBlockPerCu>(
@@ -173,4 +168,7 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
 #include "run_grouped_gemm_example.inc"
 
 constexpr bool Persistent = true;
-int main(int argc, char* argv[]) { return !run_grouped_gemm_example<Persistent>(argc, argv); }
+int main(int argc, char* argv[])
+{
+    return !run_grouped_gemm_example<Persistent, GemmConfigComputeV4>(argc, argv);
+}
