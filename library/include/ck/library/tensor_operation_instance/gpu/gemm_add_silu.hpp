@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -42,34 +42,34 @@ void add_device_gemm_add_silu_xdl_c_shuffle_bf16_i8_bf16_bf16_mk_kn_mn_mn_instan
                                                     PassThrough,
                                                     PassThrough,
                                                     AddSilu>>>&);
-#endif  // CK_USE_XDL
+#endif // CK_USE_XDL
 
 #if defined(CK_USE_WMMA)
 void add_device_gemm_add_silu_wmma_c_shuffle_f16_f16_f16_f16_mk_kn_mn_mn_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
-                                                    Row,
-                                                    Row_Tuple,
-                                                    Row,
-                                                    F16,
-                                                    F16,
-                                                    F16_Tuple,
-                                                    F16,
-                                                    PassThrough,
-                                                    PassThrough,
-                                                    AddSilu>>>&);
+                                                          Row,
+                                                          Row_Tuple,
+                                                          Row,
+                                                          F16,
+                                                          F16,
+                                                          F16_Tuple,
+                                                          F16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          AddSilu>>>&);
 
 void add_device_gemm_add_silu_wmma_c_shuffle_bf16_bf16_bf16_bf16_mk_kn_mn_mn_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
-                                                    Row,
-                                                    Row_Tuple,
-                                                    Row,
-                                                    BF16,
-                                                    BF16,
-                                                    BF16_Tuple,
-                                                    BF16,
-                                                    PassThrough,
-                                                    PassThrough,
-                                                    AddSilu>>>&);
+                                                          Row,
+                                                          Row_Tuple,
+                                                          Row,
+                                                          BF16,
+                                                          BF16,
+                                                          BF16_Tuple,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          AddSilu>>>&);
 #endif // CK_USE_WMMA
 
 // GEMM + Add + Silu
@@ -83,28 +83,28 @@ template <typename ALayout,
           typename EDataType>
 struct DeviceOperationInstanceFactory<
     ck::tensor_operation::device::DeviceGemmMultipleDSplitK<ALayout,
-                                                      BLayout,
-                                                      ck::Tuple<D0Layout>,
-                                                      ELayout,
-                                                      ADataType,
-                                                      BDataType,
-                                                      ck::Tuple<D0DataType>,
-                                                      EDataType,
-                                                      PassThrough,
-                                                      PassThrough,
-                                                      AddSilu>>
+                                                            BLayout,
+                                                            ck::Tuple<D0Layout>,
+                                                            ELayout,
+                                                            ADataType,
+                                                            BDataType,
+                                                            ck::Tuple<D0DataType>,
+                                                            EDataType,
+                                                            PassThrough,
+                                                            PassThrough,
+                                                            AddSilu>>
 {
     using DeviceOp = DeviceGemmMultipleDSplitK<ALayout,
-                                         BLayout,
-                                         ck::Tuple<D0Layout>,
-                                         ELayout,
-                                         ADataType,
-                                         BDataType,
-                                         ck::Tuple<D0DataType>,
-                                         EDataType,
-                                         PassThrough,
-                                         PassThrough,
-                                         AddSilu>;
+                                               BLayout,
+                                               ck::Tuple<D0Layout>,
+                                               ELayout,
+                                               ADataType,
+                                               BDataType,
+                                               ck::Tuple<D0DataType>,
+                                               EDataType,
+                                               PassThrough,
+                                               PassThrough,
+                                               AddSilu>;
 
     static auto GetInstances()
     {
@@ -116,7 +116,7 @@ struct DeviceOperationInstanceFactory<
 #endif // CL_USE_XDL
 #if defined(CK_USE_WMMA)
 #if defined(CK_ENABLE_FP16)
-	if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
+        if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
                      is_same_v<D0DataType, half_t> && is_same_v<EDataType, half_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
@@ -138,7 +138,7 @@ struct DeviceOperationInstanceFactory<
                     op_ptrs);
             }
         }
-        #endif
+#endif
 #endif // CK_USE_WMMA
         return op_ptrs;
     }
