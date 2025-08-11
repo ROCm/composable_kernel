@@ -13,7 +13,7 @@ template <typename ADataType,
           typename BLayout,
           typename DsLayout,
           typename ELayout,
-          typename MultiplyMultiply>
+          typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float invoke_gemm_multi_d(const void* a_m_k_dev_buf,
                           const void* b_k_n_dev_buf,
                           const std::array<const void*, DsDataType::size()>& ds_m_n_dev_buf,
