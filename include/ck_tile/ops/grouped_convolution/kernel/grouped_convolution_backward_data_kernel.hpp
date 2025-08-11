@@ -116,13 +116,13 @@ struct GroupedConvBwdDataKernelArgs
 
             ++gemm_count;
         }
-        group_stride_a = args.K_;           // A: Out NWGK
-        group_stride_b = args.K_ * args.C_; // B: Wei GKXC
-        std::accumulate(args.filter_spatial_lengths_.begin(),
-                        args.filter_spatial_lengths_.end(),
-                        1,
-                        std::multiplies<index_t>());
-        group_stride_c = args.C_; // C: In  NWGC
+        group_stride_a = args.K_; // A: Out NWGK
+        group_stride_b = args.K_ * args.C_ *
+                         std::accumulate(args.filter_spatial_lengths_.begin(),
+                                         args.filter_spatial_lengths_.end(),
+                                         1,
+                                         std::multiplies<index_t>()); // B: Wei GKXC
+        group_stride_c = args.C_;                                     // C: In  NWGC
 
         // compute_ptr_offset_of_n__batchstridea_ = args.Wo_ * args.G_ * args.K_ *
         // conv_N_per_block_; compute_ptr_offset_of_n__batchstridee_ = args.Wi_ * args.G_ * args.C_
@@ -233,13 +233,13 @@ struct GroupedConvBwdDataKernelArgs
                 ++gemm_count;
             }
         }
-        group_stride_a = args.K_;           // A: Out NHWGK
-        group_stride_b = args.K_ * args.C_; // B: Wei GKYXC
-        std::accumulate(args.filter_spatial_lengths_.begin(),
-                        args.filter_spatial_lengths_.end(),
-                        1,
-                        std::multiplies<index_t>());
-        group_stride_c = args.C_; // C: In  NHWGC
+        group_stride_a = args.K_; // A: Out NWGK
+        group_stride_b = args.K_ * args.C_ *
+                         std::accumulate(args.filter_spatial_lengths_.begin(),
+                                         args.filter_spatial_lengths_.end(),
+                                         1,
+                                         std::multiplies<index_t>()); // B: Wei GKXC
+        group_stride_c = args.C_;                                     // C: In  NWGC
 
         // compute_ptr_offset_of_n__batchstridea_ = args.Wo_ * args.G_ * args.K_ *
         // conv_N_per_block_; compute_ptr_offset_of_n__batchstridee_ = args.Wi_ * args.G_ * args.C_
@@ -317,13 +317,13 @@ struct GroupedConvBwdDataKernelArgs
         // b_grid_desc_n_k = grid_descs.at(number<1>{});
         // c_grid_desc_m_n = grid_descs.at(number<2>{});
 
-        group_stride_a = args.K_;            // A: Out NDHWGK
-        group_stride_b = args.C_;            // B: In  NDHWGC
-        group_stride_c = args.K_ * args.C_ * // C: wEI GKZYXC
+        group_stride_a = args.K_; // A: Out NWGK
+        group_stride_b = args.K_ * args.C_ *
                          std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
-                                         std::multiplies<index_t>());
+                                         std::multiplies<index_t>()); // B: Wei GKXC
+        group_stride_c = args.C_;                                     // C: In  NWGC
     }
 
     static constexpr index_t MaxGroupedGemmGroupsNum = 32; // enforce for now

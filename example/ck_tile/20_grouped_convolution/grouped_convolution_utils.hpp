@@ -82,7 +82,7 @@ ck_tile::index_t fill_spatial_dimensions(std::vector<ck_tile::index_t>& filter_s
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("g", "1", "group dimension")
+    arg_parser.insert("g", "2", "group dimension")
         .insert("n", "32", "n dimension")
         .insert("k", "32", "k dimension")
         .insert("c", "32", "c dimension")
