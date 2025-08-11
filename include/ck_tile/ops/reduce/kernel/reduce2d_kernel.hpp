@@ -190,7 +190,8 @@ struct Reduce
     ///       - y_continous_dim % ThreadTile_N == 0 (for proper thread distribution)
     ///       - input_strides[-1] == 1 (for contiguous memory access)
     template <typename InputStrides>
-    CK_TILE_HOST static bool IsSupportedArgument(index_t y_continous_dim, InputStrides input_strides)
+    CK_TILE_HOST static bool IsSupportedArgument(index_t y_continous_dim,
+                                                 InputStrides input_strides)
     {
         using S = typename Problem::BlockShape;
 

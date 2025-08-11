@@ -35,7 +35,6 @@ struct Add
 
         return type_convert<T>(y_ + x_);
     }
-
 };
 
 struct SquareAdd
@@ -63,7 +62,6 @@ struct SquareAdd
         float x_ = type_convert<float>(x);
         return type_convert<T>(y_ + (x_ * x_));
     }
-
 };
 
 struct Max
@@ -87,7 +85,6 @@ struct Max
     {
         return max(y, x);
     }
-
 };
 
 struct AbsMax
@@ -111,7 +108,6 @@ struct AbsMax
     {
         return max(y, abs(x));
     }
-
 };
 
 } // namespace ReduceOp
