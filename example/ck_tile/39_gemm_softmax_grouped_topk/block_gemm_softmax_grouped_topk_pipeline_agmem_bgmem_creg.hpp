@@ -38,8 +38,8 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
     // for topk computing
     struct ArgmaxPacket
     {
-        WeightType arg;
-        IndexType value;
+        WeightType value;
+        IndexType arg;
     };
 
     using BlockGemm = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
@@ -208,13 +208,15 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
     }
 #endif
 
-    template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp, typename ValueBlockTile, typename IndexBlockTile>
-    CK_TILE_HOST_DEVICE void operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+    // template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp, typename DebugBlockTile, typename ValueBlockTile, typename IndexBlockTile>
+    template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp>
+    CK_TILE_HOST_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                         const BDramBlockWindowTmp& b_dram_block_window_tmp,
-                                        ValueBlockTile& value_block_tile,
-                                        IndexBlockTile& index_block_tile,
                                         index_t num_loop,
                                         void* p_smem) const
+                                        // DebugBlockTile& debug_block_tile,
+                                        // ValueBlockTile& value_block_tile,
+                                        // IndexBlockTile& index_block_tile,
     {
         static_assert(
             std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
@@ -437,9 +439,8 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
         auto p_compute =
             make_static_distributed_tensor<ComputeDataType>(c_block_tile.get_tile_distribution());
 
-        auto wgid = blockIdx.x + blockIdx.y * gridDim.x + gridDim.x * gridDim.y * blockIdx.z;
-        auto tid = (threadIdx.z * (blockDim.x * blockDim.y)) + (threadIdx.y * blockDim.x) + threadIdx.x;
-        int i = 0, j = 0;
+        auto debug_block_tile =
+            make_static_distributed_tensor<WeightType>(p_compute.get_tile_distribution());
 
         constexpr auto p_spans = decltype(p_compute)::get_distributed_spans();
 
@@ -450,13 +451,8 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
                 constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
                 p_compute(i_j_idx) = exp(c_block_tile[i_j_idx] - m_local[i_idx]);
-                if (wgid == 0 && tid ==0 && i == 0) {
-                // if (i == 0 && j == 0) {
-                    printf("============c_block_tile(i %d, j %d): %f===============\n", i, j, c_block_tile(i_j_idx));
-                }
-                j++;
+
             });
-            i++;
         });
 
         // rowsum for p_compute{i, j}
@@ -466,21 +462,14 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
         block_tile_reduce_sync(rowsum_p, f_sum);
 
         // softmax = p_compute{i, j} / rowsum_p
-        i = 0;
-        j = 0;
         sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
             constexpr auto i_idx = make_tuple(idx0);
             sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
                 constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
                 p_compute(i_j_idx) = p_compute[i_j_idx] / rowsum_p[i_idx];
-                if (wgid == 0 && tid ==0 && i == 0) {
-                // if (i == 0 && j == 0) {
-                    printf("============p_compute(i %d, j %d): %f===============\n", i, j, p_compute(i_j_idx));
-                }
-                j++;
+                // debug_block_tile(i_j_idx) = p_compute(i_j_idx);
             });
-            i++;
         });
         
         // apply topk for softmax output
@@ -489,81 +478,66 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
 
         // argmax for topk
         const auto f_argmax = [](ArgmaxPacket e0, ArgmaxPacket e1) {
-            return e0.arg > e1.arg ? e0 : e1;
+            return e0.value > e1.value ? e0 : e1;
         };
 
-        printf("==========================topk: %d====================================\n", topk);
-
-        for(index_t i_k = 0; i_k < topk; i_k++)
+        for(index_t i_k = 0; i_k < 1; i_k++)
         {
-            printf("==========================i_k: %d====================================\n", i_k);
-            constexpr auto span_2d = decltype(p_compute)::get_distributed_spans();
+            constexpr auto p_compute_spans = decltype(p_compute)::get_distributed_spans();
             auto packet            = [&]() {
                 auto tmp = make_static_distributed_tensor<ArgmaxPacket>(p_compute.get_tile_distribution());
-                i = 0;
-                j = 0;
-                sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
-                    sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
+                sweep_tile_span(p_compute_spans[number<0>{}], [&](auto idx0) {
+                    sweep_tile_span(p_compute_spans[number<1>{}], [&](auto idx1) {
                         const auto tile_idx = get_x_indices_from_distributed_indices(
                             tmp.get_tile_distribution(), make_tuple(idx0, idx1));
                         constexpr auto i_j_idx = make_tuple(idx0, idx1);
                         ArgmaxPacket t;
-                        t.arg        = x_tmp(i_j_idx); // !!! we reference p_compute here
-                        t.value      = tile_idx.at(number<1>{});
+                        t.value    = x_tmp(i_j_idx); // !!! we reference p_compute here
+                        t.arg      = tile_idx.at(number<1>{});
                         tmp(i_j_idx) = t;
-                        // if (wgid == 0 && tid ==0 && i == 0) {
-                        //     printf("=========p_compute(i %d, j %d)- t.arg: %f  t.arg: %d=======\n", i, j, t.arg, t.value);
-                        // }
-                        j++;
                     });
-                    i++;
                 });
                 return tmp;
             }();
 
-            i = 0;
-            j = 0;
-            sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
-                sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
-                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                    if (wgid == 0 && tid ==0 && i == 0) {
-                            printf("====packet(i %d, j %d)- t.arg: %f  t.arg: %d====\n", i, j, packet(i_j_idx).arg, packet(i_j_idx).value);
-                    }
-                    j++;
-                });
-                i++;
-            });
-
             auto argmax_init = ArgmaxPacket{-numeric<WeightType>::infinity(), 0};
             auto r = block_tile_reduce<ArgmaxPacket>(packet, sequence<1>{}, f_argmax, argmax_init);
+
             block_tile_reduce_xor_sync(r, f_argmax);
 
-            // auto value_block_tile = make_static_distributed_tensor<WeightType>(dst_dist);
-            // auto index_block_tile = make_static_distributed_tensor<IndexType>(dst_dist);
-
-            sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
-                sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
+            // constexpr auto value_spans = decltype(value_block_tile)::get_distributed_spans();
+            
+            sweep_tile_span(p_compute_spans[number<0>{}], [&](auto idx0) {
+                constexpr auto i_idx = make_tuple(idx0);
+                sweep_tile_span(p_compute_spans[number<1>{}], [&](auto idx1) {
+                    const auto tile_idx = get_x_indices_from_distributed_indices(
+                        p_compute.get_tile_distribution(), make_tuple(idx0, idx1));
+                    // auto row_id = tile_idx.at(number<0>{});
+                    auto col_id = tile_idx.at(number<1>{});
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                    ArgmaxPacket tmp       = r(i_j_idx);
-                    value_block_tile(i_j_idx)             = tmp.arg;
-                    index_block_tile(i_j_idx)             = tmp.value;
+                    ArgmaxPacket tmp       = r(i_idx);
+                    // debug_block_tile(i_j_idx)                = (col_id == i_k) ? tmp.value: 0;
+                    debug_block_tile(i_j_idx)                = (col_id == i_k) ? tmp.arg: 0;
+                    // value_block_tile(i_j_idx)             = tmp.value;
+                    // index_block_tile(i_j_idx)             = tmp.arg;
                 });
             });
 
             // update value
-            sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
-                sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
+            sweep_tile_span(p_compute_spans[number<0>{}], [&](auto idx0) {
+                sweep_tile_span(p_compute_spans[number<1>{}], [&](auto idx1) {
                     const auto tile_idx = get_x_indices_from_distributed_indices(
                         p_compute.get_tile_distribution(), make_tuple(idx0, idx1));
                     auto col_id = tile_idx.at(number<1>{});
 
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
-                    x_tmp(i_j_idx) = (col_id == r(i_j_idx).value) ? -numeric<WeightType>::infinity()
+                    x_tmp(i_j_idx) = (col_id == r(i_j_idx).arg) ? -numeric<WeightType>::infinity()
                                                                     : x_tmp(i_j_idx);
                 });
             });
         }
+        return debug_block_tile;
     }
 };
 

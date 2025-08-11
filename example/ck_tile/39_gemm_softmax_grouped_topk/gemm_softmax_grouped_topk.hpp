@@ -179,6 +179,7 @@ struct Gemm
 
     CK_TILE_DEVICE void operator()(const ADataType* p_a,
                                    const BDataType* p_b,
+                                   WeightType* p_debug,
                                    WeightType* p_value,
                                    IndexType* p_index,
                                    const index_t M,
@@ -200,6 +201,11 @@ struct Gemm
                 p_b, make_tuple(N, K), make_tuple(Ldb, 1), number<kBAlignment>{}, number<1>{});
         }();
 
+        const auto debug_dram = [&] {
+            return make_naive_tensor_view<address_space_enum::global>(
+                p_debug, make_tuple(M, N), make_tuple(N, 1), number<kOutAlignment>{}, number<1>{});
+        }();
+
         const auto value_dram = [&] {
             return make_naive_tensor_view<address_space_enum::global>(
                 p_value, make_tuple(M, topK), make_tuple(Ldout, 1), number<kOutAlignment>{}, number<1>{});
@@ -210,7 +216,7 @@ struct Gemm
                 p_index, make_tuple(M, topK), make_tuple(Ldout, 1), number<kOutAlignment>{}, number<1>{});
         }();
 
-        GridGemm{}(a_dram, b_dram, value_dram, index_dram, c_element_func);
+        GridGemm{}(a_dram, b_dram, debug_dram, value_dram, index_dram, c_element_func);
     }
 };
 

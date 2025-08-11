@@ -74,7 +74,7 @@ int main(int argc, char* argv[])
     ck_tile::index_t M            = 3328;
     ck_tile::index_t N            = 4096;
     ck_tile::index_t K            = 4096;
-    ck_tile::index_t topk         = 16;
+    ck_tile::index_t topk         = 8;
 
     if(argc == 2)
     {
@@ -143,8 +143,8 @@ int main(int argc, char* argv[])
     const auto b_lengths = std::array<ck_tile::index_t, 2>{N, K};
     const auto b_strides = std::array<ck_tile::index_t, 2>{Ldb, 1};
 
-    // const auto c_lengths = std::array<ck_tile::index_t, 2>{M, N};
-    // const auto c_strides = std::array<ck_tile::index_t, 2>{Ldc, 1};
+    const auto debug_lengths = std::array<ck_tile::index_t, 2>{M, N};
+    const auto debug_strides = std::array<ck_tile::index_t, 2>{N, 1};
 
     const auto out_lengths = std::array<ck_tile::index_t, 2>{M, topk};
     const auto out_strides = std::array<ck_tile::index_t, 2>{Ldout, 1};
@@ -152,7 +152,7 @@ int main(int argc, char* argv[])
     // host verify
     ck_tile::HostTensor<ADataType> a_host(a_lengths, a_strides);
     ck_tile::HostTensor<BDataType> b_host(b_lengths, b_strides);
-    // ck_tile::HostTensor<CDataType> c_host_dev(c_lengths, c_strides);
+    ck_tile::HostTensor<WeightType> debug_host_dev(debug_lengths, debug_strides);
     ck_tile::HostTensor<WeightType> value_host_dev(out_lengths, out_strides);
     ck_tile::HostTensor<IndexType> index_host_dev(out_lengths, out_strides);
 
@@ -184,7 +184,7 @@ int main(int argc, char* argv[])
 
     ck_tile::DeviceMem a_buf(a_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_buf(b_host.get_element_space_size_in_bytes());
-    // ck_tile::DeviceMem c_buf(c_host_dev.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem debug_buf(debug_host_dev.get_element_space_size_in_bytes());
     ck_tile::DeviceMem value_buf(value_host_dev.get_element_space_size_in_bytes());
     ck_tile::DeviceMem index_buf(index_host_dev.get_element_space_size_in_bytes());
 
@@ -207,7 +207,7 @@ int main(int argc, char* argv[])
     constexpr ck_tile::index_t kGemmKPerBlock = 16;
 #endif
     constexpr ck_tile::index_t kGemmNPerBlock = 256;
-    constexpr ck_tile::index_t kGemmTopKPerBlock = 16;
+    constexpr ck_tile::index_t kGemmTopKPerBlock = 8;
 
     ck_tile::index_t kGridSize = (M / kGemmMPerBlock) * (N / kGemmNPerBlock);
 
@@ -241,6 +241,7 @@ int main(int argc, char* argv[])
                                                 0,
                                                 static_cast<ADataType*>(a_buf.GetDeviceBuffer()),
                                                 static_cast<BDataType*>(b_buf.GetDeviceBuffer()),
+                                                static_cast<WeightType*>(debug_buf.GetDeviceBuffer()),
                                                 static_cast<WeightType*>(value_buf.GetDeviceBuffer()),
                                                 static_cast<IndexType*>(index_buf.GetDeviceBuffer()),
                                                 M,
@@ -255,61 +256,96 @@ int main(int argc, char* argv[])
     bool rtn = true;
     if(verification)
     {
+        ck_tile::HostTensor<WeightType> debug_ref({M, N}, {N, 1});
         ck_tile::HostTensor<WeightType> value_ref(out_lengths, out_strides);
         ck_tile::HostTensor<IndexType> index_ref(out_lengths, out_strides);
-        reference_basic_gemm_softmax_grouped_topk<ADataType, ADataType, AccDataType, WeightType, IndexType>(
-            a_host, b_host, value_ref, index_ref, topk);
+        // reference_basic_gemm_softmax_grouped_topk<ADataType, ADataType, AccDataType, WeightType, IndexType>(
+        //     a_host, b_host, value_ref, index_ref, topk);
+        debug_ref = reference_basic_gemm_softmax<ADataType, ADataType, AccDataType>(a_host, b_host);
+        debug_buf.FromDevice(debug_host_dev.mData.data());
         value_buf.FromDevice(value_host_dev.mData.data());
         index_buf.FromDevice(index_host_dev.mData.data());
 
-        // pass &= ck_tile::check_err(c_host_dev, c_host_ref);
+        // rtn &= ck_tile::check_err(debug_host_dev, debug_ref);
+        // for(std::size_t i = 0; i < debug_ref.size(); ++i) {
+        //     const double o = *std::next(std::begin(debug_host_dev), i);
+        //     const double r = *std::next(std::begin(debug_ref), i);
+        //     std::cout << " out[" << i << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+        // }
+        // std::cout << "valid:" << (rtn ? "y" : "n") << std::endl;
+
         const ck_tile::index_t tokens = M;
-        auto [rtol, atol] = get_elimit<ADataType>("");
+        auto [rtol, atol] = get_elimit<WeightType>("");
         for(int i_t = 0; i_t < tokens; i_t++)
         {
             auto s_begin = std::vector<size_t>{static_cast<size_t>(i_t), static_cast<size_t>(0)};
             auto s_end =
                 std::vector<size_t>{static_cast<size_t>(i_t + 1), static_cast<size_t>(topk)};
-            auto s_value_host = value_host_dev.slice(s_begin, s_end);
-            auto s_value_ref  = value_ref.slice(s_begin, s_end);
-            rtn &= ck_tile::check_err(s_value_host,
-                                      s_value_ref,
+            auto s_debug_host = debug_host_dev.slice(s_begin, s_end);
+            auto s_debug_ref  = debug_ref.slice(s_begin, s_end);
+            rtn &= ck_tile::check_err(s_debug_host,
+                                      s_debug_ref,
                                       std::string("[") + std::to_string(i_t) +
                                           std::string("] Value Error:"),
                                       rtol,
                                       atol);
-            // for(std::size_t i = 0; i < s_value_ref.size(); ++i) {
-            //     const double o = *std::next(std::begin(s_value_host), i);
-            //     const double r = *std::next(std::begin(s_value_ref), i);
-            //     std::cout << " out[" << i << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
-            // }
-            auto s_index_host = index_host_dev.slice(s_begin, s_end);
-            auto s_index_ref  = index_ref.slice(s_begin, s_end);
-            rtn &= ck_tile::check_err(s_index_host,
-                                      s_index_ref,
-                                      std::string("[") + std::to_string(i_t) +
-                                          std::string("] Index Error:"),
-                                      rtol,
-                                      atol);
-            // for(std::size_t i = 0; i < s_index_ref.size(); ++i) {
-            //     const double o = *std::next(std::begin(s_index_host), i);
-            //     const double r = *std::next(std::begin(s_index_ref), i);
-            //     std::cout << " out[" << i << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
-            // }
+            printf("row [%d]\n", i_t);
+            for(std::size_t i = 0; i < s_debug_ref.size(); ++i) {
+                // const double o = *std::next(std::begin(s_debug_host), i);
+                const double r = *std::next(std::begin(s_debug_ref), i);
+                printf("ref[%zu]:%f ", i, r);
+                // std::cout << i_t << " out[" << i << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+            }
+            printf("\n");
+            for(std::size_t i = 0; i < s_debug_ref.size(); ++i) {
+                const double o = *std::next(std::begin(s_debug_host), i);
+                // const double r = *std::next(std::begin(s_debug_ref), i);
+                printf("out[%zu]:%f ", i, o);
+                // std::cout << i_t << " out[" << i << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+            }
+            printf("\n");
         }
         std::cout << "valid:" << (rtn ? "y" : "n") << std::endl;
     }
+    //     const ck_tile::index_t tokens = M;
+    //     auto [rtol, atol] = get_elimit<ADataType>("");
+    //     for(int i_t = 0; i_t < tokens; i_t++)
+    //     {
+    //         auto s_begin = std::vector<size_t>{static_cast<size_t>(i_t), static_cast<size_t>(0)};
+    //         auto s_end =
+    //             std::vector<size_t>{static_cast<size_t>(i_t + 1), static_cast<size_t>(topk)};
+    //         auto s_value_host = value_host_dev.slice(s_begin, s_end);
+    //         auto s_value_ref  = value_ref.slice(s_begin, s_end);
+    //         rtn &= ck_tile::check_err(s_value_host,
+    //                                   s_value_ref,
+    //                                   std::string("[") + std::to_string(i_t) +
+    //                                       std::string("] Value Error:"),
+    //                                   rtol,
+    //                                   atol);
+    //         // for(std::size_t i = 0; i < s_value_ref.size(); ++i) {
+    //         //     const double o = *std::next(std::begin(s_value_host), i);
+    //         //     const double r = *std::next(std::begin(s_value_ref), i);
+    //         //     std::cout << " out[" << i << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+    //         // }
+    //         auto s_index_host = index_host_dev.slice(s_begin, s_end);
+    //         auto s_index_ref  = index_ref.slice(s_begin, s_end);
+    //         rtn &= ck_tile::check_err(s_index_host,
+    //                                   s_index_ref,
+    //                                   std::string("[") + std::to_string(i_t) +
+    //                                       std::string("] Index Error:"),
+    //                                   rtol,
+    //                                   atol);
+    //         // for(std::size_t i = 0; i < s_index_ref.size(); ++i) {
+    //         //     const double o = *std::next(std::begin(s_index_host), i);
+    //         //     const double r = *std::next(std::begin(s_index_ref), i);
+    //         //     std::cout << " out[" << i << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+    //         // }
+    //     }
+    //     std::cout << "valid:" << (rtn ? "y" : "n") << std::endl;
+    // }
 
-    std::size_t flop = std::size_t(2) * M * N * K;
-    std::size_t num_btype =
-        sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
-
-    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
-
-    float gb_per_sec = num_btype / 1.E6 / ave_time;
-
-    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
-              << std::endl;
+    std::cout << "Perf: " << ave_time << " ms, " << std::endl;
 
     return rtn;
+    // return !rtn;
 }
