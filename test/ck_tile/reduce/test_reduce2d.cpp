@@ -83,7 +83,7 @@ class TestCkTileReduce : public ::testing::Test
         }
 
         ck_tile::launch_kernel(ck_tile::stream_config{nullptr, false, 0},
-                               ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
+                               ck_tile::make_kernel<kBlockPerCu>(
                                    Kernel{},
                                    kGridSize,
                                    kBlockSize,
