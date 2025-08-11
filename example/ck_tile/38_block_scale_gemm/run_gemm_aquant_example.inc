@@ -143,6 +143,15 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::HostTensor<CDataType> c_m_n_dev_result(
         ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
+    std::cout << "a_m_k:" << M << "x" << K << " stride_A:" << stride_A
+              << " is_row_major:" << is_row_major(a_layout) << std::endl;
+    std::cout << "aq_m_aqk:" << M << "x" << AQK << " stride_AQ:" << stride_AQ
+              << " is_row_major:" << is_row_major(aq_layout) << std::endl;
+    std::cout << "b_k_n:" << K << "x" << N << " stride_B:" << stride_B
+              << " is_row_major:" << is_row_major(b_layout) << std::endl;
+    std::cout << "c_m_n_dev_result:" << M << "x" << N << " stride_C:" << stride_C
+              << " is_row_major:" << is_row_major(CLayout{}) << std::endl;
+
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<std::uint32_t> fill_seed(0, 500);
@@ -187,6 +196,7 @@ int run_gemm_example_with_layouts(int argc,
     a_m_k_dev_buf.ToDevice(a_m_k.data());
     aq_m_aqk_dev_buf.ToDevice(aq_m_aqk.data());
     b_k_n_dev_buf.ToDevice(b_k_n.data());
+
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 

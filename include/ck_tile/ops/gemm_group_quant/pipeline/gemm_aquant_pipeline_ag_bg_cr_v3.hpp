@@ -31,6 +31,7 @@ struct BaseAQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<
         {
             if(tail_number == ck_tile::TailNumber::Full)
             {
+                std::cout << "TailHandler: has_hot_loop: true, tail_number: Full" << std::endl;
                 return run_func(
                     ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
@@ -255,6 +256,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
 
             static_assert(!is_aq_col_major, "Aq must be row major (col major not supported yet)");
+            // So AQ is loaded as MPerBlock x KPerBlockAQ
             static_assert(MPerBlock == AQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
                               KPerBlockAQ == AQDramBlockWindowTmp{}.get_window_lengths()[I1{}],
                           "Aq block window has incorrect lengths for defined AqLayout!");
@@ -317,6 +319,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
                 is_aq_col_major ? make_array(KPerBlockAQ, 0) : make_array(0, KPerBlockAQ);
 
             // DRAM prefetch (global read 0)
+            // DRAM to VGPRs
             Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
             Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
             Base::GlobalPrefetch(
@@ -333,6 +336,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             }
             else
             {
+                // VGPRs to LDS
                 Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
             }
 
@@ -345,14 +349,18 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             }
             else
             {
+                // VGPRs to LDS
                 Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
             }
+
+            // DRAM prefetch (global read 1)
 
             Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
             Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
 
             block_sync_lds();
 
+            // LDS to VGPRs for gemm
             block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
 
             __builtin_amdgcn_sched_barrier(0);
@@ -673,10 +681,8 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
 
             // Tail handling
             block_sync_lds();
-            block_gemm(c_block_tile,
-                       aq_block_tiles.get(I0{}),
-                       a_lds_gemm_window,
-                       b_lds_gemm_window);
+            block_gemm(
+                c_block_tile, aq_block_tiles.get(I0{}), a_lds_gemm_window, b_lds_gemm_window);
 
             return c_block_tile;
         }
