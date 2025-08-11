@@ -642,10 +642,7 @@ struct TransformConvBwdDataToGemm
                        make_freeze_transform(IdxXTilde_),
                        make_slice_transform(WTilde_, IWTildeSliceBegin, WTildeSlice),
                        make_pass_through_transform(C_)),
-            make_tuple(sequence<0>{},
-                       sequence<1>{},
-                       sequence<2>{},
-                       sequence<3>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
             make_tuple(sequence<0>{}, sequence<>{}, sequence<1>{}, sequence<2>{}));
 
         const auto in_gemmmraw_gemmnraw_grid_desc = transform_tensor_descriptor(
@@ -687,14 +684,14 @@ struct TransformConvBwdDataToGemm
         const auto wei_grid_desc = make_wei_grid_desc<NDimSpatial>();
 
         // A: output tensor comes in K_M
-        const auto out_n_hop_wop_k_grid_desc =
-            transform_tensor_descriptor(out_grid_desc,
-                                        make_tuple(make_pass_through_transform(N_),
-                                                   make_pad_transform(Ho_, I0, I0),
-                                                   make_pad_transform(Wo_, I0, I0),
-                                                   make_pass_through_transform(K_)),
-                                        make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
-                                        make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}));
+        const auto out_n_hop_wop_k_grid_desc = transform_tensor_descriptor(
+            out_grid_desc,
+            make_tuple(make_pass_through_transform(N_),
+                       make_pad_transform(Ho_, I0, I0),
+                       make_pad_transform(Wo_, I0, I0),
+                       make_pass_through_transform(K_)),
+            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}));
 
         const auto out_n_ydot_htilde_xdot_wtilde_k_grid_desc = transform_tensor_descriptor(
             out_n_hop_wop_k_grid_desc,
@@ -707,16 +704,27 @@ struct TransformConvBwdDataToGemm
             make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
             make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3, 4>{}, sequence<5>{}));
 
-        const auto out_n_ydotslice_htildeslice_xdotslice_wtildeslice_k_grid_desc = transform_tensor_descriptor(
-            out_n_ydot_htilde_xdot_wtilde_k_grid_desc,
-            make_tuple(make_pass_through_transform(N_),
-                       make_slice_transform(YDot_, I0, YDotSlice),
-                       make_slice_transform(HTilde_, IHTildeSliceBegin, HTildeSlice),
-                       make_slice_transform(XDot_, I0, XDotSlice),
-                       make_slice_transform(WTilde_, IWTildeSliceBegin, WTildeSlice),
-                       make_pass_through_transform(K_)),
-            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}, sequence<4>{}, sequence<5>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}, sequence<4>{}, sequence<5>{}));
+        const auto out_n_ydotslice_htildeslice_xdotslice_wtildeslice_k_grid_desc =
+            transform_tensor_descriptor(
+                out_n_ydot_htilde_xdot_wtilde_k_grid_desc,
+                make_tuple(make_pass_through_transform(N_),
+                           make_slice_transform(YDot_, I0, YDotSlice),
+                           make_slice_transform(HTilde_, IHTildeSliceBegin, HTildeSlice),
+                           make_slice_transform(XDot_, I0, XDotSlice),
+                           make_slice_transform(WTilde_, IWTildeSliceBegin, WTildeSlice),
+                           make_pass_through_transform(K_)),
+                make_tuple(sequence<0>{},
+                           sequence<1>{},
+                           sequence<2>{},
+                           sequence<3>{},
+                           sequence<4>{},
+                           sequence<5>{}),
+                make_tuple(sequence<0>{},
+                           sequence<1>{},
+                           sequence<2>{},
+                           sequence<3>{},
+                           sequence<4>{},
+                           sequence<5>{}));
 
         const auto out_gemmm_gemmkraw_grid_desc = transform_tensor_descriptor(
             out_n_ydotslice_htildeslice_xdotslice_wtildeslice_k_grid_desc,
@@ -737,23 +745,33 @@ struct TransformConvBwdDataToGemm
             make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
             make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3, 4>{}, sequence<5>{}));
 
-        const auto wei_k_ydotslice_xdotslice_c_grid_desc = transform_tensor_descriptor(
-            wei_k_ydot_ytilde_xdot_xtilde_c_grid_desc,
-            make_tuple(make_pass_through_transform(K_),
-                       make_slice_transform(YDot_, I0, YDotSlice),
-                       make_slice_transform(XDot_, I0, XDotSlice),
-                       make_freeze_transform(IdxYTilde_),
-                       make_freeze_transform(IdxXTilde_),
-                       make_pass_through_transform(C_)),
-            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}, sequence<4>{}, sequence<5>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<>{}, sequence<>{}, sequence<3>{}));
-
-        const auto wei_gemmn_gemmkraw_grid_desc =
-            transform_tensor_descriptor(wei_k_ydotslice_xdotslice_c_grid_desc,
-                                        make_tuple(make_merge_transform(make_tuple(YDotSlice, XDotSlice, K_)),
+        const auto wei_k_ydotslice_xdotslice_c_grid_desc =
+            transform_tensor_descriptor(wei_k_ydot_ytilde_xdot_xtilde_c_grid_desc,
+                                        make_tuple(make_pass_through_transform(K_),
+                                                   make_slice_transform(YDot_, I0, YDotSlice),
+                                                   make_slice_transform(XDot_, I0, XDotSlice),
+                                                   make_freeze_transform(IdxYTilde_),
+                                                   make_freeze_transform(IdxXTilde_),
                                                    make_pass_through_transform(C_)),
-                                        make_tuple(sequence<1, 2, 0>{}, sequence<3>{}),
-                                        make_tuple(sequence<1>{}, sequence<0>{}));
+                                        make_tuple(sequence<0>{},
+                                                   sequence<1>{},
+                                                   sequence<3>{},
+                                                   sequence<2>{},
+                                                   sequence<4>{},
+                                                   sequence<5>{}),
+                                        make_tuple(sequence<0>{},
+                                                   sequence<1>{},
+                                                   sequence<2>{},
+                                                   sequence<>{},
+                                                   sequence<>{},
+                                                   sequence<3>{}));
+
+        const auto wei_gemmn_gemmkraw_grid_desc = transform_tensor_descriptor(
+            wei_k_ydotslice_xdotslice_c_grid_desc,
+            make_tuple(make_merge_transform(make_tuple(YDotSlice, XDotSlice, K_)),
+                       make_pass_through_transform(C_)),
+            make_tuple(sequence<1, 2, 0>{}, sequence<3>{}),
+            make_tuple(sequence<1>{}, sequence<0>{}));
 
         // c: input
         const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
@@ -790,7 +808,12 @@ struct TransformConvBwdDataToGemm
                        sequence<3>{},
                        sequence<4>{},
                        sequence<5>{}),
-            make_tuple(sequence<0>{}, sequence<>{}, sequence<1>{}, sequence<>{}, sequence<2>{}, sequence<3>{}));
+            make_tuple(sequence<0>{},
+                       sequence<>{},
+                       sequence<1>{},
+                       sequence<>{},
+                       sequence<2>{},
+                       sequence<3>{}));
 
         const auto in_gemmmraw_gemmnraw_grid_desc = transform_tensor_descriptor(
             in_n_htildeslice_wtildeslice_c_grid_desc,

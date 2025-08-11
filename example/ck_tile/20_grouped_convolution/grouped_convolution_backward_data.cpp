@@ -144,16 +144,16 @@ template <typename InPrecType, typename WeiPrecType = InPrecType, typename OutPr
 int run_grouped_conv_bwd_data_example_prec_type(
     std::string in_layout, std::string wei_layout, std::string out_layout, int argc, char* argv[])
 {
-    using NWGC = ck_tile::tensor_layout::convolution::NWGC;
-    using NHWGC  = ck_tile::tensor_layout::convolution::NHWGC;
+    using NWGC  = ck_tile::tensor_layout::convolution::NWGC;
+    using NHWGC = ck_tile::tensor_layout::convolution::NHWGC;
     // using NDHWGC = ck_tile::tensor_layout::convolution::NDHWGC;
 
-    using GKXC = ck_tile::tensor_layout::convolution::GKXC;
-    using GKYXC  = ck_tile::tensor_layout::convolution::GKYXC;
+    using GKXC  = ck_tile::tensor_layout::convolution::GKXC;
+    using GKYXC = ck_tile::tensor_layout::convolution::GKYXC;
     // using GKZYXC = ck_tile::tensor_layout::convolution::GKZYXC;
 
-    using NWGK = ck_tile::tensor_layout::convolution::NWGK;
-    using NHWGK  = ck_tile::tensor_layout::convolution::NHWGK;
+    using NWGK  = ck_tile::tensor_layout::convolution::NWGK;
+    using NHWGK = ck_tile::tensor_layout::convolution::NHWGK;
     // using NDHWGK = ck_tile::tensor_layout::convolution::NDHWGK;
 
     if(in_layout == "NWGC" && wei_layout == "GKXC" && out_layout == "NWGK")
@@ -167,9 +167,9 @@ int run_grouped_conv_bwd_data_example_prec_type(
     else if(in_layout == "NHWGC" && wei_layout == "GKYXC" && out_layout == "NHWGK")
     {
         return run_grouped_conv_bwd_data_example_with_layouts<ck_tile::number<2>{},
-                                                                InPrecType,
-                                                                WeiPrecType,
-                                                                OutPrecType>(
+                                                              InPrecType,
+                                                              WeiPrecType,
+                                                              OutPrecType>(
             argc, argv, NHWGC{}, GKYXC{}, NHWGK{});
     }
     // else if(in_layout == "NDHWGC" && wei_layout == "GKZYXC" && out_layout == "NDHWGK")

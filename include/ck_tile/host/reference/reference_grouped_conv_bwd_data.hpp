@@ -28,7 +28,10 @@ CK_TILE_HOST void reference_grouped_conv_bwd_data(HostTensor<InDataType>& input,
          output.get_num_of_dimension() == NDimSpatial + 3))
     {
 
-        printf("%lu %lu %lu", input.get_num_of_dimension(), weight.get_num_of_dimension(), output.get_num_of_dimension());
+        printf("%lu %lu %lu",
+               input.get_num_of_dimension(),
+               weight.get_num_of_dimension(),
+               output.get_num_of_dimension());
 
         throw std::runtime_error("wrong! inconsistent dimension");
     }
@@ -40,7 +43,7 @@ CK_TILE_HOST void reference_grouped_conv_bwd_data(HostTensor<InDataType>& input,
             std::size_t X = weight.get_lengths()[3];
 
             std::size_t Wo = output.get_lengths()[3];
-            float v_acc = 0;
+            float v_acc    = 0;
 
             for(std::size_t x = 0; x < X; ++x)
             {
@@ -90,23 +93,23 @@ CK_TILE_HOST void reference_grouped_conv_bwd_data(HostTensor<InDataType>& input,
             for(std::size_t y = 0; y < Y; ++y)
             {
                 auto h_tmp = static_cast<ck_tile::long_index_t>(hi) +
-                    static_cast<ck_tile::long_index_t>(in_left_pads[0]) -
-                    static_cast<ck_tile::long_index_t>(y * conv_dilations[0]);
+                             static_cast<ck_tile::long_index_t>(in_left_pads[0]) -
+                             static_cast<ck_tile::long_index_t>(y * conv_dilations[0]);
                 if(h_tmp % conv_strides[0] == 0)
                 {
                     auto ho = static_cast<ck_tile::long_index_t>(h_tmp) /
-                                static_cast<ck_tile::long_index_t>(conv_strides[0]);
+                              static_cast<ck_tile::long_index_t>(conv_strides[0]);
                     if(ho >= 0 && ck_tile::type_convert<std::size_t>(ho) < Ho)
                     {
                         for(std::size_t x = 0; x < X; ++x)
                         {
                             auto w_tmp = static_cast<ck_tile::long_index_t>(wi) +
-                                        static_cast<ck_tile::long_index_t>(in_left_pads[1]) -
-                                        static_cast<ck_tile::long_index_t>(x * conv_dilations[1]);
+                                         static_cast<ck_tile::long_index_t>(in_left_pads[1]) -
+                                         static_cast<ck_tile::long_index_t>(x * conv_dilations[1]);
                             if(w_tmp % conv_strides[1] == 0)
                             {
                                 auto wo = static_cast<ck_tile::long_index_t>(w_tmp) /
-                                        static_cast<ck_tile::long_index_t>(conv_strides[1]);
+                                          static_cast<ck_tile::long_index_t>(conv_strides[1]);
 
                                 if(wo >= 0 && ck_tile::type_convert<std::size_t>(wo) < Wo)
                                 {
@@ -115,7 +118,7 @@ CK_TILE_HOST void reference_grouped_conv_bwd_data(HostTensor<InDataType>& input,
                                         OutDataType v_out = output(g, n, k, ho, wo);
                                         WeiDataType v_wei = weight(g, k, c, y, x);
                                         v_acc += ck_tile::type_convert<float>(v_out) *
-                                                ck_tile::type_convert<float>(v_wei);
+                                                 ck_tile::type_convert<float>(v_wei);
                                     }
                                 }
                             }
@@ -124,7 +127,7 @@ CK_TILE_HOST void reference_grouped_conv_bwd_data(HostTensor<InDataType>& input,
                 }
             }
             InDataType v_acc_converted = ck_tile::type_convert<InDataType>(v_acc);
-            input(g, n, c, hi, wi)         = v_acc_converted;
+            input(g, n, c, hi, wi)     = v_acc_converted;
         };
 
         make_ParallelTensorFunctor(func,
