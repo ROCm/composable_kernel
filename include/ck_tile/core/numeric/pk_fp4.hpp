@@ -21,7 +21,7 @@ namespace ck_tile {
 using fp32_t   = float;
 using fp32x2_t = float __attribute__((ext_vector_type(2)));
 using fp16x2_t = _Float16 __attribute__((ext_vector_type(2)));
-using bf16x2_t = bfloat16_t __attribute__((ext_vector_type(2)));
+using bf16x2_t = bf16_raw_t __attribute__((ext_vector_type(2)));
 
 CK_TILE_HOST_DEVICE constexpr uint8_t float_to_e2m1(float x, float scale = 1.f);
 
