@@ -483,7 +483,7 @@ struct GeneratorTensor_4
     std::normal_distribution<float> distribution;
 
     GeneratorTensor_4(float mean, float stddev, unsigned int seed = 1)
-        : generator(seed), distribution(mean, stddev){};
+        : generator(seed), distribution(mean, stddev) {};
 
     template <typename... Is>
     T operator()(Is...)
@@ -501,7 +501,7 @@ struct GeneratorTensor_4<ck::f4x2_pk_t>
     std::normal_distribution<float> distribution;
 
     GeneratorTensor_4(float mean, float stddev, unsigned int seed = 1)
-        : generator(seed), distribution(mean, stddev){};
+        : generator(seed), distribution(mean, stddev) {};
 
     template <typename... Is>
     ck::f4x2_pk_t operator()(Is...)
@@ -520,7 +520,7 @@ struct GeneratorTensor_4<ck::f6x32_pk_t>
     std::normal_distribution<float> distribution;
 
     GeneratorTensor_4(float mean, float stddev, unsigned int seed = 1)
-        : generator(seed), distribution(mean, stddev){};
+        : generator(seed), distribution(mean, stddev) {};
 
     template <typename... Is>
     ck::f6x32_pk_t operator()(Is...)
@@ -542,7 +542,7 @@ struct GeneratorTensor_4<ck::bf6x32_pk_t>
     std::normal_distribution<float> distribution;
 
     GeneratorTensor_4(float mean, float stddev, unsigned int seed = 1)
-        : generator(seed), distribution(mean, stddev){};
+        : generator(seed), distribution(mean, stddev) {};
 
     template <typename... Is>
     ck::bf6x32_pk_t operator()(Is...)
