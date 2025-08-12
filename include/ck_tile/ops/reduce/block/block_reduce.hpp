@@ -14,14 +14,10 @@ namespace ck_tile {
  * Y dim must have at least one dim not been reduced
  */
 // synchronize reduce result (cross lane reduction and broadcast on replicated dimension)
-template <typename AccDistributedTensor_,
-          typename ReduceFunc,
-          bool WithBroadcast = true,
-          bool CrossWarp     = true>
+template <typename AccDistributedTensor_, typename ReduceFunc, bool WithBroadcast = true>
 CK_TILE_DEVICE void block_tile_reduce_sync(AccDistributedTensor_& acc_tensor,
                                            const ReduceFunc& reduce_func,
-                                           bool_constant<WithBroadcast> = {},
-                                           bool_constant<CrossWarp>     = {})
+                                           bool_constant<WithBroadcast> = {})
 {
     using Dstr             = typename AccDistributedTensor_::StaticTileDistribution;
     using DstrEncode       = typename Dstr::DstrEncode;
@@ -60,24 +56,14 @@ CK_TILE_DEVICE void block_tile_reduce_sync(AccDistributedTensor_& acc_tensor,
 
                 // reduction sweep forward
                 static_for<0, nstage, 1>{}([&](auto istage) {
-                    if constexpr(CrossWarp)
-                    {
-                        constexpr index_t lid_delta =
-                            lid_over_rid_derivative * (1 << (nstage - istage - 1));
+                    constexpr index_t lid_delta =
+                        lid_over_rid_derivative * (1 << (nstage - istage - 1));
 
-                        // pull data from remote lane
-                        const auto v_remote = warp_shuffle_down(v_local, lid_delta);
+                    // pull data from remote lane
+                    const auto v_remote = warp_shuffle_down(v_local, lid_delta);
 
-                        // reduce
-                        v_local = reduce_func(v_local, v_remote);
-                    }
-                    else
-                    {
-                        // pull data from remote lane
-                        const auto v_swapped_regs = warp_shuffle_down_pair(v_local);
-                        // reduce
-                        v_local = reduce_func(v_swapped_regs.at(0), v_swapped_regs.at(1));
-                    }
+                    // reduce
+                    v_local = reduce_func(v_local, v_remote);
                 });
             }
         });

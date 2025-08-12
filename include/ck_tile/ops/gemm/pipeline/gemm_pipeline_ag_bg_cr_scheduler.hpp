@@ -39,12 +39,6 @@ enum struct TailNumber
     Full,
 };
 
-enum struct GemmLoopOrder
-{
-    KMN,
-    MNK,
-};
-
 } // namespace ck_tile
 
 inline std::ostream& operator<<(std::ostream& os, const ck_tile::GemmPipelineScheduler& s)
