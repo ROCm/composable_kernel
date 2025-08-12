@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/fmha.hpp"
 #include "ck_tile/ops/epilogue.hpp"
@@ -357,31 +358,27 @@ auto fmha_bwd_convert_dq_create_kargs_and_grids(fmha_bwd_args args)
 template <ck_tile::index_t HDim_,
           typename DataType_,
           bool kIsGroupMode_,
-          ck_tile::BlockFmhaBwdPipelineEnum FmhaBwdPipelineEnum_,
           typename FmhaMask_,
           typename FmhaDropout_,
           ck_tile::BlockAttentionBiasEnum BiasEnum_,
           bool kHasBiasGrad_,
-          bool kPadS_,
-          bool kPadSK_,
           bool kPadD_,
           bool kPadDv_,
-          bool kIsDeterministic_>
+          bool kIsDeterministic_,
+          bool kUseTrLoad_>
 struct fmha_bwd_dq_dk_dv_traits_
 {
-    static constexpr ck_tile::index_t HDim    = HDim_;
-    using DataType                            = ck_tile::remove_cvref_t<DataType_>;
-    static constexpr bool kIsGroupMode        = kIsGroupMode_;
-    static constexpr auto FmhaBwdPipelineEnum = FmhaBwdPipelineEnum_;
-    using FmhaMask                            = ck_tile::remove_cvref_t<FmhaMask_>;
-    using FmhaDropout                         = ck_tile::remove_cvref_t<FmhaDropout_>;
-    static constexpr auto BiasEnum            = BiasEnum_;
-    static constexpr bool kHasBiasGrad        = kHasBiasGrad_;
-    static constexpr bool kPadS               = kPadS_;
-    static constexpr bool kPadSK              = kPadSK_;
-    static constexpr bool kPadD               = kPadD_;
-    static constexpr bool kPadDv              = kPadDv_;
-    static constexpr bool kIsDeterministic    = kIsDeterministic_;
+    static constexpr ck_tile::index_t HDim = HDim_;
+    using DataType                         = ck_tile::remove_cvref_t<DataType_>;
+    static constexpr bool kIsGroupMode     = kIsGroupMode_;
+    using FmhaMask                         = ck_tile::remove_cvref_t<FmhaMask_>;
+    using FmhaDropout                      = ck_tile::remove_cvref_t<FmhaDropout_>;
+    static constexpr auto BiasEnum         = BiasEnum_;
+    static constexpr bool kHasBiasGrad     = kHasBiasGrad_;
+    static constexpr bool kPadD            = kPadD_;
+    static constexpr bool kPadDv           = kPadDv_;
+    static constexpr bool kIsDeterministic = kIsDeterministic_;
+    static constexpr bool kUseTrLoad       = kUseTrLoad_;
 };
 
 template <typename Traits_>
