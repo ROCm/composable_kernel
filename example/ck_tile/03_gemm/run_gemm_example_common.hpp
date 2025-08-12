@@ -5,6 +5,7 @@
 #include "gemm_utils.hpp"
 
 template <typename GemmConfig,
+          typename Invoker,
           typename APrecType,
           typename BPrecType = APrecType,
           typename CPrecType = APrecType>
@@ -50,7 +51,11 @@ int run_gemm_example_prec_type(std::string a_layout,
             }
             else
             {
-                return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
+                return run_gemm_example_with_layouts<GemmConfig,
+                                                     Invoker,
+                                                     APrecType,
+                                                     BPrecType,
+                                                     CPrecType>(
                     arg_parser, a_layout_type, b_layout_type, Row{});
             }
         },
