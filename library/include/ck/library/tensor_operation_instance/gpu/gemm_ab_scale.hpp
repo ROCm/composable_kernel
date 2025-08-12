@@ -302,7 +302,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
                     op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
-                         is_same_v<CLayout, Row>)
+                              is_same_v<CLayout, Row>)
             {
                 add_device_gemm_ab_scale_xdl_f8_f8_bf16_mk_kn_mn_1_128_128_comp_default_instances(
                     op_ptrs);
@@ -315,7 +315,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
                     op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
-                         is_same_v<CLayout, Row>)
+                              is_same_v<CLayout, Row>)
             {
                 add_device_gemm_ab_scale_xdl_f8_f8_bf16_km_kn_mn_1_128_128_comp_default_instances(
                     op_ptrs);

@@ -174,7 +174,7 @@ int profile_gemm_ab_scale(int argc, char* argv[])
                        Row{});
     }
     else if(data_type == GemmDataType::F8_F8_BF16 && layout == GemmMatrixLayout::MK_KN_MN &&
-       scale_block_tile == ScaleBlockTile::Tile_1_128_128)
+            scale_block_tile == ScaleBlockTile::Tile_1_128_128)
     {
         return profile(F8{},
                        F32{},
@@ -191,7 +191,7 @@ int profile_gemm_ab_scale(int argc, char* argv[])
                        Row{});
     }
     else if(data_type == GemmDataType::F8_F8_BF16 && layout == GemmMatrixLayout::KM_KN_MN &&
-       scale_block_tile == ScaleBlockTile::Tile_1_128_128)
+            scale_block_tile == ScaleBlockTile::Tile_1_128_128)
     {
         return profile(F8{},
                        F32{},

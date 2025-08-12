@@ -402,45 +402,31 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
         }
     }
 
-    __host__ __device__ static constexpr auto
-    MakeAScaleGridDesciptor_M_K(index_t M, index_t K)
+    __host__ __device__ static constexpr auto MakeAScaleGridDesciptor_M_K(index_t M, index_t K)
     {
         const auto BM = math::integer_divide_ceil(M, ScaleBlockM);
         const auto BK = math::integer_divide_ceil(K, ScaleBlockK);
         if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
         {
-            return make_naive_tensor_descriptor(
-                make_tuple(BM, BK),
-                make_tuple(BK, I1)
-            );
+            return make_naive_tensor_descriptor(make_tuple(BM, BK), make_tuple(BK, I1));
         }
         else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, ALayout>::value)
         {
-            return make_naive_tensor_descriptor(
-                make_tuple(BM, BK),
-                make_tuple(I1, BM)
-            );
+            return make_naive_tensor_descriptor(make_tuple(BM, BK), make_tuple(I1, BM));
         }
     }
 
-    __host__ __device__ static constexpr auto
-    MakeBScaleGridDesciptor_N_K(index_t N, index_t K)
+    __host__ __device__ static constexpr auto MakeBScaleGridDesciptor_N_K(index_t N, index_t K)
     {
         const auto BN = math::integer_divide_ceil(N, ScaleBlockN);
         const auto BK = math::integer_divide_ceil(K, ScaleBlockK);
         if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
         {
-            return make_naive_tensor_descriptor(
-                make_tuple(BN, BK),
-                make_tuple(BK, I1)
-            );
+            return make_naive_tensor_descriptor(make_tuple(BN, BK), make_tuple(BK, I1));
         }
         else if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
         {
-            return make_naive_tensor_descriptor(
-                make_tuple(BN, BK),
-                make_tuple(I1, BN)
-            );
+            return make_naive_tensor_descriptor(make_tuple(BN, BK), make_tuple(I1, BN));
         }
     }
 
