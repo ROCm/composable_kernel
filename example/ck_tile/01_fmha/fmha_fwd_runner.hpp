@@ -1074,15 +1074,17 @@ bool fmha_fwd_run(mode_enum mode,
     lse_buf.FromDevice(lse_host.data());
     randval_buf.FromDevice(randval_host.data());
 
+    constexpr bool supports_squant = std::is_same_v<DataTypeConfig, FmhaFwdFp8>;
+
     auto p_compute_element_func = [&]() {
-        if constexpr(std::is_same_v<DataTypeConfig, ck_tile::fp8_t>)
+        if constexpr(supports_squant)
             return ck_tile::scales{scale_p};
         else
             return ck_tile::identity{};
     }();
 
     auto oacc_element_func = [&]() {
-        if constexpr(std::is_same_v<DataTypeConfig, ck_tile::fp8_t>)
+        if constexpr(supports_squant)
             return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{},
                                      ck_tile::scales{scale_o});
         else
