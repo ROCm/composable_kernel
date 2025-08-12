@@ -476,24 +476,25 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
         
         // apply topk for softmax output
         auto x_tmp = p_compute;
-        // // initialize x_tmp for topk debug
-        // printf("===============on device debug input=====================\n");
-        // std::mt19937 rng(123); 
-        // std::uniform_int_distribution<int> dist_debug_input(1, 100);
 
-        constexpr auto x_tmp_spans = decltype(x_tmp)::get_distributed_spans();
-        sweep_tile_span(x_tmp_spans[number<0>{}], [&](auto idx0) {
-            sweep_tile_span(x_tmp_spans[number<1>{}], [&](auto idx1) {
-                const auto tile_idx = get_x_indices_from_distributed_indices(
-                    x_tmp.get_tile_distribution(), make_tuple(idx0, idx1));
-                auto row_id = tile_idx.at(number<0>{});
-                auto col_id = tile_idx.at(number<1>{});
-                constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                x_tmp(i_j_idx) = sin(float(row_id + col_id)) * 100;
-                // x_tmp(i_j_idx) = sin(float(row_id)) * cos(float(col_id));
-                // x_tmp(i_j_idx) = float(dist_debug_input(rng));
-            });
-        });
+        // // // initialize x_tmp for topk debug
+        // // printf("===============on device debug input=====================\n");
+        // // std::mt19937 rng(123);
+        // // std::uniform_int_distribution<int> dist_debug_input(1, 100);
+
+        // constexpr auto x_tmp_spans = decltype(x_tmp)::get_distributed_spans();
+        // sweep_tile_span(x_tmp_spans[number<0>{}], [&](auto idx0) {
+        //     sweep_tile_span(x_tmp_spans[number<1>{}], [&](auto idx1) {
+        //         const auto tile_idx = get_x_indices_from_distributed_indices(
+        //             x_tmp.get_tile_distribution(), make_tuple(idx0, idx1));
+        //         auto row_id = tile_idx.at(number<0>{});
+        //         auto col_id = tile_idx.at(number<1>{});
+        //         constexpr auto i_j_idx = make_tuple(idx0, idx1);
+        //         x_tmp(i_j_idx) = sin(float(row_id + col_id)) * 100;
+        //         // x_tmp(i_j_idx) = sin(float(row_id)) * cos(float(col_id));
+        //         // x_tmp(i_j_idx) = float(dist_debug_input(rng));
+        //     });
+        // });
 
         // argmax for topk
         const auto f_argmax = [](ArgmaxPacket e0, ArgmaxPacket e1) {
@@ -535,12 +536,8 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
                     auto col_id = tile_idx.at(number<1>{});
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
                     ArgmaxPacket tmp       = r(i_idx);
-                    // if (col_id == i_k) {
-                    //     // debug_block_tile(i_j_idx) = tmp.value;
-                    //     debug_block_tile(i_j_idx) = tmp.arg;
-                    // }
-                    debug_block_tile(i_j_idx)                = (col_id == i_k) ? tmp.value: debug_block_tile(i_j_idx);
-                    // debug_block_tile(i_j_idx)                = (col_id == i_k) ? tmp.arg: debug_block_tile(i_j_idx);
+                    // debug_block_tile(i_j_idx)                = (col_id == i_k) ? tmp.value: debug_block_tile(i_j_idx);
+                    debug_block_tile(i_j_idx)                = (col_id == i_k) ? tmp.arg: debug_block_tile(i_j_idx);
                     // value_block_tile(i_j_idx)             = tmp.value;
                     // index_block_tile(i_j_idx)             = tmp.arg;
                 });
@@ -561,7 +558,6 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
             });
         }
         return debug_block_tile;
-        // return x_tmp;
     }
 };
 

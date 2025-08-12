@@ -125,3 +125,37 @@ auto reference_basic_gemm_softmax(const ck_tile::HostTensor<ADataType>& a_m_k,
     // reference_grouped_topk(c_m_n, y_values, y_indices, topk, num_expert_group, topk_group, dim, largest, sorted);
     return c_m_n;
 }
+
+template <typename ADataType, typename BDataType, typename AccDataType>
+auto reference_basic_gemm(const ck_tile::HostTensor<ADataType>& a_m_k,
+                          const ck_tile::HostTensor<BDataType>& b_n_k)
+{
+    const int M = a_m_k.mDesc.get_lengths()[0];
+    const int N = b_n_k.mDesc.get_lengths()[0];
+    const int K = b_n_k.mDesc.get_lengths()[1];
+    ck_tile::HostTensor<AccDataType> c_m_n({M, N}, {N, 1});
+
+    auto f = [&](auto m) {
+        for(int n = 0; n < N; ++n)
+        {
+            AccDataType v_acc = 0;
+
+            for(int k = 0; k < K; ++k)
+            {
+                ADataType v_a = a_m_k(m, k);
+                BDataType v_b = b_n_k(n, k);
+                v_acc += ck_tile::type_convert<AccDataType>(v_a) *
+                         ck_tile::type_convert<AccDataType>(v_b);
+            }
+
+            c_m_n(m, n) = ck_tile::type_convert<AccDataType>(v_acc);
+        }
+    };
+
+    ck_tile::make_ParallelTensorFunctor(f, c_m_n.mDesc.get_lengths()[0])(
+        std::thread::hardware_concurrency());
+
+    // reference_topk(c_m_n, y_values, y_indices, topk);
+    // reference_grouped_topk(c_m_n, y_values, y_indices, topk, num_expert_group, topk_group, dim, largest, sorted);
+    return c_m_n;
+}
