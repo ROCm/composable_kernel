@@ -7,6 +7,7 @@
 #include "ck_tile/ops/fmha/pipeline/block_fmha_bwd_dq_dk_dv_pipeline_kr_ktr_vr.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_bwd_dq_dk_dv_pipeline_kr_ktr_vr_iglp.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_bwd_dq_dk_dv_pipeline_trload_kr_ktr_vr.hpp"
+#include "ck_tile/ops/fmha/pipeline/block_fmha_bwd_dq_dk_dv_pipeline_trload_qr_qtr_dor.hpp"
 
 namespace ck_tile {
 
@@ -14,12 +15,15 @@ template <typename Problem, typename Policy>
 class BlockFmhaBwdDQDKDVPipelineSelector
 {
     static constexpr bool has_dpad = Problem::Traits::kPadHeadDimQ || Problem::Traits::kPadHeadDimV;
+    static constexpr bool is_decode = Problem::BlockFmhaShape::kMaxSeqLenQ > 0;
 
     public:
     template <typename... TS>
     using type_ =
         std::conditional_t<Problem::kUseTrLoad,
-                           BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR<TS...>,
+                           std::conditional_t<is_decode,
+                                              BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR<TS...>,
+                                              BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR<TS...>>,
                            std::conditional_t<has_dpad,
                                               BlockFmhaBwdDQDKDVPipelineKRKTRVR<TS...>,
                                               BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP<TS...>>>;

@@ -127,5 +127,7 @@ PIPELINE_ENUM_MAP = {
 
 BOOL_MAP = {
     "t" : "true",
-    "f" : "false"
+    "f" : "false",
+    True : "true",
+    False : "false",
 }
