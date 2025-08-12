@@ -9,6 +9,7 @@
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/core/utility/magic_div.hpp"
+#include "ck_tile/core/utility/print.hpp"
 
 namespace ck_tile {
 
@@ -139,19 +140,18 @@ struct pass_through : public base_transform<1, 1>
     {
         return make_tuple(low_vector_lengths, low_vector_strides);
     }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("pass_through{");
-
-        //
-        printf("up_lengths_:");
-        print(up_lengths_);
-
-        //
-        printf("}");
-    }
 };
+
+template <typename LowLength>
+CK_TILE_HOST_DEVICE static void print(const pass_through<LowLength>& pt)
+{
+    printf("pass_through{");
+
+    printf("up_lengths_: ");
+    print(pt.get_upper_lengths());
+
+    printf("}");
+}
 
 template <typename LowLength,
           typename LeftPadLength,
@@ -229,28 +229,24 @@ struct pad : public base_transform<1, 1>
                ck_tile::is_known_at_compile_time<LeftPadLength>::value &&
                ck_tile::is_known_at_compile_time<RightPadLength>::value;
     }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("pad{");
-
-        //
-        printf("up_lengths_: ");
-        print(up_lengths_);
-        printf(", ");
-
-        //
-        printf("left_pad_length_: ");
-        print(left_pad_length_);
-        printf(", ");
-
-        //
-        printf("right_pad_length_: ");
-        print(right_pad_length_);
-
-        printf("}");
-    }
 };
+
+template <typename LowLength,
+          typename LeftPadLength,
+          typename RightPadLength,
+          bool SkipIsValidCheck>
+CK_TILE_HOST_DEVICE static void
+print(const pad<LowLength, LeftPadLength, RightPadLength, SkipIsValidCheck>& p)
+{
+    printf("pad{");
+    printf("up_lengths_: ");
+    print(p.up_lengths_);
+    printf(", left_pad_length_: ");
+    print(p.left_pad_length_);
+    printf(", right_pad_length_: ");
+    print(p.right_pad_length_);
+    printf("}");
+}
 
 template <typename LowLength, typename LeftPadLength, bool SkipIsValidCheck = false>
 struct left_pad
@@ -330,23 +326,19 @@ struct left_pad
         //       It's up to runtime to check the padding length should be multiple of vector length
         return make_tuple(low_vector_lengths, low_vector_strides);
     }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("left_pad{");
-
-        //
-        printf("up_lengths_: ");
-        print(up_lengths_);
-        printf(", ");
-
-        //
-        printf("left_pad_length_: ");
-        print(left_pad_length_);
-
-        printf("}");
-    }
 };
+
+template <typename LowLength, typename LeftPadLength, bool SkipIsValidCheck>
+CK_TILE_HOST_DEVICE static void
+print(const left_pad<LowLength, LeftPadLength, SkipIsValidCheck>& lp)
+{
+    printf("left_pad{");
+    printf("up_lengths_: ");
+    print(lp.up_lengths_);
+    printf(", left_pad_length_: ");
+    print(lp.left_pad_length_);
+    printf("}");
+}
 
 template <typename LowLength, typename RightPadLength, bool SkipIsValidCheck = false>
 struct right_pad : public base_transform<1, 1>
@@ -430,23 +422,19 @@ struct right_pad : public base_transform<1, 1>
         //       It's up to runtime to check the padding length should be multiple of vector length
         return make_tuple(low_vector_lengths, low_vector_strides);
     }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("right_pad{");
-
-        //
-        printf("up_lengths_: ");
-        print(up_lengths_);
-        printf(", ");
-
-        //
-        printf("right_pad_length_: ");
-        print(right_pad_length_);
-
-        printf("}");
-    }
 };
+
+template <typename LowLength, typename RightPadLength, bool SkipIsValidCheck>
+CK_TILE_HOST_DEVICE static void
+print(const right_pad<LowLength, RightPadLength, SkipIsValidCheck>& rp)
+{
+    printf("right_pad{");
+    printf("up_lengths_: ");
+    print(rp.up_lengths_);
+    printf(", right_pad_length_: ");
+    print(rp.right_pad_length_);
+    printf("}");
+}
 
 // idx_low = coefficients[0, ...nDimUp-1] * idx_up[0, ...nDimUp-1]
 // UpLengths and Coefficients can be either of the followings:
@@ -532,23 +520,18 @@ struct embed : public base_transform<1, UpLengths::size()>
         return ck_tile::is_known_at_compile_time<UpLengths>::value &&
                ck_tile::is_known_at_compile_time<Coefficients>::value;
     }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("embed{");
-
-        //
-        printf("up_lengths_: ");
-        print(up_lengths_);
-        printf(", ");
-
-        //
-        printf("coefficients_: ");
-        print(coefficients_);
-
-        printf("}");
-    }
 };
+
+template <typename UpLengths, typename Coefficients>
+CK_TILE_HOST_DEVICE static void print(const embed<UpLengths, Coefficients>& e)
+{
+    printf("embed{");
+    printf("up_lengths_: ");
+    print(e.up_lengths_);
+    printf(", coefficients_: ");
+    print(e.coefficients_);
+    printf("}");
+}
 
 template <typename LowLengths>
 struct lambda_merge_generate_MagicDivision_calculate_magic_divisor
@@ -699,23 +682,18 @@ struct merge_v2_magic_division : public base_transform<LowLengths::size(), 1>
 
         return make_tuple(up_vector_lengths, up_vector_strides);
     }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("merge_v2_magic_division{");
-
-        //
-        printf("low_lengths_ ");
-        print(low_lengths_);
-        printf(", ");
-
-        //
-        printf("up_lengths_ ");
-        print(up_lengths_);
-
-        printf("}");
-    }
 };
+
+template <typename LowLengths>
+CK_TILE_HOST_DEVICE static void print(const merge_v2_magic_division<LowLengths>& m)
+{
+    printf("merge_v2_magic_division{");
+    printf("low_lengths_: ");
+    print(m.low_lengths_);
+    printf(", up_lengths_: ");
+    print(m.up_lengths_);
+    printf("}");
+}
 
 // Implementation of "merge" transformation primitive that uses division and mod. It is supposed to
 // be used for low_lengths that are known at compile time and are power of 2, otherwise performance
@@ -830,28 +808,20 @@ struct merge_v3_division_mod : public base_transform<LowLengths::size(), 1>
 
         return make_tuple(up_vector_lengths, up_vector_strides);
     }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("Merge_v3_direct_division_mod{");
-
-        //
-        printf("low_lengths_ ");
-        print(low_lengths_);
-        printf(", ");
-
-        //
-        printf("low_lengths_scan_ ");
-        print(low_lengths_scan_);
-        printf(", ");
-
-        //
-        printf("up_lengths_ ");
-        print(up_lengths_);
-
-        printf("}");
-    }
 };
+
+template <typename LowLengths>
+CK_TILE_HOST_DEVICE static void print(const merge_v3_division_mod<LowLengths>& m)
+{
+    printf("merge_v3_division_mod{");
+    printf("low_lengths_: ");
+    print(m.low_lengths_);
+    printf(", low_lengths_scan_: ");
+    print(m.low_lengths_scan_);
+    printf(", up_lengths_: ");
+    print(m.up_lengths_);
+    printf("}");
+}
 
 template <typename UpLengths, bool Use24BitIntegerCalculation>
 struct unmerge : public base_transform<1, UpLengths::size()>
@@ -958,23 +928,18 @@ struct unmerge : public base_transform<1, UpLengths::size()>
 
         return make_tuple(up_vector_lengths, up_vector_strides);
     }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("unmerge{");
-
-        //
-        printf("up_lengths_");
-        print(up_lengths_);
-        printf(", ");
-
-        //
-        printf("up_lengths_scan_");
-        print(up_lengths_scan_);
-
-        printf("}");
-    }
 };
+
+template <typename UpLengths, bool Use24BitIntegerCalculation>
+CK_TILE_HOST_DEVICE static void print(const unmerge<UpLengths, Use24BitIntegerCalculation>& u)
+{
+    printf("unmerge{");
+    printf("up_lengths_: ");
+    print(u.up_lengths_);
+    printf(", up_lengths_scan_: ");
+    print(u.up_lengths_scan_);
+    printf("}");
+}
 
 template <typename LowerIndex>
 struct freeze : public base_transform<1, 0>
@@ -1023,18 +988,16 @@ struct freeze : public base_transform<1, 0>
     {
         return ck_tile::is_known_at_compile_time<LowerIndex>::value;
     }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("freeze{");
-
-        //
-        printf("low_idx_: ");
-        print(low_idx_);
-
-        printf("}");
-    }
 };
+
+template <typename LowerIndex>
+CK_TILE_HOST_DEVICE static void print(const freeze<LowerIndex>& f)
+{
+    printf("freeze{");
+    printf("low_idx_: ");
+    print(f.low_idx_);
+    printf("}");
+}
 
 // insert a dangling upper dimension without lower dimension
 template <typename UpperLength>
@@ -1092,17 +1055,16 @@ struct insert : public base_transform<0, 1>
     {
         return ck_tile::is_known_at_compile_time<UpperLength>::value;
     }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("insert{");
-
-        //
-        print(up_lengths_);
-
-        printf("}");
-    }
 };
+
+template <typename UpperLength>
+CK_TILE_HOST_DEVICE static void print(const insert<UpperLength>& i)
+{
+    printf("insert{");
+    printf("up_lengths_: ");
+    print(i.up_lengths_);
+    printf("}");
+}
 
 // replicate the original tensor and create a higher dimensional tensor
 template <typename UpLengths>
@@ -1152,20 +1114,18 @@ struct replicate : public base_transform<0, UpLengths::size()>
         return ck_tile::is_known_at_compile_time<UpLengths>::value;
     }
 
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("replicate{");
-
-        //
-        printf("up_lengths_: ");
-        print(up_lengths_);
-
-        printf("}");
-    }
-
     //
     UpLengths up_lengths_;
 };
+
+template <typename UpLengths>
+CK_TILE_HOST_DEVICE static void print(const replicate<UpLengths>& r)
+{
+    printf("replicate{");
+    printf("up_lengths_: ");
+    print(r.up_lengths_);
+    printf("}");
+}
 
 template <typename LowLength, typename SliceBegin, typename SliceEnd>
 struct slice : public base_transform<1, 1>
@@ -1238,28 +1198,20 @@ struct slice : public base_transform<1, 1>
                ck_tile::is_known_at_compile_time<SliceBegin>::value &&
                ck_tile::is_known_at_compile_time<SliceEnd>::value;
     }
+};
 
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("slice{");
-
-        //
-        printf("up_lengths_: ");
-        print(up_lengths_);
-        printf(", ");
-
-        //
-        printf("slice_begin_: ");
-        print(slice_begin_);
-        printf(", ");
-
-        //
-        printf("slice_end_: ");
-        print(slice_end_);
-
-        printf("}");
-    } // namespace ck
-}; // namespace ck
+template <typename LowLength, typename SliceBegin, typename SliceEnd>
+CK_TILE_HOST_DEVICE static void print(const slice<LowLength, SliceBegin, SliceEnd>& s)
+{
+    printf("slice{");
+    printf("up_lengths_: ");
+    print(s.up_lengths_);
+    printf(", slice_begin_: ");
+    print(s.slice_begin_);
+    printf(", slice_end_: ");
+    print(s.slice_end_);
+    printf("}");
+}
 
 /*
  * \brief lower_idx = upper_idx % modulus.
@@ -1328,18 +1280,18 @@ struct modulo : public base_transform<1, 1>
     {
         return ck_tile::is_known_at_compile_time<UpLengths>::value;
     }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("Modulus{");
-
-        //
-        printf("up_lengths_: ");
-        print(up_lengths_);
-
-        printf("}");
-    }
 };
+
+template <typename Modulus, typename UpLength>
+CK_TILE_HOST_DEVICE static void print(const modulo<Modulus, UpLength>& m)
+{
+    printf("modulo{");
+    printf("modulus_: ");
+    print(m.modulus_);
+    printf(", up_lengths_: ");
+    print(m.up_lengths_);
+    printf("}");
+}
 
 // 2D XOR, NOTE: "xor" is a keyword
 template <typename LowLengths>
@@ -1424,19 +1376,16 @@ struct xor_t : public base_transform<2, 2>
 
         return make_tuple(up_vector_lengths, up_vector_strides);
     }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("xor_t{");
-
-        //
-        printf("up_lengths_: ");
-        print(up_lengths_);
-        printf(", ");
-
-        printf("}");
-    }
 };
+
+template <typename LowLengths>
+CK_TILE_HOST_DEVICE static void print(const xor_t<LowLengths>& x)
+{
+    printf("xor_t{");
+    printf("up_lengths_: ");
+    print(x.up_lengths_);
+    printf("}");
+}
 
 template <typename LowLength, typename OffsetLength>
 struct offset : public base_transform<1, 1>
@@ -1509,23 +1458,18 @@ struct offset : public base_transform<1, 1>
         return ck_tile::is_known_at_compile_time<UpLengths>::value &&
                ck_tile::is_known_at_compile_time<OffsetLength>::value;
     }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("offset{");
-
-        //
-        printf("up_lengths_: ");
-        print(up_lengths_);
-        printf(", ");
-
-        //
-        printf("offset_length_: ");
-        print(offset_length_);
-
-        printf("}");
-    }
 };
+
+template <typename LowLength, typename OffsetLength>
+CK_TILE_HOST_DEVICE static void print(const offset<LowLength, OffsetLength>& o)
+{
+    printf("offset{");
+    printf("up_lengths_: ");
+    print(o.up_lengths_);
+    printf(", offset_length_: ");
+    print(o.offset_length_);
+    printf("}");
+}
 
 template <typename UpLength, typename IndexingAdaptor>
 struct indexing : public base_transform<1, 1>
@@ -1595,19 +1539,18 @@ struct indexing : public base_transform<1, 1>
         return ck_tile::is_known_at_compile_time<UpLengths>::value &&
                IndexingAdaptor::is_known_at_compile_time();
     }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("embed{");
-
-        //
-        printf("up_lengths_: ");
-        print(up_lengths_);
-        printf(", ");
-
-        printf("}");
-    }
 };
+
+template <typename UpLength, typename IndexingAdaptor>
+CK_TILE_HOST_DEVICE static void print(const indexing<UpLength, IndexingAdaptor>& i)
+{
+    printf("indexing{");
+    printf("up_lengths_: ");
+    print(i.up_lengths_);
+    printf(", iadaptor_: ");
+    print(i.iadaptor_);
+    printf("}");
+}
 
 //*******************************************************************************************************
 

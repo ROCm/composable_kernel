@@ -96,6 +96,12 @@
             "values": [
                 false
             ]
+        },
+        "persistent": {
+            "values": [
+                false,
+                true
+            ]
         }
     }
 }
