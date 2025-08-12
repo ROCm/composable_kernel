@@ -108,6 +108,7 @@ auto create_args(int argc, char* argv[])
         .insert("context_len", "6", "sequence length at the begin of the query sequence the should be included for attention")
         .insert("minfull_len", "6", "sequence length at the end of the query sequence that should be included for attention")
 	.insert("seed", "13579", "seed by the uniform or normal distribution generator")
+        .insert("norm_dist", "0", "if true, initialize the data in normal distribution, or else in uniform distribution")
         .insert("alpha", "0", "scale factor of S=Q@K. 0 means equal to 1/sqrt(hdim)")
         .insert("attn_scale", "0", "scale factor of SiLU(Q@K). 0 means using 1/max_seqlen for scaling")
         .insert("init_qkv", "0", "initialize q, k, v tensor from local files q.dat, k.dat and v.data")
@@ -223,11 +224,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int contextual_seqlen    = arg_parser.get_int("context_len");
     int min_full_attn_seqlen = arg_parser.get_int("minfull_len");
 
-    float alpha       = arg_parser.get_float("alpha");
-    float attn_scale  = arg_parser.get_float("attn_scale");
-    int seed          = arg_parser.get_int("seed");
-    bool measure_perf = static_cast<bool>(arg_parser.get_int("perf"));
-    bool dump_output  = static_cast<bool>(arg_parser.get_int("dump_output"));
+    float alpha          = arg_parser.get_float("alpha");
+    float attn_scale     = arg_parser.get_float("attn_scale");
+    int seed             = arg_parser.get_int("seed");
+    bool use_normal_dist = arg_parser.get_int("norm_dist");
+    bool measure_perf    = static_cast<bool>(arg_parser.get_int("perf"));
+    bool dump_output     = static_cast<bool>(arg_parser.get_int("dump_output"));
 
     bool save_mask      = static_cast<bool>(arg_parser.get_int("save_mask"));
     bool initialize_qkv = static_cast<bool>(arg_parser.get_int("init_qkv"));
@@ -367,9 +369,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(!initialize_qkv)
     {
-        ck_tile::FillNormalDistribution<InOutDataType>{0.f, 1.f, seed}(q_host);
-        ck_tile::FillNormalDistribution<InOutDataType>{0.f, 1.f, seed}(k_host);
-        ck_tile::FillNormalDistribution<InOutDataType>{0.f, 1.f, seed}(v_host);
+        if(use_normal_dist)
+        {
+            ck_tile::FillNormalDistribution<InOutDataType>{0.f, 1.f, seed}(q_host);
+            ck_tile::FillNormalDistribution<InOutDataType>{0.f, 1.f, seed}(k_host);
+            ck_tile::FillNormalDistribution<InOutDataType>{0.f, 1.f, seed}(v_host);
+        }
+        else
+        {
+            ck_tile::FillUniformDistribution<InOutDataType>{-1.f, 1.f, seed}(q_host);
+            ck_tile::FillUniformDistribution<InOutDataType>{-1.f, 1.f, seed}(k_host);
+            ck_tile::FillUniformDistribution<InOutDataType>{-1.f, 1.f, seed}(v_host);
+        };
     }
     else
     {
