@@ -46,7 +46,7 @@ jobs:
       
       - name: Fetch sources
         run: |
-          ./TheRock/build_tools/fetch_sources.py --jobs 12 --include-rocm-libraries
+          ./TheRock/build_tools/fetch_sources.py --jobs 12
 
       - name: Install python deps
         run: |
