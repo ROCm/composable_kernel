@@ -54,7 +54,8 @@ struct BlockGemmASmemBSmemCRegV1DefaultPolicy
                 return make_tuple(WarpGemmMfmaF16F16F32M32N32K16<>{}, 2, 2);
             }
 #else
-            using WG = WarpGemmMfmaDispatcher<ck_tile::half_t,
+            // using WG = WarpGemmMfmaDispatcher<ck_tile::half_t,
+            using WG = impl::WarpGemmWmmaDispatcher<ck_tile::half_t,
                                               ck_tile::half_t,
                                               float,
                                               16,

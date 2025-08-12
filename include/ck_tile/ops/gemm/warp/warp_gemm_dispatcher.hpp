@@ -28,7 +28,9 @@ template <typename AType,
           index_t NPerWave,
           index_t KPerWave,
           bool TransposeC,
-          bool SwizzleA = false>
+          bool SwizzleA = false,
+          bool UseStructuredSparsity        = false,
+          WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
 struct WarpGemmWmmaDispatcher;
 
 // clang-format off
@@ -159,4 +161,24 @@ using WarpGemmMfmaDispatcher = typename impl::WarpGemmMfmaDispatcher<AType,
                                                                      UseStructuredSparsity,
                                                                      AttrNumAccess>::Type;
 
+template <typename AType,
+          typename BType,
+          typename AccType,
+          index_t MPerWave,
+          index_t NPerWave,
+          index_t KPerWave,
+          bool TransposeC,
+          bool SwizzleA                     = false,
+          bool UseStructuredSparsity        = false,
+          WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
+using WarpGemmWmmaDispatcher = typename impl::WarpGemmWmmaDispatcher<AType,
+                                                                     BType,
+                                                                     AccType,
+                                                                     MPerWave,
+                                                                     NPerWave,
+                                                                     KPerWave,
+                                                                     TransposeC,
+                                                                     SwizzleA,
+                                                                     UseStructuredSparsity,
+                                                                     AttrNumAccess>::Type;                                                                     
 } // namespace ck_tile

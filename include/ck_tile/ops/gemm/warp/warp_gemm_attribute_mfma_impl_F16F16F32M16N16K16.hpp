@@ -61,20 +61,17 @@ enum class WGAttrCtlEnum
         DISPATCH_MFMA_(mfma_, "+a", "v", "v", "a")     \
     }
 
-
-template <int GfxId, WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
-struct WarpGemmAttributeGenericImplF16F16F32M16N16K16
+template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
+struct WarpGemmAttributeMfmaImplF16F16F32M16N16K16
 {
     static constexpr WGAttrCtlEnum Ctrl = Ctrl_;
     using ADataType                     = fp16_t;
     using BDataType                     = fp16_t;
     using CDataType                     = float;
 
-    static constexpr index_t VecLenFP16 = GfxConfig<GfxId>::get_vec_len_fp16();
-    static constexpr index_t VecLenFP32 = GfxConfig<GfxId>::get_vec_len_fp32();    
-    using AVecType = ext_vector_t<fp16_t, VecLenFP16>;
-    using BVecType = ext_vector_t<fp16_t, VecLenFP16>;
-    using CVecType = ext_vector_t<float,  VecLenFP32>;
+    using AVecType = ext_vector_t<fp16_t, 4>;
+    using BVecType = ext_vector_t<fp16_t, 4>;
+    using CVecType = ext_vector_t<float, 4>;
 
     static constexpr index_t kM = 16;
     static constexpr index_t kN = 16;
@@ -88,9 +85,9 @@ struct WarpGemmAttributeGenericImplF16F16F32M16N16K16
     static constexpr index_t kABKLane    = 4;
     static constexpr index_t kABKPerLane = 4;
 
-    static constexpr index_t kCMLane     = GfxConfig<GfxId>::get_k_cm_lane();
+    static constexpr index_t kCMLane     = 4;
     static constexpr index_t kCNLane     = 16;
-    static constexpr index_t kCM0PerLane = GfxConfig<GfxId>::get_k_cm0_per_lane();
+    static constexpr index_t kCM0PerLane = 1;
     static constexpr index_t kCM1PerLane = 4;
 
     // c_vec += a_vec * b_vec
@@ -105,8 +102,6 @@ struct WarpGemmAttributeGenericImplF16F16F32M16N16K16
         {
 #if defined(__gfx9__)
             c_vec = __builtin_amdgcn_mfma_f32_16x16x16f16(a_vec, b_vec, c_vec, 0, 0, 0);
-#elif defined(__gfx12__)
-            c_vec = __builtin_amdgcn_wmma_f32_16x16x16_f16_w32_gfx12(a_vec, b_vec, c_vec);
 #else
             ck_tile::ignore = c_vec;
             ck_tile::ignore = a_vec;
@@ -121,9 +116,6 @@ struct WarpGemmAttributeGenericImplF16F16F32M16N16K16
 #if defined(__gfx9__)
         return bit_cast<CVecType>(
             __builtin_amdgcn_mfma_f32_16x16x16f16(a_vec, b_vec, fp32x4_t{0.f}, 0, 0, 0));
-#elif defined(__gfx12__)
-        return bit_cast<CVecType>(
-            __builtin_amdgcn_wmma_f32_16x16x16_f16_w32_gfx12(a_vec, b_vec, fp32x8_t{0.f}));
 #else
         ck_tile::ignore = a_vec;
         ck_tile::ignore = b_vec;
@@ -131,5 +123,7 @@ struct WarpGemmAttributeGenericImplF16F16F32M16N16K16
 #endif
     }
 };
+
+#undef DISPATCH_MFMA_
 
 } // namespace ck_tile
