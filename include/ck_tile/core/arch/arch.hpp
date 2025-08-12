@@ -320,6 +320,17 @@ struct GfxConfig
             return Gfx90x::kCM0PerLane;
         }        
     }    
+    static constexpr index_t get_k_cm1_per_lane()
+    {
+        if constexpr (GfxId == 1200)
+        {
+            return Gfx120x::kCM1PerLane;
+        }
+        else if constexpr (GfxId == 900)
+        {
+            return Gfx90x::kCM1PerLane;
+        }        
+    }        
 };
 
 } // namespace ck_tile
