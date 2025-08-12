@@ -22,7 +22,7 @@ struct GemmMXProblem
                                index_t stride_B_,
                                index_t stride_C_,
                                index_t stride_scale_A_,
-                               intdex_t stride_scale_B_)
+                               index_t stride_scale_B_)
         : M(M_),
           N(N_),
           K(K_),
@@ -64,18 +64,18 @@ struct GemmMXHostArgs : public GemmMXProblem
         : GemmMXProblem(
               M_, N_, K_, stride_A_, stride_B_, stride_C_, stride_scale_A_, stride_scale_B_),
           a_ptr(a_ptr_),
-          a_scale_ptr_(a_scale_ptr_),
+          a_scale_ptr(a_scale_ptr_),
           b_ptr(b_ptr_),
-          b_scale_ptr_(b_scale_ptr_),
+          b_scale_ptr(b_scale_ptr_),
           c_ptr(c_ptr_),
           k_batch(k_batch_)
     {
     }
 
     const void* a_ptr;
-    const void* a_scale_ptr_;
+    const void* a_scale_ptr;
     const void* b_ptr;
-    const void* b_scale_ptr_;
+    const void* b_scale_ptr;
     void* c_ptr;
     index_t k_batch;
 };
@@ -121,9 +121,10 @@ struct GemmMXKernel
     using BPackedSize    = remove_cvref_t<typename GemmPipeline::PackedSize>;
     using BlockScaleSize = remove_cvref_t<typename GemmPipeline::BlockScaleSize>;
 
-    using BlockGemm = remove_cvref_t<typename GemmPipeline::BlockGemm>;
-    using MPerXdl   = BlockGemm::WarpGemm::kM;
-    using NPerXdl   = BlockGemm::WarpGemm::kN;
+    using BlockGemm     = remove_cvref_t<typename GemmPipeline::BlockGemm>;
+    using MThreadPerXdl = BlockGemm::WarpGemm::kM;
+    using NThreadPerXdl = BlockGemm::WarpGemm::kN;
+    using KThreadPerXdl = 64 / MThreadPerXdl; // 64 is the number of threads in a wave
 
     static constexpr auto MXdlPack = 2;
     static constexpr auto NXdlPack = 2;
@@ -160,9 +161,9 @@ struct GemmMXKernel
     CK_TILE_HOST static constexpr GemmMXKernelArgs MakeKernelArgs(const GemmMXHostArgs& hostArgs)
     {
         return GemmMXKernelArgs{hostArgs.a_ptr,
-                                hostArs.a_scale_ptr_,
+                                hostArgs.a_scale_ptr,
                                 hostArgs.b_ptr,
-                                hostArgs.b_scale_ptr_,
+                                hostArgs.b_scale_ptr,
                                 hostArgs.c_ptr,
                                 hostArgs.M,
                                 hostArgs.N,
@@ -172,7 +173,6 @@ struct GemmMXKernel
                                 hostArgs.stride_B / BPackedSize,
                                 hostArgs.stride_scale_B,
                                 hostArgs.stride_C,
-                                hostArgs.stride_AQ,
                                 hostArgs.k_batch};
     }
 
@@ -183,7 +183,7 @@ struct GemmMXKernel
 
     struct SplitKBatchOffset
     {
-        __device__ SplitKBatchOffset(const AQuantGemmKernelArgs& kargs,
+        __device__ SplitKBatchOffset(const GemmMXKernelArgs& kargs,
                                      const std::size_t k_id = blockIdx.z)
         {
             constexpr auto K1   = TilePartitioner::BlockGemmShape::WarpTile::at(number<2>{});
@@ -219,11 +219,11 @@ struct GemmMXKernel
 
             // Calculate A scale offset
             a_scale_k_split_offset = __builtin_amdgcn_readfirstlane(
-                k_id * kargs.KRead / (BlockScaleSize / APackedSize) * MXdlPack * NPerXdl)
+                k_id * KRead / (BlockScaleSize / APackedSize) * MXdlPack * MThreadPerXdl)
 
                 // Caluculate B scale offset
                 b_scale_k_split_offset = __builtin_amdgcn_readfirstlane(
-                    k_id * kargs.KRead / (BlockScaleSize / BPackedSize) * NXdlPack * NPerXdl);
+                    k_id * KRead / (BlockScaleSize / BPackedSize) * NXdlPack * NThreadPerXdl);
         }
 
         index_t a_k_split_offset;
@@ -233,7 +233,7 @@ struct GemmMXKernel
         index_t splitted_k;
     };
 
-    CK_TILE_HOST static bool IsSupportedArgument(const AQuantGemmKernelArgs& kargs)
+    CK_TILE_HOST static bool IsSupportedArgument(const GemmMXKernelArgs& kargs)
     {
         if(kargs.k_batch != 1)
         {
@@ -244,15 +244,15 @@ struct GemmMXKernel
             return false;
         }
 
-        static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
-        if(kargs.QK % GemmPipeline::GetVectorSizeAQ() != 0)
-        {
-            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-            {
-                CK_TILE_ERROR("K is not a multiple of vector load size for A tensor!");
-            }
-            return false;
-        }
+        // static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
+        // if(kargs.QK % GemmPipeline::GetVectorSizeAQ() != 0)
+        // {
+        //     if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+        //     {
+        //         CK_TILE_ERROR("K is not a multiple of vector load size for A tensor!");
+        //     }
+        //     return false;
+        // }
 
         if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
         {
@@ -387,7 +387,7 @@ struct GemmMXKernel
                                                    const BDataType* b_ptr,
                                                    const BScaleDataType* b_scale_ptr,
                                                    CDataType* c_ptr,
-                                                   const AQuantGemmKernelArgs& kargs,
+                                                   const GemmMXKernelArgs& kargs,
                                                    const SplitKBatchOffset& splitk_batch_offset)
     {
         static_assert(!TilePartitioner::BlockGemmShape::PermuteA, "Not implemented!");
@@ -415,20 +415,24 @@ struct GemmMXKernel
         // A scale tensor view
         const auto Padded_Scale_M = integer_divide_ceil(kargs.M, BlockScaleSize) * BlockScaleSize;
         const auto& a_scale_tensor_view = [&]() {
-            static_asssert(std::is_same_v<AScaleLayout, tensor_layout::gemm::RowMajor>);
-            return make_naive_tensor_view<address_space_enum::global>(
-                a_scale_ptr,
-                make_tuple(Padded_Scale_M / (MXdlPack * MPerXdl),
-                           integer_divide_ceil(kargs.K, (BlockScaleSize / APackedSize)) /
-                               (KXdlPack * 64 / MPerXdl),
-                           64 * KXdlPack * MXdlPack / scale_packed_size_a),
-                make_tuple(
-                    integer_diveide_ceil(kargs.K * kargs.k_batch, (BlockScaleSize / APackedSize)) *
-                        MPerXdl * MXdlPack / scale_pack_size_a,
-                    64 * KXdlPack * MXdlPack / scale_pack_size_a,
-                    1),
-                number<GemmPipeline::GetVectorSizeAQ()>{}, // need to modified
-                number<1>{});
+            static_assert(std::is_same_v<AScaleLayout, tensor_layout::gemm::RowMajor>);
+            // Pack 2x2 e8m0 over M/K dimension into 1 int32_t to trigger dword width load
+            const auto a_naive_desc = make_naive_tensor_descriptor_packed(
+                make_tuple(Padded_Scale_M / (MXdlPack * MThreadPerXdl),
+                           (kargs.K * APackedSize) / BlockScaleSize / (KXdlPack * KThreadPerXdl),
+                           KThreadPerXdl,
+                           MThreadPerXdl));
+            const auto a_m_k_desc = transform_tensor_descriptor(
+                a_naive_desc,
+                make_tuple(make_merge_transform(make_tuple(
+                               Padded_Scale_M / (MXdlPack * MThreadPerXdl), MThreadPerXdl)),
+                           make_merge_transform(make_tuple(kargs.K * APackedSize / BlockScaleSize /
+                                                               (KXdlPack * KThreadPerXdl),
+                                                           KThreadPerXdl))),
+                make_tuple(sequence<0, 3>{}, sequence<1, 2>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
+
+            return make_tensor_view<address_space_enum::global>(a_scale_ptr, a_m_k_desc);
         }();
 
         // const auto& aq_tensor_view = [&]() {
@@ -507,19 +511,23 @@ struct GemmMXKernel
         // B scale tensor view
         const auto& b_scale_tensor_view = [&]() {
             static_assert(std::is_same_v<BScaleLayout, tensor_layout::gemm::ColumnMajor>);
-            return make_naive_tensor_view<address_space_enum::global>(
-                b_scale_ptr,
-                make_tuple(kargs.N / (NXdlPack * NPerXdl),
-                           integer_divide_ceil(kargs.K, (BlockScaleSize / BPackedSize)) /
-                               (KXdlPack * 64 / NPerXdl),
-                           64 * KXdlPack * NXdlPack / scale_pack_size_b),
+            const auto b_navie_desc = make_naive_tensor_descriptor_packed(
+                make_tuple(kargs.N / (NXdlPack * NThreadPerXdl),
+                           (kargs.K * BPackedSize) / BlockScaleSize / (KXdlPack * KThreadPerXdl),
+                           KThreadPerXdl,
+                           NThreadPerXdl));
+            const auto b_n_k_desc = transform_tensor_descriptor(
+                b_navie_desc,
                 make_tuple(
-                    integer_divide_ceil(kargs.K * kargs.k_batch, (BlockScaleSize / BPackedSize)) *
-                        NPerXdl * NXdlPack / scale_pack_size_b,
-                    64 * KXdlPack * NXdlPack / scale_pack_size_b,
-                    1),
-                number<GemmPipeline::GetVectorSizeBQ()>{},
-                number<1>{});
+                    make_merge_transform(
+                        make_tuple(kargs.N / (NXdlPack * NThreadPerXdl), NThreadPerXdl)),
+                    make_merge_transform(make_tuple((kargs.K * BPackedSize) / BlockScaleSize /
+                                                        (KXdlPack * KThreadPerXdl),
+                                                    KThreadPerXdl))),
+                make_tuple(sequence<0, 3>{}, sequence<1, 2>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
+
+            return make_tensor_view<address_space_enum::global>(b_scale_ptr, b_n_k_desc);
         }();
 
         // TODO: enable vector write for C in ColMajor
@@ -572,12 +580,12 @@ struct GemmMXKernel
         const auto& a_scale_pad_view = [&]() {
             const auto& a_scale_tensor_view = views.at(I1);
             static_assert(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>);
-            return pad_tensor_view(
-                a_scale_tensor_view,
-                make_tuple(number<TilePartitioner::MPerBlock>{},
-                           number<TilePartitioner::KPerBlock / GemmPipeline::BlockScaleSize>{}),
-                // TODO: Add support for padding.
-                sequence<false, false>{});
+            return pad_tensor_view(a_scale_tensor_view,
+                                   make_tuple(number<TilePartitioner::MPerBlock / MXdlPack>{},
+                                              number<TilePartitioner::KPerBlock * APackedSize /
+                                                     (BlockScaleSize * KXdlPack)>{}),
+                                   // TODO: Add support for padding.
+                                   sequence<false, false>{});
         }();
 
         const auto& b_pad_view = [&]() {
@@ -601,11 +609,11 @@ struct GemmMXKernel
         const auto& b_scale_pad_view = [&]() {
             const auto& b_scale_tensor_view = views.at(I3);
             static_assert(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>);
-            return pad_tensor_view(
-                b_scale_tensor_view,
-                make_tuple(number<TilePartitioner::NPerBlock>{},
-                           number<TilePartitioner::KPerBlock / GemmPipeline::BlockScaleSize>{}),
-                sequence<false, false>{});
+            return pad_tensor_view(b_scale_tensor_view,
+                                   make_tuple(number<TilePartitioner::NPerBlock / NXdlPack>{},
+                                              number<TilePartitioner::KPerBlock * BPackedSize /
+                                                     (BlockScaleSize * KXdlPack)>{}),
+                                   sequence<false, false>{});
         }();
 
         // TODO vector write in for C in ColMajor
@@ -659,11 +667,11 @@ struct GemmMXKernel
 
         const auto& a_scale_block_window = [&]() {
             static_assert(std::is_same_v<AScaleLayout, tensor_layout::gemm::RowMajor>);
-            return make_tile_window(
-                aq_pad_view,
-                make_tuple(number<TilePartitioner::MPerBlock>{},
-                           number<TilePartitioner::KPerBlock / GemmPipeline::BlockScaleSize>{}),
-                {i_m, 0});
+            return make_tile_window(a_scale_pad_view,
+                                    make_tuple(number<TilePartitioner::MPerBlock / MXdlPack>{},
+                                               number<TilePartitioner::KPerBlock * APackedSize /
+                                                      (BlockScaleSize * KXdlPack)>{}),
+                                    {i_m / MXdlPack, 0});
         }();
 
         const auto& b_block_window = [&]() {
@@ -685,11 +693,11 @@ struct GemmMXKernel
 
         const auto& b_scale_block_window = [&]() {
             static_assert(std::is_same_v<BScaleLayout, tensor_layout::gemm::ColumnMajor>);
-            return make_tile_window(
-                b_scale_pad_view,
-                make_tuple(number<TilePartitioner::NPerBlock>{},
-                           number<TilePartitioner::KPerBlock / GemmPipeline::BlockScaleSize>{}),
-                {0, i_n});
+            return make_tile_window(b_scale_pad_view,
+                                    make_tuple(number<TilePartitioner::NPerBlock / NXdlPack>{},
+                                               number<TilePartitioner::KPerBlock * BPackedSize /
+                                                      (BlockScaleSize * KXdlPack)>{}),
+                                    {i_n / NXdlPack, 0});
         }();
 
         auto c_block_window = make_tile_window(
@@ -697,7 +705,11 @@ struct GemmMXKernel
             make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
             {i_m, i_n});
 
-        return make_tuple(a_block_window, aq_block_window, b_block_window, c_block_window);
+        return make_tuple(a_block_window,
+                          a_scale_block_window,
+                          b_block_window,
+                          b_scale_block_window,
+                          c_block_window);
     }
 
     /**
@@ -723,7 +735,7 @@ struct GemmMXKernel
                                        const BScaleDataType* b_scale_ptr,
                                        CDataType* c_ptr,
                                        void* smem_ptr_0,
-                                       const AQuantGemmKernelArgs& kargs,
+                                       const GemmMXKernelArgs& kargs,
                                        const SplitKBatchOffset& splitk_batch_offset,
                                        const index_t block_idx_m,
                                        const index_t block_idx_n)
@@ -759,7 +771,7 @@ struct GemmMXKernel
             c_block_window, c_block_tile, c_block_window, smem_ptr_0);
     }
 
-    CK_TILE_DEVICE void operator()(AQuantGemmKernelArgs kargs) const
+    CK_TILE_DEVICE void operator()(GemmMXKernelArgs kargs) const
     {
         const auto blockId  = __builtin_amdgcn_readfirstlane(blockIdx.x);
         const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockId);
