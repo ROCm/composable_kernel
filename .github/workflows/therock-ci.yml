@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - develop
-      # for testing
-      - users/geomin12/add-therock-ci
   workflow_dispatch:
 
 permissions:
