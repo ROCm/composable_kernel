@@ -38,7 +38,6 @@ float gemm_calc_bquant(const ck_tile::BQuantGemmHostArgs& args, const ck_tile::s
             sequence<GemmConfig::M_Warp_Tile, GemmConfig::N_Warp_Tile, GemmConfig::K_Warp_Tile>>;
 
     using TilePartitioner = ck_tile::GemmTile1DPartitioner<GemmShape>;
-    std::cout << "Preshuffle is: " << GemmConfig::Preshuffle << std::endl;
 
     using Traits = ck_tile::TileGemmBQuantTraits<GemmConfig::kPadM,
                                                  GemmConfig::kPadN,
