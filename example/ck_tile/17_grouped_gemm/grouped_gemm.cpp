@@ -27,15 +27,12 @@ template <typename GemmConfig,
 float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                             const ck_tile::index_t num_groups,
                             void* kargs_ptr,
-                            bool splitk,
-                            bool flush_cache,
-                            int rotating_count)
+                            bool splitk)
 {
     constexpr bool kPadM = false;
     constexpr bool kPadN = false;
     constexpr bool kPadK = false;
 
-    constexpr int kBlockPerCu                         = 1;
     constexpr ck_tile::index_t TileParitionerGroupNum = 8;
     constexpr ck_tile::index_t TileParitionerM01      = 4;
 
@@ -106,41 +103,9 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                       << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << std::endl;
         }
 
-        if(s.flush_cache_)
-        {
-            std::cout << "Flushing cache..." << std::endl;
-
-            ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
-                args.M, args.K, args.stride_A, is_row_major(ALayout{})));
-            ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
-                args.K, args.N, args.stride_B, is_row_major(BLayout{})));
-
-            auto size_a_buffer = a_m.get_element_space_size_in_bytes();
-            auto size_b_buffer = b_n.get_element_space_size_in_bytes();
-
-            ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
-                kargs.as_ptr[0], kargs.bs_ptr[0], s.rotating_count_, size_a_buffer, size_b_buffer);
-            rotating_mem.Print();
-
-            auto run_flush_cache = [&]() {
-                // flush icache
-                ck_tile::flush_icache();
-                // rotating mem
-                rotating_mem.Next();
-                // clear c mem
-                if(args.k_batch > 1)
-                    hipGetErrorString(hipMemsetAsync(
-                        args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
-            };
-            ave_time = ck_tile::launch_kernel_time_mask(
-                s,
-                run_flush_cache,
-                ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(
-                    Kernel{}, grids, blocks, 0, kargs));
-        }
         ave_time =
             ck_tile::launch_kernel(s,
-                                   ck_tile::make_kernel<blocks.x, kBlockPerCu>(
+                                   ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(
                                        Kernel{},
                                        grids,
                                        blocks,
