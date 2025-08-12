@@ -15,12 +15,9 @@ from gemm_multi_d_config import JsonConfig, ArgumentConfig, RangeConfigParam
 from gemm_multi_d_codegen_utils import (
     DATA_TYPE_MAP,
     LAYOUT_MAP,
-    # DEFAULT_EPILOGUE,
-    HOT_LOOP_FALSE,
     PIPELINE_MAP,
     SCHEDULER_MAP,
     EPILOGUE_MAP,
-    HOT_LOOP_TRUE,
     BOOL_MAP,
     warp_tile_supported_combinations,
     trait_unsupported_combinations,
@@ -484,11 +481,7 @@ struct GemmKernelMultiD {{
             }}
         }};
 
-        if(has_hot_loop) {{
-            {HOT_LOOP_TRUE[pipeline]}
-        }} else {{
-            {HOT_LOOP_FALSE}
-        }}
+        BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
 
         return ave_time;
     }}

@@ -7,12 +7,12 @@
     },
     "tile_n": {
       "values": [
-        128
+        256
       ]
     },
     "tile_k": {
       "values": [
-        32
+        64
       ]
     },
     "warp_m": {
@@ -27,17 +27,17 @@
     },
     "warp_k": {
       "values": [
-        2
+        1
       ]
     },
     "warp_tile_m": {
       "values": [
-        16
+        32
       ]
     },
     "warp_tile_n": {
       "values": [
-        16
+        32
       ]
     },
     "warp_tile_k": {
