@@ -154,8 +154,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     bool squant = [&]() {
         if(arg_parser.get_str("squant") == "auto")
-            return std::is_same_v<DataTypeConfig, FmhaFwdFp8> ||
-                   std::is_same_v<DataTypeConfig, FmhaFwdBf8>;
+            return std::is_same_v<DataTypeConfig, FmhaFwdFp8>;
         else
             return arg_parser.get_bool("squant");
     }();
