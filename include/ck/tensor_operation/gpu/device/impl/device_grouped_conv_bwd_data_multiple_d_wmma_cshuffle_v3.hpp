@@ -670,8 +670,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                         std::array<const void*, NumDTensor> p_ds_grid_dummy;
                         std::array<index_t, NumDTensor> StrideDs_dummy;
                         static_for<0, NumDTensor, 1>{}([&](auto i) {
-                            p_ds_grid_dummy(i) = nullptr;
-                            StrideDs_dummy(i)  = I0;
+                            p_ds_grid_dummy[i] = nullptr;
+                            StrideDs_dummy[i]  = I0;
                         });
                         typename GridwiseGemm::Argument gemm_arg{
                             std::array<const void*, 1>{nullptr}, // p_as_grid
@@ -922,11 +922,11 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             // Create dummy Ds strides because they are not used in convolution
             // since we pass the grid descriptor to gridwise gemm
             std::array<index_t, NumDTensor> StrideDs_dummy;
-            static_for<0, NumDTensor, 1>{}([&](auto i) { StrideDs_dummy(i) = I0; });
+            static_for<0, NumDTensor, 1>{}([&](auto i) { StrideDs_dummy[i] = I0; });
             // TODO: fix this, it's not nice to go back and forth
             std::array<const void*, NumDTensor> p_ds;
             static_for<0, NumDTensor, 1>{}(
-                [&](auto i) { p_ds(i) = static_cast<const void*>(arg.p_ds_grid_[i]); });
+                [&](auto i) { p_ds[i] = static_cast<const void*>(arg.p_ds_grid_[i]); });
             for(std::size_t i = 0; i < arg.a_grid_desc_ak0_m_ak1_container_.size(); i++)
             {
                 const index_t GemmM = arg.a_grid_desc_ak0_m_ak1_container_[i].GetLength(I1);
@@ -1332,8 +1332,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         std::array<const void*, NumDTensor> p_ds_grid_dummy;
         std::array<index_t, NumDTensor> StrideDs_dummy;
         static_for<0, NumDTensor, 1>{}([&](auto i) {
-            p_ds_grid_dummy(i) = nullptr;
-            StrideDs_dummy(i)  = I0;
+            p_ds_grid_dummy[i] = nullptr;
+            StrideDs_dummy[i]  = I0;
         });
         for(std::size_t i = 0; i < arg.a_grid_desc_ak0_m_ak1_container_.size(); i++)
         {
