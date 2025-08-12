@@ -331,13 +331,6 @@ struct PassThrough
     }
 
     template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::bf16_t, ck_tile::fp16_t>(ck_tile::bf16_t& y, const ck_tile::fp16_t& x) const
-    {
-        y = type_convert<ck_tile::bf16_t>(x);
-    }
-
-    template <>
     CK_TILE_HOST_DEVICE void operator()<float, ck_tile::fp16_t>(float& y,
                                                                 const ck_tile::fp16_t& x) const
     {
