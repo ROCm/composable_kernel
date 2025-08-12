@@ -71,7 +71,7 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
     const ck_tile::index_t num_loop     = TilePartitioner::GetLoopNum(K_split);
     const bool has_hot_loop             = BaseGemmPipeline::BlockHasHotloop(num_loop);
     const ck_tile::TailNumber tail_num  = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
-    constexpr bool transposed_warp_gemm = false;
+    constexpr bool transposed_warp_gemm = true;
 
     const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
         constexpr bool has_hot_loop_v = has_hot_loop_.value;
@@ -85,6 +85,7 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
                                                CodegenGemmShape,
                                                CodegenGemmTraits,
                                                QuantGroupSize,
+                                               transposed_warp_gemm,
                                                ComputeDataType,
                                                ck_tile::GemmPipelineScheduler::Intrawave,
                                                has_hot_loop_v,
