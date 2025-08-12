@@ -65,7 +65,7 @@ using DeviceConvBwdWeightInstance =
         1,                    // CShuffleMRepeatPerShuffle
         1,                    // CShuffleNRepeatPerShuffle
         S<1, 32, 1, 4>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        2>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
+        128 / (sizeof(WeiDataType) * CHAR_BIT)>; // CShuffleBlockTransferScalarPerVector_NPerBlock
 
 template <ck::index_t NDimSpatial>
 using HostConvBwdWeightInstance = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
