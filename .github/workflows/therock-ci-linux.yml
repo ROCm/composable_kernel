@@ -5,6 +5,8 @@ on:
     inputs:
       cmake_options:
         type: string
+      amdgpu_families:
+        type: string
 
 permissions:
   contents: read
@@ -18,7 +20,7 @@ jobs:
     container:
       image: ghcr.io/rocm/therock_build_manylinux_x86_64@sha256:044b113562629f4bd2ec5d2e64b32eee11562d48fb1a75d7493daec9dd8d8292
     env:
-      AMDGPU_FAMILIES: "gfx94X-dcgpu"
+      AMDGPU_FAMILIES: ${{ inputs.amdgpu_families }}
       TEATIME_FORCE_INTERACTIVE: 0
     steps:
       - name: Checkout composable_kernel repository
@@ -86,12 +88,17 @@ jobs:
           aws-region: us-east-2
           role-to-assume: arn:aws:iam::692859939525:role/therock-artifacts-external
 
-      - name: Create Logs index Files
+      - name: Create Logs index Files and upload logs
         if: always()
         run: |
           python3 TheRock/build_tools/github_actions/create_log_index.py \
             --build-dir=TheRock/build \
             --amdgpu-family=${{ env.AMDGPU_FAMILIES }}
+
+          python3 TheRock/build_tools/github_actions/upload_build_logs_to_s3.py \
+            --build-dir=TheRock/build \
+            --run-id ${{ github.run_id }} \
+            --amdgpu-family ${{ env.AMDGPU_FAMILIES }}
 
       - name: Upload artifacts
         run: |
@@ -99,14 +106,6 @@ jobs:
             --run-id ${{ github.run_id }} \
             --amdgpu-family ${{ env.AMDGPU_FAMILIES }} \
             --build-dir TheRock/build
-
-      - name: Upload Logs
-        if: always()
-        run: |
-          python3 TheRock/build_tools/github_actions/upload_build_logs_to_s3.py \
-            --build-dir=TheRock/build \
-            --run-id ${{ github.run_id }} \
-            --amdgpu-family ${{ env.AMDGPU_FAMILIES }}
 
       - name: Add Links to Job Summary
         if: always()
