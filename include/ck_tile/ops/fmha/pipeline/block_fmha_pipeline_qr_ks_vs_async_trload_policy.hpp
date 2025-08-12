@@ -5,13 +5,11 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qx_ks_vs_custom_policy.hpp"
-#include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_custom_policy.hpp"
-#include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1.hpp"
 #include "ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
-#include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v1_custom_policy.hpp"
-#include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v1.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v2_custom_policy.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v2.hpp"
 
 // can remove all bank conflicts, but drop the performance for some cases
 // Probably it is limited by compiler optimization.
@@ -512,8 +510,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
                                                     Problem::BlockFmhaShape::kN0,
                                                     Problem::BlockFmhaShape::kK0>,
                                            typename Problem::BlockFmhaShape::Gemm0BlockWarps,
-                                           typename Problem::BlockFmhaShape::Gemm0WarpTile>,
-                             GemmLoopOrder::MNK>;
+                                           typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
 
         using WarpGemm =
             WarpGemmMfmaDispatcher<typename Problem::QDataType,
@@ -525,13 +522,14 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
                                    true>;
 
         using BlockGemmPolicy =
-            BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::QDataType,
+            BlockGemmARegBRegCRegV2CustomPolicy<typename Problem::QDataType,
                                                 typename Problem::KDataType,
                                                 typename Problem::SaccDataType,
                                                 typename Problem::BlockFmhaShape::Gemm0BlockWarps,
-                                                WarpGemm>;
+                                                WarpGemm,
+                                                GemmLoopOrder::MNK>;
 
-        return BlockGemmARegBRegCRegV1<GemmProblem, BlockGemmPolicy>{};
+        return BlockGemmARegBRegCRegV2<GemmProblem, BlockGemmPolicy>{};
     }
 
     template <typename Problem>
@@ -546,8 +544,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
                                                     Problem::BlockFmhaShape::kN1,
                                                     Problem::BlockFmhaShape::kK1>,
                                            typename Problem::BlockFmhaShape::Gemm1BlockWarps,
-                                           typename Problem::BlockFmhaShape::Gemm1WarpTile>,
-                             GemmLoopOrder::KMN>;
+                                           typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
 
         using WarpGemm = WarpGemmMfmaDispatcher<
             typename Problem::PDataType,
@@ -567,13 +564,14 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
                 : WGAttrNumAccessEnum::Single>;
 
         using BlockGemmPolicy =
-            BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::PDataType,
+            BlockGemmARegBRegCRegV2CustomPolicy<typename Problem::PDataType,
                                                 typename Problem::VDataType,
                                                 typename Problem::OaccDataType,
                                                 typename Problem::BlockFmhaShape::Gemm1BlockWarps,
-                                                WarpGemm>;
+                                                WarpGemm,
+                                                GemmLoopOrder::KMN>;
 
-        return BlockGemmARegBRegCRegV1<GemmProblem, BlockGemmPolicy>{};
+        return BlockGemmARegBRegCRegV2<GemmProblem, BlockGemmPolicy>{};
     }
 
     template <typename Problem>
