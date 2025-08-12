@@ -43,5 +43,22 @@ inline void validate_gemm_strides(int M, int N, int K, int StrideA, int StrideB,
     validate_matrix_stride<CLayout>(M, N, StrideC, "StrideC");
 }
 
+template <typename Layout>
+inline void validate_batch_stride(
+    int dim1, int dim2, int stride, int batch_stride, const std::string& matrix_name = "Matrix")
+{
+    // validate regular stride
+    validate_matrix_stride<Layout>(dim1, dim2, stride, matrix_name);
+
+    // validate batch stride
+    int min_batch_stride = dim1 * stride;
+    if(batch_stride < min_batch_stride)
+    {
+        throw std::runtime_error("Error: Batch" + matrix_name + " (" +
+                                 std::to_string(batch_stride) +
+                                 ") must be >= " + std::to_string(min_batch_stride));
+    }
+}
+
 } // namespace profiler
 } // namespace ck

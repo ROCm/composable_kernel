@@ -17,6 +17,7 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
+#include "ck/library/utility/profiler_validation_common.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 
 namespace ck {
@@ -117,6 +118,11 @@ bool profile_batched_gemm_gemm_impl(bool do_verification,
             return HostTensorDescriptor({batch_count, row, col}, {batch_stride, 1_uz, stride});
         }
     };
+
+    ck::profiler::validate_batch_stride<ALayout>(M, K, StrideA, BatchStrideA, "StrideA");
+    ck::profiler::validate_batch_stride<B0Layout>(K, N, StrideB0, BatchStrideB0, "StrideB0");
+    ck::profiler::validate_batch_stride<B1Layout>(N, O, StrideB1, BatchStrideB1, "StrideB1");
+    ck::profiler::validate_batch_stride<CLayout>(M, O, StrideC, BatchStrideC, "StrideC");
 
     // C_m_o = A_m_k * B0_k_n * B1_n_o
     Tensor<ADataType> a_g_m_k(
