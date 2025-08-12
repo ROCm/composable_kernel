@@ -77,21 +77,33 @@ add_custom_command(
   DEPENDS ${CODE_GEN_SCRIPTS}
 )
 
+set(FMHA_FWD_INSTANCES "tile_fmha_fwd_instances")
 set(EXAMPLE_FMHA_FWD "tile_example_fmha_fwd")
 # not using add_example_executable() to add this target, since we don't want this to have
 # to be included in "make all/install/check"
-message(DEBUG "adding example ${EXAMPLE_FMHA_FWD}")
-add_executable(${EXAMPLE_FMHA_FWD} EXCLUDE_FROM_ALL fmha_fwd.cpp)
-target_include_directories(${EXAMPLE_FMHA_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-target_sources(${EXAMPLE_FMHA_FWD} PRIVATE ${FMHA_FWD_GEN_BLOBS})
+message(DEBUG "adding instances ${FMHA_FWD_INSTANCES}")
+add_library(${FMHA_FWD_INSTANCES} EXCLUDE_FROM_ALL)
+target_include_directories(${FMHA_FWD_INSTANCES} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+target_sources(${FMHA_FWD_INSTANCES} PRIVATE ${FMHA_FWD_GEN_BLOBS})
 
+message(DEBUG "adding example ${EXAMPLE_FMHA_FWD}")
+add_executable(${EXAMPLE_FMHA_FWD} EXCLUDE_FROM_ALL example_fmha_fwd.cpp)
+target_link_libraries(${EXAMPLE_FMHA_FWD} ${FMHA_FWD_INSTANCES})
+target_include_directories(${EXAMPLE_FMHA_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+
+set(FMHA_BWD_INSTANCES "tile_fmha_bwd_instances")
 set(EXAMPLE_FMHA_BWD "tile_example_fmha_bwd")
 # not using add_example_executable() to add this target, since we don't want this to have
 # to be included in "make all/install/check"
+message(DEBUG "adding instances ${FMHA_BWD_INSTANCES}")
+add_library(${FMHA_BWD_INSTANCES} EXCLUDE_FROM_ALL)
+target_include_directories(${FMHA_BWD_INSTANCES} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+target_sources(${FMHA_BWD_INSTANCES} PRIVATE ${FMHA_BWD_GEN_BLOBS})
+
 message(DEBUG "adding example ${EXAMPLE_FMHA_BWD}")
-add_executable(${EXAMPLE_FMHA_BWD} EXCLUDE_FROM_ALL fmha_bwd.cpp)
+add_executable(${EXAMPLE_FMHA_BWD} EXCLUDE_FROM_ALL example_fmha_bwd.cpp)
+target_link_libraries(${EXAMPLE_FMHA_BWD} ${FMHA_BWD_INSTANCES})
 target_include_directories(${EXAMPLE_FMHA_BWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-target_sources(${EXAMPLE_FMHA_BWD} PRIVATE ${FMHA_BWD_GEN_BLOBS})
 
 # NOTE: this is dangerous since will change the whole kernel to flush denormals
 #       WIP with compiler team for an exp2 intrinsic..., then remove this
@@ -141,7 +153,9 @@ endif()
 list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-float-equal)
 list(APPEND EXAMPLE_FMHA_BWD_COMPILE_OPTIONS -Wno-float-equal)
 
+target_compile_options(${FMHA_FWD_INSTANCES} PRIVATE ${EXAMPLE_FMHA_FWD_COMPILE_OPTIONS})
 target_compile_options(${EXAMPLE_FMHA_FWD} PRIVATE ${EXAMPLE_FMHA_FWD_COMPILE_OPTIONS})
+target_compile_options(${FMHA_BWD_INSTANCES} PRIVATE ${EXAMPLE_FMHA_BWD_COMPILE_OPTIONS})
 target_compile_options(${EXAMPLE_FMHA_BWD} PRIVATE ${EXAMPLE_FMHA_BWD_COMPILE_OPTIONS})
 
 # TODO: we have to turn off this global prop, otherwise the progress bar generated

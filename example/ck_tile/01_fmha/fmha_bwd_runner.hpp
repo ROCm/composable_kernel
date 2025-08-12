@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "fmha_bwd.hpp"
+#pragma once
+
 #include "ck_tile/host.hpp"
-#include "mask.hpp"
+#include "fmha_bwd.hpp"
 #include "utils.hpp"
 
 #include <array>
@@ -15,138 +16,6 @@
 #include <tuple>
 #include <utility>
 #include <vector>
-
-auto create_args(int argc, char* argv[])
-{
-    ck_tile::ArgParser arg_parser;
-    arg_parser.insert("v", "1", "whether do CPU validation or not")
-        .insert("mode", "0", "kernel mode. 0:batch, 1:group")
-        .insert("b", "2", "batch size")
-        .insert("h", "8", "num of head, for q")
-        .insert("h_k",
-                "-1",
-                "num of head, for k/v, -1 means equal to h\n"
-                "if not equal to h, then this is GQA/MQA case")
-        .insert("s",
-                "3328",
-                "seqlen_q. if group-mode, means the average value of seqlen_q\n"
-                "total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary")
-        .insert("s_k", "-1", "seqlen_k, -1 means equal to s")
-        .insert("d", "128", "head dim for q, k")
-        .insert("d_v", "-1", "head dim for v, -1 means equal to d")
-        .insert("scale", "0", "scale factor. 0 means equal to 1/sqrt(hdim)")
-        .insert("iperm",
-                "1",
-                "permute input\n"
-                "if true, will be b*h*s*d, else b*s*h*d")
-        .insert("operm", "1", "permute output")
-        .insert("bias",
-                "n",
-                "n or 0, no bias\n"
-                "e(lementwise) or 1, elementwise bias with 1*1*s*s. e:1, 1*h*s*s. e:2, b*h*s*s\n"
-                "a(libi) or 2, alibi with 1*h. a:1, b*h")
-        .insert("dbias", "0", "output bias gradient or not")
-        .insert("prec", "fp16", "data type. fp16 or bf16")
-        .insert("mask",
-                "0",
-                "0: no mask, 1: top-left(same as 't'), 2:bottom-right(same as 'b')\n"
-                "'t', top-left causal mask, 'b', bottom-r causal mask\n"
-                "'t:l,r', top-left sliding window attn(swa) with FA style left right size\n"
-                "'b:l,r', bottom-r sliding window attn(swa) with FA style left right size\n"
-                "'xt:window_size', xformer style masking from top-left, window_size negative is "
-                "causal, positive is swa\n"
-                "'xb:window_size', xformer style masking from bottom-r, window_size negative is "
-                "causal, positive is swa\n"
-                "'g:y,x', generic attention mask coordinate with y/x size (only debug purpose for "
-                "now)")
-        .insert("kname", "0", "if set to 1 will print kernel name")
-        .insert("init",
-                "uf",
-                "init method:\n  ui or 0 - uniform random int\n  uf or 1 - uniform random float"
-                "\n  tf or 2 - trig float")
-        .insert("seed",
-                "11939",
-                "random seed used for initializing input tensors. 0 for "
-                "non-deterministic seed")
-        .insert("p_drop", "0", "0~1 probability of dropout")
-        .insert("drop_seed", "1", "seed for dropout random number generator")
-        .insert("drop_offset", "0", "offset for dropout random number generator")
-        .insert(
-            "drop_prefs",
-            "0",
-            "whether dropout seed and offset values are present on GPU; 0 - host, 1 - device/GPU")
-        .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
-        .insert("warmup", "5", "number of iterations before benchmark the kernel")
-        .insert("repeat", "20", "number of iterations to benchmark the kernel")
-        .insert("deterministic",
-                "0",
-                "if set to 1 will use multi-buffer reduction strategy for dq, atomic operation "
-                "will not be used");
-
-    bool result = arg_parser.parse(argc, argv);
-    return std::make_tuple(result, arg_parser);
-}
-
-template <typename DataTypeConfig>
-bool run(const ck_tile::ArgParser& arg_parser)
-{
-    std::string data_type     = arg_parser.get_str("prec");
-    int do_validation         = arg_parser.get_int("v");
-    mode_enum mode            = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
-    ck_tile::index_t batch    = arg_parser.get_int("b");
-    ck_tile::index_t nhead    = arg_parser.get_int("h");
-    ck_tile::index_t nhead_k  = arg_parser.get_int("h_k");
-    ck_tile::index_t seqlen_q = arg_parser.get_int("s");
-    ck_tile::index_t seqlen_k = arg_parser.get_int("s_k");
-    ck_tile::index_t hdim_q   = arg_parser.get_int("d");
-    ck_tile::index_t hdim_v   = arg_parser.get_int("d_v");
-    bool i_perm               = arg_parser.get_bool("iperm");
-    bool o_perm               = arg_parser.get_bool("operm");
-    float scale               = arg_parser.get_float("scale");
-    bool use_dbias            = arg_parser.get_bool("dbias");
-    float p_drop              = arg_parser.get_float("p_drop");
-    uint64_t drop_seed        = arg_parser.get_uint64("drop_seed");
-    uint64_t drop_offset      = arg_parser.get_uint64("drop_offset");
-    bool drop_prefs           = arg_parser.get_bool("drop_prefs");
-    bool deterministic        = arg_parser.get_bool("deterministic");
-    std::string init_method   = arg_parser.get_str("init");
-    uint32_t seed             = arg_parser.get_uint32("seed");
-
-    bias_info bias = bias_info::decode(arg_parser.get_str("bias"));
-    mask_info mask = mask_info::decode(arg_parser.get_str("mask"), seqlen_q, seqlen_k);
-
-    ck_tile::stream_config stream_config{nullptr,
-                                         true,
-                                         /* log_level = */ (arg_parser.get_bool("kname") ? 1 : 0),
-                                         arg_parser.get_int("warmup"),
-                                         arg_parser.get_int("repeat"),
-                                         arg_parser.get_str("timer") == std::string("gpu")};
-
-    return run<DataTypeConfig>(data_type,
-                               do_validation,
-                               mode,
-                               batch,
-                               nhead,
-                               nhead_k,
-                               seqlen_q,
-                               seqlen_k,
-                               hdim_q,
-                               hdim_v,
-                               i_perm,
-                               o_perm,
-                               scale,
-                               bias,
-                               use_dbias,
-                               p_drop,
-                               drop_seed,
-                               drop_offset,
-                               drop_prefs,
-                               mask,
-                               deterministic,
-                               init_method,
-                               seed,
-                               stream_config);
-}
 
 // different threshold for different dtype
 template <typename DataTypeConfig>
@@ -170,32 +39,43 @@ auto get_elimit<FmhaBwdBf16>(ck_tile::index_t hdim_q, ck_tile::index_t hdim_v)
     return ck_tile::make_tuple(rtol, atol);
 }
 
+template <>
+float fmha_bwd<2>(fmha_bwd_traits, fmha_bwd_args, const ck_tile::stream_config&);
+
 template <typename DataTypeConfig>
-bool run(std::string data_type,
-         int do_validation,
-         mode_enum mode,
-         ck_tile::index_t batch,
-         ck_tile::index_t nhead,
-         ck_tile::index_t nhead_k,
-         ck_tile::index_t seqlen_q,
-         ck_tile::index_t seqlen_k,
-         ck_tile::index_t hdim_q,
-         ck_tile::index_t hdim_v,
-         bool i_perm,
-         bool o_perm,
-         float scale,
-         const bias_info& bias,
-         bool use_dbias,
-         float p_drop,
-         uint64_t drop_seed,
-         uint64_t drop_offset,
-         bool drop_prefs,
-         const mask_info& mask,
-         bool deterministic,
-         std::string init_method,
-         uint32_t seed,
-         const ck_tile::stream_config& stream_config)
+bool fmha_bwd_run(mode_enum mode,
+                  ck_tile::index_t batch,
+                  ck_tile::index_t nhead,
+                  ck_tile::index_t nhead_k,
+                  ck_tile::index_t seqlen_q,
+                  ck_tile::index_t seqlen_k,
+                  ck_tile::index_t hdim_q,
+                  ck_tile::index_t hdim_v,
+                  bool i_perm,
+                  bool o_perm,
+                  float scale,
+                  const bias_info& bias,
+                  bool use_dbias,
+                  float p_drop,
+                  uint64_t drop_seed,
+                  uint64_t drop_offset,
+                  bool drop_prefs,
+                  const mask_info& mask,
+                  bool deterministic,
+                  std::string init_method,
+                  uint32_t seed,
+                  int do_validation,
+                  const ck_tile::stream_config& stream_config)
 {
+    const std::string data_type = []() {
+        if constexpr(std::is_same_v<DataTypeConfig, FmhaBwdFp16>)
+            return "fp16";
+        else if constexpr(std::is_same_v<DataTypeConfig, FmhaBwdBf16>)
+            return "bf16";
+        else
+            static_assert(false);
+    }();
+
     if(nhead_k < 0)
         nhead_k = nhead;
     if(nhead % nhead_k != 0)
@@ -612,13 +492,16 @@ bool run(std::string data_type,
         return false;
     }
 
-    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+    if(stream_config.time_kernel_)
+    {
+        float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
-    float gb_per_sec = num_byte / 1.E6 / ave_time;
+        float gb_per_sec = num_byte / 1.E6 / ave_time;
 
-    std::cout << std::fixed << ", " << std::setprecision(3) << ave_time << " ms, "
-              << std::setprecision(2) << tflops << " TFlops, " << std::setprecision(2) << gb_per_sec
-              << " GB/s" << std::flush;
+        std::cout << std::fixed << ", " << std::setprecision(3) << ave_time << " ms, "
+                  << std::setprecision(2) << tflops << " TFlops, " << std::setprecision(2)
+                  << gb_per_sec << " GB/s" << std::flush;
+    }
 
     if(!do_validation)
     {
@@ -1011,23 +894,4 @@ bool run(std::string data_type,
     std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
 
     return pass;
-}
-
-int main(int argc, char* argv[])
-{
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
-        return -1;
-
-    const std::string data_type = arg_parser.get_str("prec");
-    if(data_type == "fp16")
-    {
-        return run<FmhaBwdFp16>(arg_parser) ? 0 : -2;
-    }
-    else if(data_type == "bf16")
-    {
-        return run<FmhaBwdBf16>(arg_parser) ? 0 : -2;
-    }
-
-    return -3;
 }

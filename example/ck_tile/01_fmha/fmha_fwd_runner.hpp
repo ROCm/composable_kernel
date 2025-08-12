@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "fmha_fwd.hpp"
+#pragma once
+
 #include "ck_tile/host.hpp"
 #include "ck_tile/ref/naive_attention.hpp"
-#include "mask.hpp"
-#include "rotary.hpp"
+#include "fmha_fwd.hpp"
 #include "utils.hpp"
 
 #include <array>
@@ -22,208 +22,6 @@
 #if CK_TILE_FMHA_FWD_APPENDKV_API && !CK_TILE_FMHA_FWD_SPLITKV_API
 #error "we should enable fmha_fwd_splitkv() api in order to cooperate with fmha_fwd_appendkv()"
 #endif
-
-auto create_args(int argc, char* argv[])
-{
-    ck_tile::ArgParser arg_parser;
-    arg_parser.insert("v", "1", "0:no validation, 2:cpu validation, 2:gpu validation(experimental)")
-        .insert("mode", "0", "kernel mode. 0:batch, 1:group")
-        .insert("b", "2", "batch size")
-        .insert("h", "8", "num of head, for q")
-        .insert("h_k",
-                "-1",
-                "num of head, for k/v, -1 means equal to h\n"
-                "if not equal to h, then this is GQA/MQA case")
-        .insert(
-            "s",
-            "3328",
-            "seqlen_q. if group-mode, means the average value of seqlen_q\n"
-            "total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary\n"
-            "also with \"-s=s0,s1,s2...\" comma-separated ints to set per batch seqlen(group-mode)")
-        .insert("s_k", "-1", "seqlen_k (including new key/value), -1 means equal to s")
-        .insert("s_knew",
-                "0",
-                "seqlen_k for new key/value, 0 means not to use this at all; "
-                "-1 to choose s_knew in [1, s] randomly.")
-        .insert("s_kpad",
-                "-1",
-                "seqlen_k stride between 2 batches, currently used in group-mode only\n"
-                "for kv-cache case, each batch [1,s,h,d]/[1,h,s,d] can have a stride\n"
-                "along seqlen, instead of packed. same as xformer kv_padding")
-        .insert("d", "128", "head dim for q, k")
-        .insert("d_v", "-1", "head dim for v, -1 means equal to d")
-        .insert("scale_s",
-                "0",
-                "scale factor of S. 0 means equal to 1/sqrt(hdim).\n"
-                "note when squant=1, this value will be modified by range_q/k")
-        .insert("logits_soft_cap", "0", "attention logits soft capping value.")
-        .insert("range_q", "16", "per-tensor quantization range of q. used if squant=1.")
-        .insert("range_k", "16", "per-tensor quantization range of k. used if squant=1.")
-        .insert("range_v", "16", "per-tensor quantization range of v. used if squant=1.")
-        .insert("range_p", "1", "per-tensor quantization range of p [e^(s-m)]. used if squant=1.")
-        .insert("range_o", "16", "per-tensor quantization range of o (p*v). used if squant=1.")
-        .insert("squant",
-                "auto",
-                "if using static quantization fusion or not. auto: fp8 will default use squant, "
-                "other will not\n"
-                "0: no static quant(not implemented) 1: apply scale_p and scale_o with respect to "
-                "P and O.\n"
-                "calculate scale_s, scale_p, scale_o according to range_q, range_k, range_v, "
-                "range_p, range_o")
-        .insert("iperm",
-                "1",
-                "permute input\n"
-                "if true, will be b*h*s*d, else b*s*h*d")
-        .insert("operm", "1", "permute output")
-        .insert("bias",
-                "n",
-                "n or 0, no bias\n"
-                "e(lementwise) or 1, elementwise bias with 1*1*s*s. e:1, 1*h*s*s. e:2, b*h*s*s\n"
-                "a(libi) or 2, alibi with 1*h. a:1, b*h")
-        .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
-        .insert("mask",
-                "0",
-                "0: no mask, 1: top-left(same as 't'), 2:bottom-right(same as 'b')\n"
-                "'t', top-left causal mask, 'b', bottom-r causal mask\n"
-                "'t:l,r', top-left sliding window attn(swa) with FA style left right size\n"
-                "'b:l,r', bottom-r sliding window attn(swa) with FA style left right size\n"
-                "'xt:window_size', xformer style masking from top-left, window_size negative is "
-                "causal, positive is swa\n"
-                "'xb:window_size', xformer style masking from bottom-r, window_size negative is "
-                "causal, positive is swa\n"
-                "'g:y,x', generic attention mask coordinate with y/x size (only debug purpose for "
-                "now)")
-        .insert("vlayout", "r", "r for row-major(seqlen*hdim), c for col-major(hdim*seqlen)")
-        .insert("lse", "0", "0 not store lse, 1 store lse")
-        .insert("kname", "0", "if set to 1 will print kernel name")
-        .insert("init",
-                "uf",
-                "init method:\n  ui or 0 - uniform random int\n  ni - normalized random int"
-                "\n  uf or 1 - uniform random float\n  nf - normalized random float"
-                "\n  tf or 2 - trig float\n  uf:q or ufq or 3 - fp8 quantization")
-        .insert("seed",
-                "11939",
-                "random seed used for initializing input tensors. 0 for "
-                "non-deterministic seed")
-        .insert("p_drop", "0", "0~1 probability of dropout")
-        .insert("drop_seed", "1", "seed for dropout random number generator")
-        .insert("drop_offset", "0", "offset for dropout random number generator")
-        .insert(
-            "drop_prefs",
-            "0",
-            "whether dropout seed and offset values are present on GPU; 0 - host, 1 - device/GPU")
-        .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
-        .insert(
-            "rotary_dim", "0", "RoPE rotary dimension. rotary_dim <= 0 means not apply RoPE at all")
-        .insert("rotary_interleaved", "1", "whether to apply interleaved RoPE")
-        .insert("num_splits",
-                "1",
-                "# of splits for key/value. 0 to determine actual number by heuristic")
-        .insert("page_block_size", "0", "paged-kvcache block size. 0 means not use paged-kvcahe")
-        .insert("cache_batch_idx", "0", "whether to use index map to the kvcache")
-        .insert("warmup", "5", "number of iterations before benchmark the kernel")
-        .insert("repeat", "20", "number of iterations to benchmark the kernel");
-
-    bool result = arg_parser.parse(argc, argv);
-    return std::make_tuple(result, arg_parser);
-}
-
-template <typename DataTypeConfig>
-bool run(const ck_tile::ArgParser& arg_parser)
-{
-    std::string data_type            = arg_parser.get_str("prec");
-    int do_validation                = arg_parser.get_int("v");
-    mode_enum mode                   = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
-    ck_tile::index_t batch           = arg_parser.get_int("b");
-    ck_tile::index_t nhead           = arg_parser.get_int("h");
-    ck_tile::index_t nhead_k         = arg_parser.get_int("h_k");
-    std::string seqlen_q_str         = arg_parser.get_str("s");
-    ck_tile::index_t seqlen_q        = arg_parser.get_int("s");
-    std::string seqlen_k_str         = arg_parser.get_str("s_k");
-    ck_tile::index_t hdim_q          = arg_parser.get_int("d");
-    ck_tile::index_t hdim_v          = arg_parser.get_int("d_v");
-    ck_tile::index_t seqlen_knew     = arg_parser.get_int("s_knew");
-    std::string seqlen_kpad_str      = arg_parser.get_str("s_kpad");
-    ck_tile::index_t rotary_dim      = arg_parser.get_int("rotary_dim");
-    bool i_perm                      = arg_parser.get_bool("iperm");
-    bool o_perm                      = arg_parser.get_bool("operm");
-    float scale_s                    = arg_parser.get_float("scale_s");
-    float logits_soft_cap            = arg_parser.get_float("logits_soft_cap");
-    bool is_v_rowmajor               = arg_parser.get_str("vlayout") == "r";
-    bool lse                         = arg_parser.get_bool("lse");
-    ck_tile::index_t page_block_size = arg_parser.get_int("page_block_size");
-    bool use_cache_batch_idx         = arg_parser.get_bool("cache_batch_idx");
-    float p_drop                     = arg_parser.get_float("p_drop");
-    uint64_t drop_seed               = arg_parser.get_uint64("drop_seed");
-    uint64_t drop_offset             = arg_parser.get_uint64("drop_offset");
-    bool drop_prefs                  = arg_parser.get_bool("drop_prefs");
-    std::string mask_str             = arg_parser.get_str("mask");
-    float range_q                    = arg_parser.get_float("range_q");
-    float range_k                    = arg_parser.get_float("range_k");
-    float range_v                    = arg_parser.get_float("range_v");
-    float range_p                    = arg_parser.get_float("range_p");
-    float range_o                    = arg_parser.get_float("range_o");
-    bool is_rotary_interleaved       = arg_parser.get_bool("rotary_interleaved");
-    ck_tile::index_t num_splits      = arg_parser.get_int("num_splits");
-    std::string init_method          = arg_parser.get_str("init");
-    uint32_t seed                    = arg_parser.get_uint32("seed");
-
-    bool squant = [&]() {
-        if(arg_parser.get_str("squant") == "auto")
-            return data_type == "fp8";
-        else
-            return arg_parser.get_bool("squant");
-    }();
-
-    bias_info bias = bias_info::decode(arg_parser.get_str("bias"));
-
-    ck_tile::stream_config stream_config{nullptr,
-                                         true,
-                                         /* log_level = */ (arg_parser.get_bool("kname") ? 1 : 0),
-                                         arg_parser.get_int("warmup"),
-                                         arg_parser.get_int("repeat"),
-                                         arg_parser.get_str("timer") == std::string("gpu")};
-
-    return run<DataTypeConfig>(data_type,
-                               do_validation,
-                               mode,
-                               batch,
-                               nhead,
-                               nhead_k,
-                               seqlen_q_str,
-                               seqlen_q,
-                               seqlen_k_str,
-                               hdim_q,
-                               hdim_v,
-                               seqlen_knew,
-                               seqlen_kpad_str,
-                               rotary_dim,
-                               i_perm,
-                               o_perm,
-                               scale_s,
-                               logits_soft_cap,
-                               is_v_rowmajor,
-                               lse,
-                               page_block_size,
-                               squant,
-                               use_cache_batch_idx,
-                               bias,
-                               p_drop,
-                               drop_seed,
-                               drop_offset,
-                               drop_prefs,
-                               mask_str,
-                               range_q,
-                               range_k,
-                               range_v,
-                               range_p,
-                               range_o,
-                               is_rotary_interleaved,
-                               num_splits,
-                               init_method,
-                               seed,
-                               stream_config);
-}
 
 // different threshold for different dtype
 template <typename DataTypeConfig>
@@ -325,46 +123,58 @@ int override_num_splits_if_necessary(
 }
 
 template <typename DataTypeConfig>
-bool run(std::string data_type,
-         int do_validation,
-         mode_enum mode,
-         ck_tile::index_t batch,
-         ck_tile::index_t nhead,
-         ck_tile::index_t nhead_k,
-         std::string seqlen_q_str,
-         ck_tile::index_t seqlen_q,
-         std::string seqlen_k_str,
-         ck_tile::index_t hdim_q,
-         ck_tile::index_t hdim_v,
-         ck_tile::index_t seqlen_knew,
-         std::string seqlen_kpad_str,
-         ck_tile::index_t rotary_dim,
-         bool i_perm,
-         bool o_perm,
-         float scale_s,
-         float logits_soft_cap,
-         bool squant,
-         bool is_v_rowmajor,
-         bool lse,
-         ck_tile::index_t page_block_size,
-         bool use_cache_batch_idx,
-         const bias_info& bias,
-         float p_drop,
-         uint64_t drop_seed,
-         uint64_t drop_offset,
-         bool drop_prefs,
-         std::string mask_str,
-         float range_q,
-         float range_k,
-         float range_v,
-         float range_p,
-         float range_o,
-         bool is_rotary_interleaved,
-         ck_tile::index_t num_splits,
-         std::string init_method,
-         uint32_t seed,
-         const ck_tile::stream_config& stream_config)
+bool fmha_fwd_run(mode_enum mode,
+                  ck_tile::index_t batch,
+                  ck_tile::index_t nhead,
+                  ck_tile::index_t nhead_k,
+                  std::string seqlen_q_str,
+                  ck_tile::index_t seqlen_q,
+                  std::string seqlen_k_str,
+                  ck_tile::index_t hdim_q,
+                  ck_tile::index_t hdim_v,
+                  ck_tile::index_t seqlen_knew,
+                  std::string seqlen_kpad_str,
+                  ck_tile::index_t rotary_dim,
+                  bool i_perm,
+                  bool o_perm,
+                  float scale_s,
+                  float logits_soft_cap,
+                  bool is_v_rowmajor,
+                  bool lse,
+                  ck_tile::index_t page_block_size,
+                  bool use_cache_batch_idx,
+                  const bias_info& bias,
+                  float p_drop,
+                  uint64_t drop_seed,
+                  uint64_t drop_offset,
+                  bool drop_prefs,
+                  std::string mask_str,
+                  float range_q,
+                  float range_k,
+                  float range_v,
+                  float range_p,
+                  float range_o,
+                  bool squant,
+                  bool is_rotary_interleaved,
+                  ck_tile::index_t num_splits,
+                  std::string init_method,
+                  uint32_t seed,
+                  int do_validation,
+                  const ck_tile::stream_config& stream_config)
 {
+    const std::string data_type = []() {
+        if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp16>)
+            return "fp16";
+        else if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdBf16>)
+            return "bf16";
+        else if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8>)
+            return "fp8";
+        else if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdBf8>)
+            return "bf8";
+        else
+            static_assert(false);
+    }();
+
     if(nhead_k < 0)
         nhead_k = nhead;
 
@@ -1190,15 +1000,18 @@ bool run(std::string data_type,
         return false;
     }
 
-    const float ave_time = (appendkv_ave_time + fwd_ave_time);
+    if(stream_config.time_kernel_)
+    {
+        const float ave_time = (appendkv_ave_time + fwd_ave_time);
 
-    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+        float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
-    float gb_per_sec = num_byte / 1.E6 / ave_time;
+        float gb_per_sec = num_byte / 1.E6 / ave_time;
 
-    std::cout << std::fixed << ", " << std::setprecision(3) << ave_time << " ms, "
-              << std::setprecision(2) << tflops << " TFlops, " << std::setprecision(2) << gb_per_sec
-              << " GB/s" << std::flush << std::endl;
+        std::cout << std::fixed << ", " << std::setprecision(3) << ave_time << " ms, "
+                  << std::setprecision(2) << tflops << " TFlops, " << std::setprecision(2)
+                  << gb_per_sec << " GB/s" << std::flush;
+    }
 
     if(do_validation == 0)
     {
@@ -1647,27 +1460,4 @@ bool run(std::string data_type,
     std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
 
     return pass;
-}
-
-int main(int argc, char* argv[])
-{
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
-        return -1;
-
-    const std::string data_type = arg_parser.get_str("prec");
-    if(data_type == "fp16")
-    {
-        return run<FmhaFwdFp16>(arg_parser) ? 0 : -2;
-    }
-    else if(data_type == "bf16")
-    {
-        return run<FmhaFwdBf16>(arg_parser) ? 0 : -2;
-    }
-    else if(data_type == "fp8")
-    {
-        return run<FmhaFwdFp8>(arg_parser) ? 0 : -2;
-    }
-
-    return -3;
 }
