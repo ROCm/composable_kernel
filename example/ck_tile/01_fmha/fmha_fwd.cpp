@@ -526,9 +526,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              static_cast<std::size_t>(2) * mask.get_unmaskarea() * hdim_v);
 
             num_byte += nhead * (sizeof(QDataType) * real_seqlen_q * hdim_q +
-                                 sizeof(KDataType) * real_seqlen_k * hdim_q +
-                                 sizeof(VDataType) * hdim_v * real_seqlen_k +
                                  sizeof(ODataType) * real_seqlen_q * hdim_v);
+            num_byte += nhead_k * (sizeof(KDataType) * real_seqlen_k * hdim_q +
+                                   sizeof(VDataType) * hdim_v * real_seqlen_k);
         }
     }
 
