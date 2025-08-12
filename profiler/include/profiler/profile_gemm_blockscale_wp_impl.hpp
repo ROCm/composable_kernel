@@ -20,6 +20,7 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+#include "ck/library/utility/profiler_validation_common.hpp"
 
 namespace ck {
 namespace profiler {
@@ -104,43 +105,9 @@ bool profile_gemm_blockscale_weighpreshuffle_impl(int do_verification,
                                       ? ((K + ScaleBlockK - 1) / ScaleBlockK)
                                       : ((N + ScaleBlockN - 1) / ScaleBlockN);
 
-    if(ck::is_same_v<ALayout, ck::tensor_layout::gemm::ColumnMajor>)
-    {
-        if(StrideA < M)
-        {
-            throw std::runtime_error(
-                "Error: For ColumnMajor layout, StrideA must be greater than or equal to 
-                M (" + std::to_string(M) + ")");
-        }
-    }
-    else // RowMajor
-    {
-        if(StrideA < K)
-        {
-            throw std::runtime_error(
-                "Error: For RowMajor layout, StrideA must be greater than or equal 
-                to K (" + std::to_string(K) + ")");
-        }
-    }
-
-    if(ck::is_same_v<BLayout, ck::tensor_layout::gemm::ColumnMajor>)
-    {
-        if(StrideB < K)
-        {
-            throw std::runtime_error(
-                "Error: For ColumnMajor layout, StrideB must be greater than or equal to 
-                K (" + std::to_string(K) + ")");
-        }
-    }
-    else // RowMajor
-    {
-        if(StrideB < N)
-        {
-            throw std::runtime_error(
-                "Error: For RowMajor layout, StrideB must be greater than or equal to 
-                N (" + std::to_string(N) + ")");
-        }
-    }
+    ck::profiler::validate_matrix_stride<ALayout>(M, K, StrideA, "StrideA");
+    ck::profiler::validate_matrix_stride<BLayout>(K, N, StrideB, "StrideB");
+    ck::profiler::validate_matrix_stride<BLayout>(M, N, StrideE, "StrideE");
 
     Tensor<A0DataType> a0_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<A1DataType> a1_m_k(f_host_tensor_descriptor((M + ScaleBlockM - 1) / ScaleBlockM,

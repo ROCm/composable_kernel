@@ -19,6 +19,7 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
+#include "ck/library/utility/profiler_validation_common.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 namespace ck {
@@ -59,80 +60,8 @@ bool profile_gemm_streamk_impl(int do_verification,
             }
         };
 
-    if(ck::is_same_v<ALayout, ck::tensor_layout::gemm::ColumnMajor>)
-    {
-        if(StrideA < M)
-        {
-            throw std::runtime_error(
-                "Error: For ColumnMajor layout, StrideA must be greater than or equal to 
-                M (" + std::to_string(M) + ")");
-        }
-    }
-    else // RowMajor
-    {
-        if(StrideA < K)
-        {
-            throw std::runtime_error(
-                "Error: For RowMajor layout, StrideA must be greater than or equal 
-                to K (" + std::to_string(K) + ")");
-        }
-    }
-
-    if(ck::is_same_v<BLayout, ck::tensor_layout::gemm::ColumnMajor>)
-    {
-        if(StrideB < K)
-        {
-            throw std::runtime_error(
-                "Error: For ColumnMajor layout, StrideB must be greater than or equal to 
-                K (" + std::to_string(K) + ")");
-        }
-    }
-    else // RowMajor
-    {
-        if(StrideB < N)
-        {
-            throw std::runtime_error(
-                "Error: For RowMajor layout, StrideB must be greater than or equal to 
-                N (" + std::to_string(N) + ")");
-        }
-    }
-
-    if(ck::is_same_v<CLayout, ck::tensor_layout::gemm::ColumnMajor>)
-    {
-        if(StrideC < M)
-        {
-            throw std::runtime_error(
-                "Error: For ColumnMajor layout, StrideC must be greater than or equal to M (" +
-                std::to_string(M) + ")");
-        }
-    }
-    else // RowMajor
-    {
-        if(StrideC < N)
-        {
-            throw std::runtime_error(
-                "Error: For RowMajor layout, StrideC must be greater than or equal to N (" +
-                std::to_string(N) + ")");
-        }
-    }
-    if(ck::is_same_v<CLayout, ck::tensor_layout::gemm::ColumnMajor>)
-    {
-        if(StrideC < M)
-        {
-            throw std::runtime_error(
-                "Error: For ColumnMajor layout, StrideC must be greater than or equal to M (" +
-                std::to_string(M) + ")");
-        }
-    }
-    else // RowMajor
-    {
-        if(StrideC < N)
-        {
-            throw std::runtime_error(
-                "Error: For RowMajor layout, StrideC must be greater than or equal to N (" +
-                std::to_string(N) + ")");
-        }
-    }
+    ck::profiler::validate_gemm_strides<ALayout, BLayout, CLayout>(
+        M, N, K, StrideA, StrideB, StrideC);
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
