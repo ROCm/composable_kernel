@@ -3,7 +3,7 @@
 
 #pragma once
 
-// #include "ck_tile/ops/gemm_mx/block/block_universal_gemm_as_aquant_bs_cr.hpp"
+#include "ck_tile/ops/gemm_mx/block/block_universal_gemm_mx_as_bs_cr.hpp"
 #include "ck_tile/ops/gemm_mx/kernel/gemm_mx_kernel.hpp"
 #include "ck_tile/ops/gemm_mx/pipeline/gemm_mx_pipeline_ag_bg_cr_base.hpp"
 #include "ck_tile/ops/gemm_mx/pipeline/gemm_mx_pipeline_ag_bg_cr_policy.hpp"

@@ -150,7 +150,7 @@ int run_gemm_mx_example_with_layouts(int argc,
     stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
     stride_C = ck_tile::get_default_stride(M, N, stride_C, is_row_major(CLayout{}));
 
-    auto Scale_Padded_M = ck::math::integer_least_multiple(M, ScaleBlockSize);
+    auto Scale_Padded_M = ck_tile::integer_least_multiple(M, ScaleBlockSize);
     auto Scale_Stride_A = ck_tile::get_default_stride(
         Scale_Padded_M, K / ScaleBlockSize, 0, is_row_major(a_scale_layout));
     auto Scale_Stride_B =

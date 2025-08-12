@@ -237,36 +237,51 @@ struct GemmMXPipelineAgBgCrCompV3 : public BaseGemmMXPipelineAgBgCrCompV3<Proble
                   TailNumber TailNum,
                   typename ADramBlockWindowTmp,
                   typename BDramBlockWindowTmp,
-                  typename AQDramBlockWindowTmp,
+                  typename AScaleDramBlockWindowTmp,
+                  typename BScaleDramBlockWindowTmp,
                   typename AElementFunction,
                   typename BElementFunction>
-        CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
-                                       const AElementFunction& a_element_func,
-                                       const BDramBlockWindowTmp& b_dram_block_window_tmp,
-                                       const BElementFunction& b_element_func,
-                                       const AQDramBlockWindowTmp& aq_dram_block_window_tmp,
-                                       index_t num_loop,
-                                       void* p_smem) const
+        CK_TILE_DEVICE auto
+        operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                   const AElementFunction& a_element_func,
+                   const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                   const BElementFunction& b_element_func,
+                   const AScaleDramBlockWindowTmp& a_scale_dram_block_window_tmp,
+                   const BScaleDramBlockWindowTmp& b_scale_dram_block_window_tmp,
+                   index_t num_loop,
+                   void* p_smem) const
         {
             static_assert(
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
                     std::is_same_v<BDataType,
                                    remove_cvref_t<typename BDramBlockWindowTmp::DataType>> &&
-                    std::is_same_v<AQDataType,
-                                   remove_cvref_t<typename AQDramBlockWindowTmp::DataType>>,
-                "A/B/AQ Dram block window should have the same data type as appropriate "
-                "([A|B|AQ]DataType) defined in Problem definition!");
+                    std::is_same_v<AScaleDataType,
+                                   remove_cvref_t<typename AScaleDramBlockWindowTmp::DataType>> &&
+                    std::is_same_v<BScaleDataType,
+                                   remove_cvref_t<typename BScaleDramBlockWindowTmp::DataType>>,
+                "A/B/AScale/BScale Dram block window should have the same data type as appropriate "
+                "([A|B|AScale|BScale]DataType) defined in Problem definition!");
 
             constexpr bool is_a_col_major =
                 std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
-            constexpr bool is_aq_col_major =
-                std::is_same_v<AQLayout, tensor_layout::gemm::ColumnMajor>;
+            constexpr bool is_a_scale_col_major =
+                std::is_same_v<AScaleLayout, tensor_layout::gemm::ColumnMajor>;
             constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
+            constexpr bool is_b_scale_row_major =
+                std::is_same_v<BScaleLayout, tensor_layout::gemm::RowMajor>;
 
-            static_assert(!is_aq_col_major, "Aq must be row major (col major not supported yet)");
-            static_assert(MPerBlock == AQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
-                              KPerBlockAQ == AQDramBlockWindowTmp{}.get_window_lengths()[I1{}],
-                          "Aq block window has incorrect lengths for defined AqLayout!");
+            static_assert(!is_a_scale_col_major,
+                          "A Scale must be row major (col major not supported yet)");
+            static_assert(!is_b_scale_row_major,
+                          "B Scale must be col major (row major not supported yet)");
+            static_assert(MPerBlock == AScaleDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                              KPerBlockScale ==
+                                  AScaleDramBlockWindowTmp{}.get_window_lengths()[I1{}],
+                          "A Scale block window has incorrect lengths for defined AqLayout!");
+            static_assert(NPerBlock == BScaleDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                              KPerBlockScale ==
+                                  BScaleDramBlockWindowTmp{}.get_window_lengths()[I1{}],
+                          "B Scale block window has incorrect lengths for defined BqLayout!");
 
             static_assert(is_a_col_major
                               ? (KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
@@ -281,9 +296,10 @@ struct GemmMXPipelineAgBgCrCompV3 : public BaseGemmMXPipelineAgBgCrCompV3<Proble
                                  KPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}]),
                           "B block window has incorrect lengths for defined BLayout!");
 
-            using ADramTileWindowStep  = typename ADramBlockWindowTmp::BottomTensorIndex;
-            using BDramTileWindowStep  = typename BDramBlockWindowTmp::BottomTensorIndex;
-            using AQDramTileWindowStep = typename AQDramBlockWindowTmp::BottomTensorIndex;
+            using ADramTileWindowStep      = typename ADramBlockWindowTmp::BottomTensorIndex;
+            using AScaleDramTileWindowStep = typename AScaleDramBlockWindowTmp::BottomTensorIndex;
+            using BDramTileWindowStep      = typename BDramBlockWindowTmp::BottomTensorIndex;
+            using BScaleDramTileWindowStep = typename BScaleDramBlockWindowTmp::BottomTensorIndex;
 
             auto&& [a_lds_block, b_lds_block] = Base::GetABLdsTensorViews(p_smem);
 
@@ -462,12 +478,15 @@ struct GemmMXPipelineAgBgCrCompV3 : public BaseGemmMXPipelineAgBgCrCompV3<Proble
             return c_block_tile;
         }
     };
+
     template <typename ADramBlockWindowTmp,
+              typename AScaleDramBlockWindowTmp,
               typename BDramBlockWindowTmp,
-              typename AQDramBlockWindowTmp>
+              typename BScaleDramBlockWindowTmp>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const AScaleDramBlockWindowTmp& a_scale_dram_block_window_tmp,
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
-                                   const AQDramBlockWindowTmp& aq_dram_block_window_tmp,
+                                   const BScaleDramBlockWindowTmp& a_scale_dram_block_window_tmp,
                                    index_t num_loop,
                                    void* p_smem) const
     {
@@ -476,7 +495,8 @@ struct GemmMXPipelineAgBgCrCompV3 : public BaseGemmMXPipelineAgBgCrCompV3<Proble
             [](const ADataType& a) { return a; },
             b_dram_block_window_tmp,
             [](const BDataType& b) { return b; },
-            aq_dram_block_window_tmp,
+            a_scale_dram_block_window_tmp,
+            b_scale_dram_block_window_tmp,
             num_loop,
             p_smem);
     }

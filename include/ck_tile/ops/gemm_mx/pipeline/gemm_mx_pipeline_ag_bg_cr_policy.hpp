@@ -76,13 +76,49 @@ struct GemmMXPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgCrPol
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeAScaleDramTileDistribution()
+    {
+        using AScaleLayout   = remove_cvref_t<typename Problem::AScaleLayout>;
+        using BlockGemmShape = typename Problem::BlockGemmShape;
+
+        constexpr index_t BlockSize      = Problem::kBlockSize;
+        constexpr index_t MPerBlock      = Problem::BlockGemmShape::kM;
+        constexpr index_t KPerBlock      = Problem::BlockGemmShape::kK;
+        constexpr index_t KPerBlockScale = KPerBlock / Problem::kBlockScaleSize;
+        constexpr index_t VecLoadSize    = GetVectorSizeAScale<Problem>();
+        using WarpTile                   = typename Problem::BlockGemmShape::WarpTile;
+        using WarpGemm                   = WarpGemmMfmaDispatcher<typename Problem::ComputeDataType,
+                                                typename Problem::ComputeDataType,
+                                                typename Problem::CDataType,
+                                                WarpTile::at(I0),
+                                                WarpTile::at(I1),
+                                                WarpTile::at(I2),
+                                                false>;
+        static constexpr auto MXdlPack   = 2;
+        static constexpr auto NXdlPack   = 2;
+        static constexpr auto KXdlPack   = 2;
+
+        static_assert(std::is_same_v<AScaleLayout, tensor_layout::gemm::RowMajor>);
+        using TileEncodingPattern = TileDistributionEncodingPatternAScale<BlockGemmShape,
+                                                                          WarpGemm,
+                                                                          BlockSize,
+                                                                          MPerBlock,
+                                                                          KPerBlockScale,
+                                                                          MXdlPack,
+                                                                          NXdlPack,
+                                                                          KXdlPack,
+                                                                          VecLoadSize>;
+        return TileEncodingPattern::Make2DStaticTileDistribution();
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
         using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
 
-        static_assert(Problem::kQuantGroupSize % WarpTile::at(I2) == 0,
-                      "KPerWarpGemm must be a multiple of kQuantGroupSize!");
+        static_assert(Problem::kBlockScaleSize % WarpTile::at(I2) == 0,
+                      "KPerWarpGemm must be a multiple of kBlockScaleSize!");
 
         using WarpGemm = WarpGemmMfmaDispatcher<typename Problem::ComputeDataType,
                                                 typename Problem::ComputeDataType,
@@ -99,7 +135,7 @@ struct GemmMXPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgCrPol
                                                                       typename Problem::CDataType,
                                                                       BlockWarps,
                                                                       WarpGemm>;
-        return AQuantBlockUniversalGemmAsBsCr<Problem, BlockGemmPolicy>{};
+        return BlockUniversalGemmMXAsBsCr<Problem, BlockGemmPolicy>{};
     }
 };
 

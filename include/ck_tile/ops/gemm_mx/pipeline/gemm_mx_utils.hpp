@@ -92,4 +92,19 @@ struct TileDistributionEncodingPatternAQ : public TileDistributionEncodingPatter
     }
 };
 
+// A Scale data for A data is preshuffled and loaded from DRAM
+// using v_mfama_f32_scale_f32_16x16x128_F8F6F4 instruction for calculating
+template <typename BlockGemmShape,
+          typename WarpGemm,
+          index_t BlockSize,
+          index_t YPerTile,
+          index_t XPerTile,
+          index_t MXdlPack,
+          index_t NXdlPack,
+          index_t KXdlPack,
+          index_t VecSize>
+struct TileDistributionEncodingPatternAScale : public TileDistributionEncodingPattern
+{
+}
+
 } // namespace ck_tile

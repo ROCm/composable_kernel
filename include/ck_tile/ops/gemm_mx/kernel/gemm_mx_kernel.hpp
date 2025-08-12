@@ -121,9 +121,21 @@ struct GemmMXKernel
     using BPackedSize    = remove_cvref_t<typename GemmPipeline::PackedSize>;
     using BlockScaleSize = remove_cvref_t<typename GemmPipeline::BlockScaleSize>;
 
+    using BlockGemm = remove_cvref_t<typename GemmPipeline::BlockGemm>;
+    using MPerXdl   = BlockGemm::WarpGemm::kM;
+    using NPerXdl   = BlockGemm::WarpGemm::kN;
+
     static constexpr auto MXdlPack = 2;
     static constexpr auto NXdlPack = 2;
     static constexpr auto KXdlPack = 2;
+
+    using mx_scale_t                           = ck_tile::e8m0_bexp_t;
+    static constexpr index_t scale_pack_size_a = sizeof(AScaleDataType) / sizeof(mx_scale_t);
+    static constexpr index_t scale_pack_size_b = sizeof(BScaleDataType) / sizeof(mx_scale_t);
+    static_assert(KXdlPack * MXdlPack % scale_pack_size_a == 0,
+                  "KXdlPack * MXdlPack must be a multiple of scale_pack_size_a");
+    static_assert(KXdlPack * NXdlPack % scale_pack_size_b == 0,
+                  "KXdlPack * NXdlPack must be a multiple of scale_pack_size_b");
 
     static constexpr auto I0 = number<0>();
     static constexpr auto I1 = number<1>();
@@ -401,13 +413,21 @@ struct GemmMXKernel
         }();
 
         // A scale tensor view
+        const auto Padded_Scale_M = integer_divide_ceil(kargs.M, BlockScaleSize) * BlockScaleSize;
         const auto& a_scale_tensor_view = [&]() {
             static_asssert(std::is_same_v<AScaleLayout, tensor_layout::gemm::RowMajor>);
             return make_naive_tensor_view<address_space_enum::global>(
                 a_scale_ptr,
-                make_tuple(kargs.M, kargs.K / BlockScaleSize),
-                make_tuple(kargs.stride_scale_A, 1),
-                number<GemmPipeline::GetVectorSizeAQ()>{},
+                make_tuple(Padded_Scale_M / (MXdlPack * MPerXdl),
+                           integer_divide_ceil(kargs.K, (BlockScaleSize / APackedSize)) /
+                               (KXdlPack * 64 / MPerXdl),
+                           64 * KXdlPack * MXdlPack / scale_packed_size_a),
+                make_tuple(
+                    integer_diveide_ceil(kargs.K * kargs.k_batch, (BlockScaleSize / APackedSize)) *
+                        MPerXdl * MXdlPack / scale_pack_size_a,
+                    64 * KXdlPack * MXdlPack / scale_pack_size_a,
+                    1),
+                number<GemmPipeline::GetVectorSizeAQ()>{}, // need to modified
                 number<1>{});
         }();
 
@@ -489,8 +509,15 @@ struct GemmMXKernel
             static_assert(std::is_same_v<BScaleLayout, tensor_layout::gemm::ColumnMajor>);
             return make_naive_tensor_view<address_space_enum::global>(
                 b_scale_ptr,
-                make_tuple(kargs.N, kargs.K / BlockScaleSize),
-                make_tuple(kargs.stride_scale_B, 1),
+                make_tuple(kargs.N / (NXdlPack * NPerXdl),
+                           integer_divide_ceil(kargs.K, (BlockScaleSize / BPackedSize)) /
+                               (KXdlPack * 64 / NPerXdl),
+                           64 * KXdlPack * NXdlPack / scale_pack_size_b),
+                make_tuple(
+                    integer_divide_ceil(kargs.K * kargs.k_batch, (BlockScaleSize / BPackedSize)) *
+                        NPerXdl * NXdlPack / scale_pack_size_b,
+                    64 * KXdlPack * NXdlPack / scale_pack_size_b,
+                    1),
                 number<GemmPipeline::GetVectorSizeBQ()>{},
                 number<1>{});
         }();
@@ -677,8 +704,9 @@ struct GemmMXKernel
      * @brief Runs single GEMM problem cooperatively by whole workgroup.
      *
      * @param a_ptr input A pointer
+     * @param a_scale input A scale pointer
      * @param b_ptr input B pointer
-     * @param aq_ptr input AQ pointer
+     * @param b_scale_ptr input B scale pointer
      * @param c_ptr output C pointer
      * @param smem_ptr_0 The start memory pointer of the shared memory block.
      * @param kargs GEMM kernel arguments
@@ -702,7 +730,7 @@ struct GemmMXKernel
     {
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple = MakeGemmTensorViews<DstInMemOp>(
-            a_ptr, b_ptr, aq_ptr, c_ptr, kargs, splitk_batch_offset);
+            a_ptr, a_scale_ptr, b_ptr, b_scale_ptr, c_ptr, kargs, splitk_batch_offset);
 
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
@@ -711,15 +739,20 @@ struct GemmMXKernel
             TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
 
         // Run GEMM cooperatively by whole workgroup.
-        const auto& a_block_window  = gemm_tile_windows.at(I0);
-        const auto& aq_block_window = gemm_tile_windows.at(I1);
-        const auto& b_block_window  = gemm_tile_windows.at(I2);
+        const auto& a_block_window       = gemm_tile_windows.at(I0);
+        const auto& a_scale_block_window = gemm_tile_windows.at(I1);
+        const auto& b_block_window       = gemm_tile_windows.at(I2);
+        const auto& b_scale_block_window = gemm_tile_windows.at(I3);
 
-        const auto& c_block_tile = GemmPipeline{}.template operator()(
-            a_block_window, b_block_window, aq_block_window, num_loop, smem_ptr_0);
+        const auto& c_block_tile = GemmPipeline{}.template operator()(a_block_window,
+                                                                      a_scale_block_window,
+                                                                      b_block_window,
+                                                                      b_scale_block_window,
+                                                                      num_loop,
+                                                                      smem_ptr_0);
 
         // Run Epilogue Pipeline
-        auto& c_block_window = gemm_tile_windows.at(I3);
+        auto& c_block_window = gemm_tile_windows.at(I4);
 
         EpiloguePipeline{}.template
         operator()<decltype(c_block_window), decltype(c_block_tile), decltype(c_block_window)>(
