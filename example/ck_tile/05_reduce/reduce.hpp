@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -7,6 +7,22 @@
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce2d_default_policy.hpp"
+#include "json_dump.hpp"
+
+template <typename T>
+struct DataTypeTraits;
+
+template <>
+struct DataTypeTraits<ck_tile::half_t>
+{
+    static constexpr const char* name = "fp16";
+};
+
+template <>
+struct DataTypeTraits<ck_tile::bf16_t>
+{
+    static constexpr const char* name = "bf16";
+};
 
 namespace ck_tile {
 

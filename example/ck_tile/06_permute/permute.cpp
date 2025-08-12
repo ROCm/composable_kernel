@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "permute.hpp"
 #include "ck_tile/host.hpp"
@@ -128,7 +128,7 @@ auto create_args(int argc, char* argv[])
                 "non-deterministic seed")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "20", "number of iterations to benchmark the kernel")
-        .insert("json", "0", "0: No Json, 1: Dump Results in Json format");
+        .insert("jsonfile", "permute.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -381,6 +381,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 return i_d == i_h;
             });
         std::cout << ", valid:" << (pass ? "y" : "n") << std::flush;
+    }
+
+    if(arg_parser.get_int("json") == 1)
+    {
+        dump_permute_json_results(arg_parser.get_str("jsonfile"), data_type, pass, ave_time, 0, 0);
     }
 
     std::cout << std::endl;

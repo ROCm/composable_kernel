@@ -410,21 +410,21 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(arg_parser.get_int("json") == 1)
     {
-        START_JSON_DUMP_FILE(arg_parser.get_str("jsonfile"));
-        ADD_KEY_VALUE("name", "layernorm2d_fwd");
-        ADD_KEY_VALUE("prec_i", prec_i);
-        ADD_KEY_VALUE("prec_o", prec_o);
-        ADD_KEY_VALUE("prec_sm", prec_sm);
-        ADD_KEY_VALUE("prec_sy", prec_sy);
-        ADD_KEY_VALUE("m", m);
-        ADD_KEY_VALUE("n", n);
-        ADD_KEY_VALUE("x_stride", x_stride);
-        ADD_KEY_VALUE("xr_stride", xr_stride);
-        ADD_KEY_VALUE("y_stride", y_stride);
-        ADD_KEY_VALUE("yr_stride", yr_stride);
-        ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
-        ADD_PERF_TO_JSON(ave_time, 0, gb_per_sec)
-        END_JSON_DUMP_FILE();
+        dump_layernorm2d_fwd_json_results(arg_parser.get_str("jsonfile"),
+                                          prec_i,
+                                          prec_o,
+                                          prec_sm,
+                                          prec_sy,
+                                          m,
+                                          n,
+                                          x_stride,
+                                          xr_stride,
+                                          y_stride,
+                                          yr_stride,
+                                          pass,
+                                          ave_time,
+                                          0,
+                                          gb_per_sec);
     }
     return pass;
 }

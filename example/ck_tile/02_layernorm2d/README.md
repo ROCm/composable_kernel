@@ -65,6 +65,8 @@ args:
      -fquant    fused-quant, 0:no, 1:smooth-dynamic-quant, 2:dynamic-quant (default:0)
      -warmup    cold iter (default:5)
      -repeat    hot iter (default:20)
+       -json    0: No Json, 1: Dump Results in Json format (default:0)
+   -jsonfile    json file name to dump results (default:layernorm2d_fwd.json)
 
 ```
 

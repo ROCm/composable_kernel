@@ -4,10 +4,10 @@
 #include "fmha_fwd.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/ref/naive_attention.hpp"
-#include "json_dump.hpp"
 #include "mask.hpp"
 #include "rotary.hpp"
 #include "utils.hpp"
+#include "json_dump.hpp"
 
 #include <array>
 #include <cstring>
@@ -1599,31 +1599,30 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(arg_parser.get_int("json") == 1)
     {
-        START_JSON_DUMP_FILE(arg_parser.get_str("jsonfile"))
-        ADD_KEY_VALUE("name", "fmha_fwd");
-        ADD_KEY_VALUE("prec", prec);
-        ADD_KEY_VALUE("mode", mode == mode_enum::batch ? "batch" : "group");
-        ADD_KEY_VALUE("io_layout", io_layout(i_perm, o_perm));
-        ADD_KEY_VALUE("batch", batch);
-        ADD_KEY_VALUE("nhead", nhead);
-        ADD_KEY_VALUE("nhead_k", nhead_k);
-        ADD_KEY_VALUE("seqlen_q", seqlen_qs[0]);
-        ADD_KEY_VALUE("seqlen_k", seqlen_ks[0]);
-        ADD_KEY_VALUE("seqlen_kpads", seqlen_kpads[0]);
-        ADD_KEY_VALUE("hdim_q", hdim_q);
-        ADD_KEY_VALUE("hdim_v", hdim_v);
-        ADD_KEY_VALUE("scale_s", scale_s);
-        ADD_KEY_VALUE("p_drop", p_drop);
-        ADD_KEY_VALUE("lse", lse);
-        ADD_KEY_VALUE("squant", squant);
-        ADD_KEY_VALUE("bias",
-                      bias.type == bias_enum::elementwise_bias
-                          ? "elementwise_bias"
-                          : (bias.type == bias_enum::alibi ? "alibi" : "no_bias"));
-        ADD_KEY_VALUE("vlayout", vlayout);
-        ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
-        ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec)
-        END_JSON_DUMP_FILE();
+        dump_fmha_fwd_json_results(arg_parser.get_str("jsonfile"),
+                                   prec,
+                                   mode == mode_enum::batch ? "batch" : "group",
+                                   io_layout(i_perm, o_perm),
+                                   batch,
+                                   nhead,
+                                   nhead_k,
+                                   seqlen_qs[0],
+                                   seqlen_ks[0],
+                                   seqlen_kpads[0],
+                                   hdim_q,
+                                   hdim_v,
+                                   scale_s,
+                                   p_drop,
+                                   lse,
+                                   squant,
+                                   bias.type == bias_enum::elementwise_bias
+                                       ? "elementwise_bias"
+                                       : (bias.type == bias_enum::alibi ? "alibi" : "no_bias"),
+                                   vlayout,
+                                   pass,
+                                   ave_time,
+                                   tflops,
+                                   gb_per_sec);
     }
 
     return pass;

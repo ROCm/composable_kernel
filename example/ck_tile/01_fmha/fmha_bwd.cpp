@@ -3,9 +3,9 @@
 
 #include "fmha_bwd.hpp"
 #include "ck_tile/host.hpp"
-#include "json_dump.hpp"
 #include "mask.hpp"
 #include "utils.hpp"
+#include "json_dump.hpp"
 
 #include <array>
 #include <cstring>
@@ -988,30 +988,27 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(arg_parser.get_int("json") == 1)
     {
-        START_JSON_DUMP_FILE(arg_parser.get_str("jsonfile"));
-        ADD_KEY_VALUE("name", "fmha_bwd");
-        ADD_KEY_VALUE("prec", data_type);
-        ADD_KEY_VALUE("mode", mode == mode_enum::batch ? "batch" : "group");
-        ADD_KEY_VALUE("i_perm", i_perm ? "true" : "false");
-        ADD_KEY_VALUE("o_perm", o_perm ? "true" : "false");
-        ADD_KEY_VALUE("batch", batch);
-        ADD_KEY_VALUE("nhead", nhead);
-        ADD_KEY_VALUE("nhead_k", nhead_k);
-        ADD_KEY_VALUE("seqlen_q", seqlen_q);
-        ADD_KEY_VALUE("seqlen_k", seqlen_k);
-        ADD_KEY_VALUE("hdim_q", hdim_q);
-        ADD_KEY_VALUE("hdim_v", hdim_v);
-        ADD_KEY_VALUE("scale", scale);
-        ADD_KEY_VALUE("bias",
-                      bias.type == bias_enum::elementwise_bias
-                          ? "elementwise_bias"
-                          : (bias.type == bias_enum::alibi ? "alibi" : "no_bias"));
-        ADD_KEY_VALUE("use_dbias", use_dbias ? "true" : "false");
-        ADD_KEY_VALUE("p_drop", p_drop);
-        ADD_KEY_VALUE("s_randval", s_randval ? "true" : "false");
-        ADD_KEY_VALUE("deterministic", deterministic ? "true" : "false");
-        ADD_KEY_VALUE(
-            "mask",
+        dump_fmha_bwd_json_results(
+            arg_parser.get_str("jsonfile"),
+            data_type,
+            mode == mode_enum::batch ? "batch" : "group",
+            i_perm ? "true" : "false",
+            o_perm ? "true" : "false",
+            batch,
+            nhead,
+            nhead_k,
+            seqlen_q,
+            seqlen_k,
+            hdim_q,
+            hdim_v,
+            scale,
+            bias.type == bias_enum::elementwise_bias
+                ? "elementwise_bias"
+                : (bias.type == bias_enum::alibi ? "alibi" : "no_bias"),
+            use_dbias ? "true" : "false",
+            p_drop,
+            s_randval,
+            deterministic,
             mask.type == mask_enum::no_mask
                 ? "no_mask"
                 : (mask.type == mask_enum::window_generic
@@ -1019,16 +1016,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
                        : (mask.type == mask_enum::mask_top_left
                               ? "mask_top_left"
                               : (mask.type == mask_enum::mask_bottom_right ? "mask_bottom_right"
-                                                                           : "mask_generic"))));
-        ADD_KEY_VALUE("mask_left", mask.left);
-        ADD_KEY_VALUE("mask_right", mask.right);
-        ADD_KEY_VALUE("workspace_size", workspace_size);
-        ADD_KEY_VALUE("deterministic", deterministic ? "true" : "false");
-        ADD_KEY_VALUE("i_perm", i_perm ? "true" : "false");
-        ADD_KEY_VALUE("o_perm", o_perm ? "true" : "false");
-        ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
-        ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec)
-        END_JSON_DUMP_FILE();
+                                                                           : "mask_generic"))),
+            mask.left,
+            mask.right,
+            workspace_size,
+            pass,
+            ave_time,
+            tflops,
+            gb_per_sec);
     }
     return pass;
 }

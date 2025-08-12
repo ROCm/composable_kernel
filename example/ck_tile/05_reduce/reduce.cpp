@@ -11,7 +11,8 @@ auto create_args(int argc, char* argv[])
         .insert("prec", "fp16", "precision")
         .insert("warmup", "5", "cold iter")
         .insert("repeat", "20", "hot iter")
-        .insert("json", "0", "0: No Json, 1: Dump Results in Json format");
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "reduce.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -92,6 +93,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
         pass = ck_tile::check_err(y_host_dev, y_host_ref);
 
         std::cout << "valid:" << (pass ? "y" : "n") << std::flush << std::endl;
+    }
+
+    if(arg_parser.get_int("json") == 1)
+    {
+        dump_reduce_json_results<DataType, DataTypeTraits>(
+            arg_parser.get_str("jsonfile"), m, n, pass, ave_time, 0, gb_per_sec);
     }
 
     return pass;

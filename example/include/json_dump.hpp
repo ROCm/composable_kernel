@@ -4,6 +4,7 @@
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/document.h"
 #include "rapidjson/rapidjson.h"
+// #include <fstream>
 #pragma GCC diagnostic pop
 
 #define START_JSON_DUMP_FILE(file_name)                                             \
@@ -22,7 +23,7 @@
     file.close();
 
 #define ADD_KEY_VALUE(key, value) add_key_value_pair(writer, key, value);
-#define ADD_PERF_TO_JSON(_time, gflops, gbytes) add_perf_to_json(writer, _time, gflops, gbytes);
+#define ADD_PERF_TO_JSON(_time, tflops, gbytes) add_perf_to_json(writer, _time, tflops, gbytes);
 
 template <typename T>
 void add_key_value_pair(rapidjson::Writer<rapidjson::StringBuffer>& writer,
@@ -56,7 +57,7 @@ void add_key_value_pair(rapidjson::Writer<rapidjson::StringBuffer>& writer,
 
 static void add_perf_to_json(rapidjson::Writer<rapidjson::StringBuffer>& writer,
                              float time,
-                             float gflops,
+                             float tflops,
                              float gbytes)
 {
     std::string roster("perf");
@@ -66,7 +67,7 @@ static void add_perf_to_json(rapidjson::Writer<rapidjson::StringBuffer>& writer,
     writer.StartObject();
 
     add_key_value_pair(writer, "time", time);
-    add_key_value_pair(writer, "gflops", gflops);
+    add_key_value_pair(writer, "tflops", tflops);
     add_key_value_pair(writer, "gbytes", gbytes);
 
     writer.EndObject();
@@ -173,6 +174,318 @@ void dump_grouped_gemm_json_results(const std::string& json_filename,
     ADD_KEY_VALUE("A_layout", ALayout::name);
     ADD_KEY_VALUE("B_layout", BLayout::name);
     ADD_KEY_VALUE("C_layout", CLayout::name);
+    ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
+    ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec)
+    END_JSON_DUMP_FILE();
+}
+
+void dump_layernorm2d_fwd_json_results(const std::string& json_filename,
+                                       const std::string& prec_i,
+                                       const std::string& prec_o,
+                                       const std::string& prec_sm,
+                                       const std::string& prec_sy,
+                                       int m,
+                                       int n,
+                                       int x_stride,
+                                       int xr_stride,
+                                       int y_stride,
+                                       int yr_stride,
+                                       bool pass,
+                                       float ave_time,
+                                       float tflops,
+                                       float gb_per_sec,
+                                       const std::string& kernel_name = "layernorm2d_fwd")
+{
+    START_JSON_DUMP_FILE(json_filename);
+    ADD_KEY_VALUE("name", kernel_name);
+    ADD_KEY_VALUE("prec_i", prec_i);
+    ADD_KEY_VALUE("prec_o", prec_o);
+    ADD_KEY_VALUE("prec_sm", prec_sm);
+    ADD_KEY_VALUE("prec_sy", prec_sy);
+    ADD_KEY_VALUE("m", m);
+    ADD_KEY_VALUE("n", n);
+    ADD_KEY_VALUE("x_stride", x_stride);
+    ADD_KEY_VALUE("xr_stride", xr_stride);
+    ADD_KEY_VALUE("y_stride", y_stride);
+    ADD_KEY_VALUE("yr_stride", yr_stride);
+    ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
+    ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec)
+    END_JSON_DUMP_FILE();
+}
+
+template <typename DataType, template <typename> typename DTypeTraits>
+void dump_reduce_json_results(const std::string& json_filename,
+                              int m,
+                              int n,
+                              bool pass,
+                              float ave_time,
+                              float tflops,
+                              float gb_per_sec,
+                              const std::string& kernel_name = "reduce")
+{
+    START_JSON_DUMP_FILE(json_filename);
+    ADD_KEY_VALUE("name", kernel_name);
+    using Traits = DTypeTraits<DataType>;
+    ADD_KEY_VALUE("data_type", Traits::name);
+    ADD_KEY_VALUE("m", m);
+    ADD_KEY_VALUE("n", n);
+    ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
+    ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec)
+    END_JSON_DUMP_FILE();
+}
+
+void dump_permute_json_results(const std::string& json_filename,
+                               const std::string& data_type,
+                               bool pass,
+                               float ave_time,
+                               float tflop,
+                               float gb_per_sec,
+                               const std::string& kernel_name = "permute")
+{
+    START_JSON_DUMP_FILE(json_filename);
+    ADD_KEY_VALUE("name", kernel_name);
+    ADD_KEY_VALUE("data_type", data_type);
+    ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
+    ADD_PERF_TO_JSON(ave_time, tflop, gb_per_sec)
+    END_JSON_DUMP_FILE();
+}
+
+void dump_topk_softmax_json(const std::string& json_filename,
+                            const std::string& input_prec,
+                            const std::string& weight_prec,
+                            int tokens,
+                            int experts,
+                            int topk,
+                            int stride_input,
+                            int stride_output,
+                            float ave_time,
+                            float tflop,
+                            float gb_per_sec,
+                            bool pass,
+                            const std::string& kernel_name = "topk_softmax")
+{
+    START_JSON_DUMP_FILE(json_filename);
+    ADD_KEY_VALUE("name", kernel_name);
+    ADD_KEY_VALUE("input_prec", input_prec);
+    ADD_KEY_VALUE("weight_prec", weight_prec);
+    ADD_KEY_VALUE("tokens", tokens);
+    ADD_KEY_VALUE("experts", experts);
+    ADD_KEY_VALUE("topk", topk);
+    ADD_KEY_VALUE("stride_input", stride_input);
+    ADD_KEY_VALUE("stride_output", stride_output);
+    ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
+    ADD_PERF_TO_JSON(ave_time, tflop, gb_per_sec);
+    END_JSON_DUMP_FILE();
+}
+
+void dump_rmsnorm2d_fwd_json(const std::string& json_filename,
+                             const std::string& prec_str,
+                             int m,
+                             int n,
+                             int x_stride,
+                             int xr_stride,
+                             int y_stride,
+                             int yr_stride,
+                             int use_model_sensitive_rmsnorm,
+                             float ave_time,
+                             float tflops,
+                             float gb_per_sec,
+                             bool pass,
+                             const std::string& kernel_name = "rmsnorm2d_fwd")
+{
+    START_JSON_DUMP_FILE(json_filename);
+    ADD_KEY_VALUE("name", kernel_name);
+    ADD_KEY_VALUE("prec", prec_str);
+    ADD_KEY_VALUE("m", m);
+    ADD_KEY_VALUE("n", n);
+    ADD_KEY_VALUE("x_stride", x_stride);
+    ADD_KEY_VALUE("xr_stride", xr_stride);
+    ADD_KEY_VALUE("y_stride", y_stride);
+    ADD_KEY_VALUE("yr_stride", yr_stride);
+    ADD_KEY_VALUE("use_model_sensitive_rmsnorm", use_model_sensitive_rmsnorm);
+    ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
+    ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec);
+    END_JSON_DUMP_FILE();
+}
+
+void dump_add_rmsnorm2d_rdquant_fwd_json(
+    const std::string& json_filename,
+    const std::string& input_data_type,
+    const std::string& quantized_data_type,
+    int m,
+    int n,
+    int stride,
+    float epsilon,
+    float ave_time,
+    float tflops,
+    float gb_per_sec,
+    bool pass,
+    const std::string& kernel_name = "add_rmsnorm2d_rdquant_fwd")
+{
+    START_JSON_DUMP_FILE(json_filename);
+    ADD_KEY_VALUE("name", kernel_name);
+    ADD_KEY_VALUE("input_data_type", input_data_type);
+    ADD_KEY_VALUE("quantized_data_type", quantized_data_type);
+    ADD_KEY_VALUE("m", m);
+    ADD_KEY_VALUE("n", n);
+    ADD_KEY_VALUE("stride", stride);
+    ADD_KEY_VALUE("epsilon", epsilon);
+    ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
+    ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec);
+    END_JSON_DUMP_FILE();
+}
+
+void dump_smoothquant_json(const std::string& json_filename,
+                           const std::string& prec_str,
+                           int m,
+                           int n,
+                           int x_stride,
+                           int y_stride,
+                           float ave_time,
+                           float tflops,
+                           float gb_per_sec,
+                           bool pass,
+                           const std::string& kernel_name = "smoothquant")
+{
+    START_JSON_DUMP_FILE(json_filename);
+    ADD_KEY_VALUE("name", kernel_name);
+    ADD_KEY_VALUE("prec", prec_str);
+    ADD_KEY_VALUE("m", m);
+    ADD_KEY_VALUE("n", n);
+    ADD_KEY_VALUE("x_stride", x_stride);
+    ADD_KEY_VALUE("y_stride", y_stride);
+    ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
+    ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec);
+    END_JSON_DUMP_FILE();
+}
+
+void dump_moe_sorting_json(const std::string& json_filename,
+                           const std::string& index_prec,
+                           const std::string& weight_prec,
+                           const std::string& workspace_size,
+                           int dispatch_policy,
+                           int tokens,
+                           int num_experts,
+                           int topk,
+                           float ave_time,
+                           float tflops,
+                           float gb_per_sec,
+                           bool pass,
+                           const std::string& kernel_name = "moe_sorting")
+{
+    START_JSON_DUMP_FILE(json_filename);
+    ADD_KEY_VALUE("name", kernel_name);
+    ADD_KEY_VALUE("index_prec", index_prec);
+    ADD_KEY_VALUE("weight_prec", weight_prec);
+    ADD_KEY_VALUE("workspace_size", workspace_size);
+    ADD_KEY_VALUE("dispatch_policy", dispatch_policy);
+    ADD_KEY_VALUE("tokens", tokens);
+    ADD_KEY_VALUE("num_experts", num_experts);
+    ADD_KEY_VALUE("topk", topk);
+    ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
+    ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec)
+    END_JSON_DUMP_FILE();
+}
+
+void dump_fmha_fwd_json_results(const std::string& json_filename,
+                                const std::string& prec,
+                                const std::string& mode,
+                                const std::string& io_layout,
+                                int batch,
+                                int nhead,
+                                int nhead_k,
+                                int seqlen_qs,
+                                int seqlen_ks,
+                                int seqlen_kpads,
+                                int hdim_q,
+                                int hdim_v,
+                                float scale_s,
+                                float p_drop,
+                                bool lse,
+                                bool squant,
+                                const std::string& bais,
+                                const std::string& vlayout,
+                                bool pass,
+                                float ave_time,
+                                float tflops,
+                                float gb_per_sec,
+                                const std::string& kernel_name = "fmha_fwd")
+{
+    START_JSON_DUMP_FILE(json_filename);
+    ADD_KEY_VALUE("name", kernel_name);
+    ADD_KEY_VALUE("prec", prec);
+    ADD_KEY_VALUE("mode", mode);
+    ADD_KEY_VALUE("io_layout", io_layout);
+    ADD_KEY_VALUE("batch", batch);
+    ADD_KEY_VALUE("nhead", nhead);
+    ADD_KEY_VALUE("nhead_k", nhead_k);
+    ADD_KEY_VALUE("seqlen_q", seqlen_qs);
+    ADD_KEY_VALUE("seqlen_k", seqlen_ks);
+    ADD_KEY_VALUE("seqlen_kpads", seqlen_kpads);
+    ADD_KEY_VALUE("hdim_q", hdim_q);
+    ADD_KEY_VALUE("hdim_v", hdim_v);
+    ADD_KEY_VALUE("scale_s", scale_s);
+    ADD_KEY_VALUE("p_drop", p_drop);
+    ADD_KEY_VALUE("lse", lse);
+    ADD_KEY_VALUE("squant", squant);
+    ADD_KEY_VALUE("bias", bais);
+    ADD_KEY_VALUE("vlayout", vlayout);
+    ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
+    ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec)
+    END_JSON_DUMP_FILE();
+}
+
+void dump_fmha_bwd_json_results(const std::string& json_filename,
+                                const std::string& data_type,
+                                const std::string& mode,
+                                const std::string& i_perm,
+                                const std::string& o_perm,
+                                int batch,
+                                int nhead,
+                                int nhead_k,
+                                int seqlen_q,
+                                int seqlen_k,
+                                int hdim_q,
+                                int hdim_v,
+                                float scale,
+                                const std::string& bias,
+                                bool use_dbias,
+                                float p_drop,
+                                bool s_randval,
+                                bool deterministic,
+                                const std::string& mask,
+                                int mask_left,
+                                int mask_right,
+                                int workspace_size,
+                                bool pass,
+                                float ave_time,
+                                float tflops,
+                                float gb_per_sec,
+                                const std::string& kernel_name = "fmha_bwd")
+{
+    START_JSON_DUMP_FILE(json_filename);
+    ADD_KEY_VALUE("name", kernel_name);
+    ADD_KEY_VALUE("prec", data_type);
+    ADD_KEY_VALUE("mode", mode);
+    ADD_KEY_VALUE("i_perm", i_perm);
+    ADD_KEY_VALUE("o_perm", o_perm);
+    ADD_KEY_VALUE("batch", batch);
+    ADD_KEY_VALUE("nhead", nhead);
+    ADD_KEY_VALUE("nhead_k", nhead_k);
+    ADD_KEY_VALUE("seqlen_q", seqlen_q);
+    ADD_KEY_VALUE("seqlen_k", seqlen_k);
+    ADD_KEY_VALUE("hdim_q", hdim_q);
+    ADD_KEY_VALUE("hdim_v", hdim_v);
+    ADD_KEY_VALUE("scale", scale);
+    ADD_KEY_VALUE("bias", bias);
+    ADD_KEY_VALUE("use_dbias", use_dbias);
+    ADD_KEY_VALUE("p_drop", p_drop);
+    ADD_KEY_VALUE("s_randval", s_randval);
+    ADD_KEY_VALUE("deterministic", deterministic ? "true" : "false");
+    ADD_KEY_VALUE("mask", mask);
+    ADD_KEY_VALUE("mask_left", mask_left);
+    ADD_KEY_VALUE("mask_right", mask_right);
+    ADD_KEY_VALUE("workspace_size", workspace_size);
     ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
     ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec)
     END_JSON_DUMP_FILE();
