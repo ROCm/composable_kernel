@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 
 namespace ck_tile {
 
@@ -13,7 +14,8 @@ template <typename ADataType_,
           typename CDataType_,
           index_t kBlockSize_,
           typename BlockGemmShape_,
-          index_t NumWaveGroups_ = 1>
+          GemmLoopOrder BlockGemmLoopOrder_ = GemmLoopOrder::KMN,
+          index_t NumWaveGroups_            = 1>
 struct BlockGemmProblem
 {
     using ADataType      = remove_cvref_t<ADataType_>;
@@ -21,8 +23,9 @@ struct BlockGemmProblem
     using CDataType      = remove_cvref_t<CDataType_>;
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
-    static constexpr index_t kBlockSize    = kBlockSize_;
-    static constexpr index_t NumWaveGroups = NumWaveGroups_;
+    static constexpr index_t kBlockSize               = kBlockSize_;
+    static constexpr index_t NumWaveGroups            = NumWaveGroups_;
+    static constexpr GemmLoopOrder BlockGemmLoopOrder = BlockGemmLoopOrder_;
 };
 
 } // namespace ck_tile
