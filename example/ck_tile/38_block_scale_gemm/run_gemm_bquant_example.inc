@@ -239,6 +239,10 @@ int run_gemm_example_with_layouts(int argc,
         // shuffled buffer B for device implementation
         b_k_n_dev_buf.ToDevice(b_shuffle_host.data());
     }
+    else
+    {
+        b_k_n_dev_buf.ToDevice(b_k_n.data());
+    }
     a_m_k_dev_buf.ToDevice(a_m_k.data());
     bq_bqk_n_dev_buf.ToDevice(bq_bqk_n.data());
     c_m_n_dev_buf.SetZero();
