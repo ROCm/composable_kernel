@@ -5,15 +5,15 @@
 set -e  # Exit on error
 
 # Check if target files already exist
-if [ -f "conv_test_set_2d_dataset.csv" ] && [ -f "conv_test_set_3d_dataset.csv" ]; then
-    echo "Target files already exist:"
-    [ -f "conv_test_set_2d_dataset.csv" ] && echo "  - conv_test_set_2d_dataset.csv ($(wc -l < conv_test_set_2d_dataset.csv) lines)"
-    [ -f "conv_test_set_3d_dataset.csv" ] && echo "  - conv_test_set_3d_dataset.csv ($(wc -l < conv_test_set_3d_dataset.csv) lines)"
-    echo ""
-    echo "To regenerate, please remove these files first:"
-    echo "  rm conv_test_set_2d_dataset.csv conv_test_set_3d_dataset.csv"
-    exit 0
-fi
+# if [ -f "conv_test_set_2d_dataset.csv" ] && [ -f "conv_test_set_3d_dataset.csv" ]; then
+#     echo "Target files already exist:"
+#     [ -f "conv_test_set_2d_dataset.csv" ] && echo "  - conv_test_set_2d_dataset.csv ($(wc -l < conv_test_set_2d_dataset.csv) lines)"
+#     [ -f "conv_test_set_3d_dataset.csv" ] && echo "  - conv_test_set_3d_dataset.csv ($(wc -l < conv_test_set_3d_dataset.csv) lines)"
+#     echo ""
+#     echo "To regenerate, please remove these files first:"
+#     echo "  rm conv_test_set_2d_dataset.csv conv_test_set_3d_dataset.csv"
+#     exit 0
+# fi
 
 echo "=========================================="
 echo "CK Convolution Test Dataset Generator"
@@ -22,7 +22,7 @@ echo "=========================================="
 # Configuration
 OUTPUT_DIR="generated_datasets"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-MAX_ITERATIONS=10  # Maximum number of iterations per model type (set to 0 for unlimited)
+MAX_ITERATIONS=0  # Maximum number of iterations per model type (set to 0 for unlimited)
 
 # Colors
 RED='\033[0;31m'
