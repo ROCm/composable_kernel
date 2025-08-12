@@ -138,7 +138,10 @@ struct ThreadwiseTensorSliceTransfer_v1r3
                 } packed_value;
 
                 packed_value.src_float = src_buf[Number<src_offset>{}];
-                dst_vector.template AsType<DstData>()(I0) = packed_value.src_bf16x2[pair_index.value];
+
+                DstData v;
+                element_op_(v, packed_value.src_bf16x2[pair_index.value]);
+                dst_vector.template AsType<DstData>()(I0) = v;
 
                 const bool is_dst_valid =
                     coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
