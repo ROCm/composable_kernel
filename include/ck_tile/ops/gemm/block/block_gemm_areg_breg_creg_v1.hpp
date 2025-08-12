@@ -258,14 +258,14 @@ struct BlockGemmARegBRegCRegV1
                     // read A warp tensor from A Block window
                     AWarpTensor a_warp_tensor;
                     a_warp_tensor.get_thread_buffer() = a_block_tensor.get_y_sliced_thread_data(
-                        merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                        merge_sequences(sequence<kIter, mIter>{}, a_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
 
                     static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                         // read B warp tensor from B block tensor
                         BWarpTensor b_warp_tensor;
                         b_warp_tensor.get_thread_buffer() = b_block_tensor.get_y_sliced_thread_data(
-                            merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
+                            merge_sequences(sequence<kIter, nIter>{}, b_warp_y_index_zeros),
                             merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
 
                         // read C warp tensor from C block tensor
