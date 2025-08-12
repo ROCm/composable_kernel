@@ -42,7 +42,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
                                    bool do_log,
                                    bool time_kernel,
                                    const ck::utils::conv::ConvParam& conv_param,
-                                   ck::index_t split_k,
+                                   ck::index_t split_k               = 1,
                                    const OutElementOp out_element_op = OutElementOp{})
 {
     using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
