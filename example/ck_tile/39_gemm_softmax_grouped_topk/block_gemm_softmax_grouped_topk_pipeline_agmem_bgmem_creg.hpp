@@ -11,6 +11,8 @@
 #include "ck_tile/ops/reduce.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
+#include <random>
+#include <cmath>
 
 namespace ck_tile {
 
@@ -474,14 +476,31 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
         
         // apply topk for softmax output
         auto x_tmp = p_compute;
-        // constexpr auto dst_dist = BlockGemmPipelineAGmemBGmemCRegDefaultPolicy::MakeOutputDistribution();
+        // // initialize x_tmp for topk debug
+        // printf("===============on device debug input=====================\n");
+        // std::mt19937 rng(123); 
+        // std::uniform_int_distribution<int> dist_debug_input(1, 100);
+
+        constexpr auto x_tmp_spans = decltype(x_tmp)::get_distributed_spans();
+        sweep_tile_span(x_tmp_spans[number<0>{}], [&](auto idx0) {
+            sweep_tile_span(x_tmp_spans[number<1>{}], [&](auto idx1) {
+                const auto tile_idx = get_x_indices_from_distributed_indices(
+                    x_tmp.get_tile_distribution(), make_tuple(idx0, idx1));
+                auto row_id = tile_idx.at(number<0>{});
+                auto col_id = tile_idx.at(number<1>{});
+                constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                x_tmp(i_j_idx) = sin(float(row_id + col_id)) * 100;
+                // x_tmp(i_j_idx) = sin(float(row_id)) * cos(float(col_id));
+                // x_tmp(i_j_idx) = float(dist_debug_input(rng));
+            });
+        });
 
         // argmax for topk
         const auto f_argmax = [](ArgmaxPacket e0, ArgmaxPacket e1) {
             return e0.value > e1.value ? e0 : e1;
         };
 
-        for(index_t i_k = 0; i_k < 1; i_k++)
+        for(index_t i_k = 0; i_k < topk; i_k++)
         {
             constexpr auto p_compute_spans = decltype(p_compute)::get_distributed_spans();
             auto packet            = [&]() {
@@ -516,8 +535,12 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
                     auto col_id = tile_idx.at(number<1>{});
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
                     ArgmaxPacket tmp       = r(i_idx);
-                    // debug_block_tile(i_j_idx)                = (col_id == i_k) ? tmp.value: 0;
-                    debug_block_tile(i_j_idx)                = (col_id == i_k) ? tmp.arg: 0;
+                    // if (col_id == i_k) {
+                    //     // debug_block_tile(i_j_idx) = tmp.value;
+                    //     debug_block_tile(i_j_idx) = tmp.arg;
+                    // }
+                    debug_block_tile(i_j_idx)                = (col_id == i_k) ? tmp.value: debug_block_tile(i_j_idx);
+                    // debug_block_tile(i_j_idx)                = (col_id == i_k) ? tmp.arg: debug_block_tile(i_j_idx);
                     // value_block_tile(i_j_idx)             = tmp.value;
                     // index_block_tile(i_j_idx)             = tmp.arg;
                 });
@@ -538,6 +561,7 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
             });
         }
         return debug_block_tile;
+        // return x_tmp;
     }
 };
 

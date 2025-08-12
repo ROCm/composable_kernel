@@ -8,6 +8,7 @@
 #include "gemm_softmax_grouped_topk.hpp"
 #include "reference_gemm_softmax_grouped_topk.hpp"
 #include <random>
+#include <cmath>
 
 /*
  * Toy code of GEMM
@@ -68,6 +69,7 @@ int main(int argc, char* argv[])
     using AccDataType = float;
     using CDataType   = ck_tile::half_t;
     using WeightType  = float;
+    using DebugType   = float;
     using IndexType   = ck_tile::index_t;
 
     ck_tile::index_t verification = 0;
@@ -152,12 +154,30 @@ int main(int argc, char* argv[])
     // host verify
     ck_tile::HostTensor<ADataType> a_host(a_lengths, a_strides);
     ck_tile::HostTensor<BDataType> b_host(b_lengths, b_strides);
-    ck_tile::HostTensor<WeightType> debug_host_dev(debug_lengths, debug_strides);
     ck_tile::HostTensor<WeightType> value_host_dev(out_lengths, out_strides);
     ck_tile::HostTensor<IndexType> index_host_dev(out_lengths, out_strides);
 
     ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_host);
     ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_host);
+
+    ck_tile::HostTensor<WeightType> debug_host_input(debug_lengths, debug_strides);
+    ck_tile::HostTensor<DebugType> debug_host_dev(debug_lengths, debug_strides);
+
+    // std::random_device rd;
+    // std::mt19937 gen(rd());
+    // std::uniform_real_distribution<> dist_b(0.01f, 0.05f);
+    printf("===============debug input=====================\n");
+    // std::mt19937 rng(123);
+    // std::uniform_int_distribution<int> dist_debug_input(1, 100);
+    for(int m = 0; m < M; ++m) {
+        printf("m: %d   ", m);
+        for(int n = 0; n < N; ++n) {
+            // debug_host_input(m, n) = float(dist_debug_input(rng));
+            debug_host_input(m, n) = sin(float(m + n)) * 100;
+            printf("[%d]:%.4f ", n, debug_host_input(m, n));
+        }
+        printf("/n");
+    }
 
     // std::random_device rd;
     // std::mt19937 gen(rd());
@@ -241,7 +261,7 @@ int main(int argc, char* argv[])
                                                 0,
                                                 static_cast<ADataType*>(a_buf.GetDeviceBuffer()),
                                                 static_cast<BDataType*>(b_buf.GetDeviceBuffer()),
-                                                static_cast<WeightType*>(debug_buf.GetDeviceBuffer()),
+                                                static_cast<DebugType*>(debug_buf.GetDeviceBuffer()),
                                                 static_cast<WeightType*>(value_buf.GetDeviceBuffer()),
                                                 static_cast<IndexType*>(index_buf.GetDeviceBuffer()),
                                                 M,
@@ -256,12 +276,13 @@ int main(int argc, char* argv[])
     bool rtn = true;
     if(verification)
     {
-        ck_tile::HostTensor<WeightType> debug_ref({M, N}, {N, 1});
+        ck_tile::HostTensor<DebugType> debug_ref({M, N}, {N, 1});
         ck_tile::HostTensor<WeightType> value_ref(out_lengths, out_strides);
         ck_tile::HostTensor<IndexType> index_ref(out_lengths, out_strides);
+        reference_topk(debug_host_input, value_ref, index_ref, topk);
         // reference_basic_gemm_softmax_grouped_topk<ADataType, ADataType, AccDataType, WeightType, IndexType>(
         //     a_host, b_host, value_ref, index_ref, topk);
-        debug_ref = reference_basic_gemm_softmax<ADataType, ADataType, AccDataType>(a_host, b_host);
+        // debug_ref = reference_basic_gemm_softmax<ADataType, ADataType, AccDataType>(a_host, b_host);
         debug_buf.FromDevice(debug_host_dev.mData.data());
         value_buf.FromDevice(value_host_dev.mData.data());
         index_buf.FromDevice(index_host_dev.mData.data());
@@ -282,7 +303,7 @@ int main(int argc, char* argv[])
             auto s_end =
                 std::vector<size_t>{static_cast<size_t>(i_t + 1), static_cast<size_t>(topk)};
             auto s_debug_host = debug_host_dev.slice(s_begin, s_end);
-            auto s_debug_ref  = debug_ref.slice(s_begin, s_end);
+            auto s_debug_ref  = value_ref.slice(s_begin, s_end);
             rtn &= ck_tile::check_err(s_debug_host,
                                       s_debug_ref,
                                       std::string("[") + std::to_string(i_t) +
@@ -293,14 +314,14 @@ int main(int argc, char* argv[])
             for(std::size_t i = 0; i < s_debug_ref.size(); ++i) {
                 // const double o = *std::next(std::begin(s_debug_host), i);
                 const double r = *std::next(std::begin(s_debug_ref), i);
-                printf("ref[%zu]:%f ", i, r);
+                printf("ref[%zu]:%.4f ", i, r);
                 // std::cout << i_t << " out[" << i << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
             }
             printf("\n");
             for(std::size_t i = 0; i < s_debug_ref.size(); ++i) {
                 const double o = *std::next(std::begin(s_debug_host), i);
                 // const double r = *std::next(std::begin(s_debug_ref), i);
-                printf("out[%zu]:%f ", i, o);
+                printf("out[%zu]:%.4f ", i, o);
                 // std::cout << i_t << " out[" << i << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
             }
             printf("\n");
