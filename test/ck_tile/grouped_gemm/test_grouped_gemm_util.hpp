@@ -82,11 +82,11 @@ class TestCkTileGroupedGemm : public ::testing::Test
             GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
         using Traits              = ck_tile::TileGemmTraits<GroupedGemKernelParam::kPadM,
-                                               GroupedGemKernelParam::kPadN,
-                                               GroupedGemKernelParam::kPadK,
-                                               ALayout,
-                                               BLayout,
-                                               CLayout>;
+                                                            GroupedGemKernelParam::kPadN,
+                                                            GroupedGemKernelParam::kPadK,
+                                                            ALayout,
+                                                            BLayout,
+                                                            CLayout>;
         using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GroupedGemKernelParam::kPadM,
                                                                      GroupedGemKernelParam::kPadN,
                                                                      GroupedGemKernelParam::kPadK,
@@ -161,10 +161,10 @@ class TestCkTileGroupedGemm : public ::testing::Test
 
             if(s.log_level_ > 0)
             {
-                std::cout << "Launching kernel: " << Kernel::GetName() << " with args:"
-                          << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                          << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
-                          << "}" << std::endl;
+                std::cout << "Launching kernel: " << Kernel::GetName()
+                          << " with args:" << " grid: {" << grids.x << ", " << grids.y << ", "
+                          << grids.z << "}" << ", blocks: {" << blocks.x << ", " << blocks.y << ", "
+                          << blocks.z << "}" << std::endl;
             }
 
             ave_time = ck_tile::launch_kernel(
@@ -284,10 +284,10 @@ class TestCkTileGroupedGemm : public ::testing::Test
 
             if(s.log_level_ > 0)
             {
-                std::cout << "Launching kernel: " << Kernel::GetName() << " with args:"
-                          << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                          << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
-                          << "}" << std::endl;
+                std::cout << "Launching kernel: " << Kernel::GetName()
+                          << " with args:" << " grid: {" << grids.x << ", " << grids.y << ", "
+                          << grids.z << "}" << ", blocks: {" << blocks.x << ", " << blocks.y << ", "
+                          << blocks.z << "}" << std::endl;
             }
 
             ck_tile::launch_kernel(s,
@@ -412,8 +412,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
             c_m_n_tensors.push_back(ck_tile::HostTensor<CDataType>(
                 f_host_tensor_descriptor(M, N, stride_Cs[i], CLayout{})));
 
-            std::cout << "gemm[" << i << "]"
-                      << " a_m_k: " << a_m_k_tensors[i].mDesc
+            std::cout << "gemm[" << i << "]" << " a_m_k: " << a_m_k_tensors[i].mDesc
                       << " b_k_n: " << b_k_n_tensors[i].mDesc
                       << " c_m_n: " << c_m_n_tensors[i].mDesc << " KBatch: " << kbatch << std::endl;
 

@@ -64,7 +64,7 @@ struct FillUniformDistribution
                         return;
                     // need to make each thread unique, add an offset to current seed
                     std::mt19937 gen(seed_.has_value() ? (*seed_ + iw_begin)
-                                                              : std::random_device{}());
+                                                       : std::random_device{}());
                     std::uniform_real_distribution<float> dis(a_, b_);
                     std::generate(first + iw_begin, first + iw_end, [&dis, &gen]() {
                         return ck_tile::type_convert<T>(dis(gen));
@@ -242,7 +242,7 @@ struct FillNormalDistribution
                         return;
                     // need to make each thread unique, add an offset to current seed
                     std::mt19937 gen(seed_.has_value() ? (*seed_ + iw_begin)
-                                                              : std::random_device{}());
+                                                       : std::random_device{}());
                     std::normal_distribution<float> dis(mean_, std::sqrt(variance_));
                     std::generate(first + iw_begin, first + iw_end, [&dis, &gen]() {
                         return ck_tile::type_convert<T>(dis(gen));
@@ -407,9 +407,10 @@ struct FillStepRange
     }
 
     template <typename ForwardRange>
-    auto operator()(ForwardRange&& range) const -> std::void_t<
-        decltype(std::declval<const FillStepRange&>()(std::begin(std::forward<ForwardRange>(range)),
-                                                      std::end(std::forward<ForwardRange>(range))))>
+    auto operator()(ForwardRange&& range) const
+        -> std::void_t<decltype(std::declval<const FillStepRange&>()(
+            std::begin(std::forward<ForwardRange>(range)),
+            std::end(std::forward<ForwardRange>(range))))>
     {
         (*this)(std::begin(std::forward<ForwardRange>(range)),
                 std::end(std::forward<ForwardRange>(range)));
@@ -428,9 +429,10 @@ struct FillConstant
     }
 
     template <typename ForwardRange>
-    auto operator()(ForwardRange&& range) const -> std::void_t<
-        decltype(std::declval<const FillConstant&>()(std::begin(std::forward<ForwardRange>(range)),
-                                                     std::end(std::forward<ForwardRange>(range))))>
+    auto operator()(ForwardRange&& range) const
+        -> std::void_t<decltype(std::declval<const FillConstant&>()(
+            std::begin(std::forward<ForwardRange>(range)),
+            std::end(std::forward<ForwardRange>(range))))>
     {
         (*this)(std::begin(std::forward<ForwardRange>(range)),
                 std::end(std::forward<ForwardRange>(range)));
@@ -512,9 +514,10 @@ struct FillTrigValue
     }
 
     template <typename ForwardRange>
-    auto operator()(ForwardRange&& range) const -> std::void_t<
-        decltype(std::declval<const FillTrigValue&>()(std::begin(std::forward<ForwardRange>(range)),
-                                                      std::end(std::forward<ForwardRange>(range))))>
+    auto operator()(ForwardRange&& range) const
+        -> std::void_t<decltype(std::declval<const FillTrigValue&>()(
+            std::begin(std::forward<ForwardRange>(range)),
+            std::end(std::forward<ForwardRange>(range))))>
     {
         (*this)(std::begin(std::forward<ForwardRange>(range)),
                 std::end(std::forward<ForwardRange>(range)));

@@ -64,6 +64,7 @@ CK_TILE_TYPE_CONVERT(bf8_t, bf8, float, float)
 
 CK_TILE_TYPE_CONVERT(float, float, int8_t, int8)
 CK_TILE_TYPE_CONVERT(int8_t, int8, float, float)
+#undef CK_TILE_TYPE_CONVERT
 
 } // namespace ck_tile
 
@@ -71,16 +72,36 @@ CK_TILE_TYPE_CONVERT(int8_t, int8, float, float)
 
 namespace ck_tile {
 
-CK_TILE_TYPE_CONVERT(pk_fp4_t, pk_fp4, fp32x2_t, fp32x2)
-CK_TILE_TYPE_CONVERT(fp32x2_t, fp32x2, pk_fp4_t, pk_fp4)
-CK_TILE_TYPE_CONVERT(pk_fp4_t, pk_fp4, fp16x2_t, fp16x2)
-CK_TILE_TYPE_CONVERT(fp16x2_t, fp16x2, pk_fp4_t, pk_fp4)
-CK_TILE_TYPE_CONVERT(pk_fp4_t, pk_fp4, bf16x2_t, bf16x2)
-CK_TILE_TYPE_CONVERT(bf16x2_t, bf16x2, pk_fp4_t, pk_fp4)
-CK_TILE_TYPE_CONVERT(pk_fp4_t, pk_fp4, float, float)
-CK_TILE_TYPE_CONVERT(pk_fp4_t, pk_fp4, bf16_t, bf16)
-CK_TILE_TYPE_CONVERT(pk_fp4_t, pk_fp4, fp16_t, fp16)
-#undef CK_TILE_TYPE_CONVERT
+template <typename Y, typename X>
+CK_TILE_HOST_DEVICE constexpr Y scaled_type_convert(X x, float scale);
+
+#define CK_TILE_SCALED_TYPE_CONVERT(dtype_, dname_, stype_, sname_)                       \
+    template <>                                                                           \
+    CK_TILE_HOST_DEVICE constexpr dtype_ scaled_type_convert<dtype_, stype_>(stype_ x,    \
+                                                                             float scale) \
+    {                                                                                     \
+        return sname_##_to_##dname_(x, scale);                                            \
+    }                                                                                     \
+    template <>                                                                           \
+    CK_TILE_HOST_DEVICE constexpr dtype_ type_convert<dtype_, stype_>(stype_ x)           \
+    {                                                                                     \
+        return sname_##_to_##dname_(x, 1.f);                                              \
+    }
+
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp4_t, pk_fp4, fp32x2_t, fp32x2)
+CK_TILE_SCALED_TYPE_CONVERT(fp32x2_t, fp32x2, pk_fp4_t, pk_fp4)
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp4_t, pk_fp4, fp16x2_t, fp16x2)
+CK_TILE_SCALED_TYPE_CONVERT(fp16x2_t, fp16x2, pk_fp4_t, pk_fp4)
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp4_t, pk_fp4, bf16x2_t, bf16x2)
+CK_TILE_SCALED_TYPE_CONVERT(bf16x2_t, bf16x2, pk_fp4_t, pk_fp4)
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp4_t, pk_fp4, float, float)
+CK_TILE_SCALED_TYPE_CONVERT(float, float, pk_fp4_t, pk_fp4)
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp4_t, pk_fp4, bf16_t, bf16)
+CK_TILE_SCALED_TYPE_CONVERT(bf16_t, bf16, pk_fp4_t, pk_fp4)
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp4_t, pk_fp4, fp16_t, fp16)
+CK_TILE_SCALED_TYPE_CONVERT(fp16_t, fp16, pk_fp4_t, pk_fp4)
+#undef CK_TILE_SCALED_TYPE_CONVERT
+
 #endif
 
 } // namespace ck_tile
