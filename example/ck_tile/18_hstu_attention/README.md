@@ -54,6 +54,7 @@
         .insert("minfull_len", "6", "sequence length at the end of the query sequence that should be included for attention")
         .insert("init_qkv", "0", "initialize q, k, v tensor from local files q.dat, k.dat and v.data")
         .insert("seed", "13579", "seed by the uniform or normal distribution generator")
+        .insert("norm_dist", "0", "if true, initialize the data in normal distribution, or else in uniform distribution")
         .insert("alpha", "0", "scale factor of S=Q@K. 0 means equal to 1/sqrt(hdim)")
         .insert("attn_scale", "0", "scale factor of SiLu(Q@K), 0 means using 1/max_seqlen for scaling")
         .insert("save_mask", "1", "save the mask tensor to disk by the CPU validation codes")
