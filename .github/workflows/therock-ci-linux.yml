@@ -60,8 +60,8 @@ jobs:
         run: |
           python3 TheRock/build_tools/github_actions/build_configure.py
 
-      - name: Build therock-dist
-        run: cmake --build TheRock/build --target therock-dist
+      - name: Build TheRock
+        run: cmake --build TheRock/build
 
       - name: Build therock-archives
         run: cmake --build TheRock/build --target therock-archives
