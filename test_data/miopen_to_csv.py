@@ -78,8 +78,11 @@ def miopen_to_conv_param(miopen_params):
     ndim = 3 if is_3d else 2
     groups = miopen_params.get('g', 1)
     batch_size = miopen_params.get('n', 1)
-    out_channels = miopen_params.get('k', 64)
-    in_channels = miopen_params.get('c', 3)
+    # MIOpen uses total channels (C*G), CK uses channels per group
+    out_channels_total = miopen_params.get('k', 64)
+    in_channels_total = miopen_params.get('c', 3)
+    out_channels = out_channels_total // groups  # CK format: channels per group
+    in_channels = in_channels_total // groups    # CK format: channels per group
     
     if is_3d:
         # 3D convolution
