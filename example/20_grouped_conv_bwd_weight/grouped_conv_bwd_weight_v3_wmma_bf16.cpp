@@ -17,7 +17,6 @@ using OutElementOp = PassThrough;
 
 template <ck::index_t NDimSpatial>
 using DeviceConvBwdWeightInstance =
-    // clang-format on
     ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Wmma_CShuffleV3<
         NDimSpatial,
         ck::tuple_element_t<NDimSpatial - 1,
@@ -66,8 +65,7 @@ using DeviceConvBwdWeightInstance =
         1,                    // CShuffleMRepeatPerShuffle
         1,                    // CShuffleNRepeatPerShuffle
         S<1, 32, 1, 4>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        128 / (sizeof(WeiDataType) * CHAR_BIT)>; // CBlockTransferScalarPerVector_NWaveNPerXdl
-                                                 // clang-format off
+        2>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
 
 template <ck::index_t NDimSpatial>
 using HostConvBwdWeightInstance = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
