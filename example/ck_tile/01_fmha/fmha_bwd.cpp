@@ -16,23 +16,6 @@
 #include <utility>
 #include <vector>
 
-template <typename T>
-std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
-{
-    using size_type = typename std::vector<T>::size_type;
-
-    os << "[";
-    for(size_type idx = 0; idx < v.size(); ++idx)
-    {
-        if(0 < idx)
-        {
-            os << ", ";
-        }
-        os << v[idx];
-    }
-    return os << "]";
-}
-
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
@@ -77,7 +60,10 @@ auto create_args(int argc, char* argv[])
                 "'g:y,x', generic attention mask coordinate with y/x size (only debug purpose for "
                 "now)")
         .insert("kname", "0", "if set to 1 will print kernel name")
-        .insert("init", "1", "init method. 0:random int, 1:random float, 2:trig float")
+        .insert("init",
+                "uf",
+                "init method:\n  ui or 0 - uniform random int\n  uf or 1 - uniform random float"
+                "\n  tf or 2 - trig float")
         .insert("seed",
                 "11939",
                 "random seed used for initializing input tensors. 0 for "
@@ -99,6 +85,67 @@ auto create_args(int argc, char* argv[])
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
+}
+
+template <typename DataTypeConfig>
+bool run(const ck_tile::ArgParser& arg_parser)
+{
+    std::string data_type     = arg_parser.get_str("prec");
+    int do_validation         = arg_parser.get_int("v");
+    mode_enum mode            = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
+    ck_tile::index_t batch    = arg_parser.get_int("b");
+    ck_tile::index_t nhead    = arg_parser.get_int("h");
+    ck_tile::index_t nhead_k  = arg_parser.get_int("h_k");
+    ck_tile::index_t seqlen_q = arg_parser.get_int("s");
+    ck_tile::index_t seqlen_k = arg_parser.get_int("s_k");
+    ck_tile::index_t hdim_q   = arg_parser.get_int("d");
+    ck_tile::index_t hdim_v   = arg_parser.get_int("d_v");
+    bool i_perm               = arg_parser.get_bool("iperm");
+    bool o_perm               = arg_parser.get_bool("operm");
+    float scale               = arg_parser.get_float("scale");
+    bool use_dbias            = arg_parser.get_bool("dbias");
+    float p_drop              = arg_parser.get_float("p_drop");
+    uint64_t drop_seed        = arg_parser.get_uint64("drop_seed");
+    uint64_t drop_offset      = arg_parser.get_uint64("drop_offset");
+    bool drop_prefs           = arg_parser.get_bool("drop_prefs");
+    bool deterministic        = arg_parser.get_bool("deterministic");
+    std::string init_method   = arg_parser.get_str("init");
+    uint32_t seed             = arg_parser.get_uint32("seed");
+
+    bias_info bias = bias_info::decode(arg_parser.get_str("bias"));
+    mask_info mask = mask_info::decode(arg_parser.get_str("mask"), seqlen_q, seqlen_k);
+
+    ck_tile::stream_config stream_config{nullptr,
+                                         true,
+                                         /* log_level = */ (arg_parser.get_bool("kname") ? 1 : 0),
+                                         arg_parser.get_int("warmup"),
+                                         arg_parser.get_int("repeat"),
+                                         arg_parser.get_str("timer") == std::string("gpu")};
+
+    return run<DataTypeConfig>(data_type,
+                               do_validation,
+                               mode,
+                               batch,
+                               nhead,
+                               nhead_k,
+                               seqlen_q,
+                               seqlen_k,
+                               hdim_q,
+                               hdim_v,
+                               i_perm,
+                               o_perm,
+                               scale,
+                               bias,
+                               use_dbias,
+                               p_drop,
+                               drop_seed,
+                               drop_offset,
+                               drop_prefs,
+                               mask,
+                               deterministic,
+                               init_method,
+                               seed,
+                               stream_config);
 }
 
 // different threshold for different dtype
@@ -124,45 +171,45 @@ auto get_elimit<FmhaBwdBf16>(ck_tile::index_t hdim_q, ck_tile::index_t hdim_v)
 }
 
 template <typename DataTypeConfig>
-bool run(const ck_tile::ArgParser& arg_parser)
+bool run(std::string data_type,
+         int do_validation,
+         mode_enum mode,
+         ck_tile::index_t batch,
+         ck_tile::index_t nhead,
+         ck_tile::index_t nhead_k,
+         ck_tile::index_t seqlen_q,
+         ck_tile::index_t seqlen_k,
+         ck_tile::index_t hdim_q,
+         ck_tile::index_t hdim_v,
+         bool i_perm,
+         bool o_perm,
+         float scale,
+         const bias_info& bias,
+         bool use_dbias,
+         float p_drop,
+         uint64_t drop_seed,
+         uint64_t drop_offset,
+         bool drop_prefs,
+         const mask_info& mask,
+         bool deterministic,
+         std::string init_method,
+         uint32_t seed,
+         const ck_tile::stream_config& stream_config)
 {
-    std::string data_type    = arg_parser.get_str("prec");
-    int do_validation        = arg_parser.get_int("v");
-    auto mode                = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
-    ck_tile::index_t batch   = arg_parser.get_int("b");
-    ck_tile::index_t nhead   = arg_parser.get_int("h");
-    ck_tile::index_t nhead_k = arg_parser.get_int("h_k");
     if(nhead_k < 0)
         nhead_k = nhead;
-
     if(nhead % nhead_k != 0)
     {
         std::cerr << "nhead:" << nhead << " must be multiple of nhead_k:" << nhead_k << std::endl;
         return false;
     }
-
-    ck_tile::index_t seqlen_q = arg_parser.get_int("s");
-    ck_tile::index_t seqlen_k = arg_parser.get_int("s_k");
     if(seqlen_k < 0)
         seqlen_k = seqlen_q;
-    ck_tile::index_t hdim_q = arg_parser.get_int("d");
-    ck_tile::index_t hdim_v = arg_parser.get_int("d_v");
     if(hdim_v < 0)
         hdim_v = hdim_q;
 
-    bool i_perm = arg_parser.get_bool("iperm"); // if true, will be batch * nhead * seqlen * hdim
-    bool o_perm = arg_parser.get_bool("operm"); // if false, will be batch * seqlen * nhead * hdim
-
-    float scale = arg_parser.get_float("scale");
     if(scale == .0f)
         scale = 1.0 / ck_tile::sqrt(static_cast<float>(hdim_q));
-
-    bias_info bias       = bias_info::decode(arg_parser.get_str("bias"));
-    bool use_dbias       = arg_parser.get_bool("dbias");
-    float p_drop         = arg_parser.get_float("p_drop");
-    uint64_t drop_seed   = arg_parser.get_uint64("drop_seed");
-    uint64_t drop_offset = arg_parser.get_uint64("drop_offset");
-    bool drop_prefs      = arg_parser.get_bool("drop_prefs");
 
     if(use_dbias && bias.type != bias_enum::elementwise_bias)
     {
@@ -186,24 +233,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         s_randval = true;
     }
 
-    mask_info mask = mask_info::decode(arg_parser.get_str("mask"), seqlen_q, seqlen_k);
-
-    const int init_method = arg_parser.get_int("init");
-    const uint32_t seed   = arg_parser.get_uint32("seed");
     std::mt19937 random_engine(seed != 0 ? seed : std::random_device{}());
     auto next_seed = [&random_engine]() { return static_cast<unsigned int>(random_engine()); };
-
-    int stream_warmup  = arg_parser.get_int("warmup");
-    int stream_repeat  = arg_parser.get_int("repeat");
-    bool kname         = arg_parser.get_bool("kname");
-    bool deterministic = arg_parser.get_bool("deterministic");
-
-    ck_tile::stream_config stream_config{nullptr,
-                                         true,
-                                         /* log_level = */ (kname ? 1 : 0),
-                                         stream_warmup,
-                                         stream_repeat,
-                                         arg_parser.get_str("timer") == std::string("gpu")};
 
     const auto seqstart_q_host = generate_seqstarts(mode, batch, seqlen_q, random_engine);
     const auto seqstart_k_host = generate_seqstarts(mode, batch, seqlen_k, random_engine);
@@ -327,7 +358,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ? std::array<ck_tile::index_t, 5>{nsplits, shape_batch, nhead, shape_seqlen_q, hdim_q}
             : std::array<ck_tile::index_t, 5>{nsplits, shape_batch, shape_seqlen_q, nhead, hdim_q});
 
-    if(init_method == 0)
+    if(init_method == "ui" || init_method == "0")
     {
         ck_tile::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f, next_seed()}(q_host);
         ck_tile::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f, next_seed()}(k_host);
@@ -337,7 +368,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::FillUniformDistributionIntegerValue<OGradDataType>{-2.f, 2.f, next_seed()}(
             do_host);
     }
-    else if(init_method == 1)
+    else if(init_method == "uf" || init_method == "1")
     {
         ck_tile::FillUniformDistribution<QDataType>{0.f, 1.f, next_seed()}(q_host);
         ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, next_seed()}(k_host);
@@ -345,7 +376,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::FillUniformDistribution<BiasDataType>{0.f, 1.f, next_seed()}(bias_host);
         ck_tile::FillUniformDistribution<OGradDataType>{0.f, 1.f, next_seed()}(do_host);
     }
-    else if(init_method == 2)
+    else if(init_method == "tf" || init_method == "2")
     {
         ck_tile::FillTrigValue<QDataType>{}(q_host);
         ck_tile::FillTrigValue<KDataType>{}(k_host);
@@ -358,6 +389,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         std::cerr << "Unknown value for init argument: " << init_method << std::endl;
         return false;
     }
+
     if(bias.type == bias_enum::alibi)
     {
         auto slopes = ck_tile::get_alibi_slopes<AccDataType>(nhead);
@@ -418,15 +450,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
         else return layout_str(iperm_) + std::string("-") + layout_str(operm_);
     };
     // clang-format on
-    const std::string prec = arg_parser.get_str("prec");
 
-    std::cout << "[" << prec << "|" << mode << "|" << io_layout(i_perm, o_perm) << "] b:" << batch
-              << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_q << "/" << seqlen_k
-              << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale << ", bias:" << bias
-              << ", dbias:" << use_dbias << ", p_drop:" << p_drop << ", s_randval:" << s_randval
-              << ", deterministic:" << deterministic << ", mask:" << mask << std::flush;
+    std::cout << "[" << data_type << "|" << mode << "|" << io_layout(i_perm, o_perm)
+              << "] b:" << batch << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_q << "/"
+              << seqlen_k << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale
+              << ", bias:" << bias << ", dbias:" << use_dbias << ", p_drop:" << p_drop
+              << ", s_randval:" << s_randval << ", deterministic:" << deterministic
+              << ", mask:" << mask << std::flush;
 
-    if(deterministic == 1)
+    if(deterministic)
     {
         std::size_t workspace_size =
             dq_acc_host.get_element_space_size_in_bytes() * sizeof(AccDataType) / (1024 * 1024);
@@ -445,7 +477,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        s_randval,
                                        deterministic};
     auto fmha_args   = [&]() {
-        assert(nhead % nhead_k == 0);
         /// NOTE: we broadcast bias from [1, 1, seqlen_q, seqlen_k] to [batch, nhead, seqlen_q,
         ///       seqlen_k] in this example, hence both the 'batch_stride_bias' &
         ///       'nhead_stride_bias' are 0.
@@ -812,8 +843,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     dbias_buf.SetZero();
     dq_acc_buf.SetZero();
 
-    ck_tile::stream_config stream_config_v{
-        nullptr, true, 0, 0, 1, arg_parser.get_str("timer") == std::string("gpu")};
+    ck_tile::stream_config stream_config_v{nullptr, true, 0, 0, 1};
     fmha_bwd(fmha_traits, fmha_args, stream_config_v);
 
     dq_buf.FromDevice(dq_host.data());
