@@ -92,12 +92,12 @@ struct CShuffleEpilogue
     static constexpr index_t NPerIteration                 = NPerXdl * NWave;
     static constexpr index_t NumDTensor                    = Problem::NumDTensor;
 
-    static constexpr bool IsCRowMajor =
+    static constexpr bool IsERowMajor =
         std::is_same_v<ELayout, tensor_layout::gemm::RowMajor> ? true : false;
-    static constexpr bool IsCColMajor =
+    static constexpr bool IsEColMajor =
         std::is_same_v<ELayout, tensor_layout::gemm::ColumnMajor> ? true : false;
 
-    static_assert(std::disjunction_v<bool_constant<IsCRowMajor>, bool_constant<IsCColMajor>>,
+    static_assert(std::disjunction_v<bool_constant<IsERowMajor>, bool_constant<IsEColMajor>>,
                   "Unsupported ELayout!");
 
     static_assert(NumDTensor == DsLayout::size(),
@@ -119,12 +119,12 @@ struct CShuffleEpilogue
             return VectorSizeC;
         }
         constexpr index_t max_vector_size = 16;
-        if constexpr(IsCRowMajor)
+        if constexpr(IsERowMajor)
         {
             return std::min(static_cast<int>(NPerIteration),
                             static_cast<int>(max_vector_size / sizeof(ODataType)));
         }
-        else if constexpr(IsCColMajor)
+        else if constexpr(IsEColMajor)
         {
             return std::min(static_cast<int>(MPerIteration),
                             static_cast<int>(max_vector_size / sizeof(ODataType)));
@@ -145,13 +145,14 @@ struct CShuffleEpilogue
     {
         constexpr index_t max_vector_size = 16;
         using DiDataType = remove_cvref_t<std::tuple_element_t<index.value, DsDataType>>;
-        // using DiLayout   = remove_cvref_t<std::tuple_element_t<index.value, DsLayout>>;
-        if constexpr(IsCRowMajor)
+        using DiLayout   = remove_cvref_t<std::tuple_element_t<index.value, DsLayout>>;
+        static_assert(std::is_same_v<DiLayout, ELayout>, "ELayout is not equal to DiLayout!");
+        if constexpr(IsERowMajor)
         {
             return std::min(static_cast<int>(NPerIteration),
                             static_cast<int>(max_vector_size / sizeof(DiDataType)));
         }
-        else if constexpr(IsCColMajor)
+        else if constexpr(IsEColMajor)
         {
             return std::min(static_cast<int>(MPerIteration),
                             static_cast<int>(max_vector_size / sizeof(DiDataType)));
@@ -212,20 +213,20 @@ struct CShuffleEpilogue
     static constexpr index_t NPerIterationShuffle = std::get<1>(MNPerIterationShuffle);
 
     static constexpr index_t NumYXdlPerWavePerShuffle =
-        IsCRowMajor ? NumMXdlPerWavePerShuffle : NumNXdlPerWavePerShuffle;
+        IsERowMajor ? NumMXdlPerWavePerShuffle : NumNXdlPerWavePerShuffle;
     static constexpr index_t NumXXdlPerWavePerShuffle =
-        IsCRowMajor ? NumNXdlPerWavePerShuffle : NumMXdlPerWavePerShuffle;
+        IsERowMajor ? NumNXdlPerWavePerShuffle : NumMXdlPerWavePerShuffle;
 
     static constexpr index_t YPerIterationShuffle =
-        IsCRowMajor ? MPerIterationShuffle : NPerIterationShuffle;
+        IsERowMajor ? MPerIterationShuffle : NPerIterationShuffle;
     static constexpr index_t XPerIterationShuffle =
-        IsCRowMajor ? NPerIterationShuffle : MPerIterationShuffle;
+        IsERowMajor ? NPerIterationShuffle : MPerIterationShuffle;
 
-    static constexpr index_t YPerBlock = IsCRowMajor ? kMPerBlock : kNPerBlock;
-    static constexpr index_t XPerBlock = IsCRowMajor ? kNPerBlock : kMPerBlock;
+    static constexpr index_t YPerBlock = IsERowMajor ? kMPerBlock : kNPerBlock;
+    static constexpr index_t XPerBlock = IsERowMajor ? kNPerBlock : kMPerBlock;
 
-    static constexpr index_t YWave = IsCRowMajor ? MWave : NWave;
-    static constexpr index_t XWave = IsCRowMajor ? NWave : MWave;
+    static constexpr index_t YWave = IsERowMajor ? MWave : NWave;
+    static constexpr index_t XWave = IsERowMajor ? NWave : MWave;
 
     using WG = WarpGemmMfmaDispatcher<ATypeToUse,
                                       BTypeToUse,
