@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/fmha.hpp"
 #include "ck_tile/ops/epilogue.hpp"
@@ -363,7 +364,8 @@ template <ck_tile::index_t HDim_,
           bool kHasBiasGrad_,
           bool kPadD_,
           bool kPadDv_,
-          bool kIsDeterministic_>
+          bool kIsDeterministic_,
+          bool kUseTrLoad_>
 struct fmha_bwd_dq_dk_dv_traits_
 {
     static constexpr ck_tile::index_t HDim = HDim_;
@@ -376,6 +378,7 @@ struct fmha_bwd_dq_dk_dv_traits_
     static constexpr bool kPadD            = kPadD_;
     static constexpr bool kPadDv           = kPadDv_;
     static constexpr bool kIsDeterministic = kIsDeterministic_;
+    static constexpr bool kUseTrLoad       = kUseTrLoad_;
 };
 
 template <typename Traits_>
