@@ -1,1 +1,2 @@
 add_subdirectory(gemm)
+add_subdirectory(gemm_multi_d)
