@@ -183,16 +183,7 @@ struct BlockReduce2dSync
 
                         // pull data from remote lane
                         const auto v_remote = warp_shuffle(v_local, src_lane);
-
-                        // For reduce, use combine_partial_results for operations that require it
-                        if constexpr(ReduceFunc::requires_special_combine)
-                        {
-                            v_local = reduce_func.combine_partial_results(v_local, v_remote);
-                        }
-                        else
-                        {
-                            v_local = reduce_func(v_local, v_remote);
-                        }
+                        v_local             = reduce_func(v_local, v_remote);
                     });
                 }
             });
@@ -309,16 +300,7 @@ struct BlockReduce2dCrossWarpSync
             static_for<0, num_reduce_warps - 1, 1>{}([&](auto i_1_n1) {
                 constexpr auto i_1      = number<i_1_n1 + 1>{};
                 const DataType v_remote = all_scratch[i_0 * num_reduce_warps + i_1];
-
-                // For reduce, use combine_partial_results for operations that require it
-                if constexpr(ReduceFunc::requires_special_combine)
-                {
-                    v_local = reduce_func.combine_partial_results(v_local, v_remote);
-                }
-                else
-                {
-                    v_local = reduce_func(v_local, v_remote);
-                }
+                v_local                 = reduce_func(v_local, v_remote);
             });
 
             y_tensor.get_thread_buffer()(i_0) = v_local;
