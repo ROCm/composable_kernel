@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -259,6 +259,7 @@ struct tensor_adaptor
 
     CK_TILE_HOST_DEVICE static constexpr bool is_known_at_compile_time() { return is_static(); }
 
+    template <index_t Internal = 0>
     CK_TILE_HOST_DEVICE static constexpr auto get_top_dimension_safe_vector_length_strides(
         const array<index_t, ndim_hidden_>& guaranteed_vector_lengths,
         const array<index_t, ndim_hidden_>& guaranteed_vector_strides)
@@ -266,7 +267,9 @@ struct tensor_adaptor
         auto vector_lengths = guaranteed_vector_lengths;
         auto vector_strides = guaranteed_vector_strides;
 
-        static_for<0, get_num_of_transform(), 1>{}([&](auto itran) {
+        static_for<0,
+                   Internal ? std::min(Internal, get_num_of_transform()) : get_num_of_transform(),
+                   1>{}([&](auto itran) {
             constexpr auto low_dims = get_lower_dimension_hidden_idss().at(itran);
             constexpr auto up_dims  = get_upper_dimension_hidden_idss().at(itran);
 
@@ -298,11 +301,16 @@ struct tensor_adaptor
             set_container_subset(vector_lengths, up_dims, up_vector_lengths);
             set_container_subset(vector_strides, up_dims, up_vector_strides);
         });
-
-        constexpr auto top_dims = TopDimensionHiddenIds{};
-
-        return make_tuple(get_container_subset(vector_lengths, top_dims),
-                          get_container_subset(vector_strides, top_dims));
+        if constexpr(Internal > 0)
+        {
+            return make_tuple(vector_lengths, vector_strides);
+        }
+        else
+        {
+            constexpr auto top_dims = TopDimensionHiddenIds{};
+            return make_tuple(get_container_subset(vector_lengths, top_dims),
+                              get_container_subset(vector_strides, top_dims));
+        }
     }
 
     private:

@@ -64,7 +64,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetPTOGradTBlockGemm()
+    CK_TILE_DEVICE static constexpr auto GetPTOGradTBlockGemm()
     {
         using GemmProblem =
             BlockGemmProblem<typename Problem::GemmDataType,
@@ -84,7 +84,12 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
                                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
                                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
-                                   true>;
+                                   true,
+                                   false, // SwizzleAccess
+                                   false, // UseStructuredSparsity
+                                   (Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}) == 32)
+                                       ? WGAttrNumAccessEnum ::Double
+                                       : WGAttrNumAccessEnum ::Single>;
 
         using BlockGemmPolicy =
             BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::GemmDataType,
@@ -151,7 +156,12 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                    Problem::BlockFmhaShape::Gemm3WarpTile::at(number<0>{}),
                                    Problem::BlockFmhaShape::Gemm3WarpTile::at(number<1>{}),
                                    Problem::BlockFmhaShape::Gemm3WarpTile::at(number<2>{}),
-                                   true>;
+                                   true,
+                                   false, // SwizzleAccess
+                                   false, // UseStructuredSparsity
+                                   (Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}) == 32)
+                                       ? WGAttrNumAccessEnum ::Double
+                                       : WGAttrNumAccessEnum ::Single>;
 
         using BlockGemmPolicy =
             BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::GemmDataType,

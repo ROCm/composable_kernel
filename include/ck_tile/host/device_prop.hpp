@@ -51,6 +51,12 @@ inline std::string get_device_name()
     default: return name;
     }
 }
+
+inline bool is_load_tr_supported()
+{
+    // Check if load transpose is supported.
+    return get_device_name() == "gfx950";
+}
 } // namespace ck_tile
 
 #endif
