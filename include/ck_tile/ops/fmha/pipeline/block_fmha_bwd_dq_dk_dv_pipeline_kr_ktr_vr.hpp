@@ -38,15 +38,16 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
     static constexpr index_t kBlockPerCu = Problem::kBlockPerCu;
     static constexpr index_t kBlockSize  = Problem::kBlockSize;
 
-    static constexpr index_t kM0        = BlockFmhaShape::kM0;
-    static constexpr index_t kN0        = BlockFmhaShape::kN0;
-    static constexpr index_t kK0        = BlockFmhaShape::kK0;
-    static constexpr index_t kK1        = BlockFmhaShape::kK1;
-    static constexpr index_t kK2        = BlockFmhaShape::kK2;
-    static constexpr index_t kK3        = BlockFmhaShape::kK3;
-    static constexpr index_t kK4        = BlockFmhaShape::kK4;
-    static constexpr index_t kQKHeaddim = BlockFmhaShape::kQKHeaddim;
-    static constexpr index_t kVHeaddim  = BlockFmhaShape::kVHeaddim;
+    static constexpr index_t kM0         = BlockFmhaShape::kM0;
+    static constexpr index_t kN0         = BlockFmhaShape::kN0;
+    static constexpr index_t kK0         = BlockFmhaShape::kK0;
+    static constexpr index_t kK1         = BlockFmhaShape::kK1;
+    static constexpr index_t kK2         = BlockFmhaShape::kK2;
+    static constexpr index_t kK3         = BlockFmhaShape::kK3;
+    static constexpr index_t kK4         = BlockFmhaShape::kK4;
+    static constexpr index_t kQKHeaddim  = BlockFmhaShape::kQKHeaddim;
+    static constexpr index_t kVHeaddim   = BlockFmhaShape::kVHeaddim;
+    static constexpr index_t kGemm4WarpN = BlockFmhaShape::Gemm0WarpTile::at(ck_tile::number<1>{});
 
     static constexpr bool kIsGroupMode     = Problem::kIsGroupMode;
     static constexpr bool kPadSeqLenQ      = Problem::kPadSeqLenQ;
@@ -752,17 +753,17 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
             {
                 store_tile(dq_dram_window, dq_acc);
             }
-        else
-        {
-            if constexpr(kIsAtomic32)
-            {
-                update_tile(dq_dram_window, dq_acc);
-            }
             else
             {
-                // update_tile(dq_dram_window, cast_tile<QDataType>(dq_acc));
+                if constexpr(kIsAtomic32)
+                {
+                    update_tile(dq_dram_window, dq_acc);
+                }
+                else
+                {
+                    update_tile(dq_dram_window, cast_tile<QDataType>(dq_acc));
+                }
             }
-        }
             move_tile_window(dq_dram_window, {kM0, 0});
 
             i_total_loops += 1;

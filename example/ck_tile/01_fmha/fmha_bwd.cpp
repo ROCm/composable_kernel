@@ -123,6 +123,18 @@ auto get_elimit<FmhaBwdBf16>(ck_tile::index_t hdim_q, ck_tile::index_t hdim_v)
     return ck_tile::make_tuple(rtol, atol);
 }
 
+ck_tile::index_t get_bit_ceil(const ck_tile::index_t& dim_value)
+{
+    unsigned un = static_cast<unsigned>(dim_value);
+    un |= un >> 1;
+    un |= un >> 2;
+    un |= un >> 4;
+    un |= un >> 8;
+    un |= un >> 16;
+    un++;
+    return static_cast<ck_tile::index_t>(un);
+}
+
 template <typename DataTypeConfig, bool IsAtomic32=true>
 bool run(const ck_tile::ArgParser& arg_parser)
 {
@@ -201,6 +213,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     bool deterministic = arg_parser.get_bool("deterministic");
     bool atomic_fp32   = arg_parser.get_bool("atomic_fp32");
 
+    // for dq_acc padding in atomic16
+    constexpr ck_tile::index_t seqlen_dq_acc_tile_size = 16;
+    const ck_tile::index_t hdim_q_pad = get_bit_ceil(hdim_q);
+    const ck_tile::index_t hdim_q_dq_acc = atomic_fp32 ? hdim_q : hdim_q_pad;
+
+
     ck_tile::stream_config stream_config{nullptr,
                                          true,
                                          /* log_level = */ (kname ? 1 : 0),
@@ -210,6 +228,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     const auto seqstart_q_host = generate_seqstarts(mode, batch, seqlen_q);
     const auto seqstart_k_host = generate_seqstarts(mode, batch, seqlen_k);
+
+    auto seqstart_dq_acc_host = std::vector<int32_t>(seqstart_q_host.size(), 0);
+    for (int i = 0; i < batch; ++i) {
+        auto cur_seqlen_q = seqstart_q_host[i+1] - seqstart_q_host[i];
+        auto cur_seqlen_dq_acc = ck_tile::integer_least_multiple(cur_seqlen_q, seqlen_dq_acc_tile_size);
+        seqstart_dq_acc_host[i+1] = seqstart_dq_acc_host[i] + cur_seqlen_dq_acc;
+    }
 
     using TypeConfig = FmhaBwdTypeConfig<DataTypeConfig>;
 
@@ -286,6 +311,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
         (mode == mode_enum::batch ? seqlen_q : seqstart_q_host.back());
     const ck_tile::index_t shape_seqlen_k =
         (mode == mode_enum::batch ? seqlen_k : seqstart_k_host.back());
+    const ck_tile::index_t shape_seqlen_dq_acc_batch_mode =
+        atomic_fp32 ? seqlen_q : ck_tile::integer_least_multiple(seqlen_q, seqlen_dq_acc_tile_size);
+    const ck_tile::index_t shape_seqlen_dq_acc_group_mode =
+        atomic_fp32 ? seqstart_q_host.back() : seqstart_dq_acc_host.back();
+    const ck_tile::index_t shape_seqlen_dq_acc =
+        (mode == mode_enum::batch ? shape_seqlen_dq_acc_batch_mode
+                                  : shape_seqlen_dq_acc_group_mode);
     const ck_tile::index_t kN0 = (hdim_q <= 128) ? 128 : 64;
     const ck_tile::index_t nsplits =
         deterministic ? ck_tile::integer_divide_ceil(max_seqlen_k, kN0) : 1;
@@ -326,15 +358,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
         use_dbias
             ? get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, max_seqlen_k)
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
-    
-    constexpr ck_tile::index_t dq_acc_seqlen_pad_size = 100; // hyper-parameter for atomic16, need to be greater than the kernel tiling size.
-    const ck_tile::index_t dq_acc_seqlen_q = IsAtomic32 ? shape_seqlen_q : shape_seqlen_q + dq_acc_seqlen_pad_size;
-    
+
+
     bool dq_acc_perm = i_perm || !atomic_fp32; // need to permute for atomic16
     ck_tile::HostTensor<QGradAccDataType> dq_acc_host(dq_acc_perm ? std::array<ck_tile::index_t,
-                                            5>{nsplits, shape_batch, nhead, dq_acc_seqlen_q, hdim_q}
+                                            5>{nsplits, shape_batch, nhead, shape_seqlen_dq_acc, hdim_q_dq_acc}
                                : std::array<ck_tile::index_t,
-                                            5>{nsplits, shape_batch, dq_acc_seqlen_q, nhead, hdim_q});
+                                            5>{nsplits, shape_batch, shape_seqlen_dq_acc, nhead, hdim_q_dq_acc});
 
     if(init_method == 0)
     {
@@ -394,6 +424,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem dbias_buf(dbias_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
+    ck_tile::DeviceMem seqstart_dq_acc(seqstart_dq_acc_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem drop_seed_buf(drop_prefs ? sizeof(uint64_t) : 0);
     ck_tile::DeviceMem drop_offset_buf(drop_prefs ? sizeof(uint64_t) : 0);
     ck_tile::DeviceMem alibi_slope_buf(alibi_slope_host.get_element_space_size_in_bytes());
@@ -406,6 +437,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     do_buf.ToDevice(do_host.data());
     seqstart_q.ToDevice(seqstart_q_host.data());
     seqstart_k.ToDevice(seqstart_k_host.data());
+    seqstart_dq_acc.ToDevice(seqstart_dq_acc_host.data());
     drop_seed_buf.ToDevice(drop_prefs ? &drop_seed : nullptr);
     drop_offset_buf.ToDevice(drop_prefs ? &drop_offset : nullptr);
     alibi_slope_buf.ToDevice(alibi_slope_host.data());
@@ -464,7 +496,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t stride_dk      = (i_perm ? hdim_q : nhead * hdim_q);
         const ck_tile::index_t stride_dv      = (i_perm ? hdim_v : nhead * hdim_v);
         const ck_tile::index_t stride_dbias   = (i_perm ? max_seqlen_k : nhead * max_seqlen_k);
-        const ck_tile::index_t stride_dq_acc  = (dq_acc_perm ? hdim_q : nhead * hdim_q);
+        const ck_tile::index_t stride_dq_acc  = (dq_acc_perm ? hdim_q_dq_acc : nhead * hdim_q_dq_acc);
         // setup nhead_stride_* arguments
         const ck_tile::index_t nhead_stride_q       = (i_perm ? shape_seqlen_q * hdim_q : hdim_q);
         const ck_tile::index_t nhead_stride_k       = (i_perm ? shape_seqlen_k * hdim_q : hdim_q);
@@ -476,7 +508,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t nhead_stride_lsed    = shape_seqlen_q;
         const ck_tile::index_t nhead_stride_dbias =
             (i_perm ? shape_seqlen_q * max_seqlen_k : max_seqlen_k);
-        const ck_tile::index_t nhead_stride_dq_acc       = (dq_acc_perm ? dq_acc_seqlen_q * hdim_q : hdim_q);
+        const ck_tile::index_t nhead_stride_dq_acc       = (dq_acc_perm ? shape_seqlen_dq_acc * hdim_q_dq_acc : hdim_q_dq_acc);
         // setup batch_stride_* arguments
         const ck_tile::index_t batch_stride_q       = (nhead * shape_seqlen_q * hdim_q);
         const ck_tile::index_t batch_stride_k       = (nhead_k * shape_seqlen_k * hdim_q);
@@ -489,9 +521,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t batch_stride_dk      = (nhead * shape_seqlen_k * hdim_q);
         const ck_tile::index_t batch_stride_dv      = (nhead * shape_seqlen_k * hdim_v);
         const ck_tile::index_t batch_stride_dbias   = (nhead * shape_seqlen_q * max_seqlen_k);
-        const ck_tile::index_t batch_stride_dq_acc  = (nhead * dq_acc_seqlen_q * hdim_q);
+        const ck_tile::index_t batch_stride_dq_acc  = (nhead * shape_seqlen_dq_acc * hdim_q_dq_acc);
         const ck_tile::index_t split_stride_dq_acc =
-            (shape_batch * nhead * dq_acc_seqlen_q * hdim_q);
+            (shape_batch * nhead * shape_seqlen_dq_acc * hdim_q_dq_acc);
         auto dq_acc_ptr = dq_acc_buf.GetDeviceBuffer();
         const auto drop_seed_offset = [&]() -> decltype(fmha_bwd_args::drop_seed_offset) {
             if(drop_prefs)
@@ -523,6 +555,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              seqstart_q.GetDeviceBuffer(),
                              seqstart_k.GetDeviceBuffer(),
                              nullptr,
+                             seqstart_dq_acc.GetDeviceBuffer(),
                              shape_seqlen_q,
                              shape_seqlen_k,
                              batch,

@@ -92,6 +92,7 @@ struct fmha_bwd_args
     const void* seqstart_q_ptr;
     const void* seqstart_k_ptr;
     const void* seqlen_k_ptr;
+    const void* seqstart_dq_acc_ptr;
     ck_tile::index_t seqlen_q;
     ck_tile::index_t seqlen_k;
     ck_tile::index_t batch;
@@ -173,6 +174,7 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                       args.seqstart_q_ptr,
                                                       args.seqstart_k_ptr,
                                                       args.seqlen_k_ptr,
+                                                      args.seqstart_dq_acc_ptr,
                                                       args.hdim_q,
                                                       args.hdim_v,
                                                       args.nhead_q,
@@ -325,6 +327,7 @@ auto fmha_bwd_convert_dq_create_kargs_and_grids(fmha_bwd_args args)
                                                         args.dq_ptr,
                                                         args.seqstart_q_ptr,
                                                         args.seqstart_k_ptr,
+                                                        args.seqstart_dq_acc_ptr,
                                                         args.hdim_q,
                                                         args.stride_dq,
                                                         args.stride_dq_acc,

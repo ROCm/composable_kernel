@@ -1035,8 +1035,6 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, dq_acc);
             tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, dk_acc);
         }
-            // auto wgid = blockIdx.x + blockIdx.y * gridDim.x + gridDim.x * gridDim.y * blockIdx.z;
-            // auto tid = (threadIdx.z * (blockDim.x * blockDim.y)) + (threadIdx.y * blockDim.x) + threadIdx.x;
         if constexpr(kIsDeterministic)
         {
             store_tile(dq_dram_window, dq_acc);
@@ -1050,10 +1048,6 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             else
             {
                 update_tile(dq_dram_window, cast_tile<QDataType>(dq_acc));
-                    // if (wgid ==0 && tid==0) {
-                    //     printf("atomic 16 update tile \n");
-
-                    // }
             }
         }
 

@@ -591,7 +591,7 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
             continue
         for hdim_str, mode, mask, bias, dbias, dropout, spad, skpad, dpad, dvpad, deterministic, atomic32 in itertools.product(d.keys(), MODE_MAP.keys(), get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], DROPOUT_MAP.keys(), ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"]):
             # for debug(xiangxli)
-            if bias != 'no' or mode == 'group' or dropout!= 'no' or dpad == "t" or dvpad == "t" or deterministic == 't':
+            if bias != 'no' or dropout!= 'no' or deterministic == 't':
                 continue
 
             tile = d[hdim_str][0]
