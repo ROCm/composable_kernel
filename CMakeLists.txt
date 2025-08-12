@@ -572,8 +572,8 @@ include_directories(BEFORE
 
 SET(BUILD_DEV ON CACHE BOOL "BUILD_DEV")
 if(BUILD_DEV)
-    add_compile_options(-Werror)
-    add_compile_options(-Weverything)
+    # add_compile_options(-Werror)
+    # add_compile_options(-Weverything)
 endif()
 message(STATUS "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 

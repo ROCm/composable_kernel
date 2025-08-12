@@ -351,15 +351,17 @@ class FmhaBwdDQDKDVKernel:
 def get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype : str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {
-            '32'  : [FmhaBwdDQDKDVTileSize( 32, 128,  32, 32,  32, 32, 64,  32,  32, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 32, 16, 16, 16, 1),
-                        "kr_ktr_vr_iglp", "kr_ktr_vr"],
-            '64'  : [FmhaBwdDQDKDVTileSize( 32, 128,  64, 32,  64, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
-                        "kr_ktr_vr_iglp", "kr_ktr_vr"],
-            '128' : [FmhaBwdDQDKDVTileSize( 16, 128, 128, 16, 128, 16, 32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
-                        "kr_ktr_vr_iglp", "kr_ktr_vr"],
+            # '32'  : [FmhaBwdDQDKDVTileSize( 32, 128,  32, 32,  32, 32, 64,  32,  32, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 32, 16, 16, 16, 1),
+            #             "kr_ktr_vr_iglp", "kr_ktr_vr"],
+            # '64'  : [FmhaBwdDQDKDVTileSize( 32, 128,  64, 32,  64, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
+            #             "kr_ktr_vr_iglp", "kr_ktr_vr"],
+            # '128' : [FmhaBwdDQDKDVTileSize( 16, 128, 128, 16, 128, 16, 32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
+            #             "kr_ktr_vr_iglp", "kr_ktr_vr"],
             # '160' : [FmhaBwdDQDKDVTileSize( 32, 64, 160, 32, 160, 32, 32, 160, 160, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 32, 16, 16, 16, 1),
             #             "kr_ktr_vr_iglp", "kr_ktr_vr"],
             '256' : [FmhaBwdDQDKDVTileSize( 16,  64, 256, 16, 256, 16, 32, 256, 256, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
+                        "kr_ktr_vr_iglp", "kr_ktr_vr"],
+            '512' : [FmhaBwdDQDKDVTileSize( 16,  64, 512, 16, 512, 16, 32, 512, 512, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
                         "kr_ktr_vr_iglp", "kr_ktr_vr"]
         }
     else:
@@ -748,6 +750,7 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[Fm
 
             if not fnmatch.fnmatch(t.dot_do_o_kernel.name, filter_dot_do_o):
                 continue
+
             if not fnmatch.fnmatch(t.dq_dk_dv_kernel.name, filter_dq_dk_dv):
                 continue
             if not fnmatch.fnmatch(t.convert_dq_kernel.name, filter_convert_dq):

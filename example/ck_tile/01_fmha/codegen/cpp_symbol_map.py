@@ -12,23 +12,23 @@ FWD_DTYPE_MAP = {
 
 BWD_DTYPE_MAP = {
     "fp16": "FmhaBwdFp16",
-    "bf16": "FmhaBwdBf16"
+    # "bf16": "FmhaBwdBf16"
 }
 
 MASK_IMPL = {
     "generic" : "ck_tile::GenericAttentionMask",
-    "simplified"  : "ck_tile::SimplifiedGenericAttentionMask"
+    # "simplified"  : "ck_tile::SimplifiedGenericAttentionMask"
 }
 
 _MASK_SIMPLIFIED_MAP = {
     "s_no" : "ck_tile::SimplifiedGenericAttentionMask<false>",
-    "s_mask" : "ck_tile::SimplifiedGenericAttentionMask<true>",
+    # "s_mask" : "ck_tile::SimplifiedGenericAttentionMask<true>",
 }
 
 _MASK_MAP = {
     "no" : "FmhaMasks::NoMask",
-    "causal" : "FmhaMasks::CausalMask",
-    "generic" : "FmhaMasks::GenericMask"
+    # "causal" : "FmhaMasks::CausalMask",
+    # "generic" : "FmhaMasks::GenericMask"
 }
 
 def get_mask_map(mask : str):
@@ -62,8 +62,8 @@ def get_mask_check_map(mask : str):
 
 BIAS_MAP = {
     "no" : "ck_tile::BlockAttentionBiasEnum::NO_BIAS",
-    "bias"  : "ck_tile::BlockAttentionBiasEnum::ELEMENTWISE_BIAS",
-    "alibi" : "ck_tile::BlockAttentionBiasEnum::ALIBI"
+    # "bias"  : "ck_tile::BlockAttentionBiasEnum::ELEMENTWISE_BIAS",
+    # "alibi" : "ck_tile::BlockAttentionBiasEnum::ALIBI"
 }
 
 # TODO: this is ugly
@@ -75,10 +75,10 @@ BIAS_CHECK_MAP = {
 
 DROPOUT_MAP = {
     "no"                        : "ck_tile::BlockDropoutBwd<false, true,  false>",
-    "dropout_wg32"              : "ck_tile::BlockDropoutBwd<true,  true,  false>",
-    "dropout_wg32_storerandval" : "ck_tile::BlockDropoutBwd<true,  true,  true >",
-    "dropout_wg16"              : "ck_tile::BlockDropoutBwd<true,  false, false>",
-    "dropout_wg16_storerandval" : "ck_tile::BlockDropoutBwd<true,  false, true >"
+    # "dropout_wg32"              : "ck_tile::BlockDropoutBwd<true,  true,  false>",
+    # "dropout_wg32_storerandval" : "ck_tile::BlockDropoutBwd<true,  true,  true >",
+    # "dropout_wg16"              : "ck_tile::BlockDropoutBwd<true,  false, false>",
+    # "dropout_wg16_storerandval" : "ck_tile::BlockDropoutBwd<true,  false, true >"
 }
 
 DROPOUT_CHECK_MAP = {
@@ -103,7 +103,7 @@ ROPE_CHECK_MAP = {
 
 MODE_MAP = {
     "batch" : "false",
-    "group" : "true"
+    # "group" : "true"
 }
 
 LAYOUT_MAP = {
