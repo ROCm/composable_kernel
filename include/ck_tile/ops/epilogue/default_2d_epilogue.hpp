@@ -73,7 +73,7 @@ struct Default2DEpilogue
     //       how do we fix this ?
     template <typename ODramWindowTmp, typename OAccTile>
     CK_TILE_DEVICE auto
-    operator()(ODramWindowTmp& o_dram_window_tmp, const OAccTile& o_acc_tile, void* = nullptr)
+    operator()(ODramWindowTmp& o_dram_window_tmp, const OAccTile& o_acc_tile, void* = nullptr) const
     {
         // TODO: this is ugly
         if constexpr(UseRawStore && (kPadM || kPadN))
@@ -105,7 +105,7 @@ struct Default2DEpilogue
     CK_TILE_DEVICE auto operator()(ODramWindowTmp& o_dram_window_tmp,
                                    const OAccTile& o_acc_tile,
                                    const DsDramWindows& /* unused */,
-                                   void* = nullptr)
+                                   void* = nullptr) const
     {
         return operator()<ODramWindowTmp, OAccTile>(o_dram_window_tmp, o_acc_tile);
     }
