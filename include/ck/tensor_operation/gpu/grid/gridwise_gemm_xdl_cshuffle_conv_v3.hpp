@@ -231,7 +231,7 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
 
         __host__ void Print() const
         {
-            std::cout << "[GridwiseGemm_xdl_cshuffle_conv_v3] Problem {" << "M:" << M << ", " << "N:" << N << ", " << "K:" << K << ", "
+            std::cout << "problem {" << "M:" << M << ", " << "N:" << N << ", " << "K:" << K << ", "
                       << "SA:" << StrideA << ", " << "SB:" << StrideB << ", " << "SC:" << StrideC
                       << ", " << "MP:" << MPadded << ", " << "NP:" << NPadded << ", "
                       << "KRead:" << KRead << ", " << "KP:" << KPadded << ", " << "AK0:" << AK0
@@ -277,7 +277,6 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
                 std::cout << "[GridwiseGemm_xdl_cshuffle_conv_v3] GFX950 and BF16 optimization enabled: " << is_gfx950_and_bf16_input_ << std::endl;
-                Problem::Print();
             }
         }
 
