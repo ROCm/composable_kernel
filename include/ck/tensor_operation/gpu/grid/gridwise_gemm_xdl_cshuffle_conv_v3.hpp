@@ -800,15 +800,6 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
         static_assert(std::is_default_constructible_v<BlockwiseGemmPipe>);
         auto blockwise_gemm_pipeline = BlockwiseGemmPipe{};
         auto c_thread_buf            = blockwise_gemm_pipeline.GetCThreadBuffer();
-        if constexpr(is_gfx950_and_bf16_input_)
-        {
-            constexpr auto register_size_per_xdl_op = blockwise_gemm_pipeline.xdlops_gemm.GetRegSizePerXdlops();
-            StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr,
-                              ck::bhalf2_t,
-                              (MXdlPerWave * NXdlPerWave + 1)/ 2,
-                              register_size_per_xdl_op,
-                              true> c_thread_buf_bf16;
-        }
 
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
@@ -1010,8 +1001,7 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
                     c_thread_packed_cast.Run(
                             c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2, // source desc (TensorDescriptor struct)
                             sfc_c_vgpr.GetIndexTupleOfNumber(access_id),  // source slice origin
-                            c_thread_buf, // source buffer,
-                            c_thread_buf_bf16 // destination buffer
+                            c_thread_buf // source buffer
                     );
                 }
 
@@ -1390,7 +1380,7 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
                 
                 if constexpr (is_gfx950_and_bf16_input_)
                 {
-                    auto c_thread_packed_cast = PackedCast<
+                    auto c_thread_packed_cast = PackedCastV2<
                             M2,
                             M4,
                             CShuffleMXdlPerWavePerShuffle,

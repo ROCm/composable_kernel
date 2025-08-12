@@ -227,7 +227,7 @@ TYPED_TEST(TestGroupedConvndBwdWeight3d, Test3D)
 }
 
 // Use --gtest_filter="TestGroupedConvndBwdWeight2d_bf16_gfx950/*" to only this subset of tests.
-#if defined(__gfx950__)
+// List tests in the test suite with --gtest_list_tests
 
 template <typename Tuple>
 class TestGroupedConvndBwdWeight2d_bf16_gfx950 : public TestGroupedConvndBwdWeight<Tuple>
@@ -257,4 +257,3 @@ TYPED_TEST(TestGroupedConvndBwdWeight2d_bf16_gfx950, Test2D)
     
     this->Run();
 }
-#endif

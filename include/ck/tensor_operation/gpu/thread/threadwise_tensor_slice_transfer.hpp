@@ -35,10 +35,14 @@ template <typename SrcData,
           InMemoryDataOperationEnum DstInMemOp,
           index_t DstScalarStrideInVector,
           bool DstResetCoordinateAfterRun,
-          typename enable_if<SrcDesc::IsKnownAtCompileTime(), bool>::type = false,
-          bool PackedInput = false>
+          bool PackedInput = false,
+          typename enable_if<SrcDesc::IsKnownAtCompileTime(), bool>::type = false>
 struct ThreadwiseTensorSliceTransfer_v1r3
 {
+    static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
+    static constexpr auto I2 = Number<2>{};
+
     static constexpr index_t nDim = SliceLengths::Size();
 
     static constexpr bool float_input_and_bf16_output_ = 
@@ -86,38 +90,76 @@ struct ThreadwiseTensorSliceTransfer_v1r3
         constexpr auto src_desc             = remove_cvref_t<SrcDesc>{};
         constexpr auto src_slice_origin_idx = to_multi_index(SrcSliceOriginIdx{});
 
+        // scalar per access on each dim
+        // TODO: don't use lambda_scalar_per_access
+        constexpr auto dst_scalar_per_access = generate_sequence(
+            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
+
+        constexpr auto dst_scalar_step_in_vector =
+            generate_sequence(detail::lambda_scalar_step_in_vector<DstVectorDim>{}, Number<nDim>{});
+
+        using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
+                                                    DimAccessOrder,
+                                                    remove_cv_t<decltype(dst_scalar_per_access)>>;
+
+        // TODO: Use SpaceFillingCurve::ScalarsPerAccess instread of DstScalarPerVector?
+        static_assert(DstScalarPerVector == SpaceFillingCurve::ScalarPerVector,
+                    "wrong!DstScalarPerVector != SpaceFillingCurve::ScalarPerVector");
+        typename vector_type_maker<DstData, DstScalarPerVector>::type dst_vector;
+        using dst_vector_t = typename vector_type_maker<DstData, DstScalarPerVector>::type::type;
+
+        constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
 
         if constexpr (PackedInput && float_input_and_bf16_output_)
         {
-            static_assert(DstScalarPerVector == 2, "wrong! DstScalarPerVector must be 2");
             static_assert(std::is_same_v<DimAccessOrder, Sequence<0, 1, 2, 3, 4, 5, 6, 7>>,
                 "wrong! DimAccessOrder must be the identity sequence <0, 1, 2, 3, 4, 5, 6, 7>");
           
-            // TODO: Fill the dst_vector vectprized access of size 2.
-            // Copying the dst_vector into dst_buf should be the same as before.
+            static_assert(1 == SpaceFillingCurve::ScalarPerVector, "wrong!1 != SpaceFillingCurve::ScalarPerVector");
+            static_assert(1 == DstScalarPerVector, "wrong!1 != DstScalarPerVector");
+
+            static_for<0, num_access, 1>{}([&](auto idx_1d) 
+            {
+                // We need map the odd indices to the even indices, since
+                // the even indices contain a packed bf16x2 value, where
+                // the first value contains the bf16 value for the corresponding even index
+                // and the second value contains the bf16 value for the odd index following the even index.
+                // The odd indices are not used, so we can just ignore them.
+                constexpr auto pair_index = idx_1d % I2;
+                constexpr auto idx_src_1d = idx_1d - pair_index;
+                
+                constexpr auto idx_md = SpaceFillingCurve::GetIndex(idx_src_1d);
+                constexpr index_t src_offset = src_desc.CalculateOffset(src_slice_origin_idx + idx_md);
+
+                union 
+                {
+                    float src_float;
+                    bhalf16_t src_bf16x2;
+                } packed_value;
+
+                packed_value.src_float = src_buf[Number<src_offset>{}];
+                dst_vector.template AsType<DstData>()(I0) = packed_value.src_bf16x2[pair_index.value];
+
+                const bool is_dst_valid =
+                    coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
+
+                // copy data from dst_vector into dst_buf
+                dst_buf.template Update<DstInMemOp, dst_vector_t>(
+                    dst_coord_.GetOffset(),
+                    is_dst_valid,
+                    dst_vector.template AsType<dst_vector_t>()[Number<0>{}]);
+
+                if constexpr(idx_1d.value != num_access - 1)
+                {
+                    constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(idx_1d);
+
+                    move_tensor_coordinate(
+                        dst_desc, dst_coord_, make_tensor_coordinate_step(dst_desc, forward_step));
+                }
+            });
         }
         else 
         {
-            // scalar per access on each dim
-            // TODO: don't use lambda_scalar_per_access
-            constexpr auto dst_scalar_per_access = generate_sequence(
-                detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
-
-            constexpr auto dst_scalar_step_in_vector =
-                generate_sequence(detail::lambda_scalar_step_in_vector<DstVectorDim>{}, Number<nDim>{});
-
-            using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
-                                                        DimAccessOrder,
-                                                        remove_cv_t<decltype(dst_scalar_per_access)>>;
-
-            // TODO: Use SpaceFillingCurve::ScalarsPerAccess instread of DstScalarPerVector?
-            static_assert(DstScalarPerVector == SpaceFillingCurve::ScalarPerVector,
-                        "wrong!DstScalarPerVector != SpaceFillingCurve::ScalarPerVector");
-            typename vector_type_maker<DstData, DstScalarPerVector>::type dst_vector;
-            using dst_vector_t = typename vector_type_maker<DstData, DstScalarPerVector>::type::type;
-
-            constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
-
             static_for<0, num_access, 1>{}([&](auto idx_1d) {
                 constexpr auto idx_md = SpaceFillingCurve::GetIndex(idx_1d);
 

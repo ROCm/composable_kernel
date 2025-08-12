@@ -6,6 +6,7 @@
 
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/type_convert.hpp"
+#include "ck/tensor_description/tensor_space_filling_curve.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 namespace ck {
@@ -94,6 +95,10 @@ namespace ck {
   template <ck::index_t M2, ck::index_t M4, ck::index_t CShuffleMXdlPerWavePerShuffle, ck::index_t CShuffleNXdlPerWavePerShuffle>
   struct PackedCastV2
   {
+    static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
+    static constexpr auto I2 = Number<2>{};
+
     template <typename SrcDesc, typename SrcSliceOriginIdx, typename SrcBuffer>
     __device__ void Run(const SrcDesc&, const SrcSliceOriginIdx&, SrcBuffer& src_buf)
     {
@@ -130,8 +135,8 @@ namespace ck {
 
       static_for<0, num_pairs, 1>{}([&](auto i_pair) 
       {
-        constexpr auto idx_1d_0 = 2 * i_pair;
-        constexpr auto idx_1d_1 = 2 * i_pair + 1;
+        constexpr auto idx_1d_0 = I2 * i_pair;
+        constexpr auto idx_1d_1 = I2 * i_pair + I1;
         constexpr auto idx_md_0 = SpaceFillingCurve::GetIndex(idx_1d_0);
         constexpr auto idx_md_1 = SpaceFillingCurve::GetIndex(idx_1d_1);
     
@@ -146,16 +151,17 @@ namespace ck {
       // Handle last element if the number of elements is odd.
       if constexpr (has_odd_element)
       {
-          constexpr auto last_idx_1d = num_access - 1;
+          constexpr auto last_idx_1d = Number<num_access - 1>{};
           constexpr auto last_idx_md = SpaceFillingCurve::GetIndex(last_idx_1d);
           
           // Single element conversion
           constexpr auto last_src_offset = src_desc.CalculateOffset(last_idx_1d);
-          float& last_val = src_buf(Number<last_offset>{});
+          float& last_val = src_buf(Number<last_src_offset>{});
           const auto single_bf16 = static_cast<__bf16>(last_val);
           uint16_t* parts = reinterpret_cast<uint16_t*>(&last_val);
           const uint16_t* bf16_bits = reinterpret_cast<const uint16_t*>(&single_bf16);
           parts[0] = bf16_bits[0];
       }
+    };
   };
 }
