@@ -386,6 +386,6 @@ int run_grouped_gemm_example(int argc, char* argv[])
     }
     else
     {
-        throw std::runtime_error("Unsupported data type configuration that we do not ");
+        throw std::runtime_error("Unsupported data type configuration.");
     }
 }
