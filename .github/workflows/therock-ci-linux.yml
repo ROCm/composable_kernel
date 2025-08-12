@@ -121,6 +121,6 @@ jobs:
     uses: ./.github/workflows/therock-test-packages.yml
     with:
       project_to_test: "miopen"
-      amdgpu_families: "gfx94X-dcgpu"
+      amdgpu_families: ${{ inputs.amdgpu_families }}
       test_runs_on: "linux-mi325-1gpu-ossci-rocm"
       platform: "linux"
