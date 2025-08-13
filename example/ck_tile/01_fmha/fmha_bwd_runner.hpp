@@ -670,18 +670,39 @@ bool fmha_bwd_run(mode_enum mode,
                         real_seqlen_k,
                         mask.type == mask_enum::mask_top_left));
         }
+        const ck_tile::HostTensor<AccDataType> masked_s_host_ref = s_host_ref;
         ck_tile::reference_batched_softmax<AccDataType, LSEDataType, AccDataType>(
             s_host_ref, p_hp_host_ref, ck_tile::identity{}, lse_host_ref);
 
         if(p_drop > 0)
         {
             p_dropped_hp_host_ref = p_hp_host_ref;
-            randval_host_ref.ForEach([&](auto& self, auto idx) {
-                self(idx) = randval_host(b, idx[0], idx[1] + query_offset, idx[2]);
-            });
+            ck_tile::reference_batched_dropout_randval(
+                randval_host_ref, wb, drop_seed, drop_offset);
             ck_tile::reference_batched_dropout(
                 p_dropped_hp_host_ref, randval_host_ref, p_undrop_in_uint8_t, rp_undrop);
             p_lp_host_ref = p_dropped_hp_host_ref.template CopyAsType<GemmDataType>();
+
+            ck_tile::HostTensor<RandValOutputDataType> randval_host_result(
+                {nhead, real_seqlen_q, real_seqlen_k});
+            randval_host_result.ForEach([&](auto& self, const auto& idx) {
+                self(idx) = randval_host(b, idx[0], idx[1] + query_offset, idx[2]);
+            });
+            masked_s_host_ref.ForEach([&](const auto& self, const auto& idx) {
+                // Ignore all masked values in validation check
+                if(std::isinf(self(idx)))
+                {
+                    randval_host_ref(idx)    = 0;
+                    randval_host_result(idx) = 0;
+                }
+            });
+            bool cur_pass = ck_tile::check_err(
+                randval_host_result, randval_host_ref, "DROPOUT RANDVAL Error: Incorrect results!");
+            pass &= cur_pass;
+            if(!cur_pass)
+            {
+                break;
+            }
         }
         else
         {
