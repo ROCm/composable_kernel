@@ -24,7 +24,6 @@ void print_helper_msg()
     std::cout << "arg1: verification (0=no, 1=yes)\n"
               << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n"
               << "arg3: time kernel (0=no, 1=yes)\n"
-              << "arg3: split_k (>=1)\n"
               << ck::utils::conv::get_conv_param_parser_helper_msg() << std::endl;
 }
 
@@ -121,7 +120,6 @@ template <ck::index_t NDimSpatial,
 bool run_grouped_conv_fwd(bool do_verification,
                           int init_method,
                           bool time_kernel,
-                          ck::index_t split_k,
                           const ck::utils::conv::ConvParam& conv_param,
                           const HostTensorDescriptor& in_g_n_c_wis_desc,
                           const HostTensorDescriptor& wei_g_k_c_xs_desc,
@@ -203,16 +201,7 @@ bool run_grouped_conv_fwd(bool do_verification,
                                       input_right_pads,
                                       in_element_op,
                                       wei_element_op,
-                                      out_element_op,
-                                      split_k);
-
-    DeviceMem workspace;
-    std::size_t workspace_size = conv.GetWorkSpaceSize(&argument);
-    if(workspace_size != 0)
-    {
-        workspace.Realloc(workspace_size);
-        conv.SetWorkSpacePointer(&argument, workspace.GetDeviceBuffer());
-    }
+                                      out_element_op);
 
     if(!conv.IsSupportedArgument(argument))
     {
@@ -229,7 +218,7 @@ bool run_grouped_conv_fwd(bool do_verification,
     float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
     float gb_per_sec = num_btype / 1.E6 / avg_time;
     std::cout << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << conv.GetTypeString() << " Split K = " << split_k << std::endl;
+              << conv.GetTypeString() << std::endl;
 
     if(do_verification)
     {
