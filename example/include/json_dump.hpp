@@ -415,6 +415,50 @@ void dump_moe_smoothquant_json(const std::string& json_filename,
     END_JSON_DUMP_FILE();
 }
 
+void dump_fused_moe_json(const std::string& json_filename,
+                         const std::string& api_str,
+                         const std::string& prec_str,
+                         int tokens,
+                         bool is_local_token,
+                         int local_tokens,
+                         int experts,
+                         int topk,
+                         int hidden_size,
+                         int intermediate_size,
+                         int stride,
+                         int block_m,
+                         int activation,
+                         bool gate_only,
+                         bool fused_quant,
+                         bool pass,
+                         float ave_time,
+                         float tflops,
+                         float tb_per_sec,
+                         const std::string& kernel_name = "fused_moe")
+{
+    START_JSON_DUMP_FILE(json_filename);
+    ADD_KEY_VALUE("name", kernel_name);
+    ADD_KEY_VALUE("api", api_str);
+    ADD_KEY_VALUE("prec", prec_str);
+    ADD_KEY_VALUE("tokens", tokens);
+    if(is_local_token)
+    {
+        ADD_KEY_VALUE("local_tokens", local_tokens);
+    }
+    ADD_KEY_VALUE("experts", experts);
+    ADD_KEY_VALUE("topk", topk);
+    ADD_KEY_VALUE("hidden_size", hidden_size);
+    ADD_KEY_VALUE("intermediate_size", intermediate_size);
+    ADD_KEY_VALUE("stride", stride);
+    ADD_KEY_VALUE("block_m", block_m);
+    ADD_KEY_VALUE("activation", activation);
+    ADD_KEY_VALUE("gate_only", gate_only);
+    ADD_KEY_VALUE("fused_quant", fused_quant);
+    ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
+    ADD_PERF_TO_JSON(ave_time, tflops, (tb_per_sec * 1024.0f))
+    END_JSON_DUMP_FILE();
+}
+
 void dump_fmha_fwd_json_results(const std::string& json_filename,
                                 const std::string& prec,
                                 const std::string& mode,

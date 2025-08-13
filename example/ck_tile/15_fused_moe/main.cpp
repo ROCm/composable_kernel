@@ -519,27 +519,25 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         if(arg_parser.get_int("json") == 1)
         {
-            START_JSON_DUMP_FILE(arg_parser.get_str("jsonfile"));
-            ADD_KEY_VALUE("name", "fused_moe");
-            ADD_KEY_VALUE("api", api_str);
-            ADD_KEY_VALUE("prec", prec_str);
-            ADD_KEY_VALUE("tokens", tokens);
-            if(is_local_token)
-            {
-                ADD_KEY_VALUE("local_tokens", local_tokens);
-            }
-            ADD_KEY_VALUE("experts", experts);
-            ADD_KEY_VALUE("topk", topk);
-            ADD_KEY_VALUE("hidden_size", hidden_size);
-            ADD_KEY_VALUE("intermediate_size", intermediate_size);
-            ADD_KEY_VALUE("stride", stride);
-            ADD_KEY_VALUE("block_m", block_m);
-            ADD_KEY_VALUE("activation", activation);
-            ADD_KEY_VALUE("gate_only", gate_only);
-            ADD_KEY_VALUE("fused_quant", fused_quant);
-            ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
-            ADD_PERF_TO_JSON(ave_time, cal_tflops(ave_time), cal_tbps(ave_time))
-            END_JSON_DUMP_FILE();
+            dump_fused_moe_json(arg_parser.get_str("jsonfile"),
+                                api_str,
+                                prec_str,
+                                tokens,
+                                is_local_token,
+                                local_tokens,
+                                experts,
+                                topk,
+                                hidden_size,
+                                intermediate_size,
+                                stride,
+                                block_m,
+                                activation,
+                                gate_only,
+                                fused_quant,
+                                pass,
+                                ave_time,
+                                cal_tflops(ave_time),
+                                cal_tbps(ave_time));
         }
         return pass;
     }
@@ -649,27 +647,25 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         if(arg_parser.get_int("json") == 1)
         {
-            START_JSON_DUMP_FILE(arg_parser.get_str("jsonfile"));
-            ADD_KEY_VALUE("name", "fused_moe");
-            ADD_KEY_VALUE("api", api_str);
-            ADD_KEY_VALUE("prec", prec_str);
-            ADD_KEY_VALUE("tokens", tokens);
-            if(is_local_token)
-            {
-                ADD_KEY_VALUE("local_tokens", local_tokens);
-            }
-            ADD_KEY_VALUE("experts", experts);
-            ADD_KEY_VALUE("topk", topk);
-            ADD_KEY_VALUE("hidden_size", hidden_size);
-            ADD_KEY_VALUE("intermediate_size", intermediate_size);
-            ADD_KEY_VALUE("stride", stride);
-            ADD_KEY_VALUE("block_m", block_m);
-            ADD_KEY_VALUE("activation", activation);
-            ADD_KEY_VALUE("gate_only", gate_only);
-            ADD_KEY_VALUE("fused_quant", fused_quant);
-            ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
-            ADD_PERF_TO_JSON(ave_time, cal_tflops(ave_time), cal_tbps(ave_time))
-            END_JSON_DUMP_FILE();
+            dump_fused_moe_json(arg_parser.get_str("jsonfile"),
+                                api_str,
+                                prec_str,
+                                tokens,
+                                is_local_token,
+                                local_tokens,
+                                experts,
+                                topk,
+                                hidden_size,
+                                intermediate_size,
+                                stride,
+                                block_m,
+                                activation,
+                                gate_only,
+                                fused_quant,
+                                pass,
+                                ave_time,
+                                cal_tflops(ave_time),
+                                cal_tbps(ave_time));
         }
 
         return pass;
