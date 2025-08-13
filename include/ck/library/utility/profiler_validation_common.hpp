@@ -12,7 +12,7 @@ namespace profiler {
 
 template <typename Layout>
 inline void
-validate_matrix_stride(int M, int N, int stride, const std::string& matrix_name = "Stride")
+validate_gemm_stride(int M, int N, int stride, const std::string& stride_name = "Stride")
 {
     if(ck::is_same_v<Layout, ck::tensor_layout::gemm::ColumnMajor>)
     {
