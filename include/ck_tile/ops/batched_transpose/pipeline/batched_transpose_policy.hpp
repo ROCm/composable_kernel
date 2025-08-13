@@ -19,8 +19,8 @@ struct BatchedTransposePolicy : public BatchedTransposeCommonPolicy
         constexpr index_t VecLoadSize = Problem::VectorSizeOutput;
 
         using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
-                                                                      NPerBlock,
                                                                       MPerBlock,
+                                                                      NPerBlock,
                                                                       VecLoadSize,
                                                                       TileAccessPattern>;
         return TileEncodingPattern::MakeShuffled2DStaticTileDistribution();

@@ -190,7 +190,7 @@ def buildDocker(install_prefix){
     }
     else if(params.RUN_AITER_TESTS){
         image_name = "rocm/composable_kernel:ck_aiter"
-        dockerArgs = dockerArgs + " --no-cache -f Dockerfile.aiter . "
+        dockerArgs = dockerArgs + " --no-cache -f Dockerfile.aiter --build-arg AITER_BRANCH='${params.aiter_branch}' --build-arg CK_AITER_BRANCH='${params.ck_aiter_branch}' . "
     }
     else{
         dockerArgs = dockerArgs + " -f Dockerfile . "
@@ -438,34 +438,6 @@ def cmake_build(Map conf=[:]){
             echo "could not locate the requested artifacts: ${err.getMessage()}. will skip the stashing."
         }
     }
-    if (params.RUN_CK_TILE_TRANSPOSE_TESTS){
-        try{
-            archiveArtifacts "perf_transpose_*.log"
-            if (arch_type == 1){
-                stash includes: "perf_transpose_**_gfx90a.log", name: "perf_transpose_log_gfx90a"
-            }
-            else if (arch_type == 2){
-                stash includes: "perf_transpose_**_gfx942.log", name: "perf_transpose_log_gfx942"
-            }
-        }
-        catch(Exception err){
-            echo "could not locate the requested artifacts: ${err.getMessage()}. will skip the stashing."
-        }
-    }
-    if (params.RUN_CK_TILE_GEMM_TESTS){
-        try{
-            archiveArtifacts "perf_tile_gemm_**.log"
-            if (arch == 1){
-                stash includes: "perf_tile_gemm_**_gfx90a.log", name: "perf_tile_gemm_log_gfx90a"
-            }
-            else if (arch == 2){
-                stash includes: "perf_tile_gemm_**_gfx942.log", name: "perf_tile_gemm_log_gfx942"
-            }
-        }
-        catch(Exception err){
-            echo "could not locate the requested artifacts: ${err.getMessage()}. will skip the stashing."
-        }
-    }
 }
 
 def buildHipClangJob(Map conf=[:]){
@@ -488,7 +460,9 @@ def buildHipClangJob(Map conf=[:]){
         }
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg CK_SCCACHE='${env.CK_SCCACHE}' --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
         if (params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
-            dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
+            // the  --env COMPRESSED_BUNDLE_FORMAT_VERSION=2 env variable is required when building code with offload-compress flag with
+            // newer clang22 compilers and running with older hip runtima libraries
+            dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' --env COMPRESSED_BUNDLE_FORMAT_VERSION=2 "
         }
         def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3')
         def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3')
@@ -546,7 +520,9 @@ def Build_CK(Map conf=[:]){
         }
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
         if (params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
-            dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
+            // the  --env COMPRESSED_BUNDLE_FORMAT_VERSION=2 env variable is required when building code with offload-compress flag with
+            // newer clang22 compilers and running with older hip runtima libraries
+            dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' --env COMPRESSED_BUNDLE_FORMAT_VERSION=2 "
         }
         if(params.BUILD_LEGACY_OS){
             dockerOpts = dockerOpts + " --env LD_LIBRARY_PATH='/opt/Python-3.8.13/lib' "
@@ -762,24 +738,6 @@ def process_results(Map conf=[:]){
                             echo "could not locate the FMHA performance logs: ${err.getMessage()}."
                         }
                     }
-                    if (params.RUN_CK_TILE_TRANSPOSE_TESTS){
-                        try{
-                            unstash "perf_transpose_log_gfx942"
-                            unstash "perf_transpose_log_gfx90a"
-                        }
-                        catch(Exception err){
-                            echo "could not locate the Transpose performance logs: ${err.getMessage()}."
-                        }
-                    }
-                    if (params.RUN_CK_TILE_GEMM_TESTS){
-                        try{
-                            unstash "perf_tile_gemm_log_gfx942"
-                            unstash "perf_tile_gemm_log_gfx90a"
-                        }
-                        catch(Exception err){
-                            echo "could not locate the GEMM performance logs: ${err.getMessage()}."
-                        }
-                    }
                     if (params.RUN_FULL_QA || params.BUILD_INSTANCES_ONLY){
                         // unstash deb packages
                         unstash "packages"
@@ -843,10 +801,11 @@ def run_aiter_tests(Map conf=[:]){
     withDockerContainer(image: image, args: dockerOpts) {
         timeout(time: 45, unit: 'MINUTES'){
             try{
-                sh "python3 --version"
                 sh "rocminfo"
-                sh "python3 ../aiter/op_tests/test_gemm_a8w8_blockscale.py"
-                //sh "python3 ../aiter/op_tests/test_mha.py"
+                sh "python3 --version"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha.py"
             }
             catch(e){
                 echo "Throwing error exception while running AITER tests"
@@ -861,7 +820,7 @@ def run_aiter_tests(Map conf=[:]){
 }
 
 //launch develop branch daily jobs
-CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_CK_TILE_TRANSPOSE_TESTS=true;RUN_CK_TILE_GEMM_TESTS=true;RUN_TILE_ENGINE_GEMM_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_TILE_ENGINE_GEMM_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
                                               0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX908=true;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true
@@ -942,14 +901,6 @@ pipeline {
             defaultValue: false,
             description: "Run the ck_tile FMHA tests (default: OFF)")
         booleanParam(
-            name: "RUN_CK_TILE_TRANSPOSE_TESTS",
-            defaultValue: false,
-            description: "Run the ck_tile Transpose tests (default: OFF)")
-        booleanParam(
-            name: "RUN_CK_TILE_GEMM_TESTS",
-            defaultValue: false,
-            description: "Run the ck_tile GEMM tests (default: OFF)")
-        booleanParam(
             name: "RUN_TILE_ENGINE_GEMM_TESTS",
             defaultValue: false,
             description: "Run the tile_engine_gemm tests (default: OFF)")
@@ -1009,6 +960,14 @@ pipeline {
             name: "RUN_AITER_TESTS",
             defaultValue: false,
             description: "Run AITER tests with latest CK develop branch (default: OFF)")
+        string(
+            name: 'aiter_branch',
+            defaultValue: 'main',
+            description: 'Specify which branch of AITER to use (default: main)')
+        string(
+            name: 'ck_aiter_branch',
+            defaultValue: 'develop',
+            description: 'Specify which branch of CK to test with AITER (default: develop)')
     }
     environment{
         dbuser = "${dbuser}"
@@ -1093,13 +1052,13 @@ pipeline {
         {
             parallel
             {
-                stage("Run AITER Tests on gfx90a")
+                stage("Run AITER Tests on gfx942")
                 {
                     when {
                         beforeAgent true
                         expression { params.RUN_AITER_TESTS.toBoolean() }
                     }
-                    agent{ label rocmnode("gfx90a")}
+                    agent{ label rocmnode("gfx942")}
                     steps{
                         run_aiter_tests()
                         cleanWs()
@@ -1198,94 +1157,6 @@ pipeline {
                 }
             }
         }
-        stage("Run CK_TILE_TRANSPOSE Tests")
-        {
-            parallel
-            {
-                stage("Run CK_TILE_TRANSPOSE Tests on gfx90a")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_CK_TILE_TRANSPOSE_TESTS.toBoolean() }
-                    }
-                    agent{ label rocmnode("gfx90a") }
-                    environment{
-                        setup_args = "NO_CK_BUILD"
-                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
-                                           make -j64 tile_example_batched_transpose && \
-                                           cd ../ &&
-                                           example/ck_tile/35_batched_transpose/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx90a """
-                    }
-                    steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
-                        cleanWs()
-                    }
-                }
-                stage("Run CK_TILE_TRANSPOSE Tests on gfx942")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_CK_TILE_TRANSPOSE_TESTS.toBoolean() }
-                    }
-                    agent{ label rocmnode("gfx942") }
-                    environment{
-                        setup_args = "NO_CK_BUILD"
-                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 && \
-                                           make -j64 tile_example_batched_transpose && \
-                                           cd ../ &&
-                                           example/ck_tile/35_batched_transpose/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
-                    }
-                    steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
-                        cleanWs()
-                    }
-                }
-            }
-        }
-        stage("Run CK_TILE_GEMM Tests")
-        {
-            parallel
-            {
-                stage("Run CK_TILE_GEMM Tests on gfx90a")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_CK_TILE_GEMM_TESTS.toBoolean() }
-                    }
-                    agent{ label rocmnode("gfx90a") }
-                    environment{
-                        setup_args = "NO_CK_BUILD"
-                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
-                                           make -j64 tile_example_gemm_universal && \
-                                           cd ../ &&
-                                           example/ck_tile/03_gemm/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx90a """
-                    }
-                    steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
-                        cleanWs()
-                    }
-                }
-                stage("Run CK_TILE_GEMM Tests on gfx942")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_CK_TILE_GEMM_TESTS.toBoolean() }
-                    }
-                    agent{ label rocmnode("gfx942") }
-                    environment{
-                        setup_args = "NO_CK_BUILD"
-                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 && \
-                                           make -j64 tile_example_gemm_universal && \
-                                           cd ../ &&
-                                           example/ck_tile/03_gemm/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
-                    }
-                    steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
-                        cleanWs()
-                    }
-                }
-            }
-        }
         stage("Run TILE_ENGINE_GEMM Tests")
         {
             parallel
@@ -1305,6 +1176,8 @@ pipeline {
                                             -D GPU_TARGETS="gfx90a" \
                                             -D GEMM_DATATYPE="fp8;fp16" \
                                             -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
+                                            -D DGEMM_MULTI_D_DATATYPE="fp16" \
+                                            -D DGEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 benchmark_gemm_fp8_rcr && \
                                            ./bin/benchmark_gemm_fp8_rcr && \
@@ -1321,7 +1194,15 @@ pipeline {
                                            ninja -j64 benchmark_gemm_fp8_rrr && \
                                            ./bin/benchmark_gemm_fp8_rrr && \
                                            ninja -j64 benchmark_gemm_fp16_rrr && \
-                                           ./bin/benchmark_gemm_fp16_rrr """
+                                           ./bin/benchmark_gemm_fp16_rrr && \
+                                           ninja -j64 benchmark_gemm_multi_d_fp16_rrrr && \
+                                           ./bin/benchmark_gemm_multi_d_fp16_rrrr && \
+                                           ninja -j64 benchmark_gemm_multi_d_fp16_ccrr && \
+                                           ./bin/benchmark_gemm_multi_d_fp16_ccrr && \
+                                           ninja -j64 benchmark_gemm_multi_d_fp16_crrr && \
+                                           ./bin/benchmark_gemm_multi_d_fp16_crrr && \
+                                           ninja -j64 benchmark_gemm_multi_d_fp16_rcrr && \
+                                           ./bin/benchmark_gemm_multi_d_fp16_rcrr """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1343,6 +1224,8 @@ pipeline {
                                             -D GPU_TARGETS="gfx942" \
                                             -D GEMM_DATATYPE="fp8;fp16" \
                                             -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
+                                            -D DGEMM_MULTI_D_DATATYPE="fp16" \
+                                            -D DGEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 benchmark_gemm_fp8_rcr && \
                                            ./bin/benchmark_gemm_fp8_rcr && \
@@ -1359,7 +1242,15 @@ pipeline {
                                            ninja -j64 benchmark_gemm_fp8_rrr && \
                                            ./bin/benchmark_gemm_fp8_rrr && \
                                            ninja -j64 benchmark_gemm_fp16_rrr && \
-                                           ./bin/benchmark_gemm_fp16_rrr """
+                                           ./bin/benchmark_gemm_fp16_rrr && \
+                                           ninja -j64 benchmark_gemm_multi_d_fp16_rrrr && \
+                                           ./bin/benchmark_gemm_multi_d_fp16_rrrr && \
+                                           ninja -j64 benchmark_gemm_multi_d_fp16_ccrr && \
+                                           ./bin/benchmark_gemm_multi_d_fp16_ccrr && \
+                                           ninja -j64 benchmark_gemm_multi_d_fp16_crrr && \
+                                           ./bin/benchmark_gemm_multi_d_fp16_crrr && \
+                                           ninja -j64 benchmark_gemm_multi_d_fp16_rcrr && \
+                                           ./bin/benchmark_gemm_multi_d_fp16_rcrr """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
