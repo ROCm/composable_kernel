@@ -64,9 +64,9 @@ struct FmhaBwdDQDKDVKernel
     static constexpr bool kHasDropout = FmhaDropout::IsDropout;
     static constexpr bool kIsStoreRandval  = FmhaDropout::IsStoreRandval;
     static constexpr bool kIsDeterministic = FmhaPipeline::kIsDeterministic;
-    static constexpr bool kIsAtomic32        = FmhaPipeline::kIsAtomic32;
+    static constexpr bool kIsAtomic32      = FmhaPipeline::kIsAtomic32;
 
-    using QGradAccDataType   = std::conditional_t<kIsAtomic32, AccDataType, QDataType>;
+    using QGradAccDataType = std::conditional_t<kIsAtomic32, AccDataType, QDataType>;
 
     // clang-format off
     template <typename T> struct t2s;
@@ -106,7 +106,7 @@ struct FmhaBwdDQDKDVKernel
             ("o" + _TS_(kBlockPerCu) + "_") + _SS_(FmhaPipeline::name) + (pn.empty() ? "_npad" : "_" + pn) +
             (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("_nbias") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) +
             (kHasBiasGrad ? "_dbias" : "_ndbias") + (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kHasDropout ? "_dropout" : "_ndropout" ) +
-            (kIsStoreRandval ? "_storerandval" : "" ) + (kIsDeterministic ? "_deterministic" : (kIsAtomic32 ? "_atomic32" : "_atomic16") );
+            (kIsStoreRandval ? "_storerandval" : "" ) + (kIsDeterministic ? "_deterministic" : (kIsAtomic32 ? "_atomic32" : "_atomic16"));
         #undef _SS_
         #undef _TS_
         // clang-format on
@@ -1132,7 +1132,7 @@ struct FmhaBwdDQDKDVKernel
             // get starting offset for each batch
             const long_index_t query_start = kargs.seqstart_q_ptr[i_batch];
             const long_index_t key_start   = kargs.seqstart_k_ptr[i_batch];
-            long_index_t dq_acc_start = 0;
+            long_index_t dq_acc_start      = 0;
             if constexpr(kIsAtomic32)
             {
                 dq_acc_start = kargs.seqstart_q_ptr[i_batch];

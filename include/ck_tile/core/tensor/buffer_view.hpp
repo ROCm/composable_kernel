@@ -267,7 +267,7 @@ struct buffer_view<address_space_enum::global,
 
     CK_TILE_HOST_DEVICE constexpr buffer_view(T* p_data, BufferSizeType buffer_size)
         : p_data_{p_data},
-          buffer_size_{buffer_size},
+          buffer_size_{buffer_size / PackedSize},
           cached_buf_res_{0},
           invalid_element_value_{0}
     {

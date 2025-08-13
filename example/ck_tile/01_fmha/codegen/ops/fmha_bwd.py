@@ -286,11 +286,8 @@ class FmhaBwdDQDKDVApiTrait:
         else :                         return '!t.is_deterministic && !t.is_atomic_fp32'
 
     def get_kernel_group(self) -> Tuple[str]:
-        # kernel_group = [FMHA_BWD_CONVERT_DQ]
         kernel_group = [FMHA_BWD_DOT_DO_O, FMHA_BWD_DQ_DQ_DV, FMHA_BWD_CONVERT_DQ]
-        # if self.deterministic == 't' or self.atomic32 == 't':
-        #     kernel_group.append(FMHA_BWD_CONVERT_DQ)
-        return tuple(kernel_group)  
+        return tuple(kernel_group)
 
 class FmhaBwdApiPool:
     def __init__(self, mask_impl):
@@ -568,10 +565,10 @@ class FmhaBwdDQDKDVKernel:
 def get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype : str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {
-            # '32'  : [FmhaBwdDQDKDVTileSize( 32, 128,  32, 32,  32, 32, 64,  32,  32, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 32, 16, 16, 16, 1),
-            #             "kr_ktr_vr_iglp", "kr_ktr_vr"],
-            # '64'  : [FmhaBwdDQDKDVTileSize( 32, 128,  64, 32,  64, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
-            #             "kr_ktr_vr_iglp", "kr_ktr_vr"],
+            '32'  : [FmhaBwdDQDKDVTileSize( 32, 128,  32, 32,  32, 32, 64,  32,  32, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 32, 16, 16, 16, 1),
+                        "kr_ktr_vr_iglp", "kr_ktr_vr"],
+            '64'  : [FmhaBwdDQDKDVTileSize( 32, 128,  64, 32,  64, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
+                        "kr_ktr_vr_iglp", "kr_ktr_vr"],
             '128' : [FmhaBwdDQDKDVTileSize( 16, 128, 128, 16, 128, 16, 32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
                         "kr_ktr_vr_iglp", "kr_ktr_vr"],
             '256' : [FmhaBwdDQDKDVTileSize( 16,  64, 256, 16, 256, 16, 32, 256, 256, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
@@ -590,9 +587,6 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
         if d == None:
             continue
         for hdim_str, mode, mask, bias, dbias, dropout, spad, skpad, dpad, dvpad, deterministic, atomic32 in itertools.product(d.keys(), MODE_MAP.keys(), get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], DROPOUT_MAP.keys(), ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"]):
-            # for debug(xiangxli)
-            if bias != 'no' or dropout!= 'no' or deterministic == 't':
-                continue
 
             tile = d[hdim_str][0]
             ppl = d[hdim_str][1]

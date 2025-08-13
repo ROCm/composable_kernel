@@ -423,7 +423,7 @@ template <ck_tile::index_t HDim_,
           bool kPadS_,
           bool kPadD_,
           bool kIsDeterministic_,
-          bool kAtomic32_>
+          bool kAtomic32_ = true>
 struct fmha_bwd_convert_dq_traits_
 {
     static constexpr ck_tile::index_t HDim = HDim_;

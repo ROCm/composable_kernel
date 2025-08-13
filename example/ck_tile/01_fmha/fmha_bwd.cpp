@@ -95,7 +95,7 @@ auto create_args(int argc, char* argv[])
                 "0",
                 "if set to 1 will use multi-buffer reduction strategy for dq, atomic opeartion "
                 "will not be used")
-        .insert("atomic_fp32", "1", "if set to 0 will use atomic fp16/bf16(w/o convert_dq kernel)");
+        .insert("atomic_fp32", "1", "if set to 0 will use atomic fp16/bf16");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -123,7 +123,7 @@ auto get_elimit<FmhaBwdBf16>(ck_tile::index_t hdim_q, ck_tile::index_t hdim_v)
     return ck_tile::make_tuple(rtol, atol);
 }
 
-ck_tile::index_t get_bit_ceil(const ck_tile::index_t& dim_value)
+ck_tile::index_t get_bit_ceil(const ck_tile::index_t dim_value)
 {
     unsigned un = static_cast<unsigned>(dim_value);
     un |= un >> 1;
@@ -215,9 +215,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     // for dq_acc padding in atomic16
     constexpr ck_tile::index_t seqlen_dq_acc_tile_size = 16;
-    const ck_tile::index_t hdim_q_pad = get_bit_ceil(hdim_q);
-    const ck_tile::index_t hdim_q_dq_acc = atomic_fp32 ? hdim_q : hdim_q_pad;
-
+    const ck_tile::index_t hdim_q_pad                  = get_bit_ceil(hdim_q);
+    const ck_tile::index_t hdim_q_dq_acc               = atomic_fp32 ? hdim_q : hdim_q_pad;
 
     ck_tile::stream_config stream_config{nullptr,
                                          true,
@@ -230,10 +229,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     const auto seqstart_k_host = generate_seqstarts(mode, batch, seqlen_k);
 
     auto seqstart_dq_acc_host = std::vector<int32_t>(seqstart_q_host.size(), 0);
-    for (int i = 0; i < batch; ++i) {
-        auto cur_seqlen_q = seqstart_q_host[i+1] - seqstart_q_host[i];
-        auto cur_seqlen_dq_acc = ck_tile::integer_least_multiple(cur_seqlen_q, seqlen_dq_acc_tile_size);
-        seqstart_dq_acc_host[i+1] = seqstart_dq_acc_host[i] + cur_seqlen_dq_acc;
+    for(int i = 0; i < batch; ++i)
+    {
+        auto cur_seqlen_q = seqstart_q_host[i + 1] - seqstart_q_host[i];
+        auto cur_seqlen_dq_acc =
+            ck_tile::integer_least_multiple(cur_seqlen_q, seqlen_dq_acc_tile_size);
+        seqstart_dq_acc_host[i + 1] = seqstart_dq_acc_host[i] + cur_seqlen_dq_acc;
     }
 
     using TypeConfig = FmhaBwdTypeConfig<DataTypeConfig>;
@@ -524,7 +525,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t batch_stride_dq_acc  = (nhead * shape_seqlen_dq_acc * hdim_q_dq_acc);
         const ck_tile::index_t split_stride_dq_acc =
             (shape_batch * nhead * shape_seqlen_dq_acc * hdim_q_dq_acc);
-        auto dq_acc_ptr = dq_acc_buf.GetDeviceBuffer();
         const auto drop_seed_offset = [&]() -> decltype(fmha_bwd_args::drop_seed_offset) {
             if(drop_prefs)
             {
@@ -551,7 +551,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              dk_buf.GetDeviceBuffer(),
                              dv_buf.GetDeviceBuffer(),
                              dbias_buf.GetDeviceBuffer(),
-                             dq_acc_ptr,
+                             dq_acc_buf.GetDeviceBuffer(),
                              seqstart_q.GetDeviceBuffer(),
                              seqstart_k.GetDeviceBuffer(),
                              nullptr,
@@ -1022,22 +1022,26 @@ int main(int argc, char* argv[])
         return -1;
 
     const std::string data_type = arg_parser.get_str("prec");
-    const bool atomic_fp32   = arg_parser.get_bool("atomic_fp32");
+    const bool atomic_fp32      = arg_parser.get_bool("atomic_fp32");
     if(data_type == "fp16")
     {
-        if (atomic_fp32) {
+        if(atomic_fp32)
+        {
             return run<FmhaBwdFp16>(arg_parser) ? 0 : -2;
         }
-        else {
+        else
+        {
             return run<FmhaBwdFp16, false>(arg_parser) ? 0 : -2;
         }
     }
     else if(data_type == "bf16")
     {
-        if (atomic_fp32) {
+        if(atomic_fp32)
+        {
             return run<FmhaBwdBf16>(arg_parser) ? 0 : -2;
         }
-        else {
+        else
+        {
             return run<FmhaBwdBf16, false>(arg_parser) ? 0 : -2;
         }
     }

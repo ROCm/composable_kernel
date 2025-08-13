@@ -69,8 +69,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
         kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
     static constexpr index_t kAlignmentOGrad =
         kPadHeadDimV ? 1 : Policy::template GetAlignmentOGrad<Problem>();
-    static constexpr index_t kAlignmentQGrad = kPadHeadDimQ ? 1 : Policy::template GetAlignmentQGrad<Problem>();
-    // static constexpr index_t kAlignmentQGrad = 1;
+    static constexpr index_t kAlignmentQGrad = 1;
     static constexpr index_t kAlignmentKGrad =
         kPadHeadDimQ ? 1 : Policy::template GetAlignmentKGrad<Problem>();
     static constexpr index_t kAlignmentVGrad =
@@ -475,7 +474,6 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
         auto dq_dram_window = make_tile_window(dq_dram_block_window_tmp.get_bottom_tensor_view(),
                                                dq_dram_block_window_tmp.get_window_lengths(),
                                                {seqlen_q_start, 0});
-        // auto dq_dram_window = dq_dram_block_window_tmp;
 
         using SPBlockTileType     = decltype(gemm_0.MakeCBlockTile());
         using SPGradBlockTileType = decltype(gemm_2.MakeCBlockTile());

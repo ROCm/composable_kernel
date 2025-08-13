@@ -28,7 +28,7 @@ struct BlockFmhaBwdConvertQGrad
     static constexpr bool kIsDeterministic = Problem::kIsDeterministic;
     static constexpr bool kIsAtomic32      = Problem::kIsAtomic32;
 
-    using QGradAccDataType   = std::conditional_t<kIsAtomic32, AccDataType, QGradDataType>;
+    using QGradAccDataType = std::conditional_t<kIsAtomic32, AccDataType, QGradDataType>;
 
     static constexpr index_t kAlignmentQGradAcc =
         kPadHeadDimQ ? 1 : Policy::template GetAlignmentPostQGradAcc<Problem>();
@@ -51,28 +51,30 @@ struct BlockFmhaBwdConvertQGrad
             "wrong!");
 
         static_assert(kM0 == QGradDramBlockWindowTmp{}.get_window_lengths()[number<0>{}], "wrong!");
-        
-        if constexpr(kIsAtomic32) {
+
+        if constexpr(kIsAtomic32)
+        {
             auto dq_acc_dram_window =
                 make_tile_window(dq_acc_dram_block_window_tmp.get_bottom_tensor_view(),
-                                dq_acc_dram_block_window_tmp.get_window_lengths(),
-                                dq_acc_dram_block_window_tmp.get_window_origin(),
-                                Policy::template MakePostQGradDramTileDistribution<Problem>());
+                                 dq_acc_dram_block_window_tmp.get_window_lengths(),
+                                 dq_acc_dram_block_window_tmp.get_window_origin(),
+                                 Policy::template MakePostQGradDramTileDistribution<Problem>());
 
             auto dq_acc   = load_tile(dq_acc_dram_window);
             const auto dq = cast_tile<QGradDataType>(dq_acc);
 
             store_tile(dq_dram_block_window_tmp, dq);
         }
-        else {
-            auto dq_acc_dram_window =
-                make_tile_window(dq_acc_dram_block_window_tmp.get_bottom_tensor_view(),
-                                dq_acc_dram_block_window_tmp.get_window_lengths(),
-                                dq_acc_dram_block_window_tmp.get_window_origin(),
-                                Policy::template MakePostQGradAccAtomic16DramTileDistribution<Problem>());
-            auto shuffled_dq =  make_static_distributed_tensor<QGradDataType>(
+        else
+        {
+            auto dq_acc_dram_window = make_tile_window(
+                dq_acc_dram_block_window_tmp.get_bottom_tensor_view(),
+                dq_acc_dram_block_window_tmp.get_window_lengths(),
+                dq_acc_dram_block_window_tmp.get_window_origin(),
+                Policy::template MakePostQGradAccAtomic16DramTileDistribution<Problem>());
+            auto shuffled_dq = make_static_distributed_tensor<QGradDataType>(
                 Policy::template MakePostQGradAtomic16DramTileDistribution<Problem>());
-            auto dq_acc   = load_tile(dq_acc_dram_window);
+            auto dq_acc = load_tile(dq_acc_dram_window);
             shuffle_tile(shuffled_dq, dq_acc);
             store_tile(dq_dram_block_window_tmp, shuffled_dq);
         }
