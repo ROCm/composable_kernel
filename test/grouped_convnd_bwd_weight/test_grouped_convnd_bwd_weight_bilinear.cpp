@@ -199,7 +199,34 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
             {
                 float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr});
                 wei_device_buf.FromDevice(wei_device.mData.data());
-                passed &= ck::utils::check_err(wei_device, wei_host, "Error: incorrect results!");
+
+                using AccDataType = float;
+                float max_accumulated_value =
+                    *std::max_element(wei_host.mData.begin(),wei_host.mData.end());
+
+                const ck::index_t num_accums = out.GetElementSize() / conv_param.K_;
+                const ck::index_t num_accums_split_k = split_k;
+                double rtol =
+                    ck::utils::get_relative_threshold<InDataType, WeiDataType, AccDataType>(
+                        num_accums / num_accums_split_k);
+                double atol =
+                    ck::utils::get_absolute_threshold<InDataType, WeiDataType, AccDataType>(
+                        max_accumulated_value / num_accums_split_k,
+                        num_accums / num_accums_split_k);
+
+                // Calculate error due to split_k accumulation
+                auto rtol_split_k =
+                    ck::utils::get_relative_threshold<WeiDataType, WeiDataType, WeiDataType>(
+                        num_accums_split_k);
+                auto atol_split_k =
+                    ck::utils::get_absolute_threshold<WeiDataType, WeiDataType, WeiDataType>(
+                        max_accumulated_value, num_accums_split_k);
+                // Use higher threshold
+                rtol = std::max(rtol, rtol_split_k);
+                atol = std::max(atol, atol_split_k);
+
+                passed &= ck::utils::check_err(wei_device, wei_host,
+                    "Error: incorrect results!", rtol, atol);
 
                 std::size_t flop =
                     conv_param.GetFlops() +
