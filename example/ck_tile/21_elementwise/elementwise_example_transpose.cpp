@@ -73,7 +73,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using BlockWarps = ck_tile::sequence<8>;
     using WarpTile   = ck_tile::sequence<64>;
 
-    using Shape = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, ComputeDataType>;
+    using Shape = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, XDataType>;
 
     // Problem definition for a single input tensor
     using Problem = ck_tile::ElementWisePipelineProblem<XDataType,
@@ -86,7 +86,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::index_t total_elements = M * N;
 
-    constexpr ck_tile::index_t kBlockSize         = 64 * BlockWarps::at(ck_tile::number<0>{});
+    constexpr ck_tile::index_t kBlockSize =
+        ck_tile::get_warp_size() * BlockWarps::at(ck_tile::number<0>{});
     constexpr ck_tile::index_t kBlockPerCu        = 1;
     constexpr ck_tile::index_t elements_per_block = BlockTile::at(ck_tile::number<0>{});
     ck_tile::index_t kGridSize = (total_elements + elements_per_block - 1) / elements_per_block;

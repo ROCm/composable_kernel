@@ -69,7 +69,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using BlockWarps = ck_tile::sequence<1>;
     using WarpTile   = ck_tile::sequence<256>;
 
-    using Shape = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, ComputeDataType>;
+    using Shape = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, XDataType>;
 
     using Problem = ck_tile::ElementWisePipelineProblem<XDataType,
                                                         ComputeDataType,
