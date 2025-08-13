@@ -217,6 +217,17 @@ int run_flatmm_example(int argc, char* argv[])
     std::string data_type = arg_parser.get_str("prec");
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
+
+    int k        = arg_parser.get_int("k");
+    int stride_b = arg_parser.get_int("stride_b");
+
+    if(b_layout == "C" && stride_b > k)
+    {
+        throw std::runtime_error(
+            "For ColumnMajor layout, StrideB must be smaller than or equal to K (" +
+            std::to_string(k) + ")");
+    }
+
     if(a_layout == "R" && b_layout == "C")
     {
 
