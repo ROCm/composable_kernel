@@ -19,7 +19,7 @@ validate_gemm_stride(int M, int N, int stride, const std::string& stride_name = 
         if(stride < M)
         {
             throw std::runtime_error(
-                "Error: For ColumnMajor layout, " + matrix_name + " (" + std::to_string(stride) +
+                "Error: For ColumnMajor layout, " + stride_name + " (" + std::to_string(stride) +
                 ") must be greater than or equal to dim (" + std::to_string(M) + ")");
         }
     }
@@ -28,7 +28,7 @@ validate_gemm_stride(int M, int N, int stride, const std::string& stride_name = 
         if(stride < N)
         {
             throw std::runtime_error(
-                "Error: For RowMajor layout, " + matrix_name + " (" + std::to_string(stride) +
+                "Error: For RowMajor layout, " + stride_name + " (" + std::to_string(stride) +
                 ") must be greater than or equal to dim (" + std::to_string(N) + ")");
         }
     }
@@ -36,11 +36,11 @@ validate_gemm_stride(int M, int N, int stride, const std::string& stride_name = 
 
 // Convenience functions for common GEMM patterns
 template <typename ALayout, typename BLayout, typename CLayout>
-inline void validate_gemm_strides(int M, int N, int K, int StrideA, int StrideB, int StrideC)
+inline void validate_gemm_strides_abc(int M, int N, int K, int StrideA, int StrideB, int StrideC)
 {
-    validate_matrix_stride<ALayout>(M, K, StrideA, "StrideA");
-    validate_matrix_stride<BLayout>(K, N, StrideB, "StrideB");
-    validate_matrix_stride<CLayout>(M, N, StrideC, "StrideC");
+    validate_gemm_stride<ALayout>(M, K, StrideA, "StrideA");
+    validate_gemm_stride<BLayout>(K, N, StrideB, "StrideB");
+    validate_gemm_stride<CLayout>(M, N, StrideC, "StrideC");
 }
 
 } // namespace profiler

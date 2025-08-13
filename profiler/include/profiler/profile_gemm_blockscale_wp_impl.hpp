@@ -105,9 +105,9 @@ bool profile_gemm_blockscale_weighpreshuffle_impl(int do_verification,
                                       ? ((K + ScaleBlockK - 1) / ScaleBlockK)
                                       : ((N + ScaleBlockN - 1) / ScaleBlockN);
 
-    ck::profiler::validate_matrix_stride<ALayout>(M, K, StrideA, "StrideA");
-    ck::profiler::validate_matrix_stride<BLayout>(K, N, StrideB, "StrideB");
-    ck::profiler::validate_matrix_stride<BLayout>(M, N, StrideE, "StrideE");
+    ck::profiler::validate_gemm_stride<ALayout>(M, K, StrideA, "StrideA");
+    ck::profiler::validate_gemm_stride<BLayout>(K, N, StrideB, "StrideB");
+    ck::profiler::validate_gemm_stride<BLayout>(M, N, StrideE, "StrideE");
 
     Tensor<A0DataType> a0_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<A1DataType> a1_m_k(f_host_tensor_descriptor((M + ScaleBlockM - 1) / ScaleBlockM,
