@@ -13,7 +13,7 @@
 #include "gemm_utils.hpp"
 #include "run_gemm_example.inc"
 #include "run_gemm_example_common.hpp"
-#include "universal_invoker.hpp"
+#include "universal_gemm_invoker.hpp"
 
 template <template <typename PrecType> typename GemmConfig>
 int run_gemm_example(ck_tile::ArgParser& arg_parser)

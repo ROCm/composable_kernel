@@ -12,7 +12,7 @@
 #include "ck_tile/host.hpp"
 #include "gemm_utils.hpp"
 #include "run_gemm_example.inc"
-#include "weight_preshuffle_invoker.hpp"
+#include "gemm_weight_preshuffle_invoker.hpp"
 
 template <typename GemmConfig,
           typename APrecType,

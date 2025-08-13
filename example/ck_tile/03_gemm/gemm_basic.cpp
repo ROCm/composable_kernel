@@ -4,7 +4,7 @@
 #include "gemm_utils.hpp"
 #include "run_gemm_example.inc"
 #include "run_gemm_example_common.hpp"
-#include "basic_invoker.hpp"
+#include "gemm_basic_invoker.hpp"
 
 int run_gemm_example(ck_tile::ArgParser& arg_parser)
 {
