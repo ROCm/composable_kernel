@@ -90,24 +90,6 @@ CK_TILE_DEVICE index_t get_thread_id() { return threadIdx.x; }
 
 CK_TILE_DEVICE index_t get_block_id() { return blockIdx.x; }
 
-CK_TILE_DEVICE void block_sync_lds()
-{
-#if CK_TILE_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM
-#ifdef __gfx12__
-    asm volatile("\
-     s_wait_dscnt 0x0 \n \
-     s_barrier_signal -1 \n \
-     s_barrier_wait -1 \
-     " ::);
-#else
-    __builtin_amdgcn_s_waitcnt(0xc07f);
-    __builtin_amdgcn_s_barrier();
-#endif
-#else
-    __syncthreads();
-#endif
-}
-
 CK_TILE_DEVICE void block_sync_load_raw(index_t cnt = 0)
 {
 #ifdef __gfx12__
@@ -176,6 +158,18 @@ CK_TILE_DEVICE void s_waitcnt_barrier()
 {
     s_waitcnt<vmcnt, expcnt, lgkmcnt>();
     __builtin_amdgcn_s_barrier();
+}
+
+template <index_t lgkmcnt = 0>
+CK_TILE_DEVICE void block_sync_lds()
+{
+    s_waitcnt_barrier<waitcnt_arg::kMaxVmCnt, waitcnt_arg::kMaxExpCnt, lgkmcnt>();
+}
+
+template <index_t vmcnt = 0>
+CK_TILE_DEVICE void block_sync_lds_direct_load()
+{
+    s_waitcnt_barrier<vmcnt, waitcnt_arg::kMaxExpCnt, waitcnt_arg::kMaxLgkmCnt>();
 }
 
 CK_TILE_DEVICE void s_nop(index_t cnt = 0)
