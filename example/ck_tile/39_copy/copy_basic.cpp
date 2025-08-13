@@ -54,7 +54,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     x_buf.ToDevice(x_host.data());
 
     // Define tile configuration
-    using Vector     = ck_tile::sequence<1, 4>;   // vector size along M and N dimension
+    using ThreadTile = ck_tile::sequence<1, 4>;   // per-thread tile size along M and N
     using WaveTile   = ck_tile::sequence<64, 4>;  // wave size along M and N dimension
     using BlockWaves = ck_tile::sequence<4, 1>;   // number of waves along M dimension
     using BlockTile  = ck_tile::sequence<512, 4>; // block size along M and N dimension
@@ -65,7 +65,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     std::cout << "grid size (number of blocks per grid) " << kGridSize << std::endl;
 
     // Define kernel types
-    using Shape   = ck_tile::TileCopyShape<BlockWaves, BlockTile, WaveTile, Vector>;
+    using Shape   = ck_tile::TileCopyShape<BlockWaves, BlockTile, WaveTile, ThreadTile>;
     using Problem = ck_tile::TileCopyProblem<XDataType, Shape>;
     using Policy  = ck_tile::TileCopyPolicy<Problem>;
     using Kernel  = ck_tile::ElementWiseTileCopyKernel<Problem, Policy>;
@@ -88,8 +88,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
               << " " << BlockTile::at(ck_tile::number<1>{}) << std::endl;
     std::cout << "wave tile (number of elements per wave) " << WaveTile::at(ck_tile::number<0>{})
               << " " << WaveTile::at(ck_tile::number<1>{}) << std::endl;
-    std::cout << "vector (number of elements per thread) " << Vector::at(ck_tile::number<0>{})
-              << " " << Vector::at(ck_tile::number<1>{}) << std::endl;
+    std::cout << "thread tile (number of elements per thread) "
+              << ThreadTile::at(ck_tile::number<0>{}) << " " << ThreadTile::at(ck_tile::number<1>{})
+              << std::endl;
     std::cout << "WaveRepetitionPerBlock_M =  " << Shape::WaveRepetitionPerBlock_M << " --> ("
               << Shape::Block_Tile_M << "/" << Shape::Waves_Per_Block_M << "*" << Shape::Wave_Tile_M
               << ")" << std::endl;
