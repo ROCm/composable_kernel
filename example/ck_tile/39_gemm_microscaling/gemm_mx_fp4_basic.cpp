@@ -35,9 +35,9 @@ float gemm_mx_calc(const ck_tile::GemmMXHostArgs& args, const ck_tile::stream_co
 
     static_assert(std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::RowMajor>);
 
-    constexpr ck_tile::index_t M_Tile = 64;
-    constexpr ck_tile::index_t N_Tile = 64;
-    constexpr ck_tile::index_t K_Tile = 128;
+    constexpr ck_tile::index_t M_Tile = 256;
+    constexpr ck_tile::index_t N_Tile = 256;
+    constexpr ck_tile::index_t K_Tile = 128; // 256 / DataPackedSize (Packed representation of data)
 
     constexpr ck_tile::index_t M_Warp = 2;
     constexpr ck_tile::index_t N_Warp = 2;
@@ -113,7 +113,7 @@ float gemm_mx_calc(const ck_tile::GemmMXHostArgs& args, const ck_tile::stream_co
                                              M_Warp_Tile,
                                              N_Warp_Tile,
                                              K_Warp_Tile,
-                                             y transposed_warp_gemm,
+                                             transposed_warp_gemm,
                                              ck_tile::memory_operation_enum::set>>;
         using Kernel = ck_tile::GemmMXKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
 
