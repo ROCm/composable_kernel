@@ -50,10 +50,11 @@ template <typename BlockGemmShape,
           index_t BlockSize,
           index_t YPerTile,
           index_t XPerTile,
-          index_t VecSize>
+          index_t KPerBlockAQ,
+          index_t VecSize,
+          bool Preshuffle>
 struct TileDistributionEncodingPatternAQ : public TileDistributionEncodingPattern
 {
-    // TODO: make pattern where below condition does not need to hold - GGemmMultiDSplitk!
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
     static constexpr index_t warp_size = get_warp_size();
     static constexpr index_t num_warps = BlockSize / get_warp_size();
@@ -69,26 +70,46 @@ struct TileDistributionEncodingPatternAQ : public TileDistributionEncodingPatter
     // KWarps > 1 isn't supported
     static_assert(KWarps == 1);
 
-    // # of elements per thread
-    static constexpr index_t X = XPerTile;
-
-    static constexpr index_t Y0 = 1;
-    static constexpr index_t Y1 = MIterPerWarp ? MIterPerWarp : 1;
-    static constexpr index_t Y2 = MWarps;
-    static constexpr index_t Y3 = WarpGemm::kM;
-    static_assert(Y3 >= WarpGemm::kM, "Scales for all rows must be available within the warp.");
-    static_assert(Y0 * Y1 * Y2 * Y3 == YPerTile,
-                  "Y0, Y1, Y2, Y3 must cover the blocktile along Y.");
-
     CK_TILE_HOST_DEVICE static constexpr auto Make2DStaticTileDistribution()
     {
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<NWarps>,
-                                       tuple<sequence<Y0, Y1, Y2, Y3>, sequence<X>>,
-                                       tuple<sequence<1, 0>, sequence<1, 1>>,
-                                       tuple<sequence<2, 0>, sequence<0, 3>>,
-                                       sequence<1, 2>,
-                                       sequence<1, 0>>{});
+        if constexpr(Preshuffle)
+        {
+            // # of elements per thread
+            constexpr index_t X2 = KPerBlockAQ;
+            constexpr index_t X1 = warp_size / X2;
+            constexpr index_t X0 = XPerTile / warp_size;
+
+            constexpr index_t Y1 = MWarps;
+            constexpr index_t Y0 = YPerTile / Y1;
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<NWarps>,
+                                           tuple<sequence<Y0, Y1>, sequence<X0, X1, X2>>,
+                                           tuple<sequence<1, 0>, sequence<2, 2>>,
+                                           tuple<sequence<1, 0>, sequence<1, 2>>,
+                                           sequence<1, 2>,
+                                           sequence<0, 0>>{});
+        }
+        else
+        {
+            // # of elements per thread
+            constexpr index_t X = XPerTile;
+
+            constexpr index_t Y0 = 1;
+            constexpr index_t Y1 = MIterPerWarp ? MIterPerWarp : 1;
+            constexpr index_t Y2 = MWarps;
+            constexpr index_t Y3 = WarpGemm::kM;
+            static_assert(Y3 >= WarpGemm::kM,
+                          "Scales for all rows must be available within the warp.");
+            static_assert(Y0 * Y1 * Y2 * Y3 == YPerTile,
+                          "Y0, Y1, Y2, Y3 must cover the blocktile along Y.");
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<NWarps>,
+                                           tuple<sequence<Y0, Y1, Y2, Y3>, sequence<X>>,
+                                           tuple<sequence<1, 0>, sequence<1, 1>>,
+                                           tuple<sequence<2, 0>, sequence<0, 3>>,
+                                           sequence<1, 2>,
+                                           sequence<1, 0>>{});
+        }
     }
 };
 

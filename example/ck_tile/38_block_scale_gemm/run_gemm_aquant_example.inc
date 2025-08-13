@@ -4,12 +4,31 @@
 #pragma once
 #include <bit>
 #include <random>
+#include <stdexcept>
 
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
 {
     return ck_tile::bool_constant<std::is_same_v<ck_tile::remove_cvref_t<decltype(layout_)>,
                                                  ck_tile::tensor_layout::gemm::RowMajor>>{};
+}
+
+template <typename T>
+auto shuffle_aq(const ck_tile::HostTensor<T>& t, int block_aq_k)
+{
+    if(t.get_lengths().size() != 2)
+    {
+        throw std::runtime_error("Host tensor is not rank 2 tensor.");
+    }
+    int m_   = t.get_lengths()[0];
+    int aqk_ = t.get_lengths()[1];
+    if(aqk_ % block_aq_k != 0)
+    {
+        throw std::runtime_error("shuffle_aq needs a aqk of multiple times of block_aq_k.");
+    }
+    ck_tile::HostTensor<T> t_view({m_, aqk_ / block_aq_k, block_aq_k});
+    std::copy(t.begin(), t.end(), t_view.begin());
+    return ck_tile::reference_permute(t_view, {1, 0, 2});
 }
 
 template <typename ADataType,
@@ -21,7 +40,8 @@ template <typename ADataType,
           typename AQLayout,
           typename BLayout,
           typename CLayout,
-          uint32_t QuantGroupSize>
+          uint32_t QuantGroupSize,
+          bool Preshuffle = false>
 float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   ck_tile::DeviceMem& aq_m_aqk_dev_buf,
                   ck_tile::DeviceMem& b_k_n_dev_buf,
@@ -62,7 +82,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                       ALayout,
                                       BLayout,
                                       CLayout,
-                                      QuantGroupSize>(
+                                      QuantGroupSize,
+                                      Preshuffle>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::size_t flop     = std::size_t(2) * M * N * K;
@@ -85,7 +106,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     return ave_time;
 }
 
-template <typename TypeConfig,
+template <typename GemmConfig,
+          typename TypeConfig,
           uint32_t QuantGroupSize,
           typename ALayout,
           typename AQLayout,
@@ -184,8 +206,18 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
 
+    if constexpr(GemmConfig::Preshuffle)
+    {
+        ck_tile::HostTensor<AQDataType> aq_shuffle_host =
+            shuffle_aq(aq_m_aqk, GemmConfig::K_Tile / QuantGroupSize);
+        aq_m_aqk_dev_buf.ToDevice(aq_shuffle_host.data());
+    }
+    else
+    {
+        aq_m_aqk_dev_buf.ToDevice(aq_m_aqk.data());
+    }
+
     a_m_k_dev_buf.ToDevice(a_m_k.data());
-    aq_m_aqk_dev_buf.ToDevice(aq_m_aqk.data());
     b_k_n_dev_buf.ToDevice(b_k_n.data());
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
@@ -199,21 +231,22 @@ int run_gemm_example_with_layouts(int argc,
                 AQLayout,
                 BLayout,
                 CLayout,
-                QuantGroupSize>(a_m_k_dev_buf,
-                                aq_m_aqk_dev_buf,
-                                b_k_n_dev_buf,
-                                c_m_n_dev_buf,
-                                M,
-                                N,
-                                K,
-                                AQK,
-                                stride_A,
-                                stride_AQ,
-                                stride_B,
-                                stride_C,
-                                kbatch,
-                                n_warmup,
-                                n_repeat);
+                QuantGroupSize,
+                GemmConfig::Preshuffle>(a_m_k_dev_buf,
+                                        aq_m_aqk_dev_buf,
+                                        b_k_n_dev_buf,
+                                        c_m_n_dev_buf,
+                                        M,
+                                        N,
+                                        K,
+                                        AQK,
+                                        stride_A,
+                                        stride_AQ,
+                                        stride_B,
+                                        stride_C,
+                                        kbatch,
+                                        n_warmup,
+                                        n_repeat);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass = true;
