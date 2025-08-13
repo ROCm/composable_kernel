@@ -137,6 +137,7 @@ struct GridGemm
 
         // block_gemm_pipeline(a_block_window, b_block_window, debug_block_tile, value_block_tile, index_block_tile, K / kKPerBlock, p_smem_char);
         const auto debug_block_tile = block_gemm_pipeline(a_block_window, b_block_window, K / kKPerBlock, p_smem_char);
+        // block_gemm_pipeline(a_block_window, b_block_window, debug_block_tile, K / kKPerBlock, p_smem_char);
 
         // cast DataType and apply CElementFunction
         const auto debug_cast_block_tile = tile_elementwise_in(
