@@ -170,10 +170,11 @@ struct StreamKKernel
              host_args.k_batch},
             host_args.reduction_strategy,
             host_args.num_sk_blocks,
-            // The workspace pointer is set to nullptr because we must first instantiate the
-            // TilePartitioner to get the necessary size
+            // The workspace pointer is set to nullptr because we must first
+            // instantiate the TilePartitioner to get the necessary size
             /*workspace_ptr =*/nullptr,
-            TilePartitioner{host_args.M, host_args.N, host_args.K, num_cu, occupancy}};
+            TilePartitioner{
+                host_args.M, host_args.N, host_args.K, num_cu, occupancy, host_args.num_sk_blocks}};
     }
 
     CK_TILE_HOST static bool
@@ -188,13 +189,14 @@ struct StreamKKernel
      */
     CK_TILE_HOST static uint32_t GetWorkSpaceSize(const StreamKKernelArgs& kargs)
     {
-        // For reduction, need a buffer on the device to store reduction accumulation results
+        // For reduction, we need to determine the amount of device space for acculumation
+        // results and semaphores.
         if(kargs.reduction_strategy == ck_tile::StreamKReductionStrategy::Reduction)
         {
-            return kargs.tile_partitioner.GetTotalAccBuffers();
+            return kargs.tile_partitioner.GetWorkSpaceSize(sizeof(CDataType));
         }
 
-        // Otherwise, no additional space is needed since blocks atomically store their results
+        // Otherwise, no additional space is needed since blocks atomically store their results.
         return 0;
     }
 
@@ -222,6 +224,7 @@ struct StreamKKernel
 
         return num_cu;
     }
+
     /**
      * @brief Computes the occupancy (i.e. maximum number of active blocks per CU) for the kernel
      * @return The occupancy
