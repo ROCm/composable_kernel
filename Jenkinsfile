@@ -460,7 +460,9 @@ def buildHipClangJob(Map conf=[:]){
         }
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg CK_SCCACHE='${env.CK_SCCACHE}' --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
         if (params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
-            dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
+            // the  --env COMPRESSED_BUNDLE_FORMAT_VERSION=2 env variable is required when building code with offload-compress flag with
+            // newer clang22 compilers and running with older hip runtima libraries
+            dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' --env COMPRESSED_BUNDLE_FORMAT_VERSION=2 "
         }
         def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3')
         def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3')
@@ -518,7 +520,9 @@ def Build_CK(Map conf=[:]){
         }
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
         if (params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
-            dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
+            // the  --env COMPRESSED_BUNDLE_FORMAT_VERSION=2 env variable is required when building code with offload-compress flag with
+            // newer clang22 compilers and running with older hip runtima libraries
+            dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' --env COMPRESSED_BUNDLE_FORMAT_VERSION=2 "
         }
         if(params.BUILD_LEGACY_OS){
             dockerOpts = dockerOpts + " --env LD_LIBRARY_PATH='/opt/Python-3.8.13/lib' "
@@ -1172,6 +1176,8 @@ pipeline {
                                             -D GPU_TARGETS="gfx90a" \
                                             -D GEMM_DATATYPE="fp8;fp16" \
                                             -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
+                                            -D DGEMM_MULTI_D_DATATYPE="fp16" \
+                                            -D DGEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 benchmark_gemm_fp8_rcr && \
                                            ./bin/benchmark_gemm_fp8_rcr && \
@@ -1188,7 +1194,15 @@ pipeline {
                                            ninja -j64 benchmark_gemm_fp8_rrr && \
                                            ./bin/benchmark_gemm_fp8_rrr && \
                                            ninja -j64 benchmark_gemm_fp16_rrr && \
-                                           ./bin/benchmark_gemm_fp16_rrr """
+                                           ./bin/benchmark_gemm_fp16_rrr && \
+                                           ninja -j64 benchmark_gemm_multi_d_fp16_rrrr && \
+                                           ./bin/benchmark_gemm_multi_d_fp16_rrrr && \
+                                           ninja -j64 benchmark_gemm_multi_d_fp16_ccrr && \
+                                           ./bin/benchmark_gemm_multi_d_fp16_ccrr && \
+                                           ninja -j64 benchmark_gemm_multi_d_fp16_crrr && \
+                                           ./bin/benchmark_gemm_multi_d_fp16_crrr && \
+                                           ninja -j64 benchmark_gemm_multi_d_fp16_rcrr && \
+                                           ./bin/benchmark_gemm_multi_d_fp16_rcrr """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1210,6 +1224,8 @@ pipeline {
                                             -D GPU_TARGETS="gfx942" \
                                             -D GEMM_DATATYPE="fp8;fp16" \
                                             -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
+                                            -D DGEMM_MULTI_D_DATATYPE="fp16" \
+                                            -D DGEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 benchmark_gemm_fp8_rcr && \
                                            ./bin/benchmark_gemm_fp8_rcr && \
@@ -1226,7 +1242,15 @@ pipeline {
                                            ninja -j64 benchmark_gemm_fp8_rrr && \
                                            ./bin/benchmark_gemm_fp8_rrr && \
                                            ninja -j64 benchmark_gemm_fp16_rrr && \
-                                           ./bin/benchmark_gemm_fp16_rrr """
+                                           ./bin/benchmark_gemm_fp16_rrr && \
+                                           ninja -j64 benchmark_gemm_multi_d_fp16_rrrr && \
+                                           ./bin/benchmark_gemm_multi_d_fp16_rrrr && \
+                                           ninja -j64 benchmark_gemm_multi_d_fp16_ccrr && \
+                                           ./bin/benchmark_gemm_multi_d_fp16_ccrr && \
+                                           ninja -j64 benchmark_gemm_multi_d_fp16_crrr && \
+                                           ./bin/benchmark_gemm_multi_d_fp16_crrr && \
+                                           ninja -j64 benchmark_gemm_multi_d_fp16_rcrr && \
+                                           ./bin/benchmark_gemm_multi_d_fp16_rcrr """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
