@@ -241,6 +241,24 @@ void dump_gemm_multi_d_fp16_json_results(const std::string& json_filename,
     END_JSON_DUMP_FILE();
 }
 
+void dump_elementwise_json_results(const std::string& json_filename,
+                                   const std::string& prec,
+                                   int grid_size,
+                                   int block_size,
+                                   float ave_time,
+                                   float tflops,
+                                   float gb_per_sec,
+                                   const std::string& kernel_name = "elementwise")
+{
+    START_JSON_DUMP_FILE(json_filename);
+    ADD_KEY_VALUE("name", kernel_name);
+    ADD_KEY_VALUE("prec", prec);
+    ADD_KEY_VALUE("grid_size", grid_size);
+    ADD_KEY_VALUE("block_size", block_size);
+    ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec)
+    END_JSON_DUMP_FILE();
+}
+
 void dump_layernorm2d_fwd_json_results(const std::string& json_filename,
                                        const std::string& prec_i,
                                        const std::string& prec_o,
