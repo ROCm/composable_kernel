@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) Advanced Micro Devices, Inc. All rights reserved.
 
 #include <hip/hip_runtime.h>
 
@@ -76,11 +76,11 @@ struct GemmSplitKHostArgs : public ck_tile::GemmHostArgs
                                     ck_tile::index_t stride_E_)
         : BaseArgs(a_ptr_,
                    b_ptr_,
-                   workspace_ptr_,
+                   workspace_ptr_, // Base e_ptr = workspace_ptr
                    k_batch_,
                    M_,
                    N_,
-                   K_, // Base e_ptr = workspace_ptr
+                   K_,
                    stride_A_,
                    stride_B_,
                    workspace_stride_),
@@ -344,7 +344,7 @@ float reduce_stage2(const GemmSplitKHostArgs& args, const ck_tile::stream_config
     using BlockWarps = ck_tile::sequence<4, 1>;
     using BlockTile  = ck_tile::sequence<128, 128>;
     using WarpTile   = ck_tile::sequence<32, 128>;
-    using Vector     = ck_tile::sequence<8, 8>;
+    using ThreadTile = ck_tile::sequence<8, 8>;
 
     constexpr ck_tile::index_t kBlockSize  = 256;
     constexpr ck_tile::index_t kBlockPerCu = 1;
@@ -352,7 +352,7 @@ float reduce_stage2(const GemmSplitKHostArgs& args, const ck_tile::stream_config
     ck_tile::index_t kGridSize = (output_size + BlockTile::at(ck_tile::number<0>{}) - 1) /
                                  BlockTile::at(ck_tile::number<0>{});
 
-    using Shape = ck_tile::Reduce2dShape<BlockWarps, BlockTile, WarpTile, Vector>;
+    using Shape = ck_tile::Reduce2dShape<BlockWarps, BlockTile, WarpTile, ThreadTile>;
     using Problem =
         ck_tile::Reduce2dProblem<CDataType, ComputeDataType, CDataType, Shape, ReduceOp>;
     using Kernel = ck_tile::Reduce<Problem>;
