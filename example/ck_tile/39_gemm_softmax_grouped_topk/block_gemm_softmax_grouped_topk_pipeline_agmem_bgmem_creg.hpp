@@ -441,8 +441,8 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
         auto p_compute =
             make_static_distributed_tensor<ComputeDataType>(c_block_tile.get_tile_distribution());
 
-        // auto debug_block_tile =
-        //     make_static_distributed_tensor<WeightType>(p_compute.get_tile_distribution());
+        auto debug_block_tile =
+            make_static_distributed_tensor<WeightType>(p_compute.get_tile_distribution());
 
         constexpr auto p_spans = decltype(p_compute)::get_distributed_spans();
 
@@ -470,7 +470,6 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
                 constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
                 p_compute(i_j_idx) = p_compute[i_j_idx] / rowsum_p[i_idx];
-                // debug_block_tile(i_j_idx) = p_compute(i_j_idx);
             });
         });
         
@@ -478,7 +477,7 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
         auto x_tmp = p_compute;
         // calculate group score, need to creat group scores tensor
         int num_expert_group = 16;
-        // int topk_group = 2;
+        int topk_group = 2;
         int expert_per_group = kNPerBlock / num_expert_group;
         constexpr auto p_compute_spans = decltype(p_compute)::get_distributed_spans();
         auto group_scores = x_tmp;
@@ -525,87 +524,156 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
         //     x_tmp_3d, sequence<2>{}, f_max, std::numeric_limits<ComputeDataType>::lowest());
         // block_tile_reduce_sync(group_scores, f_max);
 
-        // // Step2: select group values and group_indices
-        // // argmax for topk
-        // const auto f_argmax = [](ArgmaxPacket e0, ArgmaxPacket e1) {
-        //     return e0.value > e1.value ? e0 : e1;
-        // };
-        // auto group_packet = topk(group_scores, topk_group)
+        // Step2: select topk group and cal mask score matrix
+        // argmax for topk
+        const auto f_argmax = [](ArgmaxPacket e0, ArgmaxPacket e1) {
+            return e0.value > e1.value ? e0 : e1;
+        };
 
-        // // Step3: mask score matrix
+        // // topk_group_index = topk(group_scores, topk_group)
+        // auto topk_group_index = x_tmp;
+        // // init topk_group_index to -inf
         // sweep_tile_span(p_compute_spans[number<0>{}], [&](auto idx0) {
         //     sweep_tile_span(p_compute_spans[number<1>{}], [&](auto idx1) {
-        //         const auto tile_idx = get_x_indices_from_distributed_indices(
-        //             p_compute.get_tile_distribution(), make_tuple(idx0, idx1));
-        //         auto col_id = tile_idx.at(number<1>{});
-
         //         constexpr auto i_j_idx = make_tuple(idx0, idx1);
-
-        //         x_tmp(i_j_idx) = (col_id != group_packet(i_j_idx).arg) ? -numeric<WeightType>::infinity()
-        //                                                         : x_tmp(i_j_idx);
+        //         topk_group_index(i_j_idx) = -numeric<WeightType>::infinity();
         //     });
         // });
 
-        // // Step4: select topk values from masked scores
-        // for(index_t i_k = 0; i_k < topk; i_k++)
-        // {
-        //     constexpr auto p_compute_spans = decltype(p_compute)::get_distributed_spans();
-        //     auto packet            = [&]() {
-        //         auto tmp = make_static_distributed_tensor<ArgmaxPacket>(p_compute.get_tile_distribution());
-        //         sweep_tile_span(p_compute_spans[number<0>{}], [&](auto idx0) {
-        //             sweep_tile_span(p_compute_spans[number<1>{}], [&](auto idx1) {
-        //                 const auto tile_idx = get_x_indices_from_distributed_indices(
-        //                     tmp.get_tile_distribution(), make_tuple(idx0, idx1));
-        //                 constexpr auto i_j_idx = make_tuple(idx0, idx1);
-        //                 ArgmaxPacket t;
-        //                 t.value    = x_tmp(i_j_idx); // !!! we reference p_compute here
-        //                 t.arg      = tile_idx.at(number<1>{});
-        //                 tmp(i_j_idx) = t;
-        //             });
-        //         });
-        //         return tmp;
-        //     }();
+        // topk_group_mask(1 for selected group scores, -inf for other group scores)
+        auto topk_group_scores_mask = x_tmp;
+        // init topk_group_scores_mask to -inf
+        sweep_tile_span(p_compute_spans[number<0>{}], [&](auto idx0) {
+            sweep_tile_span(p_compute_spans[number<1>{}], [&](auto idx1) {
+                constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                topk_group_scores_mask(i_j_idx) = -numeric<WeightType>::infinity();
+            });
+        });
 
-        //     auto argmax_init = ArgmaxPacket{-numeric<WeightType>::infinity(), 0};
-        //     auto r = block_tile_reduce<ArgmaxPacket>(packet, sequence<1>{}, f_argmax, argmax_init);
+        for(index_t k_group = 0; k_group < topk_group; k_group++)
+        {
+            auto group_packet            = [&]() {
+                auto tmp = make_static_distributed_tensor<ArgmaxPacket>(p_compute.get_tile_distribution());
+                sweep_tile_span(p_compute_spans[number<0>{}], [&](auto idx0) {
+                    sweep_tile_span(p_compute_spans[number<1>{}], [&](auto idx1) {
+                        const auto tile_idx = get_x_indices_from_distributed_indices(
+                            tmp.get_tile_distribution(), make_tuple(idx0, idx1));
+                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                        ArgmaxPacket t;
+                        t.value    = group_scores(i_j_idx); // !!! we reference p_compute here
+                        t.arg      = tile_idx.at(number<1>{});
+                        tmp(i_j_idx) = t;
+                    });
+                });
+                return tmp;
+            }();
 
-        //     block_tile_reduce_xor_sync(r, f_argmax);
+            auto argmax_init = ArgmaxPacket{-numeric<WeightType>::infinity(), 0};
+            auto group_r = block_tile_reduce<ArgmaxPacket>(group_packet, sequence<1>{}, f_argmax, argmax_init);
 
-        //     // constexpr auto value_spans = decltype(value_block_tile)::get_distributed_spans();
+            block_tile_reduce_xor_sync(group_r, f_argmax);
+
+            // constexpr auto value_spans = decltype(value_block_tile)::get_distributed_spans();
             
-        //     sweep_tile_span(p_compute_spans[number<0>{}], [&](auto idx0) {
-        //         constexpr auto i_idx = make_tuple(idx0);
-        //         sweep_tile_span(p_compute_spans[number<1>{}], [&](auto idx1) {
-        //             const auto tile_idx = get_x_indices_from_distributed_indices(
-        //                 p_compute.get_tile_distribution(), make_tuple(idx0, idx1));
-        //             // auto row_id = tile_idx.at(number<0>{});
-        //             auto col_id = tile_idx.at(number<1>{});
-        //             constexpr auto i_j_idx = make_tuple(idx0, idx1);
-        //             ArgmaxPacket tmp       = r(i_idx);
-        //             debug_block_tile(i_j_idx)                = (col_id == i_k) ? tmp.value: debug_block_tile(i_j_idx);
-        //             // debug_block_tile(i_j_idx)                = (col_id == i_k) ? tmp.arg: debug_block_tile(i_j_idx);
-        //             // value_block_tile(i_j_idx)             = tmp.value;
-        //             // index_block_tile(i_j_idx)             = tmp.arg;
-        //         });
-        //     });
+            sweep_tile_span(p_compute_spans[number<0>{}], [&](auto idx0) {
+                constexpr auto i_idx = make_tuple(idx0);
+                sweep_tile_span(p_compute_spans[number<1>{}], [&](auto idx1) {
+                    const auto tile_idx = get_x_indices_from_distributed_indices(
+                        p_compute.get_tile_distribution(), make_tuple(idx0, idx1));
+                    // auto row_id = tile_idx.at(number<0>{});
+                    auto col_id = tile_idx.at(number<1>{});
+                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                    auto k_group_idx       = group_r(i_idx).arg;
+                    // topk_group_index(i_j_idx) = (col_id == k_group) ? tmp.value: topk_group_index(i_j_idx);
+                    // topk_group_index(i_j_idx) = (col_id == k_group) ? k_group_idx: topk_group_index(i_j_idx);
+                    topk_group_scores_mask(i_j_idx) = ((col_id >= (k_group_idx * expert_per_group)) && (col_id < ((k_group_idx + 1) * expert_per_group))) ? 1 : topk_group_scores_mask(i_j_idx);          
+                });
+            });
 
-        //     // update value
-        //     sweep_tile_span(p_compute_spans[number<0>{}], [&](auto idx0) {
-        //         constexpr auto i_idx = make_tuple(idx0);
-        //         sweep_tile_span(p_compute_spans[number<1>{}], [&](auto idx1) {
-        //             const auto tile_idx = get_x_indices_from_distributed_indices(
-        //                 p_compute.get_tile_distribution(), make_tuple(idx0, idx1));
-        //             auto col_id = tile_idx.at(number<1>{});
+            // update value
+            sweep_tile_span(p_compute_spans[number<0>{}], [&](auto idx0) {
+                constexpr auto i_idx = make_tuple(idx0);
+                sweep_tile_span(p_compute_spans[number<1>{}], [&](auto idx1) {
+                    const auto tile_idx = get_x_indices_from_distributed_indices(
+                        p_compute.get_tile_distribution(), make_tuple(idx0, idx1));
+                    auto col_id = tile_idx.at(number<1>{});
 
-        //             constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
-        //             x_tmp(i_j_idx) = (col_id == r(i_idx).arg) ? -numeric<WeightType>::infinity()
-        //                                                             : x_tmp(i_j_idx);
-        //         });
-        //     });
-        // }
-        // return debug_block_tile;
-        return group_scores;
+                    group_scores(i_j_idx) = (col_id == group_r(i_idx).arg) ? -numeric<WeightType>::infinity()
+                                                                    : group_scores(i_j_idx);
+                });
+            });
+        }
+
+        // Step3: mask score matrix
+        auto x_tmp_masked = x_tmp;
+        sweep_tile_span(p_compute_spans[number<0>{}], [&](auto idx0) {
+            sweep_tile_span(p_compute_spans[number<1>{}], [&](auto idx1) {
+                constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                x_tmp_masked(i_j_idx) = x_tmp(i_j_idx) * topk_group_scores_mask(i_j_idx);
+            });
+        });
+
+        // Step4: select topk values from masked score matrix
+        for(index_t i_k = 0; i_k < topk; i_k++)
+        {
+            auto packet            = [&]() {
+                auto tmp = make_static_distributed_tensor<ArgmaxPacket>(p_compute.get_tile_distribution());
+                sweep_tile_span(p_compute_spans[number<0>{}], [&](auto idx0) {
+                    sweep_tile_span(p_compute_spans[number<1>{}], [&](auto idx1) {
+                        const auto tile_idx = get_x_indices_from_distributed_indices(
+                            tmp.get_tile_distribution(), make_tuple(idx0, idx1));
+                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                        ArgmaxPacket t;
+                        t.value    = x_tmp_masked(i_j_idx); // !!! we reference p_compute here
+                        t.arg      = tile_idx.at(number<1>{});
+                        tmp(i_j_idx) = t;
+                    });
+                });
+                return tmp;
+            }();
+
+            auto argmax_init = ArgmaxPacket{-numeric<WeightType>::infinity(), 0};
+            auto r = block_tile_reduce<ArgmaxPacket>(packet, sequence<1>{}, f_argmax, argmax_init);
+
+            block_tile_reduce_xor_sync(r, f_argmax);
+
+            // constexpr auto value_spans = decltype(value_block_tile)::get_distributed_spans();
+            
+            sweep_tile_span(p_compute_spans[number<0>{}], [&](auto idx0) {
+                constexpr auto i_idx = make_tuple(idx0);
+                sweep_tile_span(p_compute_spans[number<1>{}], [&](auto idx1) {
+                    const auto tile_idx = get_x_indices_from_distributed_indices(
+                        p_compute.get_tile_distribution(), make_tuple(idx0, idx1));
+                    // auto row_id = tile_idx.at(number<0>{});
+                    auto col_id = tile_idx.at(number<1>{});
+                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                    ArgmaxPacket tmp       = r(i_idx);
+                    // debug_block_tile(i_j_idx)                = (col_id == i_k) ? tmp.value: debug_block_tile(i_j_idx);
+                    debug_block_tile(i_j_idx)                = (col_id == i_k) ? tmp.arg: debug_block_tile(i_j_idx);
+                    // value_block_tile(i_j_idx)             = tmp.value;
+                    // index_block_tile(i_j_idx)             = tmp.arg;
+                });
+            });
+
+            // update value
+            sweep_tile_span(p_compute_spans[number<0>{}], [&](auto idx0) {
+                constexpr auto i_idx = make_tuple(idx0);
+                sweep_tile_span(p_compute_spans[number<1>{}], [&](auto idx1) {
+                    const auto tile_idx = get_x_indices_from_distributed_indices(
+                        p_compute.get_tile_distribution(), make_tuple(idx0, idx1));
+                    auto col_id = tile_idx.at(number<1>{});
+
+                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
+
+                    x_tmp_masked(i_j_idx) = (col_id == r(i_idx).arg) ? -numeric<WeightType>::infinity()
+                                                                    : x_tmp_masked(i_j_idx);
+                });
+            });
+        }
+        return debug_block_tile;
+        // return x_tmp_masked;
     }
 };
 

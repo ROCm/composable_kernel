@@ -63,8 +63,8 @@ void reference_basic_gemm_softmax_grouped_topk(const ck_tile::HostTensor<ADataTy
     ck_tile::make_ParallelTensorFunctor(f, c_m_n.mDesc.get_lengths()[0])(
         std::thread::hardware_concurrency());
 
-    reference_topk(c_m_n, y_values, y_indices, topk);
-    // reference_grouped_topk(c_m_n, y_values, y_indices, topk, num_expert_group, topk_group, dim, largest, sorted);
+    // reference_topk(c_m_n, y_values, y_indices, topk);
+    reference_grouped_topk(c_m_n, y_values, y_indices, topk);
 }
 
 template <typename ADataType, typename BDataType, typename AccDataType>

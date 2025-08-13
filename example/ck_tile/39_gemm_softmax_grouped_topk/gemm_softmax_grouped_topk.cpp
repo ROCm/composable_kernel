@@ -286,9 +286,9 @@ int main(int argc, char* argv[])
 
         // reference_topk(debug_host_input, value_ref, index_ref, topk);
         // debug_ref = reference_basic_gemm<ADataType, ADataType, AccDataType>(a_host, b_host);
-        debug_ref = reference_basic_gemm_softmax<ADataType, ADataType, AccDataType>(a_host, b_host);
-        // reference_basic_gemm_softmax_grouped_topk<ADataType, ADataType, AccDataType, WeightType, IndexType>(
-        //     a_host, b_host, value_ref, index_ref, topk);
+        // debug_ref = reference_basic_gemm_softmax<ADataType, ADataType, AccDataType>(a_host, b_host);
+        reference_basic_gemm_softmax_grouped_topk<ADataType, ADataType, AccDataType, WeightType, IndexType>(
+            a_host, b_host, value_ref, index_ref, topk);
         debug_buf.FromDevice(debug_host_dev.mData.data());
         value_buf.FromDevice(value_host_dev.mData.data());
         index_buf.FromDevice(index_host_dev.mData.data());
@@ -306,14 +306,14 @@ int main(int argc, char* argv[])
         for(int i_t = 0; i_t < tokens; i_t++)
         {
             auto s_begin = std::vector<size_t>{static_cast<size_t>(i_t), static_cast<size_t>(0)};
-            // auto s_end =
-            //     std::vector<size_t>{static_cast<size_t>(i_t + 1), static_cast<size_t>(topk)};
             auto s_end =
-                std::vector<size_t>{static_cast<size_t>(i_t + 1), static_cast<size_t>(N)};
+                std::vector<size_t>{static_cast<size_t>(i_t + 1), static_cast<size_t>(topk)};
+            // auto s_end =
+            //     std::vector<size_t>{static_cast<size_t>(i_t + 1), static_cast<size_t>(N)};
             auto s_debug_host = debug_host_dev.slice(s_begin, s_end);
-            auto s_debug_ref  = debug_ref.slice(s_begin, s_end);
+            // auto s_debug_ref  = debug_ref.slice(s_begin, s_end);
             // auto s_debug_ref  = value_ref.slice(s_begin, s_end);
-            // auto s_debug_ref  = index_ref.slice(s_begin, s_end);
+            auto s_debug_ref  = index_ref.slice(s_begin, s_end);
             rtn &= ck_tile::check_err(s_debug_host,
                                       s_debug_ref,
                                       std::string("[") + std::to_string(i_t) +
