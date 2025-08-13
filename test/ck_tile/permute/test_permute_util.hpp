@@ -46,58 +46,21 @@ template <int bytes>
 using to_integer_type = typename detail::to_integer_type<bytes>::type;
 
 // host API (should come from codegen)
-float permute(permute_traits t, permute_args a, const ck_tile::stream_config& s)
+template <typename DataType>
+float permute(permute_args a, const ck_tile::stream_config& s)
 {
-    if(t.data_type.compare("fp8") == 0)
-    {
-        using DataType        = ck_tile::fp8_t;
-        using PipelineProblem = ck_tile::GenericPermuteProblem<DataType>;
-        using Kernel          = ck_tile::GenericPermute<PipelineProblem>;
+    using PipelineProblem = ck_tile::GenericPermuteProblem<DataType>;
+    using Kernel          = ck_tile::GenericPermute<PipelineProblem>;
 
-        auto kargs = Kernel::MakeKargs(a);
+    auto kargs = Kernel::MakeKargs(a);
 
-        const dim3 grids      = Kernel::GridSize(a);
-        constexpr dim3 blocks = Kernel::BlockSize();
+    const dim3 grids      = Kernel::GridSize(a);
+    constexpr dim3 blocks = Kernel::BlockSize();
 
-        float ave_time = ck_tile::launch_kernel(
-            s, ck_tile::make_kernel<blocks.x, 1>(Kernel{}, grids, blocks, 0, kargs));
+    float ave_time = ck_tile::launch_kernel(
+        s, ck_tile::make_kernel<blocks.x, 1>(Kernel{}, grids, blocks, 0, kargs));
 
-        return ave_time;
-    }
-    else if(t.data_type.compare("fp16") == 0)
-    {
-        using DataType        = ck_tile::half_t;
-        using PipelineProblem = ck_tile::GenericPermuteProblem<DataType>;
-        using Kernel          = ck_tile::GenericPermute<PipelineProblem>;
-
-        auto kargs = Kernel::MakeKargs(a);
-
-        const dim3 grids      = Kernel::GridSize(a);
-        constexpr dim3 blocks = Kernel::BlockSize();
-
-        float ave_time = ck_tile::launch_kernel(
-            s, ck_tile::make_kernel<blocks.x, 1>(Kernel{}, grids, blocks, 0, kargs));
-
-        return ave_time;
-    }
-    else if(t.data_type.compare("fp32") == 0)
-    {
-        using DataType        = float;
-        using PipelineProblem = ck_tile::GenericPermuteProblem<DataType>;
-        using Kernel          = ck_tile::GenericPermute<PipelineProblem>;
-
-        auto kargs = Kernel::MakeKargs(a);
-
-        const dim3 grids      = Kernel::GridSize(a);
-        constexpr dim3 blocks = Kernel::BlockSize();
-
-        float ave_time = ck_tile::launch_kernel(
-            s, ck_tile::make_kernel<blocks.x, 1>(Kernel{}, grids, blocks, 0, kargs));
-
-        return ave_time;
-    }
-
-    return 0;
+    return ave_time;
 }
 
 template <typename T>
@@ -221,9 +184,6 @@ class TestCkTilePermute : public ::testing::Test
         ck_tile::stream_config stream_config{nullptr, false, 0, 0, 1};
 
         auto run_permute = [&]() {
-            permute_traits t;
-            t.data_type = data_type;
-
             permute_args a;
             a.p_src = x_buf.GetDeviceBuffer();
             a.p_dst = y_buf.GetDeviceBuffer();
@@ -231,7 +191,7 @@ class TestCkTilePermute : public ::testing::Test
             std::copy(shape.begin(), shape.end(), a.shape);
             std::copy(perm_vec.begin(), perm_vec.end(), a.perm);
 
-            return permute(t, a, stream_config);
+            return permute<DataType>(a, stream_config);
         };
 #ifdef PERMUTE_USE_ALTERNATIVE_IMPL
         // batch* n0*n1*n2*k0*k1*k2 -> batch* n0*k0*n1*k1*n2*k2
@@ -242,8 +202,7 @@ class TestCkTilePermute : public ::testing::Test
             {
                 // b_nr_kr_kw_nw_kv = 2,   // 0,1,3,4,2,5
                 matrix_core_swizzle_traits t;
-                t.data_type = data_type;
-                t.permute   = perm;
+                t.permute = perm;
 
                 matrix_core_swizzle_args a;
                 a.p_src = x_buf.GetDeviceBuffer();
@@ -262,14 +221,14 @@ class TestCkTilePermute : public ::testing::Test
                     t.inst = "16x16x16";
                     std::cout << ", matrix_core_swizzle_waveflatten_" << t.inst << std::flush;
 
-                    matrix_core_swizzle(t, a, stream_config);
+                    matrix_core_swizzle<DataType>(t, a, stream_config);
                 }
                 else if(kv == 8 && kw == 2 && nw == 32 && nr % 4 == 0 && kr % 8 == 0)
                 {
                     t.inst = "32x32x8";
                     std::cout << ", matrix_core_swizzle_waveflatten_" << t.inst << std::flush;
 
-                    matrix_core_swizzle(t, a, stream_config);
+                    matrix_core_swizzle<DataType>(t, a, stream_config);
                 }
                 else
                 {
@@ -279,8 +238,7 @@ class TestCkTilePermute : public ::testing::Test
             else
             {
                 matrix_core_swizzle_traits t;
-                t.data_type = data_type;
-                t.permute   = perm;
+                t.permute = perm;
 
                 matrix_core_swizzle_args a;
                 a.p_src = x_buf.GetDeviceBuffer();
@@ -299,7 +257,7 @@ class TestCkTilePermute : public ::testing::Test
                     t.inst = "32x32x8";
                     std::cout << ", matrix_core_swizzle_" << t.inst << std::flush;
 
-                    matrix_core_swizzle(t, a, stream_config);
+                    matrix_core_swizzle<DataType>(t, a, stream_config);
                 }
                 else if(shape[6] == 8 && shape[3] == 16 && shape[5] == 4 && shape[2] == 4 &&
                         shape[4] % 4 == 0 && shape[1] % 4 == 0)
@@ -311,7 +269,7 @@ class TestCkTilePermute : public ::testing::Test
                     t.inst = "16x16x16";
                     std::cout << ", matrix_core_swizzle_" << t.inst << std::flush;
 
-                    matrix_core_swizzle(t, a, stream_config);
+                    matrix_core_swizzle<DataType>(t, a, stream_config);
                 }
                 else
                 {

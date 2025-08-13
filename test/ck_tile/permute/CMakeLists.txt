@@ -10,7 +10,6 @@ if(GPU_TARGETS MATCHES "gfx9")
 
         if(PERMUTE_USE_ALTERNATIVE_IMPL)
         target_compile_options(${TARGET_NAME} PRIVATE -DPERMUTE_USE_ALTERNATIVE_IMPL)
-        target_sources(${TARGET_NAME} PRIVATE alternative_impl/matrix_core_swizzle.cpp)
         endif()
 
     endfunction(add_permute_test TARGET_NAME MAIN_SRC)
