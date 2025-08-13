@@ -11,87 +11,107 @@
 
 #include "ck_tile/host.hpp"
 #include "flatmm_basic.hpp"
+#include "run_flatmm_example.inc"
 
-template <typename ADataType,
+template <typename FlatmmConfig,
+          typename ADataType,
           typename BDataType,
+          typename DsDatatype,
           typename AccDataType,
           typename CDataType,
           typename ALayout,
           typename BLayout,
-          typename CLayout>
-float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_config& s)
+          typename DsLayout,
+          typename ELayout,
+          bool persistent,
+          typename CDEElementWise>
+float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_config& s)
 {
-    // The kPadM, kPadN, kPadK & kBlockPerCu should also come from the Codegen part.
-    constexpr bool kPadM = false;
-    constexpr bool kPadN = false;
-    constexpr bool kPadK = false;
+    using CodegenFlatmmShape = ck_tile::TileGemmShape<
+        ck_tile::sequence<FlatmmConfig::M_Tile, FlatmmConfig::N_Tile, FlatmmConfig::K_Tile>,
+        ck_tile::sequence<FlatmmConfig::M_Warp, FlatmmConfig::N_Warp, FlatmmConfig::K_Warp>,
+        ck_tile::sequence<FlatmmConfig::M_Warp_Tile,
+                          FlatmmConfig::N_Warp_Tile,
+                          FlatmmConfig::K_Warp_Tile>>;
 
-    constexpr int kBlockPerCu = 2;
+    using TilePartitioner =
+        ck_tile::GemmSpatiallyLocalTilePartitioner<CodegenFlatmmShape,
+                                                   FlatmmConfig::TileParitionerGroupNum,
+                                                   FlatmmConfig::TileParitionerM01>;
 
-    // This part comes from the Codegen
-#if defined(USING_MFMA_16x16x32) || defined(ENABLE_FP16)
-    constexpr ck_tile::index_t M_Tile = 128;
-    constexpr ck_tile::index_t N_Tile = 128;
-    constexpr ck_tile::index_t K_Tile = 128;
+    using Traits = ck_tile::TileGemmTraits<FlatmmConfig::kPadM,
+                                           FlatmmConfig::kPadN,
+                                           FlatmmConfig::kPadK,
+                                           ALayout,
+                                           BLayout,
+                                           ELayout,
+                                           FlatmmConfig::NumWaveGroups>;
 
-    constexpr ck_tile::index_t M_Warp = 1;
-    constexpr ck_tile::index_t N_Warp = 4;
-    constexpr ck_tile::index_t K_Warp = 1;
+    using CodegenGemmTraits = ck_tile::TileGemmUniversalTraits<FlatmmConfig::kPadM,
+                                                               FlatmmConfig::kPadN,
+                                                               FlatmmConfig::kPadK,
+                                                               FlatmmConfig::DoubleSmemBuffer,
+                                                               ALayout,
+                                                               BLayout,
+                                                               ELayout,
+                                                               FlatmmConfig::TransposeC,
+                                                               FlatmmConfig::UseStructuredSparsity,
+                                                               persistent,
+                                                               FlatmmConfig::NumWaveGroups,
+                                                               true>;
 
-    constexpr ck_tile::index_t M_Warp_Tile = is_8bit_type<ADataType>::value ? 16 : 32;
-    constexpr ck_tile::index_t N_Warp_Tile = is_8bit_type<ADataType>::value ? 16 : 32;
-    constexpr ck_tile::index_t K_Warp_Tile = is_8bit_type<ADataType>::value ? 64 : 16;
+    using GemmPipelineProblem =
+        ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenFlatmmShape, Traits>;
 
-#elif defined(USING_MFMA_32x32x16) && defined(ENABLE_FP8)
-    constexpr ck_tile::index_t M_Tile = 128;
-    constexpr ck_tile::index_t N_Tile = 256;
-    constexpr ck_tile::index_t K_Tile = 128;
+    using BaseGemmPipeline = ck_tile::BaseFlatmmPipelineAGmemBGmemCRegV1<GemmPipelineProblem>;
 
-    constexpr ck_tile::index_t M_Warp = 1;
-    constexpr ck_tile::index_t N_Warp = 8;
-    constexpr ck_tile::index_t K_Warp = 1;
+    const ck_tile::index_t k_grain     = args.k_batch * FlatmmConfig::K_Tile;
+    const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * FlatmmConfig::K_Tile;
+    const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
+    const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
+    const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
+    float ave_time{0};
 
-    constexpr ck_tile::index_t M_Warp_Tile = is_8bit_type<ADataType>::value ? 32 : 32;
-    constexpr ck_tile::index_t N_Warp_Tile = is_8bit_type<ADataType>::value ? 32 : 32;
-    constexpr ck_tile::index_t K_Warp_Tile = is_8bit_type<ADataType>::value ? 32 : 16;
-#endif
-    using CodegenFlatmmShape =
-        ck_tile::TileFlatmmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
-                                 ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
-                                 ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
-
-    using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenFlatmmShape>;
-
-    using CodegenGemmTraits =
-        ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
-    using CodegenPipelineProblem = ck_tile::GemmPipelineProblem<ADataType,
-                                                                BDataType,
-                                                                AccDataType,
-                                                                CodegenFlatmmShape,
-                                                                CodegenGemmTraits>;
-    const auto Run               = [&](const auto memory_operation_) {
+    const auto Run = [&](const auto has_hot_loop_,
+                         const auto tail_number_,
+                         const auto memory_operation_) {
+        constexpr bool has_hot_loop_v   = has_hot_loop_.value;
+        constexpr auto tail_number_v    = tail_number_.value;
+        constexpr auto scheduler        = FlatmmConfig::Scheduler;
         constexpr auto memory_operation = memory_operation_.value;
+
+        using CodegenPipelineProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                                             BDataType,
+                                                                             AccDataType,
+                                                                             CodegenFlatmmShape,
+                                                                             CodegenGemmTraits,
+                                                                             scheduler,
+                                                                             has_hot_loop_v,
+                                                                             tail_number_v>;
+
+        using CodegenFlatmmPipeline =
+            ck_tile::FlatmmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
                                              BDataType,
+                                             DsDatatype,
                                              AccDataType,
                                              CDataType,
-                                             CLayout,
+                                             DsLayout,
+                                             ELayout,
+                                             CDEElementWise,
                                              CodegenPipelineProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,
-                                             M_Warp,
-                                             N_Warp,
-                                             M_Warp_Tile,
-                                             N_Warp_Tile,
-                                             K_Warp_Tile,
+                                             FlatmmConfig::M_Warp,
+                                             FlatmmConfig::N_Warp,
+                                             FlatmmConfig::M_Warp_Tile,
+                                             FlatmmConfig::N_Warp_Tile,
+                                             FlatmmConfig::K_Warp_Tile,
                                              CodegenPipelineProblem::TransposeC,
-                                             memory_operation>>;
-
-        using CodegenFlatmmPolicy = ck_tile::UniversalFlatmmPipelineAgBgCrPolicy;
-        using CodegenFlatmmPipeline =
-            ck_tile::FlatmmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem, CodegenFlatmmPolicy>;
+                                             memory_operation,
+                                             FlatmmConfig::NumWaveGroups>>;
 
         // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
         // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
@@ -109,31 +129,82 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
 
         if(s.log_level_ > 0)
         {
-            std::cout << "Launching kernel with args:"
-                      << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
+            std::cout << "Launching kernel with args:" << CodegenFlatmmShape::GetName() << "\n"
+                      << "Shape: " << CodegenFlatmmShape::GetName() << "\n"
+                      << "problem: " << CodegenPipelineProblem::GetName() << "\n"
+                      << "pipeline: " << CodegenFlatmmPipeline::GetName() << "\n"
+                      << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
                       << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
                       << std::endl;
         }
 
-        float ave_time = ck_tile::launch_kernel(
-            s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+        if(s.flush_cache_)
+        {
+            std::cout << "Flushing cache..." << std::endl;
+            static constexpr ck_tile::index_t APackedSize =
+                std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
+            static constexpr ck_tile::index_t BPackedSize =
+                std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
 
+            ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
+                args.M, args.K, args.stride_A, is_row_major(ALayout{})));
+            ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
+                args.K, args.N, args.stride_B, is_row_major(BLayout{})));
+
+            auto size_a_buffer = a_m.get_element_space_size_in_bytes() / APackedSize;
+            auto size_b_buffer = b_n.get_element_space_size_in_bytes() / BPackedSize;
+
+            ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
+                kargs.a_ptr, kargs.b_ptr, s.rotating_count_, size_a_buffer, size_b_buffer);
+            rotating_mem.Print();
+
+            auto run_flush_cache = [&]() {
+                // flush icache
+                ck_tile::flush_icache();
+                // rotating mem
+                rotating_mem.Next();
+                // clear c mem
+                if(args.k_batch > 1)
+                    hipGetErrorString(hipMemsetAsync(
+                        args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
+            };
+            ave_time = ck_tile::launch_kernel_time_mask(
+                s,
+                run_flush_cache,
+                ck_tile::make_kernel<blocks.x, FlatmmConfig::kBlockPerCu>(
+                    Kernel{}, grids, blocks, 0, kargs));
+        }
+        else
+        {
+            ave_time =
+                ck_tile::launch_kernel(s,
+                                       ck_tile::make_kernel<blocks.x, FlatmmConfig::kBlockPerCu>(
+                                           Kernel{}, grids, blocks, 0, kargs));
+        }
         return ave_time;
     };
-    if(args.k_batch == 1)
-    {
-        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                              ck_tile::memory_operation_enum::set>{});
-    }
-    else
-    {
-        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                              ck_tile::memory_operation_enum::atomic_add>{});
-    }
+
+    const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
+        if(args.k_batch == 1)
+        {
+            Run(has_hot_loop_,
+                tail_number_,
+                ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                           ck_tile::memory_operation_enum::set>{});
+        }
+        else
+        {
+            Run(has_hot_loop_,
+                tail_number_,
+                ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                           ck_tile::memory_operation_enum::atomic_add>{});
+        }
+    };
+    BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
+    return ave_time;
 }
 
-#include "run_flatmm_example.inc"
-
+template <template <typename PreType> typename FlatmmConfig>
 int run_flatmm_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -146,24 +217,28 @@ int run_flatmm_example(int argc, char* argv[])
     std::string data_type = arg_parser.get_str("prec");
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
-
     if(a_layout == "R" && b_layout == "C")
     {
+
         if(data_type == "fp16")
         {
-            run_flatmm_example_with_layouts<ck_tile::half_t>(argc, argv, Row{}, Col{}, Row{});
+            run_flatmm_example_with_layouts<ck_tile::half_t, FlatmmConfig<ck_tile::half_t>>(
+                argc, argv, Row{}, Col{}, Row{});
         }
         else if(data_type == "bf16")
         {
-            run_flatmm_example_with_layouts<ck_tile::bf16_t>(argc, argv, Row{}, Col{}, Row{});
+            run_flatmm_example_with_layouts<ck_tile::bf16_t, FlatmmConfig<ck_tile::bf16_t>>(
+                argc, argv, Row{}, Col{}, Row{});
         }
         else if(data_type == "fp8")
         {
-            run_flatmm_example_with_layouts<ck_tile::fp8_t>(argc, argv, Row{}, Col{}, Row{});
+            run_flatmm_example_with_layouts<ck_tile::fp8_t, FlatmmConfig<ck_tile::fp8_t>>(
+                argc, argv, Row{}, Col{}, Row{});
         }
         else if(data_type == "bf8")
         {
-            run_flatmm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Row{}, Col{}, Row{});
+            run_flatmm_example_with_layouts<ck_tile::bf8_t, FlatmmConfig<ck_tile::bf8_t>>(
+                argc, argv, Row{}, Col{}, Row{});
         }
         else
         {
@@ -179,9 +254,29 @@ int run_flatmm_example(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
+    auto [result, arg_parser] = create_args(argc, argv);
+    if(!result)
+        return EXIT_FAILURE;
+
     try
     {
-        return !run_flatmm_example(argc, argv);
+        int warp_tile = arg_parser.get_int("warp_tile");
+        if(warp_tile == 0)
+        {
+            return !run_flatmm_example<FlatmmConfig16>(argc, argv);
+        }
+        else if(warp_tile == 1)
+        {
+            return !run_flatmm_example<FlatmmConfig32>(argc, argv);
+        }
+        else if(warp_tile == 2)
+        {
+            return !run_flatmm_example<FlatmmConfig16_950>(argc, argv);
+        }
+        else
+        {
+            return !run_flatmm_example<FlatmmConfig32_950>(argc, argv);
+        }
     }
     catch(const std::runtime_error& e)
     {

@@ -84,7 +84,7 @@ using ext_vector_t = typename impl::ext_vector<T, N>::type;
 
 // by default, any type will result in a vector_size=1 with scalar_type=T traits.
 // ... unless we have other vector_traits specialization
-template <typename T, typename>
+template <typename T, typename = void>
 struct vector_traits
 {
     using scalar_type =
@@ -94,7 +94,7 @@ struct vector_traits
 
 // specialization for ext_vector_type()
 template <typename T, index_t N>
-struct vector_traits<T __attribute__((ext_vector_type(N)))>
+struct vector_traits<T __attribute__((ext_vector_type(N))), void>
 {
     using scalar_type = std::conditional_t<std::is_same_v<T, pk_int4_t>, int8_t, T>;
     static constexpr index_t vector_size = N;
@@ -131,12 +131,12 @@ using fp16x64_t = _Float16 __attribute__((ext_vector_type(64)));
 
 // bf16
 // using bf16_t = ...
-using bf16x2_t  = bf16_raw_t __attribute__((ext_vector_type(2)));
-using bf16x4_t  = bf16_raw_t __attribute__((ext_vector_type(4)));
-using bf16x8_t  = bf16_raw_t __attribute__((ext_vector_type(8)));
-using bf16x16_t = bf16_raw_t __attribute__((ext_vector_type(16)));
-using bf16x32_t = bf16_raw_t __attribute__((ext_vector_type(32)));
-using bf16x64_t = bf16_raw_t __attribute__((ext_vector_type(64)));
+using bf16x2_t  = bfloat16_t __attribute__((ext_vector_type(2)));
+using bf16x4_t  = bfloat16_t __attribute__((ext_vector_type(4)));
+using bf16x8_t  = bfloat16_t __attribute__((ext_vector_type(8)));
+using bf16x16_t = bfloat16_t __attribute__((ext_vector_type(16)));
+using bf16x32_t = bfloat16_t __attribute__((ext_vector_type(32)));
+using bf16x64_t = bfloat16_t __attribute__((ext_vector_type(64)));
 
 // i32
 // using int32_t = ...

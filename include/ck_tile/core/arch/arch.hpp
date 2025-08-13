@@ -10,6 +10,15 @@
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
 
+#define CK_TILE_S_CNT_MAX 0b1100'1111'0111'1111
+#define CK_TILE_VMCNT(cnt)                                              \
+    ([]() { static_assert(!((cnt) >> 6), "VMCNT only has 6 bits"); }(), \
+     ((cnt) & 0b1111) | (((cnt) & 0b110000) << 10))
+#define CK_TILE_EXPCNT(cnt) \
+    ([]() { static_assert(!((cnt) >> 3), "EXP only has 3 bits"); }(), ((cnt) << 4))
+#define CK_TILE_LGKMCNT(cnt) \
+    ([]() { static_assert(!((cnt) >> 4), "LGKM only has 4 bits"); }(), ((cnt) << 8))
+
 namespace ck_tile {
 
 template <typename, bool>
@@ -50,8 +59,11 @@ enum struct memory_operation_enum : std::uint16_t
 
 CK_TILE_HOST_DEVICE constexpr index_t get_warp_size()
 {
-    // warpSize is defined by HIP
-    return warpSize;
+#if defined(__GFX9__) || !defined(__HIP_DEVICE_COMPILE__)
+    return 64;
+#else
+    return 32;
+#endif
 }
 
 CK_TILE_DEVICE index_t get_grid_size() { return gridDim.x; }
@@ -77,21 +89,6 @@ CK_TILE_DEVICE index_t get_thread_id() { return threadIdx.x; }
 
 CK_TILE_DEVICE index_t get_block_id() { return blockIdx.x; }
 
-CK_TILE_DEVICE void block_sync_lds()
-{
-#if CK_TILE_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM
-    // asm volatile("\
-    // s_waitcnt lgkmcnt(0) \n \
-    // s_barrier \
-    // " ::);
-
-    __builtin_amdgcn_s_waitcnt(0xc07f);
-    __builtin_amdgcn_s_barrier();
-#else
-    __syncthreads();
-#endif
-}
-
 CK_TILE_DEVICE void block_sync_load_raw(index_t cnt = 0)
 {
 #ifdef __gfx12__
@@ -110,13 +107,68 @@ CK_TILE_DEVICE void block_sync_load_raw(index_t cnt = 0)
 #endif
 }
 
+// https://llvm.org/docs/AMDGPU/gfx9_waitcnt.html
+struct waitcnt_arg
+{
+    // bit numbers (hex) -------------------------> FE'DC'BA98'7'654'3210
+    // [V]M [E]XP [L]GKM counters and [U]NUSED ---> VV'UU'LLLL'U'EEE'VVVV
+    CK_TILE_DEVICE static constexpr index_t MAX = 0b11'00'1111'0'111'1111;
+
+    CK_TILE_DEVICE static constexpr index_t kMaxVmCnt   = 0b111111;
+    CK_TILE_DEVICE static constexpr index_t kMaxExpCnt  = 0b111;
+    CK_TILE_DEVICE static constexpr index_t kMaxLgkmCnt = 0b1111;
+
+    template <index_t cnt>
+    CK_TILE_DEVICE static constexpr index_t from_vmcnt()
+    {
+        static_assert(cnt >= 0 && !(cnt >> 6), "valid range is [0..63]");
+        return MAX & ((cnt & 0b1111) | ((cnt & 0b110000) << 10));
+    }
+
+    template <index_t cnt>
+    CK_TILE_DEVICE static constexpr index_t from_expcnt()
+    {
+        static_assert(cnt >= 0 && !(cnt >> 3), "valid range is [0..7]");
+        return MAX & (cnt << 4);
+    }
+
+    template <index_t cnt>
+    CK_TILE_DEVICE static constexpr index_t from_lgkmcnt()
+    {
+        static_assert(cnt >= 0 && !(cnt >> 4), "valid range is [0..15]");
+        return MAX & (cnt << 8);
+    }
+};
+
+template <index_t vmcnt   = waitcnt_arg::kMaxVmCnt,
+          index_t expcnt  = waitcnt_arg::kMaxExpCnt,
+          index_t lgkmcnt = waitcnt_arg::kMaxLgkmCnt>
+CK_TILE_DEVICE void s_waitcnt()
+{
+    __builtin_amdgcn_s_waitcnt(waitcnt_arg::from_vmcnt<vmcnt>() |
+                               waitcnt_arg::from_expcnt<expcnt>() |
+                               waitcnt_arg::from_lgkmcnt<lgkmcnt>());
+}
+
+template <index_t vmcnt   = waitcnt_arg::kMaxVmCnt,
+          index_t expcnt  = waitcnt_arg::kMaxExpCnt,
+          index_t lgkmcnt = waitcnt_arg::kMaxLgkmCnt>
+CK_TILE_DEVICE void s_waitcnt_barrier()
+{
+    s_waitcnt<vmcnt, expcnt, lgkmcnt>();
+    __builtin_amdgcn_s_barrier();
+}
+
+template <index_t lgkmcnt = 0>
+CK_TILE_DEVICE void block_sync_lds()
+{
+    s_waitcnt_barrier<waitcnt_arg::kMaxVmCnt, waitcnt_arg::kMaxExpCnt, lgkmcnt>();
+}
+
+template <index_t vmcnt = 0>
 CK_TILE_DEVICE void block_sync_lds_direct_load()
 {
-    asm volatile("\
-    s_waitcnt vmcnt(0) \n \
-    s_waitcnt lgkmcnt(0) \n \
-    s_barrier \
-    " ::);
+    s_waitcnt_barrier<vmcnt, waitcnt_arg::kMaxExpCnt, waitcnt_arg::kMaxLgkmCnt>();
 }
 
 CK_TILE_DEVICE void s_nop(index_t cnt = 0)
@@ -161,6 +213,21 @@ CK_TILE_HOST_DEVICE constexpr index_t get_smem_capacity()
 #else
     return 65536;
 #endif
+}
+
+/// Helper function to convert address space enum to string
+CK_TILE_HOST_DEVICE constexpr const char* address_space_to_string(address_space_enum addr_space)
+{
+    switch(addr_space)
+    {
+    case address_space_enum::generic: return "generic";
+    case address_space_enum::global: return "global";
+    case address_space_enum::lds: return "lds";
+    case address_space_enum::sgpr: return "sgpr";
+    case address_space_enum::constant: return "constant";
+    case address_space_enum::vgpr: return "vgpr";
+    default: return "unknown";
+    }
 }
 
 } // namespace ck_tile

@@ -14,15 +14,20 @@ template <typename ADataType_,
           typename CDataType_,
           typename BlockGemmShape_,
           typename Traits_,
-          typename ComputeDataType_ = ADataType_>
+          typename ComputeDataType_ = ADataType_,
+          bool FixedVectorSize_     = false,
+          index_t VectorSizeA_      = 1,
+          index_t VectorSizeB_      = 1>
 struct GemmPipelineProblemBase
 {
     using Traits = remove_cvref_t<Traits_>;
 
     using ADataType       = remove_cvref_t<ADataType_>;
     using BDataType       = remove_cvref_t<BDataType_>;
-    using CDataType       = remove_cvref_t<CDataType_>;
+    using CDataType       = remove_cvref_t<CDataType_>; // actually AccDataType
     using ComputeDataType = remove_cvref_t<ComputeDataType_>;
+
+    static constexpr bool FixedVectorSize = FixedVectorSize_;
 
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
@@ -30,8 +35,8 @@ struct GemmPipelineProblemBase
     using BLayout = remove_cvref_t<typename Traits::BLayout>;
     using CLayout = remove_cvref_t<typename Traits::CLayout>;
 
-    static constexpr bool TransposeC = Traits::TransposeC;
-
+    static constexpr bool TransposeC            = Traits::TransposeC;
+    static constexpr index_t NumWaveGroups      = Traits::NumWaveGroups;
     static constexpr bool UseStructuredSparsity = Traits::UseStructuredSparsity;
 
     static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();
@@ -40,10 +45,12 @@ struct GemmPipelineProblemBase
     static constexpr bool kPadN = Traits::kPadN;
     static constexpr bool kPadK = Traits::kPadK;
 
-    static constexpr bool DoubleSmemBuffer = Traits::DoubleSmemBuffer;
-
+    static constexpr bool DoubleSmemBuffer  = Traits::DoubleSmemBuffer;
     static constexpr auto Scheduler         = GemmPipelineScheduler::Default;
     static constexpr index_t VectorLoadSize = Traits::_VectorSize;
+
+    // In the base situation, the Preshuffle setting should be false.
+    static constexpr bool Preshuffle = false;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
@@ -114,7 +121,11 @@ struct GemmPipelineProblemBase
     }
 
     static constexpr index_t VectorSizeA = []() {
-        if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
+        if constexpr(FixedVectorSize)
+        {
+            return VectorSizeA_;
+        }
+        else if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
         {
             return kPadK ? 1 : GetAlignmentA();
         }
@@ -125,7 +136,11 @@ struct GemmPipelineProblemBase
     }();
 
     static constexpr index_t VectorSizeB = []() {
-        if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
+        if constexpr(FixedVectorSize)
+        {
+            return VectorSizeB_;
+        }
+        else if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
         {
             return kPadN ? 1 : GetAlignmentB();
         }
@@ -152,13 +167,19 @@ template <typename ADataType_,
           typename CDataType_,
           typename BlockGemmShape_,
           typename Traits_,
-          typename ComputeDataType_ = ADataType_>
+          typename ComputeDataType_ = ADataType_,
+          bool FixedVectorSize_     = false,
+          index_t VectorSizeA_      = 1,
+          index_t VectorSizeB_      = 1>
 using GemmPipelineProblem = GemmPipelineProblemBase<ADataType_,
                                                     BDataType_,
                                                     CDataType_,
                                                     BlockGemmShape_,
                                                     Traits_,
-                                                    ComputeDataType_>;
+                                                    ComputeDataType_,
+                                                    FixedVectorSize_,
+                                                    VectorSizeA_,
+                                                    VectorSizeB_>;
 
 template <typename ADataType_,
           typename BDataType_,
@@ -168,21 +189,30 @@ template <typename ADataType_,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
           bool HasHotLoop_                 = true,
           TailNumber TailNum_              = TailNumber::Full,
-          typename ComputeDataType_        = ADataType_>
+          typename ComputeDataType_        = ADataType_,
+          bool FixedVectorSize_            = false,
+          index_t VectorSizeA_             = 1,
+          index_t VectorSizeB_             = 1>
 struct UniversalGemmPipelineProblem
 {
     using Traits = remove_cvref_t<Traits_>;
 
     using ADataType       = remove_cvref_t<ADataType_>;
     using BDataType       = remove_cvref_t<BDataType_>;
-    using CDataType       = remove_cvref_t<CDataType_>;
+    using CDataType       = remove_cvref_t<CDataType_>; // actually AccDataType
     using ComputeDataType = remove_cvref_t<ComputeDataType_>;
+
+    static constexpr bool FixedVectorSize = FixedVectorSize_;
 
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
     using ALayout = remove_cvref_t<typename Traits::ALayout>;
     using BLayout = remove_cvref_t<typename Traits::BLayout>;
     using CLayout = remove_cvref_t<typename Traits::CLayout>;
+
+    static constexpr bool TransposeC            = Traits::TransposeC;
+    static constexpr index_t NumWaveGroups      = Traits::NumWaveGroups;
+    static constexpr bool UseStructuredSparsity = Traits::UseStructuredSparsity;
 
     static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();
 
@@ -191,13 +221,24 @@ struct UniversalGemmPipelineProblem
     static constexpr bool kPadK = Traits::kPadK;
 
     static constexpr bool DoubleSmemBuffer = Traits::DoubleSmemBuffer;
+    static constexpr auto Scheduler        = Scheduler_;
+    static constexpr bool Preshuffle       = Traits::Preshuffle;
 
-    static constexpr auto Scheduler  = Scheduler_;
-    static constexpr auto HasHotLoop = HasHotLoop_;
-    static constexpr auto TailNum    = TailNum_;
+    static constexpr index_t VectorSizeA = VectorSizeA_;
+    static constexpr index_t VectorSizeB = VectorSizeB_;
 
-    static constexpr bool TransposeC            = Traits::TransposeC;
-    static constexpr bool UseStructuredSparsity = Traits::UseStructuredSparsity;
+    static constexpr auto HasHotLoop        = HasHotLoop_;
+    static constexpr auto TailNum           = TailNum_;
+    static constexpr index_t VectorLoadSize = Traits::_VectorSize;
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
+    {
+        // clang-format off
+        return concat('_', "gemm_problem", 
+                      concat('x', kBlockSize),
+                      concat('x', kPadM, kPadN, kPadK),
+                      Scheduler);
+        // clang-format on
+    }
 };
 
 } // namespace ck_tile

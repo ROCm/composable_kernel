@@ -49,8 +49,9 @@ The Composable Kernel repository is located at `https://github.com/ROCm/composab
     * :doc:`Composable Kernel vector utilities <./reference/Composable_Kernel_vector_utilities>`
     * :ref:`wrapper`    
     * :doc:`Composable Kernel API reference <./doxygen/html/namespace_c_k>`
-    * :doc:`CK Tile API reference <./doxygen/html/namespaceck__tile>`    
-
+    * :doc:`CK Tile API reference <./doxygen/html/namespaceck__tile>`
+    * :doc:`Composable Kernel complete API class list <./doxygen/html/annotated>`
+    
 To contribute to the documentation refer to `Contributing to ROCm  <https://rocm.docs.amd.com/en/latest/contribute/contributing.html>`_.
 
 You can find licensing information on the `Licensing <https://rocm.docs.amd.com/en/latest/about/license.html>`_ page.

@@ -30,7 +30,8 @@ template <
     typename ADataType       = float,
     typename CDataType       = float,
     index_t NumGroupsToMerge = 1,
-    typename IndexType       = index_t>
+    typename IndexType       = index_t,
+    bool CTranspose          = false>
 struct TransformConvBwdDataToGemm_v1
 {
     private:
@@ -555,6 +556,41 @@ struct TransformConvBwdDataToGemm_v1
                 return make_naive_tensor_descriptor_packed(make_tuple(N_, Do_, Ho_, Wo_, K_));
             }
         }
+        else if constexpr(is_same_v<ALayout, tensor_layout::convolution::NGKHW>)
+        {
+            // assume packed
+            static_assert(ConvBwdDataSpecialization ==
+                          ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::
+                              Filter1x1Stride1Pad0);
+
+            const auto out_gemm_raw_grid_desc = make_naive_tensor_descriptor(
+                make_tuple(N_, Ho_ * Wo_, K_), make_tuple(NStrideTensorA_, I1, KStrideTensorA_));
+
+            return transform_tensor_descriptor(
+                out_gemm_raw_grid_desc,
+                make_tuple(make_merge_transform(make_tuple(N_, Ho_ * Wo_)),
+                           make_pass_through_transform(K_)),
+                make_tuple(Sequence<0, 1>{}, Sequence<2>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
+        }
+        else if constexpr(is_same_v<ALayout, tensor_layout::convolution::NGKDHW>)
+        {
+            // assume packed
+            static_assert(ConvBwdDataSpecialization ==
+                          ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::
+                              Filter1x1Stride1Pad0);
+
+            const auto out_gemm_raw_grid_desc =
+                make_naive_tensor_descriptor(make_tuple(N_, Do_ * Ho_ * Wo_, K_),
+                                             make_tuple(NStrideTensorA_, I1, KStrideTensorA_));
+
+            return transform_tensor_descriptor(
+                out_gemm_raw_grid_desc,
+                make_tuple(make_merge_transform(make_tuple(N_, Do_ * Ho_ * Wo_)),
+                           make_pass_through_transform(K_)),
+                make_tuple(Sequence<0, 1>{}, Sequence<2>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
+        }
         else
         {
             throw std::runtime_error("wrong! unsupported layout: " + ALayout::name());
@@ -608,7 +644,9 @@ struct TransformConvBwdDataToGemm_v1
                                     (is_same_v<ALayout_, tensor_layout::convolution::GNHWK> ||
                                      is_same_v<ALayout_, tensor_layout::convolution::GNDHWK> ||
                                      is_same_v<ALayout_, tensor_layout::convolution::NHWGK> ||
-                                     is_same_v<ALayout_, tensor_layout::convolution::NDHWGK>),
+                                     is_same_v<ALayout_, tensor_layout::convolution::NDHWGK> ||
+                                     is_same_v<ALayout_, tensor_layout::convolution::NGKHW> ||
+                                     is_same_v<ALayout_, tensor_layout::convolution::NGKDHW>),
                                 bool>::type = false>
     __host__ __device__ auto MakeADescriptor_AK0_M_AK1() const
     {
@@ -848,16 +886,16 @@ struct TransformConvBwdDataToGemm_v1
         }
     }
 
-    template <typename BLayout_                   = BLayout,
-              typename std::enable_if<(NDimSpatial == 2 || NDimSpatial == 3) &&
-                                          (is_same_v<BLayout_, tensor_layout::convolution::GKYXC> ||
-                                           is_same_v<BLayout_, tensor_layout::convolution::GKZYXC>),
-                                      bool>::type = false>
+    template <
+        typename BLayout_                   = BLayout,
+        typename std::enable_if<(NDimSpatial == 2 || NDimSpatial == 3) &&
+                                    (is_same_v<BLayout_, tensor_layout::convolution::GKYXC> ||
+                                     is_same_v<BLayout_, tensor_layout::convolution::GKZYXC> ||
+                                     is_same_v<BLayout_, tensor_layout::convolution::GKCYX> ||
+                                     is_same_v<BLayout_, tensor_layout::convolution::GKCZYX>),
+                                bool>::type = false>
     __host__ __device__ auto MakeBDescriptor_BK0_N_BK1() const
     {
-        // assume packed
-        // k_y_x_c for 2d or k_z_y_x_c for 3d
-        const auto wei_grid_desc = MakeWeiGridDesc();
 
         if constexpr(ConvBwdDataSpecialization ==
                      ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::
@@ -886,6 +924,12 @@ struct TransformConvBwdDataToGemm_v1
         }
         else
         {
+            // assume packed
+            // k_y_x_c for 2d or k_z_y_x_c for 3d
+            static_assert(is_same_v<BLayout_, tensor_layout::convolution::GKYXC> ||
+                          is_same_v<BLayout_, tensor_layout::convolution::GKZYXC>);
+            const auto wei_grid_desc = MakeWeiGridDesc();
+
             // GemmK is different for each GEMM
             const auto ZDotSlice = math::integer_divide_ceil(Z_ - IdxZTilde_, ZTilde_);
             const auto YDotSlice = math::integer_divide_ceil(Y_ - IdxYTilde_, YTilde_);
@@ -1059,6 +1103,7 @@ struct TransformConvBwdDataToGemm_v1
                                 bool>::type = false>
     __host__ __device__ auto MakeCDescriptor_M_N() const
     {
+        static_assert(CTranspose == false);
         // assume strided
         // n_hi_wi_c for 2d n_di_hi_wi_c for 3d
         const auto in_grid_desc = MakeInGridDesc();
@@ -1314,6 +1359,48 @@ struct TransformConvBwdDataToGemm_v1
         }
     }
 
+    template <typename CLayout_                   = CLayout,
+              typename std::enable_if<(NDimSpatial == 2 || NDimSpatial == 3) &&
+                                          (is_same_v<CLayout_, tensor_layout::convolution::NGCHW> ||
+                                           is_same_v<CLayout_, tensor_layout::convolution::NGCDHW>),
+                                      bool>::type = false>
+    __host__ __device__ auto MakeCDescriptor_M_N() const
+    {
+        const auto in_grid_desc = make_naive_tensor_descriptor(
+            make_tuple(N_, C_, Di_ * Hi_ * Wi_), make_tuple(NStrideTensorC_, CStrideTensorC_, I1));
+
+        static_assert(ConvBwdDataSpecialization ==
+                      ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::
+                          Filter1x1Stride1Pad0);
+
+        if constexpr(CTranspose)
+        {
+            const auto in_gemmmraw_gemmnraw_grid_desc = transform_tensor_descriptor(
+                in_grid_desc,
+                make_tuple(make_pass_through_transform(C_),
+                           make_merge_transform(make_tuple(N_, Di_ * Hi_ * Wi_))),
+                make_tuple(Sequence<1>{}, Sequence<0, 2>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
+            return ck::tensor_operation::device::PadTensorDescriptor(
+                in_gemmmraw_gemmnraw_grid_desc,
+                make_tuple(GemmNPerBlock, GemmMPerBlock),
+                Sequence<DoPadGemmN, DoPadGemmM>{});
+        }
+        else
+        {
+            const auto in_gemmmraw_gemmnraw_grid_desc = transform_tensor_descriptor(
+                in_grid_desc,
+                make_tuple(make_merge_transform(make_tuple(N_, Di_ * Hi_ * Wi_)),
+                           make_pass_through_transform(C_)),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+            return ck::tensor_operation::device::PadTensorDescriptor(
+                in_gemmmraw_gemmnraw_grid_desc,
+                make_tuple(GemmMPerBlock, GemmNPerBlock),
+                Sequence<DoPadGemmM, DoPadGemmN>{});
+        }
+    }
     // for input bias
     template <typename CLayout_                   = CLayout,
               typename std::enable_if<NDimSpatial == 2 &&
@@ -1326,14 +1413,26 @@ struct TransformConvBwdDataToGemm_v1
                      ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::
                          Filter1x1Stride1Pad0)
         {
-            const auto in_gemmm_gemmn_grid_desc =
-                make_naive_tensor_descriptor(make_tuple(N_ * Ho_ * Wo_, C_), make_tuple(I0, I1));
+            if constexpr(CTranspose)
+            {
+                const auto in_gemmm_gemmn_grid_desc = make_naive_tensor_descriptor(
+                    make_tuple(C_, N_ * Ho_ * Wo_), make_tuple(I1, I0));
 
-            return in_gemmm_gemmn_grid_desc;
+                return in_gemmm_gemmn_grid_desc;
+            }
+            else
+            {
+                const auto in_gemmm_gemmn_grid_desc = make_naive_tensor_descriptor(
+                    make_tuple(N_ * Ho_ * Wo_, C_), make_tuple(I0, I1));
+
+                return in_gemmm_gemmn_grid_desc;
+            }
         }
         else
         {
-            // only work on HTilde and WTilde that contribute to non-padding area of input tensor
+            static_assert(CTranspose == false);
+            // only work on HTilde and WTilde that contribute to non-padding area of input
+            // tensor
             const auto IHTildeSliceBegin = math::integer_divide_floor(
                 math::max(I0, InLeftPadH_ - ConvDilationH_ * (YTilde_ - I1)), ConvStrideH_);
             const auto IWTildeSliceBegin = math::integer_divide_floor(

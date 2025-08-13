@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -60,8 +60,8 @@ struct TileFmhaShape
     // v, rowmajor : seqlen*hdim, colmajor : hdim*seqlen
     static constexpr bool IsVLayoutRowMajor = IsVLayoutRowMajor_;
     using VLayout                           = std::conditional_t<IsVLayoutRowMajor,
-                                       ck_tile::tensor_layout::gemm::RowMajor,
-                                       ck_tile::tensor_layout::gemm::ColumnMajor>;
+                                                                 ck_tile::tensor_layout::gemm::RowMajor,
+                                                                 ck_tile::tensor_layout::gemm::ColumnMajor>;
 };
 
 template <typename BlockTile_, // sequence<...
@@ -74,7 +74,8 @@ template <typename BlockTile_, // sequence<...
           typename Gemm3BlockWarps_,
           typename Gemm3WarpTile_,
           typename Gemm4BlockWarps_,
-          typename Gemm4WarpTile_>
+          typename Gemm4WarpTile_,
+          index_t kMaxSeqLenQ_ = 0>
 struct TileFmhaBwdShape
 {
     using BlockTile       = remove_cvref_t<BlockTile_>;
@@ -111,6 +112,10 @@ struct TileFmhaBwdShape
                                     // K/K^T at once
     static constexpr index_t kVHeaddim = BlockTile::at(number<8>{}); // V headdim, used for pipeline
                                                                      // that need load V at once
+
+    static constexpr index_t kMaxSeqLenQ = kMaxSeqLenQ_;
+    static_assert(kMaxSeqLenQ == kM0 || kMaxSeqLenQ == 0,
+                  "kMaxSeqLenQ should be equal to kM0 or 0, if 0, it means seq len Q is unlimited");
 };
 
 } // namespace ck_tile

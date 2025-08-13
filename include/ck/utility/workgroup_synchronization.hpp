@@ -32,7 +32,7 @@ static __device__ void gms_init(int NumWarps, int* p_control_bits)
 // all the workgroups in the synchronization group is supposed to call this function
 static __device__ void gms_barrier(int* p_control_bits)
 {
-    constexpr int mask = warpSize - 1;
+    constexpr int mask = WarpSize - 1;
 
     if((threadIdx.x & mask) == 0)
     {

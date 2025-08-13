@@ -11,10 +11,10 @@
 namespace ck {
 namespace ranges {
 template <typename InputRange, typename OutputIterator>
-auto copy(InputRange&& range, OutputIterator iter)
-    -> decltype(std::copy(std::begin(std::forward<InputRange>(range)),
-                          std::end(std::forward<InputRange>(range)),
-                          iter))
+auto copy(InputRange&& range,
+          OutputIterator iter) -> decltype(std::copy(std::begin(std::forward<InputRange>(range)),
+                                                     std::end(std::forward<InputRange>(range)),
+                                                     iter))
 {
     return std::copy(std::begin(std::forward<InputRange>(range)),
                      std::end(std::forward<InputRange>(range)),

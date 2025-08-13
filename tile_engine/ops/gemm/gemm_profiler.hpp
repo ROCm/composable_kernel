@@ -89,17 +89,18 @@ class GemmProfiler
         c_m_n_dev_buf.SetZero();
         c_m_n_dev_result.SetZero();
 
-        ck_tile::GemmHostArgs gemm_args;
-        gemm_args.a_ptr    = a_m_k_dev_buf.GetDeviceBuffer();
-        gemm_args.b_ptr    = b_k_n_dev_buf.GetDeviceBuffer();
-        gemm_args.c_ptr    = c_m_n_dev_buf.GetDeviceBuffer();
-        gemm_args.k_batch  = gemm_problem.split_k_;
-        gemm_args.M        = gemm_problem.m_;
-        gemm_args.N        = gemm_problem.n_;
-        gemm_args.K        = gemm_problem.k_;
-        gemm_args.stride_A = gemm_problem.stride_a_;
-        gemm_args.stride_B = gemm_problem.stride_b_;
-        gemm_args.stride_C = gemm_problem.stride_c_;
+        ck_tile::GemmHostArgs gemm_args = {
+            a_m_k_dev_buf.GetDeviceBuffer(),
+            b_k_n_dev_buf.GetDeviceBuffer(),
+            c_m_n_dev_buf.GetDeviceBuffer(),
+            gemm_problem.split_k_,
+            gemm_problem.m_,
+            gemm_problem.n_,
+            gemm_problem.k_,
+            gemm_problem.stride_a_,
+            gemm_problem.stride_b_,
+            gemm_problem.stride_c_,
+        };
 
         ck_tile::HostTensor<CDataType> c_m_n_host_result(ck_tile::host_tensor_descriptor(
             gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_c_, is_row_major(layout_c)));
@@ -128,7 +129,9 @@ class GemmProfiler
                                                                      setting_.log_,
                                                                      setting_.n_warmup_,
                                                                      setting_.n_repeat_,
-                                                                     setting_.is_gpu_timer_});
+                                                                     setting_.is_gpu_timer_,
+                                                                     setting_.flush_cache_,
+                                                                     setting_.rotating_count_});
             process_result(gemm_problem,
                            c_m_n_dev_buf,
                            c_m_n_host_result,
@@ -167,7 +170,8 @@ class GemmProfiler
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
         bool verified_correct =
             !setting_.verify_ ||
-            compare(gemm_problem.k_, gemm_problem.split_k_, c_m_n_dev_result, c_m_n_host_result);
+            compare(
+                name, gemm_problem.k_, gemm_problem.split_k_, c_m_n_dev_result, c_m_n_host_result);
 
         if(verified_correct)
         {
@@ -214,10 +218,8 @@ class GemmProfiler
                 {
                     file << "rocm_version,device_name,"
                          << "split_k,m,n,k,stride_a,stride_b,stride_c,"
-                         << "dtype_a,dtype_b,dtype_acc,dtype_c,"
-                         << "layout_a,layout_b,layout_c,"
-                         << "structured_sparsity,"
-                         << "name,"
+                         << "dtype_a,dtype_b,dtype_acc,dtype_c," << "layout_a,layout_b,layout_c,"
+                         << "structured_sparsity," << "name,"
                          << "latency(ms),tflops(TFlops),bandwidth(GB/s),metric\n";
                 }
 
@@ -247,7 +249,7 @@ class GemmProfiler
         return kernel_instance;
     }
 
-    GemmProfiler(const GemmProfiler&) = delete;
+    GemmProfiler(const GemmProfiler&)            = delete;
     GemmProfiler& operator=(const GemmProfiler&) = delete;
 
     private:

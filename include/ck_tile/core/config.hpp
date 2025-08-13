@@ -191,6 +191,16 @@
 #endif
 #endif
 
+// use llvm builtin bf16 data type after ROCm 6.5
+#ifndef CK_TILE_USE_LLVM_BUILTIN_BF16
+#if(HIP_VERSION_MAJOR == 6 && HIP_VERSION_MINOR == 5 && HIP_VERSION_PATCH >= 50421) || \
+    (HIP_VERSION_MAJOR >= 7)
+#define CK_TILE_USE_LLVM_BUILTIN_BF16 1
+#else
+#define CK_TILE_USE_LLVM_BUILTIN_BF16 0
+#endif
+#endif
+
 #ifndef CK_TILE_DEBUG_LOG
 #define CK_TILE_DEBUG_LOG 0
 #endif
@@ -223,6 +233,10 @@
 #define CK_TILE_FMHA_FWD_FAST_EXP2 0
 #endif
 
+#ifndef CK_TILE_FMHA_FLOAT_TO_FLOAT16_RTN
+#define CK_TILE_FMHA_FLOAT_TO_FLOAT16_RTN 0
+#endif
+
 #ifndef CK_TILE_BUFFER_LOAD_RAW_BF16_WA
 #define CK_TILE_BUFFER_LOAD_RAW_BF16_WA 1
 #endif
@@ -236,20 +250,20 @@
 #define CK_TILE_REFERENCE_MOE_SORTING_MOCK_ID 1
 #endif
 
-#ifndef __HIP_DEVICE_COMPILE__ // for host code
-#ifdef CK_TILE_USE_OCP_FP8
+#ifndef CK_TILE_USE_OCP_FP8
+#if defined(__HIP_DEVICE_COMPILE__)
+#if defined(__gfx950__) || defined(__gfx12__)
 #define CK_TILE_USE_OCP_FP8 1
 #else
 #define CK_TILE_USE_OCP_FP8 0
 #endif
-#elif defined(__gfx950__) || defined(__gfx12__) // for GPU code
-#define CK_TILE_USE_OCP_FP8 1
-#else // for GPU code
+#else
 #define CK_TILE_USE_OCP_FP8 0
+#endif
 #endif
 
 #ifndef CK_TILE_USE_BUFFER_ADDRESSING_BUILTIN
-#if __clang_major__ == 20
+#if __clang_major__ >= 20
 #define CK_TILE_USE_BUFFER_ADDRESSING_BUILTIN 1
 #else
 #define CK_TILE_USE_BUFFER_ADDRESSING_BUILTIN 0
@@ -258,4 +272,10 @@
 
 #ifndef CK_TILE_WA_ISSUE_2028
 #define CK_TILE_WA_ISSUE_2028 0
+#endif
+
+// Y pointed to R, we don't see a valuable use case.
+// Will enforce encoding to check Y not pointed to R if set to zero
+#ifndef CK_TILE_ENC_SUPPORT_Y_TO_R
+#define CK_TILE_ENC_SUPPORT_Y_TO_R 0
 #endif

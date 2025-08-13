@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "fmha_bwd.hpp"
 #include "ck_tile/host.hpp"
@@ -355,7 +355,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(bias.type == bias_enum::alibi)
     {
         auto slopes = ck_tile::get_alibi_slopes<AccDataType>(nhead);
-        assert(slopes.size() == nhead);
+        assert(slopes.size() == static_cast<decltype(slopes.size())>(nhead));
         if(bias.rank_info == 0)
         {
             // alibi in 1*h
@@ -756,22 +756,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         if(p_drop > 0)
         {
-            p_hp_host_ref.ForEach(
-                [&](auto& self, auto idx) { p_dropped_hp_host_ref(idx) = self(idx); });
+            p_dropped_hp_host_ref = p_hp_host_ref;
             randval_host_ref.ForEach([&](auto& self, auto idx) {
                 self(idx) = randval_host(b, idx[0], idx[1] + query_offset, idx[2]);
             });
             ck_tile::reference_batched_dropout(
                 p_dropped_hp_host_ref, randval_host_ref, p_undrop_in_uint8_t, rp_undrop);
-            p_dropped_hp_host_ref.ForEach([&](auto& self, auto idx) {
-                p_lp_host_ref(idx) = ck_tile::type_convert<GemmDataType>(self(idx));
-            });
+            p_lp_host_ref = p_dropped_hp_host_ref.template CopyAsType<GemmDataType>();
         }
         else
         {
-            p_hp_host_ref.ForEach([&](auto& self, auto idx) {
-                p_lp_host_ref(idx) = ck_tile::type_convert<GemmDataType>(self(idx));
-            });
+            p_lp_host_ref = p_hp_host_ref.template CopyAsType<GemmDataType>();
         }
 
         // O = P * V
@@ -798,6 +793,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
     }
 
+    // set to bad values to check if the kernel writes to these buffers
+    ck_tile::FillConstant<QGradDataType>{ck_tile::numeric<QGradDataType>::infinity()}(dq_host);
+    ck_tile::FillConstant<KGradDataType>{ck_tile::numeric<KGradDataType>::infinity()}(dk_host);
+    ck_tile::FillConstant<VGradDataType>{ck_tile::numeric<VGradDataType>::infinity()}(dv_host);
+    dq_buf.ToDevice(dq_host.data());
+    dk_buf.ToDevice(dk_host.data());
+    dv_buf.ToDevice(dv_host.data());
+
     o_buf.ToDevice(o_host.data());
     lse_buf.ToDevice(lse_host.data());
     dq_buf.SetZero();
@@ -806,6 +809,20 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::stream_config stream_config_v{
         nullptr, true, 0, 0, 1, arg_parser.get_str("timer") == std::string("gpu")};
+
+    printf("\nfmha_bwd_traits: hdim_q=%d, hdim_v=%d, data_type=%s, is_group_mode=%d, mask_type=%d, "
+           "bias_type=%d, has_dbias=%d, has_dropout=%d, is_store_randval=%d, is_deterministic=%d\n",
+           fmha_traits.hdim_q,
+           fmha_traits.hdim_v,
+           fmha_traits.data_type.c_str(),
+           fmha_traits.is_group_mode,
+           static_cast<int>(fmha_traits.mask_type),
+           static_cast<int>(fmha_traits.bias_type),
+           fmha_traits.has_dbias,
+           fmha_traits.has_dropout,
+           fmha_traits.is_store_randval,
+           fmha_traits.is_deterministic);
+    fflush(stdout);
     fmha_bwd(fmha_traits, fmha_args, stream_config_v);
 
     dq_buf.FromDevice(dq_host.data());
@@ -854,29 +871,27 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
 
         // dS_i_j = P_i_j .* (dP_i_j - dO_i dot O_i)
-        ds_hp_host_ref.ForEach([&](auto& self, auto idx_gmn) {
-            AccDataType do_dot_o = 0;
-            for(int o = 0; o < hdim_v; o++)
-            {
-                auto idx_gmo = idx_gmn;
-                idx_gmo[2]   = o;
-                do_dot_o += ck_tile::type_convert<AccDataType>(do_host_ref(idx_gmo)) *
-                            ck_tile::type_convert<AccDataType>(o_host_refs[wb](idx_gmo));
-            }
-            self(idx_gmn) = ck_tile::type_convert<AccDataType>(
-                p_hp_host_refs[wb](idx_gmn) * (dp_hp_host_ref(idx_gmn) - do_dot_o));
-        });
+        ck_tile::make_ParallelTensorFunctor(
+            [&](auto i0, auto i1, auto i2) {
+                AccDataType do_dot_o = 0;
+                for(int o = 0; o < hdim_v; o++)
+                {
+                    do_dot_o += ck_tile::type_convert<AccDataType>(do_host_ref(i0, i1, o)) *
+                                ck_tile::type_convert<AccDataType>(o_host_refs[wb](i0, i1, o));
+                }
+                ds_hp_host_ref(i0, i1, i2) = ck_tile::type_convert<AccDataType>(
+                    p_hp_host_refs[wb](i0, i1, i2) * (dp_hp_host_ref(i0, i1, i2) - do_dot_o));
+            },
+            ds_hp_host_ref.mDesc.get_lengths()[0],
+            ds_hp_host_ref.mDesc.get_lengths()[1],
+            ds_hp_host_ref.mDesc.get_lengths()[2])(std::thread::hardware_concurrency());
 
         if(use_dbias)
         {
-            ds_hp_host_ref.ForEach([&](auto& self, auto idx) {
-                dbias_host_ref(idx) = ck_tile::type_convert<BiasGradDataType>(self(idx));
-            });
+            dbias_host_ref = ds_hp_host_ref.template CopyAsType<BiasGradDataType>();
         }
 
-        ds_hp_host_ref.ForEach([&](auto& self, auto idx) {
-            ds_lp_host_ref(idx) = ck_tile::type_convert<GemmDataType>(self(idx));
-        });
+        ds_lp_host_ref = ds_hp_host_ref.template CopyAsType<GemmDataType>();
 
         // dV = P_drop^T@dO^T
         // dV = P^T@dO^T w/o dropout

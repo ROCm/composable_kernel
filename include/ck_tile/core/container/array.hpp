@@ -177,8 +177,26 @@ struct array<T, 0>
     CK_TILE_HOST_DEVICE constexpr array() {}
     CK_TILE_HOST_DEVICE static constexpr index_t size() { return 0; }
     CK_TILE_HOST_DEVICE static constexpr bool is_static() { return is_static_v<T>; };
-    CK_TILE_HOST_DEVICE void print() const { printf("array{size: 0, data: []}"); }
 };
+
+template <typename T, index_t N>
+CK_TILE_HOST_DEVICE static void print(const array<T, N>& a)
+{
+    printf("array{size: %ld, data: [", static_cast<long>(N));
+    for(index_t i = 0; i < N; ++i)
+    {
+        if(i > 0)
+            printf(", ");
+        print(a[i]);
+    }
+    printf("]}");
+}
+
+template <typename T>
+CK_TILE_HOST_DEVICE static void print(const array<T, 0>&)
+{
+    printf("array{size: 0, data: []}");
+}
 
 template <typename, typename>
 struct vector_traits;
