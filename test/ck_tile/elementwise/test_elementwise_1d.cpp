@@ -53,7 +53,7 @@ class TestCkTileElementwise : public ::testing::Test
     using BlockTile_        = std::tuple_element_t<5, Tuple>;
     using WarpTile_         = std::tuple_element_t<6, Tuple>;
     using TestElementWiseShape =
-        ck_tile::ElementWiseShape<BlockWarps_, BlockTile_, WarpTile_, ComputeDataType>;
+        ck_tile::ElementWiseShape<BlockWarps_, BlockTile_, WarpTile_, XDataType>;
     static constexpr int NumInputs = elementwise_op_traits<ElementwiseOpType>::num_inputs;
 
     void RunTest(ck_tile::index_t total_m_elements)
