@@ -627,6 +627,13 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
             };
 
             auto ReadCompFunc = [&]() {
+                if(threadIdx.x == 0)
+                {
+                    printf("[DEBUG] ReadCompFunc before blockgemm... Values: %f, %f, %f\n",
+                           c_block_tile.get_thread_buffer()[0],
+                           c_block_tile.get_thread_buffer()[1],
+                           c_block_tile.get_thread_buffer()[2]);
+                }
                 block_gemm(c_block_tile, a_lds_tile, b_lds_tile);
                 __syncthreads();
 
@@ -635,6 +642,13 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
                 BasePImpl::LocalPrefetch(b_lds_tile, b_lds_gemm_window);
 
                 __syncthreads();
+                if(threadIdx.x == 0)
+                {
+                    printf("[DEBUG] ReadCompFunc after block_gemm... Values: %f, %f, %f\n",
+                           c_block_tile.get_thread_buffer()[0],
+                           c_block_tile.get_thread_buffer()[1],
+                           c_block_tile.get_thread_buffer()[2]);
+                }
 
                 HotLoopScheduler();
             };

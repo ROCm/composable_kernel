@@ -264,6 +264,13 @@ struct CShuffleEpilogue
                                    const DsDramWindows& ds_dram_windows,
                                    void* p_smem)
     {
+        if(threadIdx.x == 0)
+        {
+            printf("[DEBUG] Values: %f, %f, %f\n",
+                   o_acc_tile.get_thread_buffer()[0],
+                   o_acc_tile.get_thread_buffer()[1],
+                   o_acc_tile.get_thread_buffer()[2]);
+        }
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
 
         auto lds_tile = make_static_distributed_tensor<AccDataType>(LdsTileDistr);
