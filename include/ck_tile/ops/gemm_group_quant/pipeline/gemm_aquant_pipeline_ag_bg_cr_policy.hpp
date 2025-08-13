@@ -42,6 +42,7 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
         constexpr index_t KPerBlockAQ = KPerBlock / Problem::kQuantGroupSize;
         constexpr index_t VecLoadSize = GetVectorSizeAQ<Problem>();
+        constexpr bool Preshuffle     = Problem::Traits::Preshuffle;
         using WarpTile                = typename Problem::BlockGemmShape::WarpTile;
         using WarpGemm                = WarpGemmMfmaDispatcher<typename Problem::ComputeDataType,
                                                                typename Problem::ComputeDataType,
@@ -52,14 +53,34 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                                                                false>;
 
         static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
-        using TileEncodingPattern = TileDistributionEncodingPatternAQ<BlockGemmShape,
-                                                                      WarpGemm,
-                                                                      BlockSize,
-                                                                      MPerBlock,
-                                                                      KPerBlockAQ,
-                                                                      VecLoadSize>;
+        if constexpr(Preshuffle)
+        {
+            using TileEncodingPattern =
+                TileDistributionEncodingPatternAQ<BlockGemmShape,
+                                                  WarpGemm,
+                                                  BlockSize,
+                                                  MPerBlock / WarpGemm::kM,
+                                                  ck_tile::integer_least_multiple(
+                                                      WarpGemm::kM * KPerBlockAQ, get_warp_size()),
+                                                  KPerBlockAQ,
+                                                  VecLoadSize,
+                                                  Preshuffle>;
 
-        return TileEncodingPattern::Make2DStaticTileDistribution();
+            return TileEncodingPattern::Make2DStaticTileDistribution();
+        }
+        else
+        {
+            using TileEncodingPattern = TileDistributionEncodingPatternAQ<BlockGemmShape,
+                                                                          WarpGemm,
+                                                                          BlockSize,
+                                                                          MPerBlock,
+                                                                          KPerBlockAQ,
+                                                                          KPerBlockAQ,
+                                                                          VecLoadSize,
+                                                                          Preshuffle>;
+
+            return TileEncodingPattern::Make2DStaticTileDistribution();
+        }
     }
 
     template <typename Problem>
