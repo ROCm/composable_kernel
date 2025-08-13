@@ -102,9 +102,46 @@ template <typename BlockGemmShape,
           index_t MXdlPack,
           index_t NXdlPack,
           index_t KXdlPack,
-          index_t VecSize>
+          index_t VecSize = 1>
 struct TileDistributionEncodingPatternAScale : public TileDistributionEncodingPattern
 {
-}
+    static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
+    static constexpr index_t warp_size = get_warp_size();
+    static constexpr index_t num_warps = BlockSize / warp_size;
+
+    static constexpr index_t MWarps = BlockGemmShape::BlockWarps::at(number<0>{});
+    static constexpr index_t NWarps = BlockGemmShape::BlockWarps::at(number<1>{});
+    static constexpr index_t KWarps = BlockGemmShape::BlockWarps::at(number<2>{});
+
+    static constexpr index_t MThreadPerXdl = WarpGemm::kM;
+    static constexpr index_t KThreadPerXdl = warp_size / MThreadPerXdl;
+
+    static_assert(num_warps == MWarps * NWarps * KWarps, "Block warps do not match block size");
+    static_assert(KWarps == 1, "KWarps > 1 is not supported");
+
+    // Y dimension (M) decomposition
+    static constexpr index_t MXdlPack = 2; // MXdlPack is always 2
+    static constexpr index_t Y1       = MWarps;
+    static constexpr index_t Y2       = MThreadPerXdl;
+    static constexpr index_t Y0       = YPerTile / MXdlPack / (MWarps * MThreadPerXdl);
+
+    // X dimension (K) decomposition
+    static constexpr index_t X0 = KThreadPerXdl;
+    static constexpr index_t X1 = VecSize;
+
+    static_assert(Y0 * Y1 * Y2 * Y3 == YPerTile, "Y dimensions must cover the YPerTile");
+    static_assert(X0 * X1 == XPerTile, "X dimensions must cover the XPerTile");
+
+    CK_TILE_HOST_DEVICE static constexpr auto Make2DStaticTileDistribution()
+    {
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<NWarps>,
+                                       tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1>>,
+                                       tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<1>, sequence<2, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 1>>{});
+    }
+};
 
 } // namespace ck_tile

@@ -124,11 +124,11 @@ struct GemmMXKernel
     using BlockGemm     = remove_cvref_t<typename GemmPipeline::BlockGemm>;
     using MThreadPerXdl = BlockGemm::WarpGemm::kM;
     using NThreadPerXdl = BlockGemm::WarpGemm::kN;
-    using KThreadPerXdl = 64 / MThreadPerXdl; // 64 is the number of threads in a wave
+    using KThreadPerXdl = get_warp_size() / MThreadPerXdl; // 64 is the number of threads in a wave
 
-    static constexpr auto MXdlPack = 2;
-    static constexpr auto NXdlPack = 2;
-    static constexpr auto KXdlPack = 2;
+    using MXdlPack = remove_cvref_t<typename GemmPipeline::MXdlPack>;
+    using NXdlPack = remove_cvref_t<typename GemmPipeline::NXdlPack>;
+    using KXdlPack = remove_cvref_t<typename GemmPipeline::KXdlPack>;
 
     using mx_scale_t                           = ck_tile::e8m0_bexp_t;
     static constexpr index_t scale_pack_size_a = sizeof(AScaleDataType) / sizeof(mx_scale_t);
@@ -434,16 +434,6 @@ struct GemmMXKernel
 
             return make_tensor_view<address_space_enum::global>(a_scale_ptr, a_m_k_desc);
         }();
-
-        // const auto& aq_tensor_view = [&]() {
-        //     static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
-        //     return make_naive_tensor_view<address_space_enum::global>(
-        //         aq_ptr,
-        //         make_tuple(kargs.M, kargs.QK),
-        //         make_tuple(kargs.stride_AQ, 1),
-        //         number<GemmPipeline::GetVectorSizeAQ()>{},
-        //         number<1>{});
-        // }();
 
         const auto& b_tensor_view = [&]() {
             if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)

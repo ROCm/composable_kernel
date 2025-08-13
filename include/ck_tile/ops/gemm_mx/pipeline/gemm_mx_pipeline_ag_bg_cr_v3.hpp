@@ -97,15 +97,15 @@ struct GemmMXPipelineAgBgCrCompV3 : public BaseGemmMXPipelineAgBgCrCompV3<Proble
     using I1 = number<1>;
     using I2 = number<2>;
 
-    static constexpr index_t APackedSize =
-        ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
-    static constexpr index_t BPackedSize =
-        ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
+    // static constexpr index_t APackedSize =
+    //     ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
+    // static constexpr index_t BPackedSize =
+    //     ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
 
-    static constexpr index_t AScalePackedSize =
-        ck_tile::numeric_traits<remove_cvref_t<AScaleDataType>>::PackedSize;
-    static constexpr index_t BScalePackedSize =
-        ck_tile::numeric_traits<remove_cvref_t<BScaleDataType>>::PackedSize;
+    // static constexpr index_t AScalePackedSize =
+    //     ck_tile::numeric_traits<remove_cvref_t<AScaleDataType>>::PackedSize;
+    // static constexpr index_t BScalePackedSize =
+    //     ck_tile::numeric_traits<remove_cvref_t<BScaleDataType>>::PackedSize;
 
     using ALayout      = remove_cvref_t<typename Problem::ALayout>;
     using AScaleLayout = remove_cvref_t<typename Problem::AScaleLayout>;
@@ -121,6 +121,13 @@ struct GemmMXPipelineAgBgCrCompV3 : public BaseGemmMXPipelineAgBgCrCompV3<Proble
     static constexpr index_t KPerBlock      = BlockGemmShape::kK;
     static constexpr index_t BlockScaleSize = Problem::kBlockScaleSize;
     static constexpr index_t KPerBlockScale = BlockGemmShape::kK / BlockScaleSize;
+
+    using MXdlPack = PipelineImplBase::MXdlPack;
+    using NXdlPack = PipelineImplBase::NXdlPack;
+    using KXdlPack = PipelineImplBase::KXdlPack;
+
+    using APackedSize = PipelineImplBase::APackedSize;
+    using BPackedSize = PipelineImplBase::BPackedSize;
 
     static constexpr index_t GetVectorSizeA() { return Policy::template GetVectorSizeA<Problem>(); }
     static constexpr index_t GetVectorSizeB() { return Policy::template GetVectorSizeB<Problem>(); }
@@ -312,7 +319,10 @@ struct GemmMXPipelineAgBgCrCompV3 : public BaseGemmMXPipelineAgBgCrCompV3<Proble
                 Base::GetAWindows(a_dram_block_window_tmp, a_lds_block, a_lds_load_tile_distr);
             auto&& [b_copy_dram_window, b_copy_lds_window, b_lds_gemm_window] =
                 Base::GetBWindows(b_dram_block_window_tmp, b_lds_block, b_lds_load_tile_distr);
-            auto aq_copy_dram_window = Base::GetAQDramLoadWindow(aq_dram_block_window_tmp);
+            auto a_scale_copy_dram_window =
+                Base::GetAScaleDramLoadWindow(a_scale_dram_block_window_tmp);
+            auto b_scale_copy_dram_window =
+                Base::GetBScaleDramLoadWindow(b_scale_dram_block_window_tmp);
 
             using ABlockTileDistr  = decltype(a_copy_dram_window.get_tile_distribution());
             using BBlockTileDistr  = decltype(b_copy_dram_window.get_tile_distribution());

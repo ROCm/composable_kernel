@@ -75,6 +75,8 @@ struct GemmMXPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgCrPol
         return TileEncodingPattern::Make2DStaticTileDistribution();
     }
 
+    // A Scale DRAM tile distribution
+    // This is used to load the A scale data from DRAM into shared memory.
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeAScaleDramTileDistribution()
     {
@@ -105,10 +107,15 @@ struct GemmMXPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgCrPol
                                                                           MPerBlock,
                                                                           KPerBlockScale,
                                                                           MXdlPack,
-                                                                          NXdlPack,
-                                                                          KXdlPack,
-                                                                          VecLoadSize>;
+                                                                          KXdlPack>;
         return TileEncodingPattern::Make2DStaticTileDistribution();
+    }
+
+    // B Scale DRAM tile distribution
+    // This is used to load the B scale data from DRAM into shared memory.
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeBScaleDramTileDistribution()
+    {
     }
 
     template <typename Problem>
