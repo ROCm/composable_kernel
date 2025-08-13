@@ -21,7 +21,7 @@ struct ElementWiseShape
 
     static constexpr index_t kThreadPerWarpM = get_warp_size();
 
-    static constexpr index_t kRepeatM = kBlockM / (kWarpPerBlockM * kWarpM);
+    static constexpr index_t kRepeatM = kBlockM / (kWarpPerBlockM * kVectorM * kThreadPerWarpM);
 
     static constexpr index_t kBlockSize =
         ck_tile::get_warp_size() * reduce_on_sequence(BlockWarps{}, multiplies{}, number<1>{});
