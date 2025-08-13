@@ -319,64 +319,6 @@ struct GemmConfigPreshufle_AQ : public GemmConfigBase
     static constexpr bool DoubleSmemBuffer     = false;
 };
 
-template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>
-struct GemmTypeConfig;
-
-template <>
-struct GemmTypeConfig<ck_tile::half_t>
-{
-    using ADataType   = ck_tile::half_t;
-    using BDataType   = ck_tile::half_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-    // ToDo: Add more bias config to support different categories of GEMM.
-};
-
-template <>
-struct GemmTypeConfig<ck_tile::bf16_t, ck_tile::bf16_t, ck_tile::bf16_t>
-{
-    using ADataType   = ck_tile::bf16_t;
-    using BDataType   = ck_tile::bf16_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::bf16_t;
-};
-
-template <>
-struct GemmTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>
-{
-    using ADataType   = ck_tile::fp8_t;
-    using BDataType   = ck_tile::fp8_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
-
-template <>
-struct GemmTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>
-{
-    using ADataType   = ck_tile::bf8_t;
-    using BDataType   = ck_tile::bf8_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
-
-template <>
-struct GemmTypeConfig<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>
-{
-    using ADataType   = ck_tile::half_t;
-    using BDataType   = ck_tile::pk_int4_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
-
-template <>
-struct GemmTypeConfig<ck_tile::int8_t, ck_tile::int8_t, int32_t>
-{
-    using ADataType   = ck_tile::int8_t;
-    using BDataType   = ck_tile::int8_t;
-    using AccDataType = int32_t;
-    using CDataType   = int32_t;
-};
-
 template <typename ADataType_,
           typename BDataType_ = ADataType_,
           typename CDataType_ = ADataType_,
@@ -447,7 +389,7 @@ struct GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, float>
     using QDataType   = float;
     using BDataType   = ck_tile::fp8_t;
     using AccDataType = float;
-    using CDataType   = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <>
@@ -457,7 +399,7 @@ struct GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, float>
     using QDataType   = float;
     using BDataType   = ck_tile::bf8_t;
     using AccDataType = float;
-    using CDataType   = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <>
@@ -467,7 +409,7 @@ struct GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::fp8_t, float, ck_tile::f
     using QDataType   = ck_tile::fp8_t;
     using BDataType   = ck_tile::fp8_t;
     using AccDataType = float;
-    using CDataType   = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <>
@@ -477,7 +419,7 @@ struct GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, float, ck_tile::fp8_t
     using QDataType   = ck_tile::fp8_t;
     using BDataType   = ck_tile::fp8_t;
     using AccDataType = float;
-    using CDataType   = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <>
@@ -487,7 +429,7 @@ struct GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, float, ck_tile::bf8_t
     using QDataType   = ck_tile::bf8_t;
     using BDataType   = ck_tile::bf8_t;
     using AccDataType = float;
-    using CDataType   = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <>
@@ -497,7 +439,7 @@ struct GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::bf8_t, float, ck_tile::b
     using QDataType   = ck_tile::bf8_t;
     using BDataType   = ck_tile::bf8_t;
     using AccDataType = float;
-    using CDataType   = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <>
@@ -507,7 +449,7 @@ struct GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::fp8_t, float, float>
     using QDataType   = float;
     using BDataType   = ck_tile::fp8_t;
     using AccDataType = float;
-    using CDataType   = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <>
@@ -517,7 +459,7 @@ struct GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::bf8_t, float, float>
     using QDataType   = float;
     using BDataType   = ck_tile::bf8_t;
     using AccDataType = float;
-    using CDataType   = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <>
@@ -527,7 +469,7 @@ struct GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::pk_int4_t, float, ck_tile::f
     using QDataType   = ck_tile::fp8_t;
     using BDataType   = ck_tile::pk_int4_t;
     using AccDataType = float;
-    using CDataType   = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <>
@@ -537,7 +479,7 @@ struct GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::pk_int4_t, float, ck_tile::b
     using QDataType   = ck_tile::bf8_t;
     using BDataType   = ck_tile::pk_int4_t;
     using AccDataType = float;
-    using CDataType   = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <>
@@ -547,7 +489,7 @@ struct GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::pk_int4_t, float, float>
     using QDataType   = float;
     using BDataType   = ck_tile::pk_int4_t;
     using AccDataType = float;
-    using CDataType   = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <>
@@ -557,7 +499,7 @@ struct GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::pk_int4_t, float, float>
     using QDataType   = float;
     using BDataType   = ck_tile::pk_int4_t;
     using AccDataType = float;
-    using CDataType   = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <typename T>
@@ -683,7 +625,7 @@ auto create_args(int argc, char* argv[])
         .insert("v", "2", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
         .insert("prec", "i4fp8", "data type. fp8/bf8/i4fp8/i4bf8/i4f32fp8/i4f32bf8")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
-        .insert("repeat", "100", "number of iterations to benchmark the kernel")
+        .insert("repeat", "1000", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("split_k", "1", "splitK value")
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
