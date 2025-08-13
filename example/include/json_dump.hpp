@@ -297,8 +297,10 @@ void dump_layernorm2d_fwd_json_results(const std::string& json_filename,
 
 template <typename DataType, template <typename> typename DTypeTraits>
 void dump_reduce_json_results(const std::string& json_filename,
-                              int m,
-                              int n,
+                              int N,
+                              int C,
+                              int H,
+                              int W,
                               bool pass,
                               float ave_time,
                               float tflops,
@@ -309,8 +311,10 @@ void dump_reduce_json_results(const std::string& json_filename,
     ADD_KEY_VALUE("name", kernel_name);
     using Traits = DTypeTraits<DataType>;
     ADD_KEY_VALUE("data_type", Traits::name);
-    ADD_KEY_VALUE("m", m);
-    ADD_KEY_VALUE("n", n);
+    ADD_KEY_VALUE("N", N);
+    ADD_KEY_VALUE("C", C);
+    ADD_KEY_VALUE("H", H);
+    ADD_KEY_VALUE("W", W);
     ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
     ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec)
     END_JSON_DUMP_FILE();
