@@ -6,8 +6,6 @@
 
 #include "gtest/gtest.h"
 
-using KernelTypes = ::testing::Types<FmhaBwdFp16>;
-
-TYPED_TEST_SUITE(TestCkTileFmhaBwd, KernelTypes);
+using DataTypeConfig = FmhaBwdFp16;
 
 #include "test_fmha_bwd.inc"
