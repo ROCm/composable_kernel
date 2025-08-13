@@ -104,6 +104,10 @@ using WarpGemmMfmaBf16Bf16F32M16N16K32SwizzleBTransposedCDistribution =
         1>>;
 #endif
 
+using WarpGemmMfmaF16F16F32M32N32K8SwizzleBTransposedCDistribution =
+    WarpGemmImpl<WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB<
+        WarpGemmAttributeMfmaImplF16F16F32M32N32K8<WGAttrCtlEnum::Default_>>>;
+
 #if defined(__gfx950__)
 using WarpGemmMfmaF16F16F32M32N32K16SwizzleBTransposedCDistribution =
     WarpGemmImpl<WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB<
@@ -209,6 +213,10 @@ using WarpGemmMfmaBf16Bf16F32M16N16K32TransposedCDistribution =
         2,
         AttrNumAccess>>;
 #endif
+
+using WarpGemmMfmaBf16Bf16F32M32N32K8SwizzleBTransposedCDistribution =
+    WarpGemmImpl<WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB<
+        WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K8<WGAttrCtlEnum::Default_>>>;
 
 #if defined(__gfx950__)
 using WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleBTransposedCDistribution =

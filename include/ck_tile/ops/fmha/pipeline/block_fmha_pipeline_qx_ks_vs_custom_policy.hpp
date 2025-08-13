@@ -383,23 +383,31 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackV()
     {
         // TODO: this is for 3d layout
-        using VDataType = remove_cvref_t<typename Problem::VDataType>;
-        return 16 / sizeof(VDataType);
+        using VDataType                = remove_cvref_t<typename Problem::VDataType>;
+        constexpr index_t kBlockSize   = Problem::kBlockSize;
+        constexpr index_t kNPerBlock   = Problem::BlockFmhaShape::kN1;
+        constexpr index_t kKPerBlock   = Problem::BlockFmhaShape::kK1;
+        constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
+        constexpr index_t kMaxVecLoad =
+            min(total_pixels, static_cast<index_t>(16 / sizeof(VDataType)));
+
+        return kMaxVecLoad;
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentV()
     {
-        using VLayout   = remove_cvref_t<typename Problem::BlockFmhaShape::VLayout>;
-        using VDataType = remove_cvref_t<typename Problem::VDataType>;
+        using VLayout                  = remove_cvref_t<typename Problem::BlockFmhaShape::VLayout>;
+        using VDataType                = remove_cvref_t<typename Problem::VDataType>;
+        constexpr index_t kBlockSize   = Problem::kBlockSize;
+        constexpr index_t kNPerBlock   = Problem::BlockFmhaShape::kN1;
+        constexpr index_t kKPerBlock   = Problem::BlockFmhaShape::kK1;
+        constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
+        constexpr index_t kMaxVecLoad =
+            min(total_pixels, static_cast<index_t>(16 / sizeof(VDataType)));
+
         if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
-            constexpr index_t kBlockSize   = Problem::kBlockSize;
-            constexpr index_t kNPerBlock   = Problem::BlockFmhaShape::kN1;
-            constexpr index_t kKPerBlock   = Problem::BlockFmhaShape::kK1;
-            constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
-            constexpr index_t kMaxVecLoad =
-                min(total_pixels, static_cast<index_t>(16 / sizeof(VDataType)));
             constexpr index_t kMinVecLoad = 4 / sizeof(VDataType);
 
             constexpr index_t kVecLoad = ((total_pixels / kMaxVecLoad) >= kMinVecLoad)
@@ -410,7 +418,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         }
         else
         {
-            return 16 / sizeof(VDataType);
+            return kMaxVecLoad;
         }
     }
 
