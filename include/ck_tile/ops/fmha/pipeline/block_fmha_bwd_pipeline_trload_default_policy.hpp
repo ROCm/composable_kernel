@@ -25,7 +25,7 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
 
         constexpr auto SwizzleA = false;
-        using WarpGemm          = WarpGemmMfmaDispatcher< //
+        using WarpGemm          = WarpGemmDispatcher< //
             typename Problem::QDataType,
             typename Problem::KDataType,
             typename Problem::AccDataType,
@@ -65,7 +65,7 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm2BlockWarps,
                                            typename Problem::BlockFmhaShape::Gemm2WarpTile>>;
 
-        using WarpGemm = WarpGemmMfmaDispatcher<
+        using WarpGemm = WarpGemmDispatcher<
             typename Problem::OGradDataType,
             typename Problem::VDataType,
             typename Problem::AccDataType,
@@ -105,16 +105,16 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
                    typename BlockFmhaShape::Gemm4BlockWarps,
                    typename BlockFmhaShape::Gemm4WarpTile>>;
 
-        using WarpGemm = WarpGemmMfmaDispatcher<typename Problem::GemmDataType,
-                                                typename Problem::KDataType,
-                                                typename Problem::AccDataType,
-                                                BlockFmhaShape::Gemm4WarpTile::at(number<0>{}),
-                                                BlockFmhaShape::Gemm4WarpTile::at(number<1>{}),
-                                                BlockFmhaShape::Gemm4WarpTile::at(number<2>{}),
-                                                false,
-                                                false,
-                                                false,
-                                                WGAttrNumAccessEnum::Double>;
+        using WarpGemm = WarpGemmDispatcher<typename Problem::GemmDataType,
+                                            typename Problem::KDataType,
+                                            typename Problem::AccDataType,
+                                            BlockFmhaShape::Gemm4WarpTile::at(number<0>{}),
+                                            BlockFmhaShape::Gemm4WarpTile::at(number<1>{}),
+                                            BlockFmhaShape::Gemm4WarpTile::at(number<2>{}),
+                                            false,
+                                            false,
+                                            false,
+                                            WGAttrNumAccessEnum::Double>;
 
         using BlockGemmPolicy =
             BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::GemmDataType,
