@@ -8,7 +8,8 @@
 #pragma GCC diagnostic pop
 
 #define START_JSON_DUMP_FILE(file_name)                                             \
-    std::ofstream file(file_name);                                                  \
+    std::string file_str(file_name);                                                \
+    std::ofstream file(file_str);                                                   \
     if(!file.is_open())                                                             \
     {                                                                               \
         throw std::runtime_error("Could not open file: " + std::string(file_name)); \
@@ -20,7 +21,8 @@
 #define END_JSON_DUMP_FILE() \
     writer.EndObject();      \
     file << s.GetString();   \
-    file.close();
+    file.close();            \
+    std::cout << "Results written to " << file_str << " successfully" << std::endl;
 
 #define ADD_KEY_VALUE(key, value) add_key_value_pair(writer, key, value);
 #define ADD_PERF_TO_JSON(_time, tflops, gbytes) add_perf_to_json(writer, _time, tflops, gbytes);
