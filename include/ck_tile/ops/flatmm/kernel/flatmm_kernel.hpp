@@ -39,9 +39,10 @@ struct FlatmmScalePointer
         float scalar; // if shared granularity is 0, all rows/columns use the same scale value
     };
 
+    index_t length = 1;
     CK_TILE_HOST_DEVICE FlatmmScalePointer() = default;
     CK_TILE_HOST_DEVICE FlatmmScalePointer(float scalar_) : scalar(scalar_) {}
-    CK_TILE_HOST_DEVICE FlatmmScalePointer(const float* ptr_) : ptr(ptr_) {}
+    CK_TILE_HOST_DEVICE FlatmmScalePointer(const float* ptr_, index_t length_) : ptr(ptr_), length(length_){}
 
     CK_TILE_HOST_DEVICE FlatmmScalePointer operator+(index_t offset) const
     {
@@ -52,11 +53,11 @@ struct FlatmmScalePointer
         }
         else if constexpr(granularity == 1)
         {
-            ret.ptr = ptr + offset;
+            ret.length = length - offset;
         }
         else
         {
-            ret.ptr = ptr + offset / granularity;
+            ret.length = length - offset / granularity;
         }
         return ret;
     }
@@ -69,11 +70,11 @@ struct FlatmmScalePointer
         }
         else if constexpr(granularity == 1)
         {
-            return ptr[i];
+            return i < length ? ptr[i] : 0.f;
         }
         else
         {
-            return ptr[i / granularity];
+            return (i / granularity) < length ? ptr[i / granularity]:0.f;
         }
     }
 };
@@ -85,7 +86,7 @@ struct FlatmmScalePointer<-1>
 
     CK_TILE_HOST_DEVICE constexpr FlatmmScalePointer() = default;
     CK_TILE_HOST_DEVICE constexpr FlatmmScalePointer(float scalar_) {}
-    CK_TILE_HOST_DEVICE constexpr FlatmmScalePointer(const float* ptr_) {}
+    CK_TILE_HOST_DEVICE constexpr FlatmmScalePointer(const float* ptr_, index_t length_) {}
 
     CK_TILE_HOST_DEVICE constexpr FlatmmScalePointer operator+(index_t) const
     {
@@ -169,8 +170,8 @@ struct ScaleFlatmmHostArgs : public BaseFlatmmHostArgs<>
                                      index_t stride_B_,
                                      const std::array<index_t, NumDTensor>& stride_Ds_,
                                      index_t stride_C_,
-                                     ScaleM scale_m_ = nullptr,
-                                     ScaleN scale_n_ = nullptr)
+                                     ScaleM scale_m_ = { nullptr, 0 },
+                                     ScaleN scale_n_ = { nullptr, 0 })
         : BaseFlatmmHostArgs(a_ptr_,
                              b_shuffle_ptr_,
                              ds_ptr_,
@@ -187,8 +188,8 @@ struct ScaleFlatmmHostArgs : public BaseFlatmmHostArgs<>
           scale_n(scale_n_)
     {
     }
-    ScaleM scale_m = nullptr;
-    ScaleN scale_n = nullptr;
+    ScaleM scale_m = { nullptr, 0 };
+    ScaleN scale_n = { nullptr, 0 };
 };
 
 template <int NumberTensor = 0>
@@ -211,8 +212,8 @@ struct FlatmmKernelArgs
     std::array<index_t, NumDTensor> stride_Ds;
     index_t stride_E;
     index_t k_batch;
-    ScaleM scale_m_ptr = nullptr;
-    ScaleN scale_n_ptr = nullptr;
+    ScaleM scale_m_ptr = { nullptr, 0 };
+    ScaleN scale_n_ptr = { nullptr, 0 };
 };
 
 template <typename TilePartitioner_, typename FlatmmPipeline_, typename EpiloguePipeline_>
