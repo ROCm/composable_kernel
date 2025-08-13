@@ -195,8 +195,7 @@ TYPED_TEST(TestCkTileElementwise, RunElementwise_1024) { this->RunTest(1024); }
 
 TYPED_TEST(TestCkTileElementwise, RunElementwise_513)
 {
-    EXPECT_THROW((this->RunTest(513)),
-                 std::runtime_error); // Test with an input size that's not a multiple of kVectorM
+    this->RunTest(513); // Test with an input size that's not a multiple of kVectorM
 }
 
 TYPED_TEST(TestCkTileElementwise, RunElementwise_516)
