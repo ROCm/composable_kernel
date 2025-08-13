@@ -149,7 +149,7 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
-        return concat('_', "pipeline_AgBgCrCompV3", 
+        return concat('_', "pipeline_AgBgCrCompV4",
                       concat('x', MPerBlock, NPerBlock, KPerBlock,  BlockSize),
                       concat('x', GetVectorSizeA(), GetVectorSizeB(),  GetVectorSizeC()),
                       concat('x', kPadM, kPadN, kPadK));
