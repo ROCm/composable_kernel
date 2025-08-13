@@ -705,7 +705,7 @@ struct UniversalGemmKernel
             {
                 return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
                     e_ptr,
-                    make_tuple(kargs.M, kargs.N),
+                    make_tuple(kargs.N, kargs.M),
                     make_tuple(1, kargs.stride_E),
                     number<1>{},
                     number<EpiloguePipeline::GetVectorSizeC()>{});
