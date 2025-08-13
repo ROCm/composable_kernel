@@ -340,19 +340,19 @@ int run_flatmm_example_with_layouts(int argc,
 
     if(arg_parser.get_int("json") == 1)
     {
-        START_JSON_DUMP_FILE(arg_parser.get_str("jsonfile"));
-        ADD_KEY_VALUE("name", "flatmm_basic");
-        ADD_KEY_VALUE("DataType", DataTypeToString<ADataType>());
-        ADD_KEY_VALUE("M", M);
-        ADD_KEY_VALUE("N", N);
-        ADD_KEY_VALUE("K", K);
-        ADD_KEY_VALUE("StrideA", stride_A);
-        ADD_KEY_VALUE("StrideB", stride_B);
-        ADD_KEY_VALUE("StrideC", stride_C);
-        ADD_KEY_VALUE("kbatch", kbatch);
-        ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
-        ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec)
-        END_JSON_DUMP_FILE();
+        dump_flatmm_json_results(arg_parser.get_str("jsonfile"),
+                                 DataTypeToString<ADataType>(),
+                                 M,
+                                 N,
+                                 K,
+                                 stride_A,
+                                 stride_B,
+                                 stride_C,
+                                 kbatch,
+                                 pass,
+                                 ave_time,
+                                 tflops,
+                                 gb_per_sec);
     }
 
     return pass;

@@ -179,6 +179,36 @@ void dump_grouped_gemm_json_results(const std::string& json_filename,
     END_JSON_DUMP_FILE();
 }
 
+void dump_flatmm_json_results(const std::string& json_filename,
+                              const std::string& datatype,
+                              int M,
+                              int N,
+                              int K,
+                              int stride_A,
+                              int stride_B,
+                              int stride_C,
+                              int kbatch,
+                              bool pass,
+                              float ave_time,
+                              float tflops,
+                              float gb_per_sec,
+                              const std::string& kernel_name = "flatmm_basic")
+{
+    START_JSON_DUMP_FILE(json_filename);
+    ADD_KEY_VALUE("name", kernel_name);
+    ADD_KEY_VALUE("DataType", datatype);
+    ADD_KEY_VALUE("M", M);
+    ADD_KEY_VALUE("N", N);
+    ADD_KEY_VALUE("K", K);
+    ADD_KEY_VALUE("StrideA", stride_A);
+    ADD_KEY_VALUE("StrideB", stride_B);
+    ADD_KEY_VALUE("StrideC", stride_C);
+    ADD_KEY_VALUE("kbatch", kbatch);
+    ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
+    ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec)
+    END_JSON_DUMP_FILE();
+}
+
 void dump_layernorm2d_fwd_json_results(const std::string& json_filename,
                                        const std::string& prec_i,
                                        const std::string& prec_o,
