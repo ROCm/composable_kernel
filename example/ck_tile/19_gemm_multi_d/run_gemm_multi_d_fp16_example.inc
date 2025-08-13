@@ -221,18 +221,20 @@ int run_multiple_d_gemm_example_with_layouts(int argc,
 
     if(arg_parser.get_int("json") == 1)
     {
-        START_JSON_DUMP_FILE(arg_parser.get_str("jsonfile"));
-        ADD_KEY_VALUE("name", "gemm_multi_d_fp16");
-        ADD_KEY_VALUE("op_name", op_name);
-        ADD_KEY_VALUE("M", M);
-        ADD_KEY_VALUE("N", N);
-        ADD_KEY_VALUE("K", K);
-        ADD_KEY_VALUE("StrideA", StrideA);
-        ADD_KEY_VALUE("StrideB", StrideB);
-        ADD_KEY_VALUE("StrideE", StrideE);
-        ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
-        ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec)
-        END_JSON_DUMP_FILE();
+        dump_gemm_multi_d_fp16_json_results(arg_parser.get_str("jsonfile"),
+                                            op_name,
+                                            M,
+                                            N,
+                                            K,
+                                            StrideA,
+                                            StrideB,
+                                            StrideD0,
+                                            StrideD1,
+                                            StrideE,
+                                            pass,
+                                            ave_time,
+                                            tflops,
+                                            gb_per_sec);
     }
     return pass;
 }

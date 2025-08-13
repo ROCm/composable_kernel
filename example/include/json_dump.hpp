@@ -209,6 +209,38 @@ void dump_flatmm_json_results(const std::string& json_filename,
     END_JSON_DUMP_FILE();
 }
 
+void dump_gemm_multi_d_fp16_json_results(const std::string& json_filename,
+                                         const std::string& op_name,
+                                         int M,
+                                         int N,
+                                         int K,
+                                         int StrideA,
+                                         int StrideB,
+                                         int StrideD0,
+                                         int StrideD1,
+                                         int StrideE,
+                                         bool pass,
+                                         float ave_time,
+                                         float tflops,
+                                         float gb_per_sec,
+                                         const std::string& kernel_name = "gemm_multi_d_fp16")
+{
+    START_JSON_DUMP_FILE(json_filename);
+    ADD_KEY_VALUE("name", kernel_name);
+    ADD_KEY_VALUE("op_name", op_name);
+    ADD_KEY_VALUE("M", M);
+    ADD_KEY_VALUE("N", N);
+    ADD_KEY_VALUE("K", K);
+    ADD_KEY_VALUE("StrideA", StrideA);
+    ADD_KEY_VALUE("StrideB", StrideB);
+    ADD_KEY_VALUE("StrideD0", StrideD0);
+    ADD_KEY_VALUE("StrideD1", StrideD1);
+    ADD_KEY_VALUE("StrideE", StrideE);
+    ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
+    ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec)
+    END_JSON_DUMP_FILE();
+}
+
 void dump_layernorm2d_fwd_json_results(const std::string& json_filename,
                                        const std::string& prec_i,
                                        const std::string& prec_o,
