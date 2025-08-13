@@ -42,56 +42,6 @@ CK_TILE_HOST_DEVICE static constexpr auto GetScaleGlobalVectorLoadSize()
     return PackedSize; // Absolute fallback
 }
 
-// AQ holds groupquant scale data for A. Data is loaded from DRAM and partitioned across
-// threads. Post mfma scales are shuffled across threads in the warp and applied to
-// accum registers.
-template <typename BlockGemmShape,
-          typename WarpGemm,
-          index_t BlockSize,
-          index_t YPerTile,
-          index_t XPerTile,
-          index_t VecSize>
-struct TileDistributionEncodingPatternAQ : public TileDistributionEncodingPattern
-{
-    // TODO: make pattern where below condition does not need to hold - GGemmMultiDSplitk!
-    static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
-    static constexpr index_t warp_size = get_warp_size();
-    static constexpr index_t num_warps = BlockSize / get_warp_size();
-
-    static constexpr index_t MWarps = BlockGemmShape::BlockWarps::at(number<0>{});
-    static constexpr index_t NWarps = BlockGemmShape::BlockWarps::at(number<1>{});
-    static constexpr index_t KWarps = BlockGemmShape::BlockWarps::at(number<2>{});
-
-    static constexpr index_t MIterPerWarp = BlockGemmShape::kM / (MWarps * WarpGemm::kM);
-
-    static_assert(num_warps == MWarps * NWarps * KWarps);
-
-    // KWarps > 1 isn't supported
-    static_assert(KWarps == 1);
-
-    // # of elements per thread
-    static constexpr index_t X = XPerTile;
-
-    static constexpr index_t Y0 = 1;
-    static constexpr index_t Y1 = MIterPerWarp ? MIterPerWarp : 1;
-    static constexpr index_t Y2 = MWarps;
-    static constexpr index_t Y3 = WarpGemm::kM;
-    static_assert(Y3 >= WarpGemm::kM, "Scales for all rows must be available within the warp.");
-    static_assert(Y0 * Y1 * Y2 * Y3 == YPerTile,
-                  "Y0, Y1, Y2, Y3 must cover the blocktile along Y.");
-
-    CK_TILE_HOST_DEVICE static constexpr auto Make2DStaticTileDistribution()
-    {
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<NWarps>,
-                                       tuple<sequence<Y0, Y1, Y2, Y3>, sequence<X>>,
-                                       tuple<sequence<1, 0>, sequence<1, 1>>,
-                                       tuple<sequence<2, 0>, sequence<0, 3>>,
-                                       sequence<1, 2>,
-                                       sequence<1, 0>>{});
-    }
-};
-
 // A Scale data for A data is preshuffled and loaded from DRAM
 // using v_mfama_f32_scale_f32_16x16x128_F8F6F4 instruction for calculating
 template <typename BlockGemmShape,
@@ -99,9 +49,6 @@ template <typename BlockGemmShape,
           index_t BlockSize,
           index_t YPerTile,
           index_t XPerTile,
-          index_t MXdlPack,
-          index_t NXdlPack,
-          index_t KXdlPack,
           index_t VecSize = 1>
 struct TileDistributionEncodingPatternAScale : public TileDistributionEncodingPattern
 {
@@ -120,16 +67,15 @@ struct TileDistributionEncodingPatternAScale : public TileDistributionEncodingPa
     static_assert(KWarps == 1, "KWarps > 1 is not supported");
 
     // Y dimension (M) decomposition
-    static constexpr index_t MXdlPack = 2; // MXdlPack is always 2
-    static constexpr index_t Y1       = MWarps;
-    static constexpr index_t Y2       = MThreadPerXdl;
-    static constexpr index_t Y0       = YPerTile / MXdlPack / (MWarps * MThreadPerXdl);
+    static constexpr index_t Y1 = MWarps;
+    static constexpr index_t Y2 = MThreadPerXdl;
+    static constexpr index_t Y0 = YPerTile / (MWarps * MThreadPerXdl);
 
     // X dimension (K) decomposition
     static constexpr index_t X0 = KThreadPerXdl;
     static constexpr index_t X1 = VecSize;
 
-    static_assert(Y0 * Y1 * Y2 * Y3 == YPerTile, "Y dimensions must cover the YPerTile");
+    static_assert(Y0 * Y1 * Y2 == YPerTile, "Y dimensions must cover the YPerTile");
     static_assert(X0 * X1 == XPerTile, "X dimensions must cover the XPerTile");
 
     CK_TILE_HOST_DEVICE static constexpr auto Make2DStaticTileDistribution()
@@ -137,8 +83,57 @@ struct TileDistributionEncodingPatternAScale : public TileDistributionEncodingPa
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<NWarps>,
                                        tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1>>,
-                                       tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<1>, sequence<2, 0>>,
+                                       tuple<sequence<1, 0>, sequence<2, 1>>,
+                                       tuple<sequence<1, 0>, sequence<0, 2>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 1>>{});
+    }
+};
+
+// B Scale data for B data is preshuffled and loaded from DRAM
+// using v_mfama_f32_scale_f32_16x16x128_F8F6F4 instruction for calculating
+template <typename BlockGemmShape,
+          typename WarpGemm,
+          index_t BlockSize,
+          index_t YPerTile,
+          index_t XPerTile,
+          index_t NXdlPack,
+          index_t VecSize = 1>
+struct TileDistributionEncodingPatternBScale : public TileDistributionEncodingPattern
+{
+    static_assert(NPerBlock % NXdlPack == 0, "XPerTile must be a multiple of VecSize!");
+    static constexpr index_t warp_size = get_warp_size();
+    static constexpr index_t num_warps = BlockSize / warp_size;
+
+    static constexpr index_t MWarps = BlockGemmShape::BlockWarps::at(number<0>{});
+    static constexpr index_t NWarps = BlockGemmShape::BlockWarps::at(number<1>{});
+    static constexpr index_t KWarps = BlockGemmShape::BlockWarps::at(number<2>{});
+
+    static constexpr index_t NThreadPerXdl = WarpGemm::kN;
+    static constexpr index_t KThreadPerXdl = warp_size / NThreadPerXdl;
+
+    static_assert(num_warps == MWarps * NWarps * KWarps, "Block warps do not match block size");
+    static_assert(KWarps == 1, "KWarps > 1 is not supported");
+
+    // Y dimension (N) decomposition
+    static constexpr index_t Y1 = NWarps;
+    static constexpr index_t Y2 = NThreadPerXdl;
+    static constexpr index_t Y0 = YPerTile / (NWarps * NThreadPerXdl);
+
+    // X dimension (K) decomposition
+    static constexpr index_t X0 = KThreadPerXdl;
+    static constexpr index_t X1 = VecSize;
+
+    static_assert(Y0 * Y1 * Y2 == YPerTile, "Y dimensions must cover the YPerTile");
+    static_assert(X0 * X1 == XPerTile, "X dimensions must cover the XPerTile");
+
+    CK_TILE_HOST_DEVICE static constexpr auto Make2DStaticTileDistribution()
+    {
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<MWarps>,
+                                       tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1>>,
+                                       tuple<sequence<0, 1>, sequence<2, 1>>,
+                                       tuple<sequence<0, 1>, sequence<0, 2>>,
                                        sequence<1, 2>,
                                        sequence<0, 1>>{});
     }

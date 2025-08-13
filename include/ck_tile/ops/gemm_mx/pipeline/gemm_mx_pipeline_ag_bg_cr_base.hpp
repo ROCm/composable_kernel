@@ -48,7 +48,7 @@ struct GemmMXPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Problem,
         static_assert(
             std::is_same_v<typename Problem::AScaleLayout, tensor_layout::gemm::RowMajor>);
         using YPerTile = number<MPerBlock / MXdlPack>;
-        using XPerTile = number<KPerBlock / BlockScaleSize / KXdlPack>;
+        using XPerTile = number<KPerBlock * APackedSize / (BlockScaleSize * KXdlPack)>;
 
         auto a_copy_draw_window =
             make_tile_window(a_scale_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -66,7 +66,7 @@ struct GemmMXPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Problem,
         static_assert(
             std::is_same_v<typename Problem::BScaleLayout, tensor_layout::gemm::ColumnMajor>);
         using YPerTile = number<NPerBlock / NXdlPack>;
-        using XPerTile = number<KPerBlock / BlockScaleSize / KXdlPack>;
+        using XPerTile = number<KPerBlock * BPackedSize / (BlockScaleSize * KXdlPack)>;
 
         auto b_copy_draw_window =
             make_tile_window(b_scale_dram_block_window_tmp.get_bottom_tensor_view(),
