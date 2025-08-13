@@ -41,10 +41,6 @@ CK_TILE_DEVICE int32x4_t make_wave_buffer_resource(const void* ptr, uint32_t siz
 {
     buffer_resource res{ptr, size, CK_TILE_BUFFER_RESOURCE_3RD_DWORD};
     int32x4_t r = __builtin_bit_cast(int32x4_t, res);
-    r.x         = __builtin_amdgcn_readfirstlane(r.x);
-    r.y         = __builtin_amdgcn_readfirstlane(r.y);
-    r.z         = __builtin_amdgcn_readfirstlane(r.z);
-    r.w         = __builtin_amdgcn_readfirstlane(r.w);
     return r;
 }
 
@@ -1318,6 +1314,17 @@ enum struct amd_buffer_coherence_enum
     glc               = 1,
     slc               = 2,
     glc_slc           = 3,
+    // gfx94: bit 0 = sc0, bit 1 = nt, bit 3 = swz, bit 4 = sc1
+    // SC[1:0] System Cache level: 0=wave, 1=group, 2=device, 3=system
+    // NT Non-Temporal: 0=expect temporal reuse; 1=do not expect temporal reuse
+    WAVE_NT0   = 0,
+    WAVE_NT1   = 2,
+    GROUP_NT0  = 1,
+    GROUP_NT1  = 3,
+    DEVICE_NT0 = 8,
+    DEVICE_NT1 = 10,
+    SYSTEM_NT0 = 9,
+    SYSTEM_NT1 = 11,
 };
 
 template <index_t N,
@@ -2756,7 +2763,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_max(const thread_buffer<T, N>& src_thread_
 
 #if defined(__gfx950__)
 template <typename T, index_t N, address_space_enum BufferAddressSpace>
-__device__ auto amd_transpose_load_to_vgpr(const T* in_ptr)
+__device__ auto amd_transpose_load_to_vgpr(const T* __restrict__ in_ptr)
 {
 
     static_assert(__has_builtin(__builtin_amdgcn_raw_buffer_load_b32),
