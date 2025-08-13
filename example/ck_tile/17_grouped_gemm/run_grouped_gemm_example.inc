@@ -10,6 +10,7 @@ static constexpr inline auto is_row_major(Layout layout_)
                                                  ck_tile::tensor_layout::gemm::RowMajor>>{};
 }
 
+template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
 auto calculate_rtol_atol(const ck_tile::index_t K,
                          const ck_tile::index_t kbatch,
                          const float max_accumulated_value)
@@ -30,7 +31,8 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
-template <typename ADataType,
+template <typename GemmConfig,
+          typename ADataType,
           typename BDataType,
           typename DsDataType,
           typename AccDataType,
@@ -102,8 +104,14 @@ float invoke_gemm(int n_warmup,
                                             kargs.size() * sizeof(ck_tile::GemmTransKernelArg),
                                             hipMemcpyHostToDevice,
                                             stream.stream_id_));
-        ave_time = grouped_gemm_tileloop<ALayout, BLayout, CLayout>(
-            stream, group_count, kargs_ptr, splitk);
+        ave_time = grouped_gemm_tileloop<GemmConfig,
+                                         ALayout,
+                                         BLayout,
+                                         CLayout,
+                                         ADataType,
+                                         BDataType,
+                                         AccDataType,
+                                         CDataType>(stream, group_count, kargs_ptr, splitk);
     }
 
     std::string op_name{"Grouped Gemm"};
@@ -127,7 +135,15 @@ float invoke_gemm(int n_warmup,
     return ave_time;
 }
 
-template <bool Persistent, typename ALayout, typename BLayout, typename CLayout>
+template <bool Persistent,
+          typename GemmConfig,
+          typename ADataType,
+          typename BDataType,
+          typename CDataType,
+          typename AccDataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
 int run_grouped_gemm_example_with_layouts(int argc,
                                           char* argv[],
                                           const ALayout a_layout                  = ALayout{},
@@ -243,7 +259,8 @@ int run_grouped_gemm_example_with_layouts(int argc,
             {p_a, p_b, p_c, kbatch, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
     }
 
-    invoke_gemm<ADataType,
+    invoke_gemm<GemmConfig,
+                ADataType,
                 BDataType,
                 ck_tile::tuple<>,
                 AccDataType,
@@ -271,7 +288,9 @@ int run_grouped_gemm_example_with_layouts(int argc,
                 a_m_k_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
             const float max_accumulated_value =
                 *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
-            const auto rtol_atol = calculate_rtol_atol(Ks[i], kbatch, max_accumulated_value);
+            const auto rtol_atol =
+                calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+                    Ks[i], kbatch, max_accumulated_value);
             pass &= ck_tile::check_err(c_m_n_tensors[i],
                                        c_m_n_host_ref,
                                        "Error: Incorrect results!",
@@ -288,7 +307,61 @@ int run_grouped_gemm_example_with_layouts(int argc,
     return pass;
 }
 
-template <bool Persistent>
+template <bool Persistent, typename GemmConfig, typename PrecType>
+int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
+{
+    using Row   = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col   = ck_tile::tensor_layout::gemm::ColumnMajor;
+    using Types = GemmTypeConfig<PrecType>;
+    // Specific type aliases for easy access
+    using ADataType   = typename Types::ADataType;
+    using BDataType   = typename Types::BDataType;
+    using AccDataType = typename Types::AccDataType;
+    using CDataType   = typename Types::CDataType;
+
+    if(a_layout == "R" && b_layout == "C")
+    {
+        return run_grouped_gemm_example_with_layouts<Persistent,
+                                                     GemmConfig,
+                                                     ADataType,
+                                                     BDataType,
+                                                     CDataType,
+                                                     AccDataType>(argc, argv, Row{}, Col{}, Row{});
+    }
+    else if(a_layout == "R" && b_layout == "R")
+    {
+        return run_grouped_gemm_example_with_layouts<Persistent,
+                                                     GemmConfig,
+                                                     ADataType,
+                                                     BDataType,
+                                                     CDataType,
+                                                     AccDataType>(argc, argv, Row{}, Row{}, Row{});
+    }
+    else if(a_layout == "C" && b_layout == "R")
+    {
+        return run_grouped_gemm_example_with_layouts<Persistent,
+                                                     GemmConfig,
+                                                     ADataType,
+                                                     BDataType,
+                                                     CDataType,
+                                                     AccDataType>(argc, argv, Col{}, Row{}, Row{});
+    }
+    else if(a_layout == "C" && b_layout == "C")
+    {
+        return run_grouped_gemm_example_with_layouts<Persistent,
+                                                     GemmConfig,
+                                                     ADataType,
+                                                     BDataType,
+                                                     CDataType,
+                                                     AccDataType>(argc, argv, Col{}, Col{}, Row{});
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
+    }
+}
+
+template <bool Persistent, template <typename PrecType> typename GemmConfig>
 int run_grouped_gemm_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -297,30 +370,22 @@ int run_grouped_gemm_example(int argc, char* argv[])
         return -1;
     }
 
-    const std::string a_layout = arg_parser.get_str("a_layout");
-    const std::string b_layout = arg_parser.get_str("b_layout");
+    const std::string a_layout  = arg_parser.get_str("a_layout");
+    const std::string b_layout  = arg_parser.get_str("b_layout");
+    const std::string data_type = arg_parser.get_str("prec");
 
-    using Row = ck_tile::tensor_layout::gemm::RowMajor;
-    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
-
-    if(a_layout == "R" && b_layout == "C")
+    if(data_type == "fp16")
     {
-        return run_grouped_gemm_example_with_layouts<Persistent>(argc, argv, Row{}, Col{}, Row{});
+        return run_gemm_example_prec_type<Persistent, GemmConfig<ck_tile::half_t>, ck_tile::half_t>(
+            a_layout, b_layout, argc, argv);
     }
-    else if(a_layout == "R" && b_layout == "R")
+    else if(data_type == "fp8")
     {
-        return run_grouped_gemm_example_with_layouts<Persistent>(argc, argv, Row{}, Row{}, Row{});
-    }
-    else if(a_layout == "C" && b_layout == "R")
-    {
-        return run_grouped_gemm_example_with_layouts<Persistent>(argc, argv, Col{}, Row{}, Row{});
-    }
-    else if(a_layout == "C" && b_layout == "C")
-    {
-        return run_grouped_gemm_example_with_layouts<Persistent>(argc, argv, Col{}, Col{}, Row{});
+        return run_gemm_example_prec_type<Persistent, GemmConfig<ck_tile::fp8_t>, ck_tile::fp8_t>(
+            a_layout, b_layout, argc, argv);
     }
     else
     {
-        throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
+        throw std::runtime_error("Unsupported data type configuration.");
     }
 }
