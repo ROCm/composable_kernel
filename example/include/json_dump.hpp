@@ -387,6 +387,34 @@ void dump_moe_sorting_json(const std::string& json_filename,
     END_JSON_DUMP_FILE();
 }
 
+void dump_moe_smoothquant_json(const std::string& json_filename,
+                               const std::string& prec_i,
+                               const std::string& prec_o,
+                               int tokens,
+                               int hidden_size,
+                               int stride,
+                               int experts,
+                               int topk,
+                               bool pass,
+                               float ave_time,
+                               float tflops,
+                               float gb_per_sec,
+                               const std::string& kernel_name = "moe_smoothquant")
+{
+    START_JSON_DUMP_FILE(json_filename);
+    ADD_KEY_VALUE("name", kernel_name);
+    ADD_KEY_VALUE("prec_i", prec_i);
+    ADD_KEY_VALUE("prec_o", prec_o);
+    ADD_KEY_VALUE("tokens", tokens);
+    ADD_KEY_VALUE("hidden_size", hidden_size);
+    ADD_KEY_VALUE("stride", stride);
+    ADD_KEY_VALUE("experts", experts);
+    ADD_KEY_VALUE("topk", topk);
+    ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
+    ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec)
+    END_JSON_DUMP_FILE();
+}
+
 void dump_fmha_fwd_json_results(const std::string& json_filename,
                                 const std::string& prec,
                                 const std::string& mode,
