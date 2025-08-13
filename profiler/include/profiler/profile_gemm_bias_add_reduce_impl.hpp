@@ -93,7 +93,7 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
                 return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
-    
+
     ck::profiler::validate_gemm_strides_abc<ALayout, BLayout, CLayout>(
         M, N, K, StrideA, StrideB, StrideC);
 
