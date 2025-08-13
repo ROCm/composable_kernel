@@ -149,17 +149,15 @@ struct TileCopyKernel
             p_y, make_tuple(M, N), make_tuple(N, 1), number<S::ThreadTile_N>{}, number<1>{});
 
         // Create tile windows with DRAM distribution
-        auto x_window =
-            make_tile_window(x_m_n,
-                             make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                             {tile_block_origin_m, 0},
-                             Policy::template MakeDRAMDistribution<Problem>());
+        auto x_window = make_tile_window(x_m_n,
+                                         make_tuple(S::Block_Tile_M, S::Block_Tile_N),
+                                         {tile_block_origin_m, 0},
+                                         Policy::template MakeDRAMDistribution<Problem>());
 
-        auto y_window =
-            make_tile_window(y_m_n,
-                             make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                             {tile_block_origin_m, 0},
-                             Policy::template MakeDRAMDistribution<Problem>());
+        auto y_window = make_tile_window(y_m_n,
+                                         make_tuple(S::Block_Tile_M, S::Block_Tile_N),
+                                         {tile_block_origin_m, 0},
+                                         Policy::template MakeDRAMDistribution<Problem>());
 
         // Calculate iterations needed to cover N dimension
         // Note: This kernel uses data parallelism only in the M dimension.
@@ -224,17 +222,15 @@ struct ElementWiseTileCopyKernel
             p_y, make_tuple(M, N), make_tuple(N, 1), number<S::ThreadTile_N>{}, number<1>{});
 
         // Create tile windows with DRAM distribution
-        auto x_window =
-            make_tile_window(x_m_n,
-                             make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                             {tile_block_origin_m, 0},
-                             Policy::template MakeDRAMDistribution<Problem>());
+        auto x_window = make_tile_window(x_m_n,
+                                         make_tuple(S::Block_Tile_M, S::Block_Tile_N),
+                                         {tile_block_origin_m, 0},
+                                         Policy::template MakeDRAMDistribution<Problem>());
 
-        auto y_window =
-            make_tile_window(y_m_n,
-                             make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                             {tile_block_origin_m, 0},
-                             Policy::template MakeDRAMDistribution<Problem>());
+        auto y_window = make_tile_window(y_m_n,
+                                         make_tuple(S::Block_Tile_M, S::Block_Tile_N),
+                                         {tile_block_origin_m, 0},
+                                         Policy::template MakeDRAMDistribution<Problem>());
 
         // Calculate iterations needed to cover N dimension
         // Note: This kernel uses data parallelism only in the M dimension.
@@ -297,7 +293,7 @@ struct TileCopyKernel_LDS
         }
 
         // LDS buffer allocation
-        __shared__ XDataType x_lds_buffer[S::Block_Tile_M * S::Block_Tile_N];
+        __shared__ XDataType x_lds_buffer[S::Block_Tile_Mmake * S::Block_Tile_N];
 
         // LDS tensor descriptor and view
         const auto x_lds_descriptor =
@@ -309,14 +305,13 @@ struct TileCopyKernel_LDS
         auto x_lds_view = make_tensor_view<address_space_enum::lds>(x_lds_buffer, x_lds_descriptor);
 
         // LDS windows with different distributions for optimal access patterns
-        auto x_lds_write_window = make_tile_window(
-            x_lds_view, make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}), {0, 0});
+        auto x_lds_write_window =
+            make_tile_window(x_lds_view, make_tuple(S::Block_Tile_M, S::Block_Tile_N), {0, 0});
 
-        auto x_lds_read_window =
-            make_tile_window(x_lds_view,
-                             make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                             {0, 0},
-                             Policy::template MakeDRAMDistribution<Problem>());
+        auto x_lds_read_window = make_tile_window(x_lds_view,
+                                                  make_tuple(S::Block_Tile_M, S::Block_Tile_N),
+                                                  {0, 0},
+                                                  Policy::template MakeDRAMDistribution<Problem>());
 
         // Global memory tensor views
         const auto x_m_n = make_naive_tensor_view<address_space_enum::global>(
@@ -326,16 +321,13 @@ struct TileCopyKernel_LDS
             p_y, make_tuple(M, N), make_tuple(N, 1), number<S::ThreadTile_N>{}, number<1>{});
 
         // Global memory tile windows
-        auto x_window =
-            make_tile_window(x_m_n,
-                             make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                             {tile_block_origin_m, 0},
-                             Policy::template MakeDRAMDistribution<Problem>());
+        auto x_window = make_tile_window(x_m_n,
+                                         make_tuple(S::Block_Tile_M, S::Block_Tile_N),
+                                         {tile_block_origin_m, 0},
+                                         Policy::template MakeDRAMDistribution<Problem>());
 
-        auto y_window =
-            make_tile_window(y_m_n,
-                             make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                             {tile_block_origin_m, 0});
+        auto y_window = make_tile_window(
+            y_m_n, make_tuple(S::Block_Tile_M, S::Block_Tile_N), {tile_block_origin_m, 0});
 
         // Calculate iterations needed to cover N dimension
         // Note: This kernel uses data parallelism only in the M dimension.
