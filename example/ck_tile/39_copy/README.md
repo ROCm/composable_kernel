@@ -185,6 +185,7 @@ constexpr auto outer_encoding =
 - **N0, N1**: Distribution along N dimension
   - N0: Number of threads along N
   - N1: ThreadTile size (elements per thread)
+- **Order and layout**: The inner-most (rightmost) dimension is the fastest-changing. Choosing `N1 = ThreadTile_N` maps vector width to contiguous addresses, i.e., row-major access in this example.
 - **YIELD arguments**: Both `Repeat` and `ThreadTile` because effective work per thread is `ThreadTile * Repeat`
 
 ## Tensor Abstractions
