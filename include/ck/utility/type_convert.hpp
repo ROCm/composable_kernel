@@ -53,12 +53,12 @@ inline __device__ bhalf_t static_cast_float_to_bf16(float x)
 #endif
 
 #if defined(__gfx950__)
-inline __device__ bhalf2_t static_cast_float2_to_bhalf2_rne(float2_t x)
+inline __device__ bhalf2_t static_cast_float_x2_to_bhalf2_rne(float x, float y)
 {
     uint32_t result;
     asm volatile("v_cvt_pk_bf16_f32 %0, %1, %2" 
         : "=v"(result) 
-        : "v"(x[0]), "v"(x[1]));
+        : "v"(x), "v"(y));
     union {
         uint32_t u32;
         bhalf2_t bf16x2;
@@ -68,52 +68,9 @@ inline __device__ bhalf2_t static_cast_float2_to_bhalf2_rne(float2_t x)
 }
 #endif
 
-// TODO: Why do we need the host instance?
-inline __host__ __device__ void static_cast_float_to_bhalf_packed(float& x, float& y)
-{
-#if defined(__gfx950__) && defined(__HIP_DEVICE_COMPILE__)
-    uint32_t result;
-    asm volatile("v_cvt_pk_bf16_f32 %0, %1, %2" 
-        : "=v"(result) 
-        : "v"(x), "v"(y));
-        
-    // Extract individual BF16 values from packed result
-    const uint16_t* bf16_values = reinterpret_cast<const uint16_t*>(&result);
-    
-    // Treat x and y as arrays of uint16_t
-    uint16_t* x_parts = reinterpret_cast<uint16_t*>(&x);
-    uint16_t* y_parts = reinterpret_cast<uint16_t*>(&y);
-    
-    // Store BF16 values directly to the upper 16 bits (index 1 on little-endian)
-    x_parts[1] = bf16_values[0];
-    y_parts[1] = bf16_values[1];
-#else
-    // Skip conversion for non-GFX950 architectures
-    // TODO: Implement the conversion.
-    x = static_cast<float>(static_cast<bhalf_t>(x));
-    y = static_cast<float>(static_cast<bhalf_t>(y));
-#endif
-}
-
-// TODO: Why do we need the host instance?
-inline __host__ __device__ void static_cast_float_to_bhalf_packed_v2(float& x, float& y)
-{
-#if defined(__gfx950__) && defined(__HIP_DEVICE_COMPILE__)
-    // Pack the result to the first argument.
-    asm volatile("v_cvt_pk_bf16_f32 %0, %1, %2" 
-        : "=v"(x) 
-        : "v"(x), "v"(y));
-#else
-    // Skip conversion for non-GFX950 architectures
-    // TODO: Implement the conversion.
-    x = static_cast<float>(static_cast<bhalf_t>(x));
-    y = static_cast<float>(static_cast<bhalf_t>(y));
-#endif
-}
-
 // Declare a template function for conversion of bf16 vector of two values using RNE
-template <typename Y, typename X>
-__host__ __device__ constexpr Y bf16x2_convert_rne(X x);
+template <typename T, typename U>
+__host__ __device__ constexpr T bf16x2_convert_rne(U x, U y);
 
 // Declare a template function for bf16 conversion using RTN
 template <typename Y, typename X>
@@ -146,22 +103,23 @@ inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(fl
 }
 
 /**
- * @brief Converts a vector of 2 float (float2_t) to a vector of 2 16-bit bfloat types (bhalf2_t) using
+ * @brief Converts two floats into a vector of 2 16-bit bfloat types (bhalf2_t) using
  * rounding to nearest/even (RNE).
  *
- * @param x     The input vector of 2 float.
- * @return      The converted vector of 2 bhalf_t.
+ * @param x     First float value.
+ * @param y     Second float value.
+ * @return      Converted vector of 2 bhalf_t.
  */
 template<>
-inline __host__ __device__ constexpr bhalf2_t bf16x2_convert_rne<bhalf2_t, float2_t>(float2_t x)
+inline __host__ __device__ constexpr bhalf2_t bf16x2_convert_rne<bhalf2_t, float>(float x, float y)
 {
 #if defined(__gfx950__)
-    return static_cast_float2_to_bhalf2_rne(x);
+    return static_cast_float_x2_to_bhalf2_rne(x, y);
 #else
     // TODO: Perform real RNE conversion for bfloat16
     return {
-        bf16_convert_rtn<bhalf_t>(x[0]),
-        bf16_convert_rtn<bhalf_t>(x[1])
+        bf16_convert_rtn<bhalf_t>(x),
+        bf16_convert_rtn<bhalf_t>(y)
     };
 #endif
 }

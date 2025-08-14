@@ -53,8 +53,7 @@ TEST(BHALF_T, MantisaExpOverflow)
 
 __global__ void cast_roundtrip(const float2 input, float2* output)
 {
-    ck::float2_t x {input.x, input.y};
-    const ck::bhalf2_t bhalf2_val = ck::bf16x2_convert_rne<ck::bhalf2_t, ck::float2_t>(x);
+    const ck::bhalf2_t bhalf2_val = ck::bf16x2_convert_rne<ck::bhalf2_t, float>(input.x, input.y);
     const float fval1 = type_convert<float>(bhalf2_val[0]);
     const float fval2 = type_convert<float>(bhalf2_val[1]);
     output->x = fval1;
@@ -63,8 +62,7 @@ __global__ void cast_roundtrip(const float2 input, float2* output)
 
 __global__ void packed_cast(const float x1, const float x2, ck::bhalf2_t* output)
 {
-    ck::float2_t x {x1, x2};
-    *output = ck::bf16x2_convert_rne<ck::bhalf2_t, ck::float2_t>(x);
+    *output = ck::bf16x2_convert_rne<ck::bhalf2_t, float>(x1, x2);
 }
 
 __global__ void cast(const float input, float* output)
