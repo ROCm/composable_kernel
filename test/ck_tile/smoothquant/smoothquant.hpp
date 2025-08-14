@@ -111,4 +111,5 @@ struct smoothquant_traits
     std::string data_type;
 };
 
-float smoothquant(smoothquant_traits, smoothquant_args, const ck_tile::stream_config&);
+template <typename DataType>
+float smoothquant(smoothquant_args, const ck_tile::stream_config&);
