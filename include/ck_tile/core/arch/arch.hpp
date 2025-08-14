@@ -89,21 +89,6 @@ CK_TILE_DEVICE index_t get_thread_id() { return threadIdx.x; }
 
 CK_TILE_DEVICE index_t get_block_id() { return blockIdx.x; }
 
-CK_TILE_DEVICE void block_sync_lds()
-{
-#if CK_TILE_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM
-    // asm volatile("\
-    // s_waitcnt lgkmcnt(0) \n \
-    // s_barrier \
-    // " ::);
-
-    __builtin_amdgcn_s_waitcnt(0xc07f);
-    __builtin_amdgcn_s_barrier();
-#else
-    __syncthreads();
-#endif
-}
-
 CK_TILE_DEVICE void block_sync_load_raw(index_t cnt = 0)
 {
 #ifdef __gfx12__
@@ -174,20 +159,16 @@ CK_TILE_DEVICE void s_waitcnt_barrier()
     __builtin_amdgcn_s_barrier();
 }
 
+template <index_t lgkmcnt = 0>
+CK_TILE_DEVICE void block_sync_lds()
+{
+    s_waitcnt_barrier<waitcnt_arg::kMaxVmCnt, waitcnt_arg::kMaxExpCnt, lgkmcnt>();
+}
+
+template <index_t vmcnt = 0>
 CK_TILE_DEVICE void block_sync_lds_direct_load()
 {
-#if 1
-    // invoke clang builtins which *should* produce the same result as the inline asm below
-    // difference: inline asm is being compiled to wait vmcnt(0) after the barrier
-    s_waitcnt_barrier<0, waitcnt_arg::kMaxExpCnt, 0>();
-#else
-    // same content as in old CK (#999)
-    asm volatile("\
-    s_waitcnt vmcnt(0) \n \
-    s_waitcnt lgkmcnt(0) \n \
-    s_barrier \
-    " ::);
-#endif
+    s_waitcnt_barrier<vmcnt, waitcnt_arg::kMaxExpCnt, waitcnt_arg::kMaxLgkmCnt>();
 }
 
 CK_TILE_DEVICE void s_nop(index_t cnt = 0)
@@ -232,6 +213,21 @@ CK_TILE_HOST_DEVICE constexpr index_t get_smem_capacity()
 #else
     return 65536;
 #endif
+}
+
+/// Helper function to convert address space enum to string
+CK_TILE_HOST_DEVICE constexpr const char* address_space_to_string(address_space_enum addr_space)
+{
+    switch(addr_space)
+    {
+    case address_space_enum::generic: return "generic";
+    case address_space_enum::global: return "global";
+    case address_space_enum::lds: return "lds";
+    case address_space_enum::sgpr: return "sgpr";
+    case address_space_enum::constant: return "constant";
+    case address_space_enum::vgpr: return "vgpr";
+    default: return "unknown";
+    }
 }
 
 } // namespace ck_tile

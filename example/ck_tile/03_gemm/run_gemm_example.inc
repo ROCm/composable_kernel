@@ -184,7 +184,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   int n_warmup,
                   int n_repeat,
                   bool persistent,
-                  int bench_time_ms)
+                  bool flush_cache,
+                  int rotating_count)
 {
     ck_tile::GemmHostArgs args = {a_m_k_dev_buf.GetDeviceBuffer(),
                                   b_k_n_dev_buf.GetDeviceBuffer(),
@@ -214,7 +215,7 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                         CDEElementWise>(
             args,
             ck_tile::stream_config{
-                nullptr, true, 1, n_warmup, n_repeat, true, true, 50, bench_time_ms});
+                nullptr, true, 1, n_warmup, n_repeat, true, flush_cache, rotating_count});
     }
     else
     {
@@ -232,7 +233,7 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                         CDEElementWise>(
             args,
             ck_tile::stream_config{
-                nullptr, true, 1, n_warmup, n_repeat, true, true, 50, bench_time_ms});
+                nullptr, true, 1, n_warmup, n_repeat, true, flush_cache, rotating_count});
     }
 
     std::size_t flop = std::size_t(2) * M * N * K;
@@ -271,6 +272,25 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t)
     return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
 }
 
+template <typename CDataType>
+bool do_verify(const ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
+               const ck_tile::HostTensor<CDataType>& c_m_n_ref,
+               const ck_tile::tuple<double, double>& rtol_atol,
+               const char* variant)
+{
+    bool pass = ck_tile::check_err(c_m_n_dev_result,
+                                   c_m_n_ref,
+                                   "Error: Incorrect results!",
+                                   rtol_atol.at(ck_tile::number<0>{}),
+                                   rtol_atol.at(ck_tile::number<1>{}));
+
+    std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
+              << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{}) << std::endl;
+    std::cout << "The " << variant << " verification result is:" << (pass ? "correct" : "fail")
+              << std::endl;
+    return pass;
+}
+
 template <typename GemmConfig,
           typename ADataType,
           typename BDataType = ADataType,
@@ -278,16 +298,11 @@ template <typename GemmConfig,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-int run_gemm_example_with_layouts(int argc,
-                                  char* argv[],
+int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
                                   const ALayout a_layout                  = ALayout{},
                                   const BLayout b_layout                  = BLayout{},
                                   [[maybe_unused]] const CLayout c_layout = CLayout{})
 {
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
-        return -1;
-
     using AccDataType = typename GemmTypeConfig<ADataType, BDataType, CDataType>::AccDataType;
 
     ck_tile::index_t M = arg_parser.get_int("m");
@@ -303,7 +318,8 @@ int run_gemm_example_with_layouts(int argc,
     int n_repeat                 = arg_parser.get_int("repeat");
     ck_tile::index_t init_method = arg_parser.get_int("init");
     bool persistent              = arg_parser.get_int("persistent");
-    int bench_time_ms            = arg_parser.get_int("bench_time_ms");
+    bool flush_cache             = arg_parser.get_bool("flush_cache");
+    int rotating_count           = arg_parser.get_int("rotating_count");
 
     const bool preshuffle = GemmConfig::Preshuffle;
 
@@ -422,33 +438,26 @@ int run_gemm_example_with_layouts(int argc,
                          n_warmup,
                          n_repeat,
                          persistent,
-                         bench_time_ms);
+                         flush_cache,
+                         rotating_count);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass = true;
 
+    // memory on host to store gpu reference result
+    ck_tile::HostTensor<CDataType> c_m_n_ref(
+        ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
+    c_m_n_ref.SetZero();
+
     if(arg_parser.get_int("v") == 1)
     {
-        ck_tile::HostTensor<CDataType> c_m_n_host_ref(
-            ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
-        c_m_n_host_ref.SetZero();
-
         ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
-            a_m_k, b_k_n, c_m_n_host_ref);
+            a_m_k, b_k_n, c_m_n_ref);
         const float max_accumulated_value =
-            *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
+            *std::max_element(c_m_n_ref.mData.begin(), c_m_n_ref.mData.end());
         const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
             K, kbatch, max_accumulated_value);
-        pass = ck_tile::check_err(c_m_n_dev_result,
-                                  c_m_n_host_ref,
-                                  "Error: Incorrect results!",
-                                  rtol_atol.at(ck_tile::number<0>{}),
-                                  rtol_atol.at(ck_tile::number<1>{}));
-
-        std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
-                  << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
-                  << std::endl;
-        std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
+        pass = do_verify(c_m_n_dev_result, c_m_n_ref, rtol_atol, "CPU");
     }
     else if(arg_parser.get_int("v") == 2)
     {
@@ -462,13 +471,8 @@ int run_gemm_example_with_layouts(int argc,
             b_k_n_dev_buf.ToDevice(b_k_n.data());
         }
 
-        // memory on host to store gpu reference result
-        ck_tile::HostTensor<CDataType> c_m_n_gpu_ref(
-            ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
         // memory on device to store gpu reference result
-        ck_tile::DeviceMem c_m_n_gpu_buf_ref(c_m_n_gpu_ref.get_element_space_size_in_bytes());
-
-        c_m_n_gpu_ref.SetZero();
+        ck_tile::DeviceMem c_m_n_gpu_buf_ref(c_m_n_ref.get_element_space_size_in_bytes());
         c_m_n_gpu_buf_ref.SetZero();
 
         ADataType* d_A = static_cast<ADataType*>(a_m_k_dev_buf.GetDeviceBuffer());
@@ -483,21 +487,13 @@ int run_gemm_example_with_layouts(int argc,
                                     BLayout,
                                     CLayout>(d_A, d_B, d_C, M, N, K, stride_A, stride_B, stride_C);
 
-        c_m_n_gpu_buf_ref.FromDevice(c_m_n_gpu_ref.data());
+        c_m_n_gpu_buf_ref.FromDevice(c_m_n_ref.data());
 
         const float max_accumulated_value =
-            *std::max_element(c_m_n_gpu_ref.mData.begin(), c_m_n_gpu_ref.mData.end());
+            *std::max_element(c_m_n_ref.mData.begin(), c_m_n_ref.mData.end());
         const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
             K, kbatch, max_accumulated_value);
-        pass = ck_tile::check_err(c_m_n_dev_result,
-                                  c_m_n_gpu_ref,
-                                  "Error: Incorrect results!",
-                                  rtol_atol.at(ck_tile::number<0>{}),
-                                  rtol_atol.at(ck_tile::number<1>{}));
-        std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
-                  << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
-                  << std::endl;
-        std::cout << "The GPU verification result is: " << (pass ? "correct" : "fail") << std::endl;
+        pass = do_verify(c_m_n_dev_result, c_m_n_ref, rtol_atol, "GPU");
     }
 
     return pass;

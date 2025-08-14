@@ -168,7 +168,7 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_c
                     hipGetErrorString(hipMemsetAsync(
                         args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
             };
-            ave_time = ck_tile::launch_kernel_preprocess(
+            ave_time = ck_tile::launch_kernel_time_mask(
                 s,
                 run_flush_cache,
                 ck_tile::make_kernel<blocks.x, FlatmmConfig::kBlockPerCu>(
@@ -217,8 +217,20 @@ int run_flatmm_example(int argc, char* argv[])
     std::string data_type = arg_parser.get_str("prec");
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
+
+    int k        = arg_parser.get_int("k");
+    int stride_b = arg_parser.get_int("stride_b");
+
+    if(b_layout == "C" && stride_b > k)
+    {
+        throw std::runtime_error(
+            "For ColumnMajor layout, StrideB must be smaller than or equal to K (" +
+            std::to_string(k) + ")");
+    }
+
     if(a_layout == "R" && b_layout == "C")
     {
+
         if(data_type == "fp16")
         {
             run_flatmm_example_with_layouts<ck_tile::half_t, FlatmmConfig<ck_tile::half_t>>(

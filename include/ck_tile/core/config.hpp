@@ -191,6 +191,16 @@
 #endif
 #endif
 
+// use llvm builtin bf16 data type after ROCm 6.5
+#ifndef CK_TILE_USE_LLVM_BUILTIN_BF16
+#if(HIP_VERSION_MAJOR == 6 && HIP_VERSION_MINOR == 5 && HIP_VERSION_PATCH >= 50421) || \
+    (HIP_VERSION_MAJOR >= 7)
+#define CK_TILE_USE_LLVM_BUILTIN_BF16 1
+#else
+#define CK_TILE_USE_LLVM_BUILTIN_BF16 0
+#endif
+#endif
+
 #ifndef CK_TILE_DEBUG_LOG
 #define CK_TILE_DEBUG_LOG 0
 #endif
@@ -253,7 +263,7 @@
 #endif
 
 #ifndef CK_TILE_USE_BUFFER_ADDRESSING_BUILTIN
-#if __clang_major__ == 20
+#if __clang_major__ >= 20
 #define CK_TILE_USE_BUFFER_ADDRESSING_BUILTIN 1
 #else
 #define CK_TILE_USE_BUFFER_ADDRESSING_BUILTIN 0
