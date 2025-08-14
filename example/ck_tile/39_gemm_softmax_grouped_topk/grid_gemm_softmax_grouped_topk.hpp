@@ -23,10 +23,9 @@ struct GridGemm
     static constexpr auto topk = Policy::kTopKPerBlock;
     static constexpr auto kBlockSize = Policy::kBlockSize;
 
-    template <typename AGridTensorView, typename BGridTensorView, typename DebugGridTensorView, typename ValueGridTensorView, typename IndexGridTensorView>
+    template <typename AGridTensorView, typename BGridTensorView, typename ValueGridTensorView, typename IndexGridTensorView>
     CK_TILE_DEVICE void operator()(const AGridTensorView& a_grid,
                                    const BGridTensorView& b_grid,
-                                   DebugGridTensorView& debug_grid,
                                    ValueGridTensorView& value_grid,
                                    IndexGridTensorView& index_grid,
                                    const CElementFunction& c_element_func) const
@@ -62,15 +61,13 @@ struct GridGemm
 
         __shared__ char p_smem_char[block_gemm_pipeline.GetStaticLdsSize()];
 
-        // // store C
-        // auto c_window = make_tile_window(
-        //     c_grid, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {iM, iN});
+        // store value and index window
+        auto value_window = make_tile_window(
+            value_grid, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {iM, iN});
+        // auto index_window = make_tile_window(
+        //     index_grid, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {iM, iN});
 
-        // store value and index
-        // constexpr index_t kBlockSize = Problem::kBlockSize;
-        // constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
-        // constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
-
+        // create tile_distribution for value and index window
         constexpr index_t K1 = 16 / sizeof(WeightType);
         constexpr index_t K0 = topk / K1;
         constexpr index_t M2 = get_warp_size() / K0;
@@ -78,15 +75,15 @@ struct GridGemm
         constexpr index_t M1 = kBlockSize / get_warp_size();
         constexpr index_t M0 = kMPerBlock / (M2 * M1);
 
-        auto value_window = make_tile_window(
-            value_grid, make_tuple(number<kMPerBlock>{}, number<topk>{}), {iM, iN},
-            make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,
-                                    tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
-                                    tuple<sequence<1>, sequence<1, 2>>,
-                                    tuple<sequence<1>, sequence<2, 0>>,
-                                    sequence<1, 2>,
-                                    sequence<0, 1>>{}));
+        // auto value_window = make_tile_window(
+        //     value_grid, make_tuple(number<kMPerBlock>{}, number<topk>{}), {iM, iN},
+        //     make_static_tile_distribution(
+        //     tile_distribution_encoding<sequence<1>,
+        //                             tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
+        //                             tuple<sequence<1>, sequence<1, 2>>,
+        //                             tuple<sequence<1>, sequence<2, 0>>,
+        //                             sequence<1, 2>,
+        //                             sequence<0, 1>>{}));
         auto index_window = make_tile_window(
             index_grid, make_tuple(number<kMPerBlock>{}, number<topk>{}), {iM, iN},
             make_static_tile_distribution(
@@ -97,53 +94,23 @@ struct GridGemm
                                     sequence<1, 2>,
                                     sequence<0, 1>>{}));
 
-        using ValueBlockTileDistr = decltype(value_window.get_tile_distribution());
+        // using ValueBlockTileDistr = decltype(value_window.get_tile_distribution());
         using IndexBlockTileDistr = decltype(index_window.get_tile_distribution());
 
-        using ValueBlockTile = decltype(make_static_distributed_tensor<WeightType>(ValueBlockTileDistr{}));
+        // using ValueBlockTile = decltype(make_static_distributed_tensor<WeightType>(ValueBlockTileDistr{}));
         using IndexBlockTile = decltype(make_static_distributed_tensor<IndexType>(IndexBlockTileDistr{}));
 
-        ValueBlockTile value_block_tile;
+        // ValueBlockTile value_block_tile;
         IndexBlockTile index_block_tile;
 
         // Initialize value_block_tile and index_block_tile
-        tile_elementwise_inout([](auto& value) { value = 0; }, value_block_tile);
+        // tile_elementwise_inout([](auto& value) { value = 0; }, value_block_tile);
         tile_elementwise_inout([](auto& index) { index = 0; }, index_block_tile);
 
-        // constexpr index_t debugK1 = 16 / sizeof(WeightType);
-        // constexpr index_t debugK0 = kNPerBlock / debugK1;
-        // constexpr index_t debugM2 = get_warp_size() / debugK0;
-        // // coalesce reading for each blocks
-        // constexpr index_t debugM1 = kBlockSize / get_warp_size();
-        // constexpr index_t debugM0 = kMPerBlock / (debugM2 * debugM1);
-
-        auto debug_window = make_tile_window(
-            debug_grid, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {iM, iN});
-
-        // auto debug_window = make_tile_window(
-        //     debug_grid, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {iM, iN},
-        //     make_static_tile_distribution(
-        //     tile_distribution_encoding<sequence<1>,
-        //                             tuple<sequence<debugM0, debugM1, debugM2>, sequence<debugK0, debugK1>>,
-        //                             tuple<sequence<1>, sequence<1, 2>>,
-        //                             tuple<sequence<1>, sequence<2, 0>>,
-        //                             sequence<1, 2>,
-        //                             sequence<0, 1>>{}));
-        
-        // using DebugBlockTileDistr = decltype(debug_window.get_tile_distribution());
-        // using DebugBlockTile = decltype(make_static_distributed_tensor<WeightType>(DebugBlockTileDistr{}));
-        // DebugBlockTile debug_block_tile;
-        // tile_elementwise_inout([](auto& debug) { debug = 0; }, debug_block_tile);
-
-        // block_gemm_pipeline(a_block_window, b_block_window, debug_block_tile, value_block_tile, index_block_tile, K / kKPerBlock, p_smem_char);
-        const auto debug_block_tile = block_gemm_pipeline(a_block_window, b_block_window, K / kKPerBlock, p_smem_char);
-        // block_gemm_pipeline(a_block_window, b_block_window, debug_block_tile, K / kKPerBlock, p_smem_char);
+        // block_gemm_pipeline(a_block_window, b_block_window, value_window, index_window, K / kKPerBlock, p_smem_char, c_element_func);
+        const auto value_block_tile = block_gemm_pipeline(a_block_window, b_block_window, K / kKPerBlock, p_smem_char);
 
         // cast DataType and apply CElementFunction
-        const auto debug_cast_block_tile = tile_elementwise_in(
-            [&](const auto& debug) { return c_element_func(type_convert<WeightType>(debug)); },
-            debug_block_tile);
-
         const auto value_cast_block_tile = tile_elementwise_in(
             [&](const auto& value) { return c_element_func(type_convert<WeightType>(value)); },
             value_block_tile);
@@ -152,8 +119,6 @@ struct GridGemm
             [&](const auto& index) { return c_element_func(type_convert<IndexType>(index)); },
             index_block_tile);
 
-
-        store_tile(debug_window, debug_cast_block_tile);
         store_tile(value_window, value_cast_block_tile);
         store_tile(index_window, index_cast_block_tile);
     }

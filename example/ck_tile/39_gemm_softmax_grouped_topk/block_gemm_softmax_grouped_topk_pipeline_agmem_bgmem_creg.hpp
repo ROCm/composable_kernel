@@ -210,15 +210,15 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
     }
 #endif
 
-    // template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp, typename DebugBlockTile, typename ValueBlockTile, typename IndexBlockTile>
     template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp>
+    // template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp, typename ValueBlockWindow, typename IndexBlockWindow, typename CElementFunction>
     CK_TILE_HOST_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                         const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                        // ValueBlockWindow& value_window,
+                                        // IndexBlockWindow& index_window,
+                                        // const CElementFunction& c_element_func,
                                         index_t num_loop,
                                         void* p_smem) const
-                                        // DebugBlockTile& debug_block_tile,
-                                        // ValueBlockTile& value_block_tile,
-                                        // IndexBlockTile& index_block_tile,
     {
         static_assert(
             std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
@@ -426,7 +426,8 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
         }
 #endif
 
-        // apply softmax for c_block_tile
+        // -------------------------------------------------------------------------------------
+        // softmax part
         // reduction function for softmax
         const auto f_max = [](auto e0, auto e1) { return max(e0, e1); };
         const auto f_sum = [](auto e0, auto e1) { return e0 + e1; };
@@ -440,9 +441,6 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
         // Pcompute{j} = sum(exp(x - m_local))
         auto p_compute =
             make_static_distributed_tensor<ComputeDataType>(c_block_tile.get_tile_distribution());
-
-        auto debug_block_tile =
-            make_static_distributed_tensor<WeightType>(p_compute.get_tile_distribution());
 
         constexpr auto p_spans = decltype(p_compute)::get_distributed_spans();
 
@@ -472,8 +470,16 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
                 p_compute(i_j_idx) = p_compute[i_j_idx] / rowsum_p[i_idx];
             });
         });
-        
-        // apply topk for softmax output
+
+        // -------------------------------------------------------------------------------------
+        // grouped topk part
+        auto value_block_tile =
+            make_static_distributed_tensor<WeightType>(p_compute.get_tile_distribution());
+        auto index_block_tile =
+            make_static_distributed_tensor<IndexType>(p_compute.get_tile_distribution());
+        // auto debug_block_tile =
+        //     make_static_distributed_tensor<WeightType>(p_compute.get_tile_distribution());
+
         auto x_tmp = p_compute;
         // calculate group score, need to creat group scores tensor
         int num_expert_group = 16;
@@ -518,7 +524,7 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
             });
         }
 
-        // // another scheme to reshape x_tmp from 2d to 3d
+        // // To Do - another scheme to reshape x_tmp from 2d to 3d
         // const auto x_tmp_3d = x_tmp.block_tile_reshape((kM, num_expert_group, kN/num_expert_group));
         // auto group_scores = block_tile_reduce<ComputeDataType>(
         //     x_tmp_3d, sequence<2>{}, f_max, std::numeric_limits<ComputeDataType>::lowest());
@@ -529,16 +535,6 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
         const auto f_argmax = [](ArgmaxPacket e0, ArgmaxPacket e1) {
             return e0.value > e1.value ? e0 : e1;
         };
-
-        // // topk_group_index = topk(group_scores, topk_group)
-        // auto topk_group_index = x_tmp;
-        // // init topk_group_index to -inf
-        // sweep_tile_span(p_compute_spans[number<0>{}], [&](auto idx0) {
-        //     sweep_tile_span(p_compute_spans[number<1>{}], [&](auto idx1) {
-        //         constexpr auto i_j_idx = make_tuple(idx0, idx1);
-        //         topk_group_index(i_j_idx) = -numeric<WeightType>::infinity();
-        //     });
-        // });
 
         // topk_group_mask(1 for selected group scores, -inf for other group scores)
         auto topk_group_scores_mask = x_tmp;
@@ -560,7 +556,7 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
                             tmp.get_tile_distribution(), make_tuple(idx0, idx1));
                         constexpr auto i_j_idx = make_tuple(idx0, idx1);
                         ArgmaxPacket t;
-                        t.value    = group_scores(i_j_idx); // !!! we reference p_compute here
+                        t.value    = group_scores(i_j_idx);
                         t.arg      = tile_idx.at(number<1>{});
                         tmp(i_j_idx) = t;
                     });
@@ -572,8 +568,6 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
             auto group_r = block_tile_reduce<ArgmaxPacket>(group_packet, sequence<1>{}, f_argmax, argmax_init);
 
             block_tile_reduce_xor_sync(group_r, f_argmax);
-
-            // constexpr auto value_spans = decltype(value_block_tile)::get_distributed_spans();
             
             sweep_tile_span(p_compute_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
@@ -584,8 +578,6 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
                     auto col_id = tile_idx.at(number<1>{});
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
                     auto k_group_idx       = group_r(i_idx).arg;
-                    // topk_group_index(i_j_idx) = (col_id == k_group) ? tmp.value: topk_group_index(i_j_idx);
-                    // topk_group_index(i_j_idx) = (col_id == k_group) ? k_group_idx: topk_group_index(i_j_idx);
                     topk_group_scores_mask(i_j_idx) = ((col_id >= (k_group_idx * expert_per_group)) && (col_id < ((k_group_idx + 1) * expert_per_group))) ? 1 : topk_group_scores_mask(i_j_idx);          
                 });
             });
@@ -638,8 +630,6 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
             auto r = block_tile_reduce<ArgmaxPacket>(packet, sequence<1>{}, f_argmax, argmax_init);
 
             block_tile_reduce_xor_sync(r, f_argmax);
-
-            // constexpr auto value_spans = decltype(value_block_tile)::get_distributed_spans();
             
             sweep_tile_span(p_compute_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
@@ -650,10 +640,8 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
                     auto col_id = tile_idx.at(number<1>{});
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
                     ArgmaxPacket tmp       = r(i_idx);
-                    // debug_block_tile(i_j_idx)                = (col_id == i_k) ? tmp.value: debug_block_tile(i_j_idx);
-                    debug_block_tile(i_j_idx)                = (col_id == i_k) ? tmp.arg: debug_block_tile(i_j_idx);
-                    // value_block_tile(i_j_idx)             = tmp.value;
-                    // index_block_tile(i_j_idx)             = tmp.arg;
+                    value_block_tile(i_j_idx)                = (col_id == i_k) ? tmp.value: value_block_tile(i_j_idx);
+                    index_block_tile(i_j_idx)                = (col_id == i_k) ? tmp.arg: index_block_tile(i_j_idx);                 
                 });
             });
 
@@ -672,8 +660,17 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
                 });
             });
         }
-        return debug_block_tile;
-        // return x_tmp_masked;
+        // // cast DataType and apply CElementFunction
+        // const auto value_cast_block_tile = tile_elementwise_in(
+        //     [&](const auto& value) { return c_element_func(type_convert<WeightType>(value)); },
+        //     value_block_tile);
+
+        // const auto index_cast_block_tile = tile_elementwise_in(
+        //     [&](const auto& index) { return c_element_func(type_convert<IndexType>(index)); },
+        //     index_block_tile);
+        // store_tile(value_window, value_cast_block_tile);
+        // store_tile(index_window, index_cast_block_tile);
+        return value_block_tile;
     }
 };
 
