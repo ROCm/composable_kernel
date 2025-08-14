@@ -15,7 +15,8 @@ auto create_args(int argc, char* argv[])
         .insert("dim2", "32", "dimension 2")
         .insert("dim3", "32", "dimension 3")
         .insert("v", "1", "cpu validation or not")
-        .insert("prec", "fp16", "precision")
+        .insert("x_prec", "fp16", "input precision")
+        .insert("y_prec", "fp16", "output precision")
         .insert("warmup", "10", "cold iter")
         .insert("repeat", "50", "hot iter");
 
@@ -23,7 +24,7 @@ auto create_args(int argc, char* argv[])
     return std::make_tuple(result, arg_parser);
 }
 
-template <typename DataType>
+template <typename XDataType, typename YDataType>
 bool run(const ck_tile::ArgParser& arg_parser)
 {
     ck_tile::index_t D0 = arg_parser.get_int("dim0");
@@ -35,10 +36,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int warmup        = arg_parser.get_int("warmup");
     int repeat        = arg_parser.get_int("repeat");
 
-    using XDataType = DataType;
     using ComputeDataType =
         float; // Using float for intermediate calculations can improve numerical stability.
-    using YDataType             = DataType;
     using XElementwiseOperation = ck_tile::element_wise::Add;
 
     // Initialize the input data on the host (CPU).
@@ -151,13 +150,16 @@ int main(int argc, char* argv[])
 
     try
     {
-        const auto prec_variant = string_to_datatype(arg_parser.get_str("prec"));
+        const auto x_prec_variant = string_to_datatype(arg_parser.get_str("x_prec"));
+        const auto y_prec_variant = string_to_datatype(arg_parser.get_str("y_prec"));
         return std::visit(
-            [&](auto&& dt) -> int {
-                using DataType = std::decay_t<decltype(dt)>;
-                return run<DataType>(arg_parser);
+            [&](auto&& x_dt, auto&& y_dt) -> int {
+                using XDataType = std::decay_t<decltype(x_dt)>;
+                using YDataType = std::decay_t<decltype(y_dt)>;
+                return run<XDataType, YDataType>(arg_parser);
             },
-            prec_variant);
+            x_prec_variant,
+            y_prec_variant);
     }
     catch(const std::exception& e)
     {

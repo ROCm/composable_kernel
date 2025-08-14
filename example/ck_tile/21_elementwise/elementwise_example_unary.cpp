@@ -14,7 +14,8 @@ auto create_args(int argc, char* argv[])
         .insert("n", "1024", "n dimension")
         .insert("stride", "-1", "stride per row, if -1 then equal to n")
         .insert("v", "1", "cpu validation or not")
-        .insert("prec", "fp16", "precision")
+        .insert("x_prec", "fp16", "input precision")
+        .insert("y_prec", "fp16", "output precision")
         .insert("warmup", "10", "cold iter")
         .insert("repeat", "50", "hot iter");
 
@@ -22,7 +23,7 @@ auto create_args(int argc, char* argv[])
     return std::make_tuple(result, arg_parser);
 }
 
-template <typename DataType>
+template <typename XDataType, typename YDataType>
 bool run(const ck_tile::ArgParser& arg_parser)
 {
     ck_tile::index_t M      = arg_parser.get_int("m");
@@ -36,8 +37,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     assert(stride >= N);
 
-    using XDataType             = DataType;
-    using YDataType             = DataType;
     using XElementwiseOperation = ck_tile::element_wise::UnarySquare;
 
     // 1. Initialize the input data on the host
@@ -138,13 +137,16 @@ int main(int argc, char* argv[])
 
     try
     {
-        const auto prec_variant = string_to_datatype(arg_parser.get_str("prec"));
+        const auto x_prec_variant = string_to_datatype(arg_parser.get_str("x_prec"));
+        const auto y_prec_variant = string_to_datatype(arg_parser.get_str("y_prec"));
         return std::visit(
-            [&](auto&& dt) -> int {
-                using DataType = std::decay_t<decltype(dt)>;
-                return run<DataType>(arg_parser);
+            [&](auto&& x_dt, auto&& y_dt) -> int {
+                using XDataType = std::decay_t<decltype(x_dt)>;
+                using YDataType = std::decay_t<decltype(y_dt)>;
+                return run<XDataType, YDataType>(arg_parser);
             },
-            prec_variant);
+            x_prec_variant,
+            y_prec_variant);
     }
     catch(const std::exception& e)
     {
