@@ -652,9 +652,19 @@ struct HostTensor
             {
                 os << ", ";
             }
-            if constexpr(std::is_same_v<T, bf16_t> || std::is_same_v<T, fp16_t>)
+            if constexpr(std::is_same_v<T, bf16_t> || std::is_same_v<T, fp16_t> ||
+                         std::is_same_v<T, fp8_t> || std::is_same_v<T, bf8_t> ||
+                         std::is_same_v<T, half_t>)
             {
-                os << type_convert<float>(t.mData[idx]) << " #### ";
+                os << type_convert<float>(t.mData[idx]) << " ####";
+            }
+            else if constexpr(std::is_same_v<T, int8_t>)
+            {
+                os << static_cast<int>(t.mData[idx]) << " ####";
+            }
+            else if constexpr(std::is_same_v<T, ck_tile::pk_int4_t>)
+            {
+                os << static_cast<int>(t.mData[idx].data) << " ####";
             }
             else
             {
