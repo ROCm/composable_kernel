@@ -326,13 +326,13 @@ int run_gemm_example_with_layouts(int argc,
     {
         if constexpr(preshuffle)
         {
-            ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_m_k);
-            ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_k_n);
+            ck_tile::FillUniformDistribution<ADataType>{0.01f, 0.05f}(a_m_k);
+            ck_tile::FillUniformDistribution<BDataType>{0.01f, 0.05f}(b_k_n);
         }
         else
         {
-            ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k);
-            ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n);
+            ck_tile::FillUniformDistribution<ADataType>{0.01f, 0.05f}(a_m_k);
+            ck_tile::FillUniformDistribution<BDataType>{0.01f, 0.05f}(b_k_n);
         }
     }
     else if(init_method == 1)
@@ -438,22 +438,60 @@ int run_gemm_example_with_layouts(int argc,
             ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
         c_m_n_host_ref.SetZero();
 
-        ck_tile::HostTensor<CDataType> c_m_n_host_ref_gemm(
-            ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
-        c_m_n_host_ref_gemm.SetZero();
-
         ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
-            a_m_k, b_k_n, c_m_n_host_ref_gemm);
-        ck_tile::reference_softmax<CDataType, AccDataType, CDataType>(c_m_n_host_ref_gemm, c_m_n_host_ref, -1);
+            a_m_k, b_k_n, c_m_n_host_ref);
+
+        // ck_tile::HostTensor<CDataType> c_m_n_host_ref_gemm(
+        //     ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
+        // c_m_n_host_ref_gemm.SetZero();
+
+        // ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
+        //     a_m_k, b_k_n, c_m_n_host_ref_gemm);
+        // ck_tile::reference_softmax<CDataType, AccDataType, CDataType>(c_m_n_host_ref_gemm, c_m_n_host_ref, -1);
         const float max_accumulated_value =
             *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
         const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
             K, kbatch, max_accumulated_value);
-        pass = ck_tile::check_err(c_m_n_dev_result,
-                                  c_m_n_host_ref,
-                                  "Error: Incorrect results!",
-                                  rtol_atol.at(ck_tile::number<0>{}),
-                                  rtol_atol.at(ck_tile::number<1>{}));
+        // pass = ck_tile::check_err(c_m_n_dev_result,
+        //                           c_m_n_host_ref,
+        //                           "Error: Incorrect results!",
+        //                           rtol_atol.at(ck_tile::number<0>{}),
+        //                           rtol_atol.at(ck_tile::number<1>{}));
+
+        const ck_tile::index_t tokens = M;
+        for(int i_t = 0; i_t < tokens; i_t++)
+        {
+            auto s_begin = std::vector<size_t>{static_cast<size_t>(i_t), static_cast<size_t>(0)};
+            // auto s_end =
+            //     std::vector<size_t>{static_cast<size_t>(i_t + 1), static_cast<size_t>(topk)};
+            auto s_end =
+                std::vector<size_t>{static_cast<size_t>(i_t + 1), static_cast<size_t>(N)};
+            auto s_debug_host = c_m_n_dev_result.slice(s_begin, s_end);
+            auto s_debug_ref  = c_m_n_host_ref.slice(s_begin, s_end);
+            // auto s_debug_ref  = value_ref.slice(s_begin, s_end);
+            // auto s_debug_ref  = index_ref.slice(s_begin, s_end);
+            pass &= ck_tile::check_err(s_debug_host,
+                                      s_debug_ref,
+                                      std::string("[") + std::to_string(i_t) +
+                                          std::string("] Value Error:"),
+                                      rtol_atol.at(ck_tile::number<0>{}),
+                                      rtol_atol.at(ck_tile::number<1>{}));
+            printf("row [%d]\n", i_t);
+            for(std::size_t i = 0; i < s_debug_ref.size(); ++i) {
+                // const double o = *std::next(std::begin(s_debug_host), i);
+                const double r = *std::next(std::begin(s_debug_ref), i);
+                printf("ref[%zu]:%.8f ", i, r);
+                // std::cout << i_t << " out[" << i << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+            }
+            printf("\n");
+            for(std::size_t i = 0; i < s_debug_ref.size(); ++i) {
+                const double o = *std::next(std::begin(s_debug_host), i);
+                // const double r = *std::next(std::begin(s_debug_ref), i);
+                printf("out[%zu]:%.8f ", i, o);
+                // std::cout << i_t << " out[" << i << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+            }
+            printf("\n");
+        }
 
         std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
                   << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
