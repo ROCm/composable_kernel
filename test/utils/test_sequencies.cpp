@@ -19,7 +19,6 @@ TEST(Sequence, TestCreatingAccessSequence)
     constexpr index_t nDim = 8;
 
     constexpr auto SliceLengths = Sequence<4, 8, 1, 1, 4, 1, 2, 1>{};
-    //constexpr auto DimAccessOrder = Sequence<0, 1, 2, 3, 4, 5, 7, 6>{};
 
     constexpr auto ScalarPerAccess = generate_sequence(
             detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});

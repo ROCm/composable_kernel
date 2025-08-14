@@ -10,7 +10,6 @@
 #include "ck/ck.hpp"
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_space_filling_curve.hpp"
-#include "ck/tensor_operation/gpu/grid/packed_cast.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/utility/data_type.hpp"
@@ -95,17 +94,6 @@ __global__ void testVGPRToLDSTransfer_kernel(
     auto lds_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
         &lds_data[thread_id * buffer_size], buffer_size);
 
-    // Test with packed cast
-#if defined(__gfx950__)
-    if constexpr (UsePackedCast) {
-        auto packed_cast = PackedCastV2<TestM2, TestM4, 
-                                          TestCShuffleMXdlPerWavePerShuffle,
-                                          TestCShuffleNXdlPerWavePerShuffle>{};
-        packed_cast.Run(c_thread_desc, 
-                        src_slice_origin_index,
-                        src_thread_buf);
-    }
-#endif
 
     // Create threadwise transfer
     using ElementOp = tensor_operation::element_wise::PassThrough;
@@ -113,7 +101,25 @@ __global__ void testVGPRToLDSTransfer_kernel(
 
     const auto dst_slice_origin_index = make_multi_index(0, 0, 0, 0, 0, 0, 0, 0);
 
-    auto thread_transfer = ThreadwiseTensorSliceTransfer_v1r3<
+    using TransferType = std::conditional_t<
+        UsePackedCast,
+        ThreadwiseTensorSliceTransfer_v1r3_packed_cast<
+            SrcData,
+            DstData,
+            decltype(c_thread_desc),
+            decltype(lds_desc),
+            ElementOp,
+            Sequence<TestCShuffleMXdlPerWavePerShuffle,
+                    TestCShuffleNXdlPerWavePerShuffle,
+                    1, 1, TestM2, 1, TestM4, 1>,
+            Sequence<0, 1, 2, 3, 4, 5, 7, 6>, // Note: 7, 6 are swapped to enable vectorized transfer.
+            7, // DstVectorDim
+            2, // DstScalarPerVector
+            InMemoryDataOperationEnum::Set,
+            1, // DstScalarStrideInVector
+            true // DstResetCoordinateAfterRun
+        >,
+        ThreadwiseTensorSliceTransfer_v1r3<
             SrcData,
             DstData,
             decltype(c_thread_desc),
@@ -127,9 +133,11 @@ __global__ void testVGPRToLDSTransfer_kernel(
             1, // DstScalarPerVector
             InMemoryDataOperationEnum::Set,
             1, // DstScalarStrideInVector
-            true, // DstResetCoordinateAfterRun
-            UsePackedCast // PackedInput
-        >{lds_desc, dst_slice_origin_index, element_op};
+            true // DstResetCoordinateAfterRun
+        >
+    >;
+
+    auto thread_transfer = TransferType{lds_desc, dst_slice_origin_index, element_op};
 
     // Perform the transfer
     if (thread_id < num_elements) {
@@ -330,7 +338,6 @@ TEST_F(VGPRToLDSTransferTest, FloatToBhalf_device_NoPack)
     run<UsePackedCast, UseGpu>();
 }
 
-#if defined(__gfx950__)
 TEST_F(VGPRToLDSTransferTest, FloatToBhalf_device_PackedCast) 
 {
     constexpr bool UsePackedCast = true;
@@ -357,10 +364,4 @@ TEST_F(VGPRToLDSTransferTest, FloatToBhalf_device_test_peformance)
     else {
         GTEST_FAIL() << "Failed to get average execution time for one or both runs.";
     }
-}
-#endif // defined(__gfx950__)
-
-int main(int argc, char** argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
 }
