@@ -127,7 +127,30 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::reference_unary_elementwise<XDataType, YDataType, YDataType>(x_host_a, y_host, op);
 
         pass = ck_tile::check_err(
-            y_validation, y_host, "Elementwise Add Error: Incorrect results!", 0.01, 0.01);
+            y_validation, y_host, "Elementwise unary op: Incorrect results!", 0.01, 0.01);
+    }
+
+    return pass;
+}
+
+template <typename XElementwiseOperation, typename XDataType, typename YDataType>
+bool filter_then_run(const ck_tile::ArgParser& arg_parser)
+{
+    auto throw_unsupported = [&]() {
+        const auto x_prec = arg_parser.get_str("x_prec");
+        const auto op     = arg_parser.get_str("op");
+        throw std::runtime_error("Unsupported! x_prec: " + x_prec + ", op: " + op);
+    };
+    bool pass = true;
+
+    if constexpr(std::is_same_v<XElementwiseOperation, ck_tile::element_wise::UnarySquare> &&
+                 std::is_same_v<XDataType, ck_tile::bf16_t>)
+    {
+        throw_unsupported();
+    }
+    else
+    {
+        pass = run<XElementwiseOperation, XDataType, YDataType>(arg_parser);
     }
 
     return pass;
@@ -164,7 +187,7 @@ int main(int argc, char* argv[])
                 using XElementwiseOperation = std::decay_t<decltype(op)>;
                 using XDataType             = std::decay_t<decltype(x_dt)>;
                 using YDataType             = std::decay_t<decltype(y_dt)>;
-                return run<XElementwiseOperation, XDataType, YDataType>(arg_parser);
+                return filter_then_run<XElementwiseOperation, XDataType, YDataType>(arg_parser);
             },
             op_variant,
             x_prec_variant,

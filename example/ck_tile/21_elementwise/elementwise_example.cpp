@@ -14,8 +14,8 @@ auto create_args(int argc, char* argv[])
         .insert("n", "1024", "n dimension")
         .insert("stride", "-1", "stride per row, if -1 then equal to n")
         .insert("v", "1", "cpu validation or not")
-        .insert("x_prec", "fp16", "input precision")
-        .insert("y_prec", "fp16", "output precision")
+        .insert("x_prec", "fp16", "input precision, fp16/bf16/fp32")
+        .insert("y_prec", "fp16", "output precision, fp16/bf16/fp32")
         .insert("warmup", "10", "cold iter")
         .insert("repeat", "50", "hot iter");
 
