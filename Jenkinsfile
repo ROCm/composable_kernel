@@ -1428,7 +1428,7 @@ pipeline {
                                     -D CMAKE_BUILD_TYPE=Release \
                                     -D CMAKE_CXX_FLAGS=" -O3 " .. && ninja -j64 """
                             
-                            buildHipClangJobAndReboot(setup_cmd: "",  build_cmd: "", no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                            buildHipClangJobAndReboot(setup_cmd: "",  build_cmd: "", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, docker_name: "${env.CK_DOCKERHUB_PRIVATE}:ck_ub24.04_rocm7.0")
                         }
                         cleanWs()
                     }
