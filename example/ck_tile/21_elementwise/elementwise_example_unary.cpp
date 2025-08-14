@@ -14,6 +14,7 @@ auto create_args(int argc, char* argv[])
         .insert("n", "1024", "n dimension")
         .insert("stride", "-1", "stride per row, if -1 then equal to n")
         .insert("v", "1", "cpu validation or not")
+        .insert("op", "1", "unary operation, 1: square")
         .insert("x_prec", "fp16", "input precision")
         .insert("y_prec", "fp16", "output precision")
         .insert("warmup", "10", "cold iter")
@@ -23,7 +24,7 @@ auto create_args(int argc, char* argv[])
     return std::make_tuple(result, arg_parser);
 }
 
-template <typename XDataType, typename YDataType>
+template <typename XElementwiseOperation, typename XDataType, typename YDataType>
 bool run(const ck_tile::ArgParser& arg_parser)
 {
     ck_tile::index_t M      = arg_parser.get_int("m");
@@ -36,8 +37,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int repeat        = arg_parser.get_int("repeat");
 
     assert(stride >= N);
-
-    using XElementwiseOperation = ck_tile::element_wise::UnarySquare;
 
     // 1. Initialize the input data on the host
     ck_tile::HostTensor<XDataType> x_host_a({M, N}, {stride, 1});
@@ -129,6 +128,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
     return pass;
 }
 
+auto string_to_op(const std::string& op)
+{
+    using OpVariant = std::variant<ck_tile::element_wise::UnarySquare>;
+
+    if(op == "1")
+        return OpVariant{ck_tile::element_wise::UnarySquare{}};
+    else
+    {
+        throw std::runtime_error("Unsupported unary operation: " + op);
+    }
+};
+
 int main(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -137,14 +148,17 @@ int main(int argc, char* argv[])
 
     try
     {
+        const auto op_variant     = string_to_op(arg_parser.get_str("op"));
         const auto x_prec_variant = string_to_datatype(arg_parser.get_str("x_prec"));
         const auto y_prec_variant = string_to_datatype(arg_parser.get_str("y_prec"));
         return std::visit(
-            [&](auto&& x_dt, auto&& y_dt) -> int {
-                using XDataType = std::decay_t<decltype(x_dt)>;
-                using YDataType = std::decay_t<decltype(y_dt)>;
-                return run<XDataType, YDataType>(arg_parser);
+            [&](auto&& op, auto&& x_dt, auto&& y_dt) -> int {
+                using XElementwiseOperation = std::decay_t<decltype(op)>;
+                using XDataType             = std::decay_t<decltype(x_dt)>;
+                using YDataType             = std::decay_t<decltype(y_dt)>;
+                return run<XElementwiseOperation, XDataType, YDataType>(arg_parser);
             },
+            op_variant,
             x_prec_variant,
             y_prec_variant);
     }
