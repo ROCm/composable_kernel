@@ -1547,6 +1547,8 @@ CK_TILE_DEVICE void amd_async_buffer_load_impl(T* smem,
                               bool_constant<pre_nop>{});
 }
 
+_Pragma("clang diagnostic push")
+_Pragma("clang diagnostic ignored \"-Wno-old-style-cast\"")
 template <typename T,
           index_t N,
           amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default,
@@ -1582,13 +1584,14 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
 
     llvm_amdgcn_raw_buffer_load_lds(
         src_wave_buffer_resource,
-        reinterpret_cast<as3_uint32_ptr>(reinterpret_cast<uintptr_t>(smem)),
+        (as3_uint32_ptr)(smem),
         bytes,
         v_offset,
         src_wave_addr_offset,
         /*src_immediate_addr_offset*/ 0,
         static_cast<index_t>(coherence));
 }
+_Pragma("clang diagnostic pop")
 
 template <index_t N,
           amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default>
@@ -2572,13 +2575,16 @@ CK_TILE_DEVICE void amd_direct_load_global_to_lds(const T* global_base_ptr,
 #endif
     // LDS pointer must be attributed with the LDS address space.
     as3_uint32_ptr lds_ptr =
-        reinterpret_cast<as3_uint32_ptr>(reinterpret_cast<uintptr_t>(lds_base_ptr + lds_offset));
+        (as3_uint32_ptr)(lds_base_ptr + lds_offset);
 
     llvm_amdgcn_raw_buffer_load_lds(
         src_resource, lds_ptr, bytes_per_thread, global_offset_bytes, 0, 0, 0);
 #endif
 }
 
+
+_Pragma("clang diagnostic push")
+_Pragma("clang diagnostic ignored \"-Wno-old-style-cast\"")
 #if defined(__gfx950__)
 template <typename T, index_t N, address_space_enum BufferAddressSpace>
 __device__ auto amd_transpose_load_to_vgpr(const T* __restrict__ in_ptr)
@@ -2590,26 +2596,27 @@ __device__ auto amd_transpose_load_to_vgpr(const T* __restrict__ in_ptr)
     {
         typedef __attribute__((__vector_size__(4 * sizeof(__fp16)))) __fp16 llvm_fp16x4_t;
         __attribute__((address_space(3))) llvm_fp16x4_t* lds_ptr =
-            reinterpret_cast<__attribute__((address_space(3))) llvm_fp16x4_t*>(
-                reinterpret_cast<uintptr_t>(in_ptr));
+            (__attribute__((address_space(3))) llvm_fp16x4_t*)(in_ptr);
+            //reinterpret_cast<__attribute__((address_space(3))) llvm_fp16x4_t*>(
+            //    reinterpret_cast<uintptr_t>(in_ptr));
         return bit_cast<thread_buffer<T, N>>(__builtin_amdgcn_ds_read_tr16_b64_v4f16(lds_ptr));
     }
     else if constexpr(std::is_same_v<remove_cvref_t<T>, ck_tile::bf16_t>)
     {
         typedef __attribute__((__vector_size__(4 * sizeof(__bf16)))) __bf16 llvm_bf16x4_t;
         __attribute__((address_space(3))) llvm_bf16x4_t* lds_ptr =
-            reinterpret_cast<__attribute__((address_space(3))) llvm_bf16x4_t*>(
-                reinterpret_cast<uintptr_t>(in_ptr));
+            (__attribute__((address_space(3))) llvm_bf16x4_t*)in_ptr;
+            //reinterpret_cast<__attribute__((address_space(3))) llvm_bf16x4_t*>(
+            //    reinterpret_cast<uintptr_t>(in_ptr));
         return bit_cast<thread_buffer<T, N>>(__builtin_amdgcn_ds_read_tr16_b64_v4bf16(lds_ptr));
     }
-    else if constexpr(std::is_same_v<remove_cvref_t<T>, ck_tile::fp8_t> ||
-                      std::is_same_v<remove_cvref_t<T>, ck_tile::bf8_t> ||
-                      std::is_same_v<remove_cvref_t<T>, ck_tile::int8_t>)
+    else if constexpr(std::is_same_v<remove_cvref_t<T>, ck_tile::fp8_t>)
     {
-        typedef __attribute__((__vector_size__(2 * sizeof(index_t)))) index_t llvm_i32x2_t;
-        __attribute__((address_space(3))) llvm_i32x2_t* lds_ptr =
-            reinterpret_cast<__attribute__((address_space(3))) llvm_i32x2_t*>(
-                reinterpret_cast<uintptr_t>(in_ptr));
+        typedef __attribute__((__vector_size__(2 * sizeof(index_t)))) index_t llvm_fp8x8_t;
+        __attribute__((address_space(3))) llvm_fp8x8_t* lds_ptr =
+            (__attribute__((address_space(3))) llvm_fp8x8_t*)in_ptr;
+            //reinterpret_cast<__attribute__((address_space(3))) llvm_fp8x8_t*>(
+            //    reinterpret_cast<uintptr_t>(in_ptr));
         return bit_cast<thread_buffer<T, N>>(__builtin_amdgcn_ds_read_tr8_b64_v2i32(lds_ptr));
     }
     else
@@ -2618,6 +2625,7 @@ __device__ auto amd_transpose_load_to_vgpr(const T* __restrict__ in_ptr)
     }
 }
 #endif
+_Pragma("clang diagnostic pop")
 
 } // namespace ck_tile
 
