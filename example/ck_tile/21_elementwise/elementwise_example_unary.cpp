@@ -14,7 +14,7 @@ auto create_args(int argc, char* argv[])
         .insert("n", "1024", "n dimension")
         .insert("stride", "-1", "stride per row, if -1 then equal to n")
         .insert("v", "1", "cpu validation or not")
-        .insert("op", "1", "unary operation, 1: square")
+        .insert("op", "1", "unary operation, 1: square, 2: convert")
         .insert("x_prec", "fp16", "input precision")
         .insert("y_prec", "fp16", "output precision")
         .insert("warmup", "10", "cold iter")
@@ -117,7 +117,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     {
         y_buf.FromDevice(y_validation.data());
 
-        auto op = [](const auto& v0) { return v0 * v0; };
+        auto op = [](const XDataType& v0) -> YDataType {
+            XElementwiseOperation element_op{};
+            YDataType result;
+            element_op(result, v0);
+            return result;
+        };
 
         ck_tile::reference_unary_elementwise<XDataType, YDataType, YDataType>(x_host_a, y_host, op);
 
@@ -130,10 +135,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
 auto string_to_op(const std::string& op)
 {
-    using OpVariant = std::variant<ck_tile::element_wise::UnarySquare>;
+    using OpVariant =
+        std::variant<ck_tile::element_wise::UnarySquare, ck_tile::element_wise::UnaryConvert>;
 
     if(op == "1")
         return OpVariant{ck_tile::element_wise::UnarySquare{}};
+    else if(op == "2")
+        return OpVariant{ck_tile::element_wise::UnaryConvert{}};
     else
     {
         throw std::runtime_error("Unsupported unary operation: " + op);
@@ -148,9 +156,9 @@ int main(int argc, char* argv[])
 
     try
     {
-        const auto op_variant     = string_to_op(arg_parser.get_str("op"));
         const auto x_prec_variant = string_to_datatype(arg_parser.get_str("x_prec"));
         const auto y_prec_variant = string_to_datatype(arg_parser.get_str("y_prec"));
+        const auto op_variant     = string_to_op(arg_parser.get_str("op"));
         return std::visit(
             [&](auto&& op, auto&& x_dt, auto&& y_dt) -> int {
                 using XElementwiseOperation = std::decay_t<decltype(op)>;

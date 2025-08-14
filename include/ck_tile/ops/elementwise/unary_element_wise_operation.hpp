@@ -326,7 +326,6 @@ struct MultiDAdd
     }
 };
 
-#if 0
 struct UnaryConvert
 {
     template <typename Y, typename X>
@@ -336,6 +335,7 @@ struct UnaryConvert
     }
 };
 
+#if 0
 struct ConvertBF16RTN
 {
     // convert to bf16 using round to nearest (rtn)
