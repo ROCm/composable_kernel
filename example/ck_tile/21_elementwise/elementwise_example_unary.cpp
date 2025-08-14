@@ -30,10 +30,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::index_t stride = arg_parser.get_int("stride");
     if(stride < 0)
         stride = N;
-    std::string data_type = arg_parser.get_str("prec");
-    int do_validation     = arg_parser.get_int("v");
-    int warmup            = arg_parser.get_int("warmup");
-    int repeat            = arg_parser.get_int("repeat");
+    int do_validation = arg_parser.get_int("v");
+    int warmup        = arg_parser.get_int("warmup");
+    int repeat        = arg_parser.get_int("repeat");
 
     assert(stride >= N);
 

@@ -30,10 +30,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(stride_in < 0)
         stride_in = N; // Dense input: stride for M dim is N
-    std::string data_type = arg_parser.get_str("prec");
-    int do_validation     = arg_parser.get_int("v");
-    int warmup            = arg_parser.get_int("warmup");
-    int repeat            = arg_parser.get_int("repeat");
+    int do_validation = arg_parser.get_int("v");
+    int warmup        = arg_parser.get_int("warmup");
+    int repeat        = arg_parser.get_int("repeat");
 
     if(stride_in < N)
     {

@@ -31,10 +31,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::index_t D2 = arg_parser.get_int("dim2");
     ck_tile::index_t D3 = arg_parser.get_int("dim3");
 
-    std::string data_type = arg_parser.get_str("prec");
-    int do_validation     = arg_parser.get_int("v");
-    int warmup            = arg_parser.get_int("warmup");
-    int repeat            = arg_parser.get_int("repeat");
+    int do_validation = arg_parser.get_int("v");
+    int warmup        = arg_parser.get_int("warmup");
+    int repeat        = arg_parser.get_int("repeat");
 
     using XDataType = DataType;
     using ComputeDataType =
