@@ -195,12 +195,12 @@ int run_moe_gemm_example_with_layouts(int argc,
 
     for(int i = 0; i < sorted_tile_num; i++)
     {
-        expert_ids.mData[i] = i / (valid_tile_num / experts);
+        expert_ids.mData[i] = i / ((valid_tile_num + experts - 1) / experts);
     }
 
     int token_per_tile = (num_tokens * topk + valid_tile_num - 1) / valid_tile_num;
     // int token_per_tile = num_tokens * topk / valid_tile_num;
-    int tokenid        = 0;
+    int tokenid = 0;
     // sorted_token_ids.mData[0] = 0;
     for(int i = 0; i < sorted_tile_num * MPerBlock; i++)
     {
