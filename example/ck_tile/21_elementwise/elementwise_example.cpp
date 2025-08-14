@@ -113,7 +113,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // ElementWiseShape bundles these tiling parameters.
     // It calculates derived properties like threads per wavefront, repeats, vectorization and total
     // block size.
-    using Shape = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, ComputeDataType>;
+    using Shape = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, XDataType>;
 
     // ElementWisePipelineProblem encapsulates all necessary information for the elementwise kernel:
     // - Data types (input, compute, output).

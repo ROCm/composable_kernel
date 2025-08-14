@@ -35,7 +35,7 @@ constexpr ck_tile::index_t get_k_warp_tile()
 #endif
 }
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
-constexpr ck_tile::index_t get_k_warp_tile_flatmm()
+constexpr ck_tile::index_t get_k_from_preshuffled_warp_tile()
 {
 #if defined(__gfx950__)
     if constexpr(M_Warp_Tile == 32)
@@ -138,7 +138,7 @@ struct GemmConfigComputeV3 : public GemmConfigBase
     // Compute V3 only support Intrawave scheduler
     static constexpr ck_tile::index_t M_Tile = 32;
     static constexpr ck_tile::index_t N_Tile = 128;
-    static constexpr ck_tile::index_t K_Tile = 256;
+    static constexpr ck_tile::index_t K_Tile = 256 / sizeof(PrecType);
 
     static constexpr ck_tile::index_t M_Warp = 1;
     static constexpr ck_tile::index_t N_Warp = 4;
@@ -265,7 +265,8 @@ struct GemmConfigPreshufle_1 : public GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 32;
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
-    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile_flatmm<PrecType, M_Warp_Tile>();
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        get_k_from_preshuffled_warp_tile<PrecType, M_Warp_Tile>();
 
     static constexpr int kBlockPerCu           = 2;
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
@@ -287,7 +288,8 @@ struct GemmConfigPreshufle_2 : public GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile_flatmm<PrecType, M_Warp_Tile>();
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        get_k_from_preshuffled_warp_tile<PrecType, M_Warp_Tile>();
 
     static constexpr int kBlockPerCu           = 2;
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
@@ -296,62 +298,25 @@ struct GemmConfigPreshufle_2 : public GemmConfigBase
     static constexpr bool DoubleSmemBuffer     = false;
 };
 
-template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>
-struct GemmTypeConfig;
-
-template <>
-struct GemmTypeConfig<ck_tile::half_t>
+template <typename PrecType>
+struct GemmConfigPreshufle_AQ : public GemmConfigBase
 {
-    using ADataType   = ck_tile::half_t;
-    using BDataType   = ck_tile::half_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-    // ToDo: Add more bias config to support different categories of GEMM.
-};
+    static constexpr ck_tile::index_t M_Tile = 16;
+    static constexpr ck_tile::index_t N_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 256 / sizeof(PrecType);
 
-template <>
-struct GemmTypeConfig<ck_tile::bf16_t, ck_tile::bf16_t, ck_tile::bf16_t>
-{
-    using ADataType   = ck_tile::bf16_t;
-    using BDataType   = ck_tile::bf16_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::bf16_t;
-};
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
 
-template <>
-struct GemmTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>
-{
-    using ADataType   = ck_tile::fp8_t;
-    using BDataType   = ck_tile::fp8_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        get_k_from_preshuffled_warp_tile<PrecType, M_Warp_Tile>();
 
-template <>
-struct GemmTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>
-{
-    using ADataType   = ck_tile::bf8_t;
-    using BDataType   = ck_tile::bf8_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
-
-template <>
-struct GemmTypeConfig<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>
-{
-    using ADataType   = ck_tile::half_t;
-    using BDataType   = ck_tile::pk_int4_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
-
-template <>
-struct GemmTypeConfig<ck_tile::int8_t, ck_tile::int8_t, int32_t>
-{
-    using ADataType   = ck_tile::int8_t;
-    using BDataType   = ck_tile::int8_t;
-    using AccDataType = int32_t;
-    using CDataType   = int32_t;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE;
+    static constexpr bool Preshuffle           = true;
+    static constexpr bool DoubleSmemBuffer     = false;
 };
 
 template <typename ADataType_,
@@ -424,7 +389,7 @@ struct GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, float>
     using QDataType   = float;
     using BDataType   = ck_tile::fp8_t;
     using AccDataType = float;
-    using CDataType   = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <>
@@ -434,7 +399,7 @@ struct GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, float>
     using QDataType   = float;
     using BDataType   = ck_tile::bf8_t;
     using AccDataType = float;
-    using CDataType   = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <>
@@ -444,7 +409,7 @@ struct GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::fp8_t, float, ck_tile::f
     using QDataType   = ck_tile::fp8_t;
     using BDataType   = ck_tile::fp8_t;
     using AccDataType = float;
-    using CDataType   = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <>
@@ -454,7 +419,7 @@ struct GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, float, ck_tile::fp8_t
     using QDataType   = ck_tile::fp8_t;
     using BDataType   = ck_tile::fp8_t;
     using AccDataType = float;
-    using CDataType   = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <>
@@ -464,7 +429,7 @@ struct GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, float, ck_tile::bf8_t
     using QDataType   = ck_tile::bf8_t;
     using BDataType   = ck_tile::bf8_t;
     using AccDataType = float;
-    using CDataType   = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <>
@@ -474,7 +439,7 @@ struct GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::bf8_t, float, ck_tile::b
     using QDataType   = ck_tile::bf8_t;
     using BDataType   = ck_tile::bf8_t;
     using AccDataType = float;
-    using CDataType   = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <>
@@ -484,7 +449,7 @@ struct GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::fp8_t, float, float>
     using QDataType   = float;
     using BDataType   = ck_tile::fp8_t;
     using AccDataType = float;
-    using CDataType   = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <>
@@ -494,7 +459,7 @@ struct GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::bf8_t, float, float>
     using QDataType   = float;
     using BDataType   = ck_tile::bf8_t;
     using AccDataType = float;
-    using CDataType   = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <>
@@ -504,7 +469,7 @@ struct GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::pk_int4_t, float, ck_tile::f
     using QDataType   = ck_tile::fp8_t;
     using BDataType   = ck_tile::pk_int4_t;
     using AccDataType = float;
-    using CDataType   = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <>
@@ -514,7 +479,7 @@ struct GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::pk_int4_t, float, ck_tile::b
     using QDataType   = ck_tile::bf8_t;
     using BDataType   = ck_tile::pk_int4_t;
     using AccDataType = float;
-    using CDataType   = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <>
@@ -524,7 +489,7 @@ struct GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::pk_int4_t, float, float>
     using QDataType   = float;
     using BDataType   = ck_tile::pk_int4_t;
     using AccDataType = float;
-    using CDataType   = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <>
@@ -534,7 +499,7 @@ struct GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::pk_int4_t, float, float>
     using QDataType   = float;
     using BDataType   = ck_tile::pk_int4_t;
     using AccDataType = float;
-    using CDataType   = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <typename T>
@@ -660,7 +625,7 @@ auto create_args(int argc, char* argv[])
         .insert("v", "2", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
         .insert("prec", "i4fp8", "data type. fp8/bf8/i4fp8/i4bf8/i4f32fp8/i4f32bf8")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
-        .insert("repeat", "100", "number of iterations to benchmark the kernel")
+        .insert("repeat", "1000", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("split_k", "1", "splitK value")
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
