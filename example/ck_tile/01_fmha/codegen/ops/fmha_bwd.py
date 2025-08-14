@@ -937,6 +937,8 @@ def get_bwd_convert_dq_blobs(kernel_filter : Optional[str], receipt) -> List[Fmh
             tile = d[hdim_str][0]
             if (mode == "group" and spad == "f"):
                 continue
+            if (deterministic == 't' and atomic32 == 'f'):
+                continue
             k = FmhaBwdConvertQGradKernel(F_idx=0, F_hdim=hdim, F_dtype=dtype, F_bm0=64, F_bn0=tile.F_bn0, F_wn0=tile.F_wn0,
                                 F_spad=spad, F_dpad=dpad, F_mode=mode, F_occupancy=get_occupancy(dtype, hdim), F_deterministic=deterministic, F_atomic32=atomic32)
             if kernel_filter != '':
