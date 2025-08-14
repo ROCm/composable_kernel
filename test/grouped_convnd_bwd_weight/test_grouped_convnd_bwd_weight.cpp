@@ -44,11 +44,6 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
             }
         }
 
-        if((split_k < 1) && (ck::is_gfx11_supported() || ck::is_gfx12_supported()))
-        {
-            return true;
-        }
-
         return false;
     }
 
