@@ -893,6 +893,10 @@ pipeline {
             defaultValue: false,
             description: "Run the grouped conv large cases tests (default: OFF)")
         booleanParam(
+            name: "RUN_CONV_COMPREHENSIVE_DATASET",
+            defaultValue: false,
+            description: "Run comprehensive convolution dataset tests before important changes (default: OFF)")
+        booleanParam(
             name: "RUN_CODEGEN_TESTS",
             defaultValue: true,
             description: "Run codegen tests (default: ON)")
@@ -1082,6 +1086,33 @@ pipeline {
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
                                            make -j64 test_grouped_convnd_fwd_large_cases_xdl test_grouped_convnd_bwd_data_xdl_large_cases test_grouped_convnd_fwd_bias_clamp_large_cases && \
                                            ./bin/test_grouped_convnd_fwd_large_cases_xdl && ./bin/test_grouped_convnd_bwd_data_xdl_large_cases && ./bin/test_grouped_convnd_fwd_bias_clamp_large_cases"""
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        cleanWs()
+                    }
+                }
+            }
+        }
+        stage("Run Comprehensive Convolution Dataset Tests")
+        {
+            parallel
+            {
+                stage("Run Comprehensive Dataset Tests on gfx90a")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_CONV_COMPREHENSIVE_DATASET.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx90a")}
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ cd test_data && \
+                                           ./generate_test_dataset.sh && \
+                                           cd ../script && \
+                                           ../script/cmake-ck-dev.sh  ../ gfx90a && \
+                                           make -j64 test_grouped_convnd_fwd_dataset_xdl && \
+                                           ./bin/test_grouped_convnd_fwd_dataset_xdl"""
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
