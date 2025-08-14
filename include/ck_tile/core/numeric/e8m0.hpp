@@ -87,7 +87,7 @@ CK_TILE_HOST_DEVICE constexpr e8m0_bexp_t::operator float() const
     using traits = numeric_traits<float>;
     if(data == numeric<e8m0_t>::binary_nan)
     {
-        return traits::NaN;
+        return std::numeric_limits<float>::signaling_NaN();
     }
     else if(data == 0)
     {
