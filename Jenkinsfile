@@ -1109,8 +1109,6 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ cd ../test_data && \
-                                           echo "Installing Python dependencies..." && \
-                                           pip3 install numpy pandas torch --quiet && \
                                            echo "Running dataset generation..." && \
                                            bash -x ./generate_test_dataset.sh && \
                                            echo "=== CSV files created ===" && \
