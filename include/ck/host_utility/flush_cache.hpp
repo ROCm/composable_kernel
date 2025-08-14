@@ -374,5 +374,201 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
 #endif
 }
 
+
+// if TimePreprocess == false, return time does not include preprocess's time
+template <bool TimePreprocess,
+          typename GemmArgs,
+          typename... Args,
+          typename F,
+          typename PreProcessFunc>
+float launch_and_time_kernel_with_preprocess_tb(const StreamConfig& stream_config,
+                                             PreProcessFunc preprocess,
+                                             F kernel,
+                                             dim3 grid_dim,
+                                             dim3 block_dim,
+                                             std::size_t lds_byte,
+                                             float cold_bench_time_secs,
+                                             float hot_bench_time_secs,
+                                             GemmArgs& gemm_args,
+                                             Args... args)
+{
+#if CK_TIME_KERNEL
+    if(stream_config.time_kernel_)
+    {
+        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+        {
+            printf("%s: grid_dim {%u, %u, %u}, block_dim {%u, %u, %u}\n",
+                   __func__,
+                   grid_dim.x,
+                   grid_dim.y,
+                   grid_dim.z,
+                   block_dim.x,
+                   block_dim.y,
+                   block_dim.z);
+
+            printf("Cold run time: %.3f seconds\n", cold_bench_time_secs);
+            printf("Hot run time: %.3f seconds\n", hot_bench_time_secs);
+        }
+
+        // Create events for timing
+        hipEvent_t cold_start, cold_end, hot_start, hot_end, iter_start, iter_end;
+        hip_check_error(hipEventCreate(&cold_start));
+        hip_check_error(hipEventCreate(&cold_end));
+        hip_check_error(hipEventCreate(&hot_start));
+        hip_check_error(hipEventCreate(&hot_end));
+        hip_check_error(hipEventCreate(&iter_start));
+        hip_check_error(hipEventCreate(&iter_end));
+
+        // Convert seconds to milliseconds for HIP API
+        const float cold_time_ms = cold_bench_time_secs * 1000.0f;
+        const float hot_time_ms = hot_bench_time_secs * 1000.0f;
+        
+        // ======== COLD RUN (WARM-UP) ========
+        float elapsed_cold_ms = 0.0f;
+        int cold_iterations = 0;
+        
+        hip_check_error(hipDeviceSynchronize());
+        hip_check_error(hipEventRecord(cold_start, stream_config.stream_id_));
+        
+        while(elapsed_cold_ms < cold_time_ms)
+        {
+            // Always run preprocess before kernel for cold runs
+            preprocess();
+            
+            kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(gemm_args, args...);
+            hip_check_error(hipGetLastError());
+            cold_iterations++;
+            
+            // Check elapsed time periodically to reduce overhead
+            if(cold_iterations % 5 == 0)
+            {
+                hip_check_error(hipEventRecord(cold_end, stream_config.stream_id_));
+                hip_check_error(hipEventSynchronize(cold_end));
+                hip_check_error(hipEventElapsedTime(&elapsed_cold_ms, cold_start, cold_end));
+            }
+        }
+        
+        // Get final cold run time
+        hip_check_error(hipEventRecord(cold_end, stream_config.stream_id_));
+        hip_check_error(hipEventSynchronize(cold_end));
+        hip_check_error(hipEventElapsedTime(&elapsed_cold_ms, cold_start, cold_end));
+        
+        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+        {
+            printf("Cold run completed: %d iterations in %.3f ms (%.3f ms/iter)\n", 
+                   cold_iterations, elapsed_cold_ms, elapsed_cold_ms / cold_iterations);
+        }
+        
+        // ======== HOT RUN (MEASUREMENT) ========
+        std::vector<float> iter_times;
+        float elapsed_hot_ms = 0.0f;
+        int hot_iterations = 0;
+        
+        hip_check_error(hipDeviceSynchronize());
+        hip_check_error(hipEventRecord(hot_start, stream_config.stream_id_));
+        
+        while(elapsed_hot_ms < hot_time_ms)
+        {
+            // Run preprocess based on TimePreprocess template parameter
+            if constexpr(!TimePreprocess)
+            {
+                // If not timing preprocess, run it outside the timing window
+                preprocess();
+                
+                // Time kernel only
+                hip_check_error(hipEventRecord(iter_start, stream_config.stream_id_));
+                kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(gemm_args, args...);
+                hip_check_error(hipEventRecord(iter_end, stream_config.stream_id_));
+            }
+            else
+            {
+                // Time both preprocess and kernel together
+                hip_check_error(hipEventRecord(iter_start, stream_config.stream_id_));
+                preprocess();
+                kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(gemm_args, args...);
+                hip_check_error(hipEventRecord(iter_end, stream_config.stream_id_));
+            }
+            
+            // Wait for iteration to complete and record its time
+            hip_check_error(hipEventSynchronize(iter_end));
+            float iter_time = 0.0f;
+            hip_check_error(hipEventElapsedTime(&iter_time, iter_start, iter_end));
+            iter_times.push_back(iter_time);
+            
+            hot_iterations++;
+            
+            // Update total elapsed time
+            hip_check_error(hipEventRecord(hot_end, stream_config.stream_id_));
+            hip_check_error(hipEventSynchronize(hot_end));
+            hip_check_error(hipEventElapsedTime(&elapsed_hot_ms, hot_start, hot_end));
+        }
+        
+        // Process timing statistics
+        float avg_time = 0.0f;
+        if(!iter_times.empty())
+        {
+            // Remove outliers if we have enough samples
+            if(iter_times.size() > 4)
+            {
+                std::sort(iter_times.begin(), iter_times.end());
+                // Remove top and bottom 10% of measurements
+                size_t num_trim = iter_times.size() / 10;
+                if(num_trim > 0)
+                {
+                    iter_times.erase(iter_times.begin(), iter_times.begin() + num_trim);
+                    iter_times.erase(iter_times.end() - num_trim, iter_times.end());
+                }
+            }
+            
+            // Calculate average of remaining measurements
+            avg_time = std::accumulate(iter_times.begin(), iter_times.end(), 0.0f) / 
+                       iter_times.size();
+        }
+        
+        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+        {
+            printf("Performance statistics:\n");
+            printf("  Total hot run time: %.3f ms\n", elapsed_hot_ms);
+            printf("  Hot iterations: %d (used %zu after removing outliers)\n", 
+                   hot_iterations, iter_times.size());
+            printf("  Average time per iteration: %.3f ms\n", avg_time);
+            
+            if(ck::EnvIsEnabled(CK_ENV(CK_VERBOSE_LOGGING)))
+            {
+                printf("gemm_args.p_a_grid: %p, gemm_args.p_b_grid:%p\n",
+                       static_cast<const void*>(gemm_args.p_a_grid),
+                       static_cast<const void*>(gemm_args.p_b_grid));
+            }
+        }
+        
+        // Clean up events
+        hip_check_error(hipEventDestroy(cold_start));
+        hip_check_error(hipEventDestroy(cold_end));
+        hip_check_error(hipEventDestroy(hot_start));
+        hip_check_error(hipEventDestroy(hot_end));
+        hip_check_error(hipEventDestroy(iter_start));
+        hip_check_error(hipEventDestroy(iter_end));
+        
+        return avg_time;
+    }
+    else
+    {
+        // Just run the kernel once without timing
+        preprocess();
+        kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(gemm_args, args...);
+        hip_check_error(hipGetLastError());
+        return 0.0f;
+    }
+#else
+    // CK_TIME_KERNEL not defined, just run once
+    preprocess();
+    kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(gemm_args, args...);
+    hip_check_error(hipGetLastError());
+    return 0.0f;
+#endif
+}
+
+
+
 } // namespace utility
 } // namespace ck
