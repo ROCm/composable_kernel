@@ -53,10 +53,12 @@ struct FlatmmScalePointer
         }
         else if constexpr(granularity == 1)
         {
+            ret.ptr = ptr + offset;
             ret.length = length - offset;
         }
         else
         {
+            ret.ptr = ptr + offset / granularity;
             ret.length = length - offset / granularity;
         }
         return ret;
