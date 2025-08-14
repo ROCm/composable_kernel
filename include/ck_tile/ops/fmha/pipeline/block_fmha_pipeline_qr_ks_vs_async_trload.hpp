@@ -856,15 +856,10 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
 
         auto mainloop = [&](index_t cur_loop) {
             const bool is_even_loop = (cur_loop % 2 == 0);
-
-            auto k_lds_write_ptr = is_even_loop ? static_cast<KDataType* __restrict__>(smem_ptrk0)
-                                                : static_cast<KDataType* __restrict__>(smem_ptrk1);
-            auto k_lds_read_ptr  = is_even_loop ? static_cast<KDataType* __restrict__>(smem_ptrk1)
-                                                : static_cast<KDataType* __restrict__>(smem_ptrk0);
-            auto v_lds_write_ptr = is_even_loop ? static_cast<VDataType* __restrict__>(smem_ptrv1)
-                                                : static_cast<VDataType* __restrict__>(smem_ptrv0);
-            auto v_lds_read_ptr  = is_even_loop ? static_cast<VDataType* __restrict__>(smem_ptrv0)
-                                                : static_cast<VDataType* __restrict__>(smem_ptrv1);
+            auto innerloop = [&](KDataType* __restrict__ k_lds_write_ptr,
+                                 KDataType* __restrict__ k_lds_read_ptr,
+                                 KDataType* __restrict__ v_lds_write_ptr,
+                                 KDataType* __restrict__ v_lds_read_ptr) {
 
             // move V tile windows
             block_sync_lds<k_lds_insts>();
@@ -1110,8 +1105,22 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
                 __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS_READ
             });
-        };
+        
+        }; // innerloop
+            auto k_lds_write_ptr = is_even_loop ? static_cast<KDataType* __restrict__>(smem_ptrk0)
+                                                : static_cast<KDataType* __restrict__>(smem_ptrk1);
+            auto k_lds_read_ptr  = is_even_loop ? static_cast<KDataType* __restrict__>(smem_ptrk1)
+                                                : static_cast<KDataType* __restrict__>(smem_ptrk0);
+            auto v_lds_write_ptr = is_even_loop ? static_cast<VDataType* __restrict__>(smem_ptrv1)
+                                                : static_cast<VDataType* __restrict__>(smem_ptrv0);
+            auto v_lds_read_ptr  = is_even_loop ? static_cast<VDataType* __restrict__>(smem_ptrv0)
+                                                : static_cast<VDataType* __restrict__>(smem_ptrv1);
+        innerloop(k_lds_write_ptr,
+                  k_lds_read_ptr,
+                  v_lds_write_ptr,
+                  v_lds_read_ptr);
 
+        }; // mainloop
         do
         {
             mainloop(i_total_loops);

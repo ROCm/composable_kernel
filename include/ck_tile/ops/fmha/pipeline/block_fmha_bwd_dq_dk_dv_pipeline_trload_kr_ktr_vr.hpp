@@ -187,7 +187,19 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
         // LDS allocation
         const auto smem_ptr_ =
             reinterpret_cast<char*>(smem_ptr); // cast to char* to do pointer arithmetic
-
+	
+				auto restrict_body = [&](KDataType* __restrict__ k_lds_ptr,
+										 VDataType* __restrict__ v_lds_ptr,
+							 OGradDataType* __restrict__ do_lds_ptr0,
+							 OGradDataType* __restrict__ do_lds_ptr1,
+							 QDataType* __restrict__ q_lds_ptr0,
+							 QDataType* __restrict__ q_lds_ptr1,
+							 LSEDataType* __restrict__ lse_lds_ptr,
+							 DDataType* __restrict__ d_lds_ptr,
+							 GemmDataType* __restrict__ ds_lds_ptr,
+							 BiasDataType* __restrict__ bias_lds_ptr)
+				{
+/*	
         const auto k_lds_ptr = reinterpret_cast<KDataType* __restrict__>(smem_ptr_);
         const auto v_lds_ptr = reinterpret_cast<VDataType* __restrict__>(
             smem_ptr_ + Policy::template GetSmemSizeK<Problem>());
@@ -217,7 +229,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
             Policy::template GetSmemSizeQ<Problem>() + Policy::template GetSmemSizeQ<Problem>() +
             Policy::template GetSmemSizeLSE<Problem>() + Policy::template GetSmemSizeD<Problem>());
         const auto bias_lds_ptr = reinterpret_cast<BiasDataType* __restrict__>(ds_lds_ptr);
-
+*/
         auto k_lds = make_tensor_view<address_space_enum::lds>(
             k_lds_ptr, Policy::template MakeKLdsWriteBlockDescriptor<Problem>());
         auto k_lds_write_window =
@@ -752,6 +764,35 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
         {
             tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, dk_acc);
         }
+
+    };
+	restrict_body(reinterpret_cast<KDataType*>(smem_ptr_), // k_lds_ptr
+		      reinterpret_cast<VDataType*>(smem_ptr_ + Policy::template GetSmemSizeK<Problem>()), // v_lds_ptr
+	              reinterpret_cast<OGradDataType*>(smem_ptr_), // do_lds_ptr0
+		      reinterpret_cast<OGradDataType*>(smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>()), // do_lds_ptr1
+		      reinterpret_cast<QDataType*>(smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>()
+			      + Policy::template GetSmemSizeOGrad<Problem>()), // q_lds_ptr0
+	              reinterpret_cast<QDataType*>(smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>()
+                              + Policy::template GetSmemSizeOGrad<Problem>()), // q_lds_ptr1
+		      reinterpret_cast<LSEDataType*>(
+            smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>() +
+            Policy::template GetSmemSizeOGrad<Problem>() +
+            Policy::template GetSmemSizeQ<Problem>() + Policy::template GetSmemSizeQ<Problem>()), // lse_lds_ptr
+		      reinterpret_cast<DDataType*>(
+            smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>() +
+            Policy::template GetSmemSizeOGrad<Problem>() +
+            Policy::template GetSmemSizeQ<Problem>() + Policy::template GetSmemSizeQ<Problem>() +
+            Policy::template GetSmemSizeLSE<Problem>()), // d_lds_ptr
+		      reinterpret_cast<GemmDataType*>(
+            smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>() +
+            Policy::template GetSmemSizeOGrad<Problem>() +
+            Policy::template GetSmemSizeQ<Problem>() + Policy::template GetSmemSizeQ<Problem>() +
+            Policy::template GetSmemSizeLSE<Problem>() + Policy::template GetSmemSizeD<Problem>()), // ds_ltr_ptr
+		      reinterpret_cast<BiasDataType*>(
+            smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>() +
+            Policy::template GetSmemSizeOGrad<Problem>() +
+            Policy::template GetSmemSizeQ<Problem>() + Policy::template GetSmemSizeQ<Problem>() +
+            Policy::template GetSmemSizeLSE<Problem>() + Policy::template GetSmemSizeD<Problem>())); // bias_ltr_ptr
 
         return make_tuple(dk_acc, dv_acc);
     }
