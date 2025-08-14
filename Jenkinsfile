@@ -935,7 +935,7 @@ pipeline {
             description: "Run the grouped conv large cases tests (default: OFF)")
         booleanParam(
             name: "RUN_CONV_COMPREHENSIVE_DATASET",
-            defaultValue: false,
+            defaultValue: true,
             description: "Run comprehensive convolution dataset tests before important changes (default: OFF)")
         booleanParam(
             name: "RUN_CODEGEN_TESTS",
@@ -1135,6 +1135,7 @@ pipeline {
                 }
             }
         }
+        // TEST: Comprehensive CSV dataset tests - LWPCK-3233 experimental run
         stage("Run Comprehensive Convolution Dataset Tests")
         {
             parallel
