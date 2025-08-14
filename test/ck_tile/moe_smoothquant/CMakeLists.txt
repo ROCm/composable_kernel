@@ -2,7 +2,7 @@
 if(GPU_TARGETS MATCHES "gfx9")
     function (add_moe_smoothquant_test TARGET_NAME MAIN_SRC)
         message(DEBUG "adding ${TARGET_NAME}")
-        add_test_executable(${TARGET_NAME} ${MAIN_SRC})
+        add_gtest_executable(${TARGET_NAME} ${MAIN_SRC})
         target_include_directories(${TARGET_NAME} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 
         foreach(source IN LISTS ARGN)
@@ -21,11 +21,7 @@ if(GPU_TARGETS MATCHES "gfx9")
 
     file(GLOB INSTANCE_SRCS instances/*.cpp)
 
-    add_moe_smoothquant_test(test_ck_tile_moe_smoothquant_fp16_fp8 moe_smoothquant_fp16_fp8.cpp ${INSTANCE_SRCS})
-    add_moe_smoothquant_test(test_ck_tile_moe_smoothquant_fp16_int8 moe_smoothquant_fp16_int8.cpp ${INSTANCE_SRCS})
-
-    add_moe_smoothquant_test(test_ck_tile_moe_smoothquant_bf16_fp8 moe_smoothquant_bf16_fp8.cpp ${INSTANCE_SRCS})
-    add_moe_smoothquant_test(test_ck_tile_moe_smoothquant_bf16_int8 moe_smoothquant_bf16_int8.cpp ${INSTANCE_SRCS})
+    add_moe_smoothquant_test(test_ck_tile_moe_smoothquant test_moe_smoothquant.cpp ${INSTANCE_SRCS})
 
 else()
     message(DEBUG "Skipping ck_tile MOE smoothquant tests for current target")
