@@ -1109,7 +1109,18 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ cd ../test_data && \
-                                           ./generate_test_dataset.sh && \
+                                           echo "Installing Python dependencies..." && \
+                                           pip3 install numpy pandas torch --quiet && \
+                                           echo "Running dataset generation..." && \
+                                           bash -x ./generate_test_dataset.sh && \
+                                           echo "=== CSV files created ===" && \
+                                           ls -la *.csv && \
+                                           echo "=== First 10 lines of 2D CSV ===" && \
+                                           head -10 conv_test_set_2d_dataset.csv && \
+                                           echo "=== First 10 lines of 3D CSV ===" && \
+                                           head -10 conv_test_set_3d_dataset.csv && \
+                                           echo "=== Line count of CSV files ===" && \
+                                           wc -l *.csv && \
                                            cd ../build && \
                                            ../script/cmake-ck-dev.sh  ../ gfx90a && \
                                            make -j64 test_grouped_convnd_fwd_dataset_xdl && \
