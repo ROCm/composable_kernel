@@ -117,9 +117,11 @@ struct StreamKKernel
     {
         // clang-format off
         using P_ = GemmPipeline;
+        using WarpTile = typename P_::BlockGemmShape::WarpTile;
 
         return concat('_', "streamk", gemm_prec_str<ADataType, BDataType>(),
                       concat('x', P_::MPerBlock, P_::NPerBlock, P_::KPerBlock),
+                      concat('x', WarpTile::at(number<0>{}), WarpTile::at(number<1>{}), WarpTile::at(number<2>{})),
                       concat('x', P_::GetVectorSizeA(), P_::GetVectorSizeB(), P_::GetVectorSizeC()),
                       concat('x', P_::kPadM, P_::kPadN, P_::kPadK));
         // clang-format on
