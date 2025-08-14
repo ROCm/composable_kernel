@@ -208,6 +208,15 @@ int run_gemm_example(int argc, char* argv[])
         return run_gemm_example_prec_type<GemmConfig, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
+    else if(data_type == "fp8i4")
+    {
+        using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::fp8_t,
+                                                        ck_tile::pk_int4_t,
+                                                        ck_tile::half_t,
+                                                        ck_tile::fp8_t>{});
+        return run_gemm_example_prec_type<GemmConfig, TypeConfig, 128>(
+            a_layout, b_layout, argc, argv);
+    }
     else
     {
         throw std::runtime_error("Unsupported data type for this operation !!!");

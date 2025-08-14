@@ -324,7 +324,7 @@ int run_gemm_example(int argc, char* argv[])
         if constexpr(GemmConfig<ck_tile::half_t>::Pipeline == CK_TILE_PIPELINE_COMPUTE_V3)
         {
             return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>,
-                                              ck_tile::half_t,
+                                              ck_tile::fp8_t,
                                               ck_tile::pk_int4_t,
                                               ck_tile::half_t>(a_layout, b_layout, argc, argv);
         }

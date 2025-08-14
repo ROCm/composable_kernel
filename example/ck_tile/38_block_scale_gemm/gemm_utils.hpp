@@ -171,7 +171,7 @@ struct GemmQuantTypeConfig<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>
     using CDataType   = ck_tile::half_t;
 };
 
-template <>
+template <> // TODO:: Ctype:float
 struct GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, float>
 {
     using ADataType   = ck_tile::fp8_t;
@@ -181,7 +181,7 @@ struct GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, float>
     using CDataType   = float;
 };
 
-template <>
+template <> // TODO:: Ctype:float
 struct GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, float>
 {
     using ADataType   = ck_tile::bf8_t;
@@ -191,7 +191,7 @@ struct GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, float>
     using CDataType   = float;
 };
 
-template <>
+template <> // TODO:: Ctype:float
 struct GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::fp8_t, float, ck_tile::fp8_t>
 {
     using ADataType   = ck_tile::pk_int4_t;
@@ -202,6 +202,16 @@ struct GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::fp8_t, float, ck_tile::f
 };
 
 template <>
+struct GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::fp8_t, ck_tile::half_t, ck_tile::fp8_t>
+{
+    using ADataType   = ck_tile::pk_int4_t;
+    using QDataType   = ck_tile::fp8_t;
+    using BDataType   = ck_tile::fp8_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::half_t;
+};
+
+template <> // TODO:: Ctype:float
 struct GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, float, ck_tile::fp8_t>
 {
     using ADataType   = ck_tile::fp8_t;
@@ -211,7 +221,7 @@ struct GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, float, ck_tile::fp8_t
     using CDataType   = float;
 };
 
-template <>
+template <> // TODO:: Ctype:float
 struct GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, float, ck_tile::bf8_t>
 {
     using ADataType   = ck_tile::bf8_t;
@@ -221,7 +231,7 @@ struct GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, float, ck_tile::bf8_t
     using CDataType   = float;
 };
 
-template <>
+template <> // TODO:: Ctype:float
 struct GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::bf8_t, float, ck_tile::bf8_t>
 {
     using ADataType   = ck_tile::pk_int4_t;
@@ -232,6 +242,16 @@ struct GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::bf8_t, float, ck_tile::b
 };
 
 template <>
+struct GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::bf8_t, ck_tile::half_t, ck_tile::bf8_t>
+{
+    using ADataType   = ck_tile::pk_int4_t;
+    using QDataType   = ck_tile::bf8_t;
+    using BDataType   = ck_tile::bf8_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::half_t;
+};
+
+template <> // TODO:: Ctype:float
 struct GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::fp8_t, float, float>
 {
     using ADataType   = ck_tile::pk_int4_t;
@@ -241,7 +261,7 @@ struct GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::fp8_t, float, float>
     using CDataType   = float;
 };
 
-template <>
+template <> // TODO:: Ctype:float
 struct GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::bf8_t, float, float>
 {
     using ADataType   = ck_tile::pk_int4_t;
@@ -251,7 +271,7 @@ struct GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::bf8_t, float, float>
     using CDataType   = float;
 };
 
-template <>
+template <> // TODO:: Ctype:float
 struct GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::pk_int4_t, float, ck_tile::fp8_t>
 {
     using ADataType   = ck_tile::fp8_t;
@@ -262,6 +282,16 @@ struct GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::pk_int4_t, float, ck_tile::f
 };
 
 template <>
+struct GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::pk_int4_t, ck_tile::half_t, ck_tile::fp8_t>
+{
+    using ADataType   = ck_tile::fp8_t;
+    using QDataType   = ck_tile::fp8_t;
+    using BDataType   = ck_tile::pk_int4_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::half_t;
+};
+
+template <> // TODO:: Ctype:float
 struct GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::pk_int4_t, float, ck_tile::bf8_t>
 {
     using ADataType   = ck_tile::bf8_t;
@@ -272,6 +302,16 @@ struct GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::pk_int4_t, float, ck_tile::b
 };
 
 template <>
+struct GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::pk_int4_t, ck_tile::half_t, ck_tile::bf8_t>
+{
+    using ADataType   = ck_tile::bf8_t;
+    using QDataType   = ck_tile::bf8_t;
+    using BDataType   = ck_tile::pk_int4_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::half_t;
+};
+
+template <> // TODO:: Ctype:float
 struct GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::pk_int4_t, float, float>
 {
     using ADataType   = ck_tile::fp8_t;
@@ -281,7 +321,7 @@ struct GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::pk_int4_t, float, float>
     using CDataType   = float;
 };
 
-template <>
+template <> // TODO:: Ctype:float
 struct GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::pk_int4_t, float, float>
 {
     using ADataType   = ck_tile::bf8_t;
@@ -393,18 +433,16 @@ auto create_args(int argc, char* argv[])
         .insert("stride_b", "0", "Tensor B stride")
         .insert("stride_c", "0", "Tensor C stride")
         .insert("v", "1", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
-        .insert("prec", "fp8", "data type. fp8/bf8/i4fp8/i4bf8/i4f32fp8/i4f32bf8")
+        .insert("prec", "fp8i4", "data type. fp8/bf8/i4fp8/i4bf8/i4f32fp8/i4f32bf8")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("split_k", "1", "splitK value")
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
-        .insert("persistent", "0", "0:non-persistent, 1:persistent");
+        .insert("flush_cache", "true", "flush cache before running the kernel, defaults to true")
+        .insert("rotating_count", "1", "rotating count, defaults to 1");
     //.insert("as_br_cr", "false", "Choose between as_br_cr and as_bs_cr");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
-
-// host API
-float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::stream_config& s);

@@ -49,7 +49,7 @@ struct BQuantGemmHostArgs : public BQuantGemmProblem
     CK_TILE_HOST BQuantGemmHostArgs() = default;
     CK_TILE_HOST BQuantGemmHostArgs(const void* a_ptr_,
                                     const void* b_ptr_,
-                                    void* c_ptr_,
+                                    void* e_ptr_,
                                     const void* bq_ptr_,
                                     index_t k_batch_,
                                     index_t M_,
@@ -64,7 +64,7 @@ struct BQuantGemmHostArgs : public BQuantGemmProblem
           a_ptr(a_ptr_),
           b_ptr(b_ptr_),
           bq_ptr(bq_ptr_),
-          c_ptr(c_ptr_),
+          e_ptr(e_ptr_),
           k_batch(k_batch_)
     {
     }
@@ -72,7 +72,7 @@ struct BQuantGemmHostArgs : public BQuantGemmProblem
     const void* a_ptr;
     const void* b_ptr;
     const void* bq_ptr;
-    void* c_ptr;
+    void* e_ptr;
     index_t k_batch;
 };
 
@@ -81,7 +81,7 @@ struct BQuantGemmKernelArgs
     const void* a_ptr;
     const void* b_ptr;
     const void* bq_ptr;
-    void* c_ptr;
+    void* e_ptr;
     index_t M;
     index_t N;
     index_t K;
@@ -102,13 +102,13 @@ struct BQuantGemmKernel
     using ALayout                            = remove_cvref_t<typename GemmPipeline::ALayout>;
     using BLayout                            = remove_cvref_t<typename GemmPipeline::BLayout>;
     using BQLayout                           = remove_cvref_t<typename GemmPipeline::BQLayout>;
-    using CLayout                            = remove_cvref_t<typename GemmPipeline::CLayout>;
+    using ELayout                            = remove_cvref_t<typename GemmPipeline::CLayout>;
     static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
 
     using ADataType  = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType  = remove_cvref_t<typename GemmPipeline::BDataType>;
     using BQDataType = remove_cvref_t<typename GemmPipeline::BQDataType>;
-    using CDataType  = remove_cvref_t<typename EpiloguePipeline::ODataType>;
+    using EDataType  = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
     static constexpr auto I0 = number<0>();
     static constexpr auto I1 = number<1>();
@@ -139,7 +139,7 @@ struct BQuantGemmKernel
         return BQuantGemmKernelArgs{hostArgs.a_ptr,
                                     hostArgs.b_ptr,
                                     hostArgs.bq_ptr,
-                                    hostArgs.c_ptr,
+                                    hostArgs.e_ptr,
                                     hostArgs.M,
                                     hostArgs.N,
                                     hostArgs.K,
@@ -303,7 +303,7 @@ struct BQuantGemmKernel
             }
         }
 
-        if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+        if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
         {
             if(kargs.N % TilePartitioner::NPerBlock != 0 && GemmPipeline::kPadN == false)
             {
@@ -350,7 +350,7 @@ struct BQuantGemmKernel
     CK_TILE_DEVICE static auto MakeGemmTensorViews(const ADataType* a_ptr,
                                                    const BDataType* b_ptr,
                                                    const BQDataType* bq_ptr,
-                                                   CDataType* c_ptr,
+                                                   EDataType* e_ptr,
                                                    const BQuantGemmKernelArgs& kargs,
                                                    const SplitKBatchOffset& splitk_batch_offset)
     {
@@ -469,10 +469,10 @@ struct BQuantGemmKernel
 
         // TODO: enable vector write for C in ColMajor
         const auto& c_tensor_view = [&]() {
-            if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+            if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
             {
                 return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
-                    c_ptr,
+                    e_ptr,
                     make_tuple(kargs.M, kargs.N),
                     make_tuple(kargs.stride_C, 1),
                     number<EpiloguePipeline::GetVectorSizeC()>{},
@@ -481,7 +481,7 @@ struct BQuantGemmKernel
             else
             {
                 return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
-                    c_ptr,
+                    e_ptr,
                     make_tuple(kargs.M, kargs.N),
                     make_tuple(1, kargs.stride_C),
                     number<1>{},
@@ -547,7 +547,7 @@ struct BQuantGemmKernel
         // TODO vector write in for C in ColMajor
         const auto& c_pad_view = [&]() {
             const auto& c_tensor_view = views.at(I3);
-            if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+            if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
             {
                 return pad_tensor_view(c_tensor_view,
                                        make_tuple(number<TilePartitioner::MPerBlock>{},
@@ -652,7 +652,7 @@ struct BQuantGemmKernel
      * @param a_ptr input A pointer
      * @param b_ptr input B pointer
      * @param bq_ptr input BQ pointer
-     * @param c_ptr output C pointer
+     * @param e_ptr output C pointer
      * @param smem_ptr_0 The start memory pointer of the shared memory block.
      * @param kargs GEMM kernel arguments
      * @param splitk_batch_offset splitk_batch_offset Utility structure used to calculate k batch.
@@ -665,7 +665,7 @@ struct BQuantGemmKernel
     CK_TILE_DEVICE static void RunGemm(const ADataType* a_ptr,
                                        const BDataType* b_ptr,
                                        const BQDataType* bq_ptr,
-                                       CDataType* c_ptr,
+                                       EDataType* e_ptr,
                                        void* smem_ptr_0,
                                        const BQuantGemmKernelArgs& kargs,
                                        const SplitKBatchOffset& splitk_batch_offset,
@@ -674,7 +674,7 @@ struct BQuantGemmKernel
     {
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple = MakeGemmTensorViews<DstInMemOp>(
-            a_ptr, b_ptr, bq_ptr, c_ptr, kargs, splitk_batch_offset);
+            a_ptr, b_ptr, bq_ptr, e_ptr, kargs, splitk_batch_offset);
 
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
@@ -710,13 +710,13 @@ struct BQuantGemmKernel
         const ADataType* a_ptr   = static_cast<const ADataType*>(kargs.a_ptr);
         const BDataType* b_ptr   = static_cast<const BDataType*>(kargs.b_ptr);
         const BQDataType* bq_ptr = static_cast<const BQDataType*>(kargs.bq_ptr);
-        CDataType* c_ptr         = static_cast<CDataType*>(kargs.c_ptr);
+        EDataType* e_ptr         = static_cast<EDataType*>(kargs.e_ptr);
 
         // allocate LDS
         __shared__ char smem_ptr_0[GetSmemSize()];
 
         assert(kargs.k_batch == 1);
-        RunGemm(a_ptr, b_ptr, bq_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
+        RunGemm(a_ptr, b_ptr, bq_ptr, e_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
     }
 };
 

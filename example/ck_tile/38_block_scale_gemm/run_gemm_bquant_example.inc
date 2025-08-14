@@ -40,6 +40,23 @@ template <typename GemmConfig,
           typename DsDataType,
           typename AccDataType,
           typename CDataType,
+          typename ComputeDataType,
+          typename ALayout,
+          typename BLayout,
+          typename BQLayout,
+          typename DsLayout,
+          typename ELayout,
+          uint32_t QuantGroupSize,
+          typename CDEElementWise>
+float gemm_calc_bquant(const ck_tile::BQuantGemmHostArgs& args, const ck_tile::stream_config& s);
+
+template <typename GemmConfig,
+          typename ADataType,
+          typename BDataType,
+          typename BQDataType,
+          typename DsDataType,
+          typename AccDataType,
+          typename CDataType,
           typename ALayout,
           typename BLayout,
           typename BQLayout,
@@ -61,22 +78,23 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   ck_tile::index_t stride_C,
                   ck_tile::index_t kbatch,
                   int n_warmup,
-                  int n_repeat)
+                  int n_repeat,
+                  bool flush_cache,
+                  int rotating_count)
 {
-    ck_tile::BQuantGemmHostArgs args;
-    args.a_ptr     = a_m_k_dev_buf.GetDeviceBuffer();
-    args.b_ptr     = b_k_n_dev_buf.GetDeviceBuffer();
-    args.bq_ptr    = bq_bqk_n_dev_buf.GetDeviceBuffer();
-    args.c_ptr     = c_m_n_dev_buf.GetDeviceBuffer();
-    args.k_batch   = kbatch;
-    args.M         = M;
-    args.N         = N;
-    args.K         = K;
-    args.QK        = BQK;
-    args.stride_A  = stride_A;
-    args.stride_B  = stride_B;
-    args.stride_C  = stride_C;
-    args.stride_BQ = stride_BQ;
+    ck_tile::BQuantGemmHostArgs args = {a_m_k_dev_buf.GetDeviceBuffer(),
+                                        b_k_n_dev_buf.GetDeviceBuffer(),
+                                        c_m_n_dev_buf.GetDeviceBuffer(),
+                                        bq_bqk_n_dev_buf.GetDeviceBuffer(),
+                                        kbatch,
+                                        M,
+                                        N,
+                                        K,
+                                        BQK,
+                                        stride_A,
+                                        stride_B,
+                                        stride_C,
+                                        stride_BQ};
 
     float ave_time = gemm_calc_bquant<GemmConfig,
                                       ADataType,
@@ -93,7 +111,9 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                       CLayout,
                                       QuantGroupSize,
                                       CDEElementWise>(
-        args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
+        args,
+        ck_tile::stream_config{
+            nullptr, true, 1, n_warmup, n_repeat, true, flush_cache, rotating_count});
 
     std::size_t flop     = std::size_t(2) * M * N * K;
     std::size_t num_byte = sizeof(ADataType) * M * K + sizeof(BDataType) * N * K +
@@ -101,7 +121,7 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_byte / 1.E6 / ave_time;
 
-    std::cout << "Run Gemm kernel with M =" << M << " N =" << N << " K =" << K
+    std::cout << "Run Gemm kernel with \n M =" << M << " N =" << N << " K =" << K
               << " StrideA =" << stride_A << " StrideB =" << stride_B << " StrideBQ =" << stride_BQ
               << " StrideC =" << stride_C << " A_Layout =" << ALayout::name
               << " B_Layout =" << BLayout::name << " C_Layout =" << CLayout::name
@@ -109,9 +129,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
               << " B_Type = " << DataTypeTraits<BDataType>::name
               << " BQ_Type = " << DataTypeTraits<BQDataType>::name
               << " Acc_Type = " << DataTypeTraits<AccDataType>::name
-              << " C_Type = " << DataTypeTraits<CDataType>::name << " : " << ave_time << " ms, "
-              << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
-
+              << " C_Type = " << DataTypeTraits<CDataType>::name << " : \n"
+              << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, ";
     return ave_time;
 }
 
@@ -175,6 +194,8 @@ int run_gemm_example_with_layouts(int argc,
     int n_warmup                 = arg_parser.get_int("warmup");
     int n_repeat                 = arg_parser.get_int("repeat");
     ck_tile::index_t init_method = arg_parser.get_int("init");
+    bool flush_cache             = arg_parser.get_bool("flush_cache");
+    int rotating_count           = arg_parser.get_int("rotating_count");
 
     const bool preshuffle = GemmConfig::Preshuffle;
 
@@ -274,7 +295,9 @@ int run_gemm_example_with_layouts(int argc,
                                 stride_C,
                                 kbatch,
                                 n_warmup,
-                                n_repeat);
+                                n_repeat,
+                                flush_cache,
+                                rotating_count);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass = true;
@@ -302,13 +325,11 @@ int run_gemm_example_with_layouts(int argc,
                                   rtol_atol.at(ck_tile::number<0>{}),
                                   rtol_atol.at(ck_tile::number<1>{}));
 
-        if(!pass)
-        {
-            std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
-                      << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
-                      << std::endl;
-        }
-        std::cout << "CPU verification " << (pass ? "Passed!" : "Failed ...") << std::endl;
+        std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
+                  << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
+                  << std::endl;
+
+        std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
     }
     else if(arg_parser.get_int("v") == 2)
     {
