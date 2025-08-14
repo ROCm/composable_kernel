@@ -25,7 +25,7 @@ __global__ void packed_cast(float x1, float x2, ck::bhalf2_t* output)
     (*output)[1] = dst_buffer.template AsType<ck::bhalf_t>()[I1];
 }
 
-void run_test(const float x1, const float x2) 
+void run_single_case(const float x1, const float x2, std::function<void(float, float, ck::bhalf2_t*)> launch_kernel)
 {
     const auto& get_tolerance = [](const float test_val) -> float
     {
@@ -45,7 +45,7 @@ void run_test(const float x1, const float x2)
     ck::bhalf2_t value_after_cast_host;
     hip_check_error(hipMalloc(&value_after_cast_dev, sizeof(ck::bhalf2_t)));
 
-    packed_cast<<<1, 1>>>(x1, x2, value_after_cast_dev);
+    launch_kernel(x1, x2, value_after_cast_dev);
     hip_check_error(hipGetLastError());
     hip_check_error(hipMemcpy(&value_after_cast_host,
                             value_after_cast_dev,
@@ -57,14 +57,13 @@ void run_test(const float x1, const float x2)
     // Convert back to floats
     const float x1_actual = type_convert<float>(value_after_cast_host[0]);
     const float x2_actual = type_convert<float>(value_after_cast_host[1]);
-    std::cout << "x1: " << x1_actual << ", x2: " << x2_actual << std::endl;
     ASSERT_NEAR(x1_actual, x1, get_tolerance(x1));
     ASSERT_NEAR(x2_actual, x2, get_tolerance(x2));
 };
 
-TEST(packed_cast, vectorized_float2_to_bhalf2)
+void run_test(std::function<void(float, float, ck::bhalf2_t*)> launch_kernel)
 {
-    // Test packed cast from bhalf2 to float2
+  // Test packed cast from bhalf2 to float2
     // Use values that are representable in bhalf2 as well as values that are not
     constexpr int num_vals = 15;
 
@@ -120,14 +119,21 @@ TEST(packed_cast, vectorized_float2_to_bhalf2)
             const float exact_in_both_value = exact_in_both[i];
             const float exact_fp32_not_bf16_value = exact_fp32_not_bf16[j];
 
-            run_test(exact_in_both_value, exact_fp32_not_bf16_value);
-            run_test(exact_in_both_value, -exact_fp32_not_bf16_value);
-            run_test(-exact_in_both_value, exact_fp32_not_bf16_value);
-            run_test(-exact_in_both_value, -exact_fp32_not_bf16_value);
-            run_test(exact_fp32_not_bf16_value, exact_in_both_value);
-            run_test(exact_fp32_not_bf16_value, -exact_in_both_value);
-            run_test(-exact_fp32_not_bf16_value, exact_in_both_value);
-            run_test(-exact_fp32_not_bf16_value, -exact_in_both_value);
+            run_single_case(exact_in_both_value, exact_fp32_not_bf16_value, launch_kernel);
+            run_single_case(exact_in_both_value, -exact_fp32_not_bf16_value, launch_kernel);
+            run_single_case(-exact_in_both_value, exact_fp32_not_bf16_value, launch_kernel);
+            run_single_case(-exact_in_both_value, -exact_fp32_not_bf16_value, launch_kernel);
+            run_single_case(exact_fp32_not_bf16_value, exact_in_both_value, launch_kernel);
+            run_single_case(exact_fp32_not_bf16_value, -exact_in_both_value, launch_kernel);
+            run_single_case(-exact_fp32_not_bf16_value, exact_in_both_value, launch_kernel);
+            run_single_case(-exact_fp32_not_bf16_value, -exact_in_both_value, launch_kernel);
         }
     }
+}
+
+TEST(packed_cast, vectorized_float2_to_bhalf2)
+{
+    run_test([](float x1, float x2, ck::bhalf2_t* output) {
+        packed_cast<<<1, 1>>>(x1, x2, output);
+    });
 }
