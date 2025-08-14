@@ -79,7 +79,7 @@ auto create_args(int argc, char* argv[])
 }
 
 template <typename DataTypeConfig>
-bool run(const ck_tile::ArgParser& arg_parser)
+auto run(const ck_tile::ArgParser& arg_parser)
 {
     std::string data_type     = arg_parser.get_str("prec");
     int do_validation         = arg_parser.get_int("v");
@@ -147,11 +147,11 @@ int main(int argc, char* argv[])
     const std::string data_type = arg_parser.get_str("prec");
     if(data_type == "fp16")
     {
-        return run<FmhaBwdFp16>(arg_parser) ? 0 : -2;
+        return run<FmhaBwdFp16>(arg_parser) == bwd_result::success ? 0 : -2;
     }
     else if(data_type == "bf16")
     {
-        return run<FmhaBwdBf16>(arg_parser) ? 0 : -2;
+        return run<FmhaBwdBf16>(arg_parser) == bwd_result::success ? 0 : -2;
     }
 
     return -3;

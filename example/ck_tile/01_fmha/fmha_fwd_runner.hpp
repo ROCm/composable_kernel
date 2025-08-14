@@ -23,6 +23,14 @@
 #error "we should enable fmha_fwd_splitkv() api in order to cooperate with fmha_fwd_appendkv()"
 #endif
 
+enum class fwd_result
+{
+    success,
+    failure,
+    invalid_args,
+    no_instance,
+};
+
 // different threshold for different dtype
 template <typename DataTypeConfig>
 auto get_elimit(std::string /*init_method*/)
@@ -123,44 +131,44 @@ int override_num_splits_if_necessary(
 }
 
 template <typename DataTypeConfig>
-bool fmha_fwd_run(mode_enum mode,
-                  ck_tile::index_t batch,
-                  ck_tile::index_t nhead,
-                  ck_tile::index_t nhead_k,
-                  std::string seqlen_q_str,
-                  ck_tile::index_t seqlen_q,
-                  std::string seqlen_k_str,
-                  ck_tile::index_t hdim_q,
-                  ck_tile::index_t hdim_v,
-                  ck_tile::index_t seqlen_knew,
-                  std::string seqlen_kpad_str,
-                  ck_tile::index_t rotary_dim,
-                  bool i_perm,
-                  bool o_perm,
-                  float scale_s,
-                  float logits_soft_cap,
-                  bool is_v_rowmajor,
-                  bool lse,
-                  ck_tile::index_t page_block_size,
-                  bool use_cache_batch_idx,
-                  const bias_info& bias,
-                  float p_drop,
-                  uint64_t drop_seed,
-                  uint64_t drop_offset,
-                  bool drop_prefs,
-                  std::string mask_str,
-                  float range_q,
-                  float range_k,
-                  float range_v,
-                  float range_p,
-                  float range_o,
-                  bool squant,
-                  bool is_rotary_interleaved,
-                  ck_tile::index_t num_splits,
-                  std::string init_method,
-                  uint32_t seed,
-                  int do_validation,
-                  const ck_tile::stream_config& stream_config)
+fwd_result fmha_fwd_run(mode_enum mode,
+                        ck_tile::index_t batch,
+                        ck_tile::index_t nhead,
+                        ck_tile::index_t nhead_k,
+                        std::string seqlen_q_str,
+                        ck_tile::index_t seqlen_q,
+                        std::string seqlen_k_str,
+                        ck_tile::index_t hdim_q,
+                        ck_tile::index_t hdim_v,
+                        ck_tile::index_t seqlen_knew,
+                        std::string seqlen_kpad_str,
+                        ck_tile::index_t rotary_dim,
+                        bool i_perm,
+                        bool o_perm,
+                        float scale_s,
+                        float logits_soft_cap,
+                        bool is_v_rowmajor,
+                        bool lse,
+                        ck_tile::index_t page_block_size,
+                        bool use_cache_batch_idx,
+                        const bias_info& bias,
+                        float p_drop,
+                        uint64_t drop_seed,
+                        uint64_t drop_offset,
+                        bool drop_prefs,
+                        std::string mask_str,
+                        float range_q,
+                        float range_k,
+                        float range_v,
+                        float range_p,
+                        float range_o,
+                        bool squant,
+                        bool is_rotary_interleaved,
+                        ck_tile::index_t num_splits,
+                        std::string init_method,
+                        uint32_t seed,
+                        int do_validation,
+                        const ck_tile::stream_config& stream_config)
 {
     const std::string data_type = []() {
         if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp16>)
@@ -181,7 +189,7 @@ bool fmha_fwd_run(mode_enum mode,
     if(nhead % nhead_k != 0)
     {
         std::cerr << "nhead:" << nhead << " must be multiple of nhead_k:" << nhead_k << std::endl;
-        return false;
+        return fwd_result::invalid_args;
     }
 
     std::mt19937 random_engine(seed != 0 ? seed : std::random_device{}());
@@ -209,7 +217,7 @@ bool fmha_fwd_run(mode_enum mode,
         if(0 < rotary_dim)
         {
             std::cerr << "rotary embedding is only available for data type=fp16|bf16" << std::endl;
-            return false;
+            return fwd_result::invalid_args;
         }
     }
 #if !CK_TILE_FMHA_FWD_APPENDKV_API
@@ -230,12 +238,12 @@ bool fmha_fwd_run(mode_enum mode,
     if(!(rotary_dim <= hdim_q))
     {
         std::cerr << "rotary_dim should be less than or equal to head dim for q" << std::endl;
-        return false;
+        return fwd_result::invalid_args;
     }
     else if(!(rotary_dim % 16 == 0))
     {
         std::cerr << "only rotary dimensions divisible by 16 are currently supported" << std::endl;
-        return false;
+        return fwd_result::invalid_args;
     }
 
 #if(!(CK_TILE_FMHA_FWD_APPENDKV_API || CK_TILE_FMHA_FWD_SPLITKV_API || \
@@ -251,7 +259,7 @@ bool fmha_fwd_run(mode_enum mode,
     {
         std::cerr << "only paged-kvcache block size divisible by 128 are currently supported"
                   << std::endl;
-        return false;
+        return fwd_result::invalid_args;
     }
 
 #if !(CK_TILE_FMHA_FWD_APPENDKV_API || CK_TILE_FMHA_FWD_SPLITKV_API || CK_TILE_FMHA_FWD_PAGEDKV_API)
@@ -315,7 +323,7 @@ bool fmha_fwd_run(mode_enum mode,
     if(p_drop < 0.0f || p_drop > 1.0f)
     {
         std::cerr << "The value of p_drop should be 0~1" << std::endl;
-        return false;
+        return fwd_result::invalid_args;
     }
 
     bool s_randval = false;
@@ -411,7 +419,7 @@ bool fmha_fwd_run(mode_enum mode,
     if(128 < num_splits)
     {
         std::cerr << "num_splits greater than 128 is not supported" << std::endl;
-        return false;
+        return fwd_result::invalid_args;
     }
 #if CK_TILE_FMHA_FWD_SPLITKV_API || CK_TILE_FMHA_FWD_PAGEDKV_API
     if(0 < p_drop && (1 < num_splits || use_kvcache))
@@ -579,7 +587,7 @@ bool fmha_fwd_run(mode_enum mode,
     else
     {
         std::cerr << "Unknown value for init argument: " << init_method << std::endl;
-        return false;
+        return fwd_result::invalid_args;
     }
 
     if(bias.type == bias_enum::alibi)
@@ -997,7 +1005,7 @@ bool fmha_fwd_run(mode_enum mode,
     if(appendkv_ave_time < 0.0f || fwd_ave_time < 0.0f)
     {
         std::cout << ", not supported yet" << std::flush << std::endl;
-        return false;
+        return fwd_result::no_instance;
     }
 
     if(stream_config.time_kernel_)
@@ -1016,7 +1024,7 @@ bool fmha_fwd_run(mode_enum mode,
     if(do_validation == 0)
     {
         std::cout << std::flush << std::endl;
-        return true;
+        return fwd_result::success;
     }
     if(do_validation == 2)
     {
@@ -1067,7 +1075,7 @@ bool fmha_fwd_run(mode_enum mode,
         bool pass_          = ck_tile::check_err(
             o_host, o_naive_ref, std::string("OUT Error: Incorrect results!"), rtol_, atol_);
         std::cout << ", valid:" << (pass_ ? "y" : "n") << std::flush << std::endl;
-        return pass_;
+        return pass_ ? fwd_result::success : fwd_result::failure;
     }
 
     o_buf.FromDevice(o_host.data());
@@ -1482,5 +1490,5 @@ bool fmha_fwd_run(mode_enum mode,
 
     std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
 
-    return pass;
+    return pass ? fwd_result::success : fwd_result::failure;
 }

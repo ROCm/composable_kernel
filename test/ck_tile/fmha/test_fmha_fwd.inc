@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
+#define CHECK_RESULT(result)                                      \
+    do                                                            \
+    {                                                             \
+        if(result == fwd_result::no_instance)                     \
+            GTEST_SKIP() << "No instance for current parameters"; \
+        ASSERT_EQ(result, fwd_result::success);                   \
+    } while(0)
+
 template <typename T>
 class TestCkTileFmhaFwd : public testing::Test
 {
@@ -63,5 +71,5 @@ TYPED_TEST(TestCkTileFmhaFwd, Simple)
                                                5675,                   // seed
                                                1,                      // do_validation
                                                default_stream_config); // stream_config)
-    ASSERT_TRUE(result);
+    CHECK_RESULT(result);
 }

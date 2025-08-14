@@ -9,6 +9,14 @@ using ::testing::TestWithParam;
 using ::testing::Values;
 using ::testing::ValuesIn;
 
+#define CHECK_RESULT(result)                                      \
+    do                                                            \
+    {                                                             \
+        if(result == bwd_result::no_instance)                     \
+            GTEST_SKIP() << "No instance for current parameters"; \
+        ASSERT_EQ(result, bwd_result::success);                   \
+    } while(0)
+
 const ck_tile::stream_config stream_config{
     nullptr, // stream_id_
     false,   // time_kernel_
@@ -79,5 +87,5 @@ TEST_P(TestCkTileFmhaBwd, All)
                                                67889,          // seed
                                                1,              // do_validation
                                                stream_config); // stream_config
-    ASSERT_TRUE(result);
+    CHECK_RESULT(result);
 }

@@ -17,6 +17,14 @@
 #include <utility>
 #include <vector>
 
+enum class bwd_result
+{
+    success,
+    failure,
+    invalid_args,
+    no_instance,
+};
+
 // different threshold for different dtype
 template <typename DataTypeConfig>
 auto get_elimit(ck_tile::index_t /*hdim_q*/, ck_tile::index_t /*hdim_v*/)
@@ -43,29 +51,29 @@ template <>
 float fmha_bwd<2>(fmha_bwd_traits, fmha_bwd_args, const ck_tile::stream_config&);
 
 template <typename DataTypeConfig>
-bool fmha_bwd_run(mode_enum mode,
-                  ck_tile::index_t batch,
-                  ck_tile::index_t nhead,
-                  ck_tile::index_t nhead_k,
-                  ck_tile::index_t seqlen_q,
-                  ck_tile::index_t seqlen_k,
-                  ck_tile::index_t hdim_q,
-                  ck_tile::index_t hdim_v,
-                  bool i_perm,
-                  bool o_perm,
-                  float scale,
-                  const bias_info& bias,
-                  bool use_dbias,
-                  float p_drop,
-                  uint64_t drop_seed,
-                  uint64_t drop_offset,
-                  bool drop_prefs,
-                  const mask_info& mask,
-                  bool deterministic,
-                  std::string init_method,
-                  uint32_t seed,
-                  int do_validation,
-                  const ck_tile::stream_config& stream_config)
+bwd_result fmha_bwd_run(mode_enum mode,
+                        ck_tile::index_t batch,
+                        ck_tile::index_t nhead,
+                        ck_tile::index_t nhead_k,
+                        ck_tile::index_t seqlen_q,
+                        ck_tile::index_t seqlen_k,
+                        ck_tile::index_t hdim_q,
+                        ck_tile::index_t hdim_v,
+                        bool i_perm,
+                        bool o_perm,
+                        float scale,
+                        const bias_info& bias,
+                        bool use_dbias,
+                        float p_drop,
+                        uint64_t drop_seed,
+                        uint64_t drop_offset,
+                        bool drop_prefs,
+                        const mask_info& mask,
+                        bool deterministic,
+                        std::string init_method,
+                        uint32_t seed,
+                        int do_validation,
+                        const ck_tile::stream_config& stream_config)
 {
     const std::string data_type = []() {
         if constexpr(std::is_same_v<DataTypeConfig, FmhaBwdFp16>)
@@ -81,7 +89,7 @@ bool fmha_bwd_run(mode_enum mode,
     if(nhead % nhead_k != 0)
     {
         std::cerr << "nhead:" << nhead << " must be multiple of nhead_k:" << nhead_k << std::endl;
-        return false;
+        return bwd_result::invalid_args;
     }
     if(seqlen_k < 0)
         seqlen_k = seqlen_q;
@@ -94,13 +102,13 @@ bool fmha_bwd_run(mode_enum mode,
     if(use_dbias && bias.type != bias_enum::elementwise_bias)
     {
         std::cerr << "dbias only exists when bias type is elementwise" << std::endl;
-        return false;
+        return bwd_result::invalid_args;
     }
 
     if(p_drop < 0.0f || p_drop > 1.0f)
     {
         std::cerr << "The value of p_drop should be 0~1" << std::endl;
-        return false;
+        return bwd_result::invalid_args;
     }
     float p_undrop = 1.0 - p_drop;
     uint8_t p_undrop_in_uint8_t =
@@ -267,7 +275,7 @@ bool fmha_bwd_run(mode_enum mode,
     else
     {
         std::cerr << "Unknown value for init argument: " << init_method << std::endl;
-        return false;
+        return bwd_result::invalid_args;
     }
 
     if(bias.type == bias_enum::alibi)
@@ -489,7 +497,7 @@ bool fmha_bwd_run(mode_enum mode,
     if(ave_time < 0)
     {
         std::cout << ", not supported yet" << std::flush << std::endl;
-        return false;
+        return bwd_result::no_instance;
     }
 
     if(stream_config.time_kernel_)
@@ -506,7 +514,7 @@ bool fmha_bwd_run(mode_enum mode,
     if(!do_validation)
     {
         std::cout << std::flush << std::endl;
-        return true;
+        return bwd_result::success;
     }
 
     bool pass = true;
@@ -914,5 +922,5 @@ bool fmha_bwd_run(mode_enum mode,
 
     std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
 
-    return pass;
+    return pass ? bwd_result::success : bwd_result::failure;
 }
