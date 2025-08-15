@@ -223,9 +223,9 @@ INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaBwd,
                          Combine(AllHDims,
                                  Values(mode_enum::batch, mode_enum::group),
                                  Values("a:0", "a:1"),
-                                 Values(std::tuple{1, 6, 6, 1024, 100},
-                                        std::tuple{2, 5, 5, 128, 256},
-                                        std::tuple{1, 8, 4, 130, 499}),
+                                 Values(std::tuple{2, 3, 3, 1024, 100},
+                                        std::tuple{3, 5, 5, 128, 256},
+                                        std::tuple{2, 8, 4, 130, 320}),
                                  Values("0", "t", "b", "t:50,64", "b:32,40")));
 
 TEST_P(Alibi, Test)
