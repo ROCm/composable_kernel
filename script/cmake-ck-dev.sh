@@ -20,7 +20,7 @@ fi
 GPU_TARGETS="gfx908;gfx90a;gfx942"
 
 if [ $# -ge 1 ]; then
-    case $1 in 
+    case "$1" in 
         gfx*)
             GPU_TARGETS=$1
             shift 1
