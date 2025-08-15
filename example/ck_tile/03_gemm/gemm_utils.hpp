@@ -35,6 +35,22 @@ constexpr ck_tile::index_t get_k_warp_tile()
 #endif
 }
 
+template <typename PrecType, ck_tile::index_t M_Warp_Tile>
+constexpr ck_tile::index_t get_k_warp_tile_flatmm()
+{
+#if defined(CK_GFX950_SUPPORT)
+    if constexpr(M_Warp_Tile == 32)
+        return sizeof(PrecType) == 2 ? 16 : 64;
+    else
+        return sizeof(PrecType) == 2 ? 32 : 128;
+#else
+    if constexpr(M_Warp_Tile == 32)
+        return sizeof(PrecType) == 2 ? 16 : 32;
+    else
+        return sizeof(PrecType) == 2 ? 32 : 64;
+#endif
+}
+
 struct GemmConfigBase
 {
     static constexpr bool kPadM = false;
@@ -229,7 +245,7 @@ struct GemmConfigPreshuffleDecode : public GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile_flatmm<PrecType, M_Warp_Tile>();
 
     static constexpr int kBlockPerCu           = 1;
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
@@ -251,7 +267,7 @@ struct GemmConfigPreshufflePrefill : public GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile_flatmm<PrecType, M_Warp_Tile>();
 
     static constexpr int kBlockPerCu           = 2;
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
