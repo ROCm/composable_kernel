@@ -2,7 +2,7 @@
 // Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-#include "ck/library/utility/profiler_validation_common.hpp"
+#include "ck/library/utility/validation_common.hpp"
 
 template <typename ProblemType>
 bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
@@ -54,11 +54,13 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     StrideB = f_get_default_stride(K, N, StrideB, BLayout{});
     StrideC = f_get_default_stride(M, N, StrideC, CLayout{});
 
-    try {
-        ck::profiler::validate_gemm_strides_abc<ALayout, BLayout, CLayout>(
+    try
+    {
+        ck::utils::validate_gemm_strides_abc<ALayout, BLayout, CLayout>(
             M, N, K, StrideA, StrideB, StrideC);
     }
-    catch(const std::runtime_error& e) {
+    catch(const std::runtime_error& e)
+    {
         std::cerr << "Error: " << e.what() << std::endl;
         return false;
     }

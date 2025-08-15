@@ -15,7 +15,7 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
-#include "ck/library/utility/profiler_validation_common.hpp"
+#include "ck/library/utility/validation_common.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 namespace ck {
@@ -94,7 +94,7 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
             }
         };
 
-    ck::profiler::validate_gemm_strides_abc<ALayout, BLayout, CLayout>(
+    ck::utils::validate_gemm_strides_abc<ALayout, BLayout, CLayout>(
         M, N, K, StrideA, StrideB, StrideC);
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor2d(M, K, StrideA, ALayout{}));

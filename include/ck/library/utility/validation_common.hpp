@@ -8,7 +8,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 
 namespace ck {
-namespace profiler {
+namespace utils {
 
 template <typename Layout>
 inline void
@@ -43,5 +43,5 @@ inline void validate_gemm_strides_abc(int M, int N, int K, int StrideA, int Stri
     validate_gemm_stride<CLayout>(M, N, StrideC, "StrideC");
 }
 
-} // namespace profiler
+} // namespace utils
 } // namespace ck
