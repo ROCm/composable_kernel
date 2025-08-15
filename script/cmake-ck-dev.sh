@@ -4,7 +4,7 @@ set -eu
 # pipefail is supported by many shells, not supported by sh and dash
 set -o pipefail 2>/dev/null | true
 # when treating a string as a sequence, do not split on spaces
-IFS=$'\n\t'
+IFS=$(printf '\n\t')
 
 # clean the build system files
 find . -name CMakeFiles     -type d -exec rm -rfv {} +
