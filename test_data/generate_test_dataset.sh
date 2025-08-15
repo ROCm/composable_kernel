@@ -19,14 +19,16 @@ echo "=========================================="
 echo "CK Convolution Test Dataset Generator"
 echo "=========================================="
 
-# Check if PyTorch is installed, if not install it
+# Check if PyTorch is installed, if not create a virtual environment
 echo "Checking for PyTorch installation..."
 if ! python3 -c "import torch" 2>/dev/null; then
-    echo "PyTorch not found. Installing PyTorch and torchvision..."
-    pip3 install --user torch torchvision --index-url https://download.pytorch.org/whl/cpu || {
-        echo "WARNING: Failed to install PyTorch. Trying with --break-system-packages flag..."
-        pip3 install --user --break-system-packages torch torchvision --index-url https://download.pytorch.org/whl/cpu || {
-            echo "ERROR: Failed to install PyTorch. Tests will fail."
+    echo "PyTorch not found. Creating virtual environment..."
+    
+    # Create a virtual environment in the current directory
+    VENV_DIR="./pytorch_venv"
+    if [ ! -d "$VENV_DIR" ]; then
+        python3 -m venv $VENV_DIR || {
+            echo "ERROR: Failed to create virtual environment."
             echo "Creating empty CSV files as fallback..."
             echo "# 2D Convolution Test Cases" > conv_test_set_2d_dataset.csv
             echo "# Combined from multiple models" >> conv_test_set_2d_dataset.csv
@@ -34,14 +36,33 @@ if ! python3 -c "import torch" 2>/dev/null; then
             echo "# Combined from multiple models" >> conv_test_set_3d_dataset.csv
             exit 1
         }
+    fi
+    
+    # Activate virtual environment
+    source $VENV_DIR/bin/activate
+    
+    # Install PyTorch in virtual environment
+    echo "Installing PyTorch and torchvision in virtual environment..."
+    pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu || {
+        echo "ERROR: Failed to install PyTorch in virtual environment."
+        echo "Creating empty CSV files as fallback..."
+        echo "# 2D Convolution Test Cases" > conv_test_set_2d_dataset.csv
+        echo "# Combined from multiple models" >> conv_test_set_2d_dataset.csv
+        echo "# 3D Convolution Test Cases" > conv_test_set_3d_dataset.csv
+        echo "# Combined from multiple models" >> conv_test_set_3d_dataset.csv
+        exit 1
     }
-    echo "PyTorch installed successfully!"
+    echo "PyTorch installed successfully in virtual environment!"
+    
+    # Use the virtual environment's Python for the rest of the script
+    export PYTHON_CMD="$VENV_DIR/bin/python3"
 else
     echo "PyTorch is already installed."
+    export PYTHON_CMD="python3"
 fi
 
 # Verify PyTorch installation
-python3 -c "import torch; print(f'PyTorch version: {torch.__version__}')"
+$PYTHON_CMD -c "import torch; print(f'PyTorch version: {torch.__version__}')"
 
 # Configuration
 OUTPUT_DIR="generated_datasets"
@@ -67,7 +88,7 @@ echo "-----------------------------------------"
 
 # Generate model configuration files (with limit for testing)
 echo "Generating model configuration files..."
-python3 generate_model_configs.py \
+$PYTHON_CMD generate_model_configs.py \
     --output-2d $OUTPUT_DIR/model_configs_2d.csv \
     --output-3d $OUTPUT_DIR/model_configs_3d.csv 
 
@@ -122,7 +143,7 @@ while IFS=',' read -r config_name model batch_size channels height width precisi
     echo -e "${GREEN}[${CURRENT_CONFIG}/${TOTAL_CONFIGS}]${NC} ${PURPLE}Running MIOpenDriver${NC} ${CYAN}2D${NC} ${YELLOW}$CONFIG_NAME${NC}: ${BLUE}$CONFIG${NC}"
     
     # Actual run with logging
-    MIOPEN_ENABLE_LOGGING_CMD=1 python3 run_model_with_miopen.py \
+    MIOPEN_ENABLE_LOGGING_CMD=1 $PYTHON_CMD run_model_with_miopen.py \
         --model $model --batch-size $batch_size --channels $channels --height $height --width $width --precision $precision \
         2>> $OUTPUT_DIR/${model}_miopen_log_2d.txt || true 
 
@@ -163,7 +184,7 @@ while IFS=',' read -r config_name model batch_size channels temporal_size height
     
     
     # Actual run with logging
-    MIOPEN_ENABLE_LOGGING_CMD=1 python3 run_model_with_miopen.py \
+    MIOPEN_ENABLE_LOGGING_CMD=1 $PYTHON_CMD run_model_with_miopen.py \
         --model $model --batch-size $batch_size --channels $channels --temporal-size $temporal_size --height $height --width $width --precision $precision \
         2>> $OUTPUT_DIR/${model}_miopen_log_3d.txt || true
 
@@ -183,7 +204,7 @@ for log_file in $OUTPUT_DIR/*_miopen_log_2d.txt; do
         output_csv="$OUTPUT_DIR/${base_name}_cases_2d.csv"
         
         echo "  Converting $log_file -> $output_csv"
-        python3 miopen_to_csv.py \
+        $PYTHON_CMD miopen_to_csv.py \
             --input "$log_file" \
             --output-2d "$output_csv" \
             --model-name "$base_name" \
@@ -200,7 +221,7 @@ for log_file in $OUTPUT_DIR/*_miopen_log_3d.txt; do
         output_csv="$OUTPUT_DIR/${base_name}_cases_3d.csv"
         
         echo "  Converting $log_file -> $output_csv"
-        python3 miopen_to_csv.py \
+        $PYTHON_CMD miopen_to_csv.py \
             --input "$log_file" \
             --output-3d "$output_csv" \
             --model-name "$base_name" \
