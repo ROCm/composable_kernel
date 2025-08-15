@@ -12,6 +12,8 @@ sh ../script/cmake-ck-dev.sh  ../ <arch>
 make tile_example_gemm_basic -j
 # The memory bound pipeline on the gemm calculation
 make tile_example_gemm_universal -j
+# The weight preshuffle pipeline on the gemm calculation
+make tile_example_gemm_weight_preshuffle -j
 ```
 This will result in an executable `build/bin/tile_example_gemm_basic` & `build/bin/tile_example_gemm_universal`
 
