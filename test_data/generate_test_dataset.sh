@@ -3,6 +3,7 @@
 # This script captures MIOpen commands from PyTorch models and generates test cases
 
 set -e  # Exit on error
+set +x  # Disable command echo (even if called with bash -x)
 
 # Check if target files already exist
 # if [ -f "conv_test_set_2d_dataset.csv" ] && [ -f "conv_test_set_3d_dataset.csv" ]; then
@@ -140,12 +141,12 @@ while IFS=',' read -r config_name model batch_size channels height width precisi
     CONFIG="--model $model --batch-size $batch_size --channels $channels --height $height --width $width --precision $precision"
     CONFIG_NAME="$config_name"
     
-    echo -e "${GREEN}[${CURRENT_CONFIG}/${TOTAL_CONFIGS}]${NC} ${PURPLE}Running MIOpenDriver${NC} ${CYAN}2D${NC} ${YELLOW}$CONFIG_NAME${NC}: ${BLUE}$CONFIG${NC}"
+    echo -e "${GREEN}[${CURRENT_CONFIG}/${TOTAL_CONFIGS}]${NC} ${CYAN}2D${NC} ${YELLOW}$CONFIG_NAME${NC}"
     
-    # Actual run with logging
+    # Actual run with logging (suppress stdout, only capture stderr with MIOpen commands)
     MIOPEN_ENABLE_LOGGING_CMD=1 $PYTHON_CMD run_model_with_miopen.py \
         --model $model --batch-size $batch_size --channels $channels --height $height --width $width --precision $precision \
-        2>> $OUTPUT_DIR/${model}_miopen_log_2d.txt || true 
+        > /dev/null 2>> $OUTPUT_DIR/${model}_miopen_log_2d.txt || true 
 
 
 done < $OUTPUT_DIR/model_configs_2d.csv
@@ -180,13 +181,13 @@ while IFS=',' read -r config_name model batch_size channels temporal_size height
     CONFIG="--model $model --batch-size $batch_size --channels $channels --temporal-size $temporal_size --height $height --width $width --precision $precision"
     CONFIG_NAME="$config_name"
     
-    echo -e "${GREEN}[${CURRENT_3D_CONFIG}/${TOTAL_3D_CONFIGS}]${NC} ${PURPLE}Running MIOpenDriver${NC} ${CYAN}3D${NC} ${YELLOW}$CONFIG_NAME${NC}: ${BLUE}$CONFIG${NC}"
+    echo -e "${GREEN}[${CURRENT_3D_CONFIG}/${TOTAL_3D_CONFIGS}]${NC} ${CYAN}3D${NC} ${YELLOW}$CONFIG_NAME${NC}"
     
     
-    # Actual run with logging
+    # Actual run with logging (suppress stdout, only capture stderr with MIOpen commands)
     MIOPEN_ENABLE_LOGGING_CMD=1 $PYTHON_CMD run_model_with_miopen.py \
         --model $model --batch-size $batch_size --channels $channels --temporal-size $temporal_size --height $height --width $width --precision $precision \
-        2>> $OUTPUT_DIR/${model}_miopen_log_3d.txt || true
+        > /dev/null 2>> $OUTPUT_DIR/${model}_miopen_log_3d.txt || true
 
 done < $OUTPUT_DIR/model_configs_3d.csv
 

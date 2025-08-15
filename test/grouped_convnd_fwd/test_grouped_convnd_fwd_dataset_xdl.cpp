@@ -9,7 +9,6 @@
 #include <sstream>          // String stream for CSV parsing
 #include <string>           // String operations
 #include <gtest/gtest.h>    // Google Test framework - provides TYPED_TEST, EXPECT_TRUE
-#include <unistd.h>         // For getcwd
 
 #include "profiler/profile_grouped_conv_fwd_impl.hpp" // The actual GPU profiler that does convolution work
 
@@ -33,7 +32,6 @@ std::vector<ck::utils::conv::ConvParam> load_csv_test_cases(const std::string& f
     while(std::getline(file, line))
     {
         line_number++;
-        std::cout << "Line " << line_number << ": " << line << std::endl;
         // Skip comment lines (starting with #) and empty lines
         if(line.empty() || line[0] == '#')
         {
@@ -240,32 +238,6 @@ TYPED_TEST_SUITE(TestGroupedConvndFwd3d, KernelTypes3d);
 // THE ACTUAL 2D TEST - This runs 4 times (once for each data type: fp32, fp16, bf16, int8)
 TYPED_TEST(TestGroupedConvndFwd2d, Test2D)
 {
-    // Debug: Print current working directory
-    char cwd[1024];
-    if(getcwd(cwd, sizeof(cwd)) != nullptr)
-    {
-        std::cout << "Current working directory: " << cwd << std::endl;
-    }
-
-    // Debug: Check if test_data exists and what's in it
-    std::cout << "Checking for test_data directory and CSV files..." << std::endl;
-    system("ls -la ../test_data/*.csv 2>&1 | head -10");
-    std::cout << "\nChecking CSV file contents:" << std::endl;
-    system("wc -l ../test_data/*.csv 2>&1");
-
-    // Debug: Check generated_datasets directory
-    std::cout << "\nChecking generated_datasets directory:" << std::endl;
-    system("ls -la ../test_data/generated_datasets/ 2>&1 | head -20");
-
-    // Debug: Check CSV files in generated_datasets with line counts
-    std::cout << "\nCSV files in generated_datasets with line counts:" << std::endl;
-    system("for f in ../test_data/generated_datasets/*.csv; do echo \"$f: $(wc -l < \"$f\") "
-           "lines\"; done 2>&1 | head -30");
-
-    // Debug: Show first 5 lines of main CSV to see what's there
-    std::cout << "\nFirst 5 lines of conv_test_set_2d_dataset.csv:" << std::endl;
-    system("head -5 ../test_data/conv_test_set_2d_dataset.csv 2>&1");
-
     // LOAD TEST CASES FROM CSV FILE instead of hardcoded cases
     // Try different locations for the CSV file (build directory vs source directory)
     std::vector<std::string> csv_paths = {
@@ -315,32 +287,6 @@ TYPED_TEST(TestGroupedConvndFwd2d, Test2D)
 // THE ACTUAL 3D TEST - This runs 3 times (once for each data type: fp32, fp16, bf16)
 TYPED_TEST(TestGroupedConvndFwd3d, Test3D)
 {
-    // Debug: Print current working directory
-    char cwd[1024];
-    if(getcwd(cwd, sizeof(cwd)) != nullptr)
-    {
-        std::cout << "Current working directory: " << cwd << std::endl;
-    }
-
-    // Debug: Check if test_data exists and what's in it
-    std::cout << "Checking for test_data directory and CSV files..." << std::endl;
-    system("ls -la ../test_data/*.csv 2>&1 | head -10");
-    std::cout << "\nChecking CSV file contents:" << std::endl;
-    system("wc -l ../test_data/*.csv 2>&1");
-
-    // Debug: Check generated_datasets directory
-    std::cout << "\nChecking generated_datasets directory:" << std::endl;
-    system("ls -la ../test_data/generated_datasets/ 2>&1 | head -20");
-
-    // Debug: Check CSV files in generated_datasets with line counts
-    std::cout << "\nCSV files in generated_datasets with line counts:" << std::endl;
-    system("for f in ../test_data/generated_datasets/*.csv; do echo \"$f: $(wc -l < \"$f\") "
-           "lines\"; done 2>&1 | head -30");
-
-    // Debug: Show first 5 lines of main CSV to see what's there
-    std::cout << "\nFirst 5 lines of conv_test_set_2d_dataset.csv:" << std::endl;
-    system("head -5 ../test_data/conv_test_set_2d_dataset.csv 2>&1");
-
     // LOAD TEST CASES FROM CSV FILE instead of hardcoded cases
     // Try different locations for the CSV file (build directory vs source directory)
     std::vector<std::string> csv_paths = {
