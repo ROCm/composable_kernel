@@ -141,7 +141,7 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                       << "pipeline: " << GemmPipeline::GetName() << '\n'
                       << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
                       << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
-                      << std::endl;
+                      << ", kBlockPerCu: {" << GemmConfig::kBlockPerCu << "}" << std::endl;
         }
         if(s.flush_cache_)
         {
@@ -280,7 +280,7 @@ int main(int argc, char* argv[])
 
     try
     {
-        return !run_gemm_example<GemmConfigPreshuffle_2>(arg_parser);
+        return !run_gemm_example<GemmConfigPreshuffleDecode>(arg_parser);
     }
     catch(const std::runtime_error& e)
     {
