@@ -42,10 +42,13 @@ if ! python3 -c "import torch" 2>/dev/null; then
     # Activate virtual environment
     source $VENV_DIR/bin/activate
     
-    # Install PyTorch in virtual environment
-    echo "Installing PyTorch and torchvision in virtual environment..."
-    pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu || {
-        echo "ERROR: Failed to install PyTorch in virtual environment."
+    # Install PyTorch in virtual environment with ROCm support
+    echo "Installing PyTorch and torchvision with ROCm support in virtual environment..."
+    # Since we're in a ROCm 6.4.1 environment, we need compatible PyTorch
+    # PyTorch doesn't have 6.4 wheels yet, so we use 6.2 which should be compatible
+    echo "Installing PyTorch with ROCm 6.2 support (compatible with ROCm 6.4)..."
+    pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/rocm6.2 || {
+        echo "ERROR: Failed to install PyTorch with ROCm support."
         echo "Creating empty CSV files as fallback..."
         echo "# 2D Convolution Test Cases" > conv_test_set_2d_dataset.csv
         echo "# Combined from multiple models" >> conv_test_set_2d_dataset.csv
@@ -62,13 +65,19 @@ else
     export PYTHON_CMD="python3"
 fi
 
-# Verify PyTorch installation
+# Verify PyTorch installation and GPU support
 $PYTHON_CMD -c "import torch; print(f'PyTorch version: {torch.__version__}')"
+$PYTHON_CMD -c "import torch; print(f'CUDA/ROCm available: {torch.cuda.is_available()}')"
+if ! $PYTHON_CMD -c "import torch; import sys; sys.exit(0 if torch.cuda.is_available() else 1)"; then
+    echo "WARNING: PyTorch installed but GPU support not available!"
+    echo "MIOpen commands will not be generated without GPU support."
+    echo "Continuing anyway to generate placeholder data..."
+fi
 
 # Configuration
 OUTPUT_DIR="generated_datasets"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-MAX_ITERATIONS=0  # Maximum number of iterations per model type (set to 0 for unlimited)
+MAX_ITERATIONS=1  # Maximum number of iterations per model type (set to 0 for unlimited)
 
 # Colors
 RED='\033[0;31m'
@@ -101,9 +110,25 @@ fi
 
 # Check if running on GPU
 if ! command -v rocm-smi &> /dev/null; then
-    echo "WARNING: ROCm not detected. Models will run on CPU (no MIOpen commands)."
-    echo "For actual MIOpen commands, run this on a system with AMD GPU."
+    echo "ERROR: ROCm not detected. Cannot generate MIOpen commands without GPU."
+    echo "This script requires an AMD GPU with ROCm installed."
+    echo "Creating empty CSV files as placeholder..."
+    echo "# 2D Convolution Test Cases (No GPU available)" > conv_test_set_2d_dataset.csv
+    echo "# 3D Convolution Test Cases (No GPU available)" > conv_test_set_3d_dataset.csv
+    exit 1
 fi
+
+# Check if GPU is actually accessible
+if ! rocm-smi &> /dev/null; then
+    echo "ERROR: rocm-smi failed. GPU may not be accessible."
+    echo "Creating empty CSV files as placeholder..."
+    echo "# 2D Convolution Test Cases (GPU not accessible)" > conv_test_set_2d_dataset.csv
+    echo "# 3D Convolution Test Cases (GPU not accessible)" > conv_test_set_3d_dataset.csv
+    exit 1
+fi
+
+echo "GPU detected. ROCm version:"
+rocm-smi --showdriverversion || true
 
 
 echo ""
