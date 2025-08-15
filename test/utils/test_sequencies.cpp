@@ -20,6 +20,9 @@ TEST(Sequence, TestCreatingAccessSequence)
 
     constexpr auto SliceLengths = Sequence<4, 8, 1, 1, 4, 1, 2, 1>{};
 
+    // Generates a sequence (1, 1, 1, 1, 1, 1, 2, 1).
+    // nDim gives the size of the sequence and DstVectorDim the position where to insert
+    // value DstScalarPerVector. The rest of the sequence is filled with 1s.
     constexpr auto ScalarPerAccess = generate_sequence(
             detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
 
@@ -28,15 +31,5 @@ TEST(Sequence, TestCreatingAccessSequence)
 
     constexpr bool is_valid = Rem == Zeros;
 
-    std::cout << "SliceLengths: ";
-    SliceLengths.Print();
-    std::cout << std::endl;
-    std::cout << "ScalarPerAccess: ";
-    ScalarPerAccess.Print();
-    std::cout << std::endl;
-    std::cout << "Rem: ";
-    Rem.Print();
-    std::cout << std::endl;
-
-    EXPECT_EQ(is_valid, true);
+    EXPECT_TRUE(is_valid);
 }
