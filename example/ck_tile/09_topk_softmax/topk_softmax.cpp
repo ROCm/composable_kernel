@@ -71,6 +71,8 @@ template <typename InputType, typename WeightType, typename IndexType = ck_tile:
 auto reference_topk_softmax(const ck_tile::HostTensor<InputType>& x,
                             ck_tile::HostTensor<WeightType>& y_values,
                             ck_tile::HostTensor<IndexType>& y_indices,
+                            // ck_tile::index_t num_expert_group,
+                            // ck_tile::index_t topk_group,
                             ck_tile::index_t k,
                             ck_tile::index_t dim = -1,
                             bool largest         = true,
@@ -80,14 +82,15 @@ auto reference_topk_softmax(const ck_tile::HostTensor<InputType>& x,
 
     auto y = reference_softmax<InputType, WeightType, WeightType>(x, dim);
     reference_topk(y, y_values, y_indices, k, dim, largest, sorted);
+    // reference_grouped_topk(y, y_values, y_indices, k, num_expert_group, topk_group, dim, largest, sorted);
 }
 
 // different threshold for different dtype
 template <typename DataType>
 auto get_elimit(std::string /*init_method*/)
 {
-    double rtol = 1e-3;
-    double atol = 1e-3;
+    double rtol = 1e-6;
+    double atol = 1e-6;
     return ck_tile::make_tuple(rtol, atol);
 }
 
@@ -151,6 +154,9 @@ bool test_topk_softmax(ck_tile::ArgParser args)
     int kname               = args.get_int("kname");
     int warmup              = args.get_int("warmup");
     int repeat              = args.get_int("repeat");
+
+    // int num_expert_group    = 16;
+    // int topk_group          = 2;
 
     if(stride_input < 0)
     {
@@ -246,6 +252,7 @@ bool test_topk_softmax(ck_tile::ArgParser args)
 
         reference_topk_softmax<InputType, WeightType, IndexType>(
             x_host, value_ref, index_ref, topk);
+            // x_host, value_ref, index_ref, num_expert_group, topk_group, topk);
 
         auto [rtol, atol] = get_elimit<InputType>("");
         for(int i_t = 0; i_t < tokens; i_t++)
@@ -270,6 +277,7 @@ bool test_topk_softmax(ck_tile::ArgParser args)
                                       rtol,
                                       atol);
         }
+        printf("rtol:%f  atol:%f\n", rtol, atol);
     }
 
     printf("valid:%s\n", rtn ? "y" : "n");
