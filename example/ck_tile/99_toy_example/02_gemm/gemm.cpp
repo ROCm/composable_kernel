@@ -142,7 +142,7 @@ int main(int argc, char* argv[])
     std::cout << "grid size " << kGridSize << std::endl;
 
     constexpr ck_tile::index_t kWarpPerCu    = 8; // 2 warps per SIMD
-    constexpr ck_tile::index_t kWarpPerBlock = kBlockSize / warpSize;
+    constexpr ck_tile::index_t kWarpPerBlock = kBlockSize / 32;
     constexpr ck_tile::index_t kBlockPerCu   = kWarpPerCu / kWarpPerBlock;
 
     using gemm_kernel = ck_tile::Gemm<ADataType,
