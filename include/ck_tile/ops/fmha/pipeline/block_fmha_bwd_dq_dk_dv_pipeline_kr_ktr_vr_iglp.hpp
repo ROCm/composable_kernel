@@ -49,13 +49,13 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
     static constexpr index_t kVHeaddim  = BlockFmhaShape::kVHeaddim;
 
     static constexpr bool kIsGroupMode     = Problem::kIsGroupMode;
-    static constexpr bool kPadSeqLenQ      = Problem::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK      = Problem::kPadSeqLenK;
     static constexpr bool kPadHeadDimQ     = Problem::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV     = Problem::kPadHeadDimV;
     static constexpr auto BiasEnum         = Problem::BiasEnum;
     static constexpr bool kHasBiasGrad     = Problem::kHasBiasGrad;
     static constexpr bool kIsDeterministic = Problem::kIsDeterministic;
+    static constexpr bool kUseTrLoad       = Problem::kUseTrLoad;
+    static_assert(!kUseTrLoad, "This pipeline does not use trload!");
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
@@ -72,8 +72,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
         kPadHeadDimQ ? 1 : Policy::template GetAlignmentKGrad<Problem>();
     static constexpr index_t kAlignmentVGrad =
         kPadHeadDimV ? 1 : Policy::template GetAlignmentVGrad<Problem>();
-    static constexpr index_t kAlignmentBias =
-        kPadSeqLenK ? 1 : Policy::template GetTransposedAlignmentBias<Problem>();
+    static constexpr index_t kAlignmentBias = 1;
 
     static constexpr const char* name = "kr_ktr_vr_iglp";
 
@@ -590,7 +589,6 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                 });
             }
 
-            if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
                 bool need_perpixel_check = mask.IsEdgeTile(
                     seqlen_q_step, k_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
@@ -658,9 +656,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             }();
 
             // STAGE 3, P^T@OGrad^T Gemm1
-            Policy::template PTFromGemm0CToGemm1A<Problem,
-                                                  decltype(pt_reg_tensor),
-                                                  decltype(p_gemm)>(pt_reg_tensor, p_gemm);
+            Policy::template PTFromGemm0CToGemm1A<Problem>(pt_reg_tensor, p_gemm);
             gemm_1(dv_acc, pt_reg_tensor, dot_reg_tensor);
 
             auto qt_reg_tensor = load_tile(qt_lds_read_window);
@@ -732,9 +728,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             // STAGE 6, SGrad^T@Q^T Gemm3
             const auto ds_gemm = cast_tile<GemmDataType>(ds);
 
-            Policy::template SGradTFromGemm2CToGemm3A<Problem,
-                                                      decltype(dst_reg_tensor),
-                                                      decltype(ds_gemm)>(dst_reg_tensor, ds_gemm);
+            Policy::template SGradTFromGemm2CToGemm3A<Problem>(dst_reg_tensor, ds_gemm);
 
             gemm_3(dk_acc, dst_reg_tensor, qt_reg_tensor);
 
@@ -849,7 +843,6 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             });
         }
 
-        if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
         {
             bool need_perpixel_check = mask.IsEdgeTile(
                 seqlen_q_step, k_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});

@@ -6,6 +6,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 
 ### Added
 
+* Added a basic copy kernel example and supporting documentation for new CK Tile developers.
 * Added support for bf16, f32, and f16 for 2D and 3D NGCHW grouped convolution backward data
 * Added a fully asynchronous HOST (CPU) arguments copy flow for CK grouped GEMM kernels.
 * Added support GKCYX layout for grouped convolution forward (NGCHW/GKCYX/NGKHW, number of instances in instance factory for NGCHW/GKYXC/NGKHW has been reduced).
@@ -25,6 +26,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added rotating buffer feature for CK_Tile GEMM.
 * Added int8 support for CK_TILE GEMM.
 * Added support for elementwise kernel.
+* Added benchmarking support for tile engine GEMM Multi D.
 
 ### Optimized
 

@@ -41,10 +41,6 @@ CK_TILE_DEVICE int32x4_t make_wave_buffer_resource(const void* ptr, uint32_t siz
 {
     buffer_resource res{ptr, size, CK_TILE_BUFFER_RESOURCE_3RD_DWORD};
     int32x4_t r = __builtin_bit_cast(int32x4_t, res);
-    r.x         = __builtin_amdgcn_readfirstlane(r.x);
-    r.y         = __builtin_amdgcn_readfirstlane(r.y);
-    r.z         = __builtin_amdgcn_readfirstlane(r.z);
-    r.w         = __builtin_amdgcn_readfirstlane(r.w);
     return r;
 }
 
@@ -1318,6 +1314,17 @@ enum struct amd_buffer_coherence_enum
     glc               = 1,
     slc               = 2,
     glc_slc           = 3,
+    // gfx94: bit 0 = sc0, bit 1 = nt, bit 3 = swz, bit 4 = sc1
+    // SC[1:0] System Cache level: 0=wave, 1=group, 2=device, 3=system
+    // NT Non-Temporal: 0=expect temporal reuse; 1=do not expect temporal reuse
+    WAVE_NT0   = 0,
+    WAVE_NT1   = 2,
+    GROUP_NT0  = 1,
+    GROUP_NT1  = 3,
+    DEVICE_NT0 = 8,
+    DEVICE_NT1 = 10,
+    SYSTEM_NT0 = 9,
+    SYSTEM_NT1 = 11,
 };
 
 template <index_t N,
@@ -2754,57 +2761,9 @@ CK_TILE_DEVICE void amd_buffer_atomic_max(const thread_buffer<T, N>& src_thread_
 #endif
 }
 
-template <typename T, index_t NumElemsPerThread>
-CK_TILE_DEVICE void amd_direct_load_global_to_lds(const T* global_base_ptr,
-                                                  const index_t global_offset,
-                                                  T* lds_base_ptr,
-                                                  const index_t lds_offset,
-                                                  const bool is_valid,
-                                                  const index_t src_element_space_size)
-{
-    const uint32_t* global_ptr =
-        reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(global_base_ptr));
-    const int32x4_t src_resource =
-        make_wave_buffer_resource(global_ptr, src_element_space_size * sizeof(T));
-    const index_t global_offset_bytes = is_valid ? global_offset * sizeof(T) : 0x80000000;
-
-#if CK_TILE_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM
-    T* lds_ptr = lds_base_ptr + lds_offset;
-    auto const lds_ptr_sgpr =
-        __builtin_amdgcn_readfirstlane((reinterpret_cast<uintptr_t>(lds_ptr)));
-    asm volatile("s_mov_b32 m0, %0; \n\t"
-                 "buffer_load_dword %1, %2, 0 offen lds;\n\t" ::"s"(lds_ptr_sgpr),
-                 "v"(global_offset_bytes),
-                 "s"(src_resource)
-                 : "memory");
-#else
-    // Direct loads require that each thread reads and writes exactly a single DWORD.
-#if defined(__gfx9__)
-    constexpr auto bytes_per_thread = sizeof(T) * NumElemsPerThread;
-#endif
-    // Direct loads require that each thread reads and writes a multiple of DWORDs (4 bytes).
-    // For gfx950: supports 1, 3, or 4 DWORDs per thread
-    // For gfx942: supports exactly 1 DWORD per thread
-#if defined(__gfx950__)
-    constexpr auto dword_bytes = 4;
-    static_assert(bytes_per_thread == dword_bytes || bytes_per_thread == dword_bytes * 3 ||
-                  bytes_per_thread == dword_bytes * 4);
-#elif defined(__gfx9__)
-    constexpr auto dword_bytes = 4;
-    static_assert(bytes_per_thread == dword_bytes);
-#endif
-    // LDS pointer must be attributed with the LDS address space.
-    as3_uint32_ptr lds_ptr =
-        reinterpret_cast<as3_uint32_ptr>(reinterpret_cast<uintptr_t>(lds_base_ptr + lds_offset));
-
-    llvm_amdgcn_raw_buffer_load_lds(
-        src_resource, lds_ptr, bytes_per_thread, global_offset_bytes, 0, 0, 0);
-#endif
-}
-
 #if defined(__gfx950__)
 template <typename T, index_t N, address_space_enum BufferAddressSpace>
-__device__ auto amd_transpose_load_to_vgpr(const T* in_ptr)
+__device__ auto amd_transpose_load_to_vgpr(const T* __restrict__ in_ptr)
 {
 
     static_assert(__has_builtin(__builtin_amdgcn_raw_buffer_load_b32),
