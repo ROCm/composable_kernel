@@ -21,8 +21,14 @@ auto create_args(int argc, char* argv[])
         .insert("s",
                 "3328",
                 "seqlen_q. if group-mode, means the average value of seqlen_q\n"
-                "total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary")
-        .insert("s_k", "-1", "seqlen_k, -1 means equal to s")
+                "total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary\n"
+                "also with \"-s=s0,s1,s2...\" comma-separated ints to set seqlen per batch "
+                "(group mode)")
+        .insert("s_k",
+                "-1",
+                "seqlen_k, -1 means equal to s\n"
+                "also with \"-s_k=s0,s1,s2...\" comma-separated ints to set seqlen per batch "
+                "(group mode)")
         .insert("d", "128", "head dim for q, k")
         .insert("d_v", "-1", "head dim for v, -1 means equal to d")
         .insert("scale", "0", "scale factor. 0 means equal to 1/sqrt(hdim)")
@@ -81,30 +87,30 @@ auto create_args(int argc, char* argv[])
 template <typename DataTypeConfig>
 auto run(const ck_tile::ArgParser& arg_parser)
 {
-    std::string data_type     = arg_parser.get_str("prec");
-    int do_validation         = arg_parser.get_int("v");
-    mode_enum mode            = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
-    ck_tile::index_t batch    = arg_parser.get_int("b");
-    ck_tile::index_t nhead    = arg_parser.get_int("h");
-    ck_tile::index_t nhead_k  = arg_parser.get_int("h_k");
-    ck_tile::index_t seqlen_q = arg_parser.get_int("s");
-    ck_tile::index_t seqlen_k = arg_parser.get_int("s_k");
-    ck_tile::index_t hdim_q   = arg_parser.get_int("d");
-    ck_tile::index_t hdim_v   = arg_parser.get_int("d_v");
-    bool i_perm               = arg_parser.get_bool("iperm");
-    bool o_perm               = arg_parser.get_bool("operm");
-    float scale               = arg_parser.get_float("scale");
-    bool use_dbias            = arg_parser.get_bool("dbias");
-    float p_drop              = arg_parser.get_float("p_drop");
-    uint64_t drop_seed        = arg_parser.get_uint64("drop_seed");
-    uint64_t drop_offset      = arg_parser.get_uint64("drop_offset");
-    bool drop_prefs           = arg_parser.get_bool("drop_prefs");
-    bool deterministic        = arg_parser.get_bool("deterministic");
-    std::string init_method   = arg_parser.get_str("init");
-    uint32_t seed             = arg_parser.get_uint32("seed");
+    std::string data_type    = arg_parser.get_str("prec");
+    int do_validation        = arg_parser.get_int("v");
+    mode_enum mode           = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
+    ck_tile::index_t batch   = arg_parser.get_int("b");
+    ck_tile::index_t nhead   = arg_parser.get_int("h");
+    ck_tile::index_t nhead_k = arg_parser.get_int("h_k");
+    auto seqlen_qs           = arg_parser.get_int_vec("s");
+    auto seqlen_ks           = arg_parser.get_int_vec("s_k");
+    ck_tile::index_t hdim_q  = arg_parser.get_int("d");
+    ck_tile::index_t hdim_v  = arg_parser.get_int("d_v");
+    bool i_perm              = arg_parser.get_bool("iperm");
+    bool o_perm              = arg_parser.get_bool("operm");
+    float scale              = arg_parser.get_float("scale");
+    bool use_dbias           = arg_parser.get_bool("dbias");
+    float p_drop             = arg_parser.get_float("p_drop");
+    uint64_t drop_seed       = arg_parser.get_uint64("drop_seed");
+    uint64_t drop_offset     = arg_parser.get_uint64("drop_offset");
+    bool drop_prefs          = arg_parser.get_bool("drop_prefs");
+    std::string mask_str     = arg_parser.get_str("mask");
+    bool deterministic       = arg_parser.get_bool("deterministic");
+    std::string init_method  = arg_parser.get_str("init");
+    uint32_t seed            = arg_parser.get_uint32("seed");
 
     bias_info bias = bias_info::decode(arg_parser.get_str("bias"));
-    mask_info mask = mask_info::decode(arg_parser.get_str("mask"), seqlen_q, seqlen_k);
 
     ck_tile::stream_config stream_config{nullptr,
                                          true,
@@ -117,8 +123,8 @@ auto run(const ck_tile::ArgParser& arg_parser)
                                         batch,
                                         nhead,
                                         nhead_k,
-                                        seqlen_q,
-                                        seqlen_k,
+                                        seqlen_qs,
+                                        seqlen_ks,
                                         hdim_q,
                                         hdim_v,
                                         i_perm,
@@ -130,7 +136,7 @@ auto run(const ck_tile::ArgParser& arg_parser)
                                         drop_seed,
                                         drop_offset,
                                         drop_prefs,
-                                        mask,
+                                        mask_str,
                                         deterministic,
                                         init_method,
                                         seed,

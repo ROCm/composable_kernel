@@ -95,39 +95,38 @@ TEST_P(AllLong, Test)
                                                batch,
                                                nhead,
                                                nhead_k,
-                                               std::to_string(seqlen_q),    // seqlen_q_str
-                                               seqlen_q,                    // seqlen_q
-                                               std::to_string(seqlen_k),    // seqlen_k_str
-                                               hdim_q,                      // hdim_q
-                                               hdim_v,                      // hdim_v
-                                               0,                           // seqlen_knew
-                                               std::to_string(seqlen_kpad), // seqlen_kpad_str
-                                               0,                           // rotary_dim
-                                               perm,                        // i_perm
-                                               perm,                        // o_perm
-                                               0,                           // scale_s
-                                               0,                           // logits_soft_cap
-                                               is_v_rowmajor,               // is_v_rowmajor
-                                               lse,                         // lse
-                                               0,                           // page_block_size
-                                               false,                       // use_cache_batch_idx
-                                               bias,                        // bias
-                                               p_drop,                      // p_drop
-                                               123,                         // drop_seed
-                                               1024,                        // drop_offset
-                                               false,                       // drop_prefs
-                                               mask_str,                    // mask_str
-                                               16,                          // range_q
-                                               16,                          // range_k
-                                               16,                          // range_v
-                                               1,                           // range_p
-                                               16,                          // range_o
-                                               squant,                      // squant
-                                               true,                        // is_rotary_interleaved
-                                               1,                           // num_splits
-                                               squant ? "ufq" : "uf",       // init_method
-                                               5675,                        // seed
-                                               1,                           // do_validation
-                                               stream_config);              // stream_config)
+                                               {seqlen_q},            // seqlen_qs
+                                               {seqlen_k},            // seqlen_ks
+                                               hdim_q,                // hdim_q
+                                               hdim_v,                // hdim_v
+                                               0,                     // seqlen_knew
+                                               {seqlen_kpad},         // seqlen_kpads
+                                               0,                     // rotary_dim
+                                               perm,                  // i_perm
+                                               perm,                  // o_perm
+                                               0,                     // scale_s
+                                               0,                     // logits_soft_cap
+                                               is_v_rowmajor,         // is_v_rowmajor
+                                               lse,                   // lse
+                                               0,                     // page_block_size
+                                               false,                 // use_cache_batch_idx
+                                               bias,                  // bias
+                                               p_drop,                // p_drop
+                                               123,                   // drop_seed
+                                               1024,                  // drop_offset
+                                               false,                 // drop_prefs
+                                               mask_str,              // mask_str
+                                               16,                    // range_q
+                                               16,                    // range_k
+                                               16,                    // range_v
+                                               1,                     // range_p
+                                               16,                    // range_o
+                                               squant,                // squant
+                                               true,                  // is_rotary_interleaved
+                                               1,                     // num_splits
+                                               squant ? "ufq" : "uf", // init_method
+                                               5675,                  // seed
+                                               1,                     // do_validation
+                                               stream_config);        // stream_config)
     CHECK_RESULT(result);
 }

@@ -76,14 +76,13 @@ TEST_P(AllLong, Test)
     auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str] = dims_mask;
 
     auto bias = bias_info::decode(bias_str);
-    auto mask = mask_info::decode(mask_str, seqlen_q, seqlen_k);
 
     auto result = fmha_bwd_run<DataTypeConfig>(mode,
                                                batch,
                                                nhead,
                                                nhead_k,
-                                               seqlen_q,
-                                               seqlen_k,
+                                               {seqlen_q},
+                                               {seqlen_k},
                                                hdim,           // hdim_q
                                                hdim,           // hdim_v
                                                perm,           // i_perm
@@ -95,7 +94,7 @@ TEST_P(AllLong, Test)
                                                123,            // drop_seed
                                                1024,           // drop_offset
                                                true,           // drop_prefs
-                                               mask,           // mask
+                                               mask_str,       // mask_str
                                                false,          // deterministic
                                                "uf",           // init_method
                                                67889,          // seed
@@ -132,14 +131,13 @@ TEST_P(HDims, Test)
     auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str] = dims_mask;
 
     auto bias = bias_info::decode("n");
-    auto mask = mask_info::decode(mask_str, seqlen_q, seqlen_k);
 
     auto result = fmha_bwd_run<DataTypeConfig>(mode,
                                                batch,
                                                nhead,
                                                nhead_k,
-                                               seqlen_q,
-                                               seqlen_k,
+                                               {seqlen_q},
+                                               {seqlen_k},
                                                hdim_q,         // hdim_q
                                                hdim_v,         // hdim_v
                                                perm,           // i_perm
@@ -151,7 +149,7 @@ TEST_P(HDims, Test)
                                                0,              // drop_seed
                                                0,              // drop_offset
                                                false,          // drop_prefs
-                                               mask,           // mask
+                                               mask_str,       // mask_str
                                                false,          // deterministic
                                                "uf",           // init_method
                                                345352,         // seed
@@ -187,14 +185,13 @@ TEST_P(ElementwiseBias, Test)
     auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str] = dims_mask;
 
     auto bias = bias_info::decode(bias_str);
-    auto mask = mask_info::decode(mask_str, seqlen_q, seqlen_k);
 
     auto result = fmha_bwd_run<DataTypeConfig>(mode,
                                                batch,
                                                nhead,
                                                nhead_k,
-                                               seqlen_q,
-                                               seqlen_k,
+                                               {seqlen_q},
+                                               {seqlen_k},
                                                hdim,           // hdim_q
                                                hdim,           // hdim_v
                                                i_perm,         // i_perm
@@ -206,7 +203,7 @@ TEST_P(ElementwiseBias, Test)
                                                123,            // drop_seed
                                                1024,           // drop_offset
                                                true,           // drop_prefs
-                                               mask,           // mask
+                                               mask_str,       // mask_str
                                                false,          // deterministic
                                                "uf",           // init_method
                                                45645645,       // seed
@@ -237,14 +234,13 @@ TEST_P(Alibi, Test)
     auto [batch, nhead, nhead_k, seqlen_q, seqlen_k] = dims;
 
     auto bias = bias_info::decode(bias_str);
-    auto mask = mask_info::decode(mask_str, seqlen_q, seqlen_k);
 
     auto result = fmha_bwd_run<DataTypeConfig>(mode,
                                                batch,
                                                nhead,
                                                nhead_k,
-                                               seqlen_q,
-                                               seqlen_k,
+                                               {seqlen_q},
+                                               {seqlen_k},
                                                hdim,           // hdim_q
                                                hdim,           // hdim_v
                                                true,           // i_perm
@@ -256,7 +252,7 @@ TEST_P(Alibi, Test)
                                                0,              // drop_seed
                                                0,              // drop_offset
                                                false,          // drop_prefs
-                                               mask,           // mask
+                                               mask_str,       // mask_str
                                                false,          // deterministic
                                                "uf",           // init_method
                                                45645645,       // seed
@@ -291,14 +287,13 @@ TEST_P(Dropout, Test)
     auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str]   = dims_mask;
 
     auto bias = bias_info::decode("n");
-    auto mask = mask_info::decode(mask_str, seqlen_q, seqlen_k);
 
     auto result = fmha_bwd_run<DataTypeConfig>(mode,
                                                batch,
                                                nhead,
                                                nhead_k,
-                                               seqlen_q,
-                                               seqlen_k,
+                                               {seqlen_q},
+                                               {seqlen_k},
                                                hdim,           // hdim_q
                                                hdim,           // hdim_v
                                                true,           // i_perm
@@ -310,7 +305,7 @@ TEST_P(Dropout, Test)
                                                drop_seed,      // drop_seed
                                                drop_offset,    // drop_offset
                                                drop_prefs,     // drop_prefs
-                                               mask,           // mask
+                                               mask_str,       // mask_str
                                                false,          // deterministic
                                                "uf",           // init_method
                                                888444,         // seed

@@ -135,13 +135,12 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         ck_tile::index_t batch,
                         ck_tile::index_t nhead,
                         ck_tile::index_t nhead_k,
-                        std::string seqlen_q_str,
-                        ck_tile::index_t seqlen_q,
-                        std::string seqlen_k_str,
+                        std::vector<ck_tile::index_t> seqlen_qs,
+                        std::vector<ck_tile::index_t> seqlen_ks,
                         ck_tile::index_t hdim_q,
                         ck_tile::index_t hdim_v,
                         ck_tile::index_t seqlen_knew,
-                        std::string seqlen_kpad_str,
+                        std::vector<ck_tile::index_t> seqlen_kpads,
                         ck_tile::index_t rotary_dim,
                         bool i_perm,
                         bool o_perm,
@@ -185,7 +184,6 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
     if(nhead_k < 0)
         nhead_k = nhead;
-
     if(nhead % nhead_k != 0)
     {
         std::cerr << "nhead:" << nhead << " must be multiple of nhead_k:" << nhead_k << std::endl;
@@ -208,7 +206,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
 #endif
     if(seqlen_knew < 0)
     {
-        seqlen_knew = randint<ck_tile::index_t>(1, seqlen_q, random_engine);
+        seqlen_knew = randint<ck_tile::index_t>(1, seqlen_qs[0], random_engine);
     }
 
     if constexpr(!(std::is_same_v<DataTypeConfig, FmhaFwdFp16> ||
@@ -290,15 +288,23 @@ fwd_result fmha_fwd_run(mode_enum mode,
 #endif
     const bool use_kvcache = (need_append_kvcache || use_cache_batch_idx || 0 < page_block_size);
 
-    auto [seqlen_qs, seqlen_ks, seqlen_kpads] =
-        decode_seqlen(mode,
-                      batch,
-                      seqlen_q_str,
-                      seqlen_k_str,
-                      seqlen_kpad_str,
-                      /*seqlen_k_min=*/0 < seqlen_knew ? seqlen_knew : 0,
-                      need_append_kvcache,
-                      random_engine);
+    std::tie(seqlen_qs, seqlen_ks, seqlen_kpads) =
+        generate_missing_seqlens(mode,
+                                 batch,
+                                 seqlen_qs,
+                                 seqlen_ks,
+                                 seqlen_kpads,
+                                 /*seqlen_k_min=*/0 < seqlen_knew ? seqlen_knew : 0,
+                                 need_append_kvcache,
+                                 random_engine);
+    for(ck_tile::index_t wb = 0; wb < batch; ++wb)
+    {
+        if(seqlen_kpads[wb] > 0 && seqlen_kpads[wb] < seqlen_ks[wb])
+        {
+            std::cerr << "kpad must be greater than or equal to seqlen for k" << std::endl;
+            return fwd_result::invalid_args;
+        }
+    }
     // compute kvcache seqlen_k (before appending knew/vnew)
     auto cache_seqlen_ks = seqlen_ks;
     std::transform(cache_seqlen_ks.begin(),
@@ -307,11 +313,10 @@ fwd_result fmha_fwd_run(mode_enum mode,
                    [&](auto seqlen_k) { return seqlen_k - seqlen_knew; });
 
 #if 0
-    // clang-format off
-    std::cout << "seqlen_qs:"; for(auto xx : seqlen_qs) { std::cout << xx << ","; } std::cout << std::endl;
-    std::cout << "seqlen_ks:"; for(auto xx : seqlen_ks) { std::cout << xx << ","; } std::cout << std::endl;
-    std::cout << "seqlen_kpads:"; for(auto xx : seqlen_kpads) { std::cout << xx << ","; } std::cout << std::endl;
-    // clang-format on
+    std::cout << "seqlen_qs: " << seqlen_qs << std::endl;
+    std::cout << "seqlen_ks: " << seqlen_ks << std::endl;
+    std::cout << "seqlen_kpads: " << seqlen_kpads << std::endl;
+    std::cout << "cache_seqlen_ks: " << cache_seqlen_ks << std::endl;
 #endif
 
     if(scale_s == .0f)
@@ -327,7 +332,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
     }
 
     bool s_randval = false;
-    if(p_drop > 0.0f && do_validation != 0)
+    if(p_drop > 0.0f && do_validation)
     {
         s_randval = true;
     }

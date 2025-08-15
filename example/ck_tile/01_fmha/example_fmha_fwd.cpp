@@ -18,13 +18,17 @@ auto create_args(int argc, char* argv[])
                 "-1",
                 "num of head, for k/v, -1 means equal to h\n"
                 "if not equal to h, then this is GQA/MQA case")
-        .insert(
-            "s",
-            "3328",
-            "seqlen_q. if group-mode, means the average value of seqlen_q\n"
-            "total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary\n"
-            "also with \"-s=s0,s1,s2...\" comma-separated ints to set per batch seqlen(group-mode)")
-        .insert("s_k", "-1", "seqlen_k (including new key/value), -1 means equal to s")
+        .insert("s",
+                "3328",
+                "seqlen_q. if group-mode, means the average value of seqlen_q\n"
+                "total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary\n"
+                "also with \"-s=s0,s1,s2...\" comma-separated ints to set seqlen per batch "
+                "(group mode)")
+        .insert("s_k",
+                "-1",
+                "seqlen_k (including new key/value), -1 means equal to s\n"
+                "also with \"-s_k=s0,s1,s2...\" comma-separated ints to set seqlen per batch "
+                "(group mode)")
         .insert("s_knew",
                 "0",
                 "seqlen_k for new key/value, 0 means not to use this at all; "
@@ -33,7 +37,8 @@ auto create_args(int argc, char* argv[])
                 "-1",
                 "seqlen_k stride between 2 batches, currently used in group-mode only\n"
                 "for kv-cache case, each batch [1,s,h,d]/[1,h,s,d] can have a stride\n"
-                "along seqlen, instead of packed. same as xformer kv_padding")
+                "along seqlen, instead of packed, same as xformer kv_padding,\n"
+                "must be greater than or equal to s_k")
         .insert("d", "128", "head dim for q, k")
         .insert("d_v", "-1", "head dim for v, -1 means equal to d")
         .insert("scale_s",
@@ -115,19 +120,17 @@ auto create_args(int argc, char* argv[])
 template <typename DataTypeConfig>
 auto run(const ck_tile::ArgParser& arg_parser)
 {
-    std::string data_type            = arg_parser.get_str("prec");
     int do_validation                = arg_parser.get_int("v");
     mode_enum mode                   = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
     ck_tile::index_t batch           = arg_parser.get_int("b");
     ck_tile::index_t nhead           = arg_parser.get_int("h");
     ck_tile::index_t nhead_k         = arg_parser.get_int("h_k");
-    std::string seqlen_q_str         = arg_parser.get_str("s");
-    ck_tile::index_t seqlen_q        = arg_parser.get_int("s");
-    std::string seqlen_k_str         = arg_parser.get_str("s_k");
+    auto seqlen_qs                   = arg_parser.get_int_vec("s");
+    auto seqlen_ks                   = arg_parser.get_int_vec("s_k");
     ck_tile::index_t hdim_q          = arg_parser.get_int("d");
     ck_tile::index_t hdim_v          = arg_parser.get_int("d_v");
     ck_tile::index_t seqlen_knew     = arg_parser.get_int("s_knew");
-    std::string seqlen_kpad_str      = arg_parser.get_str("s_kpad");
+    auto seqlen_kpads                = arg_parser.get_int_vec("s_kpad");
     ck_tile::index_t rotary_dim      = arg_parser.get_int("rotary_dim");
     bool i_perm                      = arg_parser.get_bool("iperm");
     bool o_perm                      = arg_parser.get_bool("operm");
@@ -172,13 +175,12 @@ auto run(const ck_tile::ArgParser& arg_parser)
                                         batch,
                                         nhead,
                                         nhead_k,
-                                        seqlen_q_str,
-                                        seqlen_q,
-                                        seqlen_k_str,
+                                        seqlen_qs,
+                                        seqlen_ks,
                                         hdim_q,
                                         hdim_v,
                                         seqlen_knew,
-                                        seqlen_kpad_str,
+                                        seqlen_kpads,
                                         rotary_dim,
                                         i_perm,
                                         o_perm,

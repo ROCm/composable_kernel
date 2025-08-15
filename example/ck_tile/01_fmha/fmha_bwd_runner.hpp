@@ -55,8 +55,8 @@ bwd_result fmha_bwd_run(mode_enum mode,
                         ck_tile::index_t batch,
                         ck_tile::index_t nhead,
                         ck_tile::index_t nhead_k,
-                        ck_tile::index_t seqlen_q,
-                        ck_tile::index_t seqlen_k,
+                        std::vector<ck_tile::index_t> seqlen_qs,
+                        std::vector<ck_tile::index_t> seqlen_ks,
                         ck_tile::index_t hdim_q,
                         ck_tile::index_t hdim_v,
                         bool i_perm,
@@ -68,7 +68,7 @@ bwd_result fmha_bwd_run(mode_enum mode,
                         uint64_t drop_seed,
                         uint64_t drop_offset,
                         bool drop_prefs,
-                        const mask_info& mask,
+                        std::string mask_str,
                         bool deterministic,
                         std::string init_method,
                         uint32_t seed,
@@ -91,8 +91,10 @@ bwd_result fmha_bwd_run(mode_enum mode,
         std::cerr << "nhead:" << nhead << " must be multiple of nhead_k:" << nhead_k << std::endl;
         return bwd_result::invalid_args;
     }
-    if(seqlen_k < 0)
-        seqlen_k = seqlen_q;
+
+    std::mt19937 random_engine(seed != 0 ? seed : std::random_device{}());
+    auto next_seed = [&random_engine]() { return static_cast<unsigned int>(random_engine()); };
+
     if(hdim_v < 0)
         hdim_v = hdim_q;
 
@@ -104,6 +106,16 @@ bwd_result fmha_bwd_run(mode_enum mode,
         std::cerr << "dbias only exists when bias type is elementwise" << std::endl;
         return bwd_result::invalid_args;
     }
+    std::vector<ck_tile::index_t> seqlen_kpads;
+    std::tie(seqlen_qs, seqlen_ks, seqlen_kpads) =
+        generate_missing_seqlens(mode, batch, seqlen_qs, seqlen_ks, {}, 0, false, random_engine);
+    ck_tile::ignore = seqlen_kpads;
+#if 0
+    std::cout << "seqlen_qs: " << seqlen_qs << std::endl;
+    std::cout << "seqlen_ks: " << seqlen_ks << std::endl;
+#endif
+
+    mask_info mask = mask_info::decode(mask_str, seqlen_qs[0], seqlen_ks[0]);
 
     if(p_drop < 0.0f || p_drop > 1.0f)
     {
@@ -121,11 +133,8 @@ bwd_result fmha_bwd_run(mode_enum mode,
         s_randval = true;
     }
 
-    std::mt19937 random_engine(seed != 0 ? seed : std::random_device{}());
-    auto next_seed = [&random_engine]() { return static_cast<unsigned int>(random_engine()); };
-
-    const auto seqstart_q_host = generate_seqstarts(mode, batch, seqlen_q, random_engine);
-    const auto seqstart_k_host = generate_seqstarts(mode, batch, seqlen_k, random_engine);
+    const auto seqstart_q_host = to_seqstarts(seqlen_qs);
+    const auto seqstart_k_host = to_seqstarts(seqlen_ks);
 
     using TypeConfig = FmhaBwdTypeConfig<DataTypeConfig>;
 
@@ -198,9 +207,9 @@ bwd_result fmha_bwd_run(mode_enum mode,
     // host memory for storing all the tensor elements
     const ck_tile::index_t shape_batch = (mode == mode_enum::batch ? batch : 1);
     const ck_tile::index_t shape_seqlen_q =
-        (mode == mode_enum::batch ? seqlen_q : seqstart_q_host.back());
+        (mode == mode_enum::batch ? seqlen_qs[0] : seqstart_q_host.back());
     const ck_tile::index_t shape_seqlen_k =
-        (mode == mode_enum::batch ? seqlen_k : seqstart_k_host.back());
+        (mode == mode_enum::batch ? seqlen_ks[0] : seqstart_k_host.back());
     const ck_tile::index_t kN0 = (hdim_q <= 128) ? 128 : 64;
     const ck_tile::index_t nsplits =
         deterministic ? ck_tile::integer_divide_ceil(max_seqlen_k, kN0) : 1;
@@ -340,8 +349,8 @@ bwd_result fmha_bwd_run(mode_enum mode,
     // clang-format on
 
     std::cout << "[" << data_type << "|" << mode << "|" << io_layout(i_perm, o_perm)
-              << "] b:" << batch << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_q << "/"
-              << seqlen_k << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale
+              << "] b:" << batch << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_qs[0]
+              << "/" << seqlen_ks[0] << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale
               << ", bias:" << bias << ", dbias:" << use_dbias << ", p_drop:" << p_drop
               << ", s_randval:" << s_randval << ", deterministic:" << deterministic
               << ", mask:" << mask << std::flush;
