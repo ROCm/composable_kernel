@@ -1108,11 +1108,12 @@ pipeline {
                     agent{ label rocmnode("gfx90a")}
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_args = """ cd ../test_data && \
-                                           ./generate_test_dataset.sh && \
-                                           cd ../build && \
+                        execute_args = """ cd ../build && \
                                            ../script/cmake-ck-dev.sh  ../ gfx90a && \
                                            make -j64 test_grouped_convnd_fwd_dataset_xdl && \
+                                           cd ../test_data && \
+                                           ./generate_test_dataset.sh && \
+                                           cd ../build && \
                                            ./bin/test_grouped_convnd_fwd_dataset_xdl"""
                     }
                     steps{
