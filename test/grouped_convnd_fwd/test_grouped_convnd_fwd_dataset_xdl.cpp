@@ -253,6 +253,19 @@ TYPED_TEST(TestGroupedConvndFwd2d, Test2D)
     std::cout << "\nChecking CSV file contents:" << std::endl;
     system("wc -l ../test_data/*.csv 2>&1");
 
+    // Debug: Check generated_datasets directory
+    std::cout << "\nChecking generated_datasets directory:" << std::endl;
+    system("ls -la ../test_data/generated_datasets/ 2>&1 | head -20");
+
+    // Debug: Check CSV files in generated_datasets with line counts
+    std::cout << "\nCSV files in generated_datasets with line counts:" << std::endl;
+    system("for f in ../test_data/generated_datasets/*.csv; do echo \"$f: $(wc -l < \"$f\") "
+           "lines\"; done 2>&1 | head -30");
+
+    // Debug: Show first 5 lines of main CSV to see what's there
+    std::cout << "\nFirst 5 lines of conv_test_set_2d_dataset.csv:" << std::endl;
+    system("head -5 ../test_data/conv_test_set_2d_dataset.csv 2>&1");
+
     // LOAD TEST CASES FROM CSV FILE instead of hardcoded cases
     // Try different locations for the CSV file (build directory vs source directory)
     std::vector<std::string> csv_paths = {
@@ -314,6 +327,19 @@ TYPED_TEST(TestGroupedConvndFwd3d, Test3D)
     system("ls -la ../test_data/*.csv 2>&1 | head -10");
     std::cout << "\nChecking CSV file contents:" << std::endl;
     system("wc -l ../test_data/*.csv 2>&1");
+
+    // Debug: Check generated_datasets directory
+    std::cout << "\nChecking generated_datasets directory:" << std::endl;
+    system("ls -la ../test_data/generated_datasets/ 2>&1 | head -20");
+
+    // Debug: Check CSV files in generated_datasets with line counts
+    std::cout << "\nCSV files in generated_datasets with line counts:" << std::endl;
+    system("for f in ../test_data/generated_datasets/*.csv; do echo \"$f: $(wc -l < \"$f\") "
+           "lines\"; done 2>&1 | head -30");
+
+    // Debug: Show first 5 lines of main CSV to see what's there
+    std::cout << "\nFirst 5 lines of conv_test_set_2d_dataset.csv:" << std::endl;
+    system("head -5 ../test_data/conv_test_set_2d_dataset.csv 2>&1");
 
     // LOAD TEST CASES FROM CSV FILE instead of hardcoded cases
     // Try different locations for the CSV file (build directory vs source directory)
