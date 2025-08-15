@@ -135,8 +135,8 @@ int main(int argc, char* argv[])
 
     const ck_tile::index_t Lda = K;
     const ck_tile::index_t Ldb = K;
-    // const ck_tile::index_t Ldc = N;
-    const ck_tile::index_t Ldout = topk;
+    // const ck_tile::index_t Ldout = topk;
+    const ck_tile::index_t Ldout = N;
 
     const auto a_lengths = std::array<ck_tile::index_t, 2>{M, K};
     const auto a_strides = std::array<ck_tile::index_t, 2>{Lda, 1};
@@ -179,7 +179,7 @@ int main(int argc, char* argv[])
     constexpr ck_tile::index_t kGemmKPerBlock = 16;
 #endif
     constexpr ck_tile::index_t kGemmNPerBlock = 256;
-    constexpr ck_tile::index_t kGemmTopKPerBlock = 8;
+    constexpr ck_tile::index_t kGemmTopKPerBlock = 16;
 
     ck_tile::index_t kGridSize = (M / kGemmMPerBlock) * (N / kGemmNPerBlock);
 
@@ -205,7 +205,7 @@ int main(int argc, char* argv[])
                                       kGemmKPerBlock,
                                       kGemmTopKPerBlock>;
 
-    float ave_time = ck_tile::launch_kernel(ck_tile::stream_config{nullptr, true, 0, 0, 1},
+    float ave_time = ck_tile::launch_kernel(ck_tile::stream_config{nullptr, true, 0, 5, 1000},
                                             ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
                                                 gemm_kernel{},
                                                 kGridSize,
@@ -251,14 +251,14 @@ int main(int argc, char* argv[])
                                       rtol,
                                       atol);
 
-            // auto s_index_host  = index_host_dev.slice(s_begin, s_end);
-            // auto s_index_ref  = index_ref.slice(s_begin, s_end);
-            // rtn &= ck_tile::check_err(s_index_host,
-            //                           s_index_ref,
-            //                           std::string("[") + std::to_string(i_t) +
-            //                               std::string("] Index Error:"),
-            //                           rtol,
-            //                           atol);
+            auto s_index_host  = index_host_dev.slice(s_begin, s_end);
+            auto s_index_ref  = index_ref.slice(s_begin, s_end);
+            rtn &= ck_tile::check_err(s_index_host,
+                                      s_index_ref,
+                                      std::string("[") + std::to_string(i_t) +
+                                          std::string("] Index Error:"),
+                                      rtol,
+                                      atol);
 
             // printf("row [%d]\n", i_t);
             // for(std::size_t i = 0; i < s_debug_ref.size(); ++i) {

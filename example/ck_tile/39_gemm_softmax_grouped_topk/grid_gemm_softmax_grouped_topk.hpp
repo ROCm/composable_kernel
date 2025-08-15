@@ -64,16 +64,16 @@ struct GridGemm
         // store value and index window
         auto value_window = make_tile_window(
             value_grid, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {iM, iN});
-        // auto index_window = make_tile_window(
-        //     index_grid, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {iM, iN});
+        auto index_window = make_tile_window(
+            index_grid, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {iM, iN});
 
-        // create tile_distribution for value and index window
-        constexpr index_t K1 = 16 / sizeof(WeightType);
-        constexpr index_t K0 = topk / K1;
-        constexpr index_t M2 = get_warp_size() / K0;
-        // coalesce reading for each blocks
-        constexpr index_t M1 = kBlockSize / get_warp_size();
-        constexpr index_t M0 = kMPerBlock / (M2 * M1);
+        // // create tile_distribution for value and index window
+        // constexpr index_t K1 = 16 / sizeof(WeightType);
+        // constexpr index_t K0 = topk / K1;
+        // constexpr index_t M2 = get_warp_size() / K0;
+        // // coalesce reading for each blocks
+        // constexpr index_t M1 = kBlockSize / get_warp_size();
+        // constexpr index_t M0 = kMPerBlock / (M2 * M1);
 
         // auto value_window = make_tile_window(
         //     value_grid, make_tuple(number<kMPerBlock>{}, number<topk>{}), {iM, iN},
@@ -84,43 +84,43 @@ struct GridGemm
         //                             tuple<sequence<1>, sequence<2, 0>>,
         //                             sequence<1, 2>,
         //                             sequence<0, 1>>{}));
-        auto index_window = make_tile_window(
-            index_grid, make_tuple(number<kMPerBlock>{}, number<topk>{}), {iM, iN},
-            make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,
-                                    tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
-                                    tuple<sequence<1>, sequence<1, 2>>,
-                                    tuple<sequence<1>, sequence<2, 0>>,
-                                    sequence<1, 2>,
-                                    sequence<0, 1>>{}));
+        // auto index_window = make_tile_window(
+        //     index_grid, make_tuple(number<kMPerBlock>{}, number<topk>{}), {iM, iN},
+        //     make_static_tile_distribution(
+        //     tile_distribution_encoding<sequence<1>,
+        //                             tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
+        //                             tuple<sequence<1>, sequence<1, 2>>,
+        //                             tuple<sequence<1>, sequence<2, 0>>,
+        //                             sequence<1, 2>,
+        //                             sequence<0, 1>>{}));
 
         // using ValueBlockTileDistr = decltype(value_window.get_tile_distribution());
-        using IndexBlockTileDistr = decltype(index_window.get_tile_distribution());
+        // using IndexBlockTileDistr = decltype(index_window.get_tile_distribution());
 
         // using ValueBlockTile = decltype(make_static_distributed_tensor<WeightType>(ValueBlockTileDistr{}));
-        using IndexBlockTile = decltype(make_static_distributed_tensor<IndexType>(IndexBlockTileDistr{}));
+        // using IndexBlockTile = decltype(make_static_distributed_tensor<IndexType>(IndexBlockTileDistr{}));
 
         // ValueBlockTile value_block_tile;
-        IndexBlockTile index_block_tile;
+        // IndexBlockTile index_block_tile;
 
         // Initialize value_block_tile and index_block_tile
         // tile_elementwise_inout([](auto& value) { value = 0; }, value_block_tile);
-        tile_elementwise_inout([](auto& index) { index = 0; }, index_block_tile);
+        // tile_elementwise_inout([](auto& index) { index = 0; }, index_block_tile);
 
-        // block_gemm_pipeline(a_block_window, b_block_window, value_window, index_window, K / kKPerBlock, p_smem_char, c_element_func);
-        const auto value_block_tile = block_gemm_pipeline(a_block_window, b_block_window, K / kKPerBlock, p_smem_char);
+        block_gemm_pipeline(a_block_window, b_block_window, value_window, index_window, c_element_func, K / kKPerBlock, p_smem_char);
+        // const auto value_block_tile = block_gemm_pipeline(a_block_window, b_block_window, K / kKPerBlock, p_smem_char);
 
-        // cast DataType and apply CElementFunction
-        const auto value_cast_block_tile = tile_elementwise_in(
-            [&](const auto& value) { return c_element_func(type_convert<WeightType>(value)); },
-            value_block_tile);
+        // // cast DataType and apply CElementFunction
+        // const auto value_cast_block_tile = tile_elementwise_in(
+        //     [&](const auto& value) { return c_element_func(type_convert<WeightType>(value)); },
+        //     value_block_tile);
 
-        const auto index_cast_block_tile = tile_elementwise_in(
-            [&](const auto& index) { return c_element_func(type_convert<IndexType>(index)); },
-            index_block_tile);
+        // const auto index_cast_block_tile = tile_elementwise_in(
+        //     [&](const auto& index) { return c_element_func(type_convert<IndexType>(index)); },
+        //     index_block_tile);
 
-        store_tile(value_window, value_cast_block_tile);
-        store_tile(index_window, index_cast_block_tile);
+        // store_tile(value_window, value_cast_block_tile);
+        // store_tile(index_window, index_cast_block_tile);
     }
 };
 

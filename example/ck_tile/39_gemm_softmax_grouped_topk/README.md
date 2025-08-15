@@ -31,7 +31,7 @@ make -j128 tile_example_basic_gemm_softmax_grouped_topk
 
 ### **GEMM Softmax Example**
 ```sh
-./bin/tile_example_basic_gemm_softmax_grouped_topk 1 4096 256 7168 16
+./bin/tile_example_basic_gemm_softmax_grouped_topk 1 4096 256 7168 8
 ```
 
 ## Advanced part

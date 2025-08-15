@@ -210,13 +210,13 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
     }
 #endif
 
-    template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp>
-    // template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp, typename ValueBlockWindow, typename IndexBlockWindow, typename CElementFunction>
-    CK_TILE_HOST_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+    // template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp>
+    template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp, typename ValueBlockWindow, typename IndexBlockWindow, typename CElementFunction>
+    CK_TILE_HOST_DEVICE void operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                         const BDramBlockWindowTmp& b_dram_block_window_tmp,
-                                        // ValueBlockWindow& value_window,
-                                        // IndexBlockWindow& index_window,
-                                        // const CElementFunction& c_element_func,
+                                        ValueBlockWindow& value_window,
+                                        IndexBlockWindow& index_window,
+                                        const CElementFunction& c_element_func,
                                         index_t num_loop,
                                         void* p_smem) const
     {
@@ -427,18 +427,18 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
 #endif
 
         // -------------------------------------------------------------------------------------
-        // softmax part
+        // Softmax part
         // reduction function for softmax
         const auto f_max = [](auto e0, auto e1) { return max(e0, e1); };
         const auto f_sum = [](auto e0, auto e1) { return e0 + e1; };
 
-        // m_local = rowmax(c_block_tile)
+        // Step1. m_local = rowmax(c_block_tile)
         auto m_local = block_tile_reduce<ComputeDataType>(
             c_block_tile, sequence<1>{}, f_max, std::numeric_limits<ComputeDataType>::lowest());
         
         block_tile_reduce_sync(m_local, f_max);
 
-        // Pcompute{j} = sum(exp(x - m_local))
+        // Step2. Pcompute{j} = sum(exp(x - m_local))
         auto p_compute =
             make_static_distributed_tensor<ComputeDataType>(c_block_tile.get_tile_distribution());
 
@@ -455,7 +455,7 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
             });
         });
 
-        // rowsum for p_compute{i, j}
+        // Step3. rowsum for p_compute{i, j}
         auto rowsum_p = block_tile_reduce<ComputeDataType>(
             p_compute, sequence<1>{}, f_sum, ComputeDataType{0});
 
@@ -472,16 +472,14 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
         });
 
         // -------------------------------------------------------------------------------------
-        // grouped topk part
+        // Grouped topk part
         auto value_block_tile =
             make_static_distributed_tensor<WeightType>(p_compute.get_tile_distribution());
         auto index_block_tile =
             make_static_distributed_tensor<IndexType>(p_compute.get_tile_distribution());
-        // auto debug_block_tile =
-        //     make_static_distributed_tensor<WeightType>(p_compute.get_tile_distribution());
 
         auto x_tmp = p_compute;
-        // calculate group score, need to creat group scores tensor
+        // Step1. calculate group score
         int num_expert_group = 16;
         int topk_group = 2;
         int expert_per_group = kNPerBlock / num_expert_group;
@@ -524,7 +522,7 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
             });
         }
 
-        // // To Do - another scheme to reshape x_tmp from 2d to 3d
+        // // To Do - perf opt scheme to reshape x_tmp from 2d to 3d before reducemax
         // const auto x_tmp_3d = x_tmp.block_tile_reshape((kM, num_expert_group, kN/num_expert_group));
         // auto group_scores = block_tile_reduce<ComputeDataType>(
         //     x_tmp_3d, sequence<2>{}, f_max, std::numeric_limits<ComputeDataType>::lowest());
@@ -660,17 +658,17 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
                 });
             });
         }
-        // // cast DataType and apply CElementFunction
-        // const auto value_cast_block_tile = tile_elementwise_in(
-        //     [&](const auto& value) { return c_element_func(type_convert<WeightType>(value)); },
-        //     value_block_tile);
 
-        // const auto index_cast_block_tile = tile_elementwise_in(
-        //     [&](const auto& index) { return c_element_func(type_convert<IndexType>(index)); },
-        //     index_block_tile);
-        // store_tile(value_window, value_cast_block_tile);
-        // store_tile(index_window, index_cast_block_tile);
-        return value_block_tile;
+        // cast DataType and apply CElementFunction
+        const auto value_cast_block_tile = tile_elementwise_in(
+            [&](const auto& value) { return c_element_func(type_convert<WeightType>(value)); },
+            value_block_tile);
+
+        const auto index_cast_block_tile = tile_elementwise_in(
+            [&](const auto& index) { return c_element_func(type_convert<IndexType>(index)); },
+            index_block_tile);
+        store_tile(value_window, value_cast_block_tile);
+        store_tile(index_window, index_cast_block_tile);
     }
 };
 
