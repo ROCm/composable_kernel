@@ -19,6 +19,30 @@ echo "=========================================="
 echo "CK Convolution Test Dataset Generator"
 echo "=========================================="
 
+# Check if PyTorch is installed, if not install it
+echo "Checking for PyTorch installation..."
+if ! python3 -c "import torch" 2>/dev/null; then
+    echo "PyTorch not found. Installing PyTorch and torchvision..."
+    pip3 install --user torch torchvision --index-url https://download.pytorch.org/whl/cpu || {
+        echo "WARNING: Failed to install PyTorch. Trying with --break-system-packages flag..."
+        pip3 install --user --break-system-packages torch torchvision --index-url https://download.pytorch.org/whl/cpu || {
+            echo "ERROR: Failed to install PyTorch. Tests will fail."
+            echo "Creating empty CSV files as fallback..."
+            echo "# 2D Convolution Test Cases" > conv_test_set_2d_dataset.csv
+            echo "# Combined from multiple models" >> conv_test_set_2d_dataset.csv
+            echo "# 3D Convolution Test Cases" > conv_test_set_3d_dataset.csv
+            echo "# Combined from multiple models" >> conv_test_set_3d_dataset.csv
+            exit 1
+        }
+    }
+    echo "PyTorch installed successfully!"
+else
+    echo "PyTorch is already installed."
+fi
+
+# Verify PyTorch installation
+python3 -c "import torch; print(f'PyTorch version: {torch.__version__}')"
+
 # Configuration
 OUTPUT_DIR="generated_datasets"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")

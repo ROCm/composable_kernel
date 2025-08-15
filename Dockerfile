@@ -92,8 +92,6 @@ RUN git clone https://github.com/ccache/ccache.git && \
     dpkg -i dumb-init_*.deb && rm dumb-init_*.deb && \
 # Install packages for processing the performance results
     pip3 install --break-system-packages --upgrade pytest pymysql pandas==2.2.3 sqlalchemy==2.0.3 setuptools-rust setuptools sshtunnel==0.4.0 && \
-# Install PyTorch for ROCm (CPU version for lightweight testing, model generation doesn't need GPU)
-    pip3 install --break-system-packages torch torchvision --index-url https://download.pytorch.org/whl/cpu && \
 # Add render group
     groupadd -f render && \
 # Install the new rocm-cmake version
