@@ -1474,7 +1474,7 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx1101") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx11-generic" -DCMAKE_CXX_FLAGS=" -O3 " """
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx11-generic" -DUSE_OPT_GFX11=ON -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx11-generic" \
@@ -1495,7 +1495,7 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx1201") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx12-generic" -DCMAKE_CXX_FLAGS=" -O3 " """
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx12-generic" -DUSE_OPT_GFX12=ON -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx12-generic" \
