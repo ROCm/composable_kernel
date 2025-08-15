@@ -44,7 +44,8 @@ struct ThreadwiseTensorSliceTransfer_v1r3_packed_cast
     static constexpr index_t SrcScalarPerVector = 1;
     static constexpr index_t BufScalarPerVector = 2;
 
-    static constexpr auto FastestChangingDim = DimAccessOrder::At(Number<DstVectorDim>{});
+    // We cannot use SnakedCurve for packed cast, otherwise the vectorized store will not work correctly.
+    static constexpr bool SnakedCurve = false;
 
     static constexpr index_t nDim = SliceLengths::Size();
 
@@ -61,7 +62,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3_packed_cast
     {
         static_assert(SrcDesc::IsKnownAtCompileTime(),
                       "wrong! SrcDesc need to known at compile-time");
-        static_assert(SliceLengths::At(FastestChangingDim) % DstScalarPerVector == 0,
+        static_assert(SliceLengths::At(Number<DstVectorDim>{}) % DstScalarPerVector == 0,
                       "wrong! Not divisible");
 
         // Assert that elementwise op is pass through.
@@ -74,9 +75,6 @@ struct ThreadwiseTensorSliceTransfer_v1r3_packed_cast
                       "wrong! SrcData must be float");
         static_assert(std::is_same_v<DstData, ck::bhalf_t>,
                       "wrong! DstData must be bhalf_t");
-
-        // Assert that DstScalarPerVector is divisible by 2, since we are using bf16x2_convert_rne.
-        static_assert(DstScalarPerVector % 2 == 0, "wrong! DstScalarPerVector must be divisible by 2");
     }
 
     __device__ void SetDstSliceOrigin(const DstDesc& dst_desc, const Index& dst_slice_origin_idx)
@@ -104,14 +102,16 @@ struct ThreadwiseTensorSliceTransfer_v1r3_packed_cast
         constexpr auto src_slice_origin_idx = to_multi_index(SrcSliceOriginIdx{});
 
         constexpr auto src_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<FastestChangingDim, SrcScalarPerVector>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<DstVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
 
+        // SFC to access the source buffer and destination buffers.
         using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
                                                     DimAccessOrder,
-                                                    remove_cv_t<decltype(src_scalar_per_access)>>;
+                                                    remove_cv_t<decltype(src_scalar_per_access)>,
+                                                    SnakedCurve>;
 
-        typename vector_type_maker<DstData, DstScalarPerVector>::type dst_vector;
-        using dst_vector_t = typename vector_type_maker<DstData, DstScalarPerVector>::type::type;
+        typename vector_type_maker<DstData, BufScalarPerVector>::type buf_vector;
+        using buf_vector_t = typename vector_type_maker<DstData, BufScalarPerVector>::type::type;
           
         static_assert(1 == SpaceFillingCurve::ScalarPerVector, "wrong!1 != SpaceFillingCurve::ScalarPerVector");
 
@@ -135,23 +135,25 @@ struct ThreadwiseTensorSliceTransfer_v1r3_packed_cast
             const float val_0 = src_buf[Number<src_offset_0>{}];
             const float val_1 = src_buf[Number<src_offset_1>{}]; 
 
-            dst_vector.template AsType<dst_vector_t>()(I0) = bf16x2_convert_rne<ck::bhalf2_t, float>(val_0, val_1);
+            buf_vector.template AsType<buf_vector_t>()(I0) = bf16x2_convert_rne<ck::bhalf2_t, float>(val_0, val_1);
 
             const bool is_dst_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
 
-            // copy data from dst_vector into dst_buf
-            dst_buf.template Update<DstInMemOp, dst_vector_t>(
+            // copy data from buf_vector into dst_buf
+            dst_buf.template Update<DstInMemOp, buf_vector_t>(
                 dst_coord_.GetOffset(),
                 is_dst_valid,
-                dst_vector.template AsType<dst_vector_t>()[Number<0>{}]);
+                buf_vector.template AsType<buf_vector_t>()[Number<0>{}]);
 
-            if constexpr(i_pair.value != num_pairs - 1 && !has_odd_element)
+            if constexpr(i_pair.value != num_pairs - 1)
             {
-                constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(i_pair);
+                // Move two steps forward in the space-filling curve.
+                // This works only if we don't use the snaked access pattern.
+                constexpr auto forward_step_md = SpaceFillingCurve::GetStepBetween(idx_1d_0, Number<idx_1d_1 + 1>{});
 
                 move_tensor_coordinate(
-                    dst_desc, dst_coord_, make_tensor_coordinate_step(dst_desc, forward_step));
+                    dst_desc, dst_coord_, make_tensor_coordinate_step(dst_desc, forward_step_md));
             }
         });
 
@@ -169,11 +171,12 @@ struct ThreadwiseTensorSliceTransfer_v1r3_packed_cast
     __device__ static constexpr auto GetDstCoordinateResetStep()
     {
         constexpr auto dst_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<FastestChangingDim, DstScalarPerVector>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
 
         using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
                                                     DimAccessOrder,
-                                                    remove_cv_t<decltype(dst_scalar_per_access)>>;
+                                                    remove_cv_t<decltype(dst_scalar_per_access)>,
+                                                    SnakedCurve>;
 
         constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
         if constexpr(num_access == 0)
