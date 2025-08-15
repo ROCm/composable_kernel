@@ -635,16 +635,17 @@ struct UniversalGemmPipelineAgBgCrPolicy
             : vector_size * 4 == thread_elements              ? WGAttrNumAccessEnum::Quad
                                                               : WGAttrNumAccessEnum::Invalid;
 
-        using WarpGemm        = WarpGemmMfmaDispatcher<typename Problem::ComputeDataType,
-                                                       typename Problem::ComputeDataType,
-                                                       typename Problem::CDataType,
-                                                       WarpTile::at(I0),
-                                                       WarpTile::at(I1),
-                                                       WarpTile::at(I2),
-                                                       Problem::TransposeC,
-                                                       false,
-                                                       Problem::UseStructuredSparsity,
-                                                       wg_attr_num_access>;
+        using WarpGemm = WarpGemmDispatcher<typename Problem::ComputeDataType,
+                                            typename Problem::ComputeDataType,
+                                            typename Problem::CDataType,
+                                            WarpTile::at(I0),
+                                            WarpTile::at(I1),
+                                            WarpTile::at(I2),
+                                            Problem::TransposeC,
+                                            false,
+                                            Problem::UseStructuredSparsity,
+                                            wg_attr_num_access>;
+
         using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
                                                                       typename Problem::BDataType,
                                                                       typename Problem::CDataType,

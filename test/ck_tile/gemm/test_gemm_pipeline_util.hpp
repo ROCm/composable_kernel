@@ -69,7 +69,7 @@ struct GemmPipelineTypeSelector<GemmPipelineType::CompV4, Problem>
     static constexpr auto GetName() { return "GemmPipelineAgBgCrCompV4"; }
 };
 
-template <typename Tuple>
+template <typename Tuple, typename Derived>
 class TestCkTileGemmPipeline : public ::testing::Test
 {
     protected:
@@ -80,31 +80,29 @@ class TestCkTileGemmPipeline : public ::testing::Test
     using BDataType                    = std::tuple_element_t<4, Tuple>;
     using AccDataType                  = std::tuple_element_t<5, Tuple>;
     using CDataType                    = std::tuple_element_t<6, Tuple>;
-    static constexpr auto Scheduler    = std::tuple_element_t<7, Tuple>::value;
-    static constexpr auto PipelineType = std::tuple_element_t<8, Tuple>::value;
+    static constexpr auto Scheduler    = std::tuple_element_t<13, Tuple>::value;
+    static constexpr auto PipelineType = std::tuple_element_t<14, Tuple>::value;
+
+    static constexpr ck_tile::index_t M_Tile = std::tuple_element_t<7, Tuple>{};
+    static constexpr ck_tile::index_t N_Tile = std::tuple_element_t<8, Tuple>{};
+    static constexpr ck_tile::index_t K_Tile = std::tuple_element_t<9, Tuple>{};
+
+    static constexpr ck_tile::index_t M_Warp_Tile = std::tuple_element_t<10, Tuple>{};
+    static constexpr ck_tile::index_t N_Warp_Tile = std::tuple_element_t<11, Tuple>{};
+    static constexpr ck_tile::index_t K_Warp_Tile = std::tuple_element_t<12, Tuple>{};
 
     using DsLayout   = ck_tile::tuple<>;
     using DsDataType = ck_tile::tuple<>;
 
     static constexpr bool Persistent =
-        ck_tile::tuple_element_or_default_t<Tuple, 9, std::false_type>::value;
-    // TODO: expose tile size through test t-param ?
+        ck_tile::tuple_element_or_default_t<Tuple, 15, std::false_type>::value;
 
     template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
     void invoke_gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     {
-        // TODO: This should be parameterized in tests
-        constexpr ck_tile::index_t M_Tile = 256;
-        constexpr ck_tile::index_t N_Tile = 256;
-        constexpr ck_tile::index_t K_Tile = (PipelineType == GemmPipelineType::CompV4) ? 32 : 64;
-
         constexpr ck_tile::index_t M_Warp = 2;
         constexpr ck_tile::index_t N_Warp = 2;
         constexpr ck_tile::index_t K_Warp = 1;
-
-        constexpr ck_tile::index_t M_Warp_Tile = 32;
-        constexpr ck_tile::index_t N_Warp_Tile = 32;
-        constexpr ck_tile::index_t K_Warp_Tile = 16;
 
         constexpr bool kPadM      = PadM;
         constexpr bool kPadN      = PadN;
@@ -247,11 +245,48 @@ class TestCkTileGemmPipeline : public ::testing::Test
         BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
     }
 
+    template <typename ADataType,
+              typename BDataType,
+              typename AccDataType,
+              ck_tile::index_t M_Warp_Tile,
+              ck_tile::index_t N_Warp_Tile,
+              ck_tile::index_t K_Warp_Tile>
+    bool check_data_type()
+    {
+        return static_cast<Derived*>(this)
+            ->template check_data_type_impl<ADataType,
+                                            BDataType,
+                                            AccDataType,
+                                            M_Warp_Tile,
+                                            N_Warp_Tile,
+                                            K_Warp_Tile>();
+    }
+
+    template <typename ADataType,
+              typename BDataType,
+              typename AccDataType,
+              ck_tile::index_t M_Warp_Tile,
+              ck_tile::index_t N_Warp_Tile,
+              ck_tile::index_t K_Warp_Tile>
+    bool check_data_type_impl()
+    {
+        return true;
+    }
+
     public:
     std::vector<int> k_batches_;
 
     void SetUp() override
     {
+        if(!check_data_type<ADataType,
+                            BDataType,
+                            AccDataType,
+                            M_Warp_Tile,
+                            N_Warp_Tile,
+                            K_Warp_Tile>())
+        {
+            GTEST_SKIP() << "Unsupported data type combination for gemm pipeline test.";
+        }
         if constexpr(PipelineType == GemmPipelineType::CompV4)
         {
             // Only do k_batch = 1 when pipeline is CompV4

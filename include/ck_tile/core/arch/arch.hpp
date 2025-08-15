@@ -9,6 +9,7 @@
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
+#include "ck_tile/core/utility/ignore.hpp"
 
 #define CK_TILE_S_CNT_MAX 0b1100'1111'0111'1111
 #define CK_TILE_VMCNT(cnt)                                              \
@@ -59,7 +60,7 @@ enum struct memory_operation_enum : std::uint16_t
 
 CK_TILE_HOST_DEVICE constexpr index_t get_warp_size()
 {
-#if defined(__GFX9__) || !defined(__HIP_DEVICE_COMPILE__)
+#if defined(__GFX9__) || (!defined(__HIP_DEVICE_COMPILE__) && !defined(CK_TILE_WAVE32_ENABLED))
     return 64;
 #else
     return 32;
@@ -230,4 +231,20 @@ CK_TILE_HOST_DEVICE constexpr const char* address_space_to_string(address_space_
     }
 }
 
+// Architecture tags
+struct gfx11_t
+{
+};
+struct gfx12_t
+{
+};
+
+CK_TILE_DEVICE static constexpr auto get_device_arch()
+{
+#if defined(__gfx11__)
+    return gfx11_t{};
+#else // if defined(__gfx12__)
+    return gfx12_t{};
+#endif
+}
 } // namespace ck_tile

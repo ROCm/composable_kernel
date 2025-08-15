@@ -152,7 +152,7 @@
 // buffer atomic add: floating point
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
-#elif defined(__gfx9__) // for GPU code
+#elif defined(__gfx9__) || defined(__gfx12__) // for GPU code
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
 #else // for GPU code
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 0
@@ -272,6 +272,12 @@
 
 #ifndef CK_TILE_WA_ISSUE_2028
 #define CK_TILE_WA_ISSUE_2028 0
+#endif
+
+#ifndef CK_TILE_WAVE32_ENABLED
+#if defined(__gfx11__) || defined(__gfx12__)
+#define CK_TILE_WAVE32_ENABLED
+#endif
 #endif
 
 // Y pointed to R, we don't see a valuable use case.
