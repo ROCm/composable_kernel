@@ -6,8 +6,6 @@
 
 #include "gtest/gtest.h"
 
-using KernelTypes = ::testing::Types<FmhaFwdFp8>;
-
-TYPED_TEST_SUITE(TestCkTileFmhaFwd, KernelTypes);
+using DataTypeConfig = FmhaFwdFp8;
 
 #include "test_fmha_fwd.inc"
