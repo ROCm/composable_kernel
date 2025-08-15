@@ -71,7 +71,7 @@ struct WarpGemmAttributeGenericImplF16F16F32M16N16K16
     using CDataType                     = float;
 
     static constexpr index_t VecLenFP16 = GfxConfig<GfxId>::get_vec_len_fp16();
-    static constexpr index_t VecLenFP32 = GfxConfig<GfxId>::get_vec_len_fp32();    
+    static constexpr index_t VecLenFP32 = GfxConfig<GfxId>::get_vec_len_fp32();
     using AVecType = ext_vector_t<fp16_t, VecLenFP16>;
     using BVecType = ext_vector_t<fp16_t, VecLenFP16>;
     using CVecType = ext_vector_t<float,  VecLenFP32>;
@@ -85,13 +85,13 @@ struct WarpGemmAttributeGenericImplF16F16F32M16N16K16
 
     static constexpr index_t kAMLane     = 16;
     static constexpr index_t kBNLane     = 16;
-    static constexpr index_t kABKLane    = 4;
-    static constexpr index_t kABKPerLane = 4;
+    static constexpr index_t kABKLane    = GfxConfig<GfxId>::get_k_abk_lane();     // 4 for gfx9, 2 for gfx12
+    static constexpr index_t kABKPerLane = GfxConfig<GfxId>::get_k_abk_per_lane(); // 4 for gfx9, 8 for gfx12;
 
-    static constexpr index_t kCMLane     = GfxConfig<GfxId>::get_k_cm_lane();
+    static constexpr index_t kCMLane     = GfxConfig<GfxId>::get_k_cm_lane();      // 4 for gfx9, 2 for gfx12
     static constexpr index_t kCNLane     = 16;
-    static constexpr index_t kCM0PerLane = GfxConfig<GfxId>::get_k_cm0_per_lane();
-    static constexpr index_t kCM1PerLane = GfxConfig<GfxId>::get_k_cm1_per_lane();
+    static constexpr index_t kCM0PerLane = 1;
+    static constexpr index_t kCM1PerLane = GfxConfig<GfxId>::get_k_cm1_per_lane(); // 4 for gfx9, 8 for gfx12
 
     // c_vec += a_vec * b_vec
     template <bool post_nop_ = false>

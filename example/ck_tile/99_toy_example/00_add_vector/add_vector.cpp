@@ -75,20 +75,20 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     // These will hold the *values* for the ck_tile::sequence types
     // They are initialized based on the GfxId
-    constexpr ck_tile::index_t selected_warp_tile = (GfxId == 1200)  ? Gfx120x::WarpTile
-                                                    : (GfxId == 900) ? Gfx90x::WarpTile
+    constexpr ck_tile::index_t selected_warp_tile = (GfxId == 1201)  ? Gfx1201::WarpTile
+                                                    : (GfxId == 900) ? Gfx900::WarpTile
                                                                      :
                                                                      /* else */ Generic::WarpTile;
 
     // Use if constexpr to select the compile-time constants for the current GfxId
     bool fail = false;
-    if constexpr(GfxId == 1200)
+    if constexpr(GfxId == 1201)
     {
-        std::cout << "Using gfx120x-optimized parameters (template specialization)." << std::endl;
+        std::cout << "Using gfx1201-optimized parameters (template specialization)." << std::endl;
     }
     else if constexpr(GfxId == 900)
     {
-        std::cout << "Using gfx90x-optimized parameters (template specialization)." << std::endl;
+        std::cout << "Using gfx900-optimized parameters (template specialization)." << std::endl;
     }
     else
     { // Fallback for GfxId == 0 or unknown
@@ -201,7 +201,7 @@ int main(int argc, char* argv[])
     std::string arch_name = props.gcnArchName;
 
     if(data_type == "fp16" && (arch_name.find("gfx12") != std::string::npos))
-        return run<ck_tile::half_t, 1200>(arg_parser) ? 0 : -2;
+        return run<ck_tile::half_t, 1201>(arg_parser) ? 0 : -2;
     else if(data_type == "fp16" && (arch_name.find("gfx908") != std::string::npos))
         return run<ck_tile::half_t, 900>(arg_parser) ? 0 : -2;
     else

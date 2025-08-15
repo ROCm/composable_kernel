@@ -35,7 +35,7 @@ using WarpGemmMfmaF16F16F32M16N16K16 = WarpGemmImpl<
     WarpGemmAttributeGeneric<WarpGemmAttributeGenericImplF16F16F32M16N16K16<900, WGAttrCtlEnum::Default_>>>;
 
 using WarpGemmWmmaF16F16F32M16N16K16 = WarpGemmImpl<
-    WarpGemmAttributeGeneric<WarpGemmAttributeGenericImplF16F16F32M16N16K16<1200, WGAttrCtlEnum::Default_>>>;
+    WarpGemmAttributeGeneric<WarpGemmAttributeGenericImplF16F16F32M16N16K16<1201, WGAttrCtlEnum::Default_>>>;
 
 #if 0
 #if defined(__gfx950__)
@@ -92,7 +92,7 @@ using WarpGemmMfmaF16F16F32M16N16K16TransposedCDistribution =
 
 using WarpGemmWmmaF16F16F32M16N16K16TransposedCDistribution =
     WarpGemmImpl<WarpGemmAttributeGenericTransposedCDistribution<
-        WarpGemmAttributeGenericImplF16F16F32M16N16K16<1200, WGAttrCtlEnum::Default_>>>;
+        WarpGemmAttributeGenericImplF16F16F32M16N16K16<1201, WGAttrCtlEnum::Default_>>>;
 
 #if 0
 

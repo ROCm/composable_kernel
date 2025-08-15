@@ -239,32 +239,42 @@ CK_TILE_HOST_DEVICE constexpr index_t get_smem_capacity()
 // We'll define all parameters for all supported architectures here.
 // ============================================================================
 
-// Parameters for gfx90x (example values, adjust as needed)
-namespace Gfx90x {
+// Parameters for gfx900 (example values, adjust as needed)
+namespace Gfx900 {
 constexpr ck_tile::index_t WarpTile = 64;
 
 constexpr ck_tile::index_t VecLenFP16   = 4;
 constexpr ck_tile::index_t VecLenFP32   = 4;
+
+constexpr ck_tile::index_t kAMLane     = 16;
+constexpr ck_tile::index_t kBNLane     = 16;
+constexpr ck_tile::index_t kABKLane    = 4;
+constexpr ck_tile::index_t kABKPerLane = 4;
 
 constexpr ck_tile::index_t kCMLane      = 4;
 constexpr ck_tile::index_t kCM0PerLane  = 1;
 constexpr ck_tile::index_t kCM1PerLane  = 4;
 }
 
-// Parameters for gfx120x (using a namespace for organization or just global constexpr)
-namespace Gfx120x {  
+// Parameters for gfx1201 (using a namespace for organization or just global constexpr)
+namespace Gfx1201 {
 constexpr ck_tile::index_t WarpTile = 32;
 
-constexpr ck_tile::index_t VecLenFP16   = 16;
+constexpr ck_tile::index_t VecLenFP16   = 8;
 constexpr ck_tile::index_t VecLenFP32   = 8;
 
+constexpr ck_tile::index_t kAMLane     = 16;
+constexpr ck_tile::index_t kBNLane     = 16;
+constexpr ck_tile::index_t kABKLane    = 2;
+constexpr ck_tile::index_t kABKPerLane = 8;
+
 constexpr ck_tile::index_t kCMLane      = 2;
-constexpr ck_tile::index_t kCM0PerLane  = 8;
-constexpr ck_tile::index_t kCM1PerLane  = 1;
+constexpr ck_tile::index_t kCM0PerLane  = 1;
+constexpr ck_tile::index_t kCM1PerLane  = 8;
 }
 
 // Generic Parameters - should never be used in this example
-// templated run function should only be instantiated for Gfx120x and Gfx90x
+// templated run function should only be instantiated for Gfx1201 and Gfx900
 namespace Generic {
 constexpr ck_tile::index_t WarpTile = -1;
 }
@@ -275,62 +285,106 @@ struct GfxConfig
 {
     static constexpr index_t get_vec_len_fp16()
     {
-        if constexpr (GfxId == 1200)
+        if constexpr (GfxId == 1201)
         {
-            return Gfx120x::VecLenFP16;
+            return Gfx1201::VecLenFP16;
         }
         else if constexpr (GfxId == 900)
         {
-            return Gfx90x::VecLenFP16;
+            return Gfx900::VecLenFP16;
         }
     }
 
     static constexpr index_t get_vec_len_fp32()
     {
-        if constexpr (GfxId == 1200)
+        if constexpr (GfxId == 1201)
         {
-            return Gfx120x::VecLenFP32;
+            return Gfx1201::VecLenFP32;
         }
         else if constexpr (GfxId == 900)
         {
-            return Gfx90x::VecLenFP32;
+            return Gfx900::VecLenFP32;
         }
-    }    
+    }
 
     static constexpr index_t get_k_cm_lane()
     {
-        if constexpr (GfxId == 1200)
+        if constexpr (GfxId == 1201)
         {
-            return Gfx120x::kCMLane;
+            return Gfx1201::kCMLane;
         }
         else if constexpr (GfxId == 900)
         {
-            return Gfx90x::kCMLane;
-        }        
+            return Gfx900::kCMLane;
+        }
     }
-    
+
     static constexpr index_t get_k_cm0_per_lane()
     {
-        if constexpr (GfxId == 1200)
+        if constexpr (GfxId == 1201)
         {
-            return Gfx120x::kCM0PerLane;
+            return Gfx1201::kCM0PerLane;
         }
         else if constexpr (GfxId == 900)
         {
-            return Gfx90x::kCM0PerLane;
-        }        
-    }    
+            return Gfx900::kCM0PerLane;
+        }
+    }
     static constexpr index_t get_k_cm1_per_lane()
     {
-        if constexpr (GfxId == 1200)
+        if constexpr (GfxId == 1201)
         {
-            return Gfx120x::kCM1PerLane;
+            return Gfx1201::kCM1PerLane;
         }
         else if constexpr (GfxId == 900)
         {
-            return Gfx90x::kCM1PerLane;
-        }        
-    }        
+            return Gfx900::kCM1PerLane;
+        }
+    }
+    static constexpr index_t get_k_am_lane()
+    {
+        if constexpr (GfxId == 1201)
+        {
+            return Gfx1201::kAMLane;
+        }
+        else if constexpr (GfxId == 900)
+        {
+            return Gfx900::kAMLane;
+        }
+    }
+    static constexpr index_t get_k_bn_lane()
+    {
+        if constexpr (GfxId == 1201)
+        {
+            return Gfx1201::kBNLane;
+        }
+        else if constexpr (GfxId == 900)
+        {
+            return Gfx900::kBNLane;
+        }
+    }
+    static constexpr index_t get_k_abk_lane()
+    {
+        if constexpr (GfxId == 1201)
+        {
+            return Gfx1201::kABKLane;
+        }
+        else if constexpr (GfxId == 900)
+        {
+            return Gfx900::kABKLane;
+        }
+    }
+    static constexpr index_t get_k_abk_per_lane()
+    {
+        if constexpr (GfxId == 1201)
+        {
+            return Gfx1201::kABKPerLane;
+        }
+        else if constexpr (GfxId == 900)
+        {
+            return Gfx900::kABKPerLane;
+        }
+    }
 };
 
 } // namespace ck_tile
