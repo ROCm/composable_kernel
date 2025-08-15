@@ -64,7 +64,7 @@ bool profile_gemm_universal_impl(int do_verification,
             }
         };
 
-    ck::validation::validate_gemm_strides_abc<ALayout, BLayout, CLayout>(
+    ck::utils::validate_gemm_strides_abc<ALayout, BLayout, CLayout>(
         M, N, K, StrideA, StrideB, StrideC);
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
