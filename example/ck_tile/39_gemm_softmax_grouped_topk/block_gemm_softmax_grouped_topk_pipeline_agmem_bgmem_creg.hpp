@@ -36,6 +36,8 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
     static constexpr index_t topk = BlockGemmShape::kTopK;
+    static constexpr index_t num_expert_group = BlockGemmShape::kNumExpertGroup;
+    static constexpr index_t topk_group = BlockGemmShape::kTopKGroup;
 
     // for topk computing
     struct ArgmaxPacket
@@ -480,8 +482,8 @@ struct BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg
 
         auto x_tmp = p_compute;
         // Step1. calculate group score
-        int num_expert_group = 16;
-        int topk_group = 2;
+        // int num_expert_group = 16;
+        // int topk_group = 2;
         int expert_per_group = kNPerBlock / num_expert_group;
         constexpr auto p_compute_spans = decltype(p_compute)::get_distributed_spans();
         auto group_scores = x_tmp;

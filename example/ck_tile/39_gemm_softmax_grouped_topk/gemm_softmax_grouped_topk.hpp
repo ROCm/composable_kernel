@@ -33,13 +33,15 @@ struct GridGemmProblem
     using CElementFunction = CElementFunction_;
 };
 
-template <index_t kMPerTile, index_t kNPerTile, index_t kKPerTile, index_t TopkKPerTile>
+template <index_t kMPerTile, index_t kNPerTile, index_t kKPerTile, index_t kTopKPerTile, index_t kNumExpertGroupPerTile, index_t kTopKGroupPerTile>
 struct TileGemmShape
 {
     static constexpr index_t kM = kMPerTile;
     static constexpr index_t kN = kNPerTile;
     static constexpr index_t kK = kKPerTile;
-    static constexpr index_t kTopK = TopkKPerTile;
+    static constexpr index_t kTopK = kTopKPerTile;
+    static constexpr index_t kNumExpertGroup = kNumExpertGroupPerTile;
+    static constexpr index_t kTopKGroup = kTopKGroupPerTile;
 };
 
 template <typename ADataType_,
@@ -76,7 +78,9 @@ template <typename ADataType,
           index_t kMPerBlock_,
           index_t kNPerBlock_,
           index_t kKPerBlock_,
-          index_t kTopKPerBlock_>
+          index_t kTopKPerBlock_,
+          index_t kNumExpertGroupPerBlock_,
+          index_t kTopKGroupPerBlock_>
 struct Gemm
 {
     using GridGemmProblem =
@@ -89,6 +93,8 @@ struct Gemm
         static constexpr index_t kNPerBlock = kNPerBlock_;
         static constexpr index_t kKPerBlock = kKPerBlock_;
         static constexpr index_t kTopKPerBlock = kTopKPerBlock_;
+        static constexpr index_t kNumExpertGroupPerBlock = kNumExpertGroupPerBlock_;
+        static constexpr index_t kTopKGroupPerBlock = kTopKGroupPerBlock_;
 
         template <typename Problem>
         CK_TILE_HOST_DEVICE static constexpr auto MakeBlock2TileMap(index_t M0, index_t N0)
@@ -170,7 +176,7 @@ struct Gemm
                                          WeightType,
                                          IndexType,
                                          kBlockSize,
-                                         TileGemmShape<kMPerBlock, kNPerBlock, kKPerBlock, kTopKPerBlock>>;
+                                         TileGemmShape<kMPerBlock, kNPerBlock, kKPerBlock, kTopKPerBlock, kNumExpertGroupPerBlock, kTopKGroupPerBlock>>;
             return BlockGemmSoftmaxGroupedTopkPipelineAGmemBGmemCReg<BlockGemmPipelineProblem_>{};
         }
     };

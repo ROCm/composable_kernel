@@ -76,6 +76,8 @@ int main(int argc, char* argv[])
     ck_tile::index_t N            = 4096;
     ck_tile::index_t K            = 4096;
     ck_tile::index_t topk         = 8;
+    // ck_tile::index_t num_expert_group = 16;
+    // ck_tile::index_t topk_group   = 2;
 
     if(argc == 2)
     {
@@ -88,6 +90,8 @@ int main(int argc, char* argv[])
         N            = std::stoi(argv[3]);
         K            = std::stoi(argv[4]);
         topk         = std::stoi(argv[5]);
+        // num_expert_group = std::stoi(argv[6]);
+        // topk_group   = std::stoi(argv[7]);
     }
 
 #if defined(KERNEL_A)
@@ -179,7 +183,9 @@ int main(int argc, char* argv[])
     constexpr ck_tile::index_t kGemmKPerBlock = 16;
 #endif
     constexpr ck_tile::index_t kGemmNPerBlock = 256;
-    constexpr ck_tile::index_t kGemmTopKPerBlock = 16;
+    constexpr ck_tile::index_t kGemmTopKPerBlock = 8;
+    constexpr ck_tile::index_t kGemmNumExpertGroupPerBlock = 16;
+    constexpr ck_tile::index_t kGemmTopKGroupPerBlock = 2;
 
     ck_tile::index_t kGridSize = (M / kGemmMPerBlock) * (N / kGemmNPerBlock);
 
@@ -203,7 +209,9 @@ int main(int argc, char* argv[])
                                       kGemmMPerBlock,
                                       kGemmNPerBlock,
                                       kGemmKPerBlock,
-                                      kGemmTopKPerBlock>;
+                                      kGemmTopKPerBlock,
+                                      kGemmNumExpertGroupPerBlock,
+                                      kGemmTopKGroupPerBlock>;
 
     float ave_time = ck_tile::launch_kernel(ck_tile::stream_config{nullptr, true, 0, 5, 1000},
                                             ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
