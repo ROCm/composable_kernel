@@ -381,190 +381,437 @@ struct StreamKTilePartitioner
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
+    index_t sk_num_blocks;
+    index_t sk_num_big_blocks;
+    index_t dp_start_block_idx;
+    index_t reduction_start_block_idx;
+    index_t k_iters_per_big_block;
+    MDiv2 n_tiles;
+    MDiv k_iters_per_tile;
+    MDiv eqav_tiles_big;    // for reduction
+    MDiv eqav_tiles_little; // for reduction
+
     CK_TILE_HOST_DEVICE StreamKTilePartitioner() noexcept = delete;
 
     /**
      * @brief Construct Stream-K tile partitioner with problem dimensions
      */
-    CK_TILE_HOST_DEVICE StreamKTilePartitioner(index_t M, index_t N, index_t K) noexcept
-        : M_(M), N_(N), K_(K)
+    CK_TILE_HOST_DEVICE StreamKTilePartitioner(
+        index_t M,
+        index_t N,
+        index_t K,
+        index_t num_cu,
+        index_t occupancy,
+        index_t sk_blocks                            = 0xffffffff,
+        StreamKReductionStrategy reduction_strategy_ = StreamKReductionStrategy::Atomic) noexcept
+        : M_(M), N_(N), K_(K), reduction_strategy(reduction_strategy_)
     {
         num_tile_m_ = (M + MPerBlock - 1) / MPerBlock;
         num_tile_n_ = (N + NPerBlock - 1) / NPerBlock;
         num_tile_k_ = (K + KPerBlock - 1) / KPerBlock;
 
-        total_tiles_      = num_tile_m_ * num_tile_n_;
-        total_work_units_ = total_tiles_ * num_tile_k_;
+        index_t num_tiles =
+            math::integer_divide_ceil(M, MPerBlock) * math::integer_divide_ceil(N, NPerBlock);
+        k_iters_per_tile = MDiv(math::integer_divide_ceil(K, KPerBlock));
+
+        // one cu can hold one wg at one time, from the whole cZ's point of view
+        // if number of wg is same as num_cu, we call it 1 dispatch
+        // if number of wg is 2x num_cu, we call it 2 dispatches.
+        // one dispatch can deliver wg same as num_cu (full dispatch), or less than num_cu (partial
+        // dispatch)
+        //
+        index_t full_dispatches         = num_tiles / num_cu;
+        index_t full_dispatch_tiles     = full_dispatches * num_cu;
+        index_t partial_dispatche_tiles = num_tiles - full_dispatch_tiles;
+
+        index_t sk_occupancy = occupancy;
+        index_t dp_tiles     = full_dispatch_tiles;
+        index_t sk_tiles     = partial_dispatche_tiles;
+
+        if(full_dispatches < occupancy)
+        {
+            // in this case, we allocate all blocks as sk blocks
+            // sk_occupancy = occupancy - full_dispatches;
+            sk_occupancy = 1; // TODO: single occ seems better
+            dp_tiles     = full_dispatch_tiles;
+            sk_tiles     = partial_dispatche_tiles;
+        }
+        else if((occupancy > 1) && (full_dispatches % occupancy == occupancy - 1))
+        {
+            // e.g. occupancy = 2, full_dispatches = 3, 5, 7 ...
+            //      occupancy = 3, full_dispatches = 5, 8, 11 ...
+            //      occupancy = 4, full_dispatches = 7, 11 ...
+            sk_occupancy = 1; // left 1 slot for sk occupancy
+            dp_tiles     = full_dispatch_tiles;
+            sk_tiles     = partial_dispatche_tiles;
+        }
+        else
+        {
+            // others, we reduce 1 dispatch from dp, together with partial dispatch,
+            // to construct sk dispatch
+            sk_occupancy = occupancy - ((full_dispatches - 1) % occupancy);
+            dp_tiles     = full_dispatch_tiles - num_cu;
+            sk_tiles     = partial_dispatche_tiles + num_cu;
+        }
+
+        // index_t dp_iters_per_block = k_iters_per_tile.get();
+        index_t sk_total_iters = k_iters_per_tile.get() * sk_tiles;
+        index_t dp_num_blocks  = 0;
+
+        {
+            index_t min_sk_tiles = (sk_tiles >= num_cu) ? num_cu : (sk_tiles + 1);
+            index_t max_sk_tiles =
+                (sk_tiles >= num_cu) ? num_cu * sk_occupancy
+                                     : math::min(num_cu, sk_total_iters / min_k_iters_per_sk_block);
+
+            // if use dp for sk-block, how many iters do we need
+            index_t dp_for_sk_iters = k_iters_per_tile.get();
+
+            index_t best_sk_score =
+                std::numeric_limits<int>::max(); // we need to find the smallest sk iters
+            for(index_t tentative_sk_blocks = min_sk_tiles; tentative_sk_blocks < max_sk_tiles;
+                tentative_sk_blocks++)
+            {
+                index_t tentative_sk_iters_per_block =
+                    (sk_total_iters + tentative_sk_blocks - 1) / tentative_sk_blocks;
+                index_t tentative_sk_iters = tentative_sk_iters_per_block;
+                index_t sk_blocks_per_tile = (tentative_sk_blocks + sk_tiles - 1) / sk_tiles;
+
+                // TODO: carefully adjust this parameter
+                //       the more sk_blocks_per_tile, the worse the overhead
+                index_t cross_sk_blocks_overhead = sk_blocks_per_tile;
+                if(tentative_sk_blocks % sk_tiles != 0)
+                {
+                    // penalty for uneven divide
+                    cross_sk_blocks_overhead +=
+                        sk_blocks_per_tile * tentative_sk_iters_per_block / 50;
+                }
+
+                index_t tentative_sk_score = tentative_sk_iters + cross_sk_blocks_overhead;
+
+                if(tentative_sk_score < best_sk_score)
+                {
+                    best_sk_score = tentative_sk_score;
+                    sk_num_blocks = tentative_sk_blocks;
+                }
+            }
+
+            if(best_sk_score >= dp_for_sk_iters)
+            {
+                sk_num_blocks = 0;
+            }
+
+            // give a chance to control num of sk blocks
+            sk_num_blocks = sk_blocks != 0xffffffff ? sk_blocks : sk_num_blocks;
+
+            if(sk_num_blocks == 0)
+            {
+                sk_num_big_blocks     = 0;
+                k_iters_per_big_block = 0;
+
+                dp_num_blocks      = num_tiles; // all tile to be dp block
+                dp_start_block_idx = 0;
+                sk_total_iters     = 0; // clear this tiles
+            }
+            else
+            {
+                // k_iters_per_sk_block is the floor of avg each ck block loop over tiles.
+                // we need to decide how many iters for each sk block
+                // let m = k_iters_per_sk_block
+                // some of the sk block (little) will cover m iters, some (big) will cover m+1
+                // we have
+                // 1) l + b = sk_blocks
+                // 2) l * m + b * (m + 1) = sk_total_iters
+                //      => (l + b) * m + b = sk_total_iters
+                //      => sk_blocks * m + b = sk_total_iters
+                //      => b = sk_total_iters - m * sk_blocks
+                //      NOTE: big could be zero
+                index_t k_iters_per_sk_block = sk_total_iters / sk_num_blocks;
+                sk_num_big_blocks     = sk_total_iters - k_iters_per_sk_block * sk_num_blocks;
+                k_iters_per_big_block = k_iters_per_sk_block + 1;
+
+                dp_num_blocks      = dp_tiles;
+                dp_start_block_idx = (sk_num_blocks + num_cu - 1) / num_cu * num_cu;
+            }
+        }
+        n_tiles                   = MDiv2(math::integer_divide_ceil(n, NPerBlock));
+        reduction_start_block_idx = dp_start_block_idx + dp_num_blocks;
+
+        if constexpr(ReductionStrategy == StreamKReductionStrategy::Reduction)
+        {
+            index_t upper_big    = math::lcm(k_iters_per_big_block, k_iters_per_tile.get());
+            index_t upper_little = math::lcm(k_iters_per_big_block - 1, k_iters_per_tile.get());
+            eqav_tiles_big       = MDiv(upper_big / k_iters_per_tile.get());
+            eqav_tiles_little    = MDiv(upper_little / k_iters_per_tile.get());
+        }
     }
 
     /**
-     * @brief Calculate optimal grid size for Stream-K (always assumes Stream-K usage)
+     * @brief Calculate optimal grid size for Stream-K
      */
     CK_TILE_HOST static auto GridSize(index_t M, index_t N, index_t K) noexcept -> index_t
     {
-        const auto [target_blocks, work_per_block, big_blocks, total_work] =
-            StreamKWorkAnalysis::CalculateWorkDistribution(
-                M, N, K, MPerBlock, NPerBlock, KPerBlock);
-        return target_blocks;
+        if constexpr(reduction_strategy == StreamKReductionStrategy::Reduction)
+        {
+            return dim3(reduction_start_block_idx + GetSkTiles(), 1, 1);
+        }
+        else
+            return dim3(reduction_start_block_idx, 1, 1);
     }
 
     /**
      * @brief Calculate number of loop iterations over K dimension for given work unit
      */
-    CK_TILE_HOST_DEVICE auto GetLoopNum(index_t work_start, index_t work_end) const noexcept
-        -> index_t
+    CK_TILE_HOST_DEVICE auto GetLoopNum(index_t K) noexcept -> index_t
     {
-        const index_t work_units = work_end - work_start;
-        // Each work unit represents one K-tile of computation
-        return 1; // Stream-K processes one K-slice at a time
-    }
-
-    /**
-     * @brief Get work range for a given block ID
-     */
-    CK_TILE_DEVICE auto GetWorkRange(index_t block_id, index_t total_blocks) const noexcept
-        -> const tuple<index_t, index_t>
-    {
-        const index_t work_per_block = total_work_units_ / total_blocks;
-        const index_t remainder_work = total_work_units_ % total_blocks;
-
-        index_t work_start, work_end;
-
-        if(block_id < remainder_work)
-        {
-            // Blocks with extra work
-            work_start = block_id * (work_per_block + 1);
-            work_end   = work_start + work_per_block + 1;
-        }
-        else
-        {
-            // Regular blocks
-            work_start = remainder_work * (work_per_block + 1) +
-                         (block_id - remainder_work) * work_per_block;
-            work_end = work_start + work_per_block;
-        }
-
-        return make_tuple(work_start, work_end);
-    }
-
-    /**
-     * @brief Convert linear work index to 3D tile coordinates (M, N, K)
-     */
-    CK_TILE_DEVICE auto WorkIndexToTileCoords(index_t work_idx) const noexcept
-        -> const tuple<index_t, index_t, index_t>
-    {
-        const index_t tiles_per_k_slice = total_tiles_;
-        const index_t k_tile            = work_idx / tiles_per_k_slice;
-        const index_t tile_idx          = work_idx % tiles_per_k_slice;
-
-        const index_t m_tile = tile_idx / num_tile_n_;
-        const index_t n_tile = tile_idx % num_tile_n_;
-
-        return make_tuple(m_tile, n_tile, k_tile);
+        return integer_divide_ceil(K, KPerBlock); // Stream-K processes one K-slice at a time
     }
 
     /**
      * @brief Get output tile index for standard 2D mapping (compatibility)
      */
-    CK_TILE_DEVICE auto GetOutputTileIndex(index_t tile_m, index_t tile_n) const noexcept
+    CK_TILE_DEVICE auto GetOutputTileIndex(index_t tile_idx, index_t M, index_t N) const noexcept
         -> const tuple<index_t, index_t>
     {
-        return make_tuple(tile_m, tile_n);
+        index_t m_tile_idx, n_tile_idx;
+        index_t n_tiles_value = math::integer_divide_ceil(N, NPerBlock);
+        n_tiles.divmod(tile_idx, n_tiles_value, m_tile_idx, n_tile_idx);
+
+        // swizzle tile
+        index_t m_tiles = math::integer_divide_ceil(M, MPerBlock);
+
+        index_t tile_swizzle_sub_m_rem = m_tiles % tile_swizzle_sub_m;
+
+        const auto sub_m_adapt = (m_tile_idx < (m_tiles - tile_swizzle_sub_m_rem))
+                                     ? tile_swizzle_sub_m
+                                     : tile_swizzle_sub_m_rem;
+
+        index_t m_tile_idx_sub0, m_tile_idx_sub1;
+        m_tile_idx_sub0 = m_tile_idx / tile_swizzle_sub_m;
+        m_tile_idx_sub1 = m_tile_idx % tile_swizzle_sub_m;
+
+        index_t tile_idx_local = n_tile_idx + m_tile_idx_sub1 * n_tiles_value;
+
+        index_t m_tile_idx_with_adapt, n_tile_idx_with_adapt;
+
+        n_tile_idx_with_adapt = tile_idx_local / sub_m_adapt;
+        m_tile_idx_with_adapt = tile_idx_local % sub_m_adapt;
+        return make_tuple(m_tile_idx_with_adapt + m_tile_idx_sub0 * tile_swizzle_sub_m,
+                          n_tile_idx_with_adapt);
     }
 
     /**
-     * @brief Check if this partitioner should be used (always true for Stream-K partitioner)
+     * @brief Get work range for a given block ID
      */
-    CK_TILE_HOST_DEVICE bool ShouldUseStreamK() const noexcept
+    CK_TILE_DEVICE void
+    GetBlockItr(index_t block_id, index_t iter_start, index_t iter_end) const noexcept
     {
-        // This partitioner is specifically for Stream-K, so always return true
-        // The decision to use Stream-K should be made before instantiating this partitioner
-        return true;
+        if(block_idx < sk_num_big_blocks)
+        {
+            iter_start = block_idx * k_iters_per_big_block;
+            iter_end   = iter_start + k_iters_per_big_block;
+        }
+        else if(block_idx < sk_num_blocks)
+        {
+            iter_start = (sk_num_big_blocks * k_iters_per_big_block) +
+                         (block_idx - sk_num_big_blocks) * (k_iters_per_big_block - 1);
+            iter_end = iter_start + (k_iters_per_big_block - 1);
+        }
+        else if(block_idx >= dp_start_block_idx)
+        {
+            index_t sk_total_iters     = GetSkTotalIters();
+            index_t dp_iters_per_block = k_iters_per_tile.get();
+            iter_start = sk_total_iters + (block_idx - dp_start_block_idx) * dp_iters_per_block;
+            iter_end   = iter_start + dp_iters_per_block;
+        }
     }
 
     /**
-     * @brief Get the number of blocks that will have extra work
+     * @brief Get total number of iterations for sk tiles
      */
-    CK_TILE_HOST_DEVICE index_t GetBigBlockCount(index_t total_blocks) const noexcept
+    CK_TILE_HOST_DEVICE index_t GetSkTotalIters() const noexcept
     {
-        return total_work_units_ % total_blocks;
+        index_t sk_total_iters = sk_num_big_blocks * k_iters_per_big_block +
+                                 (sk_num_blocks - sk_num_big_blocks) * (k_iters_per_big_block - 1);
+        return sk_total_iters;
     }
 
     /**
-     * @brief Get work units per block (for regular blocks)
+     * @brief Get total number of sk tiles
      */
-    CK_TILE_HOST_DEVICE index_t GetWorkPerBlock(index_t total_blocks) const noexcept
+    CK_TILE_HOST_DEVICE index_t GetSkTiles() const noexcept
     {
-        return total_work_units_ / total_blocks;
+        // tiles for sk
+        index_t sk_total_iters = GetSkTotalIters();
+        return k_iters_per_tile.div(sk_total_iters);
+    }
+
+    /**
+     * @brief Get block idx
+     */
+    CK_TILE_DEVICE index_t GetBlockIdx() const noexcept
+    {
+        // TODO: swizzle block index for better locality
+        return __builtin_amdgcn_readfirstlane(blockIdx.x);
+    }
+
+    /**
+     * @brief Get length of loop iterations for stream-k loop
+     */
+    CK_TILE_DEVICE index_t GetCurrentIterLength(index_t iter_start,
+                                                index_t iter_end,
+                                                index_t total_iter_length) const noexcept
+    {
+        index_t iter_length_mod, iter_length_quo /*unused*/;
+        k_iters_per_tile.divmod(iter_end, iter_length_quo, iter_length_mod);
+        index_t current_iter_length = math::min(
+            iter_length_mod == 0 ? (iter_end - iter_start) : iter_length_mod, total_iter_length);
+        return current_iter_length;
+    }
+
+    /**
+     * @brief Get index of tile during a specified iteration
+     */
+    CK_TILE_DEVICE index_t GetTileIdx(index_t iter) const noexcept
+    {
+        return k_iters_per_tile.div(iter);
+    }
+
+    /**
+     * @brief Get index of tile during a specified iteration
+     */
+    CK_TILE_DEVICE void
+    GetTileIdxWithOffset(index_t iter, index_t& tile_idx, index_t& iter_offset) const noexcept
+    {
+        k_iters_per_tile.divmod(iter, tile_idx, iter_offset);
+    }
+
+    /**
+     * @brief Calculates the buffer space needed for accumulation
+     */
+    CK_TILE_HOST_DEVICE index_t GetWorkSpaceSizeForAcc(index_t acc_element_bytes) const noexcept
+    {
+        static constexpr index_t alignment = 128;
+        index_t acc_buffer_bytes = MPerBlock * NPerBlock * GetTotalAccBuffers() * acc_element_bytes;
+        return (acc_buffer_bytes + alignment - 1) / alignment * alignment;
+    }
+
+    /**
+     * @brief Calculates the buffer space needed for the semaphore
+     */
+    CK_TILE_HOST_DEVICE index_t GetWorkSpaceSizeForSemaphore() const noexcept
+    {
+        return GetSkTiles() * sizeof(index_t);
+    }
+
+    /**
+     * @brief Calculates the total buffer space needed for accumulation and the semaphore
+     */
+    CK_TILE_HOST_DEVICE index_t GetWorkSpaceSize(index_t acc_element_bytes) const noexcept
+    {
+        return GetWorkSpaceSizeForAcc(acc_element_bytes) + GetWorkSpaceSizeForSemaphore();
+    }
+
+    /**
+     * @brief Get location of intersection of tiles for reduction
+     */
+    CK_TILE_HOST_DEVICE index_t GetTileIntersections(index_t tiles_,
+                                                     const MDiv& eqav_tiles_) const noexcept
+    {
+        index_t tile_idx_       = tiles_ == 0 ? 0 : (tiles_ - 1);
+        index_t max_eqav_tiles_ = eqav_tiles_.get() - 1;
+        index_t quo_, rem_;
+        eqav_tiles_.divmod(tile_idx_, quo_, rem_);
+        return quo_ * max_eqav_tiles_ + rem_;
+    }
+
+    /**
+     * @brief Calculate the number of tiles needed for the number of sk blocks
+     */
+    CK_TILE_HOST_DEVICE index_t GetTilesCoverSkBlock(index_t num_sk_blocks_,
+                                                     index_t iters_per_sk_block_) const noexcept
+    {
+        return k_iters_per_tile.div(num_sk_blocks_ * iters_per_sk_block_ + k_iters_per_tile.get() -
+                                    1);
+    }
+
+    /**
+     * @brief Calculate the amount of total accumulation buffers required for stream-k
+     */
+    CK_TILE_HOST_DEVICE index_t GetTotalAccBuffers() const noexcept
+    {
+        index_t tiles_cover_big_blocks =
+            GetTileCoverSkBlock(sk_num_big_blocks, k_iters_per_big_block);
+        index_t tiles_cover_little_blocks =
+            GetTileCoverSkBlock(sk_num_blocks - sk_num_big_blocks, k_iters_per_big_block - 1);
+
+        index_t total_intersec_big = GetTileIntersections(tiles_cover_big_blocks, eqav_tiles_big);
+        index_t total_intersec_little =
+            GetTileIntersections(tiles_cover_little_blocks, eqav_tiles_little);
+
+        return sk_num_blocks + total_intersec_big + total_intersec_little;
+    }
+
+    /**
+     * @brief Calculate offset based on tile index for big/little tiles
+     */
+    CK_TILE_DEVICE index_t GetAccBufferOffsetFromTile(index_t tile_idx_) const noexcept
+    {
+        // TODO: from big to little
+        index_t tiles_cover_big_blocks =
+            GetTileCoverSkBlock(sk_num_big_blocks, k_iters_per_big_block);
+        if(tile_idx_ < tiles_cover_big_blocks)
+        {
+            index_t touched_sk_blocks =
+                (tile_idx_ * k_iters_per_tile.get() + k_iters_per_big_block - 1) /
+                k_iters_per_big_block;
+            index_t current_intersec = GetTileIntersections(tile_idx_, eqav_tiles_big);
+            return touched_sk_blocks + current_intersec;
+        }
+        else
+        {
+            index_t iters_per_little_sk_block = k_iters_per_big_block - 1;
+            index_t tile_idx_little_reverse   = GetSkTiles() - tile_idx_;
+            index_t touched_sk_blocks =
+                (tile_idx_little_reverse * k_iters_per_tile.get() + iters_per_little_sk_block - 1) /
+                iters_per_little_sk_block;
+            index_t current_intersec =
+                GetTileIntersections(tile_idx_little_reverse, eqav_tiles_little);
+            return GetTotalAccBuffers() - (touched_sk_blocks + current_intersec);
+        }
+    }
+
+    /**
+     * @brief Calculate offset based on block_idx index for big/little streamk blocks
+     */
+    CK_TILE_DEVICE index_t GetAccBufferOffsetFromBlock(index_t block_idx_) const noexcept
+    {
+        index_t iters_per_big_sk_block    = k_iters_per_big_block;
+        index_t iters_per_little_sk_block = k_iters_per_big_block - 1;
+        if(block_idx_ < sk_num_big_blocks)
+        {
+            index_t touched_tiles    = k_iters_per_tile.div(block_idx_ * iters_per_big_sk_block +
+                                                         k_iters_per_tile.get() - 1);
+            index_t current_intersec = GetTileIntersections(touched_tiles, eqav_tiles_big);
+            return block_idx_ + current_intersec;
+        }
+        else
+        {
+            index_t block_idx_little_reverse = sk_num_blocks - block_idx_;
+            index_t touched_tiles            = k_iters_per_tile.div(
+                block_idx_little_reverse * iters_per_little_sk_block + k_iters_per_tile.get() - 1);
+            index_t current_intersec = GetTileIntersections(touched_tiles, eqav_tiles_little);
+            return GetTotalAccBuffers() - (block_idx_little_reverse + current_intersec);
+        }
     }
 
     // Getters for problem dimensions
     CK_TILE_HOST_DEVICE index_t GetNumTileM() const noexcept { return num_tile_m_; }
     CK_TILE_HOST_DEVICE index_t GetNumTileN() const noexcept { return num_tile_n_; }
     CK_TILE_HOST_DEVICE index_t GetNumTileK() const noexcept { return num_tile_k_; }
-    CK_TILE_HOST_DEVICE index_t GetTotalTiles() const noexcept { return total_tiles_; }
-    CK_TILE_HOST_DEVICE index_t GetTotalWorkUnits() const noexcept { return total_work_units_; }
 
     private:
     index_t M_, N_, K_;
     index_t num_tile_m_, num_tile_n_, num_tile_k_;
-    index_t total_tiles_;
-    index_t total_work_units_;
 };
-
-/**
- * @brief Static helper functions for Stream-K work analysis
- */
-struct StreamKWorkAnalysis
-{
-    CK_TILE_HOST_DEVICE static bool ShouldUseStreamK(index_t M,
-                                                     index_t N,
-                                                     index_t K,
-                                                     index_t MPerBlock,
-                                                     index_t NPerBlock,
-                                                     index_t KPerBlock) noexcept
-    {
-        const index_t num_tile_k = (K + KPerBlock - 1) / KPerBlock;
-        const index_t num_tile_mn =
-            ((M + MPerBlock - 1) / MPerBlock) * ((N + NPerBlock - 1) / NPerBlock);
-
-        // Use Stream-K when:
-        // 1. K dimension has multiple tiles (more than 2)
-        // 2. Total work significantly exceeds output tiles
-        // 3. Problem size is large enough to benefit
-        return (num_tile_k > 2) && (num_tile_k * num_tile_mn > num_tile_mn * 2) &&
-               (num_tile_mn * num_tile_k > 64);
-    }
-
-    CK_TILE_HOST_DEVICE static auto CalculateWorkDistribution(index_t M,
-                                                              index_t N,
-                                                              index_t K,
-                                                              index_t MPerBlock,
-                                                              index_t NPerBlock,
-                                                              index_t KPerBlock,
-                                                              index_t target_blocks = 0) noexcept
-    {
-        const index_t num_tile_m = (M + MPerBlock - 1) / MPerBlock;
-        const index_t num_tile_n = (N + NPerBlock - 1) / NPerBlock;
-        const index_t num_tile_k = (K + KPerBlock - 1) / KPerBlock;
-
-        const index_t total_output_tiles = num_tile_m * num_tile_n;
-        const index_t total_work_units   = total_output_tiles * num_tile_k;
-
-        // If target_blocks is 0, calculate optimal blocks
-        if(target_blocks == 0)
-        {
-            // Heuristic: aim for 2-4x more blocks than output tiles, but cap at total work
-            target_blocks = min(total_work_units, total_output_tiles * 4);
-            target_blocks =
-                max(target_blocks, total_output_tiles); // At least as many as output tiles
-        }
-
-        const index_t work_per_block = total_work_units / target_blocks;
-        const index_t big_blocks     = total_work_units % target_blocks;
-
-        return make_tuple(target_blocks, work_per_block, big_blocks, total_work_units);
-    }
-};
-
 } // namespace ck_tile
