@@ -23,16 +23,20 @@ constexpr index_t TestM2 = 4;
 constexpr index_t TestM4 = 2;
 constexpr index_t TestCShuffleMXdlPerWavePerShuffle = 4;
 constexpr index_t TestCShuffleNXdlPerWavePerShuffle = 8;
-constexpr auto I0 = Number<0>{};
 
-// Mock GPU kernel for testing data transfer
-template<typename SrcData, typename DstData, bool UsePackedCast, bool TransferOutputToGlobalMemory = true>
+constexpr auto I0 = Number<0>{};
+constexpr index_t NumThreads = 64;
+
+// Execute threadwise slice transfer from VGPR to LDS.
+// We want to measure the performance of the transfer operation, and each thread can do 
+// perform the same transfer operation.
+template<typename SrcData, typename DstData, bool UsePackedCast, bool TransferOutputToGlobalMemory = true, int NRepeats = 1>
 __global__ void testVGPRToLDSTransfer_kernel(
     SrcData* input_data,
     DstData* output_data,
     index_t num_elements)
 {
-    // Simulate thread buffer (VGPR)
+    // Thread buffer (VGPR)
     constexpr auto c_thread_desc = make_naive_tensor_descriptor(
         make_tuple(Number<TestCShuffleMXdlPerWavePerShuffle>{},
                    Number<TestCShuffleNXdlPerWavePerShuffle>{},
@@ -51,7 +55,7 @@ __global__ void testVGPRToLDSTransfer_kernel(
                    Number<1>{},
                    Number<1>{}));
 
-    // Simulate LDS buffer descriptor
+    // LDS buffer, this can be the same for each thread since we are interested in the threadwise transfer performance/correctness.
     constexpr auto lds_desc = make_naive_tensor_descriptor(
         make_tuple(Number<TestCShuffleMXdlPerWavePerShuffle>{},
                    Number<TestCShuffleNXdlPerWavePerShuffle>{},
@@ -70,93 +74,113 @@ __global__ void testVGPRToLDSTransfer_kernel(
                    Number<1>{},
                    Number<1>{}));
 
+    // We run the whole transfer in one go.
     constexpr auto src_slice_origin_index = make_tuple(I0, I0, I0, I0, I0, I0, I0, I0);
 
     // Create thread buffer and populate with input data
     constexpr auto buffer_size = TestCShuffleMXdlPerWavePerShuffle * 
                                 TestCShuffleNXdlPerWavePerShuffle * 
                                 TestM2 * TestM4;
+
+    // Allocate shared memory for LDS
+    __shared__ DstData lds_data[buffer_size * NumThreads];
     
     StaticBuffer<AddressSpaceEnum::Vgpr, SrcData, buffer_size, true> src_thread_buf;
     
     // Initialize thread buffer with test data.
     // Each thread will handle a slice of the input data.
     const index_t thread_id = blockIdx.x * blockDim.x + threadIdx.x;
-    if (thread_id < num_elements) {
-        static_for<0, buffer_size, 1>{}([&](auto i) {
-            src_thread_buf(i) = input_data[thread_id * buffer_size + i.value];
+    const index_t offset_in_global_memory = thread_id * buffer_size;
+    if (thread_id < num_elements) 
+    {
+        static_for<0, buffer_size, 1>{}([&](auto i) 
+        {
+            src_thread_buf(i) = input_data[offset_in_global_memory + i.value];
         });
     }
 
-    // Allocate shared memory for LDS
-    __shared__ DstData lds_data[buffer_size * 256]; // Assume 256 threads max
-    
-    auto lds_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-        &lds_data[thread_id * buffer_size], buffer_size);
-
-
-    // Create threadwise transfer
+    // The packed cast requires that the element-wise op is a pass-through operation.
     using ElementOp = tensor_operation::element_wise::PassThrough;
     ElementOp element_op{};
 
+    // This could be compile time constant since we run the transfer in one go.
+    // However, the API allows this to be dynamic, so we keep it as such.
     const auto dst_slice_origin_index = make_multi_index(0, 0, 0, 0, 0, 0, 0, 0);
 
     using TransferType = std::conditional_t<
         UsePackedCast,
-        ThreadwiseTensorSliceTransfer_v1r3_packed_cast<
-            SrcData,
-            DstData,
-            decltype(c_thread_desc),
-            decltype(lds_desc),
-            ElementOp,
-            Sequence<TestCShuffleMXdlPerWavePerShuffle,
-                    TestCShuffleNXdlPerWavePerShuffle,
-                    1, 1, TestM2, 1, TestM4, 1>,
-            Sequence<0, 1, 2, 3, 4, 5, 7, 6>, // Note: 7, 6 are swapped to enable vectorized transfer.
-            7, // DstVectorDim
-            2, // DstScalarPerVector
-            InMemoryDataOperationEnum::Set,
-            1, // DstScalarStrideInVector
-            true // DstResetCoordinateAfterRun
-        >,
-        ThreadwiseTensorSliceTransfer_v1r3<
-            SrcData,
-            DstData,
-            decltype(c_thread_desc),
-            decltype(lds_desc),
-            ElementOp,
-            Sequence<TestCShuffleMXdlPerWavePerShuffle,
-                    TestCShuffleNXdlPerWavePerShuffle,
-                    1, 1, TestM2, 1, TestM4, 1>,
-            Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
-            7, // DstVectorDim
-            1, // DstScalarPerVector
-            InMemoryDataOperationEnum::Set,
-            1, // DstScalarStrideInVector
-            true // DstResetCoordinateAfterRun
-        >
-    >;
+            ThreadwiseTensorSliceTransfer_v1r3_packed_cast<
+                SrcData,
+                DstData,
+                decltype(c_thread_desc),
+                decltype(lds_desc),
+                ElementOp,
+                Sequence<TestCShuffleMXdlPerWavePerShuffle,
+                        TestCShuffleNXdlPerWavePerShuffle,
+                        1, 1, TestM2, 1, TestM4, 1>,
+                Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                7, // DstVectorDim
+                1, // DstScalarPerVector
+                InMemoryDataOperationEnum::Set,
+                1, // DstScalarStrideInVector
+                true // DstResetCoordinateAfterRun
+            >,
+            ThreadwiseTensorSliceTransfer_v1r3<
+                SrcData,
+                DstData,
+                decltype(c_thread_desc),
+                decltype(lds_desc),
+                ElementOp,
+                Sequence<TestCShuffleMXdlPerWavePerShuffle,
+                        TestCShuffleNXdlPerWavePerShuffle,
+                        1, 1, TestM2, 1, TestM4, 1>,
+                Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                7, // DstVectorDim
+                1, // DstScalarPerVector
+                InMemoryDataOperationEnum::Set,
+                1, // DstScalarStrideInVector
+                true // DstResetCoordinateAfterRun
+            >
+        >;
 
     auto thread_transfer = TransferType{lds_desc, dst_slice_origin_index, element_op};
 
-    // Perform the transfer
-    if (thread_id < num_elements) {
-        thread_transfer.Run(c_thread_desc,
-                           src_slice_origin_index,
-                           src_thread_buf,
-                           lds_desc,
-                           lds_buf);
+    // Perform the transfer from VGPRs to LDS.
+    // To mesure the performance, we repeat the transfer NRepeats times.
+    if (thread_id < num_elements) 
+    {
+        static_for<0, NRepeats, 1>{}([&](auto i) 
+        {
+            // Create a view to the LDS slice of this thread.
+            const auto offset_in_lds = ((i + thread_id) % NumThreads) * buffer_size;
+            auto lds_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+                &lds_data[offset_in_lds], buffer_size);
 
+            thread_transfer.Run(c_thread_desc,
+                            src_slice_origin_index,
+                            src_thread_buf,
+                            lds_desc,
+                            lds_buf);    
+        });
+    }
+
+    if constexpr (TransferOutputToGlobalMemory)
+    {
+        // Ensure all threads have written to LDS.
+        // This is important if we process the threadwise slice in smaller parts.
+        // Currently, we run the whole transfer in one go, so this is not strictly necessary.
         __syncthreads();
 
-        if constexpr (TransferOutputToGlobalMemory)
-        {
-            // Copy results back to global memory
-            static_for<0, buffer_size, 1>{}([&](auto i) {
-                output_data[thread_id * buffer_size + i.value] = lds_buf[Number<i.value>{}];
-            });
-        }
+        // Copy results back to global memory
+        const auto offset_in_lds = thread_id * buffer_size;
+        auto lds_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+            &lds_data[offset_in_lds], buffer_size);
+
+        static_for<0, buffer_size, 1>{}([&](auto i) {
+            output_data[thread_id * buffer_size + i.value] = lds_buf[Number<i.value>{}];
+        });
     }
+
 }
 
 ck::bhalf_t convert(float x)
@@ -188,18 +212,18 @@ public:
         std::ignore = run<UsePackedCast, UseGpu>(false, 0, 0);
     };
 
-    template <bool UsePackedCast>
+    template <bool UsePackedCast, int NRepeats>
     std::optional<float> run(index_t num_iters, index_t num_warmup_iters)
     {
         return run<UsePackedCast, true>(true, num_iters, num_warmup_iters);
     };
 private:
-    template <bool UsePackedCast, bool UseGpu>
+    template <bool UsePackedCast, bool UseGpu, int NRepeats=1>
     std::optional<float> run(bool time_kernel, index_t num_iters, index_t num_warmup_iters)
     {
-        if constexpr  (UseGpu) 
+        if constexpr (UseGpu) 
         {
-            return run_device<UsePackedCast>(time_kernel, num_iters, num_warmup_iters);
+            return run_device<UsePackedCast, NRepeats>(time_kernel, num_iters, num_warmup_iters);
         }
         else 
         {
@@ -215,14 +239,13 @@ private:
         GTEST_FAIL() << "Host transfer test not implemented yet.";
     };
 
-    template <bool UsePackedCast>
+    template <bool UsePackedCast, int NRepeats = 1>
     std::optional<float> run_device(bool time_kernel, index_t num_iters, index_t num_warmup_iters)
     {
-        constexpr index_t num_threads = 64;
         constexpr index_t elements_per_thread = TestCShuffleMXdlPerWavePerShuffle * 
                                             TestCShuffleNXdlPerWavePerShuffle * 
                                             TestM2 * TestM4;
-        constexpr index_t total_elements = num_threads * elements_per_thread;
+        constexpr index_t total_elements = NumThreads * elements_per_thread;
 
         // Host data
         std::vector<float> h_input(total_elements);
@@ -231,7 +254,7 @@ private:
 
         // Initialize input data
         for (index_t i = 0; i < total_elements; ++i) {
-            h_input[i] = static_cast<float>(i) - 5.0f;
+            h_input[i] = static_cast<float>(i);
             h_reference[i] = convert(h_input[i]);
         }
 
@@ -246,7 +269,7 @@ private:
         std::optional<float> kernel_average_execution_time = std::nullopt;
 
         // Launch kernel
-        dim3 grid(1), block(num_threads);
+        dim3 grid(1), block(NumThreads);
         if (time_kernel)
         {
             hipEvent_t start, stop;
@@ -256,7 +279,7 @@ private:
             // Warmup iterations
             for (index_t i = 0; i < num_warmup_iters; ++i) 
             {
-                testVGPRToLDSTransfer_kernel<float, ck::bhalf_t, UsePackedCast, false><<<grid, block>>>(d_input, d_output, num_threads);
+                testVGPRToLDSTransfer_kernel<float, ck::bhalf_t, UsePackedCast, false, NRepeats><<<grid, block>>>(d_input, d_output, total_elements);
             }
             HIP_CHECK_ERROR(hipDeviceSynchronize());
 
@@ -264,7 +287,7 @@ private:
             HIP_CHECK_ERROR(hipEventRecord(start));
             for (index_t i = 0; i < num_iters; ++i) 
             {
-                testVGPRToLDSTransfer_kernel<float, ck::bhalf_t, UsePackedCast, false><<<grid, block>>>(d_input, d_output, num_threads);
+                testVGPRToLDSTransfer_kernel<float, ck::bhalf_t, UsePackedCast, false, NRepeats><<<grid, block>>>(d_input, d_output, total_elements);
             }
             HIP_CHECK_ERROR(hipEventRecord(stop));
             HIP_CHECK_ERROR(hipEventSynchronize(stop));
@@ -278,7 +301,7 @@ private:
         }
         else 
         {
-            testVGPRToLDSTransfer_kernel<float, ck::bhalf_t, UsePackedCast><<<grid, block>>>(d_input, d_output, num_threads);
+            testVGPRToLDSTransfer_kernel<float, ck::bhalf_t, UsePackedCast><<<grid, block>>>(d_input, d_output, total_elements);
             HIP_CHECK_ERROR(hipDeviceSynchronize());
 
             // Copy results back
@@ -347,10 +370,11 @@ TEST_F(VGPRToLDSTransferTest, FloatToBhalf_device_PackedCast)
 
 TEST_F(VGPRToLDSTransferTest, FloatToBhalf_device_test_peformance) 
 {
+    constexpr int NRepeats = 5000;
     const int num_iters = 250;
     const int num_warmup_iters = 10;
-    const auto packed_cast_time = run<true>(num_iters, num_warmup_iters);
-    const auto baseline_time = run<false>(num_iters, num_warmup_iters);
+    const auto packed_cast_time = run<true, NRepeats>(num_iters, num_warmup_iters);
+    const auto baseline_time = run<false, NRepeats>(num_iters, num_warmup_iters);
 
     const auto default_value = std::numeric_limits<float>::signaling_NaN();
     std::cout << "Baseline average execution time: " 
