@@ -346,5 +346,4 @@ int main(int argc, char* argv[])
         // Return a non-zero code to indicate failure
         return EXIT_FAILURE;
     }
-    return EXIT_SUCCESS;
 }
