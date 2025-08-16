@@ -657,22 +657,11 @@ struct HostTensor
             {
                 os << type_convert<float>(t.mData[idx]) << " #### ";
             }
-            else if constexpr(std::is_same_v<T, int8_t>)
-            {
-                os << static_cast<int>(t.mData[idx]) << " #### ";
-            }
             else if constexpr(std::is_same_v<T, ck_tile::pk_int4_t>)
             {
-                int8_t packed = static_cast<int8_t>(t.mData[idx].data);
-                int8_t high   = (packed >> 4) & 0x0F;
-                int8_t low    = packed & 0x0F;
-
-                if(high & 0x08) // deal with negative numbers
-                    high |= 0xF0;
-                if(low & 0x08) // deal with negative numbers
-                    low |= 0xF0;
-
-                os << "pk(" << static_cast<int>(high) << ", " << static_cast<int>(low) << ") #### ";
+                auto unpacked = pk_int4_t_to_int8x2_t(t.mData[idx]);
+                os << "pk(" << static_cast<int>(unpacked[0]) << ", "
+                   << static_cast<int>(unpacked[1]) << ") #### ";
             }
             else
             {
