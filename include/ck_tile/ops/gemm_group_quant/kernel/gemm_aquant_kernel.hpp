@@ -107,7 +107,7 @@ struct AQuantGemmKernel
     using BLayout                       = remove_cvref_t<typename GemmPipeline::BLayout>;
     using CLayout                       = remove_cvref_t<typename GemmPipeline::CLayout>;
     static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
-    static constexpr bool Preshuffle         = GemmPipeline::Preshuffle;
+    static constexpr bool Preshuffle    = GemmPipeline::Preshuffle;
 
     using ADataType  = remove_cvref_t<typename GemmPipeline::ADataType>;
     using AQDataType = remove_cvref_t<typename GemmPipeline::AQDataType>;

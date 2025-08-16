@@ -99,16 +99,16 @@ bool run(const ck_tile::ArgParser& arg_parser)
               << ")" << std::endl;
 
     // Launch kernel
-    float ave_time = launch_kernel(
-        ck_tile::stream_config{nullptr, true, warmup, repeat, 1},
-        ck_tile::make_kernel<kBlockSize, 1>(Kernel{},
-                                            kGridSize,
-                                            kBlockSize,
-                                            0,
-                                            static_cast<XDataType*>(x_buf.GetDeviceBuffer()),
-                                            static_cast<YDataType*>(y_buf.GetDeviceBuffer()),
-                                            m,
-                                            n));
+    float ave_time =
+        launch_kernel(ck_tile::stream_config{nullptr, true, warmup, repeat, 1},
+                      ck_tile::make_kernel<1>(Kernel{},
+                                              kGridSize,
+                                              kBlockSize,
+                                              0,
+                                              static_cast<XDataType*>(x_buf.GetDeviceBuffer()),
+                                              static_cast<YDataType*>(y_buf.GetDeviceBuffer()),
+                                              m,
+                                              n));
 
     // Calculate and print performance metrics
     std::size_t num_btype = sizeof(XDataType) * m * n + sizeof(YDataType) * m * n;

@@ -99,10 +99,8 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                       << std::endl;
         }
 
-        float ave_time =
-            ck_tile::launch_kernel(s,
-                                   ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
-                                       Kernel{}, grids, blocks, 0, kargs));
+        float ave_time = ck_tile::launch_kernel(
+            s, ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 
         return ave_time;
     };

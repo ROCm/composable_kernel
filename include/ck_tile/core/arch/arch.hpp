@@ -60,7 +60,7 @@ enum struct memory_operation_enum : std::uint16_t
 
 CK_TILE_HOST_DEVICE constexpr index_t get_warp_size()
 {
-#if defined(__GFX9__) || (!defined(__HIP_DEVICE_COMPILE__) && !defined(CK_TILE_WAVE32_ENABLED))
+#if defined(__GFX9__) || !defined(__HIP_DEVICE_COMPILE__)
     return 64;
 #else
     return 32;
