@@ -854,7 +854,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
 
         __builtin_amdgcn_sched_barrier(0);
 
-        auto mainloop = [&] __attribute__((noinline)) (index_t cur_loop, 
+        auto mainloop = [&] (index_t cur_loop, 
                             KDataType* __restrict__ k_lds_write_ptr,
                             KDataType* __restrict__ k_lds_read_ptr,
                             KDataType* __restrict__ v_lds_write_ptr,
