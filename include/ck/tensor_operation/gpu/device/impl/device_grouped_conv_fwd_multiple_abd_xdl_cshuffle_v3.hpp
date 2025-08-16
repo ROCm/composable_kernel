@@ -695,7 +695,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                             Tuple<const AccDataType*>,
                             Tuple<EDataType*>,
                             Block2TileMapElementwise,
-                            CDEElementwiseOperation,
+                            element_wise::PassThrough,
                             BlockSize,
                             NPerBlock,
                             NPerBlock,
@@ -712,7 +712,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                             Tuple<NGCHWTransposeDescType>,
                             Tuple<const AccDataType*>,
                             Tuple<EDataType*>,
-                            Block2TileMapElementwise,
+                            element_wise::PassThrough,
                             CDEElementwiseOperation,
                             ElementwiseBlocksize,
                             NPerBlock,
@@ -1541,7 +1541,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                                                ck::Tuple<const AccDataType*>,
                                                ck::Tuple<EDataType*>,
                                                Block2TileMapElementwise,
-                                               CDEElementwiseOperation>;
+                                               element_wise::PassThrough>;
 
                         avg_time += launch_and_time_kernel(
                             stream_config,
@@ -1554,7 +1554,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                             make_tuple(const_cast<const AccDataType*>(launch_config.p_acc_grid)),
                             make_tuple(arg.p_e_grid_),
                             arg.elementwise_block_2_ctile_map_,
-                            arg.cde_element_op_);
+                            element_wise::PassThrough{});
                     }
                     else
                     {
@@ -1565,7 +1565,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                                                        Tuple<const AccDataType*>,
                                                        Tuple<EDataType*>,
                                                        Block2TileMapElementwise,
-                                                       CDEElementwiseOperation,
+                                                       element_wise::PassThrough,
                                                        I1,
                                                        I1>;
 
@@ -1580,7 +1580,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                             make_tuple(const_cast<const AccDataType*>(launch_config.p_acc_grid)),
                             make_tuple(arg.p_e_grid_),
                             arg.elementwise_block_2_ctile_map_,
-                            arg.cde_element_op_,
+                            element_wise::PassThrough{},
                             arg.num_group_,
                             in_out_batch_strides,
                             in_out_batch_strides);
@@ -1606,7 +1606,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                         arg.b_element_op_,
                         arg.cde_element_op_};
 
-                    std::cout << "DEBUG:" << std::endl;
                     gemm_arg.Print();
 
                     if(arg.multi_k_batch_)

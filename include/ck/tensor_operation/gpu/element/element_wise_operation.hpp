@@ -594,6 +594,30 @@ struct BiasNormalizeInInferClamp
         y = type_convert<T>(tmp_y);
     };
 
+    template <typename T>
+    __host__ __device__ constexpr typename ck::enable_if<!ck::is_same_v<T, float>, void>::type
+    operator()(float& y,
+               const float& x,
+               const T& bias,
+               const T& mean,
+               const T& variance,
+               const T& gamma,
+               const T& beta) const
+    {
+        using ck::type_convert;
+        using ck::math::sqrt;
+
+        float tmp_x = x + type_convert<float>(bias);
+
+        float tmp_y =
+            ((tmp_x - type_convert<float>(mean)) / sqrt(type_convert<float>(variance) + epsilon_)) *
+                type_convert<float>(gamma) +
+            type_convert<float>(beta);
+
+        clamp_(tmp_y, tmp_y);
+        y = tmp_y;
+    }
+
     template <>
     __host__ __device__ constexpr void operator()(float& y,
                                                   const float& x,
