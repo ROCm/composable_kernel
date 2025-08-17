@@ -382,7 +382,9 @@ struct UniversalGemmKernel
             }
         }
 
-        bool AsTesnorIsValid = {true};
+        const auto vectorSizeA = is_wave32() ? GemmPipeline::template GetVectorSizeA<true>()
+                                             : GemmPipeline::template GetVectorSizeA<false>();
+        bool AsTesnorIsValid   = {true};
         static_for<0, NumATensor, 1>{}([&](auto index) {
             using AiLayout = remove_cvref_t<std::tuple_element_t<index.value, AsLayout>>;
             if constexpr(std::is_same_v<AiLayout, tensor_layout::gemm::RowMajor>)
@@ -398,7 +400,7 @@ struct UniversalGemmKernel
                     }
                     AsTesnorIsValid = false;
                 }
-                if(kargs.K % GemmPipeline::GetVectorSizeA() != 0)
+                if(kargs.K % vectorSizeA != 0)
                 {
                     if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                     {
@@ -418,7 +420,7 @@ struct UniversalGemmKernel
                     }
                     AsTesnorIsValid = false;
                 }
-                if(kargs.M % GemmPipeline::GetVectorSizeA() != 0)
+                if(kargs.M % vectorSizeA != 0)
                 {
                     if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                     {
@@ -429,7 +431,9 @@ struct UniversalGemmKernel
             }
         });
 
-        bool BsTesnorIsValid = {true};
+        bool BsTesnorIsValid   = {true};
+        const auto vectorSizeB = is_wave32() ? GemmPipeline::template GetVectorSizeB<true>()
+                                             : GemmPipeline::template GetVectorSizeB<false>();
         static_for<0, NumBTensor, 1>{}([&](auto index) {
             using BiLayout = remove_cvref_t<std::tuple_element_t<index.value, BsLayout>>;
             if constexpr(std::is_same_v<BiLayout, tensor_layout::gemm::RowMajor>)
@@ -443,7 +447,7 @@ struct UniversalGemmKernel
                     }
                     BsTesnorIsValid = false;
                 }
-                if(kargs.N % GemmPipeline::GetVectorSizeB() != 0)
+                if(kargs.N % vectorSizeB != 0)
                 {
                     if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                     {
@@ -465,7 +469,7 @@ struct UniversalGemmKernel
                     }
                     BsTesnorIsValid = false;
                 }
-                if(kargs.K % GemmPipeline::GetVectorSizeB() != 0)
+                if(kargs.K % vectorSizeB != 0)
                 {
                     if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                     {
