@@ -69,7 +69,6 @@ struct GemmAQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_
     static constexpr auto TailNum             = TailNum_;
 
     static_assert(BlockGemmShape::kK % kQuantGroupSize == 0);
-    static_assert(Scheduler == GemmPipelineScheduler::Intrawave);
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {

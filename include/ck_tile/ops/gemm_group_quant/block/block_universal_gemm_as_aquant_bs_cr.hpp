@@ -509,6 +509,174 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase<Problem_>
             });
         }
     };
+    template <typename GemmTraits>
+    struct BlockGemmImpl<GemmPipelineScheduler::Interwave, GemmTraits>
+    {
+        static constexpr auto ALdsTileDistr =
+            decltype(make_static_tile_distribution(MakeABlockDistributionEncode())){};
+        static constexpr auto BLdsTileDistr =
+            decltype(make_static_tile_distribution(MakeBBlockDistributionEncode())){};
+
+        using ALdsTile = decltype(make_static_distributed_tensor<ComputeDataType>(ALdsTileDistr));
+        using BLdsTile = decltype(make_static_distributed_tensor<ComputeDataType>(BLdsTileDistr));
+
+        ALdsTile a_warp_tile_;
+        BLdsTile b_warp_tile_;
+
+        template <typename ASmemBlockWindow, typename BSmemBlockWindow>
+        CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
+                                          const BSmemBlockWindow& b_block_window)
+        {
+            if constexpr(std::is_same_v<ADataType, pk_int4_t>)
+            {
+                static_assert(std::is_same_v<ComputeDataType, fp8_t> ||
+                              std::is_same_v<ComputeDataType, bf8_t>);
+                Base::load_interleaved_pk_type(a_warp_tile_, a_block_window);
+            }
+            else
+            {
+                load_tile(a_warp_tile_, a_block_window);
+            }
+            if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+            {
+                static_assert(std::is_same_v<ComputeDataType, fp8_t> ||
+                              std::is_same_v<ComputeDataType, bf8_t>);
+                Base::load_interleaved_pk_type(b_warp_tile_, b_block_window);
+            }
+            else
+            {
+                load_tile(b_warp_tile_, b_block_window);
+            }
+        }
+
+        // C += A * B
+        template <typename CBlockTensor,
+                  typename AQBlockTensor,
+                  typename ASmemBlockWindow,
+                  typename BSmemBlockWindow>
+        CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
+                                       AQBlockTensor& aq_block_tensor,
+                                       [[maybe_unused]] ASmemBlockWindow& a_block_window,
+                                       [[maybe_unused]] BSmemBlockWindow& b_block_window)
+        {
+            static_assert(std::is_same_v<CDataType, typename CBlockTensor::DataType>,
+                          "The CDataType as defined in traits should be the same as correspoinding "
+                          "C block tensor data type!");
+
+            LocalPrefetch(a_block_window, b_block_window);
+
+            // hot loop:
+            static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+                static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                    CWarpTensor c_warp_tensor;
+
+                    static_for<0, Traits::QScalesPerBlockRow, 1>{}([&](auto kQScale) {
+                        static_for<0, Traits::KIterPerQScale, 1>{}([&](auto kIterInQScale) {
+                            constexpr auto kIter = kQScale * Traits::KIterPerQScale + kIterInQScale;
+
+                            AWarpTensor a_warp_tensor;
+                            a_warp_tensor.get_thread_buffer() =
+                                a_warp_tile_.get_y_sliced_thread_data(
+                                    merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                                    merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
+
+                            BWarpTensor b_warp_tensor;
+                            b_warp_tensor.get_thread_buffer() =
+                                b_warp_tile_.get_y_sliced_thread_data(
+                                    merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
+                                    merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
+
+                            if constexpr(kIterInQScale == 0)
+                            {
+                                c_warp_tensor = WarpGemm{}(a_warp_tensor, b_warp_tensor);
+                            }
+                            else
+                            {
+                                WarpGemm{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
+                            }
+                        });
+
+                        // Need to multiply aquant with accumulated C
+                        //
+                        // The accumulated C tile has the standard distribution. For example
+                        // lane 0 holds elements [0,0], [1,0], [2,0], [3,0], [8,0], [9,0],
+                        // [10,0], [11,0], [16,0], [17,0], [18,0], [19,0], [24,0], [25,0],
+                        // [26,0], [27,0].
+                        //
+                        // These elements are in different rows, need to get the scale value
+                        // for the corresponding row.
+                        // Based on aquant's tile distribution, it can be inferred which
+                        // lane holds the relevant scale. For example, the scales corresponding
+                        // to the 16 elements held by lane 0 are held by lanes 0, 1, 2, 3, 8, 9,
+                        // 10, 11, 16, 17, 18, 19, 24, 25, 26, 27 respectively.
+                        //
+                        // These scales can be obtained using __builtin_amdgcn_ds_bpermute.
+
+                        // MIters per warp
+                        constexpr index_t mIters_per_warp = get_warp_size() / WarpGemm::kM;
+
+                        // Reg block offset based on mIter
+                        constexpr index_t reg_block_offset =
+                            ((mIter / mIters_per_warp) * Traits::AQPerBlock);
+
+                        constexpr index_t lane_base_offset =
+                            (mIter % mIters_per_warp) * WarpGemm::kM;
+
+                        // Scale tensor offset along K
+                        constexpr index_t src_reg_offset = reg_block_offset + kQScale;
+
+                        constexpr uint32_t kTileRows        = 4;
+                        constexpr uint32_t kTiledCMsPerWarp = WarpGemm::kCMLane * kTileRows;
+
+                        constexpr auto tbuf_offset =
+                            number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
+                                       merge_sequences(sequence<mIter, nIter>{},
+                                                       c_warp_y_index_zeros)) /
+                                   CBlockTensor::PackedSize>{};
+
+                        static_for<0, WarpGemm::kM, WarpGemm::kCMLane>{}([&](auto c_row) {
+                            // Multiply by 4 because output is stored in tiles of 4
+                            // x CNLane
+                            constexpr uint32_t row_base =
+                                ((c_row / kTiledCMsPerWarp) * kTiledCMsPerWarp) +
+                                ((c_row % kTiledCMsPerWarp) / WarpGemm::kCMLane);
+
+                            constexpr uint32_t reg_offset_for_row_data = c_row / WarpGemm::kCMLane;
+
+                            // Lane index to source scale from
+                            uint32_t src_lane_idx = lane_base_offset + row_base +
+                                                    (__lane_id() / WarpGemm::kN * kTileRows);
+
+                            // Directly index into thread buffer corresponding to
+                            // desired row coefficient
+                            auto& scale_reg = aq_block_tensor.get_thread_buffer()[src_reg_offset];
+                            uint32_t scale_reg_dword;
+
+                            if constexpr(std::is_same_v<AQDataType, float>)
+                            {
+                                scale_reg_dword = ck_tile::bit_cast<uint32_t>(scale_reg);
+                            }
+                            else
+                            {
+                                scale_reg_dword = static_cast<uint32_t>(scale_reg);
+                            }
+
+                            // Pull scale data across lanes
+                            int gathered_scale_reg = __builtin_amdgcn_ds_bpermute(
+                                src_lane_idx * 4, __builtin_bit_cast(int, scale_reg_dword));
+
+                            float scale_reg_f = Base::cvt_scale_to_fp32(gathered_scale_reg);
+
+                            c_block_tensor
+                                .get_thread_buffer()[tbuf_offset + reg_offset_for_row_data] +=
+                                (c_warp_tensor.get_thread_buffer()[reg_offset_for_row_data] *
+                                 scale_reg_f * kA_cvt_scale * kB_cvt_scale);
+                        });
+                    });
+                });
+            });
+        }
+    };
 
     public:
     CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
