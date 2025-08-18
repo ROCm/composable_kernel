@@ -618,6 +618,18 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
         decltype(MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(CMNGridDesc{}));
     using CBlockClusterAdaptor = decltype(MakeCBlockClusterAdaptor(CMNGridDesc{}, 1, 1, 1));
 
+    // check if we should apply gf950 device specific optimization for BF16 output
+    __device__ static constexpr bool is_gfx650_and_bf16_output()
+    {
+#if defined(__gfx950__)
+        return 
+            std::is_same_v<FloatC, ck::bhalf_t> &&
+            std::is_same_v<FloatAcc, float>;
+#else
+        return false;
+#endif 
+    }
+
     template <bool HasMainKBlockLoop>
     __device__ static void Run(const FloatA* __restrict__ p_a_grid,
                                const FloatB* __restrict__ p_b_grid,
@@ -882,27 +894,52 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
                 n_thread_data_on_block_to_n0_n1_n2_adaptor.CalculateBottomIndex(
                     make_multi_index(n_thread_data_on_block));
 
+            using ThreadwiseTransfer = std::conditional_t<
+                is_gfx650_and_bf16_output(),
+                    ThreadwiseTensorSliceTransfer_v1r3_packed_cast<
+                                                    FloatAcc,
+                                                    FloatC,
+                                                    decltype(c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc),
+                                                    decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                                                    ck::tensor_operation::element_wise::PassThrough,
+                                                    Sequence<CShuffleMRepeatPerShuffle,
+                                                                CShuffleNRepeatPerShuffle,
+                                                                I1,
+                                                                I1,
+                                                                M2,
+                                                                I1,
+                                                                M4,
+                                                                I1>,
+                                                    Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                                                    7,
+                                                    1,
+                                                    InMemoryDataOperationEnum::Set,
+                                                    1,
+                                                    true>,
+                    ThreadwiseTensorSliceTransfer_v1r3<
+                                                    FloatAcc,
+                                                    FloatC,
+                                                    decltype(c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc),
+                                                    decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                                                    ck::tensor_operation::element_wise::PassThrough,
+                                                    Sequence<CShuffleMRepeatPerShuffle,
+                                                                CShuffleNRepeatPerShuffle,
+                                                                I1,
+                                                                I1,
+                                                                M2,
+                                                                I1,
+                                                                M4,
+                                                                I1>,
+                                                    Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                                                    7,
+                                                    1,
+                                                    InMemoryDataOperationEnum::Set,
+                                                    1,
+                                                    true>
+                                                            >;
+
             // VGPR to LDS
-            auto c_thread_copy_vgpr_to_lds =
-                ThreadwiseTensorSliceTransfer_v1r3<FloatAcc,
-                                                   FloatC,
-                                                   decltype(c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc),
-                                                   decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                   ck::tensor_operation::element_wise::PassThrough,
-                                                   Sequence<CShuffleMRepeatPerShuffle,
-                                                            CShuffleNRepeatPerShuffle,
-                                                            I1,
-                                                            I1,
-                                                            M2,
-                                                            I1,
-                                                            M4,
-                                                            I1>,
-                                                   Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
-                                                   7,
-                                                   1,
-                                                   InMemoryDataOperationEnum::Set,
-                                                   1,
-                                                   true>{
+            auto c_thread_copy_vgpr_to_lds = ThreadwiseTransfer{
                     c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                     make_multi_index(0,
                                      0,
