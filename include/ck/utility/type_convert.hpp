@@ -55,15 +55,13 @@ inline __device__ bhalf_t static_cast_float_to_bf16(float x)
 #if defined(__gfx950__)
 inline __device__ bhalf2_t static_cast_float_x2_to_bhalf2_rne(float x, float y)
 {
-    uint32_t result;
-    asm volatile("v_cvt_pk_bf16_f32 %0, %1, %2" 
-        : "=v"(result) 
-        : "v"(x), "v"(y));
     union {
         uint32_t u32;
         bhalf2_t bf16x2;
     } value;
-    value.u32 = result;
+    asm volatile("v_cvt_pk_bf16_f32 %0, %1, %2" 
+        : "=v"(value.u32) 
+        : "v"(x), "v"(y));
     return value.bf16x2;
 }
 #endif
