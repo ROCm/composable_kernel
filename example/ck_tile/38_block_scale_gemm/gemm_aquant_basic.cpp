@@ -218,15 +218,15 @@ int run_gemm_example(int argc, char* argv[])
         return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
-    // else if(data_type == "i4fp8")
-    // {
-    //     using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t,
-    //                                                     ck_tile::fp8_t,
-    //                                                     float,
-    //                                                     ck_tile::fp8_t>{});
-    //     return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, TypeConfig, 128>(
-    //         a_layout, b_layout, argc, argv);
-    // }
+    else if(data_type == "i4fp8")
+    {
+        using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t,
+                                                        ck_tile::fp8_t,
+                                                        float,
+                                                        ck_tile::fp8_t>{});
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, TypeConfig, 128>(
+            a_layout, b_layout, argc, argv);
+    }
     // else if(data_type == "i4bf8")
     // {
     //     using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t,
