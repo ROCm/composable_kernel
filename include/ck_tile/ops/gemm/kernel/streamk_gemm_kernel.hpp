@@ -9,13 +9,13 @@
 
 namespace ck_tile {
 
-enum StreamKReductionStrategy
+enum StreamKReductionStrategy : uint32_t
 {
     /// @brief Workgroups atomically add their results to the C tensor
-    Atomic = 0,
+    Atomic = 0u,
     /// @brief For a given tile in the C tensor, one workgroup accumulates results of other
     /// contributing workgroups
-    Reduction
+    Reduction = 1u
 };
 
 /// @brief The Stream K GEMM kernel host arguments.
