@@ -37,7 +37,7 @@ struct StreamKHostArgs : public ck_tile::UniversalGemmHostArgs<>
                                           index_t stride_B_,
                                           index_t stride_C_,
                                           StreamKReductionStrategy reduction_strategy_,
-                                          uint32_t num_sk_blocks_ = 0xffffffff)
+                                          index_t num_sk_blocks_ = -1)
         : UniversalGemmHostArgs<>({a_ptr_},
                                   {b_ptr_},
                                   {/*ds_ptr*/},
@@ -56,7 +56,7 @@ struct StreamKHostArgs : public ck_tile::UniversalGemmHostArgs<>
     }
 
     ck_tile::StreamKReductionStrategy reduction_strategy;
-    uint32_t num_sk_blocks;
+    index_t num_sk_blocks;
 };
 
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
@@ -103,7 +103,7 @@ struct StreamKKernel
         /// @brief  The strategy used by work groups to compute final results in C tensor.
         StreamKReductionStrategy reduction_strategy;
         /// @brief  The number of stream k blocks.
-        uint32_t num_sk_blocks;
+        index_t num_sk_blocks;
         /// @brief  A pointer to a buffer in device memory for accumulating partial via reduction
         /// strategy.
         void* workspace_ptr;
