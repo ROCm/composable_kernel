@@ -235,8 +235,7 @@ class TestGroupedConvndBwdWeight2d_bf16_gfx950 : public TestGroupedConvndBwdWeig
 };
 
 using KernelTypes2d_bf16_gfx950 = ::testing::Types<
-    // This layout does not yet work.
-    //std::tuple<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t, NHWGC, GKYXC, NHWGK, ck::Number<2>>,
+    std::tuple<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t, NHWGC, GKYXC, NHWGK, ck::Number<2>>,
     std::tuple<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t, NGCHW, GKYXC, NGKHW, ck::Number<2>>,
     std::tuple<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t, NGCHW, GKCYX, NGKHW, ck::Number<2>>>;
 
@@ -249,12 +248,13 @@ TYPED_TEST(TestGroupedConvndBwdWeight2d_bf16_gfx950, Test2D)
     
     //                           n_dim  group_count     n_batch     n_out_channels  n_in_channels   filter_size     input_size  strides     dilations   left_pads   right_pads
     this->conv_params.push_back({2,     32,             64,         4,              4,              {1, 1},         {7, 7},     {1, 1},     {1, 1},     {0, 0},     {0, 0}});
-    this->conv_params.push_back({2,     4,              64,       128,            256,              {1, 1},         {7, 7},     {2, 2},     {1, 1},     {0, 0},     {0, 0}});
-    this->conv_params.push_back({2,     2,              64,         3,              3,              {1, 1},         {7, 7},     {1, 1},     {1, 1},     {0, 0},     {0, 0}});
+    this->conv_params.push_back({2,     4,              64,       128,            256,              {2, 2},         {7, 7},     {2, 2},     {1, 1},     {0, 0},     {0, 0}});
+    this->conv_params.push_back({2,     2,              64,         3,              3,              {2, 2},         {7, 7},     {1, 1},     {1, 1},     {0, 0},     {0, 0}});
     this->conv_params.push_back({2,     2,              64,         5,              5,              {1, 1},         {7, 7},     {1, 1},     {1, 1},     {0, 0},     {0, 0}});
     this->conv_params.push_back({2,     2,               4,       128,            256,              {3, 3},         {14, 14},   {1, 1},     {1, 1},     {1, 1},     {1, 1}});
     this->conv_params.push_back({2,     2,             128,       128,            256,              {1, 1},         {3, 3},     {1, 1},     {1, 1},     {0, 0},     {0, 0}});
     this->conv_params.push_back({2,     1,               1,         1,             32,              {3, 3},         {32, 32},   {1, 1},     {1, 1},     {1, 1},     {1, 1}});
+    this->conv_params.push_back({2,     3,               2,         8,             16,              {4, 4},         {64, 64},   {2, 2},     {1, 1},     {1, 1},     {1, 1}});
     
     this->Run();
 }
