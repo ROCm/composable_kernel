@@ -4,6 +4,8 @@ import os
 import json
 import argparse
 import itertools
+import multiprocessing
+import concurrent.futures
 from pathlib import Path
 
 
@@ -335,11 +337,9 @@ class GemmKernelBuilder:
         elif self.layout == "rcm":
             c_layout = "ck_tile::tensor_layout::gemm::ColumnMajor"
 
-        # Generate kernel instance code using the correct API
+        # Generate kernel instance code using the correct API from develop branch
         instance_code = f"""// Generated kernel instance for {kernel_name}
 #pragma once
-
-{"#define CK_TILE_USE_CUSTOM_DATA_TYPE 1" if self.datatype in ["fp8", "bf8"] else ""}
 
 #include <cstdint>
 #include <utility>
@@ -414,7 +414,7 @@ struct SelectedKernel {{
             ck_tile::TailNumber::Full>;
         
         // Pipeline
-        using GemmPipeline = {pipeline_impl_map.get(pipeline, "ck_tile::GemmPipelineAgBgCrMem")}<GemmPipelineProblem>;
+        using GemmPipeline = {pipeline_impl_map.get(pipeline, "ck_tile::GemmPipelineAGmemBGmemCRegV1")}<GemmPipelineProblem>;
         
         // Epilogue
 """
@@ -503,8 +503,13 @@ struct SelectedKernel {{
 
         return kernels
 
-    def generate_blobs(self):
-        """Generate blob files for monolithic build"""
+    def generate_blobs(self, num_workers=None):
+        """Generate blob files for monolithic build with parallel processing"""
+        if num_workers is None:
+            num_workers = min(
+                multiprocessing.cpu_count(), 8
+            )  # Limit to avoid memory issues
+
         tile_configs = self._get_tile_configs()
         trait_combos = self._generate_trait_combinations()
 
@@ -517,27 +522,61 @@ struct SelectedKernel {{
                 trait_groups[trait_key] = []
             trait_groups[trait_key].append(trait_combo)
 
-        blob_files = []
-        blob_ranges = []
+        # Prepare work items for parallel processing
+        work_items = []
+        for trait_key, trait_list in trait_groups.items():
+            for trait_combo in trait_list:
+                for tile_config in tile_configs:
+                    work_items.append(
+                        (
+                            tile_config,
+                            trait_combo,
+                            self.working_path,
+                            self.datatype,
+                            self.layout,
+                        )
+                    )
 
+        print(
+            f"Generating {len(work_items)} kernel instances using {num_workers} workers..."
+        )
+
+        # Process work items in parallel
+        blob_files = []
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=num_workers
+        ) as executor:
+            # Submit all work items
+            future_to_item = {
+                executor.submit(_generate_single_kernel_blob, item): item
+                for item in work_items
+            }
+
+            # Collect results
+            for future in concurrent.futures.as_completed(future_to_item):
+                try:
+                    result = future.result()
+                    if result:
+                        blob_files.append(result)
+                except Exception as exc:
+                    item = future_to_item[future]
+                    print(f"Kernel generation failed for {item}: {exc}")
+
+        # Sort blob files for consistent ordering
+        blob_files.sort()
+
+        # Generate blob ranges
+        blob_ranges = []
         blob_index = 0
         for trait_key, trait_list in trait_groups.items():
             start_index = blob_index
 
+            # Count kernels for this trait group
+            kernel_count = 0
             for trait_combo in trait_list:
-                for tile_config in tile_configs:
-                    kernel_name, instance_code = self._generate_kernel_instance(
-                        tile_config, trait_combo
-                    )
+                kernel_count += len(tile_configs)
 
-                    # Write instance file
-                    instance_file = self.working_path / f"{kernel_name}.cpp"
-                    with open(instance_file, "w") as f:
-                        f.write(instance_code)
-
-                    blob_files.append(str(instance_file))
-                    blob_index += 1
-
+            blob_index += kernel_count
             end_index = blob_index
             blob_ranges.append(f"{trait_key} {start_index} {end_index}")
 
@@ -550,6 +589,8 @@ struct SelectedKernel {{
 
         # Generate dispatcher header
         self._generate_dispatcher_header(trait_groups, tile_configs)
+
+        print(f"Generated {len(blob_files)} blob files in {self.working_path}")
 
     def _generate_dispatcher_header(self, trait_groups, tile_configs):
         """Generate the dispatcher header for monolithic build"""
@@ -637,34 +678,64 @@ public:
         with open(self.working_path / "gemm_dispatcher.hpp", "w") as f:
             f.write(dispatcher_code)
 
-    def generate_individual(self):
-        """Generate individual kernel files for separate compilation"""
+    def generate_individual(self, num_workers=None):
+        """Generate individual kernel files for separate compilation with parallel processing"""
+        if num_workers is None:
+            num_workers = min(
+                multiprocessing.cpu_count(), 8
+            )  # Limit to avoid memory issues
+
         tile_configs = self._get_tile_configs()
         trait_combos = self._generate_trait_combinations()
 
-        kernel_list = []
-
+        # Prepare work items for parallel processing
+        work_items = []
         for tile_config in tile_configs:
             for trait_combo in trait_combos:
-                kernel_name, instance_code = self._generate_kernel_instance(
-                    tile_config, trait_combo
+                work_items.append(
+                    (
+                        tile_config,
+                        trait_combo,
+                        self.working_path,
+                        self.datatype,
+                        self.layout,
+                    )
                 )
 
-                # Create simplified filename without the "gemm_" prefix
-                # Remove "gemm_" from the beginning of kernel_name for the filename
-                simplified_name = kernel_name
-                if simplified_name.startswith("gemm_"):
-                    simplified_name = simplified_name[5:]  # Remove "gemm_" prefix
+        print(
+            f"Generating {len(work_items)} individual kernel files using {num_workers} workers..."
+        )
 
-                # Write individual header file
-                header_file = self.working_path / f"gemm_single_{simplified_name}.hpp"
-                with open(header_file, "w") as f:
-                    f.write(instance_code)
+        # Process work items in parallel
+        kernel_list = []
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=num_workers
+        ) as executor:
+            # Submit all work items
+            future_to_item = {
+                executor.submit(_generate_single_kernel_individual, item): item
+                for item in work_items
+            }
 
-                kernel_list.append((kernel_name, trait_combo, tile_config))
+            # Collect results
+            for future in concurrent.futures.as_completed(future_to_item):
+                try:
+                    result = future.result()
+                    if result:
+                        kernel_list.append(result)
+                except Exception as exc:
+                    item = future_to_item[future]
+                    print(f"Kernel generation failed for {item}: {exc}")
+
+        # Sort kernel list for consistent ordering
+        kernel_list.sort(key=lambda x: x[0])  # Sort by kernel name
 
         # Generate CMake include file for individual targets
         self._generate_cmake_individual_targets(kernel_list)
+
+        print(
+            f"Generated {len(kernel_list)} individual kernel files in {self.working_path}"
+        )
 
     def _generate_cmake_individual_targets(self, kernel_list):
         """Generate CMake include file that creates individual targets"""
@@ -691,7 +762,7 @@ public:
         with open(self.working_path / "gemm_individual_targets.cmake", "w") as f:
             f.write(cmake_code)
 
-    def run(self, mode):
+    def run(self, mode, num_workers=None):
         """Run the builder in the specified mode"""
         if mode == "list_blobs":
             # List all kernels
@@ -702,20 +773,72 @@ public:
 
         elif mode == "gen_blobs":
             # Generate blob files for monolithic build
-            self.generate_blobs()
-            print(f"Generated blob files in {self.working_path}")
+            self.generate_blobs(num_workers)
 
         elif mode == "gen_individual":
             # Generate individual kernel files
-            self.generate_individual()
-            print(f"Generated individual kernel files in {self.working_path}")
+            self.generate_individual(num_workers)
 
         else:
             raise ValueError(f"Unknown mode: {mode}")
 
 
+def _generate_single_kernel_blob(work_item):
+    """Worker function to generate a single kernel blob file"""
+    tile_config, trait_combo, working_path, datatype, layout = work_item
+
+    # Create a temporary builder instance for this worker
+    builder = GemmKernelBuilder(working_path, datatype, layout)
+
+    try:
+        kernel_name, instance_code = builder._generate_kernel_instance(
+            tile_config, trait_combo
+        )
+
+        # Write instance file
+        instance_file = working_path / f"{kernel_name}.cpp"
+        with open(instance_file, "w") as f:
+            f.write(instance_code)
+
+        return str(instance_file)
+    except Exception as e:
+        print(f"Error generating kernel blob: {e}")
+        return None
+
+
+def _generate_single_kernel_individual(work_item):
+    """Worker function to generate a single individual kernel file"""
+    tile_config, trait_combo, working_path, datatype, layout = work_item
+
+    # Create a temporary builder instance for this worker
+    builder = GemmKernelBuilder(working_path, datatype, layout)
+
+    try:
+        kernel_name, instance_code = builder._generate_kernel_instance(
+            tile_config, trait_combo
+        )
+
+        # Create simplified filename without the "gemm_" prefix
+        # Remove "gemm_" from the beginning of kernel_name for the filename
+        simplified_name = kernel_name
+        if simplified_name.startswith("gemm_"):
+            simplified_name = simplified_name[5:]  # Remove "gemm_" prefix
+
+        # Write individual header file
+        header_file = working_path / f"gemm_single_{simplified_name}.hpp"
+        with open(header_file, "w") as f:
+            f.write(instance_code)
+
+        return (kernel_name, trait_combo, tile_config)
+    except Exception as e:
+        print(f"Error generating individual kernel: {e}")
+        return None
+
+
 def main():
-    parser = argparse.ArgumentParser(description="GEMM kernel instance builder")
+    parser = argparse.ArgumentParser(
+        description="GEMM kernel instance builder with parallel support"
+    )
     parser.add_argument("--working_path", required=True, help="Working directory path")
     parser.add_argument(
         "--datatype",
@@ -727,6 +850,9 @@ def main():
         "--layout", required=True, choices=["rcr", "rrr", "rcm"], help="Matrix layout"
     )
     parser.add_argument("--config_json", help="Configuration JSON file")
+    parser.add_argument(
+        "--num_workers", type=int, help="Number of parallel workers (default: auto)"
+    )
 
     # Mode selection
     parser.add_argument(
@@ -754,7 +880,7 @@ def main():
     builder = GemmKernelBuilder(
         args.working_path, args.datatype, args.layout, args.config_json
     )
-    builder.run(mode)
+    builder.run(mode, args.num_workers)
 
 
 if __name__ == "__main__":

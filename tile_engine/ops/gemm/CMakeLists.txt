@@ -1,6 +1,8 @@
 
 set(GEMM_DATATYPE "fp8;fp16" CACHE STRING "List of datatypes for GEMM (semicolon-separated)")
 set(GEMM_LAYOUT "rcr" CACHE STRING "List of layout for GEMM (semicolon-separated)")
+option(GEMM_BUILD_INDIVIDUAL "Build individual GEMM targets" OFF)
+option(GEMM_BUILD_MONOLITHIC "Build monolithic GEMM targets" ON)
 
 function(build_gemm_for_datatype datatype layout)
     set(working_path "${CMAKE_CURRENT_BINARY_DIR}/${datatype}/${layout}")
@@ -15,13 +17,26 @@ function(build_gemm_for_datatype datatype layout)
     # uncomment this if you want to use user_provided_config.json
     # set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/user_provided_config.json")
     
+    # Determine number of workers for parallel generation
+    if(DEFINED ENV{CMAKE_BUILD_PARALLEL_LEVEL})
+        set(num_workers $ENV{CMAKE_BUILD_PARALLEL_LEVEL})
+    else()
+        # Use processor count but limit to avoid memory issues
+        cmake_host_system_information(RESULT num_cores QUERY NUMBER_OF_LOGICAL_CORES)
+        math(EXPR num_workers "${num_cores}")
+        if(num_workers GREATER 8)
+            set(num_workers 8)
+        endif()
+    endif()
+
     # Generate kernel list
     execute_process(
-        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder_parallel.py
                 --working_path ${working_path}
                 --datatype ${datatype}
                 --layout ${layout}
                 --config_json ${json_blob}
+                --num_workers ${num_workers}
                 --list_blobs
         RESULT_VARIABLE ret
     )
@@ -35,13 +50,14 @@ function(build_gemm_for_datatype datatype layout)
     # Generate the blobs
     add_custom_command(
         OUTPUT ${codegen_blobs}
-        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder_parallel.py
                 --working_path "${working_path}"
                 --datatype ${datatype}
                 --layout ${layout}
                 --config_json "${json_blob}"
+                --num_workers ${num_workers}
                 --gen_blobs
-        COMMENT "Generating GEMM instance sources for ${datatype} ${layout}"
+        COMMENT "Generating GEMM instance sources for ${datatype} ${layout} using ${num_workers} workers"
     )
     add_custom_target(gemm_gen_${datatype}_${layout} DEPENDS ${codegen_blobs})
 
@@ -140,9 +156,192 @@ function(build_gemm_for_datatype datatype layout)
     )
 endfunction()
 
-# Process each datatype in isolation
-foreach(dt IN LISTS GEMM_DATATYPE)
-    foreach(l IN LISTS GEMM_LAYOUT)
-        build_gemm_for_datatype(${dt} ${l})
+# Store the directory path for use in functions
+set(GEMM_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR})
+
+# Function to create individual GEMM targets
+function(create_individual_gemm_target datatype layout trait tile_config)
+    # Parse tile configuration: format is tile_mxtile_nxtile_k_warp_mxwarp_nxwarp_k_warp_tile_mxwarp_tile_nxwarp_tile_k
+    # First split by underscore to get three groups
+    string(REPLACE "_" ";" config_groups ${tile_config})
+    list(GET config_groups 0 tile_dims)      # e.g., 256x256x32
+    list(GET config_groups 1 warp_dims)      # e.g., 4x1x1
+    list(GET config_groups 2 warp_tile_dims) # e.g., 16x16x16
+    
+    # Parse tile dimensions
+    string(REPLACE "x" ";" tile_parts ${tile_dims})
+    list(GET tile_parts 0 tile_m)
+    list(GET tile_parts 1 tile_n)
+    list(GET tile_parts 2 tile_k)
+    
+    # Parse warp dimensions
+    string(REPLACE "x" ";" warp_parts ${warp_dims})
+    list(GET warp_parts 0 warp_m)
+    list(GET warp_parts 1 warp_n)
+    list(GET warp_parts 2 warp_k)
+    
+    # Parse warp tile dimensions
+    string(REPLACE "x" ";" warp_tile_parts ${warp_tile_dims})
+    list(GET warp_tile_parts 0 warp_tile_m)
+    list(GET warp_tile_parts 1 warp_tile_n)
+    list(GET warp_tile_parts 2 warp_tile_k)
+    
+    set(target_name "benchmark_gemm_${datatype}_${layout}_${trait}_${tile_config}")
+    set(working_path "${CMAKE_CURRENT_BINARY_DIR}/${datatype}/${layout}")
+    
+    # Generate the single instance header for this kernel
+    set(instance_header "${working_path}/gemm_single_${datatype}_${layout}_${trait}_${tile_config}.hpp")
+    
+    # Create the executable
+    add_executable(${target_name} 
+        ${GEMM_SOURCE_DIR}/benchmark_gemm_single.cpp
+    )
+    
+    # Set compile definitions
+    target_compile_definitions(${target_name} PRIVATE
+        GEMM_SINGLE_INSTANCE_HPP="${instance_header}"
+    )
+    
+    # Include directories
+    target_include_directories(${target_name} PRIVATE
+        ${GEMM_SOURCE_DIR}
+        ${working_path}
+    )
+    
+    # Compile options
+    target_compile_options(${target_name} PRIVATE
+        -Wno-undefined-func-template
+        -Wno-float-equal
+        --offload-compress
+        -include ${instance_header}
+    )
+    
+    # Add to collection targets
+    add_dependencies(benchmark_gemm_all ${target_name})
+    add_dependencies(benchmark_gemm_${datatype} ${target_name})
+    add_dependencies(benchmark_gemm_${layout} ${target_name})
+    add_dependencies(benchmark_gemm_${datatype}_${layout} ${target_name})
+    
+    # Add to trait-specific targets
+    string(REPLACE "_" ";" trait_parts ${trait})
+    list(GET trait_parts 0 pipeline)
+    list(GET trait_parts 1 epilogue)
+    list(GET trait_parts 2 scheduler)
+    
+    add_dependencies(benchmark_gemm_${pipeline} ${target_name})
+    add_dependencies(benchmark_gemm_${epilogue} ${target_name})
+    add_dependencies(benchmark_gemm_${scheduler} ${target_name})
+endfunction()
+
+# Function to build individual GEMM targets
+function(build_individual_gemm_targets datatype layout)
+    set(working_path "${CMAKE_CURRENT_BINARY_DIR}/${datatype}/${layout}")
+    
+    # Choose config file
+    if(layout STREQUAL "rcr")
+        set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_config.json")
+    else()
+        set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/custom_ci_config.json")
+    endif()
+    
+    # Determine number of workers for parallel generation
+    if(DEFINED ENV{CMAKE_BUILD_PARALLEL_LEVEL})
+        set(num_workers $ENV{CMAKE_BUILD_PARALLEL_LEVEL})
+    else()
+        # Use processor count but limit to avoid memory issues
+        cmake_host_system_information(RESULT num_cores QUERY NUMBER_OF_LOGICAL_CORES)
+        math(EXPR num_workers "${num_cores}")
+        if(num_workers GREATER 8)
+            set(num_workers 8)
+        endif()
+    endif()
+    
+    # Generate individual kernel files using parallel version
+    execute_process(
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder_parallel.py
+                --working_path ${working_path}
+                --datatype ${datatype}
+                --layout ${layout}
+                --config_json ${json_blob}
+                --num_workers ${num_workers}
+                --gen_individual
+        RESULT_VARIABLE ret
+    )
+    if(NOT ret EQUAL 0)
+        message(FATAL_ERROR "Failed to generate individual kernels for ${datatype} ${layout}: ${ret}")
+    endif()
+    
+    # Include the generated CMake file
+    include(${working_path}/gemm_individual_targets.cmake)
+endfunction()
+
+# Main build logic
+if(GEMM_BUILD_MONOLITHIC)
+    # Process each datatype in isolation for monolithic build
+    foreach(dt IN LISTS GEMM_DATATYPE)
+        foreach(l IN LISTS GEMM_LAYOUT)
+            build_gemm_for_datatype(${dt} ${l})
+        endforeach()
     endforeach()
-endforeach()
+endif()
+
+if(GEMM_BUILD_INDIVIDUAL)
+    # Enable parallel compilation optimizations
+    # Set up job pools for better parallel compilation control
+    set_property(GLOBAL PROPERTY JOB_POOLS 
+        compile_heavy=4    # Limit heavy compilations to prevent OOM
+        compile_normal=16  # Allow more parallel normal compilations
+    )
+    
+    # Enable compiler cache if available
+    find_program(CCACHE_PROGRAM ccache)
+    if(CCACHE_PROGRAM)
+        set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
+        message(STATUS "Using ccache for faster compilation")
+    endif()
+    
+    # Create master collection targets
+    add_custom_target(benchmark_gemm_all)
+    
+    # Create datatype collection targets
+    foreach(dt IN LISTS GEMM_DATATYPE)
+        add_custom_target(benchmark_gemm_${dt})
+    endforeach()
+    
+    # Create layout collection targets
+    foreach(l IN LISTS GEMM_LAYOUT)
+        add_custom_target(benchmark_gemm_${l})
+    endforeach()
+    
+    # Create combined collection targets
+    foreach(dt IN LISTS GEMM_DATATYPE)
+        foreach(l IN LISTS GEMM_LAYOUT)
+            add_custom_target(benchmark_gemm_${dt}_${l})
+        endforeach()
+    endforeach()
+    
+    # Create trait-based collection targets
+    # These are common trait components used across all GEMM kernels
+    set(GEMM_PIPELINES "mem;compv3;compv4")
+    set(GEMM_EPILOGUES "default;cshuffle")
+    set(GEMM_SCHEDULERS "intrawave;interwave")
+    
+    foreach(pipeline IN LISTS GEMM_PIPELINES)
+        add_custom_target(benchmark_gemm_${pipeline})
+    endforeach()
+    
+    foreach(epilogue IN LISTS GEMM_EPILOGUES)
+        add_custom_target(benchmark_gemm_${epilogue})
+    endforeach()
+    
+    foreach(scheduler IN LISTS GEMM_SCHEDULERS)
+        add_custom_target(benchmark_gemm_${scheduler})
+    endforeach()
+    
+    # Build individual targets for each datatype/layout combination
+    foreach(dt IN LISTS GEMM_DATATYPE)
+        foreach(l IN LISTS GEMM_LAYOUT)
+            build_individual_gemm_targets(${dt} ${l})
+        endforeach()
+    endforeach()
+endif()
