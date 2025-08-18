@@ -59,13 +59,15 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
     static constexpr index_t flatKPerWarp = BlockGemmShape::flatKPerWarp;
     static constexpr index_t flatNPerWarp = BlockGemmShape::flatNPerWarp;
 
+    template <bool IsWave32Host = false>
     static constexpr index_t GetVectorSizeA()
     {
-        return PipelinePolicy::template GetVectorSizeA<Problem>();
+        return PipelinePolicy::template GetVectorSizeA<Problem, IsWave32Host>();
     }
+    template <bool IsWave32Host = false>
     static constexpr index_t GetVectorSizeB()
     {
-        return PipelinePolicy::template GetVectorSizeB<Problem>();
+        return PipelinePolicy::template GetVectorSizeB<Problem, IsWave32Host>();
     }
 
     static constexpr bool kPadM = Problem::kPadM;

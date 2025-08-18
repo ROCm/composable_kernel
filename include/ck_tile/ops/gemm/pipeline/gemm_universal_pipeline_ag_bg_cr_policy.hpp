@@ -305,11 +305,15 @@ struct UniversalGemmBasePolicy
      * @tparam XPerTile     The contiguous Tile dimension size.
      * @return Maximum DRAM vector load size.
      */
-    template <typename Problem, typename DataType, index_t MNPerBlock, index_t XPerTile>
+    template <typename Problem,
+              typename DataType,
+              index_t MNPerBlock,
+              index_t XPerTile,
+              bool IsWave32Host>
     CK_TILE_HOST_DEVICE static constexpr auto GetGlobalVectorLoadSize()
     {
-        constexpr index_t BlockSize           = Problem::kBlockSize;
-        constexpr index_t KPerBlock           = Problem::BlockGemmShape::kK;
+        constexpr index_t BlockSize = IsWave32Host ? Problem::kBlockSize / 2 : Problem::kBlockSize;
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         constexpr index_t elements_per_thread = MNPerBlock * KPerBlock / BlockSize;
         constexpr index_t PackedSize =
             ck_tile::numeric_traits<remove_cvref_t<DataType>>::PackedSize;
@@ -349,7 +353,7 @@ struct UniversalGemmBasePolicy
         }
     }
 
-    template <typename Problem>
+    template <typename Problem, bool IsWave32Host = false>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeA()
     {
         using ALayout               = remove_cvref_t<typename Problem::ALayout>;
@@ -359,15 +363,23 @@ struct UniversalGemmBasePolicy
 
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
-            return GetGlobalVectorLoadSize<Problem, ADataType, MPerBlock, KPerBlock>();
+            return GetGlobalVectorLoadSize<Problem,
+                                           ADataType,
+                                           MPerBlock,
+                                           KPerBlock,
+                                           IsWave32Host>();
         }
         else
         {
-            return GetGlobalVectorLoadSize<Problem, ADataType, MPerBlock, MPerBlock>();
+            return GetGlobalVectorLoadSize<Problem,
+                                           ADataType,
+                                           MPerBlock,
+                                           MPerBlock,
+                                           IsWave32Host>();
         }
     }
 
-    template <typename Problem>
+    template <typename Problem, bool IsWave32Host = false>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeB()
     {
         using BLayout               = remove_cvref_t<typename Problem::BLayout>;
@@ -377,11 +389,19 @@ struct UniversalGemmBasePolicy
 
         if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
-            return GetGlobalVectorLoadSize<Problem, BDataType, NPerBlock, NPerBlock>();
+            return GetGlobalVectorLoadSize<Problem,
+                                           BDataType,
+                                           NPerBlock,
+                                           NPerBlock,
+                                           IsWave32Host>();
         }
         else
         {
-            return GetGlobalVectorLoadSize<Problem, BDataType, NPerBlock, KPerBlock>();
+            return GetGlobalVectorLoadSize<Problem,
+                                           BDataType,
+                                           NPerBlock,
+                                           KPerBlock,
+                                           IsWave32Host>();
         }
     }
 

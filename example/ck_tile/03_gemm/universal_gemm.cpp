@@ -103,7 +103,6 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                                              DsLayout,
                                              ELayout,
                                              CDEElementWise,
-                                             UniversalGemmProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,
                                              GemmConfig::M_Warp,
@@ -127,7 +126,7 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
         {
             grids = Kernel::GridSize(args.M, args.N, args.k_batch);
         }
-        constexpr dim3 blocks = Kernel::BlockSize();
+        dim3 blocks = Kernel::BlockSize();
 
         if(!Kernel::IsSupportedArgument(kargs))
         {
@@ -173,15 +172,13 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
             ave_time = ck_tile::launch_kernel_time_mask(
                 s,
                 run_flush_cache,
-                ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(
-                    Kernel{}, grids, blocks, 0, kargs));
+                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         }
         else
         {
-            ave_time =
-                ck_tile::launch_kernel(s,
-                                       ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(
-                                           Kernel{}, grids, blocks, 0, kargs));
+            ave_time = ck_tile::launch_kernel(
+                s,
+                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         }
         return ave_time;
     };

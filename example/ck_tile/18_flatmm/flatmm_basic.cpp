@@ -101,7 +101,6 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_c
                                              DsLayout,
                                              ELayout,
                                              CDEElementWise,
-                                             CodegenPipelineProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,
                                              FlatmmConfig::M_Warp,
@@ -119,8 +118,8 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_c
 
         auto kargs = Kernel::MakeKernelArgs(args);
 
-        const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
-        constexpr dim3 blocks = Kernel::BlockSize();
+        const dim3 grids  = Kernel::GridSize(args.M, args.N, args.k_batch);
+        const dim3 blocks = Kernel::BlockSize();
 
         if(!Kernel::IsSupportedArgument(kargs))
         {
@@ -171,15 +170,13 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_c
             ave_time = ck_tile::launch_kernel_time_mask(
                 s,
                 run_flush_cache,
-                ck_tile::make_kernel<blocks.x, FlatmmConfig::kBlockPerCu>(
-                    Kernel{}, grids, blocks, 0, kargs));
+                ck_tile::make_kernel<FlatmmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         }
         else
         {
-            ave_time =
-                ck_tile::launch_kernel(s,
-                                       ck_tile::make_kernel<blocks.x, FlatmmConfig::kBlockPerCu>(
-                                           Kernel{}, grids, blocks, 0, kargs));
+            ave_time = ck_tile::launch_kernel(
+                s,
+                ck_tile::make_kernel<FlatmmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         }
         return ave_time;
     };

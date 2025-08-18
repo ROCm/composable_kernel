@@ -25,9 +25,10 @@ namespace ck_tile {
 template <typename FmhaPipeline_, typename EpiloguePipeline_>
 struct FmhaFwdKernel
 {
-    using FmhaPipeline                            = ck_tile::remove_cvref_t<FmhaPipeline_>;
-    using EpiloguePipeline                        = ck_tile::remove_cvref_t<EpiloguePipeline_>;
-    static constexpr ck_tile::index_t kBlockSize  = FmhaPipeline::kBlockSize;
+    using FmhaPipeline                           = ck_tile::remove_cvref_t<FmhaPipeline_>;
+    using EpiloguePipeline                       = ck_tile::remove_cvref_t<EpiloguePipeline_>;
+    static constexpr ck_tile::index_t kBlockSize = FmhaPipeline::kBlockSize;
+
     static constexpr ck_tile::index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
     static_assert(kBlockPerCu > 0);
     static constexpr ck_tile::index_t kBlockPerCuInput = FmhaPipeline::Problem::kBlockPerCu;

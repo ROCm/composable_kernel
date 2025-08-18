@@ -183,7 +183,6 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                  DsLayout,
                                                  CLayout,
                                                  ck_tile::element_wise::PassThrough,
-                                                 GemmPipeline::BlockSize,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,
                                                  GemmConfig::M_Warp,
@@ -206,7 +205,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
             {
                 grids = Kernel::GridSize(args.M, args.N, args.k_batch);
             }
-            constexpr dim3 blocks = Kernel::BlockSize();
+            const dim3 blocks = Kernel::BlockSize();
 
             if(!Kernel::IsSupportedArgument(kargs))
             {
@@ -221,7 +220,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
             }
 
             ck_tile::launch_kernel(
-                s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+                s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         };
 
         const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {

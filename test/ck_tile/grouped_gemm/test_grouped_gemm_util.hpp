@@ -136,7 +136,6 @@ class TestCkTileGroupedGemm : public ::testing::Test
                                                  DsLayout,
                                                  CLayout,
                                                  ck_tile::element_wise::PassThrough,
-                                                 GemmPipelineProblem::kBlockSize,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,
                                                  GroupedGemKernelParam::M_Warp,
@@ -150,8 +149,8 @@ class TestCkTileGroupedGemm : public ::testing::Test
             auto kargs   = Kernel::MakeKargs(gemm_descs);
             EXPECT_TRUE(Kernel::IsSupportedArgument(kargs));
 
-            const dim3 grids      = Kernel::GridSize(gemm_descs);
-            constexpr dim3 blocks = Kernel::BlockSize();
+            const dim3 grids  = Kernel::GridSize(gemm_descs);
+            const dim3 blocks = Kernel::BlockSize();
 
             ck_tile::hip_check_error(hipMemcpyWithStream(kargs_ptr,
                                                          kargs.data(),
@@ -169,7 +168,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
 
             ave_time = ck_tile::launch_kernel(
                 s,
-                ck_tile::make_kernel<blocks.x, GroupedGemKernelParam::kBlockPerCu>(
+                ck_tile::make_kernel<GroupedGemKernelParam::kBlockPerCu>(
                     Kernel{},
                     grids,
                     blocks,
@@ -227,12 +226,6 @@ class TestCkTileGroupedGemm : public ::testing::Test
         using TilePartitioner = ck_tile::
             GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
-        using Traits = ck_tile::TileGemmTraits<GroupedGemKernelParam::kPadM,
-                                               GroupedGemKernelParam::kPadN,
-                                               GroupedGemKernelParam::kPadK,
-                                               ALayout,
-                                               BLayout,
-                                               CLayout>;
         using GemmUniversalTraits =
             ck_tile::PersistentTileGemmUniversalTraits<GroupedGemKernelParam::kPadM,
                                                        GroupedGemKernelParam::kPadN,
@@ -242,8 +235,6 @@ class TestCkTileGroupedGemm : public ::testing::Test
                                                        BLayout,
                                                        CLayout,
                                                        TransposeC>;
-        using GemmPipelineProblem =
-            ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
         const auto Run = [&](const auto memory_operation_) {
             constexpr auto scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;
@@ -268,7 +259,6 @@ class TestCkTileGroupedGemm : public ::testing::Test
                                                  DsLayout,
                                                  CLayout,
                                                  ck_tile::element_wise::PassThrough,
-                                                 GemmPipelineProblem::kBlockSize,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,
                                                  GroupedGemKernelParam::M_Warp,
@@ -279,8 +269,8 @@ class TestCkTileGroupedGemm : public ::testing::Test
                                                  UniversalGemmProblem::TransposeC,
                                                  memory_operation>>;
             using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-            constexpr dim3 blocks = Kernel::BlockSize();
-            const dim3 grids      = Kernel::MaxOccupancyGridSize(s);
+            const dim3 blocks = Kernel::BlockSize();
+            const dim3 grids  = Kernel::MaxOccupancyGridSize(s);
 
             if(s.log_level_ > 0)
             {
@@ -291,7 +281,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
             }
 
             ck_tile::launch_kernel(s,
-                                   ck_tile::make_kernel<blocks.x, kBlockPerCu>(
+                                   ck_tile::make_kernel<kBlockPerCu>(
                                        Kernel{},
                                        grids,
                                        blocks,

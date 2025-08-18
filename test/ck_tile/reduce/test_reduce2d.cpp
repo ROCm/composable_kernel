@@ -82,18 +82,18 @@ class TestCkTileReduce : public ::testing::Test
             throw std::runtime_error("Wrong! Arguments not supported!\n");
         }
 
-        ck_tile::launch_kernel(ck_tile::stream_config{nullptr, false, 0},
-                               ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
-                                   Kernel{},
-                                   kGridSize,
-                                   kBlockSize,
-                                   0,
-                                   static_cast<XDataType*>(d_x_mem.GetDeviceBuffer()),
-                                   static_cast<YDataType*>(d_y_mem.GetDeviceBuffer()),
-                                   input_shape_tuple,
-                                   input_strides_tuple,
-                                   kept_dims,
-                                   reduce_dims));
+        ck_tile::launch_kernel(
+            ck_tile::stream_config{nullptr, false, 0},
+            ck_tile::make_kernel<kBlockPerCu>(Kernel{},
+                                              kGridSize,
+                                              kBlockSize,
+                                              0,
+                                              static_cast<XDataType*>(d_x_mem.GetDeviceBuffer()),
+                                              static_cast<YDataType*>(d_y_mem.GetDeviceBuffer()),
+                                              input_shape_tuple,
+                                              input_strides_tuple,
+                                              kept_dims,
+                                              reduce_dims));
 
         // Get results back
         d_y_mem.FromDevice(h_y.data());

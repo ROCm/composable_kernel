@@ -30,6 +30,7 @@ struct FmhaFwdPagedKVKernel
     using EpiloguePipeline                        = ck_tile::remove_cvref_t<EpiloguePipeline_>;
     static constexpr ck_tile::index_t kBlockSize  = FmhaPipeline::kBlockSize;
     static constexpr ck_tile::index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
+
     static_assert(kBlockPerCu > 0);
     static constexpr ck_tile::index_t kBlockPerCuInput = FmhaPipeline::Problem::kBlockPerCu;
 

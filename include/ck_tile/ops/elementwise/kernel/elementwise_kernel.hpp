@@ -20,6 +20,8 @@ struct ElementWiseKernel
     using YDataType            = ck_tile::remove_cvref_t<typename Problem::YDataType>;
     using ElementWiseOperation = ck_tile::remove_cvref_t<typename Problem::ElementWiseOperation>;
 
+    static constexpr index_t kBlockSize = Problem::BlockShape::kBlockSize;
+
     template <typename... XDataType, typename Dims>
     CK_TILE_DEVICE void operator()(Dims lens,
                                    Dims input_strides,

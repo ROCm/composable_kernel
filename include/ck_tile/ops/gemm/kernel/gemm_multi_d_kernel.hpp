@@ -86,6 +86,7 @@ struct GemmKernelMultiD
     /// functions.
     using UniversalGemmKernel =
         UniversalGemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
+    static constexpr index_t kBlockSize = UniversalGemmKernel::kBlockSize;
 
     using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
     using GemmPipeline     = remove_cvref_t<GemmPipeline_>;

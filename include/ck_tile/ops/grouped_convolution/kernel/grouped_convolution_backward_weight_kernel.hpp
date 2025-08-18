@@ -354,7 +354,7 @@ struct GroupedConvolutionBackwardWeightKernel
     using GemmDsLayout                  = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
     static constexpr index_t NumDTensor = GroupedConvTraitsType::NumDTensor;
 
-    static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
+    static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
 
     using InDataType  = remove_cvref_t<typename GemmPipeline::ADataType>;
     using WeiDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
@@ -393,7 +393,7 @@ struct GroupedConvolutionBackwardWeightKernel
             TilePartitioner::GridSize(kargs.GemmM, kargs.GemmN), kargs.GemmBatch, kargs.k_batch);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
+    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
 
     CK_TILE_HOST static constexpr GroupedConvBwdWeightKernelArgsSpecialized
     MakeKernelArgs(const GroupedConvBwdWeightHostArgs& hostArgs)

@@ -77,7 +77,6 @@ float grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args, const ck_til
                                              typename GroupedConvTraitsType::ImplicitGemmDsLayout,
                                              ck_tile::tensor_layout::gemm::RowMajor,
                                              CDEElementWise,
-                                             CodegenPipelineProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,
                                              M_Warp,
@@ -97,8 +96,8 @@ float grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args, const ck_til
                                                                 ConvEpilogue>;
         auto kargs   = Kernel::MakeKernelArgs(args);
 
-        const dim3 grids      = Kernel::GridSize(kargs);
-        constexpr dim3 blocks = Kernel::BlockSize();
+        const dim3 grids  = Kernel::GridSize(kargs);
+        const dim3 blocks = Kernel::BlockSize();
 
         if(!Kernel::IsSupportedArgument(kargs))
         {
@@ -120,7 +119,7 @@ float grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args, const ck_til
         }
 
         float ave_time = ck_tile::launch_kernel(
-            s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+            s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 
         return ave_time;
     };

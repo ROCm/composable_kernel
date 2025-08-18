@@ -113,6 +113,7 @@ struct GemmKernel
 
     static constexpr index_t NumATensor = 1;
     static constexpr index_t NumBTensor = 1;
+    static constexpr index_t kBlockSize = UniversalGemmKernel::kBlockSize;
 
     CK_TILE_HOST static auto GetName() -> const std::string
     {
