@@ -73,7 +73,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using BlockWarps = ck_tile::sequence<8>;
     using WarpTile   = ck_tile::sequence<64>;
 
-    using Shape = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, ComputeDataType>;
+    using Shape = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, XDataType>;
 
     // Problem definition for a single input tensor
     using Problem = ck_tile::ElementWisePipelineProblem<XDataType,
@@ -86,7 +86,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::index_t total_elements = M * N;
 
-    constexpr ck_tile::index_t kBlockSize         = 64 * BlockWarps::at(ck_tile::number<0>{});
+    constexpr ck_tile::index_t kBlockSize =
+        ck_tile::get_warp_size() * BlockWarps::at(ck_tile::number<0>{});
     constexpr ck_tile::index_t kBlockPerCu        = 1;
     constexpr ck_tile::index_t elements_per_block = BlockTile::at(ck_tile::number<0>{});
     ck_tile::index_t kGridSize = (total_elements + elements_per_block - 1) / elements_per_block;
@@ -111,17 +112,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     // 4. Run the kernel
-    float ave_time = launch_kernel(ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
-                                   ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
-                                       Kernel{},
-                                       kGridSize,
-                                       kBlockSize,
-                                       0,             // Shared memory
-                                       op_lengths,    // Logical dimensions for the operation (M, N)
-                                       input_strides, // Strides for input tensor(s)
-                                       output_strides, // Strides for output tensor (N, M)
-                                       input_tensors,
-                                       static_cast<YDataType*>(y_buf.GetDeviceBuffer())));
+    float ave_time = launch_kernel(
+        ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
+        ck_tile::make_kernel<kBlockPerCu>(Kernel{},
+                                          kGridSize,
+                                          kBlockSize,
+                                          0,          // Shared memory
+                                          op_lengths, // Logical dimensions for the operation (M, N)
+                                          input_strides,  // Strides for input tensor(s)
+                                          output_strides, // Strides for output tensor (N, M)
+                                          input_tensors,
+                                          static_cast<YDataType*>(y_buf.GetDeviceBuffer())));
 
     std::cout << "Average time: " << ave_time << " ms" << std::endl;
 
