@@ -422,9 +422,9 @@ struct AQuantGemmKernel
                 ck_tile::integer_least_multiple(wave_tile_size, get_warp_size());
             const auto aq_merge_pad1_desc = transform_tensor_descriptor(
                 aq_pad1_desc,
-                make_tuple(make_merge_transform(make_tuple(wave_tile_count_x, aq_y)),
+                make_tuple(make_merge_transform(make_tuple(aq_y, wave_tile_count_x)),
                            make_pass_through_transform(pad_wave_size)),
-                make_tuple(sequence<1, 0>{}, sequence<2>{}),
+                make_tuple(sequence<0, 1>{}, sequence<2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
 
             return make_tensor_view<address_space_enum::global>(aq_ptr, aq_merge_pad1_desc);
@@ -600,7 +600,6 @@ struct AQuantGemmKernel
 
     template <typename PadView>
     CK_TILE_DEVICE static auto MakeGemmTileWindows(const PadView& views,
-                                                   const AQuantGemmKernelArgs& kargs,
                                                    const index_t i_m,
                                                    const index_t i_n)
     {
@@ -628,24 +627,27 @@ struct AQuantGemmKernel
 
         const auto& aq_block_window = [&]() {
             static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
+            constexpr auto block_m = TilePartitioner::MPerBlock;
+            constexpr auto block_k = TilePartitioner::KPerBlock;
+            constexpr auto warp_m  = TilePartitioner::BlockGemmShape::WarpTile::at(I0);
+            constexpr auto aqk_per_block =
+                TilePartitioner::KPerBlock / GemmPipeline::QuantGroupSize;
             if constexpr(Preshuffle)
             {
-                constexpr auto tile_window_width = get_warp_size();
-                constexpr auto tile_window_height =
-                    TilePartitioner::MPerBlock / TilePartitioner::BlockGemmShape::WarpTile::at(I0);
-                auto block_m_idx = i_m / TilePartitioner::MPerBlock;
+                constexpr auto tile_window_width =
+                    ck_tile::integer_least_multiple(warp_m * aqk_per_block, get_warp_size());
+                constexpr auto tile_window_height = block_m / warp_m;
+                auto block_m_idx                  = i_m / block_m;
                 return make_tile_window(
                     aq_pad_view,
                     make_tuple(number<tile_window_height>{}, number<tile_window_width>{}),
-                    {block_m_idx * kargs.K / TilePartitioner::BlockGemmShape::BlockTile::at(I2),
-                     0});
+                    {block_m_idx * tile_window_height, 0});
             }
             else
             {
                 return make_tile_window(
                     aq_pad_view,
-                    make_tuple(number<TilePartitioner::MPerBlock>{},
-                               number<TilePartitioner::KPerBlock / GemmPipeline::QuantGroupSize>{}),
+                    make_tuple(number<block_m>{}, number<block_k / GemmPipeline::QuantGroupSize>{}),
                     {i_m, 0});
             }
         }();
@@ -707,7 +709,7 @@ struct AQuantGemmKernel
 
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows =
-            MakeGemmTileWindows(gemm_pad_views, kargs, block_idx_m, block_idx_n);
+            MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
 
         const index_t num_loop = __builtin_amdgcn_readfirstlane(
             TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
@@ -718,7 +720,7 @@ struct AQuantGemmKernel
         const auto& b_block_window  = gemm_tile_windows.at(I2);
 
         const auto& c_block_tile = GemmPipeline{}.template operator()(
-            a_block_window, b_block_window, aq_block_window, num_loop, smem_ptr_0);
+            a_block_window, b_block_window, aq_block_window, kargs.M, num_loop, smem_ptr_0);
 
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I3);

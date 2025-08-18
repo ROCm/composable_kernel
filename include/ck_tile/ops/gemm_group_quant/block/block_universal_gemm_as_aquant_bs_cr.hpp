@@ -392,12 +392,27 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase<Problem_>
 
                                     // Thread 0 can read AQ_tile[0, 0] from itself, AQ_tile[1, 0]
                                     // from thread 1, ..., and AQ_tile[3, 0] from thread 3.
-                                    auto pull_from_lane =
-                                        ((threadIdx.x & (warp_size - 1)) / Traits::WarpGemm::kN *
-                                             kTileRowsOfCPerThread +
-                                         c_row) *
-                                            Traits::QScalesPerBlockRow +
-                                        kQScale;
+                                    decltype(threadIdx.x) pull_from_lane = 0;
+                                    if constexpr(WarpGemm::kM == 16)
+                                    {
+                                        pull_from_lane = (__lane_id() / Traits::WarpGemm::kN *
+                                                              kTileRowsOfCPerThread +
+                                                          c_row) *
+                                                             Traits::QScalesPerBlockRow +
+                                                         kQScale;
+                                    }
+                                    else if constexpr(WarpGemm::kM == 32)
+                                    {
+                                        pull_from_lane = (__lane_id() / Traits::WarpGemm::kN *
+                                                              kTileRowsOfCPerThread +
+                                                          ((c_row >> 2) << 3) + (c_row & 0b11)) *
+                                                             Traits::QScalesPerBlockRow +
+                                                         kQScale;
+                                    }
+                                    else
+                                    {
+                                        static_assert(false, "WarpGemm::kM is not 16 nor 32.");
+                                    }
                                     auto& scale_reg = aq_block_tensor.get_thread_buffer()[mIter];
 
                                     // cross lane ops

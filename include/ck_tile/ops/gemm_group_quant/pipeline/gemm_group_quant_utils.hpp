@@ -75,17 +75,17 @@ struct TileDistributionEncodingPatternAQ : public TileDistributionEncodingPatter
         if constexpr(Preshuffle)
         {
             // # of elements per thread
-            constexpr index_t X2 = KPerBlockAQ;
-            constexpr index_t X1 = warp_size / X2;
+            static_assert(XPerTile >= warp_size && XPerTile % warp_size == 0);
+            constexpr index_t X1 = warp_size;
             constexpr index_t X0 = XPerTile / warp_size;
 
             constexpr index_t Y1 = MWarps;
             constexpr index_t Y0 = YPerTile / Y1;
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<NWarps>,
-                                           tuple<sequence<Y0, Y1>, sequence<X0, X1, X2>>,
-                                           tuple<sequence<1, 0>, sequence<2, 2>>,
-                                           tuple<sequence<1, 0>, sequence<1, 2>>,
+                                           tuple<sequence<Y0, Y1>, sequence<X0, X1>>,
+                                           tuple<sequence<1, 0>, sequence<2>>,
+                                           tuple<sequence<1, 0>, sequence<1>>,
                                            sequence<1, 2>,
                                            sequence<0, 0>>{});
         }
