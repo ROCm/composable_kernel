@@ -67,6 +67,8 @@ struct StreamKKernel
     using UniversalGemmKernel =
         UniversalGemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
 
+    static constexpr index_t kBlockSize = UniversalGemmKernel::kBlockSize;
+
     using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
     using GemmPipeline     = remove_cvref_t<GemmPipeline_>;
     using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
@@ -229,10 +231,10 @@ struct StreamKKernel
 
         // Since occupancy of 1 is valid for stream k, we set min_num_block_per_cu to 1
         constexpr int min_block_per_cu = 1;
-        const auto kernel = kentry<Kernel::BlockSize().x, min_block_per_cu, Kernel, KernelArgs>;
+        const auto kernel              = kentry<min_block_per_cu, Kernel, KernelArgs>;
 
-        hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
-            &occupancy, kernel, UniversalGemmKernel::KernelBlockSize, 0));
+        hip_check_error(
+            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, kBlockSize, 0));
 
         return occupancy;
     }
