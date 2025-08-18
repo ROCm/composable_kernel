@@ -127,21 +127,17 @@ struct StreamKKernel
         // clang-format on
     }
 
-    /**
-     * @brief Compute the grid size for the Stream K kernel using the tile_partitioner.
-     * @return The grid size.
-     */
+    /// @brief Compute the grid size for the Stream K kernel using the tile_partitioner.
+    /// @return The grid size.
     CK_TILE_HOST static auto GridSize(const TilePartitioner& tile_partitioner) -> dim3
     {
         return tile_partitioner.GridSize();
     }
 
-    /**
-     * @brief Get the maximum occupancy grid size for the persistent kernel on the current device.
-     * @return The maximum occupancy grid size.
-     * @note This function queries the maximum occupancy of the kernel using
-     *       `hipOccupancyMaxActiveBlocksPerMultiprocessor`.
-     */
+    /// @brief Get the maximum occupancy grid size for the persistent kernel on the current device.
+    /// @return The maximum occupancy grid size.
+    /// @note This function queries the maximum occupancy of the kernel using
+    /// `hipOccupancyMaxActiveBlocksPerMultiprocessor`.
     CK_TILE_HOST static auto MaxOccupancyGridSize(const stream_config& s) -> dim3
     {
         return UniversalGemmKernel::MaxOccupancyGridSize(s);
@@ -185,10 +181,8 @@ struct StreamKKernel
         return UniversalGemmKernel::IsSupportedArgument(kargs);
     }
 
-    /**
-     * @brief Computes the buffer size needed to store accumulation results for Stream K.
-     * @return The buffer size needed.
-     */
+    /// @brief Computes the buffer size needed to store accumulation results for Stream K.
+    /// @return The buffer size needed.
     CK_TILE_HOST static uint32_t GetWorkSpaceSize(const StreamKKernelArgs& kargs)
     {
         // For reduction, we need to determine the amount of device space for acculumation
@@ -202,10 +196,8 @@ struct StreamKKernel
         return 0;
     }
 
-    /**
-     * @brief Sets the kargs' current workspace_ptr to the given workspace_ptr.
-     * @note Assumes that the given workspace_ptr points to allocated device memory.
-     */
+    /// @brief Sets the kargs' current workspace_ptr to the given workspace_ptr.
+    /// @note Assumes that the given workspace_ptr points to allocated device memory.
     CK_TILE_HOST static void SetWorkSpacePointer(StreamKKernelArgs& kargs, void* workspace_ptr)
     {
         kargs.workspace_ptr = workspace_ptr;
@@ -227,12 +219,10 @@ struct StreamKKernel
         return num_cu;
     }
 
-    /**
-     * @brief Computes the occupancy (i.e. maximum number of active blocks per CU) for the kernel
-     * @return The occupancy
-     * @note This function queries the maximum occupancy of the kernel using
-     *       `hipOccupancyMaxActiveBlocksPerMultiprocessor`.
-     */
+    /// @brief Computes the occupancy (i.e. maximum number of active blocks per CU) for the kernel
+    /// @return The occupancy
+    /// @note This function queries the maximum occupancy of the kernel using
+    /// `hipOccupancyMaxActiveBlocksPerMultiprocessor`.
     CK_TILE_HOST static int Occupancy()
     {
         int occupancy;
