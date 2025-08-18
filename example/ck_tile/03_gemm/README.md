@@ -12,18 +12,20 @@ sh ../script/cmake-ck-dev.sh  ../ <arch>
 make tile_example_gemm_basic -j`nproc`
 # The memory bound pipeline on the gemm calculation
 make tile_example_gemm_universal -j`nproc`
+# The weight preshuffle pipeline on the gemm calculation
+make tile_example_gemm_weight_preshuffle -j`nproc`
 ```
 This will result in an executable `build/bin/tile_example_gemm_basic` & `build/bin/tile_example_gemm_universal`
 
 ## example
 ```
 args:
-          -m    m dimension (default:3840)
-          -n    n dimension (default:4096)
-          -k    k dimension (default:2048)
-   -a_layout    A tensor data layout - Row by default (default:R)
-   -b_layout    B tensor data layout - Column by default (default:C)
-   -c_layout    C tensor data layout - Row by default (default:R)
+          -m    m dimension (default:1024)
+          -n    n dimension (default:2048)
+          -k    k dimension (default:64)
+   -a_layout    Tensor A data layout (default: R)
+   -b_layout    Tensor B data layout (default: C)
+   -c_layout    Tensor C data layout (default: R)
    -stride_a    Tensor A stride (default:0)
    -stride_b    Tensor B stride (default:0)
    -stride_c    Tensor C stride (default:0)
