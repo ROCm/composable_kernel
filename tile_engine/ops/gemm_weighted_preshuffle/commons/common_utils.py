@@ -3,12 +3,14 @@ import re
 from functools import lru_cache
 
 
-# [DELETE] Why are the values exactly these?
+# [DELETE] Why are the values exactly these? I think compv4 will not work with intrawave also for both
 trait_unsupported_combinations = {
     ("compv3", "cshuffle", "interwave"),
     ("compv3", "default", "interwave"),
     ("compv4", "cshuffle", "interwave"),
     ("compv4", "default", "interwave"),
+    # ("compv4", "cshuffle", "intrawave"),
+    # ("compv4", "default", "intrawave"),
 }
 
 # [DELETE] Why are the values exactly these?

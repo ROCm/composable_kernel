@@ -159,9 +159,6 @@ class GemmPreshuffleCodeGenerator:
             t + w + wt for t in tile_group for w in warp_group for wt in warp_tile_group
         }
 
-        print("[DELETE] Tile params:", tile_params)
-        print("[DELETE] valid_trait_names:", self.valid_trait_names)
-
         for trait in self.valid_trait_names:
             tile_valid_params = [
                 tile for tile in tile_params if self.is_tile_valid(tile, trait)
@@ -170,8 +167,6 @@ class GemmPreshuffleCodeGenerator:
             if trait not in self.valid_trait_tile_combinations:
                 self.valid_trait_tile_combinations[trait] = []
             self.valid_trait_tile_combinations[trait].append(tile_valid_params)
-
-        print("[DELETE] tile_valid_params:", tile_valid_params)
 
     def is_tile_valid(self, tile: tuple, trait: str) -> bool:
         """Check if the tile configuration is valid for the given trait."""
@@ -257,11 +252,6 @@ class GemmPreshuffleCodeGenerator:
         gpu_name = get_gpu_name_by_id(0)
         gpu_warp_tile_key = warp_tile_supported_combinations.get(gpu_name, {})
 
-        # print("[DELETE] warp_tile_key:", warp_tile_key)
-        # print("[DELETE] current_combination:", current_combination)
-        # print("[DELETE] gpu_name:", gpu_name)
-        # print("[DELETE] gpu_warp_tile_key:", gpu_warp_tile_key)
-
         if not gpu_warp_tile_key:
             logging.debug(
                 f"Trait: [{trait}], No valid warp tile combinations found for {gpu_name}/{warp_tile_key}, skip this check."
@@ -269,8 +259,6 @@ class GemmPreshuffleCodeGenerator:
             return False
 
         allowed_combinations = gpu_warp_tile_key.get(warp_tile_key, [])
-        # print("[DELETE] I am here")
-        # print("[DELETE] allowed_combinations:", allowed_combinations)
 
         if not allowed_combinations:
             logging.debug(
@@ -291,7 +279,6 @@ class GemmPreshuffleCodeGenerator:
 def do_list_blobs(
     args: argparse.Namespace, user_provide_config: Optional[JsonConfig] = None
 ):
-    print("I am at this point")
     generator = GemmPreshuffleCodeGenerator(args, user_provide_config)
     generator.list_all_trait_names()
 
