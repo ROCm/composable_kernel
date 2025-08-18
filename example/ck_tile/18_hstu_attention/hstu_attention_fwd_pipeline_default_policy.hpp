@@ -701,7 +701,7 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
                 else if constexpr(WarpGemmM == 16)
                 {
                     if constexpr(WarpGemmK == 32)
-                        return WarpGemmMfmaF16F16F32M16N16K32TransposedCDistribution{};
+                        return WarpGemmMfmaF16F16F32M16N16K32TransposedCDistribution<>{};
                     else
                         return WarpGemmMfmaF16F16F32M16N16K16TransposedCDistribution{};
                 }
@@ -716,7 +716,7 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
                 else if constexpr(WarpGemmM == 16)
                 {
                     if constexpr(WarpGemmK == 32)
-                        return WarpGemmMfmaBf16Bf16F32M16N16K32TransposedCDistribution{};
+                        return WarpGemmMfmaBf16Bf16F32M16N16K32TransposedCDistribution<>{};
                     else
                         return WarpGemmMfmaBf16Bf16F32M16N16K16TransposedCDistribution{};
                 }
@@ -781,7 +781,7 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
             }
             else
             {
-                return WarpGemmMfmaDispatcher<
+                return WarpGemmDispatcher<
                     typename Problem::QKVDataType,
                     typename Problem::QKVDataType,
                     typename Problem::GemmAccDataType,
