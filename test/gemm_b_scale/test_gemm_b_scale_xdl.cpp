@@ -11,6 +11,7 @@ using I4  = ck::pk_i4_t;
 using F16 = ck::half_t;
 using F32 = float;
 
+
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 

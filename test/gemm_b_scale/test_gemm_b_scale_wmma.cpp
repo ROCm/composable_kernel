@@ -3,6 +3,7 @@
 
 #include <tuple>
 
+
 #include "gtest/gtest.h"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "test_gemm_b_scale_util.hpp"
