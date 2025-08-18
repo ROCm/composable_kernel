@@ -52,20 +52,6 @@ inline __device__ bhalf_t static_cast_float_to_bf16(float x)
 }
 #endif
 
-#if defined(__gfx950__)
-inline __device__ bhalf2_t static_cast_float_x2_to_bhalf2_rne(float x, float y)
-{
-    union {
-        uint32_t u32;
-        bhalf2_t bf16x2;
-    } value;
-    asm volatile("v_cvt_pk_bf16_f32 %0, %1, %2" 
-        : "=v"(value.u32) 
-        : "v"(x), "v"(y));
-    return value.bf16x2;
-}
-#endif
-
 // Declare a template function for conversion of bf16 vector of two values using RNE
 template <typename T, typename U>
 __host__ __device__ constexpr T bf16x2_convert_rne(U x, U y);
@@ -74,13 +60,8 @@ __host__ __device__ constexpr T bf16x2_convert_rne(U x, U y);
 template <typename Y, typename X>
 __host__ __device__ constexpr Y bf16_convert_rtn(X x);
 
-// Convert fp32 to bf16 with RTN if higher precision is needed
-template <>
-inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(float x)
+inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn_base(float x)
 {
-#if defined(__gfx950__) && defined(__HIP_DEVICE_COMPILE__)
-    return static_cast_float_to_bf16(x);
-#else
     // Nan check
     if(x != x)
     {
@@ -97,6 +78,16 @@ inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(fl
     constexpr uint32_t rounding_bias      = uint32_t((1 << 15) - 1);
 
     return uint16_t((u.int32 + first_bf16_mantisa_bit + rounding_bias) >> 16);
+}
+
+// Convert fp32 to bf16 with RTN if higher precision is needed
+template <>
+inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(float x)
+{
+#if defined(__gfx950__) && defined(__HIP_DEVICE_COMPILE__)
+    return static_cast_float_to_bf16(x);
+#else
+    return bf16_convert_rtn_base(x);
 #endif
 }
 
@@ -111,15 +102,8 @@ inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(fl
 template<>
 inline __host__ __device__ constexpr bhalf2_t bf16x2_convert_rne<bhalf2_t, float>(float x, float y)
 {
-#if defined(__gfx950__)
-    return static_cast_float_x2_to_bhalf2_rne(x, y);
-#else
-    // TODO: Perform real RNE conversion for bfloat16
-    return {
-        bf16_convert_rtn<bhalf_t>(x),
-        bf16_convert_rtn<bhalf_t>(y)
-    };
-#endif
+    // for gfx950, the compiler will use device instruction v_cvt_pk_bf16_f32 to execute packed cast. 
+    return {bf16_convert_rtn<bhalf_t>(x), bf16_convert_rtn<bhalf_t>(y)};
 }
 
 // convert fp16 to bfp16 via fp32 with RTN if higher precision is needed
