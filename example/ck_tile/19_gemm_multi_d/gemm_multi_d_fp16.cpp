@@ -146,7 +146,6 @@ auto gemm_multi_d(const gemm_multi_d_kargs& args, const ck_tile::stream_config& 
                                                  DsLayout,
                                                  CLayout,
                                                  CDEElementWise,
-                                                 GemmPipelineProblem::kBlockSize,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,
                                                  M_Warp,
@@ -160,8 +159,8 @@ auto gemm_multi_d(const gemm_multi_d_kargs& args, const ck_tile::stream_config& 
             using Kernel = ck_tile::GemmKernelMultiD<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
 
-            const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
-            constexpr dim3 blocks = Kernel::BlockSize();
+            const dim3 grids  = Kernel::GridSize(args.M, args.N, args.k_batch);
+            const dim3 blocks = Kernel::BlockSize();
 
             if(!Kernel::IsSupportedArgument(kargs))
             {
@@ -176,7 +175,7 @@ auto gemm_multi_d(const gemm_multi_d_kargs& args, const ck_tile::stream_config& 
             }
 
             ave_time = ck_tile::launch_kernel(
-                s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+                s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
             return ave_time;
         };
 

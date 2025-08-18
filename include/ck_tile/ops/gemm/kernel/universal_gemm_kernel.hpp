@@ -196,7 +196,7 @@ struct UniversalGemmKernel
     using ELayout   = remove_cvref_t<typename GemmPipeline::CLayout>;
     using EDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
-    static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
+    static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
 
     // Get the persistent kernel if the pipeline has it available
     struct has_persistent_kernel
@@ -275,15 +275,26 @@ struct UniversalGemmKernel
     CK_TILE_HOST static auto MaxOccupancyGridSize(const stream_config& s) -> dim3
     {
         using Kernel      = UniversalGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline>;
-        const auto kernel = kentry<KernelBlockSize, 1, Kernel, KernelArgs>;
+        const auto kernel = kentry<1, Kernel, KernelArgs>;
         int occupancy;
         hip_check_error(
-            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, KernelBlockSize, 0));
+            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize().x, 0));
+
         const int grid_size = get_available_compute_units(s) * occupancy;
         return dim3(grid_size, 1, 1);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
+    CK_TILE_HOST static auto BlockSize()
+    {
+        if(ck_tile::is_wave32())
+        {
+            return dim3(kBlockSize / 2);
+        }
+        else
+        {
+            return dim3(kBlockSize);
+        }
+    }
 
     CK_TILE_HOST static constexpr KernelArgs
     MakeKernelArgs(const UniversalGemmHostArgs<NumATensor, NumBTensor, NumDTensor>& hostArgs)
@@ -371,7 +382,9 @@ struct UniversalGemmKernel
             }
         }
 
-        bool AsTesnorIsValid = {true};
+        const auto vectorSizeA = is_wave32() ? GemmPipeline::template GetVectorSizeA<true>()
+                                             : GemmPipeline::template GetVectorSizeA<false>();
+        bool AsTesnorIsValid   = {true};
         static_for<0, NumATensor, 1>{}([&](auto index) {
             using AiLayout = remove_cvref_t<std::tuple_element_t<index.value, AsLayout>>;
             if constexpr(std::is_same_v<AiLayout, tensor_layout::gemm::RowMajor>)
@@ -387,7 +400,7 @@ struct UniversalGemmKernel
                     }
                     AsTesnorIsValid = false;
                 }
-                if(kargs.K % GemmPipeline::GetVectorSizeA() != 0)
+                if(kargs.K % vectorSizeA != 0)
                 {
                     if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                     {
@@ -407,7 +420,7 @@ struct UniversalGemmKernel
                     }
                     AsTesnorIsValid = false;
                 }
-                if(kargs.M % GemmPipeline::GetVectorSizeA() != 0)
+                if(kargs.M % vectorSizeA != 0)
                 {
                     if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                     {
@@ -418,7 +431,9 @@ struct UniversalGemmKernel
             }
         });
 
-        bool BsTesnorIsValid = {true};
+        bool BsTesnorIsValid   = {true};
+        const auto vectorSizeB = is_wave32() ? GemmPipeline::template GetVectorSizeB<true>()
+                                             : GemmPipeline::template GetVectorSizeB<false>();
         static_for<0, NumBTensor, 1>{}([&](auto index) {
             using BiLayout = remove_cvref_t<std::tuple_element_t<index.value, BsLayout>>;
             if constexpr(std::is_same_v<BiLayout, tensor_layout::gemm::RowMajor>)
@@ -432,7 +447,7 @@ struct UniversalGemmKernel
                     }
                     BsTesnorIsValid = false;
                 }
-                if(kargs.N % GemmPipeline::GetVectorSizeB() != 0)
+                if(kargs.N % vectorSizeB != 0)
                 {
                     if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                     {
@@ -454,7 +469,7 @@ struct UniversalGemmKernel
                     }
                     BsTesnorIsValid = false;
                 }
-                if(kargs.K % GemmPipeline::GetVectorSizeB() != 0)
+                if(kargs.K % vectorSizeB != 0)
                 {
                     if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                     {
