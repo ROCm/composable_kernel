@@ -231,11 +231,22 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
                 }
             };
 
-            constexpr index_t minimum_occupancy =
-                (BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave &&
-                 MPerBlock * NPerBlock / BlockSize > 64)
-                    ? 1
-                    : 2;
+            constexpr index_t minimum_occupancy = [&]() {
+                if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout> &&
+                             is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
+                {
+                    // FIXME: many instances have many spills with occupancy > 1, a better solution
+                    // needed to get best performance
+                    return 1;
+                }
+                else
+                {
+                    return (BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave &&
+                            MPerBlock * NPerBlock / BlockSize > 64)
+                               ? 1
+                               : 2;
+                }
+            }();
 
             if(has_main_k_block_loop)
             {

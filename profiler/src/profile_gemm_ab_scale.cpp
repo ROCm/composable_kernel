@@ -173,6 +173,40 @@ int profile_gemm_ab_scale(int argc, char* argv[])
                        Col{},
                        Row{});
     }
+    else if(data_type == GemmDataType::F8_F8_BF16 && layout == GemmMatrixLayout::MK_KN_MN &&
+            scale_block_tile == ScaleBlockTile::Tile_1_128_128)
+    {
+        return profile(F8{},
+                       F32{},
+                       F8{},
+                       F32{},
+                       F8{},
+                       F32{},
+                       BF16{},
+                       ck::Number<1>{},
+                       ck::Number<128>{},
+                       ck::Number<128>{},
+                       Row{},
+                       Row{},
+                       Row{});
+    }
+    else if(data_type == GemmDataType::F8_F8_BF16 && layout == GemmMatrixLayout::KM_KN_MN &&
+            scale_block_tile == ScaleBlockTile::Tile_1_128_128)
+    {
+        return profile(F8{},
+                       F32{},
+                       F8{},
+                       F32{},
+                       F8{},
+                       F32{},
+                       BF16{},
+                       ck::Number<1>{},
+                       ck::Number<128>{},
+                       ck::Number<128>{},
+                       Col{},
+                       Row{},
+                       Row{});
+    }
     else
     {
         std::cout << "this data_type & layout is not implemented" << std::endl;
