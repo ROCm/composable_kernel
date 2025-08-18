@@ -490,7 +490,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
             : std::array<ck_tile::index_t, 2>{1, 1});
 
     auto [rotary_cos_host, rotary_sin_host] = generate_rotary_cos_sin<KDataType>(
-        std::max(shape_seqlen_q, shape_seqlen_k), rotary_dim, seed);
+        std::max(shape_seqlen_q, shape_seqlen_k), rotary_dim, next_seed());
 
     ck_tile::HostTensor<LSEDataType> lse_acc_host(
         1 < num_splits || use_kvcache

@@ -544,3 +544,158 @@ TEST_P(SplitKV, Test)
 }
 
 #endif // CK_TILE_FMHA_FWD_SPLITKV_API
+
+#if CK_TILE_FMHA_FWD_APPENDKV_API
+
+class AppendKV : public TestWithParam<std::tuple<int,
+                                                 bool,
+                                                 bool,
+                                                 std::tuple<int, bool>,
+                                                 int,
+                                                 std::tuple<int, int, int, int, int, std::string>>>
+{
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    TestCkTileFmhaFwd,
+    AppendKV,
+    Combine(AllHDims,
+            Bool(), // layouts of k and v are controlled by i_perm
+            Bool(), // layout of v is controlled by is_v_rowmajor
+            Values(std::tuple{0, true}, std::tuple{0, false}, std::tuple{128, false}),
+            Values(1, 64, -1),
+            Values(std::tuple{3, 3, -1, 60, 129, "t:32,32"},
+                   std::tuple{2, 2, 1, 264, 265, "0"},
+                   std::tuple{4, 4, 2, 71, 64, "1"})));
+
+TEST_P(AppendKV, Test)
+{
+    auto [hdim,
+          i_perm,
+          is_v_rowmajor,
+          page_block_size_use_cache_batch_idx,
+          seqlen_knew,
+          dims_mask]                            = GetParam();
+    auto [page_block_size, use_cache_batch_idx] = page_block_size_use_cache_batch_idx;
+    auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str] = dims_mask;
+
+    auto bias = bias_info::decode("e");
+
+    seqlen_knew = seqlen_knew == -1 ? seqlen_k : seqlen_knew;
+
+    auto result = fmha_fwd_run<DataTypeConfig>(mode_enum::batch,
+                                               batch,
+                                               nhead,
+                                               nhead_k,
+                                               {seqlen_q},            // seqlen_qs
+                                               {seqlen_k},            // seqlen_ks
+                                               hdim,                  // hdim_q
+                                               hdim,                  // hdim_v
+                                               seqlen_knew,           // seqlen_knew
+                                               {-1},                  // seqlen_kpads
+                                               0,                     // rotary_dim
+                                               i_perm,                // i_perm
+                                               true,                  // o_perm
+                                               0,                     // scale_s
+                                               0,                     // logits_soft_cap
+                                               is_v_rowmajor,         // is_v_rowmajor
+                                               true,                  // lse
+                                               page_block_size,       // page_block_size
+                                               use_cache_batch_idx,   // use_cache_batch_idx
+                                               bias,                  // bias
+                                               0.0f,                  // p_drop
+                                               0,                     // drop_seed
+                                               0,                     // drop_offset
+                                               false,                 // drop_prefs
+                                               mask_str,              // mask_str
+                                               16,                    // range_q
+                                               16,                    // range_k
+                                               16,                    // range_v
+                                               1,                     // range_p
+                                               16,                    // range_o
+                                               squant,                // squant
+                                               false,                 // is_rotary_interleaved
+                                               1,                     // num_splits
+                                               squant ? "ufq" : "uf", // init_method
+                                               42534,                 // seed
+                                               1,                     // do_validation
+                                               stream_config);        // stream_config)
+    CHECK_RESULT(result);
+}
+
+class AppendKVRoPE
+    : public TestWithParam<std::tuple<int,
+                                      bool,
+                                      bool,
+                                      std::tuple<int, bool>,
+                                      int,
+                                      std::tuple<int, int, int, int, int, std::string>>>
+{
+};
+
+INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
+                         AppendKVRoPE,
+                         Combine(AllHDims,
+                                 Bool(), // layouts of k and v are controlled by i_perm
+                                 Bool(), // layout of v is controlled by is_v_rowmajor
+                                 Values(std::tuple{0, false},
+                                        std::tuple{16, true},
+                                        std::tuple{32, false},
+                                        std::tuple{-1, true}),
+                                 Values(16, 50, -1),
+                                 Values(std::tuple{2, 3, -1, 60, 129, "t:32,32"},
+                                        std::tuple{1, 2, 1, 128, 55, "0"},
+                                        std::tuple{3, 4, 2, 72, 128, "1"})));
+
+TEST_P(AppendKVRoPE, Test)
+{
+    auto [hdim, i_perm, is_v_rowmajor, rotary, seqlen_knew, dims_mask] = GetParam();
+    auto [rotary_dim, is_rotary_interleaved]                           = rotary;
+    auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str]         = dims_mask;
+
+    auto bias = bias_info::decode("n");
+
+    rotary_dim  = rotary_dim == -1 ? hdim : rotary_dim;
+    seqlen_knew = seqlen_knew == -1 ? seqlen_k : seqlen_knew;
+
+    auto result = fmha_fwd_run<DataTypeConfig>(mode_enum::batch,
+                                               batch,
+                                               nhead,
+                                               nhead_k,
+                                               {seqlen_q},            // seqlen_qs
+                                               {seqlen_k},            // seqlen_ks
+                                               hdim,                  // hdim_q
+                                               hdim,                  // hdim_v
+                                               seqlen_knew,           // seqlen_knew
+                                               {-1},                  // seqlen_kpads
+                                               rotary_dim,            // rotary_dim
+                                               i_perm,                // i_perm
+                                               true,                  // o_perm
+                                               0,                     // scale_s
+                                               0,                     // logits_soft_cap
+                                               is_v_rowmajor,         // is_v_rowmajor
+                                               true,                  // lse
+                                               0,                     // page_block_size
+                                               false,                 // use_cache_batch_idx
+                                               bias,                  // bias
+                                               0.0f,                  // p_drop
+                                               0,                     // drop_seed
+                                               0,                     // drop_offset
+                                               false,                 // drop_prefs
+                                               mask_str,              // mask_str
+                                               16,                    // range_q
+                                               16,                    // range_k
+                                               16,                    // range_v
+                                               1,                     // range_p
+                                               16,                    // range_o
+                                               squant,                // squant
+                                               is_rotary_interleaved, // is_rotary_interleaved
+                                               1,                     // num_splits
+                                               squant ? "ufq" : "uf", // init_method
+                                               42534,                 // seed
+                                               1,                     // do_validation
+                                               stream_config);        // stream_config)
+    CHECK_RESULT(result);
+}
+
+#endif // CK_TILE_FMHA_FWD_APPENDKV_API
