@@ -15,7 +15,7 @@
 
 #include "ck/library/tensor_operation_instance/gpu/batched_gemm_b_scale.hpp"
 
-#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -117,19 +117,11 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
     switch(init_method)
     {
     case 0: break;
-    case 1:
-        a_g_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-1, 2});
-        b_g_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-1, 2});
-        b1_g_k_n.GenerateTensorValue(GeneratorTensor_3<BScaleDataType>{0, 1.0});
-        break;
-    case 2:
-        a_g_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        b_g_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
-        b1_g_k_n.GenerateTensorValue(GeneratorTensor_3<BScaleDataType>{0, 1.0});
-        break;
+    // NOTE: for an int4, there is no point differenciating between decimal and integer initialization
+    // also, the random number seem to be for a int4_2 type, so we use range 0...255
     default:
         a_g_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        b_g_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
+        b_g_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{0, 256});
         b1_g_k_n.GenerateTensorValue(GeneratorTensor_3<BScaleDataType>{0, 1.0});
     }
 
@@ -170,51 +162,59 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
     // Run reference GEMM
     if(do_verification)
     {
-        Tensor<float> b_g_k_n_dequant({K, N});
+        Tensor<BScaleDataType> b_g_k_n_dequant({BatchSize, K, N});
 
         float v_b = 0;
         for(int bs = 0; bs < BatchSize; bs++)
         {
             for(int n = 0; n < N; n++)
             {
+
                 for(int k = 0; k < K; k++)
                 {
-                    ck::pk_i4_t i4x2 = b_g_k_n(bs, k, n).data;
-                    int8_t i4        = 0;
-                    if(k % 2 == 1)
+                    // for proper testing, we need to replicate k_shuffle when used
+                    // see unary_element_wise_operation.hpp
+#if CK_USE_PK4_LAYOUT_SHUFFLE
+                    int k_shuffle = (k/8)*8 + (k % 2)*4 + (k % 8)/2;
+#else
+                    int k_shuffle = k;
+#endif
+
+                    ck::pk_i4_t i4x2 = b_g_k_n(bs, k_shuffle, n).data;
+                    int i4        = 0;
+                    if(k_shuffle % 2 == 0)
                         i4 = (i4x2.data >> 0) & 0xf;
                     else
                         i4 = (i4x2.data >> 4) & 0xf;
-                    i4  = i4 - 8;
+                    i4 = i4 - 8;
                     v_b = ck::type_convert<float>(i4);
 
-                    b_g_k_n_dequant(bs, k, n) =
+                    float out = 
                         ck::type_convert<float>(v_b) *
                         ck::type_convert<float>(b1_g_k_n(bs, k / ScaleBlockK, n));
+
+                    b_g_k_n_dequant(bs, k, n) = out;
                 }
             }
-        }
-
-        using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
-                                                                                BDataType,
+        } 
+        using ReferenceBatchedGemmInstance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
+                                                                                BScaleDataType,
                                                                                 CDataType,
                                                                                 AccDataType,
                                                                                 AElementOp,
                                                                                 BElementOp,
-                                                                                CElementOp,
-                                                                                ComputeDataType>;
+                                                                                CElementOp>;
 
-        auto ref_gemm    = ReferenceGemmInstance{};
-        auto ref_invoker = ref_gemm.MakeInvoker();
-
-        auto ref_argument = ref_gemm.MakeArgument(a_g_m_k,
+        auto ref_batched_gemm    = ReferenceBatchedGemmInstance{};
+        auto ref_invoker = ref_batched_gemm.MakeInvoker();
+        auto ref_argument = ref_batched_gemm.MakeArgument(a_g_m_k,
                                                   b_g_k_n_dequant,
                                                   c_g_m_n_host_result,
                                                   a_element_op,
                                                   b_element_op,
                                                   c_element_op);
-
         ref_invoker.Run(ref_argument);
+
     }
 
     std::string best_op_name;
@@ -230,6 +230,7 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
 
         if(op_ptr->GetPermuteB())
         {
+
             int K1 = KPerBlock;
             int K0 = K / KPerBlock;
 
@@ -306,6 +307,7 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
         }
         else
         {
+
             b_g_k_n_permute = b_g_k_n;
         }
 
@@ -359,6 +361,8 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
                 if(do_verification)
                 {
                     c_device_buf.FromDevice(c_g_m_n_device_result.mData.data());
+                    c_device_buf.FromDevice(c_g_m_n_device_result.mData.data());
+
 
 #if defined CK_ENABLE_FP8
                     // set softer tolerances for fp8

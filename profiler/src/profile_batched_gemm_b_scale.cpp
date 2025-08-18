@@ -31,6 +31,7 @@ enum struct GemmDataType
     F16_I4_F16,     // 8
 };
 
+
 enum struct BScaleBlockTile
 {
     K_64,  // 0
@@ -57,7 +58,7 @@ int profile_batched_gemm_b_scale(int argc, char* argv[])
         printf("arg6: initialization (0: no init; 1: integer value; 2: decimal value)\n");
         printf("arg7: print tensor value (0: no; 1: yes)\n");
         printf("arg8: time kernel (0=no, 1=yes)\n");
-        printf("arg9 to 15: M, N, K, StrideA, StrideB, StrideC, BatachCount\n");
+        printf("arg9 to 15: M, N, K, StrideA, StrideB, StrideC, BatchCount\n");
         printf("arg16: split k into mulitiple batch\n");
         printf("optional:\n");
         printf("arg17: number of warm-up cycles (default 1)\n");
@@ -150,6 +151,14 @@ int profile_batched_gemm_b_scale(int argc, char* argv[])
         const int DefaultStrideB = ck::is_same_v<BLayout, Row> ? N : K;
         const int DefaultStrideC = ck::is_same_v<CLayout, Row> ? N : M;
 
+
+
+        
+
+
+
+
+
         bool pass = ck::profiler::profile_batched_gemm_b_scale_impl<ADataType,
                                                                     BDataType,
                                                                     BScaleDataType,
@@ -199,3 +208,4 @@ int profile_batched_gemm_b_scale(int argc, char* argv[])
 }
 
 REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_batched_gemm_b_scale);
+

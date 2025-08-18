@@ -268,7 +268,7 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale
 
         __host__ __device__ constexpr long_index_t GetBPtrOffset(index_t g_idx) const
         {
-            return g_idx * static_cast<long_index_t>(BatchStrideB_);
+            return g_idx * static_cast<long_index_t>(BatchStrideB_) / GridwiseGemm::BPackedSize;
         }
 
         __host__ __device__ constexpr long_index_t GetCPtrOffset(index_t g_idx) const
