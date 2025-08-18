@@ -39,6 +39,60 @@ struct safe_underlying_type<T, false>
 template <typename T>
 using safe_underlying_type_t = typename safe_underlying_type<T, std::is_enum<T>::value>::type;
 
+// Defines some constants for AMDGCN architecture target IDs
+struct amdgcn_target_arch_id
+{
+    static constexpr uint32_t GFX908  = 0x0908;
+    static constexpr uint32_t GFX90A  = 0x090A;
+    static constexpr uint32_t GFX942  = 0x0942;
+    static constexpr uint32_t GFX950  = 0x0950;
+    static constexpr uint32_t GFX1100 = 0x1100;
+    static constexpr uint32_t GFX1101 = 0x1101;
+    static constexpr uint32_t GFX1102 = 0x1102;
+    static constexpr uint32_t GFX1151 = 0x1151;
+    static constexpr uint32_t GFX1200 = 0x1200;
+    static constexpr uint32_t GFX1201 = 0x1201;
+    static constexpr uint32_t GFX1250 = 0x1250;
+    static constexpr uint32_t GFX1251 = 0x1251;
+    static constexpr uint32_t NONE    = 0x0000;
+
+#if CK_TILE_ARCH_GFX908
+        static constexpr uint32_t CURRENT_ARCH_ID = GFX908;
+#elif CK_TILE_ARCH_GFX90A
+        static constexpr uint32_t CURRENT_ARCH_ID = GFX90A;
+#elif CK_TILE_ARCH_GFX942
+        static constexpr uint32_t CURRENT_ARCH_ID = GFX942;
+#elif CK_TILE_ARCH_GFX950
+        static constexpr uint32_t CURRENT_ARCH_ID = GFX950;
+#elif CK_TILE_ARCH_GFX1100
+        static constexpr uint32_t CURRENT_ARCH_ID = GFX1100;
+#elif CK_TILE_ARCH_GFX1101
+        static constexpr uint32_t CURRENT_ARCH_ID = GFX1101;
+#elif CK_TILE_ARCH_GFX1102
+        static constexpr uint32_t CURRENT_ARCH_ID = GFX1102;
+#elif CK_TILE_ARCH_GFX1151
+        static constexpr uint32_t CURRENT_ARCH_ID = GFX1151;
+#elif CK_TILE_ARCH_GFX1200
+        static constexpr uint32_t CURRENT_ARCH_ID = GFX1200;
+#elif CK_TILE_ARCH_GFX1201
+        static constexpr uint32_t CURRENT_ARCH_ID = GFX1201;
+#elif CK_TILE_ARCH_GFX1250
+        static constexpr uint32_t CURRENT_ARCH_ID = GFX1250;
+#elif CK_TILE_ARCH_GFX1251
+        static constexpr uint32_t CURRENT_ARCH_ID = GFX1251;
+#else // Host default to NONE
+        static constexpr uint32_t CURRENT_ARCH_ID = NONE;
+#endif
+
+#if CK_TILE_WAVE64_MODE
+        static constexpr uint32_t WAVE_SIZE = 64u;
+#elif CK_TILE_WAVE32_MODE
+        static constexpr uint32_t WAVE_SIZE = 32u;
+#else // Host default to 0
+        static constexpr uint32_t WAVE_SIZE = 0u;
+#endif
+};
+
 enum struct address_space_enum : std::uint16_t
 {
     generic = 0,

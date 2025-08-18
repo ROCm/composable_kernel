@@ -279,3 +279,150 @@
 #ifndef CK_TILE_ENC_SUPPORT_Y_TO_R
 #define CK_TILE_ENC_SUPPORT_Y_TO_R 0
 #endif
+
+// Defines CK_TILE specific architecture symbols
+// Guarantee the following symbols are defined to either 0 or 1:
+// CK_TILE_ARCH_GFX908
+// CK_TILE_ARCH_GFX90A
+// CK_TILE_ARCH_GFX942
+// CK_TILE_ARCH_GFX950
+// CK_TILE_ARCH_GFX1100
+// CK_TILE_ARCH_GFX1101
+// CK_TILE_ARCH_GFX1102
+// CK_TILE_ARCH_GFX1151
+// CK_TILE_ARCH_GFX1200
+// CK_TILE_ARCH_GFX1201
+// CK_TILE_ARCH_HOST
+// TODO: Replace specific instances of __gfxXYZW___ with CK_TILE_ARCH_GFXXYZW
+#if defined(__HIP_DEVICE_COMPILE__) && __HIP_DEVICE_COMPILE__
+#define CK_TILE_DEVICE_COMPILE 1
+#else
+#define CK_TILE_DEVICE_COMPILE 0
+#endif
+#if defined(__gfx908__) && CK_TILE_DEVICE_COMPILE
+#define CK_TILE_ARCH_GFX908 __gfx908__
+#elif defined(__gfx90a__) && CK_TILE_DEVICE_COMPILE
+#define CK_TILE_ARCH_GFX90A __gfx90a__
+#elif defined(__gfx942__) && CK_TILE_DEVICE_COMPILE
+#define CK_TILE_ARCH_GFX942 __gfx942__
+#elif defined(__gfx950__) && CK_TILE_DEVICE_COMPILE
+#define CK_TILE_ARCH_GFX950 __gfx950__
+#elif defined(__gfx1100__) && CK_TILE_DEVICE_COMPILE
+#define CK_TILE_ARCH_GFX1100 __gfx1100__
+#elif defined(__gfx1101__) && CK_TILE_DEVICE_COMPILE
+#define CK_TILE_ARCH_GFX1101 __gfx1101__
+#elif defined(__gfx1102__) && CK_TILE_DEVICE_COMPILE
+#define CK_TILE_ARCH_GFX1102 __gfx1102__
+#elif defined(__gfx1151__) && CK_TILE_DEVICE_COMPILE
+#define CK_TILE_ARCH_GFX1151 __gfx1151__
+#elif defined(__gfx1200__) && CK_TILE_DEVICE_COMPILE
+#define CK_TILE_ARCH_GFX1200 __gfx1200__
+#elif defined(__gfx1201__) && CK_TILE_DEVICE_COMPILE
+#define CK_TILE_ARCH_GFX1201 __gfx1201__
+#elif !CK_TILE_DEVICE_COMPILE
+#define CK_TILE_ARCH_HOST 1
+#else
+static_assert(0, "Unsupported architecture"); // TODO: Do we want to stop the build if we don't support the architecture?
+#endif
+
+#if !defined(CK_TILE_ARCH_GFX908)
+#define CK_TILE_ARCH_GFX908 0
+#endif
+#if !defined(CK_TILE_ARCH_GFX90A)
+#define CK_TILE_ARCH_GFX90A 0
+#endif
+#if !defined(CK_TILE_ARCH_GFX942)
+#define CK_TILE_ARCH_GFX942 0
+#endif
+#if !defined(CK_TILE_ARCH_GFX950)
+#define CK_TILE_ARCH_GFX950 0
+#endif
+#if !defined(CK_TILE_ARCH_GFX1100)
+#define CK_TILE_ARCH_GFX1100 0
+#endif
+#if !defined(CK_TILE_ARCH_GFX1101)
+#define CK_TILE_ARCH_GFX1101 0
+#endif
+#if !defined(CK_TILE_ARCH_GFX1102)
+#define CK_TILE_ARCH_GFX1102 0
+#endif
+#if !defined(CK_TILE_ARCH_GFX1151)
+#define CK_TILE_ARCH_GFX1151 0
+#endif
+#if !defined(CK_TILE_ARCH_GFX1200)
+#define CK_TILE_ARCH_GFX1200 0
+#endif
+#if !defined(CK_TILE_ARCH_GFX1201)
+#define CK_TILE_ARCH_GFX1201 0
+#endif
+#if !defined(CK_TILE_ARCH_HOST)
+#define CK_TILE_ARCH_HOST 0
+#endif
+
+
+// Defines CK_TILE grouped architecture symbols
+// Guarantee the following symbols are defined to either 0 or 1:
+// CK_TILE_ARCH_GFX9
+// CK_TILE_ARCH_GFX11
+// CK_TILE_ARCH_GFX12
+// CK_TILE_WAVE64_MODE
+// CK_TILE_WAVE32_MODE
+// NOTE: Wave mode on the host MUST be determined with the HIP API @runtime.
+// TODO: Replace specific instances of __gfxXY__ with grouped architecture symbols CK_TILE_ARCH_GFXXY
+#if CK_TILE_ARCH_GFX908 || CK_TILE_ARCH_GFX90A || CK_TILE_ARCH_GFX942 || CK_TILE_ARCH_GFX950
+#define CK_TILE_ARCH_GFX9 1
+#define CK_TILE_WAVE64_MODE 1
+#endif
+
+#if CK_TILE_ARCH_GFX1100 || CK_TILE_ARCH_GFX1101 || CK_TILE_ARCH_GFX1102 || CK_TILE_ARCH_GFX1151
+#define CK_TILE_ARCH_GFX11 1
+#define CK_TILE_WAVE32_MODE 1
+#endif
+
+#if CK_TILE_ARCH_GFX1200 || CK_TILE_ARCH_GFX1201
+#define CK_TILE_ARCH_GFX12 1
+#define CK_TILE_WAVE32_MODE 1
+#endif
+
+#if !defined(CK_TILE_ARCH_GFX9)
+#define CK_TILE_ARCH_GFX9 0
+#endif
+#if !defined(CK_TILE_ARCH_GFX11)
+#define CK_TILE_ARCH_GFX11 0
+#endif
+#if !defined(CK_TILE_ARCH_GFX12)
+#define CK_TILE_ARCH_GFX12 0
+#endif
+#if !defined(CK_TILE_WAVE64_MODE)
+#define CK_TILE_WAVE64_MODE 0
+#endif
+#if !defined(CK_TILE_WAVE32_MODE)
+#define CK_TILE_WAVE32_MODE 0
+#endif
+
+// Mark unsupported features with a deprecation warning in debug builds
+#if defined(NDEBUG)
+#define CK_TILE_UNSUPPORTED_IMPL(MSG)
+#else
+#define CK_TILE_UNSUPPORTED_IMPL(MSG) __attribute__((deprecated(MSG)))
+#endif
+
+// Sanity checks
+// TODO: Verify this is actually the case we want to enforce:
+// gfx9: wave64 only
+// gfx11: wave32 only
+// gfx12: wave32 only
+#if CK_TILE_ARCH_GFX9
+static_assert(!(bool)(CK_TILE_WAVE32_MODE) && (bool)(CK_TILE_WAVE64_MODE),
+              "CK_TILE supports only wave64 for gfx9 arch");
+#endif
+
+#if CK_TILE_ARCH_GFX11
+static_assert((bool)(CK_TILE_WAVE32_MODE) && !(bool)(CK_TILE_WAVE64_MODE),
+              "CK_TILE supports only wave32 for gfx11 arch");
+#endif
+
+#if CK_TILE_ARCH_GFX12
+static_assert((bool)(CK_TILE_WAVE32_MODE) && !(bool)(CK_TILE_WAVE64_MODE),
+              "CK_TILE supports only wave32 for gfx12 arch");
+#endif
