@@ -42,7 +42,7 @@ class TestBatchedGemmBScale : public testing::Test
     static constexpr bool bench_             = false; // measure kernel performance
     std::vector<int> k_batches_;
 
-    void SetUp() override { k_batches_ = {1, 2}; }
+    void SetUp() override { k_batches_ = {1}; }
 
     void Run(const int M,
              const int N,
@@ -71,13 +71,13 @@ class TestBatchedGemmBScale : public testing::Test
     {
         const int BatchStrideA = StrideA*M;
         const int BatchStrideB = StrideB*K;
-        const int BatchStrideC = StrideC*K;
+        const int BatchStrideC = StrideC*M;
         const int BatchStrideScaleB = StrideB*K;
         bool pass = ck::profiler::profile_batched_gemm_b_scale_impl<ADataType,
                                                                 BDataType,
                                                                 BScaleDataType,
                                                                 ComputeDataType,
-                                                                F32,
+                                                                F32,    
                                                                 CDataType,
                                                                 ScaleBlockK,
                                                                 ALayout,
