@@ -118,19 +118,17 @@ class TestCkTileElementwise : public ::testing::Test
                 "The kernel configuration is not supported for the given input size.");
         }
 
-        ck_tile::launch_kernel(
-            s,
-            ck_tile::make_kernel<TestElementWiseShape::kBlockSize, // MaxThreadPerBlock
-                                 kBlockPerCu>                      // MinBlockPerCu
-            (ew_kernel,
-             grid,
-             block,
-             0, // actual shared memory
-             lens,
-             strides, // input strides
-             strides, // output strides
-             d_x_ptrs_tuple,
-             p_y_device));
+        ck_tile::launch_kernel(s,
+                               ck_tile::make_kernel<kBlockPerCu> // MinBlockPerCu
+                               (ew_kernel,
+                                grid,
+                                block,
+                                0, // actual shared memory
+                                lens,
+                                strides, // input strides
+                                strides, // output strides
+                                d_x_ptrs_tuple,
+                                p_y_device));
 
         d_y_mem.FromDevice(h_y.data());
 

@@ -34,6 +34,8 @@ struct BatchedTransposeKernel
 
     using Type = typename Problem::DataType;
 
+    static constexpr index_t kBlockSize = Problem::kBlockSize;
+
     struct BatchedTransposeKargs
     {
         const void* p_input;
