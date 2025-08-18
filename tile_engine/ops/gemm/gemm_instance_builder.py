@@ -297,7 +297,7 @@ struct GemmKernel {{
                 throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!");
             }}
 
-            constexpr dim3 blocks = Kernel::BlockSize();
+            const dim3 blocks = Kernel::BlockSize();
             const dim3 grids = {'Kernel::MaxOccupancyGridSize(stream)' if persistent == 'true' else 'Kernel::GridSize(args.M, args.N, args.k_batch)'};
 
             if(stream.log_level_ > 0)
@@ -346,12 +346,12 @@ struct GemmKernel {{
                 ave_time = ck_tile::launch_kernel_time_mask(
                     stream,
                     run_flush_cache,
-                    ck_tile::make_kernel<blocks.x, kBlockPerCu>(
+                    ck_tile::make_kernel<kBlockPerCu>(
                         Kernel{{}}, grids, blocks, 0, kargs));
             }}
             else{{
                 ave_time = ck_tile::launch_kernel(stream,
-                                          ck_tile::make_kernel<blocks.x, kBlockPerCu>(
+                                          ck_tile::make_kernel<kBlockPerCu>(
                                               Kernel{{}}, grids, blocks, 0, kargs));
             }}
             return ave_time;
