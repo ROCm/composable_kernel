@@ -21,9 +21,9 @@ enum StreamKReductionStrategy
 /// @brief The Stream K GEMM kernel host arguments.
 ///
 /// @par Overview
-///      This structure is passed to @ref StreamKKernel "StreamKKernel" when creating kernel
-///      arguments object. It contain all necessary information required to build proper kernel
-///      argument and launch kernel on GPU. This structure defines the GEMM problem configuration by
+///      This structure is passed to @ref StreamKKernel "StreamKKernel" when creating the kernel
+///      arguments object. It contains all necessary information required to build proper kernel
+///      arguments and launch the kernel on GPU. This structure defines the GEMM problem configuration by
 ///      stating all required information like M,N,K sizes and respective strides.
 struct StreamKHostArgs : public ck_tile::UniversalGemmHostArgs<>
 {
