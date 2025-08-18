@@ -3,6 +3,7 @@
 
 #pragma once
 #include <bit>
+#include <iostream>
 #include <random>
 #include <stdexcept>
 
@@ -72,6 +73,20 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     args.stride_B  = stride_B;
     args.stride_C  = stride_C;
     args.stride_AQ = stride_AQ;
+
+#if CK_TILE_LOGGING_ENABLED
+    std::cout << "kbatch: " << kbatch << std::endl;
+    std::cout << "M: " << M << " N: " << N << " K: " << K << " AQK: " << AQK << std::endl;
+    std::cout << "stride_A: " << stride_A << " stride_AQ: " << stride_AQ
+              << " stride_B: " << stride_B << " stride_C: " << stride_C << std::endl;
+    std::cout << "ALayout: " << ALayout::name << " AQLayout: " << AQLayout::name
+              << " BLayout: " << BLayout::name << " CLayout: " << CLayout::name << std::endl;
+    std::cout << "ADataType: " << DataTypeTraits<ADataType>::name
+              << " AQDataType: " << DataTypeTraits<AQDataType>::name
+              << " BDataType: " << DataTypeTraits<BDataType>::name
+              << " AccDataType: " << DataTypeTraits<AccDataType>::name
+              << " CDataType: " << DataTypeTraits<CDataType>::name << std::endl;
+#endif
 
     float ave_time = gemm_calc_aquant<ADataType,
                                       AQDataType,
@@ -165,6 +180,15 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::HostTensor<CDataType> c_m_n_dev_result(
         ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
+#if CK_TILE_LOGGING_ENABLED
+    std::cout << "Shape of a_m_k: " << a_m_k.get_lengths()[0] << "x" << a_m_k.get_lengths()[1]
+              << "(" << a_layout.name << ")" << std::endl;
+    std::cout << "Shape of aq_m_aqk: " << aq_m_aqk.get_lengths()[0] << "x"
+              << aq_m_aqk.get_lengths()[1] << "(" << aq_layout.name << ")" << std::endl;
+    std::cout << "Shape of b_k_n: " << b_k_n.get_lengths()[0] << "x" << b_k_n.get_lengths()[1]
+              << "(" << b_layout.name << ")" << std::endl;
+#endif
+
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<std::uint32_t> fill_seed(0, 500);
@@ -190,9 +214,24 @@ int run_gemm_example_with_layouts(int argc,
     }
     else if(init_method == 2)
     {
-        ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x22)}(a_m_k);
-        ck_tile::FillConstant<AQDataType>{static_cast<AQDataType>(0.5f)}(aq_m_aqk);
-        ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x38)}(b_k_n);
+        ck_tile::FillConstant<ADataType>{ck_tile::type_convert<ADataType>(1.5f)}(a_m_k);
+        ck_tile::FillConstant<AQDataType>{ck_tile::type_convert<AQDataType>(1.1f)}(aq_m_aqk);
+        ck_tile::FillConstant<BDataType>{ck_tile::type_convert<BDataType>(2.0f)}(b_k_n);
+
+#if CK_TILE_LOGGING_ENABLED
+        // print first 10 elements
+        std::cout << "Printing first 10 elements of a_m_k, aq_m_aqk, and b_k_n" << std::endl;
+        a_m_k.print_first_n(std::cout, 10);
+        std::cout << std::endl;
+        aq_m_aqk.print_first_n(std::cout, 10);
+        std::cout << std::endl;
+        b_k_n.print_first_n(std::cout, 10);
+        std::cout << std::endl;
+#endif
+
+        // ck_tile::FillConstant<ADataType>{static_cast<ADataType>(1.5f)}(a_m_k);
+        // ck_tile::FillConstant<AQDataType>{static_cast<AQDataType>(0.5f)}(aq_m_aqk);
+        // ck_tile::FillConstant<BDataType>{static_cast<BDataType>(2.0f)}(b_k_n);
     }
     else
     {
