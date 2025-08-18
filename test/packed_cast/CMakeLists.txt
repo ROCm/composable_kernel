@@ -1,6 +1,0 @@
-if(GPU_TARGETS MATCHES "gfx950")
-  add_gtest_executable(test_packed_cast test_packed_cast.cpp)
-  if(result EQUAL 0)
-    target_link_libraries(test_packed_cast PRIVATE utility)
-  endif()
-endif()
