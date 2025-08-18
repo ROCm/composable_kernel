@@ -36,8 +36,16 @@ struct GemmPipelineAGmemBGmemCRegV1
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t GetVectorSizeA() { return Problem::VectorSizeA; }
-    static constexpr index_t GetVectorSizeB() { return Problem::VectorSizeB; }
+    template <bool IsWave32Host = false>
+    static constexpr index_t GetVectorSizeA()
+    {
+        return Problem::VectorSizeA;
+    }
+    template <bool IsWave32Host = false>
+    static constexpr index_t GetVectorSizeB()
+    {
+        return Problem::VectorSizeB;
+    }
     static constexpr index_t GetVectorSizeC() { return Problem::VectorSizeC; }
 
     static constexpr index_t GetSmemPackA() { return Policy::template GetSmemPackA<Problem>(); }

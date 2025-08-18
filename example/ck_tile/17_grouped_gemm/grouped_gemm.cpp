@@ -82,7 +82,6 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                                              ck_tile::tuple<>,
                                              CLayout,
                                              ck_tile::element_wise::PassThrough,
-                                             GemmPipelineProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,
                                              GemmConfig::M_Warp,
@@ -92,9 +91,9 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                                              GemmConfig::K_Warp_Tile,
                                              UniversalGemmProblem::TransposeC,
                                              memory_operation>>;
-        using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-        constexpr dim3 blocks = Kernel::BlockSize();
-        const dim3 grids      = Kernel::MaxOccupancyGridSize(s);
+        using Kernel      = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        const dim3 blocks = Kernel::BlockSize();
+        const dim3 grids  = Kernel::MaxOccupancyGridSize(s);
 
         if(s.log_level_ > 0)
         {
@@ -105,7 +104,7 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
 
         ave_time =
             ck_tile::launch_kernel(s,
-                                   ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(
+                                   ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
                                        Kernel{},
                                        grids,
                                        blocks,
