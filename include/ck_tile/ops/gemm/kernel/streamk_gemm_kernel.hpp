@@ -30,13 +30,13 @@ struct StreamKHostArgs : public ck_tile::UniversalGemmHostArgs<>
     CK_TILE_HOST explicit StreamKHostArgs(const void* a_ptr_,
                                           const void* b_ptr_,
                                           void* c_ptr_,
-                                          ck_tile::index_t M_,
-                                          ck_tile::index_t N_,
-                                          ck_tile::index_t K_,
-                                          ck_tile::index_t stride_A_,
-                                          ck_tile::index_t stride_B_,
-                                          ck_tile::index_t stride_C_,
-                                          ck_tile::StreamKReductionStrategy reduction_strategy_,
+                                          index_t M_,
+                                          index_t N_,
+                                          index_t K_,
+                                          index_t stride_A_,
+                                          index_t stride_B_,
+                                          index_t stride_C_,
+                                          StreamKReductionStrategy reduction_strategy_,
                                           uint32_t num_sk_blocks_ = 0xffffffff)
         : UniversalGemmHostArgs<>({a_ptr_},
                                   {b_ptr_},
@@ -99,7 +99,7 @@ struct StreamKKernel
     struct StreamKKernelArgs : ck_tile::UniversalGemmKernelArgs<>
     {
         /// @brief  The strategy used by work groups to compute final results in C tensor.
-        ck_tile::StreamKReductionStrategy reduction_strategy;
+        StreamKReductionStrategy reduction_strategy;
         /// @brief  The number of stream k blocks.
         uint32_t num_sk_blocks;
         /// @brief  A pointer to a buffer in device memory for accumulating partial via reduction
@@ -154,8 +154,8 @@ struct StreamKKernel
 
     CK_TILE_HOST static StreamKKernelArgs MakeKernelArgs(const StreamKHostArgs& host_args)
     {
-        int occupancy = StreamKKernel::Occupancy();
-        int num_cu    = StreamKKernel::NumCU();
+        int occupancy = Occupancy();
+        int num_cu    = NumCU();
 
         return StreamKKernelArgs{
             {host_args.as_ptr,
