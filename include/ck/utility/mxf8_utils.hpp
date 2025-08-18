@@ -39,7 +39,7 @@ static __device__ float cast_to_f32_from_f8_scaled(float scale, fp8_storage_t v)
 }
 
 template <ck_fp8_interpretation_t interpret>
-static __device__ float2_t cast_to_f32x2_from_f8x2_scaled(float scale, fp8x2_storage_t v)
+static __device__ float2_t cast_to_f32_from_f8_scaled(float scale, fp8x2_storage_t v)
 {
     const auto i16val = bit_cast<uint16_t>(v);
 
@@ -197,8 +197,9 @@ __host__ __device__ static inline fp8_storage_t cvt_float_to_fp8_scaled(const fl
     uint32_t rng = 0;
     if constexpr(stochastic_rounding)
     {
-        constexpr int seed = 1254739;
-        rng                = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&f), f);
+        // use HW clock for stochastic input multiply by incremented thread id
+        rng = __builtin_amdgcn_prng_b32(__builtin_amdgcn_s_memrealtime() *
+                                        (get_thread_global_1d_id() + 1));
     }
     return cast_to_f8_from_f32_scaled<interp, stochastic_rounding>(f, rng, scale);
 }
@@ -221,8 +222,9 @@ __host__ __device__ static inline fp8x2_storage_t cvt_float_to_fp8_scaled(const 
     uint32_t rng = 0;
     if constexpr(stochastic_rounding)
     {
-        constexpr int seed = 1254739;
-        rng                = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&f), f[0]);
+        // use HW clock for stochastic input multiply by incremented thread id
+        rng = __builtin_amdgcn_prng_b32(__builtin_amdgcn_s_memrealtime() *
+                                        (get_thread_global_1d_id() + 1));
     }
     return cast_to_f8_from_f32_scaled<interp, stochastic_rounding>(f, rng, scale);
 }

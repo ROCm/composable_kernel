@@ -4,41 +4,26 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/softmax.hpp"
-#include "ck_tile/ops/topk.hpp"
+#include "batched_transpose_common_policy.hpp"
 
 namespace ck_tile {
 
-struct BatchedTransposePolicy
+struct BatchedTransposePolicy : public BatchedTransposeCommonPolicy
 {
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeInputDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeOutputDistribution()
     {
-        using S = Problem;
-        return make_static_tile_distribution(
-            tile_distribution_encoding<
-                sequence<>,
-                tuple<sequence<S::kMWarpPerBlock, S::kMThreadPerWarp, S::kMPerThread>,
-                      sequence<S::kNWarpPerBlock, S::kNThreadPerWarp, S::kNPerThread>>,
-                tuple<sequence<1, 2>, sequence<1, 2>>,
-                tuple<sequence<0, 0>, sequence<1, 1>>,
-                sequence<1, 2>,
-                sequence<2, 2>>{});
-    }
+        constexpr index_t BlockSize   = Problem::kBlockSize;
+        constexpr index_t MPerBlock   = Problem::kMPerBlock;
+        constexpr index_t NPerBlock   = Problem::kNPerBlock;
+        constexpr index_t VecLoadSize = Problem::VectorSizeOutput;
 
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeOutputDistribution()
-    {
-        using S = Problem;
-        return make_static_tile_distribution(
-            tile_distribution_encoding<
-                sequence<>,
-                tuple<sequence<S::kNWarpPerBlock, S::kNThreadPerWarp, S::kNPerThread>,
-                      sequence<S::kMWarpPerBlock, S::kMThreadPerWarp, S::kMPerThread>>,
-                tuple<sequence<2, 1>, sequence<2, 1>>,
-                tuple<sequence<0, 0>, sequence<1, 1>>,
-                sequence<2, 1>,
-                sequence<2, 2>>{});
+        using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
+                                                                      MPerBlock,
+                                                                      NPerBlock,
+                                                                      VecLoadSize,
+                                                                      TileAccessPattern>;
+        return TileEncodingPattern::MakeShuffled2DStaticTileDistribution();
     }
 };
 } // namespace ck_tile

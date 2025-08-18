@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -43,6 +43,7 @@ template <typename SrcDatas,
           index_t DstScalarPerVector,
           typename SrcResetCoordinateAfterRunFlags, // Sequence<bool ...>
           typename DstResetCoordinateAfterRunFlags, // Sequence<bool ...>
+          typename IndexType,
           index_t ScatterDim       = 1,
           bool OutputScatter       = true,
           index_t ScatterWeightIdx = 3,
@@ -153,7 +154,6 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
               enable_if_t<SrcDescs::Size() == SrcBuffers::Size(), bool> = false>
     __device__ void RunRead(const SrcDescs& src_descs,
                             const SrcBuffers& src_bufs,
-                            StaticallyIndexedArray<float, scatter_num>& scatter_weights,
                             Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
         // loop over space-filling curve
@@ -172,31 +172,8 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                                                                                 src_coords_[i]);
 
                 oob_val = oob_val & is_src_valid;
-                if(i.value == ScatterWeightIdx)
-                {
-                    static_assert(SrcScalarPerVectors{}[Number<ScatterWeightIdx>{}] == 1,
-                                  "scatter weight dim, should only one vec");
-                    constexpr auto iScatter =
-                        SrcSpaceFillingCurve::GetIndex(iAccess)(Number<ScatterDim>{});
-                    static_for<0, SrcScalarPerVector, 1>{}([&](auto j) {
-                        src_vectors(i).template AsType<float>()(j) =
-                            scatter_weights(Number<iScatter>{});
-                    });
-                }
-                else if constexpr(SrcScalarPerVectors{}[i] == 1)
-                {
-                    auto data_types = SrcDatas{};
-                    using DataType  = remove_cvref_t<decltype(data_types[i])>;
-                    const auto tmp =
-                        src_bufs[i].template Get<DataType>(src_coords_[i].GetOffset(), true);
-                    static_for<0, SrcScalarPerVector, 1>{}(
-                        [&](auto j) { src_vectors(i).template AsType<DataType>()(j) = tmp; });
-                }
-                else
-                {
-                    src_vectors(i).template AsType<src_vector_t>()(I0) =
-                        src_bufs[i].template Get<src_vector_t>(src_coords_[i].GetOffset(), true);
-                }
+                src_vectors(i).template AsType<src_vector_t>()(I0) =
+                    src_bufs[i].template Get<src_vector_t>(src_coords_[i].GetOffset(), true);
             });
 
             constexpr auto get_elem_op_vec_len = []() {
@@ -412,7 +389,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
               enable_if_t<DstDescs::Size() == 1 && DstBuffers::Size() == 1, bool> = false>
     __device__ void RunWrite(const DstDescs& dst_descs,
                              DstBuffers dst_bufs,
-                             StaticallyIndexedArray<index_t, scatter_num>& scatter_offsets,
+                             StaticallyIndexedArray<IndexType, scatter_num>& scatter_offsets,
                              Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
         OOBCheck(thread_scratch_id);
@@ -420,8 +397,8 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
 
         // loop over space-filling curve
         static_for<0, dst_num_access, 1>{}([&](auto iAccess) {
-            auto dst_vectors    = dst_vectors_tuple_[thread_scratch_id][iAccess];
-            auto scatter_offset = 0;
+            auto dst_vectors         = dst_vectors_tuple_[thread_scratch_id][iAccess];
+            IndexType scatter_offset = 0;
             if constexpr(OutputScatter)
             {
                 constexpr auto iScatter =
@@ -431,7 +408,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
             // copy data from buf_vectors into dst_bufs
             static_for<0, nDst, 1>{}([&](auto i) {
                 using dst_vector_t      = typename remove_cvref_t<decltype(dst_vectors[i])>::type;
-                auto dst_offset         = scatter_offset + dst_coords_[i].GetOffset();
+                IndexType dst_offset    = scatter_offset + (dst_coords_[i].GetOffset());
                 const bool is_dst_valid = dst_offset < dst_descs[i].GetElementSpaceSize();
                 constexpr InMemoryDataOperationEnum DstInMemOp =
                     static_cast<InMemoryDataOperationEnum>(DstInMemOps::At(i.value));
@@ -444,8 +421,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
             {
                 constexpr auto forward_step = DstSpaceFillingCurve::GetForwardStep(iAccess);
 
-                auto forward_step_scatter = [&]() constexpr
-                {
+                auto forward_step_scatter = [&]() constexpr {
                     Index step_;
 
                     static_for<0, nDim, 1>{}([&](auto i) {
@@ -453,8 +429,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                     });
 
                     return step_;
-                }
-                ();
+                }();
                 static_for<0, nDst, 1>{}([&](auto i) {
                     move_tensor_coordinate(
                         dst_descs[i],
@@ -488,10 +463,9 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                         const SrcBuffers& src_bufs,
                         const DstDescs& dst_descs,
                         DstBuffers dst_bufs,
-                        StaticallyIndexedArray<index_t, scatter_num>& scatter_offsets,
-                        StaticallyIndexedArray<float, scatter_num>& scatter_weights)
+                        StaticallyIndexedArray<IndexType, scatter_num>& scatter_offsets)
     {
-        RunRead(src_descs, src_bufs, scatter_weights);
+        RunRead(src_descs, src_bufs);
         RunWrite(dst_descs, dst_bufs, scatter_offsets);
     }
 
@@ -517,8 +491,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
         {
             constexpr auto reset_step =
                 DstSpaceFillingCurve::GetStepBetween(Number<dst_num_access - 1>{}, Number<0>{});
-            auto reset_step_scatter = [&]() constexpr
-            {
+            auto reset_step_scatter = [&]() constexpr {
                 Index step_;
                 static_for<0, nDim, 1>{}([&](auto i) {
                     step_(i) =
@@ -526,8 +499,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                 });
 
                 return step_;
-            }
-            ();
+            }();
             return reset_step_scatter;
         }
     }

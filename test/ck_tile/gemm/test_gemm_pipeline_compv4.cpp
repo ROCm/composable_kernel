@@ -3,13 +3,14 @@
 #include "gtest/gtest.h"
 
 template <typename T>
-class TestCkTileGemmPipelineCompV4 : public TestCkTileGemmPipeline<T>
+class TestCkTileGemmPipelineCompV4
+    : public TestCkTileGemmPipeline<T, TestCkTileGemmPipelineCompV4<T>>
 {
 };
 
 #define TEST_SUITE_NAME TestCkTileGemmPipelineCompV4
 
-TYPED_TEST_SUITE(TestCkTileGemmPipelineCompV4, KernelTypesMem);
+TYPED_TEST_SUITE(TestCkTileGemmPipelineCompV4, KernelTypesCompV4);
 
 #include "test_gemm_pipeline_ut_cases.inc"
 

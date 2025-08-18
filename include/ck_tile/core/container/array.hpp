@@ -19,6 +19,25 @@ namespace ck_tile {
 //      array<index_t, 4> buf {3, 2}; => {3, 2, 2, 2} (not {3,2,0,0})
 // use make_array_with({...}) to construct an array with compatible behavior as old ck
 // TODO: manually added constructor same as old ck
+/**
+ * @brief A fixed-size array container similar to std::array with additional utilities.
+ *
+ * This template class provides a lightweight fixed-size array with value semantics,
+ * supporting both host and device functionality for GPU programming. It includes
+ * specialized initialization methods and type punning capabilities.
+ *
+ * @tparam T_ The type of elements in the array
+ * @tparam N_ The fixed number of elements in the array
+ *
+ * @note This implementation provides additional features beyond std::array:
+ *       - GPU compatibility via CK_TILE_HOST_DEVICE macros
+ *       - Type punning via get_as() and set_as() methods
+ *       - Various specialized access methods
+ *       - Specialized initialization behaviors
+ *
+ * The initializer_list constructor fills remaining elements with the last value
+ * provided if the list size is smaller than N, which is different than std::array.
+ */
 template <typename T_, index_t N_>
 struct array
 {
@@ -142,6 +161,14 @@ struct array
 
 // empty Array
 
+/// @brief Specialization of array container for zero elements.
+///
+/// This is a specialization of the array container template for the case where the number of
+/// elements is 0. It provides the same interface as the general array template, but with operations
+/// appropriate for an empty array.
+///
+/// @tparam T The type of elements stored in the array (not used in this specialization but
+/// maintained for API consistency).
 template <typename T>
 struct array<T, 0>
 {
@@ -150,8 +177,26 @@ struct array<T, 0>
     CK_TILE_HOST_DEVICE constexpr array() {}
     CK_TILE_HOST_DEVICE static constexpr index_t size() { return 0; }
     CK_TILE_HOST_DEVICE static constexpr bool is_static() { return is_static_v<T>; };
-    CK_TILE_HOST_DEVICE void print() const { printf("array{size: 0, data: []}"); }
 };
+
+template <typename T, index_t N>
+CK_TILE_HOST_DEVICE static void print(const array<T, N>& a)
+{
+    printf("array{size: %ld, data: [", static_cast<long>(N));
+    for(index_t i = 0; i < N; ++i)
+    {
+        if(i > 0)
+            printf(", ");
+        print(a[i]);
+    }
+    printf("]}");
+}
+
+template <typename T>
+CK_TILE_HOST_DEVICE static void print(const array<T, 0>&)
+{
+    printf("array{size: 0, data: []}");
+}
 
 template <typename, typename>
 struct vector_traits;

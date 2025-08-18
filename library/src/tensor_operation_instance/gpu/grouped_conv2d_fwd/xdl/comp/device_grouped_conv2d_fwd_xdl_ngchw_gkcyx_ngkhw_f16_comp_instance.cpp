@@ -32,30 +32,6 @@ void add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f16_comp_instances(
                                                        Empty_Tuple,
                                                        NGKHW,
                                                        ConvFwdDefault>{});
-
-    if(ck::get_device_name() != "gfx950")
-    {
-        add_device_operation_instances(
-            instances,
-            device_grouped_conv_fwd_xdl_f16_comp_instances_part2<2,
-                                                                 NGCHW,
-                                                                 GKCYX,
-                                                                 Empty_Tuple,
-                                                                 NGKHW,
-                                                                 ConvFwdDefault>{});
-    }
-
-    if(ck::get_device_name() == "gfx950")
-    {
-        add_device_operation_instances(
-            instances,
-            device_grouped_conv_fwd_xdl_f16_comp_instances_2x<2,
-                                                              NGCHW,
-                                                              GKCYX,
-                                                              Empty_Tuple,
-                                                              NGKHW,
-                                                              ConvFwdDefault>{});
-    }
 }
 
 } // namespace instance

@@ -2,16 +2,39 @@
 
 Documentation for Composable Kernel available at [https://rocm.docs.amd.com/projects/composable_kernel/en/latest/](https://rocm.docs.amd.com/projects/composable_kernel/en/latest/).
 
-## Composable Kernel 1.1.0 for ROCm 6.5.0
+## Composable Kernel 1.1.0 for ROCm 7.0.0
 
 ### Added
 
+* Added a basic copy kernel example and supporting documentation for new CK Tile developers.
 * Added support for bf16, f32, and f16 for 2D and 3D NGCHW grouped convolution backward data
+* Added a fully asynchronous HOST (CPU) arguments copy flow for CK grouped GEMM kernels.
 * Added support GKCYX layout for grouped convolution forward (NGCHW/GKCYX/NGKHW, number of instances in instance factory for NGCHW/GKYXC/NGKHW has been reduced).
+* Added support for GKCYX layout for grouped convolution forward (NGCHW/GKCYX/NGKHW).
+* Added support for GKCYX layout for grouped convolution backward weight (NGCHW/GKCYX/NGKHW).
+* Added support for GKCYX layout for grouped convolution backward data (NGCHW/GKCYX/NGKHW).
+* Added support for Stream-K version of mixed fp8/bf16 GEMM
+* Added support for Multiple D GEMM
+* Added GEMM pipeline for microscaling (MX) FP8/FP6/FP4 data types
+* Added support for FP16 2:4 structured sparsity to universal GEMM.
+* Added support for Split K for grouped convolution backward data.
+* Added logit soft-capping support for fMHA forward kernels.
+* Added support for hdim as a multiple of 32 for FMHA (fwd/fwd_splitkv)
+* Added support for hdim as a multiple of 32 for FMHA (fwd/fwd_splitkv/bwd)
+* Added benchmarking support for tile engine GEMM.
+* Added Ping-pong scheduler support for GEMM operation along the K dimension.
+* Added rotating buffer feature for CK_Tile GEMM.
+* Added int8 support for CK_TILE GEMM.
+* Added support for elementwise kernel.
+* Added benchmarking support for tile engine GEMM Multi D.
 
 ### Optimized
 
-None
+
+* Optimize the gemm multiply multiply preshuffle & lds bypass with Pack of KGroup and better instruction layout. (#2166)
+* Added Vectorize Transpose optimization for CK Tile (#2131)
+* Added the asynchronous copy for gfx950 (#2425)
+
 
 ### Fixes
 
@@ -22,10 +45,17 @@ None
 * Removed support for gfx940 and gfx941 targets (#1944)
 * Replaced the raw buffer load/store intrinsics with Clang20 built-ins (#1876)
 * DL and DPP kernels are now enabled by default.
+* Number of instances in instance factory for grouped convolution forward NGCHW/GKYXC/NGKHW has been reduced.
+* Number of instances in instance factory for grouped convolution backward weight NGCHW/GKYXC/NGKHW has been reduced.
+* Number of instances in instance factory for grouped convolution backward data NGCHW/GKYXC/NGKHW has been reduced.
 
 ### Known issues
 
 None
+
+### Upcoming changes
+
+* Non-grouped convolutions are deprecated. All of their functionality is supported by grouped convolution.
 
 ## Composable Kernel 1.1.0 for ROCm 6.1.0
 

@@ -202,3 +202,7 @@ void UpdateEnvVar(EnvVar, const std::string_view& val)
 }
 
 } // namespace ck_tile
+
+// environment variable to enable logging:
+// export CK_TILE_LOGGING=ON or CK_TILE_LOGGING=1 or CK_TILE_LOGGING=ENABLED
+CK_TILE_DECLARE_ENV_VAR_BOOL(CK_TILE_LOGGING)

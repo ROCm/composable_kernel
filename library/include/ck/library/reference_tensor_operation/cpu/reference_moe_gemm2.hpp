@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include <iostream>
 #include <sstream>
 #include <unordered_map>
+#include <mutex>
 
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
@@ -25,6 +26,7 @@ template <typename ADataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
+          bool MulRoutedWeight  = true,
           typename ComputeTypeA = CDataType,
           typename ComputeTypeB = ComputeTypeA>
 struct ReferenceMoeGemm2 : public device::BaseOperator
@@ -84,6 +86,7 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
 
         float Run(const Argument& arg)
         {
+            std::vector<std::mutex> n_locks(arg.c_t_n_.mDesc.GetLengths()[1]);
             arg.c_t_n_.SetZero();
             auto f_mk_kn_mn = [&](auto m, auto n) {
                 const int K = arg.a_t_k_k_.mDesc.GetLengths()[2];
@@ -141,16 +144,29 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                             ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
                     }
                     CDataType v_c{0};
-                    D0DataType v_d0 = arg.d0_(m, n); // a
-                    D0DataType v_d1 = arg.d1_(e, n); // b
-                    arg.c_element_op_(v_c, v_acc, v_d0, v_d1, v_topk_w);
+                    D0DataType v_d0 = arg.d0_(t, topk_id); // a
+                    D0DataType v_d1 = arg.d1_(e, n);       // b
+                    if constexpr(MulRoutedWeight)
+                    {
+                        arg.c_element_op_(v_c, v_acc, v_d0, v_d1, v_topk_w);
+                    }
+                    else
+                    {
+                        arg.c_element_op_(v_c, v_acc, v_d0, v_d1, 1.f);
+                    }
+                    std::lock_guard<std::mutex> lock(n_locks[n]);
                     arg.c_t_n_(t, n) += v_c;
                 }
             };
 
-            const ck::index_t max_token_id = arg.max_token_id_(0);
-            make_ParallelTensorFunctor(f_mk_kn_mn, max_token_id, arg.c_t_n_.mDesc.GetLengths()[1])(
-                std::thread::hardware_concurrency());
+            const std::size_t max_token_id = arg.max_token_id_(0);
+            // avoid parallelizing over the m dim to prevent data race
+            make_ParallelTensorFunctor(
+                [&](auto n) {
+                    for(std::size_t m = 0; m < max_token_id; ++m)
+                        f_mk_kn_mn(m, n);
+                },
+                arg.c_t_n_.mDesc.GetLengths()[1])(std::thread::hardware_concurrency());
 
             return 0;
         }

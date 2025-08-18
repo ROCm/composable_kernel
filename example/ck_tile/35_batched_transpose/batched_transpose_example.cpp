@@ -21,13 +21,13 @@ void dump_host_tensor_4d(const ck_tile::HostTensor<T>& x)
     std::cout << "[";
     for(size_t i = 0; i < len[0]; i++)
     {
-        std::cout << i << ": [";
+        std::cout << "Batch " << i << ":" << std::endl;
         for(size_t j = 0; j < len[1]; j++)
         {
-            std::cout << j << ": [";
+            std::cout << "  Channel " << j << ":" << std::endl;
             for(size_t k = 0; k < len[2]; k++)
             {
-                std::cout << k << ": [";
+                std::cout << "    Row " << k << ": ";
                 for(size_t v = 0; v < len[3]; v++)
                 {
                     if constexpr(std::is_same_v<T, ck_tile::fp16_t>)
@@ -41,15 +41,15 @@ void dump_host_tensor_4d(const ck_tile::HostTensor<T>& x)
                     }
                     else
                     {
-                        std::cout << x(std::vector<std::size_t>{i, j, k, v}) << " ";
+                        std::cout << static_cast<int>(x(std::vector<std::size_t>{i, j, k, v}))
+                                  << " ";
                     }
                 }
-                std::cout << "]" << std::endl;
+                std::cout << std::endl;
             }
-            std::cout << "]" << std::endl;
         }
-        std::cout << std::endl;
     }
+    std::cout << "]" << std::endl;
     std::cout << "--------------------" << std::endl;
 }
 #endif
@@ -93,14 +93,17 @@ auto create_args(int argc, char* argv[])
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("v", "1", "whether do CPU validation or not")
         .insert("pr", "fp16", "input data type. fp16/fp32 (representing 8/16/32 bit data)")
-        .insert("N", "2", "input batch size. ")
-        .insert("C", "16", "input channel size.")
-        .insert("H", "1", "input height size.")
-        .insert("W", "16", "input width size. ")
+        .insert("N", "1", "input batch size. ")
+        .insert("C", "64", "input channel size.")
+        .insert("H", "18", "input height size.")
+        .insert("W", "64", "input width size. ")
         .insert("layout_in", "NCHW", "input tensor data layout - NCHW by default")
         .insert("layout_out", "NHWC", "output tensor data layout - NHWC by default ")
+        .insert("warmup", "50", "number of iterations before benchmark the kernel")
+        .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("seed", "-1", "seed to be used, -1 means random every time")
-        .insert("kname", "0", "t to 1 will print kernel name");
+        .insert("kname", "0", "t to 1 will print kernel name")
+        .insert("pipeline", "0", "0: no LDS usage, 1: LDS-accelerated (gfx950)");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -115,8 +118,11 @@ bool run_batched_transpose(ck_tile::ArgParser args)
     int C                  = args.get_int("C");
     int H                  = args.get_int("H");
     int W                  = args.get_int("W");
+    int n_warmup           = args.get_int("warmup");
+    int n_repeat           = args.get_int("repeat");
     std::string layout_in  = args.get_str("layout_in");
     std::string layout_out = args.get_str("layout_out");
+    std::string pipeline   = args.get_str("pipeline");
     int seed               = args.get_int("seed");
 
     int dim_in[4], dim_out[4];
@@ -162,7 +168,7 @@ bool run_batched_transpose(ck_tile::ArgParser args)
 
     x_dev.ToDevice(x_host.data());
 
-    auto trait = batched_transpose_trait{prec, layout_in};
+    auto trait = batched_transpose_trait{prec, layout_in, pipeline};
 
     uint32_t height = nchw2nhwc ? C : H * W;
     uint32_t width  = nchw2nhwc ? H * W : C;
@@ -177,21 +183,19 @@ bool run_batched_transpose(ck_tile::ArgParser args)
         return a_;
     }();
 
-    ck_tile::stream_config sc{nullptr, true};
+    ck_tile::stream_config sc{nullptr, true, n_warmup, n_repeat};
 
     auto ms = batched_transpose(trait, karg, sc);
 
-    std::size_t num_operations = N * C * H * (W - 1);
-    std::size_t num_bytes      = N * C * H * W * sizeof(Type);
+    std::size_t num_bytes = N * C * H * W * sizeof(Type) * 2; // read + written
 
-    float ave_time   = ms * 1E-3;
     float gb_per_sec = num_bytes / ms * 1.E-6;
-    float tflops     = static_cast<float>(num_operations) / ms * 1.E-6;
 
     std::cout << "Run Batched Transpose kernel with N=" << N << ", C=" << C << ", H=" << H
               << ", W=" << W << ", layout_in=" << layout_in << ", layout_out=" << layout_out
-              << " : " << ms << " ms (" << ave_time << " ave_time), " << tflops << " TFlops"
-              << gb_per_sec << " GB/s, " << std::endl;
+              << " : " << std::endl
+              << ms << " ms " << std::endl
+              << gb_per_sec << " GB/s " << std::endl;
 
     printf("[%s]N:%d, C:%d, H:%d, W:%d, layout_in:%s, %f\n",
            prec.c_str(),
@@ -202,7 +206,8 @@ bool run_batched_transpose(ck_tile::ArgParser args)
            layout_in.c_str(),
            ms);
     if(ms < 0)
-        printf("not supported\n");
+        printf("------------------------------------not "
+               "supported-------------------------------------\n");
     fflush(stdout);
 
     if(ms < 0)
@@ -227,7 +232,9 @@ bool run_batched_transpose(ck_tile::ArgParser args)
         rtn &= ck_tile::check_err(
             y_host, y_ref, std::string("y Error: Incorrect results!"), rtol, atol);
     }
-    printf("valid:%s\n", rtn ? "y" : "n");
+    printf("-----------------------------------------------------------------------valid:%s--------"
+           "--------------------------------------------------------------------\n",
+           rtn ? "y" : "n");
     fflush(stdout);
     return rtn;
 }
@@ -240,9 +247,9 @@ int main(int argc, char** argv)
     std::string prec = args.get_str("pr");
 
     bool r = true;
-    if(prec.compare("fp32") == 0)
+    if(prec.compare("fp8") == 0)
     {
-        r &= run_batched_transpose<float>(args);
+        r &= run_batched_transpose<ck_tile::fp8_t>(args);
     }
     else if(prec.compare("fp16") == 0)
     {
@@ -251,10 +258,6 @@ int main(int argc, char** argv)
     else if(prec.compare("bf16") == 0)
     {
         r &= run_batched_transpose<ck_tile::bf16_t>(args);
-    }
-    else if(prec.compare("int8") == 0)
-    {
-        r &= run_batched_transpose<ck_tile::int8_t>(args);
     }
 
     return r ? 0 : -1;

@@ -30,14 +30,14 @@ List of the device operations for grouped convolution forward in CK:
 
 Table of supported cases by instance factory with XDL instruction:
 
-|       |NHWGC/GKYXC/NHWGK|NGCHW/GKYXC/NGKHW|GNHWC/GKYXC/GNHWK|
-|-------|---|---|---|
-|bf16 |2D, 3D|2D|1D, 2D, 3D|
-|fp16 |2D, 3D|2D|1D, 2D, 3D|
-|fp32 |2D, 3D|2D|1D, 2D, 3D|
-|int8 |2D, 3D|2D|1D, 3D|
-|fp8  |3D|&cross;|&cross;|
-|bf8  |3D|&cross;|&cross;|
+|       |NHWGC/GKYXC/NHWGK|NGCHW/GKYXC/NGKHW|NGCHW/GKCYX/NGKHW|GNHWC/GKYXC/GNHWK|
+|-------|---|---|---|---|
+|bf16 |2D, 3D|2D|2D|1D, 2D, 3D|
+|fp16 |2D, 3D|2D|2D|1D, 2D, 3D|
+|fp32 |2D, 3D|2D|2D|1D, 2D, 3D|
+|int8 |2D, 3D|2D|2D|1D, 3D|
+|fp8  |3D|&cross;|&cross;|&cross;|
+|bf8  |3D|&cross;|&cross;|&cross;|
 
 Table of supported cases by instance factory with WMMA instruction:
 

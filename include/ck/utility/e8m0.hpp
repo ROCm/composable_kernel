@@ -67,10 +67,10 @@ struct e8m0_bexp_t
 namespace utils {
 
 template <typename T>
-__host__ __device__ inline int get_exponent_value(T x);
+__host__ __device__ inline constexpr int32_t get_exponent_value(T x);
 
 template <>
-__host__ __device__ inline int get_exponent_value<e8m0_bexp_t>(e8m0_bexp_t x)
+__host__ __device__ inline constexpr int32_t get_exponent_value<e8m0_bexp_t>(e8m0_bexp_t x)
 {
     return x.data;
 }

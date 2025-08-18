@@ -184,6 +184,21 @@ struct Sequence
     }
 };
 
+namespace impl {
+template <typename T, T... Ints>
+struct __integer_sequence;
+
+template <index_t... Ints>
+struct __integer_sequence<index_t, Ints...>
+{
+    using seq_type = Sequence<Ints...>;
+};
+} // namespace impl
+
+template <index_t N>
+using make_index_sequence =
+    typename __make_integer_seq<impl::__integer_sequence, index_t, N>::seq_type;
+
 // merge sequence
 template <typename Seq, typename... Seqs>
 struct sequence_merge
@@ -327,8 +342,8 @@ struct sequence_reverse
 
     using seq_split = sequence_split<Seq, NSize / 2>;
     using type      = typename sequence_merge<
-        typename sequence_reverse<typename seq_split::right_type>::type,
-        typename sequence_reverse<typename seq_split::left_type>::type>::type;
+             typename sequence_reverse<typename seq_split::right_type>::type,
+             typename sequence_reverse<typename seq_split::left_type>::type>::type;
 };
 
 template <index_t I>

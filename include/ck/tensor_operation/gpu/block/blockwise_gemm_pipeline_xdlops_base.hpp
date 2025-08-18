@@ -40,13 +40,14 @@ struct BlockwiseGemmXdlops_pipeline_base
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    // Hardcode to 64, as HIP-provided "warpSize" would return 32 on RDNA GPUs.
+    // Hardcode to 64, as HIP-provided "WarpSize" would return 32 on RDNA GPUs.
     static constexpr index_t WaveSize = 64;
 
     static constexpr index_t A_K0 = ATileDesc{}.GetLength(I0);
     static constexpr index_t B_K0 = BTileDesc{}.GetLength(I0);
     static constexpr index_t A_K1 = ATileDesc{}.GetLength(I2);
-    static constexpr index_t B_K1 = BTileDesc{}.GetLength(I2);
+    static constexpr index_t B_K1 =
+        BTileDesc{}.GetLength(Number < BTileDesc{}.GetNumOfDimension() == 4 ? 3 : 2 > {});
 
     static constexpr auto xdlops_gemm =
         XdlopsGemm<ComputeDataType, MPerXDL, NPerXDL, KPack, ComputeDataType, TransposeC>{};
@@ -57,6 +58,21 @@ struct BlockwiseGemmXdlops_pipeline_base
     static constexpr index_t KPerThread    = KPerBlock / xdlops_gemm.K0PerXdlops;
     static constexpr index_t KRepeat       = KPerThread / KPack;
     static constexpr index_t KPerInnerLoop = KPack;
+
+    static constexpr index_t KGroup = []() {
+        if constexpr(is_same_v<remove_cvref_t<ComputeDataType>, f8_t>)
+            // On gfx950, we have mfma that required 32 f8 elements as input,
+            // splited into 2 groups of 16 f8 elements.
+            // the 2 groups is not contiguous in the B preshuffed layout.
+            // and we do not want it to be contiguous in the B preshuffled layout
+            // because a memory instruction can only read 16 f8 elements at a time.
+            return ((MPerXDL == 16 && MPerXDL == 16 && xdlops_gemm.KPerXdlops == 128) ||
+                    (MPerXDL == 32 && MPerXDL == 32 && xdlops_gemm.KPerXdlops == 64))
+                       ? 2
+                       : 1;
+        else
+            return 1;
+    }();
 
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
@@ -137,7 +153,7 @@ struct BlockwiseGemmXdlops_pipeline_base
 
     template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
     __device__ static auto
-        CalculateCThreadOriginDataIndex(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
+    CalculateCThreadOriginDataIndex(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
     {
         const auto wave_idx = GetWaveIdx();
 
@@ -166,7 +182,7 @@ struct BlockwiseGemmXdlops_pipeline_base
 
     template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
     __device__ static auto
-        CalculateCThreadOriginDataIndex8D(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
+    CalculateCThreadOriginDataIndex8D(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
     {
         const auto wave_idx = GetWaveIdx();
 
@@ -333,7 +349,7 @@ struct BlockwiseGemmXdlops_pipeline_base
         return xdlops_gemm.MakeCDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2(
             c_grid_desc_g_m0_n0_m1_n1_m2_n2);
     }
-
+    __host__ __device__ static constexpr auto GetCThreadDesc() { return c_thread_desc_; }
     static constexpr AMmaTileDesc a_block_desc_m0_m1_m2_k;
     static constexpr BMmaTileDesc b_block_desc_n0_n1_n2_k;
 

@@ -42,7 +42,7 @@ int profile_gemm_multiply_multiply(int argc, char* argv[])
         printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
         printf("arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8; 4: f8@f16; 5: f16@f8; 6: "
                "f16->f8; 7: f8->bf16, "
-               "comp f8; 8: int8->bf16; 9: f8->f16, comp f8;)\n");
+               "comp f8; 8: int8->bf16; 9: int8->f16, 10. f8->f16;)\n");
         printf("arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
         printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
         printf("                     2: A[k, m] * B[k, n] = C[m, n];\n");

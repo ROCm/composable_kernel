@@ -585,13 +585,19 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
         constexpr bool is_single_rate_mfma =
             (((is_same<ABDataType, half_t>::value || is_same<ABDataType, bhalf_t>::value) &&
               lcm_AK1_BK1 <= 4) ||
-             (is_same<ABDataType, int8_t>::value && lcm_AK1_BK1 <= 8))
+             (is_same<ABDataType, int8_t>::value && lcm_AK1_BK1 <= 8) ||
+             ((is_same<ABDataType, f8_t>::value || is_same<ABDataType, bf8_t>::value) &&
+              lcm_AK1_BK1 < 32))
                 ? true
                 : false;
-        constexpr index_t KPack =
-            math::max(lcm_AK1_BK1,
-                      MfmaSelector<ABDataType, MPerXdl, NPerXdl, ABDataType, is_single_rate_mfma>::
-                          selected_mfma.k_per_blk);
+        constexpr auto is_scale_mfma = false;
+        constexpr index_t KPack      = math::max(lcm_AK1_BK1,
+                                            MfmaSelector<ABDataType,
+                                                              MPerXdl,
+                                                              NPerXdl,
+                                                              ABDataType,
+                                                              is_single_rate_mfma,
+                                                              is_scale_mfma>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,
@@ -763,18 +769,16 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
                 // tuple of reference to C/Ds tensor descriptors
                 const auto c_ds_desc_refs = concat_tuple_of_reference(
                     tie(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
-                    generate_tie(
-                        [&](auto i) -> const auto& // return type should be reference
-                        { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
-                        Number<NumDTensor>{}));
+                    generate_tie([&](auto i) -> const auto& // return type should be reference
+                                 { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
+                                 Number<NumDTensor>{}));
 
                 // tuple of reference to C/Ds tensor descriptors
                 const auto c_ds_buf_refs = concat_tuple_of_reference(
                     tie(c_shuffle_block_buf),
-                    generate_tie(
-                        [&](auto i) -> const auto& // return type should be reference
-                        { return ds_grid_buf[i]; },
-                        Number<NumDTensor>{}));
+                    generate_tie([&](auto i) -> const auto& // return type should be reference
+                                 { return ds_grid_buf[i]; },
+                                 Number<NumDTensor>{}));
 
                 // tuple of starting index of C/Ds blockwise copy
                 const auto idx_c_ds_block_begin = container_concat(
@@ -1018,13 +1022,19 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
         constexpr bool is_single_rate_mfma =
             (((is_same<ABDataType, half_t>::value || is_same<ABDataType, bhalf_t>::value) &&
               lcm_AK1_BK1 <= 4) ||
-             (is_same<ABDataType, int8_t>::value && lcm_AK1_BK1 <= 8))
+             (is_same<ABDataType, int8_t>::value && lcm_AK1_BK1 <= 8) ||
+             ((is_same<ABDataType, f8_t>::value || is_same<ABDataType, bf8_t>::value) &&
+              lcm_AK1_BK1 < 32))
                 ? true
                 : false;
-        constexpr index_t KPack =
-            math::max(lcm_AK1_BK1,
-                      MfmaSelector<ABDataType, MPerXdl, NPerXdl, ABDataType, is_single_rate_mfma>::
-                          selected_mfma.k_per_blk);
+        constexpr auto is_scale_mfma = false;
+        constexpr index_t KPack      = math::max(lcm_AK1_BK1,
+                                            MfmaSelector<ABDataType,
+                                                              MPerXdl,
+                                                              NPerXdl,
+                                                              ABDataType,
+                                                              is_single_rate_mfma,
+                                                              is_scale_mfma>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,

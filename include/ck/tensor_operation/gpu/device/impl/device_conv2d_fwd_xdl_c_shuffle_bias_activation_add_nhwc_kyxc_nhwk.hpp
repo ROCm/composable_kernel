@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -7,6 +7,7 @@
 #include <sstream>
 
 #include "ck/utility/common_header.hpp"
+#include "ck/utility/env.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -647,9 +648,8 @@ struct
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
                 std::cout << DeviceOp{}.GetTypeString() << std::endl;
-                std::cout << "N " << arg.Conv_N_ << ", "
-                          << "K " << arg.Conv_K_ << ", "
-                          << "C " << arg.Conv_C_ << ", " << std::endl;
+                std::cout << "N " << arg.Conv_N_ << ", " << "K " << arg.Conv_K_ << ", " << "C "
+                          << arg.Conv_C_ << ", " << std::endl;
                 std::cout << "Y X " << arg.filter_spatial_lengths_[0] << ", "
                           << arg.filter_spatial_lengths_[1] << ", " << std::endl;
                 std::cout << "Hi Wi " << arg.input_spatial_lengths_[0] << ", "

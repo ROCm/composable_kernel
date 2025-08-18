@@ -31,8 +31,8 @@ struct scales
     CK_TILE_HOST_DEVICE constexpr explicit scales(Scale lhs) : lhs_(lhs) {}
 
     template <typename Right>
-    CK_TILE_HOST_DEVICE constexpr auto operator()(const Right& rhs) const
-        -> decltype(std::declval<const Scale&>() * rhs)
+    CK_TILE_HOST_DEVICE constexpr auto
+    operator()(const Right& rhs) const -> decltype(std::declval<const Scale&>() * rhs)
     {
         return lhs_ * rhs;
     }
@@ -43,13 +43,13 @@ struct scales
 
 /// FIXME: create macro to replace '__host__ __device__' and nothing more
 template <typename Scale>
-__host__ __device__ scales(Scale)->scales<Scale>;
+__host__ __device__ scales(Scale) -> scales<Scale>;
 
 template <typename Left = void, typename Right = Left>
 struct plus
 {
-    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs, const Right& rhs) const
-        -> decltype(lhs + rhs)
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs,
+                                                  const Right& rhs) const -> decltype(lhs + rhs)
     {
         return lhs + rhs;
     }
@@ -59,21 +59,21 @@ template <>
 struct plus<void, void>
 {
     template <typename Left, typename Right>
-    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs, const Right& rhs) const
-        -> decltype(lhs + rhs)
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs,
+                                                  const Right& rhs) const -> decltype(lhs + rhs)
     {
         return lhs + rhs;
     }
 };
 
 /// FIXME: create macro to replace '__host__ __device__' and nothing more
-__host__ __device__ plus()->plus<void, void>;
+__host__ __device__ plus() -> plus<void, void>;
 
 template <typename Left = void, typename Right = Left>
 struct minus
 {
-    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs, const Right& rhs) const
-        -> decltype(lhs - rhs)
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs,
+                                                  const Right& rhs) const -> decltype(lhs - rhs)
     {
         return lhs - rhs;
     }
@@ -83,21 +83,21 @@ template <>
 struct minus<void, void>
 {
     template <typename Left, typename Right>
-    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs, const Right& rhs) const
-        -> decltype(lhs - rhs)
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs,
+                                                  const Right& rhs) const -> decltype(lhs - rhs)
     {
         return lhs - rhs;
     }
 };
 
 /// FIXME: create macro to replace '__host__ __device__' and nothing more
-__host__ __device__ minus()->minus<void, void>;
+__host__ __device__ minus() -> minus<void, void>;
 
 template <typename Left = void, typename Right = Left>
 struct multiplies
 {
-    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs, const Right& rhs) const
-        -> decltype(lhs * rhs)
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs,
+                                                  const Right& rhs) const -> decltype(lhs * rhs)
     {
         return lhs * rhs;
     }
@@ -107,15 +107,15 @@ template <>
 struct multiplies<void, void>
 {
     template <typename Left, typename Right>
-    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs, const Right& rhs) const
-        -> decltype(lhs * rhs)
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs,
+                                                  const Right& rhs) const -> decltype(lhs * rhs)
     {
         return lhs * rhs;
     }
 };
 
 /// FIXME: create macro to replace '__host__ __device__' and nothing more
-__host__ __device__ multiplies()->multiplies<void, void>;
+__host__ __device__ multiplies() -> multiplies<void, void>;
 
 template <typename T>
 struct maximize
@@ -327,8 +327,8 @@ CK_TILE_HOST_DEVICE constexpr auto lcm(X x, Ys... ys)
 template <typename Left = void, typename Right = Left>
 struct equal
 {
-    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs, const Right& rhs) const
-        -> decltype(lhs == rhs)
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs,
+                                                  const Right& rhs) const -> decltype(lhs == rhs)
     {
         return lhs == rhs;
     }
@@ -338,15 +338,15 @@ template <>
 struct equal<void, void>
 {
     template <typename Left, typename Right>
-    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs, const Right& rhs) const
-        -> decltype(lhs == rhs)
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs,
+                                                  const Right& rhs) const -> decltype(lhs == rhs)
     {
         return lhs == rhs;
     }
 };
 
 /// FIXME: create macro to replace '__host__ __device__' and nothing more
-__host__ __device__ equal()->equal<void, void>;
+__host__ __device__ equal() -> equal<void, void>;
 
 template <>
 struct equal<float, float>
@@ -369,8 +369,8 @@ struct equal<double, double>
 template <typename Left = void, typename Right = Left>
 struct less
 {
-    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs, const Right& rhs) const
-        -> decltype(lhs < rhs)
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs,
+                                                  const Right& rhs) const -> decltype(lhs < rhs)
     {
         return lhs < rhs;
     }
@@ -380,21 +380,21 @@ template <>
 struct less<void, void>
 {
     template <typename Left, typename Right>
-    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs, const Right& rhs) const
-        -> decltype(lhs < rhs)
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs,
+                                                  const Right& rhs) const -> decltype(lhs < rhs)
     {
         return lhs < rhs;
     }
 };
 
 /// FIXME: create macro to replace '__host__ __device__' and nothing more
-__host__ __device__ less()->less<void, void>;
+__host__ __device__ less() -> less<void, void>;
 
 template <typename Left = void, typename Right = Left>
 struct less_equal
 {
-    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs, const Right& rhs) const
-        -> decltype(lhs <= rhs)
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs,
+                                                  const Right& rhs) const -> decltype(lhs <= rhs)
     {
         return lhs <= rhs;
     }
@@ -404,15 +404,15 @@ template <>
 struct less_equal<void, void>
 {
     template <typename Left, typename Right>
-    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs, const Right& rhs) const
-        -> decltype(lhs <= rhs)
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs,
+                                                  const Right& rhs) const -> decltype(lhs <= rhs)
     {
         return lhs <= rhs;
     }
 };
 
 /// FIXME: create macro to replace '__host__ __device__' and nothing more
-__host__ __device__ less_equal()->less_equal<void, void>;
+__host__ __device__ less_equal() -> less_equal<void, void>;
 
 template <>
 struct less_equal<float, float>
@@ -486,6 +486,9 @@ struct log2e<float>
 
 template <typename T = double>
 constexpr T log2e_v = log2e<T>::value;
+
+template <typename T = double>
+constexpr T log2e_rcp_v = 1. / log2e<T>::value;
 
 CK_TILE_DEVICE
 float exp2(float x) { return exp2f(x); };
@@ -1378,6 +1381,44 @@ template <>
 CK_TILE_DEVICE double exp<double>(double x)
 {
     return exp(x);
+};
+
+template <typename T>
+CK_TILE_DEVICE T tanh_fast(T x)
+{
+    return type_convert<T>((exp<T>(2.0 * type_convert<float>(x)) - 1.0) /
+                           (exp<T>(2.0 * type_convert<float>(x)) + 1.0));
+};
+
+template <>
+CK_TILE_DEVICE float tanh_fast<float>(float x)
+{
+    // float a = __builtin_amdgcn_sinh(x);
+    // float b = __builtin_amdgcn_cosh(x);
+    // float e = a * __builtin_amdgcn_rcpf(b);
+    // return e;
+
+    float a = 2.0f * log2e_v<float> * x;
+    a       = __builtin_amdgcn_exp2f(a);
+    a       = __builtin_amdgcn_rcpf(a + 1.0f);
+    a       = 2 * a;
+    a       = 1 - a;
+    return a;
+
+    // float e, r, s, t, d;
+    // float a = x;
+    // s = abs(a);
+    // t = -log2e_v<float> * 2.0f * s;
+    // e = __builtin_amdgcn_exp2f(t);
+    // d = e + 1.0f;
+    // r = __builtin_amdgcn_rcpf(d);
+    // r = e * (-r) + r;
+    // if (s < 4.997253418e-3f) r = a;
+    // union fipnr {float f; unsigned int i;};
+    // fipnr r_; r_.f = r;
+    // fipnr a_; a_.f = a;
+    // { r_.i = (r_.i|(a_.i&0x80000000)); r = r_.f; }
+    // return r;
 };
 
 template <typename T>

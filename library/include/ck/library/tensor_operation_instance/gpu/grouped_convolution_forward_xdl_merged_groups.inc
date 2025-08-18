@@ -178,6 +178,55 @@ void add_device_grouped_conv3d_fwd_xdl_merged_groups_ndhwgc_gkzyxc_ndhwgk_f32_in
                                                                 PassThrough>>>& instances);
 #endif
 
+// grouped conv3d forward, NGCDHW/GKCZYX/NGKDHW
+#ifdef CK_ENABLE_BF16
+void add_device_grouped_conv3d_fwd_xdl_merged_groups_ngcdhw_gkczyx_ngkdhw_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NGCDHW,
+                                                                GKCZYX,
+                                                                Empty_Tuple,
+                                                                NGKDHW,
+                                                                BF16,
+                                                                BF16,
+                                                                Empty_Tuple,
+                                                                BF16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough>>>& instances);
+#endif
+
+#ifdef CK_ENABLE_FP16
+void add_device_grouped_conv3d_fwd_xdl_merged_groups_ngcdhw_gkczyx_ngkdhw_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NGCDHW,
+                                                                GKCZYX,
+                                                                Empty_Tuple,
+                                                                NGKDHW,
+                                                                F16,
+                                                                F16,
+                                                                Empty_Tuple,
+                                                                F16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough>>>& instances);
+#endif
+
+#ifdef CK_ENABLE_FP32
+void add_device_grouped_conv3d_fwd_xdl_merged_groups_ngcdhw_gkczyx_ngkdhw_f32_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NGCDHW,
+                                                                GKCZYX,
+                                                                Empty_Tuple,
+                                                                NGKDHW,
+                                                                F32,
+                                                                F32,
+                                                                Empty_Tuple,
+                                                                F32,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough>>>& instances);
+#endif
+
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -41,6 +41,7 @@ template <typename SliceLengths,
           bool DstResetCoordinateAfterRun, // control whether to move back dst coordinate after each
                                            // RunWrite(),  will be fused with MoveDstSliceWindow to
                                            // save addr computation
+          typename IndexType,
           index_t GatherDim        = 1,
           index_t NumThreadScratch = 1>
 struct ThreadwiseTensorSliceTransfer_v3r1_gather
@@ -88,14 +89,14 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
         const DstDesc& dst_desc,
         const Index& dst_slice_origin,
         const DstElementwiseOperation& dst_element_op,
-        const StaticallyIndexedArray<index_t, gather_num>& gather_offsets)
+        const StaticallyIndexedArray<IndexType, gather_num>& gather_offsets)
         : src_coord_(make_tensor_coordinate(src_desc, src_slice_origin)),
           dst_coord_(make_tensor_coordinate(dst_desc, dst_slice_origin)),
           src_element_op_(src_element_op),
           dst_element_op_(dst_element_op),
           gather_offsets_(gather_offsets)
     {
-        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
+        if constexpr((packed_size_v<SrcData>) > 1)
         {
             static_assert(is_same_v<remove_cvref_t<SrcData>, remove_cvref_t<DstData>>,
                           "SrcData != DstData");
@@ -104,7 +105,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                 SrcScalarPerVector_ % PackedSize == 0 && DstScalarPerVector_ % PackedSize == 0,
                 "SrcScalarPerVector_ and DstScalarPerVector_ cannot be 1 for packed data type");
 
-            static_assert(SrcVectorDim == DstVectorDim, "pk_i4_t does not support transpose");
+            static_assert(SrcVectorDim == DstVectorDim,
+                          "Packed data type does not support transpose");
         }
     }
 
@@ -221,7 +223,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
             auto gather_offset =
                 gather_offsets_(ordered_src_access_idx[Number<ordered_gather_dim>{}]);
 
-            const index_t ld_offset = src_coord_.GetOffset() + gather_offset;
+            const IndexType ld_offset = src_coord_.GetOffset() / PackedSize + gather_offset;
             src_oob_thread_scratch_tuple_(thread_scratch_id)
                 .template SetAsType<bool>(src_data_idx_seq, true);
 
@@ -275,8 +277,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                 .template SetAsType<dst_vector_t>(src_data_idx_seq,
                                                   op_r_v.template AsType<dst_vector_t>()[I0]);
 
-            auto move_on_dim = [&]() constexpr
-            {
+            auto move_on_dim = [&]() constexpr {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
 
                 static_for<0, nDim, 1>{}([&](auto i) {
@@ -290,8 +291,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                 });
 
                 return move_on_dim_;
-            }
-            ();
+            }();
             // move src coord
             static_for<0, nDim, 1>{}([&](auto i) {
                 if(move_on_dim[i])
@@ -601,8 +601,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                 is_dst_valid,
                 dst_vector_container.template AsType<dst_vector_t>()[I0]);
 
-            constexpr auto move_on_dim = [&]() constexpr
-            {
+            constexpr auto move_on_dim = [&]() constexpr {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
 
                 static_for<0, nDim, 1>{}([&](auto i) {
@@ -615,8 +614,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                 });
 
                 return move_on_dim_;
-            }
-            ();
+            }();
 
             // move dst coord
             static_for<0, nDim, 1>{}([&](auto i) {
@@ -935,7 +933,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
     DstCoord dst_coord_;
     const SrcElementwiseOperation src_element_op_;
     const DstElementwiseOperation dst_element_op_;
-    StaticallyIndexedArray<index_t, gather_num> gather_offsets_;
+    StaticallyIndexedArray<IndexType, gather_num> gather_offsets_;
 };
 
 } // namespace ck

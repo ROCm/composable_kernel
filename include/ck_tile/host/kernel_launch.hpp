@@ -1,23 +1,31 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
+#include <numeric>
+#include <functional>
 #include "ck_tile/core/config.hpp"
-#include "ck_tile/host/stream_config.hpp"
+#include "ck_tile/core/utility/ignore.hpp"
 #include "ck_tile/host/hip_check_error.hpp"
+#include "ck_tile/host/stream_config.hpp"
 #include "ck_tile/host/timer.hpp"
-#include <hip/hip_runtime.h>
 #include <cstddef>
+#include <hip/hip_runtime.h>
 
 namespace ck_tile {
+
 template <int MaxThreadPerBlock, int MinBlockPerCu, typename Kernel, typename... Args>
 #if CK_TILE_USE_LAUNCH_BOUNDS
 __launch_bounds__(MaxThreadPerBlock, MinBlockPerCu)
 #endif
     __global__ void kentry(Args... args)
 {
+#if defined(__HIP_DEVICE_COMPILE__)
     Kernel{}(args...);
+#else
+    (..., (ignore = args, 0));
+#endif
 }
 
 //
@@ -51,6 +59,60 @@ CK_TILE_HOST void launch_and_check(const stream_config& sc, Callables&&... calla
     }
 }
 
+// Measure the preprocess time during the cold iterations
+template <typename TimerType, typename PreprocessFunc>
+CK_TILE_HOST double
+preprocess_profiling_impl(TimerType timer, const stream_config& s, PreprocessFunc preprocess)
+{
+    timer.start(s.stream_id_);
+    for(int i = 0; i < s.nrepeat_; i++)
+    {
+        if constexpr(!std::is_same_v<PreprocessFunc, std::nullptr_t>)
+        {
+            preprocess();
+        }
+    }
+    timer.stop(s.stream_id_);
+
+    return timer.duration() / s.nrepeat_;
+}
+
+template <typename TimerType, typename CallablesFunc, typename PreprocessFunc = std::nullptr_t>
+CK_TILE_HOST double timing_loop_impl(TimerType timer,
+                                     const stream_config& s,
+                                     CallablesFunc&& callables_func,
+                                     PreprocessFunc preprocess = nullptr)
+{
+    for(int i = 0; i < s.cold_niters_; i++)
+    {
+        callables_func();
+    }
+    // Only profile preprocess if it's provided
+    auto preprocess_time = 0.0;
+    if constexpr(!std::is_same_v<PreprocessFunc, std::nullptr_t>)
+    {
+        preprocess_time = preprocess_profiling_impl(gpu_timer{}, s, preprocess);
+    }
+
+    int i = 0;
+    timer.start(s.stream_id_);
+    while(i < s.nrepeat_)
+    {
+        if constexpr(!std::is_same_v<PreprocessFunc, std::nullptr_t>)
+        {
+            preprocess();
+        }
+
+        callables_func();
+        i++;
+    }
+    timer.stop(s.stream_id_);
+
+    if(!i)
+        return 0.;
+    return (timer.duration() / s.nrepeat_) - preprocess_time;
+}
+
 // clang-format off
 /*
  * launch_kernel()
@@ -81,37 +143,48 @@ CK_TILE_HOST void launch_and_check(const stream_config& sc, Callables&&... calla
 template <typename... Callables>
 CK_TILE_HOST float launch_kernel(const stream_config& s, Callables&&... callables)
 {
+    static_assert(sizeof...(callables) > 0, "At least one callable is required!");
+
     if(!s.time_kernel_)
     {
         launch_and_check(s, std::forward<Callables>(callables)...);
         return 0;
     }
 
-    auto time_launches = [&](auto timer) {
-        // warmup
-        for(int i = 0; i < s.cold_niters_; i++)
-        {
-            launch_and_check(s, std::forward<Callables>(callables)...);
-        }
-
-        timer.start(s.stream_id_);
-        for(int i = 0; i < s.nrepeat_; i++)
-        {
-            launch_and_check(s, std::forward<Callables>(callables)...);
-        }
-        timer.stop(s.stream_id_);
-
-        return timer.duration() / s.nrepeat_;
-    };
+    auto callables_func = [&]() { launch_and_check(s, std::forward<Callables>(callables)...); };
 
     if(s.is_gpu_timer_)
     {
-        return time_launches(gpu_timer{});
+        return timing_loop_impl(gpu_timer{}, s, callables_func);
     }
     else
     {
-        return time_launches(cpu_timer{});
+        return timing_loop_impl(cpu_timer{}, s, callables_func);
     }
 }
 
+template <typename PreprocessFunc, typename... Callables>
+CK_TILE_HOST float
+launch_kernel_time_mask(const stream_config& s, PreprocessFunc preprocess, Callables&&... callables)
+{
+    static_assert(sizeof...(callables) > 0, "At least one callable is required!");
+
+    if(!s.time_kernel_)
+    {
+        preprocess();
+        launch_and_check(s, std::forward<Callables>(callables)...);
+        return 0;
+    }
+
+    auto callables_func = [&]() { launch_and_check(s, std::forward<Callables>(callables)...); };
+
+    if(s.is_gpu_timer_)
+    {
+        return timing_loop_impl(gpu_timer{}, s, callables_func, preprocess);
+    }
+    else
+    {
+        return timing_loop_impl(cpu_timer{}, s, callables_func, preprocess);
+    }
+}
 } // namespace ck_tile

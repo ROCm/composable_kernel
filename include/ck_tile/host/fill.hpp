@@ -8,6 +8,7 @@
 #include <iterator>
 #include <optional>
 #include <random>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 #include <unordered_set>
@@ -17,13 +18,31 @@
 
 namespace ck_tile {
 
+/**
+ * @brief Functor for filling a range with randomly generated values from a uniform distribution.
+ *
+ * This struct provides functionality to fill iterators or ranges with random values
+ * generated from a uniform distribution. It supports both single-threaded and
+ * multi-threaded operation.
+ *
+ * @tparam T The target type for the generated values.
+ *
+ * @note The multi-threaded implementation is not guaranteed to provide perfectly
+ * distributed values across threads.
+ *
+ * @example
+ *
+ *     // Direct usage without creating a separate variable:
+ *     ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_host_tensor);
+ */
 template <typename T>
 struct FillUniformDistribution
 {
     float a_{-5.f};
     float b_{5.f};
     std::optional<uint32_t> seed_{11939};
-    // ATTENTION: threaded does not guarantee the distribution between thread
+    // ATTENTION: Whether to use multi-threading (note: not guaranteed to be perfectly distributed
+    // across threads).
     bool threaded = false;
 
     template <typename ForwardIter>
@@ -45,7 +64,7 @@ struct FillUniformDistribution
                         return;
                     // need to make each thread unique, add an offset to current seed
                     std::mt19937 gen(seed_.has_value() ? (*seed_ + iw_begin)
-                                                              : std::random_device{}());
+                                                       : std::random_device{}());
                     std::uniform_real_distribution<float> dis(a_, b_);
                     std::generate(first + iw_begin, first + iw_end, [&dis, &gen]() {
                         return ck_tile::type_convert<T>(dis(gen));
@@ -63,6 +82,60 @@ struct FillUniformDistribution
         }
     }
 
+    template <typename ForwardRange>
+    auto operator()(ForwardRange&& range) const
+        -> std::void_t<decltype(std::declval<const FillUniformDistribution&>()(
+            std::begin(std::forward<ForwardRange>(range)),
+            std::end(std::forward<ForwardRange>(range))))>
+    {
+        (*this)(std::begin(std::forward<ForwardRange>(range)),
+                std::end(std::forward<ForwardRange>(range)));
+    }
+};
+
+template <>
+struct FillUniformDistribution<ck_tile::pk_int4_t>
+{
+    float a_{-8.f}; // same type as primary template so that
+                    // `FillUniformDistribution<Type>{-5.0f, 5.0f}` works for all types
+    float b_{7.f};
+    std::optional<uint32_t> seed_{11939};
+    template <typename ForwardIter>
+    void operator()(ForwardIter first, ForwardIter last) const
+    {
+        if(a_ < -8.0f || b_ > 7.0f)
+        {
+            throw std::runtime_error(
+                "a_ or b_ of FillUniformDistribution<ck_tile::pk_int4_t> is out of range.");
+        }
+
+        int min_value             = static_cast<int>(a_);
+        int max_value             = static_cast<int>(b_);
+        constexpr auto int4_array = std::array<uint8_t, 16>{0x88,
+                                                            0x99,
+                                                            0xaa,
+                                                            0xbb,
+                                                            0xcc,
+                                                            0xdd,
+                                                            0xee,
+                                                            0xff,
+                                                            0x00,
+                                                            0x11,
+                                                            0x22,
+                                                            0x33,
+                                                            0x44,
+                                                            0x55,
+                                                            0x66,
+                                                            0x77};
+        std::mt19937 gen(seed_.has_value() ? *seed_ : std::random_device{}());
+        std::uniform_int_distribution<std::int32_t> dis(0, max_value - min_value + 1);
+        while(first != last)
+        {
+            int randomInt = dis(gen);
+            *first        = int4_array[randomInt + (min_value + 8)];
+            ++first;
+        }
+    }
     template <typename ForwardRange>
     auto operator()(ForwardRange&& range) const
         -> std::void_t<decltype(std::declval<const FillUniformDistribution&>()(
@@ -169,7 +242,7 @@ struct FillNormalDistribution
                         return;
                     // need to make each thread unique, add an offset to current seed
                     std::mt19937 gen(seed_.has_value() ? (*seed_ + iw_begin)
-                                                              : std::random_device{}());
+                                                       : std::random_device{}());
                     std::normal_distribution<float> dis(mean_, std::sqrt(variance_));
                     std::generate(first + iw_begin, first + iw_end, [&dis, &gen]() {
                         return ck_tile::type_convert<T>(dis(gen));
@@ -280,7 +353,7 @@ struct FillMonotonicSeq
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
     {
-        std::generate(first, last, [=, n = init_value_]() mutable {
+        std::generate(first, last, [=, *this, n = init_value_]() mutable {
             auto tmp = n;
             if constexpr(std::is_same_v<decltype(tmp), pk_int4_t>)
             {
@@ -315,7 +388,7 @@ struct FillStepRange
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
     {
-        std::generate(first, last, [=, n = start_value_]() mutable {
+        std::generate(first, last, [=, *this, n = start_value_]() mutable {
             auto tmp = n;
             n += step_;
             if constexpr(IsAscending)
@@ -334,9 +407,10 @@ struct FillStepRange
     }
 
     template <typename ForwardRange>
-    auto operator()(ForwardRange&& range) const -> std::void_t<
-        decltype(std::declval<const FillStepRange&>()(std::begin(std::forward<ForwardRange>(range)),
-                                                      std::end(std::forward<ForwardRange>(range))))>
+    auto operator()(ForwardRange&& range) const
+        -> std::void_t<decltype(std::declval<const FillStepRange&>()(
+            std::begin(std::forward<ForwardRange>(range)),
+            std::end(std::forward<ForwardRange>(range))))>
     {
         (*this)(std::begin(std::forward<ForwardRange>(range)),
                 std::end(std::forward<ForwardRange>(range)));
@@ -355,9 +429,53 @@ struct FillConstant
     }
 
     template <typename ForwardRange>
-    auto operator()(ForwardRange&& range) const -> std::void_t<
-        decltype(std::declval<const FillConstant&>()(std::begin(std::forward<ForwardRange>(range)),
-                                                     std::end(std::forward<ForwardRange>(range))))>
+    auto operator()(ForwardRange&& range) const
+        -> std::void_t<decltype(std::declval<const FillConstant&>()(
+            std::begin(std::forward<ForwardRange>(range)),
+            std::end(std::forward<ForwardRange>(range))))>
+    {
+        (*this)(std::begin(std::forward<ForwardRange>(range)),
+                std::end(std::forward<ForwardRange>(range)));
+    }
+};
+
+//----------------------------------------------------------------------------------------------
+/// @brief      Transforms given input to fit 2:4 structured sparsity pattern so
+///             every subgroup of 4 elements contain at most 2 non-zero elements
+template <typename T>
+struct AdjustToStructuredSparsity
+{
+    size_t start{0};
+    // masks represent all valid 2:4 structured sparsity permutations
+    // clang-format off
+    static constexpr int32_t masks[] = {0, 0, 1, 1,
+                                        0, 1, 0, 1,
+                                        0, 1, 1, 0,
+                                        1, 0, 0, 1,
+                                        1, 0, 1, 0,
+                                        1, 1, 0, 0,
+                                        0, 0, 0, 1,
+                                        0, 0, 1, 0,
+                                        0, 1, 0, 0,
+                                        1, 0, 0, 0};
+    // clang-format on
+
+    template <typename ForwardIter>
+    void operator()(ForwardIter first, ForwardIter last) const
+    {
+        std::transform(first, last, first, [=, *this, index = start](T val) mutable {
+            auto tmp = val * masks[index % (sizeof(masks) / sizeof(int32_t))];
+            index += 1;
+
+            return type_convert<T>(tmp);
+        });
+    }
+
+    template <typename ForwardRange>
+    auto operator()(ForwardRange&& range) const
+        -> std::void_t<decltype(std::declval<const AdjustToStructuredSparsity&>()(
+            std::begin(std::forward<ForwardRange>(range)),
+            std::end(std::forward<ForwardRange>(range))))>
     {
         (*this)(std::begin(std::forward<ForwardRange>(range)),
                 std::end(std::forward<ForwardRange>(range)));
@@ -396,9 +514,10 @@ struct FillTrigValue
     }
 
     template <typename ForwardRange>
-    auto operator()(ForwardRange&& range) const -> std::void_t<
-        decltype(std::declval<const FillTrigValue&>()(std::begin(std::forward<ForwardRange>(range)),
-                                                      std::end(std::forward<ForwardRange>(range))))>
+    auto operator()(ForwardRange&& range) const
+        -> std::void_t<decltype(std::declval<const FillTrigValue&>()(
+            std::begin(std::forward<ForwardRange>(range)),
+            std::end(std::forward<ForwardRange>(range))))>
     {
         (*this)(std::begin(std::forward<ForwardRange>(range)),
                 std::end(std::forward<ForwardRange>(range)));

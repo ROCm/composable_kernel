@@ -41,6 +41,7 @@ template <typename ThreadGroup,
           index_t DstScalarStrideInVector,
           bool ThreadTransferSrcResetCoordinateAfterRun,
           bool ThreadTransferDstResetCoordinateAfterRun,
+          typename IndexType,
           index_t GatherDim        = 1,
           index_t NumThreadScratch = 1>
 struct ThreadGroupTensorSliceTransfer_v4r1_gather
@@ -58,7 +59,7 @@ struct ThreadGroupTensorSliceTransfer_v4r1_gather
         const DstDesc& dst_desc,
         const Index& dst_block_slice_origin,
         const DstElementwiseOperation& dst_element_op,
-        const StaticallyIndexedArray<index_t, gather_num>& gather_offsets)
+        const StaticallyIndexedArray<IndexType, gather_num>& gather_offsets)
         : threadwise_transfer_(src_desc,
                                make_zero_multi_index<nDim>(),
                                src_element_op,
@@ -190,6 +191,7 @@ struct ThreadGroupTensorSliceTransfer_v4r1_gather
                                                   DstScalarStrideInVector,
                                                   ThreadTransferSrcResetCoordinateAfterRun,
                                                   ThreadTransferDstResetCoordinateAfterRun,
+                                                  IndexType,
                                                   GatherDim,
                                                   NumThreadScratch>;
 

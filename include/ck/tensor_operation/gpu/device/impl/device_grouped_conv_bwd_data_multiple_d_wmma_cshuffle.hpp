@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include <iostream>
 #include <sstream>
 
+#include "ck/library/utility/numeric.hpp"
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
@@ -227,7 +228,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
                  const std::array<index_t, NDimSpatial>& input_right_pads,
                  const AElementwiseOp& a_element_op,
                  const BElementwiseOp& b_element_op,
-                 const CDEElementwiseOp& cde_element_op)
+                 const CDEElementwiseOp& cde_element_op,
+                 const ck::index_t split_k = 1)
             : p_a_grid_{static_cast<const ADataType*>(p_a)},
               p_b_grid_{static_cast<const BDataType*>(p_b)},
               p_ds_grid_{},
@@ -240,8 +242,25 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
               b_g_k_c_xs_lengths_{b_g_k_c_xs_lengths},
               conv_filter_strides_{conv_filter_strides},
               input_left_pads_{input_left_pads},
-              input_right_pads_{input_right_pads}
+              input_right_pads_{input_right_pads},
+              k_batch_{split_k}
         {
+            bool image_covered_dilation = true;
+            bool image_covered_strides  = true;
+            for(index_t d = 0; d < NDimSpatial; d++)
+            {
+                // If dilation and stride is not equal to  the we will have some empty places
+                image_covered_dilation &=
+                    conv_filter_dilations[d] == 1 || conv_filter_strides[d] == 1;
+                // If stride is larger than windows size then we will have some empty places
+                image_covered_strides &= conv_filter_strides[d] <= b_g_k_c_xs_lengths[d + I3];
+            }
+            bwd_needs_zero_out = k_batch_ > 1 || !image_covered_dilation || !image_covered_strides;
+            e_space_size_bytes =
+                ck::accumulate_n<long_index_t>(
+                    e_g_n_c_wis_lengths.begin(), NDimSpatial + I3, 1, std::multiplies<>()) *
+                sizeof(EDataType);
+
             // populate Ds pointer
             static_for<0, NumDTensor, 1>{}([&](auto i) {
                 using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
@@ -445,6 +464,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
         std::array<index_t, NDimSpatial> conv_filter_strides_;
         std::array<index_t, NDimSpatial> input_left_pads_;
         std::array<index_t, NDimSpatial> input_right_pads_;
+
+        const index_t k_batch_;
+        bool bwd_needs_zero_out;
+        long_index_t e_space_size_bytes;
     };
 
     // Invoker
@@ -470,6 +493,14 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
                 const auto GemmK = arg.a_grid_desc_ak0_m_ak1_container_[i].GetLength(I0) *
                                    arg.a_grid_desc_ak0_m_ak1_container_[i].GetLength(I2);
 
+                const auto clear_workspace = [&]() {
+                    if(arg.bwd_needs_zero_out && i == 0)
+                    {
+                        hip_check_error(hipMemsetAsync(
+                            arg.p_e_grid_, 0, arg.e_space_size_bytes, stream_config.stream_id_));
+                    }
+                };
+
                 auto launch_kernel = [&](auto has_main_k_block_loop) {
                     constexpr bool has_main_loop = has_main_k_block_loop.value;
 
@@ -490,8 +521,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
                         ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
                         has_main_loop>;
 
-                    return launch_and_time_kernel(
+                    return launch_and_time_kernel_with_preprocess(
                         stream_config,
+                        clear_workspace,
                         kernel,
                         dim3(grid_size),
                         dim3(BlockSize),
@@ -534,6 +566,11 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        if(arg.k_batch_ != 1)
+        {
+            return false;
+        }
+
         // check device
         if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
         {
@@ -691,7 +728,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
                  const std::array<index_t, NDimSpatial>& input_right_pads,
                  const AElementwiseOp& a_element_op,
                  const BElementwiseOp& b_element_op,
-                 const CDEElementwiseOp& cde_element_op)
+                 const CDEElementwiseOp& cde_element_op,
+                 const ck::index_t split_k = 1)
     {
         return Argument{p_a,
                         p_b,
@@ -711,7 +749,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
                         input_right_pads,
                         a_element_op,
                         b_element_op,
-                        cde_element_op};
+                        cde_element_op,
+                        split_k};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -737,7 +776,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
         const std::array<index_t, NDimSpatial>& input_right_pads,
         const AElementwiseOp& a_element_op,
         const BElementwiseOp& b_element_op,
-        const CDEElementwiseOp& cde_element_op) override
+        const CDEElementwiseOp& cde_element_op,
+        const ck::index_t split_k = 1) override
     {
         return std::make_unique<Argument>(p_a,
                                           p_b,
@@ -757,7 +797,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
                                           input_right_pads,
                                           a_element_op,
                                           b_element_op,
-                                          cde_element_op);
+                                          cde_element_op,
+                                          split_k);
     }
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override

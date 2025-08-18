@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -8,6 +8,7 @@
 #include <tuple>
 
 #include "ck/ck.hpp"
+#include "ck/utility/env.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
@@ -575,16 +576,16 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
             if(dev_gemm_args == nullptr)
             {
                 std::ostringstream err;
-                err << "The gemm arguments device buffer is not allocated!"
-                    << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
+                err << "The gemm arguments device buffer is not allocated!" << " In " << __FILE__
+                    << ":" << __LINE__ << ", in function: " << __func__;
                 throw std::runtime_error(err.str());
             }
 
             if(dev_gemm_workspace == nullptr)
             {
                 std::ostringstream err;
-                err << "The gemm workspace buffer is not allocated!"
-                    << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
+                err << "The gemm workspace buffer is not allocated!" << " In " << __FILE__ << ":"
+                    << __LINE__ << ", in function: " << __func__;
                 throw std::runtime_error(err.str());
             }
 
@@ -623,16 +624,16 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
             if(arg.p_dev_gemm_kargs_ == nullptr)
             {
                 std::ostringstream err;
-                err << "The gemm arguments device buffer is not allocated!"
-                    << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
+                err << "The gemm arguments device buffer is not allocated!" << " In " << __FILE__
+                    << ":" << __LINE__ << ", in function: " << __func__;
                 throw std::runtime_error(err.str());
             }
 
             if(arg.p_workspace_ == nullptr)
             {
                 std::ostringstream err;
-                err << "The gemm workspace buffer is not allocated!"
-                    << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
+                err << "The gemm workspace buffer is not allocated!" << " In " << __FILE__ << ":"
+                    << __LINE__ << ", in function: " << __func__;
                 throw std::runtime_error(err.str());
             }
 
@@ -710,8 +711,8 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                 if(not_all_have_kbatch_value_same)
                 {
                     std::ostringstream err;
-                    err << "Not all gemms have same kbatch value (=1 or >1)! "
-                        << "group [" << i << "], kbatch: " << gemm_arg.k_batch
+                    err << "Not all gemms have same kbatch value (=1 or >1)! " << "group [" << i
+                        << "], kbatch: " << gemm_arg.k_batch
                         << ", group [0], kbatch: " << gemm_arg.k_batch << " in " << __FILE__ << ":"
                         << __LINE__ << ", in function: " << __func__;
                     throw std::runtime_error(err.str());

@@ -32,13 +32,13 @@ template <typename T>
 __host__ __device__ inline bool is_inf(e8m0_bexp_t const scale, T const data);
 
 template <typename T>
-__host__ __device__ inline int get_exponent_value(T x)
+__host__ __device__ inline constexpr int32_t get_exponent_value(T x)
 {
     x >>= NumericUtils<T>::mant;
 
     x &= ((1 << NumericUtils<T>::exp) - 1);
 
-    return static_cast<int>(x);
+    return static_cast<int32_t>(x);
 }
 
 template <typename T>
@@ -213,7 +213,7 @@ __host__ __device__ inline T convert_to_type(float value)
     {
         // closer to 0
         if(std::abs(value) <= std::abs(min_subnorm - value))
-            return 0;
+            return sign << (NumericUtils<T>::exp + NumericUtils<T>::mant);
         else
             return 1 | (sign << (NumericUtils<T>::exp + NumericUtils<T>::mant));
     }
@@ -249,7 +249,7 @@ __host__ __device__ inline T convert_to_type(float value)
 
     if(out_exponent == 0 && mantissa == 0)
     {
-        return 0;
+        return sign << (NumericUtils<T>::exp + NumericUtils<T>::mant);
     }
 
     mantissa &= (1UL << NumericUtils<T>::mant) - 1;

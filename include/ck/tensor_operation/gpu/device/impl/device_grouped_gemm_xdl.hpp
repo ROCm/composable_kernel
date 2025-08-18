@@ -8,6 +8,7 @@
 #include <sstream>
 
 #include "ck/utility/common_header.hpp"
+#include "ck/utility/env.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -30,15 +31,15 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_gemm_xdl(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
-                                const index_t group_count,
-                                const AElementwiseOperation a_element_op,
-                                const BElementwiseOperation b_element_op,
-                                const CDEElementwiseOperation c_element_op)
+    kernel_grouped_gemm_xdl(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
+                            const index_t group_count,
+                            const AElementwiseOperation a_element_op,
+                            const BElementwiseOperation b_element_op,
+                            const CDEElementwiseOperation c_element_op)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if defined(__gfx9__)
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const index_t block_id = get_block_1d_id();
@@ -64,7 +65,7 @@ __global__ void
         group_id = index_t((left + right) / 2);
     }
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(
+    GridwiseGemm::template Run<HasMainKBlockLoop, InMemoryDataOperationEnum::Set>(
         gemm_desc_ptr[group_id].a_ptr_,
         gemm_desc_ptr[group_id].b_ptr_,
         gemm_desc_ptr[group_id].ds_ptr_,
@@ -241,7 +242,6 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
         AElementwiseOperation,
         BElementwiseOperation,
         CDEElementwiseOperation,
-        InMemoryDataOperationEnum::Set,
         NumPrefetch, // NumGemmKPrefetchStage
         BlockSize,
         MPerBlock,
@@ -560,6 +560,9 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                 }
             }
 
+            // If the user provides copy stream and copy event, we assume that they're also
+            // responsible for providing allocated host memory (eg. pinned) which
+            // would be used to copy kernel arguments to the device.
             if(cpy_stream && cpy_event)
             {
                 if(arg.gemm_kernel_host_args_ == nullptr)
@@ -578,7 +581,7 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                 hipGetErrorString(hipEventRecord(cpy_event, cpy_stream));
                 hipGetErrorString(hipEventSynchronize(cpy_event));
             }
-            else
+            else // In this case CK owns memory allocated on host.
             {
                 hipGetErrorString(hipMemcpyAsync(arg.p_workspace_,
                                                  arg.gemm_desc_kernel_arg_.data(),
@@ -763,7 +766,16 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
 
     size_t GetHostKernelArgSize(const BaseArgument* p_arg) const { return GetWorkSpaceSize(p_arg); }
 
-    void SetHostKernelArgs(BaseArgument* p_arg, void* p_host_kernel_args) const
+    //----------------------------------------------------------------------------------------------
+    /// @brief      Sets the host kernel arguments pointer and copies that data on the host side.
+    ///             This function can be utilised to use pinned memory for the host args and
+    ///             achieve fully async data copy.
+    ///
+    /// @param      p_arg              The pointer to the Argument we're going to update.
+    /// @param[in]  p_host_kernel_args The pointer to the host memory where the kernel
+    ///                                arguments will be copied
+    ///
+    void SetHostKernelArgsPointer(BaseArgument* p_arg, void* p_host_kernel_args) const
     {
         Argument* pArg_ = dynamic_cast<Argument*>(p_arg);
         if(!pArg_)
