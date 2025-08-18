@@ -5,6 +5,10 @@ import json
 import argparse
 import itertools
 from pathlib import Path
+import logging
+from validation_utils import is_tile_config_valid, is_trait_combination_valid
+
+logging.basicConfig(level=logging.INFO)
 
 
 class GemmKernelBuilder:
@@ -165,31 +169,34 @@ class GemmKernelBuilder:
         warp_tile_m,
         warp_tile_n,
         warp_tile_k,
+        pipeline="mem",  # Default pipeline for validation
     ):
         """Validate that tile configuration is reasonable"""
-        # Basic sanity checks
-        if tile_m <= 0 or tile_n <= 0 or tile_k <= 0:
-            return False
-        if warp_m <= 0 or warp_n <= 0 or warp_k <= 0:
-            return False
-        if warp_tile_m <= 0 or warp_tile_n <= 0 or warp_tile_k <= 0:
-            return False
+        # Determine data types for validation
+        a_datatype = self.datatype
+        b_datatype = self.datatype
+        c_datatype = self.datatype
 
-        # Check that warp tiles fit within block tiles
-        if warp_m * warp_tile_m > tile_m:
-            return False
-        if warp_n * warp_tile_n > tile_n:
-            return False
-        if warp_k * warp_tile_k > tile_k:
-            return False
+        # Special handling for certain data types
+        if self.datatype in ["fp8", "bf8"]:
+            c_datatype = "fp16"
 
-        # Check reasonable limits
-        if tile_m > 512 or tile_n > 512 or tile_k > 256:
-            return False
-        if warp_tile_m > 64 or warp_tile_n > 64 or warp_tile_k > 128:
-            return False
-
-        return True
+        # Use the comprehensive validation function
+        return is_tile_config_valid(
+            tile_m,
+            tile_n,
+            tile_k,
+            warp_m,
+            warp_n,
+            warp_k,
+            warp_tile_m,
+            warp_tile_n,
+            warp_tile_k,
+            a_datatype,
+            b_datatype,
+            c_datatype,
+            pipeline,
+        )
 
     def _generate_trait_combinations(self):
         """Generate all combinations of traits"""
@@ -204,7 +211,7 @@ class GemmKernelBuilder:
             structured_sparsity = self.config["structured_sparsity"]
             persistent = self.config["persistent"]
 
-            combinations = list(
+            all_combinations = list(
                 itertools.product(
                     pipelines,
                     epilogues,
@@ -216,6 +223,17 @@ class GemmKernelBuilder:
                     persistent,
                 )
             )
+
+            # Filter out unsupported trait combinations
+            combinations = []
+            for combo in all_combinations:
+                pipeline, epilogue, scheduler = combo[:3]
+                if is_trait_combination_valid(pipeline, epilogue, scheduler):
+                    combinations.append(combo)
+                else:
+                    logging.debug(
+                        f"Skipping unsupported trait combination: {pipeline}-{epilogue}-{scheduler}"
+                    )
 
         elif "trait_config" in self.config:
             # New format
@@ -234,7 +252,7 @@ class GemmKernelBuilder:
             # For structured sparsity, use a default since it's not in the config
             structured_sparsity = [False]
 
-            combinations = list(
+            all_combinations = list(
                 itertools.product(
                     pipelines,
                     epilogues,
@@ -246,6 +264,17 @@ class GemmKernelBuilder:
                     persistent_values,
                 )
             )
+
+            # Filter out unsupported trait combinations
+            combinations = []
+            for combo in all_combinations:
+                pipeline, epilogue, scheduler = combo[:3]
+                if is_trait_combination_valid(pipeline, epilogue, scheduler):
+                    combinations.append(combo)
+                else:
+                    logging.debug(
+                        f"Skipping unsupported trait combination: {pipeline}-{epilogue}-{scheduler}"
+                    )
         else:
             # Fallback to minimal default
             combinations = [
@@ -274,7 +303,7 @@ class GemmKernelBuilder:
         }
         return layout_map.get(self.layout, "ck_tile::tensor_layout::gemm::RowMajor")
 
-    def _generate_kernel_instance(self, tile_config, trait_combo):
+    def _generate_kernel_instance(self, tile_config, trait_combo, is_header=True):
         """Generate a single kernel instance"""
         (
             pipeline,
@@ -343,9 +372,9 @@ class GemmKernelBuilder:
             c_layout = "ck_tile::tensor_layout::gemm::ColumnMajor"
 
         # Generate kernel instance code using the correct API
+        pragma_line = "#pragma once\n" if is_header else ""
         instance_code = f"""// Generated kernel instance for {kernel_name}
-#pragma once
-
+{pragma_line}
 #include <cstdint>
 #include <utility>
 #include <tuple>
@@ -431,7 +460,7 @@ struct SelectedKernel {{
             constexpr bool has_hot_loop_v = has_hot_loop_.value;
             constexpr auto tail_number_v = tail_number_.value;
             constexpr auto scheduler = {scheduler_type_map.get(scheduler, "ck_tile::GemmPipelineScheduler::Intrawave")};
-            constexpr auto memory_operation = memory_operation_.value;
+            [[maybe_unused]] constexpr auto memory_operation = memory_operation_.value;
 
             using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
                 ADataType,
@@ -586,7 +615,7 @@ struct SelectedKernel {{
             for trait_combo in trait_list:
                 for tile_config in tile_configs:
                     kernel_name, instance_code = self._generate_kernel_instance(
-                        tile_config, trait_combo
+                        tile_config, trait_combo, is_header=False
                     )
 
                     # Write instance file
