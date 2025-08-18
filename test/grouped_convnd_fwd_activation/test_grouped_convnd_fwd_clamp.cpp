@@ -49,6 +49,7 @@ class TestGroupedConvndFwd : public ::testing::Test
                                false, // do_log
                                false, // time_kernel
                                param,
+                               1,
                                out_element_op);
         }
         EXPECT_TRUE(pass);
