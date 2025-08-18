@@ -68,6 +68,7 @@ jobs:
           VENV_DIR: ${{ env.VENV_DIR }}
           FETCH_ARTIFACT_ARGS: ${{ matrix.components.fetch_artifact_args }}
           PLATFORM: ${{ inputs.platform }}
+          IS_PR_FROM_FORK: ${{ github.event.pull_request.head.repo.fork }}
 
       - name: Test
         timeout-minutes: ${{ matrix.components.timeout_minutes }}
