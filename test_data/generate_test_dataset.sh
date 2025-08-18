@@ -67,6 +67,7 @@ fi
 OUTPUT_DIR="generated_datasets"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 MAX_ITERATIONS=0  # Maximum number of iterations per model type (set to 0 for unlimited)
+CONFIG_MODE="${CONFIG_MODE:-half}"  # Configuration mode: 'half' or 'full' (default: half)
 
 # Colors
 RED='\033[0;31m'
@@ -86,8 +87,9 @@ echo "Step 1: Generating model configurations"
 echo "-----------------------------------------"
 
 # Generate model configuration files (with limit for testing)
-echo "Generating model configuration files..."
+echo "Generating model configuration files (mode: $CONFIG_MODE)..."
 $PYTHON_CMD generate_model_configs.py \
+    --mode $CONFIG_MODE \
     --output-2d $OUTPUT_DIR/model_configs_2d.csv \
     --output-3d $OUTPUT_DIR/model_configs_3d.csv 
 
