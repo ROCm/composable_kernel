@@ -242,18 +242,18 @@ bool run_batched_transpose(ck_tile::ArgParser args)
 
     if(args.get_int("json") == 1)
     {
-        START_JSON_DUMP_FILE(args.get_str("jsonfile"));
-        ADD_KEY_VALUE("name", "batched_transpose");
-        ADD_KEY_VALUE("N", N);
-        ADD_KEY_VALUE("C", C);
-        ADD_KEY_VALUE("H", H);
-        ADD_KEY_VALUE("W", W);
-        ADD_KEY_VALUE("LayoutIn", layout_in);
-        ADD_KEY_VALUE("LayoutOut", layout_out);
-        ADD_KEY_VALUE("Precision", prec);
-        ADD_KEY_VALUE("verification", rtn ? "pass" : "fail");
-        ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec)
-        END_JSON_DUMP_FILE();
+        dump_batched_transpose_json(args.get_str("jsonfile"),
+                                    N,
+                                    C,
+                                    H,
+                                    W,
+                                    layout_in,
+                                    layout_out,
+                                    prec,
+                                    ms,
+                                    0,
+                                    gb_per_sec,
+                                    rtn);
     }
 
     return rtn;

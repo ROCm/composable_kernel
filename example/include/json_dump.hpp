@@ -473,6 +473,34 @@ void dump_moe_sorting_json(const std::string& json_filename,
     END_JSON_DUMP_FILE();
 }
 
+void dump_batched_transpose_json(const std::string& json_filename,
+                                 int N,
+                                 int C,
+                                 int H,
+                                 int W,
+                                 const std::string& layout_in,
+                                 const std::string& layout_out,
+                                 const std::string& prec,
+                                 float ave_time,
+                                 float tflops,
+                                 float gb_per_sec,
+                                 bool pass,
+                                 const std::string& kernel_name = "batched_transpose")
+{
+    START_JSON_DUMP_FILE(json_filename);
+    ADD_KEY_VALUE("name", kernel_name);
+    ADD_KEY_VALUE("N", N);
+    ADD_KEY_VALUE("C", C);
+    ADD_KEY_VALUE("H", H);
+    ADD_KEY_VALUE("W", W);
+    ADD_KEY_VALUE("LayoutIn", layout_in);
+    ADD_KEY_VALUE("LayoutOut", layout_out);
+    ADD_KEY_VALUE("Precision", prec);
+    ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
+    ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec)
+    END_JSON_DUMP_FILE();
+}
+
 void dump_moe_smoothquant_json(const std::string& json_filename,
                                const std::string& prec_i,
                                const std::string& prec_o,
