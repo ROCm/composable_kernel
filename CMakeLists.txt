@@ -336,6 +336,11 @@ if(ENABLE_ASM_DUMP)
     message("CK compiled with ENABLE_ASM_DUMP set to ${ENABLE_ASM_DUMP}")
 endif()
 
+if(USE_OPT_GFX12 AND (SUPPORTED_GPU_TARGETS MATCHES "gfx12"))
+    add_compile_options(-mno-wavefrontsize64)
+    message(STATUS "CK compiled with USE_OPT_GFX12 set to ${USE_OPT_GFX12}")
+endif()
+
 ## Threads
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
