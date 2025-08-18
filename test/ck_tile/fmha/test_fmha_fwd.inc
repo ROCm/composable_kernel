@@ -244,7 +244,7 @@ TEST_P(ElementwiseBias, Test)
                                                false,                 // o_perm
                                                0,                     // scale_s
                                                0,                     // logits_soft_cap
-                                               false,                 // is_v_rowmajor
+                                               true,                  // is_v_rowmajor
                                                false,                 // lse
                                                0,                     // page_block_size
                                                false,                 // use_cache_batch_idx
@@ -307,7 +307,7 @@ TEST_P(Alibi, Test)
                                                true,                  // o_perm
                                                0,                     // scale_s
                                                0,                     // logits_soft_cap
-                                               false,                 // is_v_rowmajor
+                                               true,                  // is_v_rowmajor
                                                false,                 // lse
                                                0,                     // page_block_size
                                                false,                 // use_cache_batch_idx
@@ -374,7 +374,7 @@ TEST_P(Dropout, Test)
                                                false,                 // o_perm
                                                0,                     // scale_s
                                                0,                     // logits_soft_cap
-                                               false,                 // is_v_rowmajor
+                                               true,                  // is_v_rowmajor
                                                false,                 // lse
                                                0,                     // page_block_size
                                                false,                 // use_cache_batch_idx
