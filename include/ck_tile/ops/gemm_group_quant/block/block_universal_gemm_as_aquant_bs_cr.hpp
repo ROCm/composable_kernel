@@ -157,7 +157,7 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase<Problem_>
         static constexpr index_t KPack      = WarpGemm::kKPerThread;
         static constexpr index_t KPerThread = KIterPerWarp * WarpGemm::kKPerThread;
 
-        static constexpr bool Preshuffle = Problem::Traits::Preshuffle;
+        static constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
     };
 
     public:
@@ -357,7 +357,7 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase<Problem_>
                             }
                         });
 
-                        if constexpr(Traits::Preshuffle)
+                        if constexpr(Traits::PreshuffleQuant)
                         {
                             // A view is created on top of the preshuffled AQ, where each row of the
                             // view is composed of a row from a warp tile within an AQ block tile.

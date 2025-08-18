@@ -148,6 +148,7 @@ struct GemmConfigComputeV3 : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
 
+    static constexpr bool PreshuffleQuant      = false;
     static constexpr bool DoubleSmemBuffer     = false;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
 };
@@ -315,7 +316,7 @@ struct GemmConfigPreshufle_AQ : public GemmConfigBase
         get_k_from_preshuffled_warp_tile<PrecType, M_Warp_Tile>();
 
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE;
-    static constexpr bool Preshuffle           = true;
+    static constexpr bool PreshuffleQuant      = true;
     static constexpr bool DoubleSmemBuffer     = false;
 };
 

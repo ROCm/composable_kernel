@@ -22,7 +22,7 @@ template <typename ADataType,
           typename BLayout,
           typename CLayout,
           uint32_t QuantGroupSize,
-          bool Preshuffle = false>
+          bool PreshuffleQuant = false>
 float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::stream_config& s)
 {
     constexpr bool kPadM = false;
@@ -52,8 +52,8 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
 
     using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenGemmShape>;
 
-    using CodegenGemmTraits =
-        ck_tile::TileGemmAQuantTraits<kPadM, kPadN, kPadK, Preshuffle, ALayout, BLayout, CLayout>;
+    using CodegenGemmTraits = ck_tile::
+        TileGemmAQuantTraits<kPadM, kPadN, kPadK, PreshuffleQuant, ALayout, BLayout, CLayout>;
 
     using GemmPipelineProblem = ck_tile::GemmPipelineProblemBase<ADataType,
                                                                  BDataType,

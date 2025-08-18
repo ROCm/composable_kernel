@@ -107,7 +107,7 @@ struct AQuantGemmKernel
     using BLayout                            = remove_cvref_t<typename GemmPipeline::BLayout>;
     using CLayout                            = remove_cvref_t<typename GemmPipeline::CLayout>;
     static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
-    static constexpr bool Preshuffle         = GemmPipeline::Preshuffle;
+    static constexpr bool PreshuffleQuant    = GemmPipeline::PreshuffleQuant;
 
     using ADataType  = remove_cvref_t<typename GemmPipeline::ADataType>;
     using AQDataType = remove_cvref_t<typename GemmPipeline::AQDataType>;
@@ -432,7 +432,7 @@ struct AQuantGemmKernel
 
         const auto& aq_tensor_view = [&]() {
             static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
-            if constexpr(Preshuffle)
+            if constexpr(PreshuffleQuant)
             {
                 return make_preshuffled_aq_tensor_view();
             }
@@ -599,9 +599,8 @@ struct AQuantGemmKernel
     }
 
     template <typename PadView>
-    CK_TILE_DEVICE static auto MakeGemmTileWindows(const PadView& views,
-                                                   const index_t i_m,
-                                                   const index_t i_n)
+    CK_TILE_DEVICE static auto
+    MakeGemmTileWindows(const PadView& views, const index_t i_m, const index_t i_n)
     {
         const auto& a_pad_view  = views.at(I0);
         const auto& aq_pad_view = views.at(I1);
@@ -632,7 +631,7 @@ struct AQuantGemmKernel
             constexpr auto warp_m  = TilePartitioner::BlockGemmShape::WarpTile::at(I0);
             constexpr auto aqk_per_block =
                 TilePartitioner::KPerBlock / GemmPipeline::QuantGroupSize;
-            if constexpr(Preshuffle)
+            if constexpr(PreshuffleQuant)
             {
                 constexpr auto tile_window_width =
                     ck_tile::integer_least_multiple(warp_m * aqk_per_block, get_warp_size());
@@ -708,8 +707,7 @@ struct AQuantGemmKernel
             a_ptr, b_ptr, aq_ptr, c_ptr, kargs, splitk_batch_offset);
 
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
-        auto gemm_tile_windows =
-            MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
+        auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
 
         const index_t num_loop = __builtin_amdgcn_readfirstlane(
             TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));

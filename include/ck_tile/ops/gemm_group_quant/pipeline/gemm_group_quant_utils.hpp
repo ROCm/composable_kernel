@@ -52,7 +52,7 @@ template <typename BlockGemmShape,
           index_t XPerTile,
           index_t KPerBlockAQ,
           index_t VecSize,
-          bool Preshuffle>
+          bool PreshuffleQuant>
 struct TileDistributionEncodingPatternAQ : public TileDistributionEncodingPattern
 {
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
@@ -72,7 +72,7 @@ struct TileDistributionEncodingPatternAQ : public TileDistributionEncodingPatter
 
     CK_TILE_HOST_DEVICE static constexpr auto Make2DStaticTileDistribution()
     {
-        if constexpr(Preshuffle)
+        if constexpr(PreshuffleQuant)
         {
             // # of elements per thread
             static_assert(XPerTile >= warp_size && XPerTile % warp_size == 0);
