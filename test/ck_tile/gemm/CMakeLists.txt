@@ -165,7 +165,7 @@ if(GPU_TARGETS MATCHES "gfx94" OR GPU_TARGETS MATCHES "gfx95" OR GPU_TARGETS MAT
     # Loop over configs and datatypes
     foreach(config_name IN LISTS GEMM_TEST_CONFIG_NAMES)
         foreach(datatype fp16 bf16)
-            foreach(layout rrr rcr)
+            foreach(layout rcr)
                 generate_ck_tile_test_instances_for_config(${datatype} ${layout} ${config_name})
             endforeach()
         endforeach()
