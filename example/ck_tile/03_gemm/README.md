@@ -12,13 +12,14 @@ sh ../script/cmake-ck-dev.sh  ../ <arch>
 make tile_example_gemm_basic -j
 # The memory bound pipeline on the gemm calculation
 make tile_example_gemm_universal -j
+# The weight preshuffle pipeline on the gemm calculation
+make tile_example_gemm_weight_preshuffle -j
 ```
 This will result in an executable `build/bin/tile_example_gemm_basic` & `build/bin/tile_example_gemm_universal`
 
 ## example
 ```
 args:
-          -b    batch size (default:1)
           -m    m dimension (default:1024)
           -n    n dimension (default:2048)
           -k    k dimension (default:64)
@@ -29,9 +30,11 @@ args:
    -stride_b    Tensor B stride (default:0)
    -stride_c    Tensor C stride (default:0)
           -v    0. No validation, 1. Validation on CPU, 2. Validation on GPU (default:2)
-          -e    Absolute error tolerance (default:1e-5)
        -prec    data type. fp16/bf16/fp8/bf8/int8 (default:fp16)
      -warmup    number of iterations before benchmark the kernel (default:10)
      -repeat    number of iterations to benchmark the kernel (default:100)
       -timer    gpu:gpu timer, cpu:cpu timer (default:gpu)
+    -split_k    splitK value (default:1)
+       -init    0:random, 1:linear, 2:constant (default:1)
+ -persistent    0:non-persistent, 1:persistent (default:0)
 ```
