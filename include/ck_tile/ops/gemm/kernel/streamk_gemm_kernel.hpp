@@ -150,8 +150,8 @@ struct StreamKKernel
 
     CK_TILE_HOST static StreamKKernelArgs MakeKernelArgs(const StreamKHostArgs& host_args)
     {
-        int occupancy = Occupancy();
-        int num_cu    = NumCU();
+        index_t occupancy = static_cast<index_t>(Occupancy());
+        index_t num_cu    = static_cast<index_t>(NumCU());
 
         return StreamKKernelArgs{
             {host_args.as_ptr,
