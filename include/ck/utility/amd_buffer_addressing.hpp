@@ -20,7 +20,7 @@ union BufferResource
 };
 
 template <typename T>
-__device__ int32x4_t make_wave_buffer_resource(T* p_wave, index_t element_space_size)
+__device__ int32x4_t make_wave_buffer_resource(T* __restrict__ p_wave, index_t element_space_size)
 {
     BufferResource<T> wave_buffer_resource;
 
@@ -35,7 +35,7 @@ __device__ int32x4_t make_wave_buffer_resource(T* p_wave, index_t element_space_
 }
 
 template <typename T>
-__device__ int32x4_t make_wave_buffer_resource_with_default_range(T* p_wave)
+__device__ int32x4_t make_wave_buffer_resource_with_default_range(T* __restrict__ p_wave)
 {
     BufferResource<T> wave_buffer_resource;
 
@@ -892,7 +892,7 @@ template <typename T,
           index_t N,
           AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence>
 __device__ void amd_buffer_store(const typename vector_type_maker<T, N>::type::type src_thread_data,
-                                 T* p_dst_wave,
+                                 T* __restrict__ p_dst_wave,
                                  const index_t dst_thread_element_offset,
                                  const bool dst_thread_element_valid,
                                  const index_t dst_element_space_size)
