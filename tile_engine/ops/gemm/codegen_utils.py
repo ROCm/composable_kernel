@@ -38,7 +38,7 @@ DEFAULT_EPILOGUE = """
                                                                       CLayout,
                                                                       ck_tile::element_wise::PassThrough,
                                                                       TilePartitioner::MPerBlock,
-                                                                      TilePartitioner::NPerBlock
+                                                                      TilePartitioner::NPerBlock,
                                                                       kPadM,
                                                                       kPadN,
                                                                       WarpTileM,

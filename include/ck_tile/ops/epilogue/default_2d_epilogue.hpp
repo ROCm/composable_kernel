@@ -77,6 +77,7 @@ struct Default2DEpilogue
     using Problem                     = remove_cvref_t<Problem_>;
     using AccDataType                 = remove_cvref_t<typename Problem::AccDataType>;
     using ODataType                   = remove_cvref_t<typename Problem::ODataType>;
+    using CDElementwise               = remove_cvref_t<typename Problem::CDElementwise>;
     static constexpr bool kPadM       = Problem::kPadM;
     static constexpr bool kPadN       = Problem::kPadN;
     static constexpr bool UseRawStore = Problem::UseRawStore;
@@ -119,7 +120,7 @@ struct Default2DEpilogue
             }
         };
 
-        if constexpr(Problem::NumDTensor > 1)
+        if constexpr(Problem::NumDTensor >= 1)
         {
             using elementwise_result_t = decltype(load_tile(
                 make_tile_window(ds_dram_windows[number<0>{}].get_bottom_tensor_view(),
@@ -143,6 +144,7 @@ struct Default2DEpilogue
                              number<Problem::NumDTensor>{}));
 
             tile_elementwise_inout_unpack(typename Problem::CDElementwise{}, c_d_tuple);
+
             storeOrUpdateTile(elementwise_result);
         }
         else
