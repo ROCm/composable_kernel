@@ -422,6 +422,23 @@ struct AddClamp
 
     template <>
     __host__ __device__ constexpr void
+    operator()<bhalf_t, float, float>(bhalf_t& y, const float& x0, const float& x1) const
+    {
+        const float a = x0 + x1;
+        const float b = a > floor_ ? (a < ceil_ ? a : ceil_) : floor_;
+        y             = type_convert<bhalf_t>(b);
+    };
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<float, float, bhalf_t>(float& y, const float& x0, const bhalf_t& x1) const
+    {
+        const float a = x0 + type_convert<float>(x1);
+        y             = a > floor_ ? (a < ceil_ ? a : ceil_) : floor_;
+    };
+
+    template <>
+    __host__ __device__ constexpr void
     operator()<int, int, int8_t>(int& y, const int& x0, const int8_t& x1) const
     {
         const int8_t a = x0 + x1;
