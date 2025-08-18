@@ -429,7 +429,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
 #if CK_TILE_FMHA_FWD_SPLITKV_API || CK_TILE_FMHA_FWD_PAGEDKV_API
     if(0 < p_drop && (1 < num_splits || use_kvcache))
     {
-        std::cerr << "dropout is not supoprted by split-kv kernels. ignoring the 'p_drop' option"
+        std::cerr << "dropout is not supported by split-kv kernels. ignoring the 'p_drop' option"
                   << std::endl;
         p_drop = 0.0f;
     }
@@ -974,8 +974,28 @@ fwd_result fmha_fwd_run(mode_enum mode,
     }();
 
     const float fwd_ave_time = [&] {
+#if CK_TILE_FMHA_FWD_PAGEDKV_API
+        if(1 == num_splits && use_kvcache)
+        {
+            fmha_fwd_pagedkv_traits fmha_pagedkv_traits;
+            init_traits(fmha_pagedkv_traits);
+
+            fmha_fwd_pagedkv_args fmha_pagedkv_args;
+            init_args(fmha_pagedkv_args);
+
+            const float ave_time =
+                fmha_fwd_pagedkv(fmha_pagedkv_traits, fmha_pagedkv_args, stream_config);
 #if CK_TILE_FMHA_FWD_SPLITKV_API
-        if(1 < num_splits && use_kvcache)
+            // If there is no instance for these args, fallback to fmha_fwd_splitkv
+            if(ave_time >= 0.0f)
+                return ave_time;
+#else
+            return ave_time;
+#endif
+        }
+#endif // CK_TILE_FMHA_FWD_PAGEDKV_API
+#if CK_TILE_FMHA_FWD_SPLITKV_API
+        if(1 < num_splits || use_kvcache)
         {
             fmha_fwd_splitkv_traits fmha_splitkv_traits;
             init_traits(fmha_splitkv_traits);
@@ -985,19 +1005,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
             return fmha_fwd_splitkv(fmha_splitkv_traits, fmha_splitkv_args, stream_config);
         }
-#endif
-#if CK_TILE_FMHA_FWD_PAGEDKV_API
-        if(use_kvcache)
-        {
-            fmha_fwd_pagedkv_traits fmha_pagedkv_traits;
-            init_traits(fmha_pagedkv_traits);
-
-            fmha_fwd_pagedkv_args fmha_pagedkv_args;
-            init_args(fmha_pagedkv_args);
-
-            return fmha_fwd_pagedkv(fmha_pagedkv_traits, fmha_pagedkv_args, stream_config);
-        }
-#endif
+#endif // CK_TILE_FMHA_FWD_SPLITKV_API
         fmha_fwd_traits fmha_traits;
         init_traits(fmha_traits);
 
