@@ -84,7 +84,7 @@ inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn_base(float x)
 template <>
 inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(float x)
 {
-#if defined(__gfx950__) && defined(__HIP_DEVICE_COMPILE__)
+#if defined(__gfx950__)
     return static_cast_float_to_bf16(x);
 #else
     return bf16_convert_rtn_base(x);
@@ -162,8 +162,6 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float 
     return uint16_t(static_cast<uint32_t>(x) >> 16);
 #endif
 }
-
-// convert 
 
 // convert bfp16 to fp16 via fp32
 template <>
