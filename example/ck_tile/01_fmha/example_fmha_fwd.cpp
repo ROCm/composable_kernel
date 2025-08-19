@@ -211,23 +211,36 @@ auto run(const ck_tile::ArgParser& arg_parser)
 
 int main(int argc, char* argv[])
 {
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
+    try
+    {
+        auto [result, arg_parser] = create_args(argc, argv);
+        if(!result)
+            return -1;
+
+        const std::string data_type = arg_parser.get_str("prec");
+        if(data_type == "fp16")
+        {
+            return run<FmhaFwdFp16>(arg_parser) == fwd_result::success ? 0 : -2;
+        }
+        else if(data_type == "bf16")
+        {
+            return run<FmhaFwdBf16>(arg_parser) == fwd_result::success ? 0 : -2;
+        }
+        else if(data_type == "fp8")
+        {
+            return run<FmhaFwdFp8>(arg_parser) == fwd_result::success ? 0 : -2;
+        }
+        std::cerr << "Unsupported precision: " << data_type << std::endl;
         return -1;
-
-    const std::string data_type = arg_parser.get_str("prec");
-    if(data_type == "fp16")
-    {
-        return run<FmhaFwdFp16>(arg_parser) == fwd_result::success ? 0 : -2;
     }
-    else if(data_type == "bf16")
+    catch(const std::invalid_argument& e)
     {
-        return run<FmhaFwdBf16>(arg_parser) == fwd_result::success ? 0 : -2;
+        std::cerr << "Invalid argument: " << e.what() << std::endl;
+        return -1;
     }
-    else if(data_type == "fp8")
+    catch(const std::exception& e)
     {
-        return run<FmhaFwdFp8>(arg_parser) == fwd_result::success ? 0 : -2;
+        std::cerr << "Error: " << e.what() << std::endl;
+        return -2;
     }
-
-    return -3;
 }

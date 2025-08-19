@@ -145,19 +145,32 @@ auto run(const ck_tile::ArgParser& arg_parser)
 
 int main(int argc, char* argv[])
 {
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
+    try
+    {
+        auto [result, arg_parser] = create_args(argc, argv);
+        if(!result)
+            return -1;
+
+        const std::string data_type = arg_parser.get_str("prec");
+        if(data_type == "fp16")
+        {
+            return run<FmhaBwdFp16>(arg_parser) == bwd_result::success ? 0 : -2;
+        }
+        else if(data_type == "bf16")
+        {
+            return run<FmhaBwdBf16>(arg_parser) == bwd_result::success ? 0 : -2;
+        }
+        std::cerr << "Unsupported precision: " << data_type << std::endl;
         return -1;
-
-    const std::string data_type = arg_parser.get_str("prec");
-    if(data_type == "fp16")
-    {
-        return run<FmhaBwdFp16>(arg_parser) == bwd_result::success ? 0 : -2;
     }
-    else if(data_type == "bf16")
+    catch(const std::invalid_argument& e)
     {
-        return run<FmhaBwdBf16>(arg_parser) == bwd_result::success ? 0 : -2;
+        std::cerr << "Invalid argument: " << e.what() << std::endl;
+        return -1;
     }
-
-    return -3;
+    catch(const std::exception& e)
+    {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return -2;
+    }
 }
