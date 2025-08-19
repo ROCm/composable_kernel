@@ -365,31 +365,42 @@ struct GemmSpatiallyLocalTilePartitioner
     index_t N;
 };
 
+enum StreamKReductionStrategy : uint32_t
+{
+    Atomic    = 0u,
+    Reduction = 1u
+};
+
 /**
  * @brief Stream-K tile partitioner that dynamically balances work across workgroups
  *
- * This partitioner implements Stream-K algorithm which decomposes the GEMM problem
+ * This partitioner is responsible for mapping workgroups to tiles in the C tensor
+ * for the Stream-K algorithm which decomposes the GEMM problem
  * into smaller work units and distributes them more evenly across available blocks,
  * improving load balancing especially for cases where the K dimension is large.
  */
-template <typename BlockGemmShape_>
+template <typename BlockGemmShape_,
+          uint32_t TileSwizzleSubM_ = 8,
+          index_t GroupNum          = 8,
+          index_t M01_              = 4>
 struct StreamKTilePartitioner
 {
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
-    static constexpr index_t MPerBlock = BlockGemmShape::kM;
-    static constexpr index_t NPerBlock = BlockGemmShape::kN;
-    static constexpr index_t KPerBlock = BlockGemmShape::kK;
+    static constexpr index_t MPerBlock          = BlockGemmShape::kM;
+    static constexpr index_t NPerBlock          = BlockGemmShape::kN;
+    static constexpr index_t KPerBlock          = BlockGemmShape::kK;
+    static constexpr index_t tile_swizzle_sub_m = TileSwizzleSubM_;
 
     index_t sk_num_blocks;
     index_t sk_num_big_blocks;
     index_t dp_start_block_idx;
     index_t reduction_start_block_idx;
     index_t k_iters_per_big_block;
-    MDiv2 n_tiles;
-    MDiv k_iters_per_tile;
-    MDiv eqav_tiles_big;    // for reduction
-    MDiv eqav_tiles_little; // for reduction
+    mdiv2 n_tiles;
+    mdiv k_iters_per_tile;
+    mdiv equiv_tiles_big;    // for reduction
+    mdiv equiv_tiles_little; // for reduction
 
     CK_TILE_HOST_DEVICE StreamKTilePartitioner() noexcept = delete;
 
@@ -410,9 +421,9 @@ struct StreamKTilePartitioner
         num_tile_n_ = (N + NPerBlock - 1) / NPerBlock;
         num_tile_k_ = (K + KPerBlock - 1) / KPerBlock;
 
-        index_t num_tiles =
-            math::integer_divide_ceil(M, MPerBlock) * math::integer_divide_ceil(N, NPerBlock);
-        k_iters_per_tile = MDiv(math::integer_divide_ceil(K, KPerBlock));
+        static constexpr index_t min_k_iters_per_sk_block = 2;
+        index_t num_tiles = integer_divide_ceil(M, MPerBlock) * integer_divide_ceil(N, NPerBlock);
+        k_iters_per_tile  = mdiv(integer_divide_ceil(K, KPerBlock));
 
         // one cu can hold one wg at one time, from the whole cZ's point of view
         // if number of wg is same as num_cu, we call it 1 dispatch
@@ -420,21 +431,21 @@ struct StreamKTilePartitioner
         // one dispatch can deliver wg same as num_cu (full dispatch), or less than num_cu (partial
         // dispatch)
         //
-        index_t full_dispatches         = num_tiles / num_cu;
-        index_t full_dispatch_tiles     = full_dispatches * num_cu;
-        index_t partial_dispatche_tiles = num_tiles - full_dispatch_tiles;
+        index_t full_dispatches        = num_tiles / num_cu;
+        index_t full_dispatch_tiles    = full_dispatches * num_cu;
+        index_t partial_dispatch_tiles = num_tiles - full_dispatch_tiles;
 
         index_t sk_occupancy = occupancy;
         index_t dp_tiles     = full_dispatch_tiles;
-        index_t sk_tiles     = partial_dispatche_tiles;
+        index_t sk_tiles     = partial_dispatch_tiles;
 
         if(full_dispatches < occupancy)
         {
             // in this case, we allocate all blocks as sk blocks
             // sk_occupancy = occupancy - full_dispatches;
-            sk_occupancy = 1; // TODO: single occ seems better
+            sk_occupancy = 1;
             dp_tiles     = full_dispatch_tiles;
-            sk_tiles     = partial_dispatche_tiles;
+            sk_tiles     = partial_dispatch_tiles;
         }
         else if((occupancy > 1) && (full_dispatches % occupancy == occupancy - 1))
         {
@@ -443,15 +454,15 @@ struct StreamKTilePartitioner
             //      occupancy = 4, full_dispatches = 7, 11 ...
             sk_occupancy = 1; // left 1 slot for sk occupancy
             dp_tiles     = full_dispatch_tiles;
-            sk_tiles     = partial_dispatche_tiles;
+            sk_tiles     = partial_dispatch_tiles;
         }
         else
         {
-            // others, we reduce 1 dispatch from dp, together with partial dispatch,
+            // otherwise, we reduce 1 dispatch from dp, together with partial dispatch,
             // to construct sk dispatch
             sk_occupancy = occupancy - ((full_dispatches - 1) % occupancy);
             dp_tiles     = full_dispatch_tiles - num_cu;
-            sk_tiles     = partial_dispatche_tiles + num_cu;
+            sk_tiles     = partial_dispatch_tiles + num_cu;
         }
 
         // index_t dp_iters_per_block = k_iters_per_tile.get();
@@ -460,9 +471,9 @@ struct StreamKTilePartitioner
 
         {
             index_t min_sk_tiles = (sk_tiles >= num_cu) ? num_cu : (sk_tiles + 1);
-            index_t max_sk_tiles =
-                (sk_tiles >= num_cu) ? num_cu * sk_occupancy
-                                     : math::min(num_cu, sk_total_iters / min_k_iters_per_sk_block);
+            index_t max_sk_tiles = (sk_tiles >= num_cu)
+                                       ? num_cu * sk_occupancy
+                                       : min(num_cu, sk_total_iters / min_k_iters_per_sk_block);
 
             // if use dp for sk-block, how many iters do we need
             index_t dp_for_sk_iters = k_iters_per_tile.get();
@@ -477,7 +488,6 @@ struct StreamKTilePartitioner
                 index_t tentative_sk_iters = tentative_sk_iters_per_block;
                 index_t sk_blocks_per_tile = (tentative_sk_blocks + sk_tiles - 1) / sk_tiles;
 
-                // TODO: carefully adjust this parameter
                 //       the more sk_blocks_per_tile, the worse the overhead
                 index_t cross_sk_blocks_overhead = sk_blocks_per_tile;
                 if(tentative_sk_blocks % sk_tiles != 0)
@@ -502,7 +512,7 @@ struct StreamKTilePartitioner
             }
 
             // give a chance to control num of sk blocks
-            sk_num_blocks = sk_blocks != 0xffffffff ? sk_blocks : sk_num_blocks;
+            sk_num_blocks = sk_blocks != -1 ? sk_blocks : sk_num_blocks;
 
             if(sk_num_blocks == 0)
             {
@@ -534,22 +544,22 @@ struct StreamKTilePartitioner
                 dp_start_block_idx = (sk_num_blocks + num_cu - 1) / num_cu * num_cu;
             }
         }
-        n_tiles                   = MDiv2(math::integer_divide_ceil(n, NPerBlock));
+        n_tiles                   = mdiv2(integer_divide_ceil(N, NPerBlock));
         reduction_start_block_idx = dp_start_block_idx + dp_num_blocks;
 
-        if constexpr(ReductionStrategy == StreamKReductionStrategy::Reduction)
+        if constexpr(reduction_strategy == StreamKReductionStrategy::Reduction)
         {
-            index_t upper_big    = math::lcm(k_iters_per_big_block, k_iters_per_tile.get());
-            index_t upper_little = math::lcm(k_iters_per_big_block - 1, k_iters_per_tile.get());
-            eqav_tiles_big       = MDiv(upper_big / k_iters_per_tile.get());
-            eqav_tiles_little    = MDiv(upper_little / k_iters_per_tile.get());
+            index_t upper_big    = lcm(k_iters_per_big_block, k_iters_per_tile.get());
+            index_t upper_little = lcm(k_iters_per_big_block - 1, k_iters_per_tile.get());
+            equiv_tiles_big      = mdiv(upper_big / k_iters_per_tile.get());
+            equiv_tiles_little   = mdiv(upper_little / k_iters_per_tile.get());
         }
     }
 
     /**
      * @brief Calculate optimal grid size for Stream-K
      */
-    CK_TILE_HOST static auto GridSize(index_t M, index_t N, index_t K) noexcept -> index_t
+    CK_TILE_HOST auto GridSize() noexcept -> dim3
     {
         if constexpr(reduction_strategy == StreamKReductionStrategy::Reduction)
         {
@@ -571,14 +581,14 @@ struct StreamKTilePartitioner
      * @brief Get output tile index for standard 2D mapping (compatibility)
      */
     CK_TILE_DEVICE auto GetOutputTileIndex(index_t tile_idx, index_t M, index_t N) const noexcept
-        -> const tuple<index_t, index_t>
+        -> tuple<index_t, index_t>
     {
-        index_t m_tile_idx, n_tile_idx;
-        index_t n_tiles_value = math::integer_divide_ceil(N, NPerBlock);
+        uint32_t m_tile_idx, n_tile_idx;
+        index_t n_tiles_value = integer_divide_ceil(N, NPerBlock);
         n_tiles.divmod(tile_idx, n_tiles_value, m_tile_idx, n_tile_idx);
 
         // swizzle tile
-        index_t m_tiles = math::integer_divide_ceil(M, MPerBlock);
+        index_t m_tiles = integer_divide_ceil(M, MPerBlock);
 
         index_t tile_swizzle_sub_m_rem = m_tiles % tile_swizzle_sub_m;
 
@@ -604,7 +614,7 @@ struct StreamKTilePartitioner
      * @brief Get work range for a given block ID
      */
     CK_TILE_DEVICE void
-    GetBlockItr(index_t block_id, index_t iter_start, index_t iter_end) const noexcept
+    GetBlockItr(index_t block_idx, index_t& iter_start, index_t& iter_end) const noexcept
     {
         if(block_idx < sk_num_big_blocks)
         {
@@ -651,7 +661,6 @@ struct StreamKTilePartitioner
      */
     CK_TILE_DEVICE index_t GetBlockIdx() const noexcept
     {
-        // TODO: swizzle block index for better locality
         return __builtin_amdgcn_readfirstlane(blockIdx.x);
     }
 
@@ -662,10 +671,12 @@ struct StreamKTilePartitioner
                                                 index_t iter_end,
                                                 index_t total_iter_length) const noexcept
     {
-        index_t iter_length_mod, iter_length_quo /*unused*/;
+        uint32_t iter_length_mod, iter_length_quo /*unused*/;
         k_iters_per_tile.divmod(iter_end, iter_length_quo, iter_length_mod);
-        index_t current_iter_length = math::min(
-            iter_length_mod == 0 ? (iter_end - iter_start) : iter_length_mod, total_iter_length);
+        uint32_t total_iter_length_val = static_cast<uint32_t>(total_iter_length);
+        index_t current_iter_length =
+            min(iter_length_mod == 0 ? (iter_end - iter_start) : iter_length_mod,
+                total_iter_length_val);
         return current_iter_length;
     }
 
@@ -683,7 +694,9 @@ struct StreamKTilePartitioner
     CK_TILE_DEVICE void
     GetTileIdxWithOffset(index_t iter, index_t& tile_idx, index_t& iter_offset) const noexcept
     {
-        k_iters_per_tile.divmod(iter, tile_idx, iter_offset);
+        uint32_t tile_idx_val    = static_cast<uint32_t>(tile_idx);
+        uint32_t iter_offset_val = static_cast<uint32_t>(iter_offset);
+        k_iters_per_tile.divmod(iter, tile_idx_val, iter_offset_val);
     }
 
     /**
@@ -716,13 +729,13 @@ struct StreamKTilePartitioner
      * @brief Get location of intersection of tiles for reduction
      */
     CK_TILE_HOST_DEVICE index_t GetTileIntersections(index_t tiles_,
-                                                     const MDiv& eqav_tiles_) const noexcept
+                                                     const mdiv& equiv_tiles_) const noexcept
     {
-        index_t tile_idx_       = tiles_ == 0 ? 0 : (tiles_ - 1);
-        index_t max_eqav_tiles_ = eqav_tiles_.get() - 1;
-        index_t quo_, rem_;
-        eqav_tiles_.divmod(tile_idx_, quo_, rem_);
-        return quo_ * max_eqav_tiles_ + rem_;
+        uint32_t tile_idx_       = tiles_ == 0 ? 0 : (tiles_ - 1);
+        index_t max_equiv_tiles_ = equiv_tiles_.get() - 1;
+        uint32_t quo_, rem_;
+        equiv_tiles_.divmod(tile_idx_, quo_, rem_);
+        return quo_ * max_equiv_tiles_ + rem_;
     }
 
     /**
@@ -741,13 +754,13 @@ struct StreamKTilePartitioner
     CK_TILE_HOST_DEVICE index_t GetTotalAccBuffers() const noexcept
     {
         index_t tiles_cover_big_blocks =
-            GetTileCoverSkBlock(sk_num_big_blocks, k_iters_per_big_block);
+            GetTilesCoverSkBlock(sk_num_big_blocks, k_iters_per_big_block);
         index_t tiles_cover_little_blocks =
-            GetTileCoverSkBlock(sk_num_blocks - sk_num_big_blocks, k_iters_per_big_block - 1);
+            GetTilesCoverSkBlock(sk_num_blocks - sk_num_big_blocks, k_iters_per_big_block - 1);
 
-        index_t total_intersec_big = GetTileIntersections(tiles_cover_big_blocks, eqav_tiles_big);
+        index_t total_intersec_big = GetTileIntersections(tiles_cover_big_blocks, equiv_tiles_big);
         index_t total_intersec_little =
-            GetTileIntersections(tiles_cover_little_blocks, eqav_tiles_little);
+            GetTileIntersections(tiles_cover_little_blocks, equiv_tiles_little);
 
         return sk_num_blocks + total_intersec_big + total_intersec_little;
     }
@@ -757,15 +770,14 @@ struct StreamKTilePartitioner
      */
     CK_TILE_DEVICE index_t GetAccBufferOffsetFromTile(index_t tile_idx_) const noexcept
     {
-        // TODO: from big to little
         index_t tiles_cover_big_blocks =
-            GetTileCoverSkBlock(sk_num_big_blocks, k_iters_per_big_block);
+            GetTilesCoverSkBlock(sk_num_big_blocks, k_iters_per_big_block);
         if(tile_idx_ < tiles_cover_big_blocks)
         {
             index_t touched_sk_blocks =
                 (tile_idx_ * k_iters_per_tile.get() + k_iters_per_big_block - 1) /
                 k_iters_per_big_block;
-            index_t current_intersec = GetTileIntersections(tile_idx_, eqav_tiles_big);
+            index_t current_intersec = GetTileIntersections(tile_idx_, equiv_tiles_big);
             return touched_sk_blocks + current_intersec;
         }
         else
@@ -776,7 +788,7 @@ struct StreamKTilePartitioner
                 (tile_idx_little_reverse * k_iters_per_tile.get() + iters_per_little_sk_block - 1) /
                 iters_per_little_sk_block;
             index_t current_intersec =
-                GetTileIntersections(tile_idx_little_reverse, eqav_tiles_little);
+                GetTileIntersections(tile_idx_little_reverse, equiv_tiles_little);
             return GetTotalAccBuffers() - (touched_sk_blocks + current_intersec);
         }
     }
@@ -792,7 +804,7 @@ struct StreamKTilePartitioner
         {
             index_t touched_tiles    = k_iters_per_tile.div(block_idx_ * iters_per_big_sk_block +
                                                          k_iters_per_tile.get() - 1);
-            index_t current_intersec = GetTileIntersections(touched_tiles, eqav_tiles_big);
+            index_t current_intersec = GetTileIntersections(touched_tiles, equiv_tiles_big);
             return block_idx_ + current_intersec;
         }
         else
@@ -800,7 +812,7 @@ struct StreamKTilePartitioner
             index_t block_idx_little_reverse = sk_num_blocks - block_idx_;
             index_t touched_tiles            = k_iters_per_tile.div(
                 block_idx_little_reverse * iters_per_little_sk_block + k_iters_per_tile.get() - 1);
-            index_t current_intersec = GetTileIntersections(touched_tiles, eqav_tiles_little);
+            index_t current_intersec = GetTileIntersections(touched_tiles, equiv_tiles_little);
             return GetTotalAccBuffers() - (block_idx_little_reverse + current_intersec);
         }
     }
@@ -812,6 +824,7 @@ struct StreamKTilePartitioner
 
     private:
     index_t M_, N_, K_;
+    StreamKReductionStrategy reduction_strategy;
     index_t num_tile_m_, num_tile_n_, num_tile_k_;
 };
 } // namespace ck_tile
