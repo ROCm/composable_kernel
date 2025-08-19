@@ -112,17 +112,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     // 4. Run the kernel
-    float ave_time = launch_kernel(ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
-                                   ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
-                                       Kernel{},
-                                       kGridSize,
-                                       kBlockSize,
-                                       0,             // Shared memory
-                                       op_lengths,    // Logical dimensions for the operation (M, N)
-                                       input_strides, // Strides for input tensor(s)
-                                       output_strides, // Strides for output tensor (N, M)
-                                       input_tensors,
-                                       static_cast<YDataType*>(y_buf.GetDeviceBuffer())));
+    float ave_time = launch_kernel(
+        ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
+        ck_tile::make_kernel<kBlockPerCu>(Kernel{},
+                                          kGridSize,
+                                          kBlockSize,
+                                          0,          // Shared memory
+                                          op_lengths, // Logical dimensions for the operation (M, N)
+                                          input_strides,  // Strides for input tensor(s)
+                                          output_strides, // Strides for output tensor (N, M)
+                                          input_tensors,
+                                          static_cast<YDataType*>(y_buf.GetDeviceBuffer())));
 
     std::cout << "Average time: " << ave_time << " ms" << std::endl;
 

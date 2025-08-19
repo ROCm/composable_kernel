@@ -128,7 +128,7 @@ struct GroupedGemmKernel
     using OffsetTile1DPartitioner = OffsettedTile1DPartitioner<TilePartitioner>;
     using Kernel = GroupedGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline>;
 
-    static constexpr index_t KernelBlockSize  = GemmPipeline::BlockSize;
+    static constexpr index_t kBlockSize       = GemmPipeline::BlockSize;
     static constexpr bool UsePersistentKernel = GemmPipeline::UsePersistentKernel;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
@@ -155,7 +155,7 @@ struct GroupedGemmKernel
         return group_count * sizeof(GemmTransKernelArg);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() -> dim3 { return dim3(KernelBlockSize); }
+    CK_TILE_HOST static constexpr auto BlockSize() -> dim3 { return dim3(kBlockSize); }
 
     /**
      * @brief Get the maximum occupancy grid size for the persistent kernel on the current device.
@@ -166,10 +166,10 @@ struct GroupedGemmKernel
     CK_TILE_HOST static auto MaxOccupancyGridSize(const stream_config& s) -> dim3
     {
         using ConstantPointer = const void CK_CONSTANT_ADDRESS_SPACE*;
-        const auto kernel     = kentry<KernelBlockSize, 1, Kernel, ConstantPointer, index_t>;
+        const auto kernel     = kentry<1, Kernel, ConstantPointer, index_t>;
         int occupancy;
         HIP_CHECK_ERROR(
-            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, KernelBlockSize, 0));
+            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, kBlockSize, 0));
         const int grid_size = get_available_compute_units(s) * occupancy;
         return dim3(grid_size, 1, 1);
     }
