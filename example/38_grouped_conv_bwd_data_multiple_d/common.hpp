@@ -1,5 +1,6 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -32,12 +33,17 @@ using S = ck::Sequence<Is...>;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-static inline constexpr ck::index_t NDimSpatial = 2;
+static inline constexpr ck::index_t NDimSpatial    = 2;
+static inline constexpr ck::index_t NDimSpatial_3D = 3;
 
 static constexpr auto ConvBwdDataDefault =
     ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::Default;
 
+static constexpr auto ConvBwdDataFilter1x1Stride1Pad0 =
+    ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0;
+
 using FP16 = ck::half_t;
+using BF16 = ck::bhalf_t;
 using FP32 = float;
 using FP8  = ck::f8_t;
 using BF8  = ck::bf8_t;
