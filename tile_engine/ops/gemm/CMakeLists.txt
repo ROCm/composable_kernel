@@ -233,6 +233,31 @@ function(create_individual_gemm_target datatype layout trait tile_config)
     add_dependencies(benchmark_gemm_${scheduler} ${target_name})
 endfunction()
 
+# Function to generate dispatcher
+function(generate_dispatcher)
+    # Include the dispatcher generation script
+    include(${CMAKE_CURRENT_LIST_DIR}/generate_dispatcher.cmake)
+    
+    # Create dispatcher library
+    add_library(gemm_dispatcher STATIC
+        ${CMAKE_CURRENT_BINARY_DIR}/gemm_dispatcher.cpp
+    )
+    
+    target_include_directories(gemm_dispatcher PUBLIC
+        ${CMAKE_CURRENT_LIST_DIR}
+        ${CMAKE_CURRENT_BINARY_DIR}
+    )
+    
+    # Link with all generated instances
+    foreach(dt IN LISTS GEMM_DATATYPE)
+        foreach(l IN LISTS GEMM_LAYOUT)
+            if(TARGET gemm_template_instances_${dt}_${l})
+                target_link_libraries(gemm_dispatcher PUBLIC gemm_template_instances_${dt}_${l})
+            endif()
+        endforeach()
+    endforeach()
+endfunction()
+
 # Function to build individual GEMM targets
 function(build_individual_gemm_targets datatype layout)
     set(working_path "${CMAKE_CURRENT_BINARY_DIR}/${datatype}/${layout}")
@@ -344,4 +369,9 @@ if(GEMM_BUILD_INDIVIDUAL)
             build_individual_gemm_targets(${dt} ${l})
         endforeach()
     endforeach()
+endif()
+
+# Generate dispatcher after all targets are defined
+if(GEMM_BUILD_MONOLITHIC OR GEMM_BUILD_INDIVIDUAL)
+    generate_dispatcher()
 endif()
