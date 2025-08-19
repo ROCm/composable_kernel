@@ -140,6 +140,7 @@ auto run(const ck_tile::ArgParser& arg_parser)
     bool lse                         = arg_parser.get_bool("lse");
     ck_tile::index_t page_block_size = arg_parser.get_int("page_block_size");
     bool use_cache_batch_idx         = arg_parser.get_bool("cache_batch_idx");
+    std::string bias_str             = arg_parser.get_str("bias");
     float p_drop                     = arg_parser.get_float("p_drop");
     uint64_t drop_seed               = arg_parser.get_uint64("drop_seed");
     uint64_t drop_offset             = arg_parser.get_uint64("drop_offset");
@@ -161,8 +162,6 @@ auto run(const ck_tile::ArgParser& arg_parser)
         else
             return arg_parser.get_bool("squant");
     }();
-
-    bias_info bias = bias_info::decode(arg_parser.get_str("bias"));
 
     ck_tile::stream_config stream_config{nullptr,
                                          true,
@@ -190,7 +189,7 @@ auto run(const ck_tile::ArgParser& arg_parser)
                                         lse,
                                         page_block_size,
                                         use_cache_batch_idx,
-                                        bias,
+                                        bias_str,
                                         p_drop,
                                         drop_seed,
                                         drop_offset,

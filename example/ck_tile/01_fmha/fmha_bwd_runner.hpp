@@ -62,7 +62,7 @@ bwd_result fmha_bwd_run(mode_enum mode,
                         bool i_perm,
                         bool o_perm,
                         float scale,
-                        const bias_info& bias,
+                        std::string bias_str,
                         bool use_dbias,
                         float p_drop,
                         uint64_t drop_seed,
@@ -100,6 +100,8 @@ bwd_result fmha_bwd_run(mode_enum mode,
 
     if(scale == .0f)
         scale = 1.0 / ck_tile::sqrt(static_cast<float>(hdim_q));
+
+    bias_info bias = bias_info::decode(bias_str);
 
     if(use_dbias && bias.type != bias_enum::elementwise_bias)
     {

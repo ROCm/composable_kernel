@@ -150,7 +150,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         bool lse,
                         ck_tile::index_t page_block_size,
                         bool use_cache_batch_idx,
-                        const bias_info& bias,
+                        std::string bias_str,
                         float p_drop,
                         uint64_t drop_seed,
                         uint64_t drop_offset,
@@ -321,6 +321,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
     if(scale_s == .0f)
         scale_s = 1.0 / ck_tile::sqrt(static_cast<float>(hdim_q)); // TODO: q ? v ?
+
+    bias_info bias = bias_info::decode(bias_str);
 
     mask_info mask =
         mask_info::decode(mask_str, seqlen_qs[0], seqlen_ks[0]); // TODO: we don't need x/y anymore

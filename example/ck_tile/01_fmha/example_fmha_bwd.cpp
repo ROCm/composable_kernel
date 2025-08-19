@@ -100,6 +100,7 @@ auto run(const ck_tile::ArgParser& arg_parser)
     bool i_perm              = arg_parser.get_bool("iperm");
     bool o_perm              = arg_parser.get_bool("operm");
     float scale              = arg_parser.get_float("scale");
+    std::string bias_str     = arg_parser.get_str("bias");
     bool use_dbias           = arg_parser.get_bool("dbias");
     float p_drop             = arg_parser.get_float("p_drop");
     uint64_t drop_seed       = arg_parser.get_uint64("drop_seed");
@@ -109,8 +110,6 @@ auto run(const ck_tile::ArgParser& arg_parser)
     bool deterministic       = arg_parser.get_bool("deterministic");
     std::string init_method  = arg_parser.get_str("init");
     uint32_t seed            = arg_parser.get_uint32("seed");
-
-    bias_info bias = bias_info::decode(arg_parser.get_str("bias"));
 
     ck_tile::stream_config stream_config{nullptr,
                                          true,
@@ -130,7 +129,7 @@ auto run(const ck_tile::ArgParser& arg_parser)
                                         i_perm,
                                         o_perm,
                                         scale,
-                                        bias,
+                                        bias_str,
                                         use_dbias,
                                         p_drop,
                                         drop_seed,

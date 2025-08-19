@@ -75,8 +75,6 @@ TEST_P(AllLong, Test)
     auto [hdim, perm, mode, bias_str, p_drop, dims_mask]       = GetParam();
     auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str] = dims_mask;
 
-    auto bias = bias_info::decode(bias_str);
-
     auto result = fmha_bwd_run<DataTypeConfig>(mode,
                                                batch,
                                                nhead,
@@ -88,7 +86,7 @@ TEST_P(AllLong, Test)
                                                perm,           // i_perm
                                                perm,           // o_perm
                                                0,              // scale
-                                               bias,           // bias
+                                               bias_str,       // bias_str
                                                false,          // use_dbias
                                                p_drop,         // p_drop
                                                123,            // drop_seed
@@ -130,8 +128,6 @@ TEST_P(HDims, Test)
     auto [hdim_q, hdim_v]                                      = hdims;
     auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str] = dims_mask;
 
-    auto bias = bias_info::decode("n");
-
     auto result = fmha_bwd_run<DataTypeConfig>(mode,
                                                batch,
                                                nhead,
@@ -143,7 +139,7 @@ TEST_P(HDims, Test)
                                                perm,           // i_perm
                                                perm,           // o_perm
                                                0,              // scale
-                                               bias,           // bias
+                                               "n",            // bias_str
                                                false,          // use_dbias
                                                0.0f,           // p_drop
                                                0,              // drop_seed
@@ -184,8 +180,6 @@ TEST_P(ElementwiseBias, Test)
     auto [hdim, i_perm, mode, bias_str, use_dbias, dims_mask]  = GetParam();
     auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str] = dims_mask;
 
-    auto bias = bias_info::decode(bias_str);
-
     auto result = fmha_bwd_run<DataTypeConfig>(mode,
                                                batch,
                                                nhead,
@@ -197,7 +191,7 @@ TEST_P(ElementwiseBias, Test)
                                                i_perm,         // i_perm
                                                false,          // o_perm
                                                0,              // scale
-                                               bias,           // bias
+                                               bias_str,       // bias_str
                                                use_dbias,      // use_dbias
                                                0.0f,           // p_drop
                                                123,            // drop_seed
@@ -233,8 +227,6 @@ TEST_P(Alibi, Test)
     auto [hdim, mode, bias_str, dims, mask_str]      = GetParam();
     auto [batch, nhead, nhead_k, seqlen_q, seqlen_k] = dims;
 
-    auto bias = bias_info::decode(bias_str);
-
     auto result = fmha_bwd_run<DataTypeConfig>(mode,
                                                batch,
                                                nhead,
@@ -246,7 +238,7 @@ TEST_P(Alibi, Test)
                                                true,           // i_perm
                                                true,           // o_perm
                                                0,              // scale
-                                               bias,           // bias
+                                               bias_str,       // bias_str
                                                false,          // use_dbias
                                                0.0f,           // p_drop
                                                0,              // drop_seed
@@ -286,8 +278,6 @@ TEST_P(Dropout, Test)
     auto [drop_seed, drop_offset, drop_prefs]                    = drop_seed_offset_prefs;
     auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str]   = dims_mask;
 
-    auto bias = bias_info::decode("n");
-
     auto result = fmha_bwd_run<DataTypeConfig>(mode,
                                                batch,
                                                nhead,
@@ -299,7 +289,7 @@ TEST_P(Dropout, Test)
                                                true,           // i_perm
                                                true,           // o_perm
                                                0.1f,           // scale
-                                               bias,           // bias
+                                               "n",            // bias_str
                                                false,          // use_dbias
                                                p_drop,         // p_drop
                                                drop_seed,      // drop_seed

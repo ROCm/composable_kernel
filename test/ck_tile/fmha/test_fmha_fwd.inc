@@ -89,8 +89,6 @@ TEST_P(AllLong, Test)
     hdim_q = hdim_q == -1 ? hdim : hdim_q;
     hdim_v = hdim_v == -1 ? hdim : hdim_v;
 
-    auto bias = bias_info::decode(bias_str);
-
     auto result = fmha_fwd_run<DataTypeConfig>(mode,
                                                batch,
                                                nhead,
@@ -110,7 +108,7 @@ TEST_P(AllLong, Test)
                                                lse,                   // lse
                                                0,                     // page_block_size
                                                false,                 // use_cache_batch_idx
-                                               bias,                  // bias
+                                               bias_str,              // bias_str
                                                p_drop,                // p_drop
                                                123,                   // drop_seed
                                                1024,                  // drop_offset
@@ -161,8 +159,6 @@ TEST_P(HDims, Test)
     auto [hdim_q, hdim_v]                                                   = hdims;
     auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, seqlen_kpad, mask_str] = dims_mask;
 
-    auto bias = bias_info::decode("n");
-
     auto result = fmha_fwd_run<DataTypeConfig>(mode,
                                                batch,
                                                nhead,
@@ -182,7 +178,7 @@ TEST_P(HDims, Test)
                                                false,                 // lse
                                                0,                     // page_block_size
                                                false,                 // use_cache_batch_idx
-                                               bias,                  // bias
+                                               "n",                   // bias_str
                                                0.0f,                  // p_drop
                                                0,                     // drop_seed
                                                0,                     // drop_offset
@@ -227,8 +223,6 @@ TEST_P(ElementwiseBias, Test)
     auto [hdim, i_perm, mode, bias_str, dims_mask]             = GetParam();
     auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str] = dims_mask;
 
-    auto bias = bias_info::decode(bias_str);
-
     auto result = fmha_fwd_run<DataTypeConfig>(mode,
                                                batch,
                                                nhead,
@@ -248,7 +242,7 @@ TEST_P(ElementwiseBias, Test)
                                                false,                 // lse
                                                0,                     // page_block_size
                                                false,                 // use_cache_batch_idx
-                                               bias,                  // bias
+                                               bias_str,              // bias_str
                                                0.0f,                  // p_drop
                                                0,                     // drop_seed
                                                0,                     // drop_offset
@@ -290,8 +284,6 @@ TEST_P(Alibi, Test)
     auto [hdim, mode, bias_str, dims, mask_str]      = GetParam();
     auto [batch, nhead, nhead_k, seqlen_q, seqlen_k] = dims;
 
-    auto bias = bias_info::decode(bias_str);
-
     auto result = fmha_fwd_run<DataTypeConfig>(mode,
                                                batch,
                                                nhead,
@@ -311,7 +303,7 @@ TEST_P(Alibi, Test)
                                                false,                 // lse
                                                0,                     // page_block_size
                                                false,                 // use_cache_batch_idx
-                                               bias,                  // bias
+                                               bias_str,              // bias_str
                                                0.0f,                  // p_drop
                                                0,                     // drop_seed
                                                0,                     // drop_offset
@@ -357,8 +349,6 @@ TEST_P(Dropout, Test)
     auto [drop_seed, drop_offset, drop_prefs]                    = drop_seed_offset_prefs;
     auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str]   = dims_mask;
 
-    auto bias = bias_info::decode("n");
-
     auto result = fmha_fwd_run<DataTypeConfig>(mode,
                                                batch,
                                                nhead,
@@ -378,7 +368,7 @@ TEST_P(Dropout, Test)
                                                false,                 // lse
                                                0,                     // page_block_size
                                                false,                 // use_cache_batch_idx
-                                               bias,                  // bias
+                                               "n",                   // bias_str
                                                p_drop,                // p_drop
                                                drop_seed,             // drop_seed
                                                drop_offset,           // drop_offset
@@ -426,8 +416,6 @@ TEST_P(PagedKV, Test)
     auto [hdim, i_perm, is_v_rowmajor, mode, page_block_size, dims_mask] = GetParam();
     auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str]           = dims_mask;
 
-    auto bias = bias_info::decode("n");
-
     auto result = fmha_fwd_run<DataTypeConfig>(mode,
                                                batch,
                                                nhead,
@@ -447,7 +435,7 @@ TEST_P(PagedKV, Test)
                                                false,                 // lse
                                                page_block_size,       // page_block_size
                                                false,                 // use_cache_batch_idx
-                                               bias,                  // bias
+                                               "n",                   // bias_str
                                                0.0f,                  // p_drop
                                                0,                     // drop_seed
                                                0,                     // drop_offset
@@ -501,8 +489,6 @@ TEST_P(SplitKV, Test)
     auto [mode, use_cache_batch_idx]                           = mode_use_cache_batch_idx;
     auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str] = dims_mask;
 
-    auto bias = bias_info::decode("e");
-
     auto result = fmha_fwd_run<DataTypeConfig>(mode,
                                                batch,
                                                nhead,
@@ -522,7 +508,7 @@ TEST_P(SplitKV, Test)
                                                true,                  // lse
                                                0,                     // page_block_size
                                                use_cache_batch_idx,   // use_cache_batch_idx
-                                               bias,                  // bias
+                                               "n",                   // bias_str
                                                0.0f,                  // p_drop
                                                0,                     // drop_seed
                                                0,                     // drop_offset
@@ -579,8 +565,6 @@ TEST_P(AppendKV, Test)
     auto [page_block_size, use_cache_batch_idx] = page_block_size_use_cache_batch_idx;
     auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str] = dims_mask;
 
-    auto bias = bias_info::decode("e");
-
     seqlen_knew = seqlen_knew == -1 ? seqlen_k : seqlen_knew;
 
     auto result = fmha_fwd_run<DataTypeConfig>(mode_enum::batch,
@@ -602,7 +586,7 @@ TEST_P(AppendKV, Test)
                                                true,                  // lse
                                                page_block_size,       // page_block_size
                                                use_cache_batch_idx,   // use_cache_batch_idx
-                                               bias,                  // bias
+                                               "n",                   // bias_str
                                                0.0f,                  // p_drop
                                                0,                     // drop_seed
                                                0,                     // drop_offset
@@ -653,8 +637,6 @@ TEST_P(AppendKVRoPE, Test)
     auto [rotary_dim, is_rotary_interleaved]                           = rotary;
     auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str]         = dims_mask;
 
-    auto bias = bias_info::decode("n");
-
     rotary_dim  = rotary_dim == -1 ? hdim : rotary_dim;
     seqlen_knew = seqlen_knew == -1 ? seqlen_k : seqlen_knew;
 
@@ -677,7 +659,7 @@ TEST_P(AppendKVRoPE, Test)
                                                true,                  // lse
                                                0,                     // page_block_size
                                                false,                 // use_cache_batch_idx
-                                               bias,                  // bias
+                                               "n",                   // bias_str
                                                0.0f,                  // p_drop
                                                0,                     // drop_seed
                                                0,                     // drop_offset
