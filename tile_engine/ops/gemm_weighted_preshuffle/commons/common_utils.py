@@ -103,6 +103,90 @@ ELEMENT_SIZE_MAP = {
     "int32": 4,
 }
 
+DATA_TYPE_MAP = {
+    "fp32": "float",
+    "fp16": "ck_tile::half_t",
+    "bf16": "ck_tile::bf16_t",
+    "int8": "ck_tile::int8_t",
+    "fp8": "ck_tile::fp8_t",
+    "bf8": "ck_tile::bf8_t",
+    "int4": "ck_tile::pk_int4_t",
+    "int32": "ck_tile::int32_t",
+}
+
+LAYOUT_MAP = {
+    "r": "ck_tile::tensor_layout::gemm::RowMajor",
+    "c": "ck_tile::tensor_layout::gemm::ColumnMajor",
+}
+
+# [DELETE] Pipelines that are not supported / Keep to move to commons
+PIPELINE_MAP = {
+    "mem": ["ck_tile::BaseGemmPipelineAgBgCrMem", "ck_tile::GemmPipelineAgBgCrMem"],
+    "compv3": [
+        "ck_tile::BaseGemmPipelineAgBgCrCompV3",
+        "ck_tile::GemmPipelineAgBgCrCompV3",
+    ],
+    "compv4": [
+        "ck_tile::BaseGemmPipelineAgBgCrCompV4",
+        "ck_tile::GemmPipelineAgBgCrCompV4",
+    ],
+    "preshufflev1": [
+        "ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV1",
+        "ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV1",
+    ],
+    "preshufflev2": [
+        "ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2",
+        "ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2",
+    ],
+}
+
+SCHEDULER_MAP = {
+    "interwave": "ck_tile::GemmPipelineScheduler::Interwave",
+    "intrawave": "ck_tile::GemmPipelineScheduler::Intrawave",
+}
+
+# {DELETE] Epilogue has to be moved to the ops folder only
+DEFAULT_EPILOGUE = """
+            using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
+                                ck_tile::DefaultGemm2DEpilogueProblem<ADataType,
+                                                                      BDataType,
+                                                                      AccDataType,
+                                                                      CDataType,
+                                                                      CLayout,
+                                                                      kPadM,
+                                                                      kPadN,
+                                                                      WarpTileM,
+                                                                      WarpTileN,
+                                                                      WarpTileK,
+                                                                      UniversalGemmProblem::TransposeC,
+                                                                      true,
+                                                                      memory_operation>>;
+"""
+
+CSHUFFLE_EPILOGUE = """
+            using GemmEpilogue = ck_tile::CShuffleEpilogue<
+                            ck_tile::CShuffleEpilogueProblem<ADataType,
+                                                             BDataType,
+                                                             ck_tile::tuple<>,
+                                                             AccDataType,
+                                                             CDataType,
+                                                             ck_tile::tuple<>,
+                                                             CLayout,
+                                                             ck_tile::element_wise::PassThrough,
+                                                             GemmPipelineProblem::kBlockSize,
+                                                             TilePartitioner::MPerBlock,
+                                                             TilePartitioner::NPerBlock,
+                                                             WarpM,
+                                                             WarpN,
+                                                             WarpTileM,
+                                                             WarpTileN,
+                                                             WarpTileK,
+                                                             UniversalGemmProblem::TransposeC,
+                                                             memory_operation>>;
+"""
+
+EPILOGUE_MAP = {"default": DEFAULT_EPILOGUE, "cshuffle": CSHUFFLE_EPILOGUE}
+
 
 def BOOL_MAP(b_):
     return {True: "true", False: "false"}[bool(b_)]
