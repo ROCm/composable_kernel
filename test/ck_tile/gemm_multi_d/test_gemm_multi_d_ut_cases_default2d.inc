@@ -1,6 +1,6 @@
 #pragma once
 
-TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1_256x512x256)
+TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1Default_256x512x256)
 {
     constexpr int M      = 256;
     constexpr int N      = 512;
@@ -10,7 +10,7 @@ TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1_256x512x256)
     EXPECT_EQ(this->Run(M, N, K, kBatch), true);
 }
 
-TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1_512x256x256)
+TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1Default_512x256x256)
 {
     constexpr int M      = 512;
     constexpr int N      = 256;
@@ -20,7 +20,7 @@ TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1_512x256x256)
     EXPECT_EQ(this->Run(M, N, K, kBatch), true);
 }
 
-TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1_512x512x256)
+TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1Default_512x512x256)
 {
     constexpr int M      = 512;
     constexpr int N      = 512;
@@ -30,7 +30,7 @@ TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1_512x512x256)
     EXPECT_EQ(this->Run(M, N, K, kBatch), true);
 }
 
-TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1_256x256x256)
+TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1Default_256x256x256)
 {
     constexpr int M      = 256;
     constexpr int N      = 256;
@@ -40,7 +40,7 @@ TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1_256x256x256)
     EXPECT_EQ(this->Run(M, N, K, kBatch), true);
 }
 
-TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1_512x768x256)
+TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1Default_512x768x256)
 {
     constexpr int M      = 512;
     constexpr int N      = 768;
@@ -50,7 +50,7 @@ TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1_512x768x256)
     EXPECT_EQ(this->Run(M, N, K, kBatch), true);
 }
 
-TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1_512x1280x256)
+TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1Default_512x1280x256)
 {
     constexpr int M      = 512;
     constexpr int N      = 1280;
@@ -60,7 +60,7 @@ TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1_512x1280x256)
     EXPECT_EQ(this->Run(M, N, K, kBatch), true);
 }
 
-TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1_256x1280x256)
+TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1Default_256x1280x256)
 {
     constexpr int M      = 256;
     constexpr int N      = 1280;
@@ -70,7 +70,7 @@ TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1_256x1280x256)
     EXPECT_EQ(this->Run(M, N, K, kBatch), true);
 }
 
-TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1_768x512x256)
+TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1Default_768x512x256)
 {
     constexpr int M      = 768;
     constexpr int N      = 512;
@@ -80,7 +80,7 @@ TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1_768x512x256)
     EXPECT_EQ(this->Run(M, N, K, kBatch), true);
 }
 
-TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1_1280x512x256)
+TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1Default_1280x512x256)
 {
     constexpr int M      = 1280;
     constexpr int N      = 512;
@@ -90,7 +90,7 @@ TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1_1280x512x256)
     EXPECT_EQ(this->Run(M, N, K, kBatch), true);
 }
 
-TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1_1280x256x256)
+TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1Default_1280x256x256)
 {
     constexpr int M      = 1280;
     constexpr int N      = 256;
@@ -100,7 +100,7 @@ TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch1_1280x256x256)
     EXPECT_EQ(this->Run(M, N, K, kBatch), true);
 }
 
-TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2_512x512x512)
+TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2Default_512x512x512)
 {
     constexpr int M      = 512;
     constexpr int N      = 512;
@@ -110,7 +110,7 @@ TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2_512x512x512)
     EXPECT_THROW(this->Run(M, N, K, kBatch), std::runtime_error);
 }
 
-TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2_256x512x256)
+TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2Default_256x512x256)
 {
     constexpr int M      = 256;
     constexpr int N      = 512;
@@ -120,7 +120,7 @@ TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2_256x512x256)
     EXPECT_THROW(this->Run(M, N, K, kBatch), std::runtime_error);
 }
 
-TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2_512x256x256)
+TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2Default_512x256x256)
 {
     constexpr int M      = 512;
     constexpr int N      = 256;
@@ -130,7 +130,7 @@ TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2_512x256x256)
     EXPECT_THROW(this->Run(M, N, K, kBatch), std::runtime_error);
 }
 
-TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2_512x512x256)
+TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2Default_512x512x256)
 {
     constexpr int M      = 512;
     constexpr int N      = 512;
@@ -140,7 +140,7 @@ TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2_512x512x256)
     EXPECT_THROW(this->Run(M, N, K, kBatch), std::runtime_error);
 }
 
-TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2_256x256x256)
+TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2Default_256x256x256)
 {
     constexpr int M      = 256;
     constexpr int N      = 256;
@@ -150,7 +150,7 @@ TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2_256x256x256)
     EXPECT_THROW(this->Run(M, N, K, kBatch), std::runtime_error);
 }
 
-TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2_512x768x256)
+TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2Default_512x768x256)
 {
     constexpr int M      = 512;
     constexpr int N      = 768;
@@ -160,7 +160,7 @@ TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2_512x768x256)
     EXPECT_THROW(this->Run(M, N, K, kBatch), std::runtime_error);
 }
 
-TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2_512x1280x256)
+TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2Default_512x1280x256)
 {
     constexpr int M      = 512;
     constexpr int N      = 1280;
@@ -170,7 +170,7 @@ TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2_512x1280x256)
     EXPECT_THROW(this->Run(M, N, K, kBatch), std::runtime_error);
 }
 
-TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2_256x1280x256)
+TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2Default_256x1280x256)
 {
     constexpr int M      = 256;
     constexpr int N      = 1280;
@@ -180,7 +180,7 @@ TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2_256x1280x256)
     EXPECT_THROW(this->Run(M, N, K, kBatch), std::runtime_error);
 }
 
-TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2_768x512x256)
+TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2Default_768x512x256)
 {
     constexpr int M      = 768;
     constexpr int N      = 512;
@@ -190,7 +190,7 @@ TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2_768x512x256)
     EXPECT_THROW(this->Run(M, N, K, kBatch), std::runtime_error);
 }
 
-TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2_1280x512x256)
+TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2Default_1280x512x256)
 {
     constexpr int M      = 1280;
     constexpr int N      = 512;
@@ -200,7 +200,7 @@ TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2_1280x512x256)
     EXPECT_THROW(this->Run(M, N, K, kBatch), std::runtime_error);
 }
 
-TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2_1280x256x256)
+TYPED_TEST(TestCkTileGemmMultiD, TestCkTileGemmMultiDKBatch2Default_1280x256x256)
 {
     constexpr int M      = 1280;
     constexpr int N      = 256;

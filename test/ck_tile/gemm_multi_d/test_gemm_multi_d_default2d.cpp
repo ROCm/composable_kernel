@@ -20,11 +20,17 @@ using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 using KernelTypes = ::testing::Types<
     // Has cshuffle epilogue disabled
     //          ALayout, BLayout, CLayout, D0Layout, D1Layout, ADataType, BDataType, D0DataType,  D1DataType, AccDataType, EDataType, CDElementWiseFn,   UseCshuffleEpilog
+    std::tuple<    Row,     Col,     Row,     Row,      Row,      F16,       F16,          F32,        F32,        F32,      F16,     ElementWiseAddAdd, std::false_type>,
+    std::tuple<    Row,     Col,     Row,     Row,      Row,      F16,       F16,          F32,        F32,        F32,      F16,     ElementWiseAddAdd, std::false_type>,
+    std::tuple<    Row,     Col,     Row,     Row,      Row,      F8,        F8,           BF16,       BF16,       F32,      F32,     ElementWiseAddAdd, std::false_type>,
     std::tuple<    Row,     Col,     Row,     Row,      Row,      F16,       F16,          F32,        F32,        F32,      F32,     ElementWiseAddAdd, std::false_type>,
     std::tuple<    Row,     Col,     Row,     Row,      Row,      F16,       F16,          BF16,       BF16,       F32,      BF16,    ElementWiseAddAdd, std::false_type>,
     std::tuple<    Row,     Col,     Row,     Row,      Row,      F8,        F8,           BF16,       BF16,       F32,      BF16,    ElementWiseAddAdd, std::false_type>,
     std::tuple<    Row,     Col,     Row,     Row,      Row,      F8,        F8,           F16,        F16,        F32,      F16,     ElementWiseAddAdd, std::false_type>,
 
+    std::tuple<    Row,     Col,     Row,     Row,      Row,      F16,       F16,          F16,        F16,        F32,      F16,     MultiplyMultiply,  std::false_type>,
+    std::tuple<    Row,     Col,     Row,     Row,      Row,      F16,       F16,          F32,        F32,        F32,      F16,     MultiplyMultiply,  std::false_type>,
+    std::tuple<    Row,     Col,     Row,     Row,      Row,      F8,        F8,           BF16,       BF16,       F32,      F32,     MultiplyMultiply,  std::false_type>,
     std::tuple<    Row,     Col,     Row,     Row,      Row,      F16,       F16,          F32,        F32,        F32,      F32,     MultiplyMultiply,  std::false_type>,
     std::tuple<    Row,     Col,     Row,     Row,      Row,      F16,       F16,          BF16,       BF16,       F32,      BF16,    MultiplyMultiply,  std::false_type>,
     std::tuple<    Row,     Col,     Row,     Row,      Row,      F8,        F8,           BF16,       BF16,       F32,      BF16,    MultiplyMultiply,  std::false_type>,
