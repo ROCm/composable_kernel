@@ -1,8 +1,8 @@
 
 set(GEMM_DATATYPE "fp8;fp16" CACHE STRING "List of datatypes for GEMM (semicolon-separated)")
 set(GEMM_LAYOUT "rcr" CACHE STRING "List of layout for GEMM (semicolon-separated)")
-option(GEMM_BUILD_INDIVIDUAL "Build individual GEMM targets" OFF)
-option(GEMM_BUILD_MONOLITHIC "Build monolithic GEMM targets" ON)
+option(GEMM_BUILD_INDIVIDUAL "Build individual GEMM targets" ON)
+option(GEMM_BUILD_MONOLITHIC "Build monolithic GEMM targets" OFF)
 
 function(build_gemm_for_datatype datatype layout)
     set(working_path "${CMAKE_CURRENT_BINARY_DIR}/${datatype}/${layout}")
