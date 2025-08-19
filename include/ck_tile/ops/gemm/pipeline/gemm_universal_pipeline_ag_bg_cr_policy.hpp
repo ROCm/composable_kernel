@@ -365,7 +365,7 @@ struct UniversalGemmBasePolicy
 
                 return b_lds_block_desc_nk;
             }
-            else  // B is Column Major
+            else // B is Column Major
             {
                 constexpr index_t KPack     = GetSmemPackB<Problem>();
                 constexpr auto BK0          = number<KPerBlock / KPack>{};
