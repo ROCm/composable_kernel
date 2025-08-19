@@ -379,9 +379,10 @@ enum StreamKReductionStrategy : uint32_t
  * improving load balancing especially for cases where the K dimension is large.
  */
 template <typename BlockGemmShape_,
-          uint32_t TileSwizzleSubM_ = 8,
-          index_t GroupNum          = 8,
-          index_t M01_              = 4>
+          StreamKReductionStrategy ReductionStrategy_ = StreamKReductionStrategy::Atomic,
+          uint32_t TileSwizzleSubM_                   = 8,
+          index_t GroupNum                            = 8,
+          index_t M01_                                = 4>
 struct StreamKTilePartitioner
 {
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
@@ -389,6 +390,7 @@ struct StreamKTilePartitioner
     static constexpr index_t MPerBlock          = BlockGemmShape::kM;
     static constexpr index_t NPerBlock          = BlockGemmShape::kN;
     static constexpr index_t KPerBlock          = BlockGemmShape::kK;
+    StreamKReductionStrategy reduction_strategy = ReductionStrategy_;
     static constexpr index_t tile_swizzle_sub_m = TileSwizzleSubM_;
 
     index_t sk_num_blocks;
@@ -406,15 +408,13 @@ struct StreamKTilePartitioner
     /**
      * @brief Construct Stream-K tile partitioner with problem dimensions
      */
-    CK_TILE_HOST_DEVICE StreamKTilePartitioner(
-        index_t M,
-        index_t N,
-        index_t K,
-        index_t num_cu,
-        index_t occupancy,
-        index_t sk_blocks                            = -1,
-        StreamKReductionStrategy reduction_strategy_ = StreamKReductionStrategy::Atomic) noexcept
-        : M_(M), N_(N), K_(K), reduction_strategy(reduction_strategy_)
+    CK_TILE_HOST_DEVICE StreamKTilePartitioner(index_t M,
+                                               index_t N,
+                                               index_t K,
+                                               index_t num_cu,
+                                               index_t occupancy,
+                                               index_t sk_blocks = -1) noexcept
+        : M_(M), N_(N), K_(K)
     {
         num_tile_m_ = (M + MPerBlock - 1) / MPerBlock;
         num_tile_n_ = (N + NPerBlock - 1) / NPerBlock;
@@ -571,7 +571,7 @@ struct StreamKTilePartitioner
     /**
      * @brief Calculate number of loop iterations over K dimension for given work unit
      */
-    CK_TILE_HOST_DEVICE auto GetLoopNum(index_t K) const noexcept -> index_t
+    CK_TILE_HOST_DEVICE static auto GetLoopNum(index_t K) noexcept -> index_t
     {
         return integer_divide_ceil(K, KPerBlock); // Stream-K processes one K-slice at a time
     }
@@ -824,7 +824,6 @@ struct StreamKTilePartitioner
 
     private:
     index_t M_, N_, K_;
-    StreamKReductionStrategy reduction_strategy;
     index_t num_tile_m_, num_tile_n_, num_tile_k_;
 };
 } // namespace ck_tile
