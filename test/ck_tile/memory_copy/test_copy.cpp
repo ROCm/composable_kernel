@@ -76,17 +76,17 @@ class TestCkTileMemoryCopy : public ::testing::TestWithParam<std::tuple<int, int
         constexpr ck_tile::index_t kBlockSize  = 128;
         constexpr ck_tile::index_t kBlockPerCu = 1;
 
-        auto ms = launch_kernel(ck_tile::stream_config{nullptr, true},
-                                ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
-                                    Kernel{},
-                                    kGridSize,
-                                    kBlockSize,
-                                    0,
-                                    static_cast<XDataType*>(x_buf.GetDeviceBuffer()),
-                                    static_cast<YDataType*>(y_buf.GetDeviceBuffer()),
-                                    m,
-                                    n,
-                                    warp_id));
+        auto ms = launch_kernel(
+            ck_tile::stream_config{nullptr, true},
+            ck_tile::make_kernel<kBlockPerCu>(Kernel{},
+                                              kGridSize,
+                                              kBlockSize,
+                                              0,
+                                              static_cast<XDataType*>(x_buf.GetDeviceBuffer()),
+                                              static_cast<YDataType*>(y_buf.GetDeviceBuffer()),
+                                              m,
+                                              n,
+                                              warp_id));
 
         auto bytes = 2 * m * n * sizeof(DataType);
         std::cout << "elapsed: " << ms << " (ms)" << std::endl;

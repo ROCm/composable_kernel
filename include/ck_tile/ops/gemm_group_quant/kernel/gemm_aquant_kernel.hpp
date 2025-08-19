@@ -99,15 +99,15 @@ struct AQuantGemmKernelArgs
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
 struct AQuantGemmKernel
 {
-    using TilePartitioner                    = remove_cvref_t<TilePartitioner_>;
-    using GemmPipeline                       = remove_cvref_t<GemmPipeline_>;
-    using EpiloguePipeline                   = remove_cvref_t<EpiloguePipeline_>;
-    using ALayout                            = remove_cvref_t<typename GemmPipeline::ALayout>;
-    using AQLayout                           = remove_cvref_t<typename GemmPipeline::AQLayout>;
-    using BLayout                            = remove_cvref_t<typename GemmPipeline::BLayout>;
-    using CLayout                            = remove_cvref_t<typename GemmPipeline::CLayout>;
-    static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
-    static constexpr bool Preshuffle         = GemmPipeline::Preshuffle;
+    using TilePartitioner               = remove_cvref_t<TilePartitioner_>;
+    using GemmPipeline                  = remove_cvref_t<GemmPipeline_>;
+    using EpiloguePipeline              = remove_cvref_t<EpiloguePipeline_>;
+    using ALayout                       = remove_cvref_t<typename GemmPipeline::ALayout>;
+    using AQLayout                      = remove_cvref_t<typename GemmPipeline::AQLayout>;
+    using BLayout                       = remove_cvref_t<typename GemmPipeline::BLayout>;
+    using CLayout                       = remove_cvref_t<typename GemmPipeline::CLayout>;
+    static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
+    static constexpr bool Preshuffle    = GemmPipeline::Preshuffle;
 
     using ADataType  = remove_cvref_t<typename GemmPipeline::ADataType>;
     using AQDataType = remove_cvref_t<typename GemmPipeline::AQDataType>;
@@ -131,7 +131,7 @@ struct AQuantGemmKernel
         return dim3(TilePartitioner::GridSize(M, N), 1, KBatch);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
+    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
 
     CK_TILE_HOST static constexpr AQuantGemmKernelArgs
     MakeKernelArgs(const AQuantGemmHostArgs& hostArgs)
