@@ -76,6 +76,20 @@ static void add_perf_to_json(rapidjson::Writer<rapidjson::StringBuffer>& writer,
     writer.EndArray();
 }
 
+// Helper traits to check for static member existence
+template <typename T, typename = void>
+struct has_warp_tile_members : std::false_type
+{
+};
+
+template <typename T>
+struct has_warp_tile_members<
+    T,
+    std::void_t<decltype(T::M_Warp_Tile), decltype(T::N_Warp_Tile), decltype(T::K_Warp_Tile)>>
+    : std::true_type
+{
+};
+
 template <typename ALayout,
           typename BLayout,
           typename CLayout,
@@ -117,6 +131,14 @@ void dump_gemm_json_results(const std::string& json_filename,
     ADD_KEY_VALUE("B_type", TraitsBDataType::name);
     ADD_KEY_VALUE("C_type", TraitsCDataType::name);
     ADD_KEY_VALUE("structured_sparsity", GemmConfig::UseStructuredSparsity ? "on" : "off");
+
+    if constexpr(has_warp_tile_members<GemmConfig>::value)
+    {
+        ADD_KEY_VALUE("warp_tile",
+                      std::to_string(GemmConfig::M_Warp_Tile) + "x" +
+                          std::to_string(GemmConfig::N_Warp_Tile) + "x" +
+                          std::to_string(GemmConfig::K_Warp_Tile));
+    }
     ADD_KEY_VALUE("persistent", persistent ? "on" : "off");
     ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
     ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec);
