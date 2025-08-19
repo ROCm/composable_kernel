@@ -42,7 +42,7 @@ class TestBatchedGemmBScale : public testing::Test
     static constexpr bool bench_             = false; // measure kernel performance
     std::vector<int> k_batches_;
 
-    void SetUp() override { k_batches_ = {1}; }
+    void SetUp() override { k_batches_ = {1, 2}; }
 
     void Run(const int M,
              const int N,

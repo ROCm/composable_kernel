@@ -121,7 +121,7 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
     // also, the random number seem to be for a int4_2 type, so we use range 0...255
     default:
         a_g_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        b_g_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{0, 256});
+        b_g_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-1, 2});
         b1_g_k_n.GenerateTensorValue(GeneratorTensor_3<BScaleDataType>{0, 1.0});
     }
 
@@ -172,6 +172,7 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
 
                 for(int k = 0; k < K; k++)
                 {
+
                     // for proper testing, we need to replicate k_shuffle when used
                     // see unary_element_wise_operation.hpp
 #if CK_USE_PK4_LAYOUT_SHUFFLE
@@ -187,6 +188,7 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
                     else
                         i4 = (i4x2.data >> 4) & 0xf;
                     i4 = i4 - 8;
+
                     v_b = ck::type_convert<float>(i4);
 
                     float out = 
@@ -360,7 +362,6 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
 
                 if(do_verification)
                 {
-                    c_device_buf.FromDevice(c_g_m_n_device_result.mData.data());
                     c_device_buf.FromDevice(c_g_m_n_device_result.mData.data());
 
 
