@@ -7,7 +7,7 @@ This folder contains example for FLATMM using ck_tile tile-programming implement
 # in the root of ck_tile
 mkdir build && cd build
 # you can replace <arch> with the appropriate architecture (for example gfx90a or gfx942) or leave it blank
-sh ../script/cmake-ck-dev.sh  ../ <arch>
+../script/cmake-ck-dev.sh  ../ <arch>
 # The basic pipeline method on the flatmm calculation
 make tile_example_flatmm_basic -j
 ```

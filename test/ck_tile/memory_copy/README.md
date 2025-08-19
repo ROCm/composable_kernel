@@ -12,7 +12,7 @@ is moved to output DRAM window for a simple copy operation.
 mkdir build && cd build
 # you can replace <arch> with the appropriate architecture 
 # (for example gfx90a or gfx942) or leave it blank
-sh ../script/cmake-ck-dev.sh  ../ <arch>
+../script/cmake-ck-dev.sh  ../ <arch>
 # Make the copy kernel executable
 make test_copy -j
 ```

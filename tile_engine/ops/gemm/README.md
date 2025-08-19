@@ -20,7 +20,7 @@ mkdir build && cd build
 # replace [Arch] with the appropriate architecture or leave blank and 
 # replace [Datatype1;Datatype2;...] in comma separated datatypes string (possible datatypes are [fp8, bf8, int8, fp16, bf16])
 # replace [Layout1;Layout2;...] in comma separated datatypes string (possible layouts are [rcr, rrr, crr, ccr])
-sh ../script/cmake-ck-dev.sh  ../ [Arch] -DGEMM_DATATYPE="[Datatype1;Datatype2]" -DGEMM_LAYOUT="[Layout1;Layout2]"
+../script/cmake-ck-dev.sh  ../ [Arch] -DGEMM_DATATYPE="[Datatype1;Datatype2]" -DGEMM_LAYOUT="[Layout1;Layout2]"
 # generate different executable for each passed datatype
 make benchmark_gemm_[Datatype1]_[Layout1] -j
 make benchmark_gemm_[Datatype1]_[Layout2] -j
@@ -38,7 +38,7 @@ rm -rf tile_engine/ && make benchmark_gemm_[Datatypes]_[Layout] -j  # rebuild
 ## For eaxmple build for gfx942 for fp8 and fp16 datatypes with rcr layout
 ``` bash
 mkdir build && cd build
-sh ../script/cmake-ck-dev.sh  ../ gfx942 -DGEMM_DATATYPE="fp8;fp16" -DGEMM_LAYOUT="rcr" 
+../script/cmake-ck-dev.sh  ../ gfx942 -DGEMM_DATATYPE="fp8;fp16" -DGEMM_LAYOUT="rcr" 
 make benchmark_gemm_fp8_rcr -j
 make benchmark_gemm_fp16_rcr -j
 ```
