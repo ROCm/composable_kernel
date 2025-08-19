@@ -677,12 +677,15 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             block_gemm(
                 c_block_tile, aq_block_tiles.get(I0{}), a_lds_gemm_window, b_lds_gemm_window);
 
-            Base::LocalPrefill(a_copy_lds_window, a_block_tiles.get(I1{}), a_element_func);
-            Base::LocalPrefill(b_copy_lds_window, b_block_tiles.get(I1{}), b_element_func);
-            block_sync_lds();
-            block_gemm(
-                c_block_tile, aq_block_tiles.get(I1{}), a_lds_gemm_window, b_lds_gemm_window);
-
+            // Only do second iteration if we have even tail numbers
+            if constexpr(TailNum == TailNumber::Even || TailNum == TailNumber::Full)
+            {
+                Base::LocalPrefill(a_copy_lds_window, a_block_tiles.get(I1{}), a_element_func);
+                Base::LocalPrefill(b_copy_lds_window, b_block_tiles.get(I1{}), b_element_func);
+                block_sync_lds();
+                block_gemm(
+                    c_block_tile, aq_block_tiles.get(I1{}), a_lds_gemm_window, b_lds_gemm_window);
+            }
             return c_block_tile;
         }
     };

@@ -214,9 +214,15 @@ int run_gemm_example_with_layouts(int argc,
     }
     else if(init_method == 2)
     {
-        ck_tile::FillConstant<ADataType>{ck_tile::type_convert<ADataType>(1.5f)}(a_m_k);
-        ck_tile::FillConstant<AQDataType>{ck_tile::type_convert<AQDataType>(1.1f)}(aq_m_aqk);
-        ck_tile::FillConstant<BDataType>{ck_tile::type_convert<BDataType>(2.0f)}(b_k_n);
+        ck_tile::FillConstant<ADataType>{ck_tile::type_convert<ADataType>(1.3f)}(a_m_k);
+        // ck_tile::FillConstant<AQDataType>{ck_tile::type_convert<AQDataType>(1.1f)}(aq_m_aqk);
+        float value = 1.0f;
+        for(auto&& aq : aq_m_aqk)
+        {
+            aq = ck_tile::type_convert<AQDataType>(value);
+            value += 0.1f;
+        }
+        ck_tile::FillConstant<BDataType>{ck_tile::type_convert<BDataType>(1.2f)}(b_k_n);
 
 #if CK_TILE_LOGGING_ENABLED
         // print first 10 elements

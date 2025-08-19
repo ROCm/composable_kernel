@@ -16,7 +16,7 @@
 #define CK_TILE_PIPELINE_COMPUTE_V4 3
 #define CK_TILE_PIPELINE_COMPUTE_V5 4
 #define CK_TILE_PIPELINE_PRESHUFFLE 5
-#define CK_TILE_LOGGING_ENABLED 1
+#define CK_TILE_LOGGING_ENABLED 0
 
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile()
@@ -649,7 +649,7 @@ auto create_args(int argc, char* argv[])
         .insert("repeat", "1000", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("split_k", "1", "splitK value")
-        .insert("init", "2", "0:random, 1:linear, 2:constant(1)")
+        .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
         .insert("persistent", "0", "0:non-persistent, 1:persistent")
         .insert("as_br_cr", "false", "Choose between as_br_cr and as_bs_cr");
 

@@ -82,8 +82,9 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
 
 #if CK_TILE_LOGGING_ENABLED
     std::cout << "K_split: " << K_split << std::endl;
-    std::cout << "num_loop: " << num_loop << std::endl;
-    std::cout << "has_hot_loop: " << (has_hot_loop ? "true" : "false") << std::endl;
+    std::cout << "num_loop: (K/KPerBlock) " << num_loop << std::endl;
+    std::cout << "has_hot_loop (num_loop > PrefetchStages): " << (has_hot_loop ? "true" : "false")
+              << std::endl;
     std::cout << "tail_num: " << tail_num << std::endl;
     std::cout << "transposed_warp_gemm: " << (transposed_warp_gemm ? "true" : "false") << std::endl;
 #endif
@@ -227,29 +228,29 @@ int run_gemm_example(int argc, char* argv[])
         return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
-    // else if(data_type == "i4bf8")
-    // {
-    //     using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t,
-    //                                                     ck_tile::bf8_t,
-    //                                                     float,
-    //                                                     ck_tile::bf8_t>{});
-    //     return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, TypeConfig, 128>(
-    //         a_layout, b_layout, argc, argv);
-    // }
-    // else if(data_type == "i4f32fp8")
-    // {
-    //     using TypeConfig =
-    //         decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::fp8_t, float, float>{});
-    //     return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, TypeConfig, 128>(
-    //         a_layout, b_layout, argc, argv);
-    // }
-    // else if(data_type == "i4f32bf8")
-    // {
-    //     using TypeConfig =
-    //         decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::bf8_t, float, float>{});
-    //     return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, TypeConfig, 128>(
-    //         a_layout, b_layout, argc, argv);
-    // }
+    else if(data_type == "i4bf8")
+    {
+        using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t,
+                                                        ck_tile::bf8_t,
+                                                        float,
+                                                        ck_tile::bf8_t>{});
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, TypeConfig, 128>(
+            a_layout, b_layout, argc, argv);
+    }
+    else if(data_type == "i4f32fp8")
+    {
+        using TypeConfig =
+            decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::fp8_t, float, float>{});
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, TypeConfig, 128>(
+            a_layout, b_layout, argc, argv);
+    }
+    else if(data_type == "i4f32bf8")
+    {
+        using TypeConfig =
+            decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::bf8_t, float, float>{});
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, TypeConfig, 128>(
+            a_layout, b_layout, argc, argv);
+    }
     else
     {
         throw std::runtime_error("Unsupported data type for this operation !!!");

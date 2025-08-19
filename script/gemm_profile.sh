@@ -1,8 +1,8 @@
 #!/bin/bash
 
-BIN=./bin/tile_example_gemm_weight_preshuffle
-PREC=fp8
-VERBOSITY=2
+BIN=./bin/tile_example_gemm_aquant_basic
+PREC=i4fp8
+VERBOSITY=1
 
 # List of all (m, n, k) triplets
 ARGS_LIST=(
@@ -38,12 +38,6 @@ ARGS_LIST=(
   "15 5120 1024"
   "16 2048 5120"
   "16 5120 1024"
-  "2048 5120 1024"
-  "2048 5120 8192"
-  "2048 7168 8192"
-  "2048 8192 3584"
-  "16384 7168 8192"
-  "16384 8192 3584"
 )
 
 # Output file
@@ -57,7 +51,7 @@ for args in "${ARGS_LIST[@]}"; do
   read -r m n k <<< "$args"
 
   echo "Testing: m=$m, n=$n, k=$k"
-  OUTPUT=$($BIN -m=$m -n=$n -k=$k -prec=$PREC -v=$VERBOSITY 2>/dev/null)
+  OUTPUT=$($BIN -m=$m -n=$n -k=$k -prec=$PREC -v=$VERBOSITY 2>&1)
 
   # Extract pipeline information
   # Format: "Launching kernel with args: gemm_fp8_pipeline_AGmemBGmemCRegV2_128x256x256x256_16x16x128_16x16_0x0x0"
@@ -69,7 +63,16 @@ for args in "${ARGS_LIST[@]}"; do
 
   # Extract verification result
   # Format: "The GPU verification result is: correct"
-  VERIFICATION=$(echo "$OUTPUT" | grep "The GPU verification result is:" | sed -n 's/.*The GPU verification result is: \(.*\)/\1/p')
+  # Check for verification result - look for either success or error messages
+  if echo "$OUTPUT" | grep -q "Error: Incorrect results!"; then
+    VERIFICATION="FAILED"
+  elif echo "$OUTPUT" | grep -q "Passed!"; then
+    VERIFICATION="PASS"
+  else
+    VERIFICATION="UNKNOWN"
+  fi
+  
+
 
   if [ -n "$PERF_LINE" ]; then
     # Extract execution time in ms
@@ -89,6 +92,7 @@ for args in "${ARGS_LIST[@]}"; do
     echo "  Time: ${TIME_MS} ms"
     echo "  TFlops: ${TFLOPS}"
     echo "  GB/s: ${GBPS}"
+    echo "  Verification: $VERIFICATION"
 
     
     # Save to CSV file
