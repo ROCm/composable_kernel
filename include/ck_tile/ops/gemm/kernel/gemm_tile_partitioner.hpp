@@ -413,7 +413,7 @@ struct StreamKTilePartitioner
         index_t K,
         index_t num_cu,
         index_t occupancy,
-        index_t sk_blocks                            = 0xffffffff,
+        index_t sk_blocks                            = -1,
         StreamKReductionStrategy reduction_strategy_ = StreamKReductionStrategy::Atomic) noexcept
         : M_(M), N_(N), K_(K), reduction_strategy(reduction_strategy_)
     {
