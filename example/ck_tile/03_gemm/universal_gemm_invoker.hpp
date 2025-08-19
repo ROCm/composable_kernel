@@ -111,16 +111,9 @@ struct UniversalInvoker
             using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
 
-            dim3 grids;
-            if constexpr(Persistent)
-            {
-                grids = Kernel::MaxOccupancyGridSize(s);
-            }
-            else
-            {
-                grids = Kernel::GridSize(args.M, args.N, args.k_batch);
-            }
-            dim3 blocks = Kernel::BlockSize();
+            const dim3 grids  = Persistent ? Kernel::MaxOccupancyGridSize(s)
+                                           : Kernel::GridSize(args.M, args.N, args.k_batch);
+            const dim3 blocks = Kernel::BlockSize();
 
             if(!Kernel::IsSupportedArgument(kargs))
             {
