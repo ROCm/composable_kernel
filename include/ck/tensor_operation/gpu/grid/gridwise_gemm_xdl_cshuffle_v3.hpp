@@ -44,10 +44,11 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         is_gfx950_build = false,
 #endif
     };
-    // skip building the instances with K1>=32 on pre-gfx950
-    if constexpr(((GridwiseGemm::AK1Number >= 32 || GridwiseGemm::BK1Number >= 32) &&
-                  static_cast<bool>(Arch::is_gfx950_build)) ||
-                 (GridwiseGemm::AK1Number < 32 && GridwiseGemm::BK1Number < 32))
+    // skip building the instances with K1>=32 && PackedSize != 2 on pre-gfx950
+    if constexpr(static_cast<bool>(Arch::is_gfx950_build) ||
+                 (GridwiseGemm::AK1Number < 32 && GridwiseGemm::BK1Number < 32) ||
+                 (GridwiseGemm::AK1Number >= 32 && GridwiseGemm::APackedSize == 2) ||
+                 (GridwiseGemm::BK1Number >= 32 && GridwiseGemm::BPackedSize == 2))
     {
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
@@ -86,10 +87,11 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         is_gfx950_build = false,
 #endif
     };
-    // skip building the instances with K1>=32 on pre-gfx950
-    if constexpr(((GridwiseGemm::AK1Number >= 32 || GridwiseGemm::BK1Number >= 32) &&
-                  static_cast<bool>(Arch::is_gfx950_build)) ||
-                 (GridwiseGemm::AK1Number < 32 && GridwiseGemm::BK1Number < 32))
+    // skip building the instances with K1>=32 && PackedSize != 2 on pre-gfx950
+    if constexpr(static_cast<bool>(Arch::is_gfx950_build) ||
+                 (GridwiseGemm::AK1Number < 32 && GridwiseGemm::BK1Number < 32) ||
+                 (GridwiseGemm::AK1Number >= 32 && GridwiseGemm::APackedSize == 2) ||
+                 (GridwiseGemm::BK1Number >= 32 && GridwiseGemm::BPackedSize == 2))
     {
         // Pass two lds pointer is the key to tell compiler that ds_read/write
         // operate on different lds chunk at same time without order dependecy
