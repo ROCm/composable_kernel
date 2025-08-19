@@ -163,6 +163,21 @@ using device_grouped_conv_bwd_data_wmma_v3_bf16_instances = std::tuple<
     // clang-format on
     >;
 
+template <index_t NDimSpatial,
+          typename ALayout,
+          typename BLayout,
+          typename DsLayout,
+          typename ELayout,
+          ConvolutionBackwardDataSpecialization ConvSpec>
+using device_grouped_conv_bwd_data_wmma_v3_f16_nchw_instances = std::tuple<
+    // clang-format off
+        // ##############################################|       NDim| ALayout| BLayout|    DsLayout| ELayout| AData| BData| AccData| CShuffle|      DsData| EData| AElementwise| BElementwise| CDEElementwise| ConvolutionBackward| DoPad| DoPad|      Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MRepeat| NRepeat|    ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|    BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle |    CShuffle |   CDEBlockTransfer| CDEBlockTransfer|
+        // ##############################################|    Spatial|        |        |            |        |  Type|  Type|    Type| DataType|        Type|  Type|    Operation|    Operation|      Operation|  DataSpecialization| GemmM| GemmN|       Size| Block| Block| Block|    |    | Wmma| Wmma|        |        |     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN|      MRepeat|    NRepeat  |  _MBlock_MPerBlock|  ScalarPerVector|
+        // ##############################################|           |        |        |            |        |      |      |        |         |            |      |             |             |               |                    |      |      |           |      |      |      |    |    |     |     |        |        | Lengths_AK0_M_AK1|   ArrangeOrder|               |               |      PerVector|  PerVector_AK1|          | Lengths_BK0_N_BK1|   ArrangeOrder|               |               |      PerVector|  PerVector_BK1|          |   PerShuffle|   PerShuffle|  _NBlock_NPerBlock|                 |
+        // ##############################################|           |        |        |            |        |      |      |        |         |            |      |             |             |               |                    |      |      |           |      |      |      |    |    |     |     |        |        |                  |               |               |               |               |               |          |                  |               |               |               |               |               |          |             |             |                   |                 |                 
+        // generic instance
+        DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3<NDimSpatial, ALayout, BLayout,    DsLayout, ELayout,   F16,   F16,     F32,      F16, Empty_Tuple,   F16,  PassThrough,  PassThrough,    PassThrough,            ConvSpec,  true,  true,        128,    64,    64,    32,   8,   8,   16,   16,         2,       2,       S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              1,              1,              8,         1,        S<4, 8, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,         1,            1,            1,     S<1, 16, 1, 4>,          S<8,8,8>>
+        >;
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation
