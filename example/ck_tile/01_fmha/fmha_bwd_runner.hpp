@@ -350,20 +350,18 @@ bwd_result fmha_bwd_run(mode_enum mode,
     };
     // clang-format on
 
+    const std::size_t workspace_size =
+        dq_acc_host.get_element_space_size_in_bytes() / (1024 * 1024);
+
     std::cout << "[" << data_type << "|" << mode << "|" << io_layout(i_perm, o_perm)
               << "] b:" << batch << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_qs[0]
               << "/" << seqlen_ks[0] << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale
               << ", bias:" << bias << ", dbias:" << use_dbias << ", p_drop:" << p_drop
               << ", s_randval:" << s_randval << ", deterministic:" << deterministic
+              << (deterministic
+                      ? std::string(", workspace:") + std::to_string(workspace_size) + "MiB"
+                      : "")
               << ", mask:" << mask << std::flush;
-
-    if(deterministic)
-    {
-        std::size_t workspace_size =
-            dq_acc_host.get_element_space_size_in_bytes() * sizeof(AccDataType) / (1024 * 1024);
-        std::cout << "\nDeterministic mode ON: " << workspace_size
-                  << " MByte memory workspace allocated" << std::endl;
-    }
 
     auto fmha_traits = fmha_bwd_traits{hdim_q,
                                        hdim_v,

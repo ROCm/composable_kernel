@@ -303,3 +303,49 @@ TEST_P(Dropout, Test)
                                                stream_config); // stream_config
     CHECK_RESULT(result);
 }
+
+class Deterministic
+    : public TestWithParam<
+          std::tuple<int, bool, mode_enum, std::tuple<int, int, int, int, int, std::string>>>
+{
+};
+
+INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaBwd,
+                         Deterministic,
+                         Combine(AllHDims,
+                                 Bool(),
+                                 Values(mode_enum::batch, mode_enum::group),
+                                 Values(std::tuple{2, 6, 2, 180, 512, std::string("0")},
+                                        std::tuple{3, 3, 1, 256, 128, std::string("1")},
+                                        std::tuple{4, 2, 2, 768, 100, std::string("2")})));
+
+TEST_P(Deterministic, Test)
+{
+    auto [hdim, i_perm, mode, dims_mask]                       = GetParam();
+    auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str] = dims_mask;
+
+    auto result = fmha_bwd_run<DataTypeConfig>(mode,
+                                               batch,
+                                               nhead,
+                                               nhead_k,
+                                               {seqlen_q},
+                                               {seqlen_k},
+                                               hdim,           // hdim_q
+                                               hdim,           // hdim_v
+                                               i_perm,         // i_perm
+                                               true,           // o_perm
+                                               0.0f,           // scale
+                                               "n",            // bias_str
+                                               false,          // use_dbias
+                                               0.0f,           // p_drop
+                                               0,              // drop_seed
+                                               0,              // drop_offset
+                                               false,          // drop_prefs
+                                               mask_str,       // mask_str
+                                               true,           // deterministic
+                                               "uf",           // init_method
+                                               1266444,        // seed
+                                               1,              // do_validation
+                                               stream_config); // stream_config
+    CHECK_RESULT(result);
+}
