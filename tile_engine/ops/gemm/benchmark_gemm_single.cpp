@@ -3,243 +3,143 @@
 
 #include <iostream>
 #include <string>
-#include <getopt.h>
-#include <cstdlib>
-#include <random>
+#include <vector>
+#include <hip/hip_runtime.h>
 
+#include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
-#include "gemm_single_common.hpp"
 
-// This header will be generated for each individual kernel and included via -include flag
-// The specific header is defined by GEMM_SINGLE_INSTANCE_HPP macro and contains:
-// - ADataType, BDataType, CDataType type definitions
-// - KERNEL_NAME constant
-// - SelectedKernel struct with launch() method
+// The kernel header is included via the compile command line with -include flag
+// It defines SelectedKernel struct and KERNEL_NAME
 
-void print_help(const char* program_name)
-{
-    std::cout << "Usage: " << program_name << " [options]\n"
-              << "Options:\n"
-              << "  -m, --m_size <value>          M dimension size (default: 1024)\n"
-              << "  -n, --n_size <value>          N dimension size (default: 1024)\n"
-              << "  -k, --k_size <value>          K dimension size (default: 1024)\n"
-              << "  -b, --k_batch <value>         K batch size for split-K (default: 1)\n"
-              << "  -s, --stride_a <value>        Stride A (default: auto)\n"
-              << "  -t, --stride_b <value>        Stride B (default: auto)\n"
-              << "  -u, --stride_c <value>        Stride C (default: auto)\n"
-              << "  -r, --repeat <value>          Number of iterations (default: 100)\n"
-              << "  -w, --warmup <value>          Number of warmup iterations (default: 10)\n"
-              << "  -v, --validate                Enable validation\n"
-              << "  -h, --help                    Print this help message\n";
-}
+#define HIP_CHECK(cmd)                                                                          \
+    do                                                                                          \
+    {                                                                                           \
+        hipError_t error = (cmd);                                                               \
+        if(error != hipSuccess)                                                                 \
+        {                                                                                       \
+            std::cerr << "HIP error: " << hipGetErrorString(error) << " at " << __FILE__ << ":" \
+                      << __LINE__ << std::endl;                                                 \
+            exit(EXIT_FAILURE);                                                                 \
+        }                                                                                       \
+    } while(0)
 
 int main(int argc, char* argv[])
 {
-    // Default parameters
-    ck_tile::index_t M        = 1024;
-    ck_tile::index_t N        = 1024;
-    ck_tile::index_t K        = 1024;
-    ck_tile::index_t k_batch  = 1;
-    ck_tile::index_t stride_A = 0; // 0 means auto
-    ck_tile::index_t stride_B = 0;
-    ck_tile::index_t stride_C = 0;
-    int repeat                = 100;
-    int warmup                = 10;
-    bool validate             = false;
-
     // Parse command line arguments
-    static struct option long_options[] = {{"m_size", required_argument, nullptr, 'm'},
-                                           {"n_size", required_argument, nullptr, 'n'},
-                                           {"k_size", required_argument, nullptr, 'k'},
-                                           {"k_batch", required_argument, nullptr, 'b'},
-                                           {"stride_a", required_argument, nullptr, 's'},
-                                           {"stride_b", required_argument, nullptr, 't'},
-                                           {"stride_c", required_argument, nullptr, 'u'},
-                                           {"repeat", required_argument, nullptr, 'r'},
-                                           {"warmup", required_argument, nullptr, 'w'},
-                                           {"validate", no_argument, nullptr, 'v'},
-                                           {"help", no_argument, nullptr, 'h'},
-                                           {nullptr, 0, nullptr, 0}};
+    ck_tile::ArgParser arg_parser;
+    arg_parser.insert("m", "1024", "M dimension")
+        .insert("n", "1024", "N dimension")
+        .insert("k", "1024", "K dimension")
+        .insert("w", "50", "Warmup iterations")
+        .insert("r", "100", "Repeat iterations");
 
-    int opt;
-    int option_index = 0;
-    while((opt = getopt_long(argc, argv, "m:n:k:b:s:t:u:r:w:vh", long_options, &option_index)) !=
-          -1)
+    if(!arg_parser.parse(argc, argv))
     {
-        switch(opt)
-        {
-        case 'm': M = std::atoi(optarg); break;
-        case 'n': N = std::atoi(optarg); break;
-        case 'k': K = std::atoi(optarg); break;
-        case 'b': k_batch = std::atoi(optarg); break;
-        case 's': stride_A = std::atoi(optarg); break;
-        case 't': stride_B = std::atoi(optarg); break;
-        case 'u': stride_C = std::atoi(optarg); break;
-        case 'r': repeat = std::atoi(optarg); break;
-        case 'w': warmup = std::atoi(optarg); break;
-        case 'v': validate = true; break;
-        case 'h': print_help(argv[0]); return 0;
-        default: print_help(argv[0]); return 1;
-        }
+        return EXIT_FAILURE;
     }
 
-    // Auto-calculate strides if not provided
-    if(stride_A == 0)
-    {
-        stride_A = K; // Assuming row-major for A
-    }
-    if(stride_B == 0)
-    {
-        stride_B = N; // Assuming row-major for B
-    }
-    if(stride_C == 0)
-    {
-        stride_C = N; // Assuming row-major for C
-    }
+    int m      = arg_parser.get_int("m");
+    int n      = arg_parser.get_int("n");
+    int k      = arg_parser.get_int("k");
+    int warmup = arg_parser.get_int("w");
+    int repeat = arg_parser.get_int("r");
 
-    // Initialize GPU
-    int device_count = 0;
-    if(hipGetDeviceCount(&device_count) != hipSuccess)
-    {
-        std::cerr << "Failed to get device count\n";
-        return 1;
-    }
+    // Calculate strides (row-major for C layout)
+    int stride_a = k; // M x K matrix in row-major
+    int stride_b = n; // K x N matrix in row-major
+    int stride_c = n; // M x N matrix in row-major
 
-    if(device_count <= 0)
-    {
-        std::cerr << "No GPU devices found\n";
-        return 1;
-    }
+    // Allocate host memory
+    size_t size_a = m * k * sizeof(ck_tile::half_t);
+    size_t size_b = k * n * sizeof(ck_tile::half_t);
+    size_t size_c = m * n * sizeof(ck_tile::half_t);
 
-    // Create stream config
-    ck_tile::stream_config stream;
-    stream.flush_cache_    = false;
-    stream.rotating_count_ = 8;
-    stream.log_level_      = 0;
-    stream.cold_niters_    = warmup;
-    stream.nrepeat_        = repeat;
+    std::vector<ck_tile::half_t> h_a(m * k);
+    std::vector<ck_tile::half_t> h_b(k * n);
+    std::vector<ck_tile::half_t> h_c(m * n);
+
+    // Initialize with random data
+    for(int i = 0; i < m * k; i++)
+    {
+        h_a[i] = ck_tile::half_t(static_cast<float>(rand()) / RAND_MAX * 2.0f - 1.0f);
+    }
+    for(int i = 0; i < k * n; i++)
+    {
+        h_b[i] = ck_tile::half_t(static_cast<float>(rand()) / RAND_MAX * 2.0f - 1.0f);
+    }
 
     // Allocate device memory
-    size_t size_a = M * stride_A * sizeof(ADataType);
-    size_t size_b = K * stride_B * sizeof(BDataType);
-    size_t size_c = M * stride_C * sizeof(CDataType);
-
     void* d_a;
     void* d_b;
     void* d_c;
 
-    if(hipMalloc(&d_a, size_a) != hipSuccess)
-    {
-        std::cerr << "Failed to allocate device memory for matrix A\n";
-        return 1;
-    }
-    if(hipMalloc(&d_b, size_b) != hipSuccess)
-    {
-        std::cerr << "Failed to allocate device memory for matrix B\n";
-        static_cast<void>(hipFree(d_a));
-        return 1;
-    }
-    if(hipMalloc(&d_c, size_c) != hipSuccess)
-    {
-        std::cerr << "Failed to allocate device memory for matrix C\n";
-        static_cast<void>(hipFree(d_a));
-        static_cast<void>(hipFree(d_b));
-        return 1;
-    }
+    HIP_CHECK(hipMalloc(&d_a, size_a));
+    HIP_CHECK(hipMalloc(&d_b, size_b));
+    HIP_CHECK(hipMalloc(&d_c, size_c));
 
-    // Initialize with random data
-    void* h_a = malloc(size_a);
-    void* h_b = malloc(size_b);
+    // Copy data to device
+    HIP_CHECK(hipMemcpy(d_a, h_a.data(), size_a, hipMemcpyHostToDevice));
+    HIP_CHECK(hipMemcpy(d_b, h_b.data(), size_b, hipMemcpyHostToDevice));
+    HIP_CHECK(hipMemset(d_c, 0, size_c));
 
-    initialize_tensor_random<ADataType>(h_a, M * stride_A);
-    initialize_tensor_random<BDataType>(h_b, K * stride_B);
-
-    if(hipMemcpy(d_a, h_a, size_a, hipMemcpyHostToDevice) != hipSuccess)
-    {
-        std::cerr << "Failed to copy data to device for matrix A\n";
-        free(h_a);
-        free(h_b);
-        static_cast<void>(hipFree(d_a));
-        static_cast<void>(hipFree(d_b));
-        static_cast<void>(hipFree(d_c));
-        return 1;
-    }
-    if(hipMemcpy(d_b, h_b, size_b, hipMemcpyHostToDevice) != hipSuccess)
-    {
-        std::cerr << "Failed to copy data to device for matrix B\n";
-        free(h_a);
-        free(h_b);
-        static_cast<void>(hipFree(d_a));
-        static_cast<void>(hipFree(d_b));
-        static_cast<void>(hipFree(d_c));
-        return 1;
-    }
-    if(hipMemset(d_c, 0, size_c) != hipSuccess)
-    {
-        std::cerr << "Failed to memset device memory for matrix C\n";
-        free(h_a);
-        free(h_b);
-        static_cast<void>(hipFree(d_a));
-        static_cast<void>(hipFree(d_b));
-        static_cast<void>(hipFree(d_c));
-        return 1;
-    }
-
-    free(h_a);
-    free(h_b);
-
-    if(validate)
-    {
-        std::cout << "Validation mode enabled (not fully implemented)\n";
-    }
-
-    // Create GEMM arguments
-    ck_tile::GemmHostArgs args{
+    // Create GemmHostArgs
+    ck_tile::GemmHostArgs args = {
         d_a,      // a_ptr
         d_b,      // b_ptr
         d_c,      // c_ptr
-        M,        // M
-        N,        // N
-        K,        // K
-        stride_A, // stride_A
-        stride_B, // stride_B
-        stride_C, // stride_C
-        k_batch   // k_batch
+        1,        // k_batch (split_k)
+        m,        // M
+        n,        // N
+        k,        // K
+        stride_a, // stride_A
+        stride_b, // stride_B
+        stride_c  // stride_C
     };
 
-    // Run the kernel
-    std::cout << "Running kernel: " << KERNEL_NAME << "\n";
-    std::cout << "Problem size: M=" << M << ", N=" << N << ", K=" << K;
-    if(k_batch > 1)
-    {
-        std::cout << ", k_batch=" << k_batch;
-    }
-    std::cout << "\n";
+    // Create stream config
+    ck_tile::stream_config stream{
+        nullptr, // stream
+        true,    // time_kernel
+        false,   // log_level
+        warmup,  // n_warmup
+        repeat,  // n_repeat
+        true,    // use_gpu_timer
+        false,   // flush_cache
+        5        // rotating_count
+    };
 
     try
     {
-        float time = SelectedKernel::launch(args, stream);
+        // Call the kernel's launch function directly
+        float avg_time = SelectedKernel::launch(args, stream);
 
         // Calculate performance metrics
-        double flops  = 2.0 * M * N * K * k_batch;
-        double tflops = flops / (time * 1e-3) / 1e12;
+        size_t flop     = size_t(2) * m * n * k;
+        size_t num_byte = sizeof(ck_tile::half_t) * (m * k + k * n + m * n);
 
-        std::cout << "Time: " << time << " ms\n";
-        std::cout << "Performance: " << tflops << " TFLOPS\n";
+        float tflops    = static_cast<float>(flop) / 1.E9 / avg_time;
+        float bandwidth = num_byte / 1.E6 / avg_time;
+
+        std::cout << "Running kernel: " << KERNEL_NAME << std::endl;
+        std::cout << "Problem size: M=" << m << ", N=" << n << ", K=" << k << std::endl;
+        std::cout << "Time: " << avg_time << " ms" << std::endl;
+        std::cout << "Performance: " << tflops << " TFLOPS" << std::endl;
+        std::cout << "Bandwidth: " << bandwidth << " GB/s" << std::endl;
     }
     catch(const std::exception& e)
     {
-        std::cerr << "Error running kernel: " << e.what() << "\n";
-        static_cast<void>(hipFree(d_a));
-        static_cast<void>(hipFree(d_b));
-        static_cast<void>(hipFree(d_c));
-        return 1;
+        std::cerr << "Error: " << e.what() << std::endl;
+        HIP_CHECK(hipFree(d_a));
+        HIP_CHECK(hipFree(d_b));
+        HIP_CHECK(hipFree(d_c));
+        return EXIT_FAILURE;
     }
 
     // Cleanup
-    static_cast<void>(hipFree(d_a));
-    static_cast<void>(hipFree(d_b));
-    static_cast<void>(hipFree(d_c));
+    HIP_CHECK(hipFree(d_a));
+    HIP_CHECK(hipFree(d_b));
+    HIP_CHECK(hipFree(d_c));
 
     return 0;
 }
