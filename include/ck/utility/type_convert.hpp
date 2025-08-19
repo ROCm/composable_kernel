@@ -187,6 +187,19 @@ inline __host__ __device__ constexpr bf8_ocp_t type_convert<bf8_ocp_t, int>(int 
     return bf8_ocp_t{type_convert<bf8_ocp_t::data_type>(x)};
 }
 
+template <typename Y, enable_if_t<is_same_v<Y, ck::tf32_t>, bool> = false>
+inline __host__ __device__ constexpr float type_convert(float x)
+{
+    union
+    {
+        float fp32;
+        uint32_t int32;
+    } u = {x};
+
+    u.int32 = u.int32 & 0xffffe000;
+    return u.fp32;
+}
+
 // Convert X to Y
 template <typename Y, typename X>
 __host__ __device__ constexpr Y type_convert_sp(X x)
