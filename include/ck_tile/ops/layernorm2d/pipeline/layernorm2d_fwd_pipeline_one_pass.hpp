@@ -138,6 +138,10 @@ struct Layernorm2dFwdPipelineOnePass
             if constexpr(kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD_STORE)
                 store_tile(y_residual_window, cast_tile<YResidualDataType>(acc));
         }
+        // if (threadIdx.x == 0 && blockIdx.x == 0)
+        // {
+        //     printf("max_count %d \n ", max_count);
+        // }
 
         // compute reduce each-thread->cross-lane->cross-warp
         block_norm_reduce(acc, mean, var, cur_count, max_count);
