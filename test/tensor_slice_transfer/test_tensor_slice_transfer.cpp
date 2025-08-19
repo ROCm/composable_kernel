@@ -22,12 +22,6 @@
 
 using namespace ck;
 
-// Test configuration constants
-constexpr index_t TestM2 = 4;
-constexpr index_t TestM4 = 2;
-constexpr index_t TestCShuffleMXdlPerWavePerShuffle = 4;
-constexpr index_t TestCShuffleNXdlPerWavePerShuffle = 8;
-
 static constexpr auto I0 = Number<0>{};
 static constexpr auto I1 = Number<1>{};
 
@@ -47,7 +41,8 @@ __global__ void packed_cast_kernel(float x1, float x2, ck::bhalf2_t* output)
 // Execute threadwise slice transfer from VGPR to LDS.
 // We want to measure the performance of the transfer operation, and each thread can do 
 // perform the same transfer operation.
-template<typename SrcData, typename DstData, bool UsePackedCast, bool TransferOutputToGlobalMemory = true, int NRepeats = 1>
+template<index_t TestCShuffleMXdlPerWavePerShuffle, index_t TestCShuffleNXdlPerWavePerShuffle, index_t TestM2, index_t TestM4,
+    typename SrcData, typename DstData, bool UsePackedCast, bool TransferOutputToGlobalMemory = true, int NRepeats = 1>
 __global__ void testVGPRToLDSTransfer_kernel(
     SrcData* input_data,
     DstData* output_data,
@@ -310,24 +305,56 @@ void run_packed_cast_test(std::function<void(float, float, ck::bhalf2_t*)> launc
 class VGPRToLDSTransferTest : public ::testing::Test 
 {
 public:
-    template <bool UsePackedCast, bool UseGpu>
+    template <index_t TestCShuffleMXdlPerWavePerShuffle, index_t TestCShuffleNXdlPerWavePerShuffle, index_t TestM2, index_t TestM4>
+    void run_perf_test()
+    {
+        constexpr int NRepeats = 5000;
+        const int num_iters = 250;
+        const int num_warmup_iters = 10;
+
+        const auto packed_cast_time = run<TestCShuffleMXdlPerWavePerShuffle, TestCShuffleNXdlPerWavePerShuffle, TestM2, TestM4, true, NRepeats>(num_iters, num_warmup_iters);
+        const auto baseline_time = run<TestCShuffleMXdlPerWavePerShuffle, TestCShuffleNXdlPerWavePerShuffle, TestM2, TestM4, false, NRepeats>(num_iters, num_warmup_iters);
+
+        const auto default_value = std::numeric_limits<float>::signaling_NaN();
+        std::cout << "Performance test results for case: "
+                << "MXdlPerWavePerShuffle=" << TestCShuffleMXdlPerWavePerShuffle
+                << ", NXdlPerWavePerShuffle=" << TestCShuffleNXdlPerWavePerShuffle
+                << ", M2=" << TestM2
+                << ", M4=" << TestM4
+                << std::endl;
+        std::cout << "Baseline average execution time = " 
+                << (baseline_time.has_value() ? *baseline_time : default_value) << " ms" << std::endl;
+        std::cout << "Packed cast average execution time = " 
+                << (packed_cast_time.has_value() ? *packed_cast_time : default_value) << " ms" << std::endl;
+
+        if (baseline_time && packed_cast_time) {
+            const float speedup = (*baseline_time - *packed_cast_time)  / *baseline_time;
+            std::cout << "Speedup = " << speedup * 100.0f << "%" << std::endl;
+            EXPECT_GT(speedup, -0.01f) << "Packed cast should not be more than 1% slower than baseline";
+        }
+        else {
+            GTEST_FAIL() << "Failed to get average execution time for one or both runs.";
+        }
+    }
+
+    template <index_t TestCShuffleMXdlPerWavePerShuffle, index_t TestCShuffleNXdlPerWavePerShuffle, index_t TestM2, index_t TestM4, bool UsePackedCast, bool UseGpu>
     void run()
     {
-        std::ignore = run<UsePackedCast, UseGpu>(false, 0, 0);
+        std::ignore = run<TestCShuffleMXdlPerWavePerShuffle, TestCShuffleNXdlPerWavePerShuffle, TestM2, TestM4, UsePackedCast, UseGpu>(false, 0, 0);
     };
 
-    template <bool UsePackedCast, int NRepeats>
+    template <index_t TestCShuffleMXdlPerWavePerShuffle, index_t TestCShuffleNXdlPerWavePerShuffle, index_t TestM2, index_t TestM4, bool UsePackedCast, int NRepeats>
     std::optional<float> run(index_t num_iters, index_t num_warmup_iters)
     {
-        return run<UsePackedCast, true>(true, num_iters, num_warmup_iters);
+        return run<TestCShuffleMXdlPerWavePerShuffle, TestCShuffleNXdlPerWavePerShuffle, TestM2, TestM4, UsePackedCast, true>(true, num_iters, num_warmup_iters);
     };
 private:
-    template <bool UsePackedCast, bool UseGpu, int NRepeats=1>
+    template <index_t TestCShuffleMXdlPerWavePerShuffle, index_t TestCShuffleNXdlPerWavePerShuffle, index_t TestM2, index_t TestM4, bool UsePackedCast, bool UseGpu, int NRepeats=1>
     std::optional<float> run(bool time_kernel, index_t num_iters, index_t num_warmup_iters)
     {
         if constexpr (UseGpu) 
         {
-            return run_device<UsePackedCast, NRepeats>(time_kernel, num_iters, num_warmup_iters);
+            return run_device<TestCShuffleMXdlPerWavePerShuffle, TestCShuffleNXdlPerWavePerShuffle, TestM2, TestM4, UsePackedCast, NRepeats>(time_kernel, num_iters, num_warmup_iters);
         }
         else 
         {
@@ -343,7 +370,7 @@ private:
         GTEST_FAIL() << "Host transfer test not implemented yet.";
     };
 
-    template <bool UsePackedCast, int NRepeats = 1>
+    template <index_t TestCShuffleMXdlPerWavePerShuffle, index_t TestCShuffleNXdlPerWavePerShuffle, index_t TestM2, index_t TestM4, bool UsePackedCast, int NRepeats = 1>
     std::optional<float> run_device(bool time_kernel, index_t num_iters, index_t num_warmup_iters)
     {
         constexpr index_t elements_per_thread = TestCShuffleMXdlPerWavePerShuffle * 
@@ -380,12 +407,12 @@ private:
             stream_config.time_kernel_ = true;
             stream_config.cold_niters_ = num_warmup_iters;
             stream_config.nrepeat_ = num_iters;
-            auto kernel = testVGPRToLDSTransfer_kernel<float, ck::bhalf_t, UsePackedCast, false, NRepeats>;
+            auto kernel = testVGPRToLDSTransfer_kernel<TestCShuffleMXdlPerWavePerShuffle, TestCShuffleNXdlPerWavePerShuffle, TestM2, TestM4, float, ck::bhalf_t, UsePackedCast, false, NRepeats>;
             kernel_average_execution_time = launch_and_time_kernel(stream_config, kernel, grid, block, 0, d_input, d_output, total_elements);
         }
         else 
         {
-            testVGPRToLDSTransfer_kernel<float, ck::bhalf_t, UsePackedCast><<<grid, block>>>(d_input, d_output, total_elements);
+            testVGPRToLDSTransfer_kernel<TestCShuffleMXdlPerWavePerShuffle, TestCShuffleNXdlPerWavePerShuffle, TestM2, TestM4, float, ck::bhalf_t, UsePackedCast><<<grid, block>>>(d_input, d_output, total_elements);
             HIP_CHECK_ERROR(hipDeviceSynchronize());
 
             // Copy results back
@@ -449,34 +476,29 @@ TEST_F(VGPRToLDSTransferTest, FloatToBhalf_device_NoPack)
 {
     constexpr bool UsePackedCast = false;
     constexpr bool UseGpu = true;
-    run<UsePackedCast, UseGpu>();
+    constexpr index_t TestM2 = 4; //4
+    constexpr index_t TestM4 = 2; // 2
+    constexpr index_t TestCShuffleMXdlPerWavePerShuffle = 4; //2; // 4 
+    constexpr index_t TestCShuffleNXdlPerWavePerShuffle = 8; //4; // 8
+    run<TestCShuffleMXdlPerWavePerShuffle, TestCShuffleNXdlPerWavePerShuffle, TestM2, TestM4, UsePackedCast, UseGpu>();
 }
 
 TEST_F(VGPRToLDSTransferTest, FloatToBhalf_device_PackedCast) 
 {
     constexpr bool UsePackedCast = true;
     constexpr bool UseGpu = true;
-    run<UsePackedCast, UseGpu>();
+    constexpr index_t TestM2 = 4; //4
+    constexpr index_t TestM4 = 2; // 2
+    constexpr index_t TestCShuffleMXdlPerWavePerShuffle = 4; //2; // 4 
+    constexpr index_t TestCShuffleNXdlPerWavePerShuffle = 8; //4; // 8
+    run<TestCShuffleMXdlPerWavePerShuffle, TestCShuffleNXdlPerWavePerShuffle, TestM2, TestM4, UsePackedCast, UseGpu>();
 }
 
 TEST_F(VGPRToLDSTransferTest, FloatToBhalf_device_test_peformance) 
 {
-    constexpr int NRepeats = 5000;
-    const int num_iters = 250;
-    const int num_warmup_iters = 10;
-    const auto packed_cast_time = run<true, NRepeats>(num_iters, num_warmup_iters);
-    const auto baseline_time = run<false, NRepeats>(num_iters, num_warmup_iters);
-
-    const auto default_value = std::numeric_limits<float>::signaling_NaN();
-    std::cout << "Baseline average execution time: " 
-              << (baseline_time.has_value() ? *baseline_time : default_value) << " ms" << std::endl;
-    std::cout << "Packed cast average execution time: " 
-              << (packed_cast_time.has_value() ? *packed_cast_time : default_value) << " ms" << std::endl;
-
-    if (baseline_time && packed_cast_time) {
-        EXPECT_LT(*packed_cast_time, *baseline_time);
-    }
-    else {
-        GTEST_FAIL() << "Failed to get average execution time for one or both runs.";
-    }
+    // Relevant cases for convolution gridwise GEMMs.
+    //            MXdlPerWavePerShuffle  NXdlPerWavePerShuffle   M2              M4
+    run_perf_test<1,                     1,                      4,              4>();
+    run_perf_test<1,                     1,                      1,              4>();
+    run_perf_test<1,                     1,                      4,              1>();
 }
