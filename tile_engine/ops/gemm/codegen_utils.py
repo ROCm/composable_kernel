@@ -59,7 +59,6 @@ CSHUFFLE_EPILOGUE = """
                                                              ck_tile::tuple<>,
                                                              CLayout,
                                                              ck_tile::element_wise::PassThrough,
-                                                             GemmPipelineProblem::kBlockSize,
                                                              TilePartitioner::MPerBlock,
                                                              TilePartitioner::NPerBlock,
                                                              WarpM,

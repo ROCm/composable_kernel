@@ -138,12 +138,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
     auto kargs = Kernel::MakeKargs(args);
 
     const dim3 grids                       = Kernel::GridSize(args);
-    constexpr dim3 blocks                  = Kernel::BlockSize();
+    const dim3 blocks                      = Kernel::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = 1;
     auto s = ck_tile::stream_config{nullptr, true, 0, warmup, repeat};
 
-    ck_tile::launch_kernel(
-        s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+    ck_tile::launch_kernel(s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 
     bool pass = true;
 
