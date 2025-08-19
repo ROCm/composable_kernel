@@ -80,6 +80,11 @@
       "values": [
         false
       ]
+    },
+    "persistent": {
+      "values": [
+        false
+      ]
     }
   }
 }

@@ -95,10 +95,12 @@ class TestCkTileBatchedTranspose //              N    C    H    W    layout_in==
         ck_tile::HostTensor<DataType> y_ref(Y_dim, Y_stride);
 
         ck_tile::FillUniformDistribution<DataType>{-.5f, .5f}(x_host);
+        ck_tile::FillConstant<DataType>{-37}(y_host);
 
         ck_tile::DeviceMem x_dev(x_host.get_element_space_size_in_bytes());
         ck_tile::DeviceMem y_dev(y_host.get_element_space_size_in_bytes());
         x_dev.ToDevice(x_host.data());
+        y_dev.ToDevice(y_host.data());
 
         using Kernel = typename Config::Kernel;
 
@@ -122,8 +124,7 @@ class TestCkTileBatchedTranspose //              N    C    H    W    layout_in==
         if(Config::kPipelineId == PipelineTag::LDSLoadTranspose &&
            device_name.find("gfx950") == std::string::npos)
         {
-            GTEST_SKIP_(
-                std::format("LDS Load Transpose cannot be launched with {}", device_name).c_str());
+            GTEST_SKIP_("LDS Load Transpose cannot be launched with this device");
         }
 
         const auto host_args = ck_tile::BatchedTransposeHostArgs{x_dev.GetDeviceBuffer(),
@@ -132,24 +133,33 @@ class TestCkTileBatchedTranspose //              N    C    H    W    layout_in==
                                                                  height,
                                                                  width,
                                                                  height * width,
-                                                                 Config::BlockTile::at(1),
-                                                                 Config::BlockTile::at(0)};
+                                                                 Config::BlockTile::at(0),
+                                                                 Config::BlockTile::at(1)};
         auto kargs           = Kernel::MakeKargs(host_args);
 
-        auto sc                   = ck_tile::stream_config{};
-        const dim3 grid_size      = Kernel::GridSize(host_args);
-        constexpr dim3 block_size = Kernel::BlockSize();
-        ck_tile::launch_kernel(
-            sc, ck_tile::make_kernel<block_size.x, 1>(Kernel{}, grid_size, block_size, 0, kargs));
+        auto sc               = ck_tile::stream_config{};
+        const dim3 grid_size  = Kernel::GridSize(host_args);
+        const dim3 block_size = Kernel::BlockSize();
+        ck_tile::launch_kernel(sc,
+                               ck_tile::make_kernel<1>(Kernel{}, grid_size, block_size, 0, kargs));
+
         y_dev.FromDevice(y_host.data());
         ck_tile::reference_batched_transpose<DataType>(x_host, y_ref, layout_in, layout_out);
 
         std::ostringstream message;
         message << "N=" << N << " C=" << C << " H=" << H << " W=" << W << " layout_in=" << layout_in
-                << " layout_out=" << layout_out << " device_name=" << device_name;
+                << " layout_out=" << layout_out << " grid_size={" << grid_size.x << ", "
+                << grid_size.y << ", " << grid_size.z << "} block_size=" << block_size.x
+                << " device_name=" << device_name;
 
+        // NB: order of output and reference matters
         bool pass = ck_tile::check_err(
-            y_ref, y_host, message.str(), /* rtol */ 0, /* atol */ 0, /* allow inf */ false);
+            /* out */ y_host,
+            /* ref */ y_ref,
+            message.str(),
+            /* rtol */ 0,
+            /* atol */ 0,
+            /* allow inf */ false);
 
         EXPECT_TRUE(pass);
     }
@@ -161,14 +171,16 @@ static const auto kTestingValues = ::testing::Values(
 //             N  C   H  W   layout_in==NCHW    
     std::tuple{1, 32, 1, 32, true},
     std::tuple{1, 64, 1, 64, true},
+    std::tuple{1, 32, 1, 64, true},
+    std::tuple{1, 64, 1, 32, true},
     std::tuple{2, 12, 1, 32, false},
     std::tuple{3, 1334, 1, 37, false},
     std::tuple{4, 27, 1, 32, true},
     std::tuple{5, 1234, 1, 12, true},
     std::tuple{1, 1, 1, 1, true},
     std::tuple{1, 1, 1, 1, false},
-    std::tuple{128, 1024, 64, 64, true},
-    std::tuple{128, 1024, 64, 64, false},
+    std::tuple{17, 1024, 64, 64, true},
+    std::tuple{17, 1024, 64, 64, false},
     std::tuple{16, 64, 32, 128, true},
     std::tuple{16, 64, 128, 32, false},
     std::tuple{1, 2048, 1, 1, true},
@@ -240,6 +252,60 @@ class CaseHalfPadMultiWarpLoadTranspose
 {
 };
 
+class CaseHalfPadMultiWarp128MNLoadTranspose
+    : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t,
+                                                       PipelineTag::LDSLoadTranspose,
+                                                       128,
+                                                       128,
+                                                       2,
+                                                       2,
+                                                       false,
+                                                       false>>
+{
+};
+
+class CaseHalfPadMultiWarp128MN
+    : public TestCkTileBatchedTranspose<
+          PipelineConfig<ck_tile::half_t, PipelineTag::Universal, 128, 128, 2, 2, false, false>>
+{
+};
+
+class CaseHalfPadRectTile1
+    : public TestCkTileBatchedTranspose<
+          PipelineConfig<ck_tile::half_t, PipelineTag::Universal, 32, 64, 1, 1, false, false>>
+{
+};
+
+class CaseHalfPadRectTile2
+    : public TestCkTileBatchedTranspose<
+          PipelineConfig<ck_tile::half_t, PipelineTag::Universal, 64, 32, 1, 1, false, false>>
+{
+};
+
+class CaseHalfPadRectTile1LoadTranspose
+    : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t,
+                                                       PipelineTag::LDSLoadTranspose,
+                                                       32,
+                                                       64,
+                                                       1,
+                                                       1,
+                                                       false,
+                                                       false>>
+{
+};
+
+class CaseHalfPadRectTile2LoadTranspose
+    : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t,
+                                                       PipelineTag::LDSLoadTranspose,
+                                                       64,
+                                                       32,
+                                                       1,
+                                                       1,
+                                                       false,
+                                                       false>>
+{
+};
+
 TEST_P(CaseHalf, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseByte, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseWord, TestCorrectness) { this->Run(GetParam()); }
@@ -249,6 +315,12 @@ TEST_P(CaseHalfPad, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseHalfPadLoadTranspose, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseHalfPadMultiWarp, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseHalfPadMultiWarpLoadTranspose, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(CaseHalfPadMultiWarp128MN, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(CaseHalfPadMultiWarp128MNLoadTranspose, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(CaseHalfPadRectTile1, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(CaseHalfPadRectTile1LoadTranspose, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(CaseHalfPadRectTile2, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(CaseHalfPadRectTile2LoadTranspose, TestCorrectness) { this->Run(GetParam()); }
 
 // clang-format off
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalf, kTestingValues);
@@ -260,4 +332,11 @@ INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPad, kTestingV
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadLoadTranspose, kTestingValues);
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadMultiWarp, kTestingValues);
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadMultiWarpLoadTranspose, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadMultiWarp128MN, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadMultiWarp128MNLoadTranspose, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadRectTile1, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadRectTile1LoadTranspose, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadRectTile2, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadRectTile2LoadTranspose, kTestingValues);
+
 // clang-format on

@@ -1,41 +1,47 @@
 #!/bin/bash
-rm -f CMakeCache.txt
-rm -f *.cmake
-rm -rf CMakeFiles
+# exit when a command exits with non-zero status; also when an unbound variable is referenced
+set -eu
+# pipefail is supported by many shells, not supported by sh and dash
+set -o pipefail 2>/dev/null | true
+# when treating a string as a sequence, do not split on spaces
+IFS=$(printf '\n\t')
 
-MY_PROJECT_SOURCE=$1
+# clean the build system files
+find . -name CMakeFiles     -type d -exec rm -rfv {} +
+find . -name CMakeCache.txt -type f -exec rm -rv  {} +
 
+if [ $# -ge 1 ]; then
+    MY_PROJECT_SOURCE="$1"
+    shift 1
+else
+    MY_PROJECT_SOURCE=".."
+fi
 
-if [ $# -ge 2 ]; then
-    case "$2" in
-        gfx*) 
-            GPU_TARGETS=$2
-            shift 2
+GPU_TARGETS="gfx908;gfx90a;gfx942"
+
+if [ $# -ge 1 ]; then
+    case "$1" in 
+        gfx*)
+            GPU_TARGETS=$1
+            shift 1
             echo "GPU targets provided: $GPU_TARGETS"
-            REST_ARGS=$@
             ;;
         *)
-            echo "No GPU targets provided, using default targets: gfx908;gfx90a;gfx942"
-            GPU_TARGETS="gfx908;gfx90a;gfx942"
-            shift 1
-            REST_ARGS=$@
+            echo "No GPU targets provided, using default targets: $GPU_TARGETS"
             ;;
     esac
 else
-    echo "No GPU targets provided, using default targets: gfx908;gfx90a;gfx942"
-    GPU_TARGETS="gfx908;gfx90a;gfx942"
-    shift 1
-    REST_ARGS=$@
+    echo "No GPU targets provided, using default targets: $GPU_TARGETS"
 fi
 
 cmake                                                                                             \
 -D CMAKE_PREFIX_PATH=/opt/rocm/                                                                   \
 -D CMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++                                                  \
--D CMAKE_CXX_FLAGS="-std=c++20 -O3 -ftemplate-backtrace-limit=0  -fPIE  -Wno-gnu-line-marker"     \
+-D CMAKE_CXX_FLAGS="-ftemplate-backtrace-limit=0  -fPIE  -Wno-gnu-line-marker"                    \
 -D CMAKE_BUILD_TYPE=Release                                                                       \
 -D BUILD_DEV=ON                                                                                   \
 -D GPU_TARGETS=$GPU_TARGETS                                                                       \
 -D CMAKE_VERBOSE_MAKEFILE:BOOL=ON                                                                 \
 -D USE_BITINT_EXTENSION_INT4=OFF                                                                  \
-$REST_ARGS                                                                                        \
+$@                                                                                                \
 ${MY_PROJECT_SOURCE}

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -18,19 +18,18 @@ struct BatchedTransposeLdsProblem
 {
     using DataType = remove_cvref_t<DataType_>;
 
-    static constexpr index_t kRowWarps_    = NumWarps::at(number<1>{});
-    static constexpr index_t kColWarps_    = NumWarps::at(number<0>{});
-    static constexpr index_t kBlockSize_   = get_warp_size() * kRowWarps_ * kColWarps_;
-    static constexpr index_t kRowPerBlock_ = BlockTile::at(number<1>{});
-    static constexpr index_t kColPerBlock_ = BlockTile::at(number<0>{});
+    static constexpr index_t kRowWarps_    = NumWarps::at(number<0>{});
+    static constexpr index_t kColWarps_    = NumWarps::at(number<1>{});
+    static constexpr index_t kRowPerBlock_ = BlockTile::at(number<0>{});
+    static constexpr index_t kColPerBlock_ = BlockTile::at(number<1>{});
 
-    static constexpr index_t kBlockSize = kBlockSize_;
+    static constexpr index_t kBlockSize = get_warp_size() * kRowWarps_ * kColWarps_;
     // warps per block
-    static constexpr index_t kLeadNumWarps   = kRowWarps_;
-    static constexpr index_t kSecondNumWarps = kColWarps_;
+    static constexpr index_t kLeadNumWarps   = kColWarps_;
+    static constexpr index_t kSecondNumWarps = kRowWarps_;
 
-    static constexpr index_t kLeadSizePerBlock   = kRowPerBlock_;
-    static constexpr index_t kSecondSizePerBlock = kColPerBlock_;
+    static constexpr index_t kLeadSizePerBlock   = kColPerBlock_;
+    static constexpr index_t kSecondSizePerBlock = kRowPerBlock_;
 
     static constexpr index_t kQuadrantLeadDim   = LaneGroupTransposeTraits<DataType>::kleadDim;
     static constexpr index_t kQuadrantSecondDim = LaneGroupTransposeTraits<DataType>::ksecondDim;
@@ -60,8 +59,8 @@ struct BatchedTransposeLdsProblem
     static constexpr bool kPadM = kPadM_;
     static constexpr bool kPadN = kPadN_;
 
-    static constexpr auto kMPerBlock = kLeadSizePerBlock;
-    static constexpr auto kNPerBlock = kSecondSizePerBlock;
+    static constexpr auto kMPerBlock = kSecondSizePerBlock;
+    static constexpr auto kNPerBlock = kLeadSizePerBlock;
 
     // 128-bit is the max single-instruction bandwidth for load/store
     static constexpr index_t MaxLoadStoreSize = 16;
