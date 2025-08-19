@@ -74,15 +74,19 @@ struct GroupedConvBwdDataKernelArgs
         const auto GcdStrideDilationW = gcd(ConvStrideW, ConvDilationW);
         const auto XTilde             = ConvStrideW / GcdStrideDilationW;
 
-        // static_assert(XTilde <= MaxGroupedGemmGroupsNum, "wrong"); // ADD SUPPORT FOR BATCHES
-        // LATER
-
         for(index_t i_xtilde = 0; i_xtilde < XTilde; ++i_xtilde)
         {
             const auto XDotSlice = integer_divide_ceil(X - i_xtilde, XTilde);
 
             if(XDotSlice <= 0)
             {
+                continue;
+            }
+
+            if(gemm_count >= MaxGroupedGemmGroupsNum)
+            {
+                gemm_count++;
+                // Avoid array segfault
                 continue;
             }
 
@@ -183,9 +187,6 @@ struct GroupedConvBwdDataKernelArgs
         const auto YTilde             = ConvStrideH / GcdStrideDilationH;
         const auto XTilde             = ConvStrideW / GcdStrideDilationW;
 
-        // static_assert(XTilde <= MaxGroupedGemmGroupsNum, "wrong"); // ADD SUPPORT FOR BATCHES
-        // LATER
-
         for(index_t i_ytilde = 0; i_ytilde < YTilde; ++i_ytilde)
         {
             for(index_t i_xtilde = 0; i_xtilde < XTilde; ++i_xtilde)
@@ -195,6 +196,13 @@ struct GroupedConvBwdDataKernelArgs
 
                 if(XDotSlice * YDotSlice <= 0)
                 {
+                    continue;
+                }
+
+                if(gemm_count >= MaxGroupedGemmGroupsNum)
+                {
+                    gemm_count++;
+                    // Avoid array segfault
                     continue;
                 }
 
@@ -308,8 +316,6 @@ struct GroupedConvBwdDataKernelArgs
         const auto YTilde             = ConvStrideH / GcdStrideDilationH;
         const auto XTilde             = ConvStrideW / GcdStrideDilationW;
 
-        // static_assert(XTilde <= MaxGroupedGemmGroupsNum, "wrong"); // ADD SUPPORT FOR BATCHES
-        // LATER
         for(index_t i_ztilde = 0; i_ztilde < ZTilde; ++i_ztilde)
         {
             for(index_t i_ytilde = 0; i_ytilde < YTilde; ++i_ytilde)
@@ -322,6 +328,13 @@ struct GroupedConvBwdDataKernelArgs
 
                     if(ZDotSlice * XDotSlice * YDotSlice <= 0)
                     {
+                        continue;
+                    }
+
+                    if(gemm_count >= MaxGroupedGemmGroupsNum)
+                    {
+                        gemm_count++;
+                        // Avoid array segfault
                         continue;
                     }
 
@@ -369,7 +382,7 @@ struct GroupedConvBwdDataKernelArgs
         GemmBatch = args.G_; // C: In  NWGC
     }
 
-    static constexpr index_t MaxGroupedGemmGroupsNum = 32; // enforce for now
+    static constexpr index_t MaxGroupedGemmGroupsNum = 128;
 
     using ABCGridDescs =
         remove_cvref_t<decltype(ConvToGemmTransformer{}
@@ -474,8 +487,7 @@ struct GroupedConvolutionBackwardDataKernel
     using GemmDsLayout                  = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
     static constexpr index_t NumDTensor = GroupedConvTraitsType::NumDTensor;
 
-    static constexpr index_t KernelBlockSize         = GemmPipeline::BlockSize;
-    static constexpr index_t MaxGroupedGemmGroupsNum = 32; // enforce for now
+    static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
 
     using InDataType  = remove_cvref_t<typename GemmPipeline::ADataType>;
     using WeiDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
@@ -485,6 +497,8 @@ struct GroupedConvolutionBackwardDataKernel
 
     using GroupedConvBwdDataKernelArgsSpecialized =
         GroupedConvBwdDataKernelArgs<GroupedConvTraitsType, TilePartitioner>;
+    static constexpr index_t MaxGroupedGemmGroupsNum =
+        GroupedConvBwdDataKernelArgsSpecialized::MaxGroupedGemmGroupsNum;
 
     // TODO: Enable this
     static constexpr bool IsSplitKSupported = false;
@@ -542,6 +556,11 @@ struct GroupedConvolutionBackwardDataKernel
                 }
                 return false;
             }
+        }
+
+        if(kargs.gemm_count > MaxGroupedGemmGroupsNum)
+        {
+            return false;
         }
 
         const index_t ConvK = kargs.wei_g_k_c_xs_lengths[number<1>{}];

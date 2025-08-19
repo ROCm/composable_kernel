@@ -40,9 +40,9 @@ float grouped_conv_bwd_data(const ck_tile::GroupedConvBwdDataHostArgs& args,
     constexpr ck_tile::index_t N_Warp_Tile = 32;
     constexpr ck_tile::index_t K_Warp_Tile = 16;
 
-    constexpr ck_tile::index_t VectorSizeA = 1;
-    constexpr ck_tile::index_t VectorSizeB = 1;
-    constexpr ck_tile::index_t VectorSizeC = 1;
+    constexpr ck_tile::index_t VectorSizeA = 8;
+    constexpr ck_tile::index_t VectorSizeB = 8;
+    constexpr ck_tile::index_t VectorSizeC = 8;
 
     // Implicit GEMM Traits
     using CodegenShape =
