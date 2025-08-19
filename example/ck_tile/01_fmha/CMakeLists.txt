@@ -1,6 +1,6 @@
 # validate user-specified fmha_fwd API list
 set(FMHA_FWD_KNOWN_APIS "fwd;fwd_splitkv;fwd_appendkv;pagedkv_prefill")
-set(FMHA_FWD_ENABLE_APIS "fwd" CACHE STRING
+set(FMHA_FWD_ENABLE_APIS "all" CACHE STRING
   "semicolon-separated list of APIs to generate (${FMHA_FWD_KNOWN_APIS}) & link, or \"all\".")
 if(FMHA_FWD_ENABLE_APIS STREQUAL "all")
   set(FMHA_FWD_ENABLE_APIS ${FMHA_FWD_KNOWN_APIS})
@@ -78,83 +78,94 @@ add_custom_command(
 )
 
 set(FMHA_FWD_INSTANCES "tile_fmha_fwd_instances")
-set(EXAMPLE_FMHA_FWD "tile_example_fmha_fwd")
-# not using add_example_executable() to add this target, since we don't want this to have
-# to be included in "make all/install/check"
+set(FMHA_BWD_INSTANCES "tile_fmha_bwd_instances")
+
 message(DEBUG "adding instances ${FMHA_FWD_INSTANCES}")
-add_library(${FMHA_FWD_INSTANCES} EXCLUDE_FROM_ALL)
+add_library(${FMHA_FWD_INSTANCES})
 target_include_directories(${FMHA_FWD_INSTANCES} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${FMHA_FWD_INSTANCES} PRIVATE ${FMHA_FWD_GEN_BLOBS})
 
-message(DEBUG "adding example ${EXAMPLE_FMHA_FWD}")
-add_executable(${EXAMPLE_FMHA_FWD} EXCLUDE_FROM_ALL example_fmha_fwd.cpp)
-target_link_libraries(${EXAMPLE_FMHA_FWD} ${FMHA_FWD_INSTANCES})
-target_include_directories(${EXAMPLE_FMHA_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-
-set(FMHA_BWD_INSTANCES "tile_fmha_bwd_instances")
-set(EXAMPLE_FMHA_BWD "tile_example_fmha_bwd")
-# not using add_example_executable() to add this target, since we don't want this to have
-# to be included in "make all/install/check"
 message(DEBUG "adding instances ${FMHA_BWD_INSTANCES}")
-add_library(${FMHA_BWD_INSTANCES} EXCLUDE_FROM_ALL)
+add_library(${FMHA_BWD_INSTANCES})
 target_include_directories(${FMHA_BWD_INSTANCES} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${FMHA_BWD_INSTANCES} PRIVATE ${FMHA_BWD_GEN_BLOBS})
 
-message(DEBUG "adding example ${EXAMPLE_FMHA_BWD}")
-add_executable(${EXAMPLE_FMHA_BWD} EXCLUDE_FROM_ALL example_fmha_bwd.cpp)
-target_link_libraries(${EXAMPLE_FMHA_BWD} ${FMHA_BWD_INSTANCES})
-target_include_directories(${EXAMPLE_FMHA_BWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+set(FMHA_FWD_PRIVATE_COMPILE_OPTIONS)
+set(FMHA_BWD_PRIVATE_COMPILE_OPTIONS)
+
+# NOTE: we turn off undefined-func-template to let source compile without explicit declare function specializations
+#       ... because they are auto-generated
+list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -Wno-undefined-func-template)
+list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -Wno-undefined-func-template)
+
+# Allow comparing floating points directly in order to check sentinel values
+list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -Wno-float-equal)
+list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -Wno-float-equal)
 
 # NOTE: this is dangerous since will change the whole kernel to flush denormals
 #       WIP with compiler team for an exp2 intrinsic..., then remove this
 if(NOT DEFINED FMHA_FWD_FAST_EXP2)
-  set(FMHA_FWD_FAST_EXP2 true)
+  set(FMHA_FWD_FAST_EXP2 ON)
 endif()
 
-set(EXAMPLE_FMHA_FWD_COMPILE_OPTIONS)
-set(EXAMPLE_FMHA_BWD_COMPILE_OPTIONS)
-
-# NOTE: we turn off undefined-func-template to let source compile without explicit declare function specializations
-#       ... because they are auto-generated
 if(FMHA_FWD_FAST_EXP2)
-  list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -DCK_TILE_FMHA_FWD_FAST_EXP2=1 -fgpu-flush-denormals-to-zero)
+  list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_FAST_EXP2=1 -fgpu-flush-denormals-to-zero)
 else()
-  list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -DCK_TILE_FMHA_FWD_FAST_EXP2=0)
+  list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_FAST_EXP2=0)
 endif()
-list(APPEND EXAMPLE_FMHA_BWD_COMPILE_OPTIONS -Wno-undefined-func-template -fgpu-flush-denormals-to-zero)
+list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -fgpu-flush-denormals-to-zero)
+
+target_compile_options(${FMHA_FWD_INSTANCES} PRIVATE ${FMHA_FWD_PRIVATE_COMPILE_OPTIONS})
+target_compile_options(${FMHA_BWD_INSTANCES} PRIVATE ${FMHA_BWD_PRIVATE_COMPILE_OPTIONS})
+
+set(FMHA_FWD_PUBLIC_COMPILE_OPTIONS)
+set(FMHA_BWD_PUBLIC_COMPILE_OPTIONS)
 
 # conditionally enable call to the fwd_splitkv API in fmha_fwd example
 if("fwd_splitkv" IN_LIST FMHA_FWD_ENABLE_APIS)
-  list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_SPLITKV_API=1)
+  list(APPEND FMHA_FWD_PUBLIC_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_SPLITKV_API=1)
 else()
-  list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_SPLITKV_API=0)
+  list(APPEND FMHA_FWD_PUBLIC_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_SPLITKV_API=0)
 endif()
 
 # conditionally enable call to the fwd_appendkv API in fmha_fwd example
 if("fwd_appendkv" IN_LIST FMHA_FWD_ENABLE_APIS)
-  list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_APPENDKV_API=1)
+  list(APPEND FMHA_FWD_PUBLIC_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_APPENDKV_API=1)
 else()
-  list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_APPENDKV_API=0)
+  list(APPEND FMHA_FWD_PUBLIC_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_APPENDKV_API=0)
 endif()
 
 # conditionally enable call to the pagedkv_prefill API in fmha_fwd example
 if("pagedkv_prefill" IN_LIST FMHA_FWD_ENABLE_APIS)
-  list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_PAGEDKV_API=1)
+  list(APPEND FMHA_FWD_PUBLIC_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_PAGEDKV_API=1)
 else()
-  list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_PAGEDKV_API=0)
+  list(APPEND FMHA_FWD_PUBLIC_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_PAGEDKV_API=0)
 endif()
 
 # conditionally specify the use of OCP_FP8
 if(CK_USE_OCP_FP8)
-  list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)
+  list(APPEND FMHA_FWD_PUBLIC_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)
 endif()
 
-# Allow comparing floating points directly in order to check sentinel values
-list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-float-equal)
-list(APPEND EXAMPLE_FMHA_BWD_COMPILE_OPTIONS -Wno-float-equal)
+target_compile_options(${FMHA_FWD_INSTANCES} PUBLIC ${FMHA_FWD_PUBLIC_COMPILE_OPTIONS})
+target_compile_options(${FMHA_BWD_INSTANCES} PUBLIC ${FMHA_BWD_PUBLIC_COMPILE_OPTIONS})
 
-target_compile_options(${FMHA_FWD_INSTANCES} PUBLIC ${EXAMPLE_FMHA_FWD_COMPILE_OPTIONS})
-target_compile_options(${FMHA_BWD_INSTANCES} PUBLIC ${EXAMPLE_FMHA_BWD_COMPILE_OPTIONS})
+set(EXAMPLE_FMHA_FWD "tile_example_fmha_fwd")
+set(EXAMPLE_FMHA_BWD "tile_example_fmha_bwd")
+
+message(DEBUG "adding example ${EXAMPLE_FMHA_FWD}")
+# not using add_example_executable() to add this target, since we don't want this to be included in
+# "make all/install/check"
+add_executable(${EXAMPLE_FMHA_FWD} EXCLUDE_FROM_ALL example_fmha_fwd.cpp)
+target_link_libraries(${EXAMPLE_FMHA_FWD} ${FMHA_FWD_INSTANCES})
+target_include_directories(${EXAMPLE_FMHA_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+
+message(DEBUG "adding example ${EXAMPLE_FMHA_BWD}")
+# not using add_example_executable() to add this target, since we don't want this to be included in
+# "make all/install/check"
+add_executable(${EXAMPLE_FMHA_BWD} EXCLUDE_FROM_ALL example_fmha_bwd.cpp)
+target_link_libraries(${EXAMPLE_FMHA_BWD} ${FMHA_BWD_INSTANCES})
+target_include_directories(${EXAMPLE_FMHA_BWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 
 # TODO: we have to turn off this global prop, otherwise the progress bar generated
 # by cmake will print too many files, execvp: /bin/sh: Argument list too long
