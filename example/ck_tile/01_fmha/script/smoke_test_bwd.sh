@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # TODO: run this script from CK root or build directory
 set -euo pipefail
 
