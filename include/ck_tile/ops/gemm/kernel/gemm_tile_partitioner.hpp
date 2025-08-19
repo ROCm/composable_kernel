@@ -558,7 +558,7 @@ struct StreamKTilePartitioner
     /**
      * @brief Calculate optimal grid size for Stream-K
      */
-    CK_TILE_HOST auto GridSize() noexcept -> dim3
+    CK_TILE_HOST auto GridSize() const noexcept -> dim3
     {
         if constexpr(reduction_strategy == StreamKReductionStrategy::Reduction)
         {
@@ -571,7 +571,7 @@ struct StreamKTilePartitioner
     /**
      * @brief Calculate number of loop iterations over K dimension for given work unit
      */
-    CK_TILE_HOST_DEVICE auto GetLoopNum(index_t K) noexcept -> index_t
+    CK_TILE_HOST_DEVICE auto GetLoopNum(index_t K) const noexcept -> index_t
     {
         return integer_divide_ceil(K, KPerBlock); // Stream-K processes one K-slice at a time
     }
