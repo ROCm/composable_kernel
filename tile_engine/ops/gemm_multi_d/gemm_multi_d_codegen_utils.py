@@ -56,7 +56,6 @@ CSHUFFLE_EPILOGUE = """
                                                              DsLayout,
                                                              ELayout,
                                                              CDEElementWise,
-                                                             GemmPipelineProblem::kBlockSize,
                                                              TilePartitioner::MPerBlock,
                                                              TilePartitioner::NPerBlock,
                                                              WarpM,

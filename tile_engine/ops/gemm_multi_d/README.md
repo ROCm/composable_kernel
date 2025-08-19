@@ -21,7 +21,7 @@ mkdir build && cd build
 # replace [Datatype] in comma separated datatypes string (possible datatypes are [fp16])
 # replace [Layout1;Layout2;...] in comma separated datatypes string (possible layouts are [rcr, rrr, crr, ccr])
 # replace "mul" with either of mul,add,passthrough for Elementwise function as Multiply, Add or Passthrough respectively. If this is not specified it is considered as mul by default.
-sh ../script/cmake-ck-dev.sh  ../ [Arch] -DGEMM_MULTI_D_DATATYPE="[Datatype]" -DGEMM_MULTI_D_LAYOUT="[Layout1;Layout2]" -DGEMM_MULTI_D_ELEMENTWISE_FUNCTION="mul"
+../script/cmake-ck-dev.sh  ../ [Arch] -DGEMM_MULTI_D_DATATYPE="[Datatype]" -DGEMM_MULTI_D_LAYOUT="[Layout1;Layout2]" -DGEMM_MULTI_D_ELEMENTWISE_FUNCTION="mul"
 # generate different executable for each passed datatype
 make benchmark_gemm_multi_d_[Datatype]_[Layout1] -j
 make benchmark_gemm_multi_d_[Datatype]_[Layout2] -j
@@ -37,7 +37,7 @@ rm -rf tile_engine/ && make benchmark_gemm_multi_d_[Datatype]_[Layout] -j  # reb
 ## For eaxmple build for gfx942 for datatype with rcr layout
 ``` bash
 mkdir build && cd build
-sh ../script/cmake-ck-dev.sh  ../ gfx942 -DGEMM_MULTI_D_DATATYPE="fp16" -DGEMM_MULTI_D_LAYOUT="rcrr" 
+../script/cmake-ck-dev.sh  ../ gfx942 -DGEMM_MULTI_D_DATATYPE="fp16" -DGEMM_MULTI_D_LAYOUT="rcrr" 
 make benchmark_gemm_multi_d_fp16_rcrr -j
 
 ## benchmark_gemm inputs

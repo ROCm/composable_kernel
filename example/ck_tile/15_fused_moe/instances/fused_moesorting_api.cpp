@@ -213,7 +213,7 @@ float fused_moesorting(fused_moesorting_trait t, fused_moesorting_args a, ck_til
         auto kargs                            = kernel::MakeKargs(a);                               \
         const dim3 grids                      = kernel::GridSize(a);                                \
         const dim3 blocks                     = kernel::BlockSize(a);                               \
-        return ck_tile::make_kernel<kernel::BLOCK_SIZE>(kernel{}, grids, blocks, 0, kargs);         \
+        return ck_tile::make_kernel(kernel{}, grids, blocks, 0, kargs);                             \
     }()
 
 #define MOE_SORTING_MP_1(mesh_type_, unroll_num_, expert_masking_, local_token_)                    \
@@ -231,7 +231,7 @@ float fused_moesorting(fused_moesorting_trait t, fused_moesorting_args a, ck_til
         auto kargs                            = kernel::MakeKargs(a);                               \
         const dim3 grids                      = kernel::GridSize(a);                                \
         const dim3 blocks                     = kernel::BlockSize(a);                               \
-        return ck_tile::make_kernel<kernel::BLOCK_SIZE>(kernel{}, grids, blocks, 0, kargs);         \
+        return ck_tile::make_kernel(kernel{}, grids, blocks, 0, kargs);                             \
     }()
 #if MOE_SORTING_SUPPORT_LARGE_EXPERT
 #define MOE_SORTING_MP_2(mesh_type_, unroll_num_, expert_masking_, local_token_)                    \
@@ -287,7 +287,7 @@ float fused_moesorting(fused_moesorting_trait t, fused_moesorting_args a, ck_til
         const dim3 grids                      = kernel::GridSize(a);                                 \
         const dim3 blocks                     = kernel::BlockSize(a);                                \
         const auto lds_size                   = kernel::GetSmemSize(a);                              \
-        return ck_tile::make_kernel<kernel::BLOCK_SIZE>(kernel{}, grids, blocks, lds_size, kargs);   \
+        return ck_tile::make_kernel(kernel{}, grids, blocks, lds_size, kargs);                       \
     }()
 
 #define MOR_SORTING_MP_DISPATCH_(mesh_type_, token_vec_0_, token_vec_1_, token_vec_23_)            \

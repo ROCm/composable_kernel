@@ -48,6 +48,7 @@ None
 * Number of instances in instance factory for grouped convolution forward NGCHW/GKYXC/NGKHW has been reduced.
 * Number of instances in instance factory for grouped convolution backward weight NGCHW/GKYXC/NGKHW has been reduced.
 * Number of instances in instance factory for grouped convolution backward data NGCHW/GKYXC/NGKHW has been reduced.
+* Removed `BlockSize` in `make_kernel` and `CShuffleEpilogueProblem` to support Wave32 in CK_TILE (#2594)
 
 ### Known issues
 
