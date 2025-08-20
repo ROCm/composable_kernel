@@ -11,6 +11,7 @@
 
 #include "ck_tile/host.hpp"
 #include "gemm_utils.hpp"
+#include "ck_tile/core/utility/gemm_validation.hpp"
 
 template <typename GemmConfig,
           typename ADataType,
@@ -193,6 +194,17 @@ int run_gemm_example(int argc, char* argv[])
     std::string data_type = arg_parser.get_str("prec");
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
+    std::string c_layout  = arg_parser.get_str("c_layout");
+
+    int m        = arg_parser.get_int("m");
+    int n        = arg_parser.get_int("n");
+    int k        = arg_parser.get_int("k");
+    int stride_a = arg_parser.get_int("stride_a");
+    int stride_b = arg_parser.get_int("stride_b");
+    int stride_c = arg_parser.get_int("stride_c");
+
+    ck_tile::validate_gemm_stride(
+        a_layout, b_layout, c_layout, m, n, k, stride_a, stride_b, stride_c);
 
     if(data_type == "fp16")
     {
