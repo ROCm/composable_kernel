@@ -3,7 +3,8 @@
   :keywords: composable kernel, glossary
 
 ***************************************************
-Composable Kernel glossaries
+Composable Kernel glossary
+
 ***************************************************
 
 .. glossary::
