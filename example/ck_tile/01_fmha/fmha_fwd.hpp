@@ -49,9 +49,6 @@ struct FmhaFwdTypeConfig<FmhaFwdFp16>
     using QDataType             = ck_tile::half_t;
     using KDataType             = ck_tile::half_t;
     using VDataType             = ck_tile::half_t;
-    using QHostDataType         = QDataType;
-    using KHostDataType         = KDataType;
-    using VHostDataType         = VDataType;
     using BiasDataType          = ck_tile::half_t;
     using RandValOutputDataType = uint8_t;
     using LSEDataType           = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
@@ -68,9 +65,6 @@ struct FmhaFwdTypeConfig<FmhaFwdBf16>
     using QDataType             = ck_tile::bf16_t;
     using KDataType             = ck_tile::bf16_t;
     using VDataType             = ck_tile::bf16_t;
-    using QHostDataType         = QDataType;
-    using KHostDataType         = KDataType;
-    using VHostDataType         = VDataType;
     using BiasDataType          = ck_tile::bf16_t;
     using RandValOutputDataType = uint8_t;
     using LSEDataType           = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
@@ -87,9 +81,6 @@ struct FmhaFwdTypeConfig<FmhaFwdFp8>
     using QDataType             = ck_tile::fp8_t;
     using KDataType             = ck_tile::fp8_t;
     using VDataType             = ck_tile::fp8_t;
-    using QHostDataType         = ck_tile::bf16_t;
-    using KHostDataType         = ck_tile::bf16_t;
-    using VHostDataType         = ck_tile::bf16_t;
     using BiasDataType          = float;
     using RandValOutputDataType = uint8_t;
     using LSEDataType           = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
@@ -106,9 +97,6 @@ struct FmhaFwdTypeConfig<FmhaFwdBf8>
     using QDataType             = ck_tile::bf8_t;
     using KDataType             = ck_tile::bf8_t;
     using VDataType             = ck_tile::bf8_t;
-    using QHostDataType         = ck_tile::bf16_t;
-    using KHostDataType         = ck_tile::bf16_t;
-    using VHostDataType         = ck_tile::bf16_t;
     using BiasDataType          = ck_tile::bf8_t;
     using RandValOutputDataType = uint8_t;
     using LSEDataType           = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
