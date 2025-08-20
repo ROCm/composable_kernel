@@ -420,10 +420,11 @@ __device__ void amd_buffer_atomic_add_impl(const typename vector_type<T, N>::typ
                                            index_t dst_thread_addr_offset,
                                            index_t dst_wave_addr_offset)
 {
-    static_assert((is_same<T, float>::value && (N == 1 || N == 2 || N == 4)) ||
-                      (is_same<T, half_t>::value && (N == 2 || N == 4 || N == 8)) ||
-                      (is_same<T, int32_t>::value && (N == 1 || N == 2 || N == 4)),
-                  "wrong! not implemented");
+    static_assert(
+        (is_same<T, float>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
+            (is_same<T, half_t>::value && (N == 2 || N == 4 || N == 8)) ||
+            (is_same<T, int32_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)),
+        "wrong! not implemented");
 
     if constexpr(is_same<T, float>::value)
     {
@@ -435,49 +436,17 @@ __device__ void amd_buffer_atomic_add_impl(const typename vector_type<T, N>::typ
                                                    dst_wave_addr_offset,
                                                    0);
         }
-        else if constexpr(N == 2)
+        else // N = 2, 4, 8
         {
-            vector_type<float, 2> tmp{src_thread_data};
+            vector_type<float, N> tmp{src_thread_data};
 
-            llvm_amdgcn_raw_buffer_atomic_add_fp32(tmp.AsType<float>()[Number<0>{}],
-                                                   dst_wave_buffer_resource,
-                                                   dst_thread_addr_offset,
-                                                   dst_wave_addr_offset,
-                                                   0);
-
-            llvm_amdgcn_raw_buffer_atomic_add_fp32(tmp.AsType<float>()[Number<1>{}],
-                                                   dst_wave_buffer_resource,
-                                                   dst_thread_addr_offset,
-                                                   dst_wave_addr_offset + sizeof(float),
-                                                   0);
-        }
-        else if constexpr(N == 4)
-        {
-            vector_type<float, 4> tmp{src_thread_data};
-
-            llvm_amdgcn_raw_buffer_atomic_add_fp32(tmp.AsType<float>()[Number<0>{}],
-                                                   dst_wave_buffer_resource,
-                                                   dst_thread_addr_offset,
-                                                   dst_wave_addr_offset,
-                                                   0);
-
-            llvm_amdgcn_raw_buffer_atomic_add_fp32(tmp.AsType<float>()[Number<1>{}],
-                                                   dst_wave_buffer_resource,
-                                                   dst_thread_addr_offset,
-                                                   dst_wave_addr_offset + sizeof(float),
-                                                   0);
-
-            llvm_amdgcn_raw_buffer_atomic_add_fp32(tmp.AsType<float>()[Number<2>{}],
-                                                   dst_wave_buffer_resource,
-                                                   dst_thread_addr_offset,
-                                                   dst_wave_addr_offset + 2 * sizeof(float),
-                                                   0);
-
-            llvm_amdgcn_raw_buffer_atomic_add_fp32(tmp.AsType<float>()[Number<3>{}],
-                                                   dst_wave_buffer_resource,
-                                                   dst_thread_addr_offset,
-                                                   dst_wave_addr_offset + 3 * sizeof(float),
-                                                   0);
+            static_for<0, N, 1>{}([&](auto i) {
+                llvm_amdgcn_raw_buffer_atomic_add_fp32(tmp.template AsType<float>()[i],
+                                                       dst_wave_buffer_resource,
+                                                       dst_thread_addr_offset,
+                                                       dst_wave_addr_offset + i * sizeof(float),
+                                                       0);
+            });
         }
     }
     else if constexpr(is_same<T, half_t>::value)
@@ -490,24 +459,12 @@ __device__ void amd_buffer_atomic_add_impl(const typename vector_type<T, N>::typ
                                                      dst_wave_addr_offset,
                                                      0);
         }
-        else if constexpr(N == 4)
+        else // N = 4, 8
         {
-            vector_type<half_t, 4> tmp{src_thread_data};
+            vector_type<half_t, N> tmp{src_thread_data};
 
-            static_for<0, 2, 1>{}([&](auto i) {
-                llvm_amdgcn_raw_buffer_atomic_add_fp16x2(tmp.AsType<half2_t>()[i],
-                                                         dst_wave_buffer_resource,
-                                                         dst_thread_addr_offset,
-                                                         dst_wave_addr_offset + i * sizeof(half2_t),
-                                                         0);
-            });
-        }
-        else if constexpr(N == 8)
-        {
-            vector_type<half_t, 8> tmp{src_thread_data};
-
-            static_for<0, 4, 1>{}([&](auto i) {
-                llvm_amdgcn_raw_buffer_atomic_add_fp16x2(tmp.AsType<half2_t>()[i],
+            static_for<0, N / 2, 1>{}([&](auto i) {
+                llvm_amdgcn_raw_buffer_atomic_add_fp16x2(tmp.template AsType<half2_t>()[i],
                                                          dst_wave_buffer_resource,
                                                          dst_thread_addr_offset,
                                                          dst_wave_addr_offset + i * sizeof(half2_t),
@@ -525,49 +482,17 @@ __device__ void amd_buffer_atomic_add_impl(const typename vector_type<T, N>::typ
                                                   dst_wave_addr_offset,
                                                   0);
         }
-        else if constexpr(N == 2)
+        else // N = 2, 4, 8, 16
         {
-            vector_type<int32_t, 2> tmp{src_thread_data};
+            vector_type<int32_t, N> tmp{src_thread_data};
 
-            llvm_amdgcn_raw_buffer_atomic_add_i32(tmp.AsType<int32_t>()[Number<0>{}],
-                                                  dst_wave_buffer_resource,
-                                                  dst_thread_addr_offset,
-                                                  dst_wave_addr_offset,
-                                                  0);
-
-            llvm_amdgcn_raw_buffer_atomic_add_i32(tmp.AsType<int32_t>()[Number<1>{}],
-                                                  dst_wave_buffer_resource,
-                                                  dst_thread_addr_offset,
-                                                  dst_wave_addr_offset + sizeof(int32_t),
-                                                  0);
-        }
-        else if constexpr(N == 4)
-        {
-            vector_type<int32_t, 4> tmp{src_thread_data};
-
-            llvm_amdgcn_raw_buffer_atomic_add_i32(tmp.AsType<int32_t>()[Number<0>{}],
-                                                  dst_wave_buffer_resource,
-                                                  dst_thread_addr_offset,
-                                                  dst_wave_addr_offset,
-                                                  0);
-
-            llvm_amdgcn_raw_buffer_atomic_add_i32(tmp.AsType<int32_t>()[Number<1>{}],
-                                                  dst_wave_buffer_resource,
-                                                  dst_thread_addr_offset,
-                                                  dst_wave_addr_offset + sizeof(int32_t),
-                                                  0);
-
-            llvm_amdgcn_raw_buffer_atomic_add_i32(tmp.AsType<int32_t>()[Number<2>{}],
-                                                  dst_wave_buffer_resource,
-                                                  dst_thread_addr_offset,
-                                                  dst_wave_addr_offset + 2 * sizeof(int32_t),
-                                                  0);
-
-            llvm_amdgcn_raw_buffer_atomic_add_i32(tmp.AsType<int32_t>()[Number<3>{}],
-                                                  dst_wave_buffer_resource,
-                                                  dst_thread_addr_offset,
-                                                  dst_wave_addr_offset + 3 * sizeof(int32_t),
-                                                  0);
+            static_for<0, N, 1>{}([&](auto i) {
+                llvm_amdgcn_raw_buffer_atomic_add_i32(tmp.template AsType<int32_t>()[i],
+                                                      dst_wave_buffer_resource,
+                                                      dst_thread_addr_offset,
+                                                      dst_wave_addr_offset + i * sizeof(int32_t),
+                                                      0);
+            });
         }
     }
 }
