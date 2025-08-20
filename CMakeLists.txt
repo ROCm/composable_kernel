@@ -98,6 +98,12 @@ add_compile_options(-Wno-pass-failed)
 add_compile_options(-Wno-switch-default)
 add_compile_options(-Wno-unique-object-duplication)
 
+# add -Og -gdwarf64 for debug builds
+add_compile_options(
+    "$<$<CONFIG:Debug>:-Og>"
+    "$<$<CONFIG:Debug>:-gdwarf64>"
+)
+
 # Recent change in compiler makes this warning ON by default, which led to compile errors.
 add_compile_options(-Wno-nrvo)
 
@@ -328,6 +334,11 @@ if(ENABLE_ASM_DUMP)
     add_compile_options(--save-temps) 
     add_compile_options(-Wno-gnu-line-marker)
     message("CK compiled with ENABLE_ASM_DUMP set to ${ENABLE_ASM_DUMP}")
+endif()
+
+if(USE_OPT_GFX12 AND (SUPPORTED_GPU_TARGETS MATCHES "gfx12"))
+    add_compile_options(-mno-wavefrontsize64)
+    message(STATUS "CK compiled with USE_OPT_GFX12 set to ${USE_OPT_GFX12}")
 endif()
 
 ## Threads
