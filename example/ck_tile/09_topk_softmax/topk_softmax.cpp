@@ -81,7 +81,6 @@ void reference_grouped_topk_softmax(const ck_tile::HostTensor<InputType>& x,
     using namespace ck_tile;
 
     auto y = reference_softmax<InputType, WeightType, WeightType>(x, dim);
-    printf("==============================before reference_grouped_topk===============================\n");
     reference_topk(y, y_values, y_indices, k, dim, largest, sorted);
     reference_grouped_topk(y, y_values, y_indices, k, num_expert_group, topk_group, dim, largest, sorted);
 }

@@ -149,7 +149,6 @@ CK_TILE_HOST void reference_grouped_topk(const HostTensor<DataType>& x,
                                          bool largest = true,
                                          bool sorted  = true)
 {
-    printf("==================================reference_grouped_topk===============================\n");
     auto lens          = x.get_lengths();
     index_t num_token = lens[0];
     index_t num_expert = lens[1];
