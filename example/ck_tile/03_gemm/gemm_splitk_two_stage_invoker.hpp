@@ -211,8 +211,10 @@ struct SplitKTwoStageInvoker
                     rotating_mem.Next();
                     // clear c mem
                     if(args.k_batch > 1)
-                        hipGetErrorString(hipMemsetAsync(
-                            args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
+                        hipGetErrorString(hipMemsetAsync(ws_args.c_ptr,
+                                                         0,
+                                                         args.M * args.N * sizeof(WorkspaceType),
+                                                         s.stream_id_));
                 };
                 ave_time = ck_tile::launch_kernel_time_mask(
                     s,
