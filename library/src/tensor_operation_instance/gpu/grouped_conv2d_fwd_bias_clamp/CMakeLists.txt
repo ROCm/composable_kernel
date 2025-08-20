@@ -1,4 +1,4 @@
-# ONLY XDL_KERNELS
+# ONLY XDL_AND_WMMA_KERNELS
 add_instance_library(device_grouped_conv2d_fwd_bias_clamp_instance
    xdl/device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_instance.cpp
    xdl/device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_16x16_instance.cpp
@@ -27,4 +27,6 @@ add_instance_library(device_grouped_conv2d_fwd_bias_clamp_instance
    xdl/mem/device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_fp32_mem_intra_instance.cpp
    xdl/mem/device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_fp32_mem_inter_instance.cpp
    xdl/comp/device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_fp32_comp_instance.cpp
+
+   wmma/comp/device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_fp16_comp_instance.cpp
 )

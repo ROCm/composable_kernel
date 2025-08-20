@@ -16,6 +16,10 @@
 #include "grouped_convolution_forward_bias_clamp_xdl.inc"
 #endif
 
+#ifdef CK_USE_WMMA
+#include "grouped_convolution_forward_bias_clamp_wmma_cshufflev3.inc"
+#endif
+
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -218,6 +222,23 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
 #endif
         }
 #endif // CK_USE_XDL
+
+#ifdef CK_USE_WMMA
+        // layout NHWGC/GKYXC/NHWGK
+        if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, NHWGC> &&
+                     is_same_v<WeiLayout, GKYXC> && is_same_v<OutLayout, NHWGK>)
+        {
+#ifdef CK_ENABLE_FP16
+            if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+                         is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t> &&
+                         is_same_v<BComputeType, half_t>)
+            {
+                add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_comp_instances(
+                    op_ptrs);
+            }
+#endif
+        }
+#endif // CK_USE_WMMA
 
         return op_ptrs;
     }
