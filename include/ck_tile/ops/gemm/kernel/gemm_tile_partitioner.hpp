@@ -378,20 +378,15 @@ enum StreamKReductionStrategy : uint32_t
  * into smaller work units and distributes them more evenly across available blocks,
  * improving load balancing especially for cases where the K dimension is large.
  */
-template <typename BlockGemmShape_,
-          StreamKReductionStrategy ReductionStrategy_ = StreamKReductionStrategy::Atomic,
-          uint32_t TileSwizzleSubM_                   = 8,
-          index_t GroupNum                            = 8,
-          index_t M01_                                = 4>
+template <typename BlockGemmShape,
+          StreamKReductionStrategy ReductionStrategy = StreamKReductionStrategy::Atomic,
+          index_t TileSwizzleSubM                    = 8>
 struct StreamKTilePartitioner
 {
-    using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
-    static constexpr index_t MPerBlock          = BlockGemmShape::kM;
-    static constexpr index_t NPerBlock          = BlockGemmShape::kN;
-    static constexpr index_t KPerBlock          = BlockGemmShape::kK;
-    StreamKReductionStrategy reduction_strategy = ReductionStrategy_;
-    static constexpr index_t tile_swizzle_sub_m = TileSwizzleSubM_;
+    static constexpr index_t MPerBlock = BlockGemmShape::kM;
+    static constexpr index_t NPerBlock = BlockGemmShape::kN;
+    static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
     index_t sk_num_blocks;
     index_t sk_num_big_blocks;
@@ -416,13 +411,13 @@ struct StreamKTilePartitioner
                                                index_t sk_blocks = -1) noexcept
         : M_(M), N_(N), K_(K)
     {
-        num_tile_m_ = (M + MPerBlock - 1) / MPerBlock;
-        num_tile_n_ = (N + NPerBlock - 1) / NPerBlock;
-        num_tile_k_ = (K + KPerBlock - 1) / KPerBlock;
+        num_tile_m_ = integer_divide_ceil(M, MPerBlock);
+        num_tile_n_ = integer_divide_ceil(N, NPerBlock);
+        num_tile_k_ = integer_divide_ceil(K, KPerBlock);
 
         static constexpr index_t min_k_iters_per_sk_block = 2;
-        index_t num_tiles = integer_divide_ceil(M, MPerBlock) * integer_divide_ceil(N, NPerBlock);
-        k_iters_per_tile  = mdiv(integer_divide_ceil(K, KPerBlock));
+        index_t num_tiles                                 = num_tile_m_ * num_tile_n_;
+        k_iters_per_tile                                  = mdiv(num_tile_k_);
 
         // one cu can hold one wg at one time, from the whole cZ's point of view
         // if number of wg is same as num_cu, we call it 1 dispatch
@@ -543,10 +538,10 @@ struct StreamKTilePartitioner
                 dp_start_block_idx = (sk_num_blocks + num_cu - 1) / num_cu * num_cu;
             }
         }
-        n_tiles                   = mdiv2(integer_divide_ceil(N, NPerBlock));
+        n_tiles                   = mdiv2(num_tile_n_);
         reduction_start_block_idx = dp_start_block_idx + dp_num_blocks;
 
-        if constexpr(reduction_strategy == StreamKReductionStrategy::Reduction)
+        if constexpr(ReductionStrategy == StreamKReductionStrategy::Reduction)
         {
             index_t upper_big    = lcm(k_iters_per_big_block, k_iters_per_tile.get());
             index_t upper_little = lcm(k_iters_per_big_block - 1, k_iters_per_tile.get());
@@ -560,7 +555,7 @@ struct StreamKTilePartitioner
      */
     CK_TILE_HOST auto GridSize() const noexcept -> dim3
     {
-        if constexpr(reduction_strategy == StreamKReductionStrategy::Reduction)
+        if constexpr(ReductionStrategy == StreamKReductionStrategy::Reduction)
         {
             return dim3(reduction_start_block_idx + GetSkTiles(), 1, 1);
         }
@@ -579,34 +574,31 @@ struct StreamKTilePartitioner
     /**
      * @brief Get output tile index for standard 2D mapping (compatibility)
      */
-    CK_TILE_DEVICE auto GetOutputTileIndex(index_t tile_idx,
-                                           index_t M,
-                                           index_t N) const noexcept -> tuple<index_t, index_t>
+    CK_TILE_DEVICE auto
+    GetOutputTileIndex(index_t tile_idx) const noexcept -> tuple<index_t, index_t>
     {
         uint32_t m_tile_idx, n_tile_idx;
-        index_t n_tiles_value = integer_divide_ceil(N, NPerBlock);
-        n_tiles.divmod(tile_idx, n_tiles_value, m_tile_idx, n_tile_idx);
+        n_tiles.divmod(tile_idx, num_tile_n_, m_tile_idx, n_tile_idx);
 
         // swizzle tile
-        index_t m_tiles = integer_divide_ceil(M, MPerBlock);
 
-        index_t tile_swizzle_sub_m_rem = m_tiles % tile_swizzle_sub_m;
+        index_t tile_swizzle_sub_m_rem = num_tile_m_ % TileSwizzleSubM;
 
-        const auto sub_m_adapt = (m_tile_idx < (m_tiles - tile_swizzle_sub_m_rem))
-                                     ? tile_swizzle_sub_m
+        const auto sub_m_adapt = (m_tile_idx < (num_tile_m_ - tile_swizzle_sub_m_rem))
+                                     ? TileSwizzleSubM
                                      : tile_swizzle_sub_m_rem;
 
         index_t m_tile_idx_sub0, m_tile_idx_sub1;
-        m_tile_idx_sub0 = m_tile_idx / tile_swizzle_sub_m;
-        m_tile_idx_sub1 = m_tile_idx % tile_swizzle_sub_m;
+        m_tile_idx_sub0 = m_tile_idx / TileSwizzleSubM;
+        m_tile_idx_sub1 = m_tile_idx % TileSwizzleSubM;
 
-        index_t tile_idx_local = n_tile_idx + m_tile_idx_sub1 * n_tiles_value;
+        index_t tile_idx_local = n_tile_idx + m_tile_idx_sub1 * num_tile_n_;
 
         index_t m_tile_idx_with_adapt, n_tile_idx_with_adapt;
 
         n_tile_idx_with_adapt = tile_idx_local / sub_m_adapt;
         m_tile_idx_with_adapt = tile_idx_local % sub_m_adapt;
-        return make_tuple(m_tile_idx_with_adapt + m_tile_idx_sub0 * tile_swizzle_sub_m,
+        return make_tuple(m_tile_idx_with_adapt + m_tile_idx_sub0 * TileSwizzleSubM,
                           n_tile_idx_with_adapt);
     }
 
@@ -654,14 +646,6 @@ struct StreamKTilePartitioner
         // tiles for sk
         index_t sk_total_iters = GetSkTotalIters();
         return k_iters_per_tile.div(sk_total_iters);
-    }
-
-    /**
-     * @brief Get block idx
-     */
-    CK_TILE_DEVICE index_t GetBlockIdx() const noexcept
-    {
-        return __builtin_amdgcn_readfirstlane(blockIdx.x);
     }
 
     /**
