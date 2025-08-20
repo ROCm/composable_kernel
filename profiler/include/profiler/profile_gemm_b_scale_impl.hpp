@@ -105,7 +105,7 @@ bool profile_gemm_b_scale_impl(int do_verification,
         break;
     case 2:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-1, 2});
         b1_k_n.GenerateTensorValue(GeneratorTensor_3<BScaleDataType>{0, 1.0});
         break;
     default:
