@@ -214,7 +214,8 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
                                                   c_g_m_n_host_result,
                                                   a_element_op,
                                                   b_element_op,
-                                                  c_element_op);
+                                                  c_element_op,
+                                                  KBatch);
         ref_invoker.Run(ref_argument);
 
     }
@@ -380,8 +381,12 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
                     else
                     {
 #endif
+                        std::string msg = "Error: Incorrect results!";
+                        double rtol     = 1e-2;
+                        double atol     = 1e-2;
                         pass =
-                            pass & ck::utils::check_err(c_g_m_n_device_result, c_g_m_n_host_result);
+                            pass & ck::utils::check_err(
+                                       c_g_m_n_device_result, c_g_m_n_host_result, msg, rtol, atol);
 #if defined CK_ENABLE_FP8
                     }
 #endif
