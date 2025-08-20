@@ -136,16 +136,16 @@ template <typename PrecType>
 struct GemmConfigComputeV3 : public GemmConfigBase
 {
     // Compute V3 only support Intrawave scheduler
-    static constexpr ck_tile::index_t M_Tile = 32;
-    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t M_Tile = 16;
+    static constexpr ck_tile::index_t N_Tile = 64;
     static constexpr ck_tile::index_t K_Tile = 256 / sizeof(PrecType);
 
     static constexpr ck_tile::index_t M_Warp = 1;
     static constexpr ck_tile::index_t N_Warp = 4;
     static constexpr ck_tile::index_t K_Warp = 1;
 
-    static constexpr ck_tile::index_t M_Warp_Tile = 32;
-    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
 
     static constexpr bool PreshuffleQuant      = false;
@@ -331,176 +331,6 @@ struct GemmQuantTypeConfig
     using BDataType   = BDataType_;
     using AccDataType = float;
     using CDataType   = CDataType_;
-};
-
-template <>
-struct GemmQuantTypeConfig<ck_tile::half_t>
-{
-    using ADataType   = ck_tile::half_t;
-    using QDataType   = float;
-    using BDataType   = ck_tile::half_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
-
-template <>
-struct GemmQuantTypeConfig<ck_tile::bf16_t, ck_tile::bf16_t, ck_tile::bf16_t>
-{
-    using ADataType   = ck_tile::bf16_t;
-    using QDataType   = float;
-    using BDataType   = ck_tile::bf16_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::bf16_t;
-};
-
-template <>
-struct GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>
-{
-    using ADataType   = ck_tile::fp8_t;
-    using QDataType   = float;
-    using BDataType   = ck_tile::fp8_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
-
-template <>
-struct GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>
-{
-    using ADataType   = ck_tile::bf8_t;
-    using QDataType   = float;
-    using BDataType   = ck_tile::bf8_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
-
-template <>
-struct GemmQuantTypeConfig<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>
-{
-    using ADataType   = ck_tile::half_t;
-    using QDataType   = float;
-    using BDataType   = ck_tile::pk_int4_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
-
-template <>
-struct GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, float>
-{
-    using ADataType   = ck_tile::fp8_t;
-    using QDataType   = float;
-    using BDataType   = ck_tile::fp8_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
-
-template <>
-struct GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, float>
-{
-    using ADataType   = ck_tile::bf8_t;
-    using QDataType   = float;
-    using BDataType   = ck_tile::bf8_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
-
-template <>
-struct GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::fp8_t, float, ck_tile::fp8_t>
-{
-    using ADataType   = ck_tile::pk_int4_t;
-    using QDataType   = ck_tile::fp8_t;
-    using BDataType   = ck_tile::fp8_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
-
-template <>
-struct GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, float, ck_tile::fp8_t>
-{
-    using ADataType   = ck_tile::fp8_t;
-    using QDataType   = ck_tile::fp8_t;
-    using BDataType   = ck_tile::fp8_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
-
-template <>
-struct GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, float, ck_tile::bf8_t>
-{
-    using ADataType   = ck_tile::bf8_t;
-    using QDataType   = ck_tile::bf8_t;
-    using BDataType   = ck_tile::bf8_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
-
-template <>
-struct GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::bf8_t, float, ck_tile::bf8_t>
-{
-    using ADataType   = ck_tile::pk_int4_t;
-    using QDataType   = ck_tile::bf8_t;
-    using BDataType   = ck_tile::bf8_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
-
-template <>
-struct GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::fp8_t, float, float>
-{
-    using ADataType   = ck_tile::pk_int4_t;
-    using QDataType   = float;
-    using BDataType   = ck_tile::fp8_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
-
-template <>
-struct GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::bf8_t, float, float>
-{
-    using ADataType   = ck_tile::pk_int4_t;
-    using QDataType   = float;
-    using BDataType   = ck_tile::bf8_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
-
-template <>
-struct GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::pk_int4_t, float, ck_tile::fp8_t>
-{
-    using ADataType   = ck_tile::fp8_t;
-    using QDataType   = ck_tile::fp8_t;
-    using BDataType   = ck_tile::pk_int4_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
-
-template <>
-struct GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::pk_int4_t, float, ck_tile::bf8_t>
-{
-    using ADataType   = ck_tile::bf8_t;
-    using QDataType   = ck_tile::bf8_t;
-    using BDataType   = ck_tile::pk_int4_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
-
-template <>
-struct GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::pk_int4_t, float, float>
-{
-    using ADataType   = ck_tile::fp8_t;
-    using QDataType   = float;
-    using BDataType   = ck_tile::pk_int4_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
-
-template <>
-struct GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::pk_int4_t, float, float>
-{
-    using ADataType   = ck_tile::bf8_t;
-    using QDataType   = float;
-    using BDataType   = ck_tile::pk_int4_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
 };
 
 template <typename T>
