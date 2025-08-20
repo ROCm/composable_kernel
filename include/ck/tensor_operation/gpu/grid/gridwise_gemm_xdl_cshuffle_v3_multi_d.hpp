@@ -1329,7 +1329,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                                const BGridDesc_BK0_N_K1& b_grid_desc_bk0_n_bk1,
                                const DsGridDesc_M_N& ds_grid_desc_m_n,
                                const CGridDesc_M_N& c_grid_desc_m_n,
-                               const index_t k_id = 0)
+                               const index_t k_batch = 1,
+                               const index_t k_id    = 0)
     {
 
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -1459,7 +1460,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
 
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
-            (KPerBlock * problem.KBatch));
+            (KPerBlock * k_batch));
 
         blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(a_grid_desc_ak0_m_ak1,
                                                                          a_block_desc_ak0_m_ak1,
@@ -1853,7 +1854,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                                     const BGridDesc_BK0_N_K1& b_grid_desc_bk0_n_bk1,
                                     const DsGridDesc_M_N& ds_grid_desc_m_n,
                                     const CGridDesc_M_N& c_grid_desc_m_n,
-                                    const index_t k_id = 0)
+                                    const index_t k_batch = 1,
+                                    const index_t k_id    = 0)
     {
 
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
@@ -1992,7 +1994,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
 
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
-            (KPerBlock * problem.KBatch));
+            (KPerBlock * k_batch));
 
         blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(a_grid_desc_ak0_m_ak1,
                                                                          a_block_desc_ak0_m_ak1,

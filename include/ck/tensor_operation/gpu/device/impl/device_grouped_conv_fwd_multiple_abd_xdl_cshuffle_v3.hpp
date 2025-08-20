@@ -133,6 +133,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         b_grid_desc_bk0_n_bk1,
         ds_grid_desc_m_n,
         c_grid_desc_m_n,
+        karg.KBatch,
         k_idx);
 #else
     ignore = karg;
@@ -225,6 +226,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         b_grid_desc_bk0_n_bk1,
         ds_grid_desc_m_n,
         c_grid_desc_m_n,
+        karg.KBatch,
         k_idx);
 #else
     ignore = karg;
