@@ -66,8 +66,8 @@ fi
 # Configuration
 OUTPUT_DIR="generated_datasets"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-MAX_ITERATIONS=0  # Maximum number of iterations per model type (set to 0 for unlimited)
-CONFIG_MODE="${CONFIG_MODE:-half}"  # Configuration mode: 'half' or 'full' (default: half)
+# Get configuration mode from command line argument (default: full)
+CONFIG_MODE="${1:-full}"  # Configuration mode: 'small', 'half' or 'full'
 
 # Colors
 RED='\033[0;31m'
@@ -147,11 +147,6 @@ while IFS=',' read -r config_name model batch_size channels height width precisi
     # Increment counter
     CURRENT_CONFIG=$((CURRENT_CONFIG + 1))
     
-    # Stop after MAX_ITERATIONS if set
-    if [ $MAX_ITERATIONS -gt 0 ] && [ $CURRENT_CONFIG -gt $MAX_ITERATIONS ]; then
-        echo -e "${RED}Stopping after $MAX_ITERATIONS iterations (testing mode)${NC}"
-        break
-    fi
     
     # Build configuration command
     CONFIG="--model $model --batch-size $batch_size --channels $channels --height $height --width $width --precision $precision"
@@ -187,11 +182,6 @@ while IFS=',' read -r config_name model batch_size channels temporal_size height
     # Increment counter
     CURRENT_3D_CONFIG=$((CURRENT_3D_CONFIG + 1))
     
-    # Stop after MAX_ITERATIONS if set
-    if [ $MAX_ITERATIONS -gt 0 ] && [ $CURRENT_3D_CONFIG -gt $MAX_ITERATIONS ]; then
-        echo -e "${RED}Stopping after $MAX_ITERATIONS iterations (testing mode)${NC}"
-        break
-    fi
 
     # Build configuration command for 3D models
     CONFIG="--model $model --batch-size $batch_size --channels $channels --temporal-size $temporal_size --height $height --width $width --precision $precision"

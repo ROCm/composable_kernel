@@ -14,7 +14,7 @@ def generate_2d_configs(mode='half'):
     """Generate all 2D model configuration combinations
     
     Args:
-        mode: 'half' for reduced set (~250 configs), 'full' for comprehensive set (~500 configs)
+        mode: 'small' for minimal set (~50 configs), 'half' for reduced set (~250 configs), 'full' for comprehensive set (~500 configs)
     """
     
     # Define parameter ranges
@@ -28,7 +28,17 @@ def generate_2d_configs(mode='half'):
         'shufflenet_v2_x1_0'
     ]
     
-    if mode == 'half':
+    if mode == 'small':
+        # Minimal set for quick testing
+        batch_sizes = [1, 8]  # Just two batch sizes
+        # Very limited input dimensions - only 2 key sizes
+        input_dims = [
+            (224, 224),  # Standard (most common)
+            (256, 256),  # Medium
+        ]
+        # Use only first 3 models for minimal testing
+        models_2d = models_2d[:3]  # Only resnet18, resnet34, resnet50
+    elif mode == 'half':
         # Reduced set for faster testing
         batch_sizes = [1, 8, 32]  # Small, medium, large
         # Reduced input dimensions - 5 key sizes
@@ -88,12 +98,22 @@ def generate_3d_configs(mode='half'):
     """Generate all 3D model configuration combinations
     
     Args:
-        mode: 'half' for reduced set (~50 configs), 'full' for comprehensive set (~100 configs)
+        mode: 'small' for minimal set (~10 configs), 'half' for reduced set (~50 configs), 'full' for comprehensive set (~100 configs)
     """
     
     models_3d = ['r3d_18', 'mc3_18', 'r2plus1d_18']
     
-    if mode == 'half':
+    if mode == 'small':
+        # Minimal set for quick testing
+        batch_sizes = [1, 4]  # Just two batch sizes
+        temporal_sizes = [8]  # Only smallest temporal size
+        # Very limited spatial dimensions
+        input_dims = [
+            (112, 112),  # Standard for 3D
+        ]
+        # Use only first model for minimal testing
+        models_3d = models_3d[:1]  # Only r3d_18
+    elif mode == 'half':
         # Reduced set for faster testing
         batch_sizes = [1, 4, 8]  # Skip batch_size=2
         temporal_sizes = [8, 16]  # Skip 32 (most expensive)
@@ -173,8 +193,8 @@ def main():
                        help='Output file for 2D configurations')
     parser.add_argument('--output-3d', type=str, default='model_configs_3d.csv', 
                        help='Output file for 3D configurations')
-    parser.add_argument('--mode', choices=['half', 'full'], default='half',
-                       help='Configuration mode: half (~300 total) or full (~600 total) (default: half)')
+    parser.add_argument('--mode', choices=['small', 'half', 'full'], default='half',
+                       help='Configuration mode: small (~60 total), half (~300 total) or full (~600 total) (default: half)')
     parser.add_argument('--limit', type=int, 
                        help='Limit number of configurations per type (for testing)')
     
