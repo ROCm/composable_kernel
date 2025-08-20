@@ -90,17 +90,17 @@ struct GemmConfigBQuantComputeV3 : public GemmConfigBase
 
 struct GemmConfigPreshuffleB_BQuant : public GemmConfigBase
 {
-    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t M_Tile = 16;
     static constexpr ck_tile::index_t N_Tile = 64;
     static constexpr ck_tile::index_t K_Tile = 256;
 
-    static constexpr ck_tile::index_t M_Warp = 2;
-    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
     static constexpr ck_tile::index_t K_Warp = 1;
 
-    static constexpr ck_tile::index_t M_Warp_Tile = 32;
-    static constexpr ck_tile::index_t N_Warp_Tile = 32;
-    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 32;
 
     static constexpr int kBlockPerCu           = 2;
     static constexpr bool DoubleSmemBuffer     = false;
@@ -289,6 +289,9 @@ struct GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::pk_int4_t, ck_tile::half_t, 
     using BDataType   = ck_tile::pk_int4_t;
     using AccDataType = float;
     using CDataType   = ck_tile::half_t;
+    // static_assert(std::is_same_v<ADataType, ck_tile::fp8_t>, "ADataType must be fp8.");
+    // static_assert(std::is_same_v<BDataType, ck_tile::fp8_t>, "BDataType must be pk_int4_t.");
+    
 };
 
 template <> // TODO:: Ctype:float

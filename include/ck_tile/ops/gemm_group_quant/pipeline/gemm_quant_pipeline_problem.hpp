@@ -170,7 +170,12 @@ struct GemmBQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_
     using Base::VectorLoadSize;
 
     using BQLayout = remove_cvref_t<typename Traits::BQLayout>;
+    
+    // static_assert(std::is_same_v<typename Base::ADataType, ck_tile::fp8_t>, "ADataType must be fp8.");
+    // static_assert(std::is_same_v<typename Base::BDataType, ck_tile::pk_int4_t>, "BDataType must be pk_int4_t.");
+    // static_assert(std::is_same_v<typename Base::ComputeDataType, ck_tile::fp8_t>, "ComputeDataType must be pk_int4_t.");
 
+    
     static constexpr uint32_t kQuantGroupSize = QuantGroupSize_;
     static constexpr auto Scheduler           = Scheduler_;
     static constexpr auto HasHotLoop          = HasHotLoop_;

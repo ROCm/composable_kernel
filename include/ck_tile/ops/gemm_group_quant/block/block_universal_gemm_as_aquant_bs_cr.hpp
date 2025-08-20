@@ -155,7 +155,7 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
         static constexpr index_t InterWaveSchedulingMacClusters = 1;
 
         static constexpr index_t KPack      = WarpGemm::kKPerThread;
-        static constexpr index_t KPerThread = KIterPerWarp * WarpGemm::kKPerThread;
+        static constexpr index_t KPerThread = KIterPerWarp * WarpGemm::kKPerThread; //64
     };
 
     public:
@@ -240,8 +240,8 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
 
     CK_TILE_DEVICE static constexpr auto MakeBBlockDistributionEncode()
     {
-        constexpr index_t KPerThread     = Traits::KPerThread;
-        constexpr index_t NumMacClusters = Traits::InterWaveSchedulingMacClusters;
+        constexpr index_t KPerThread     = Traits::KPerThread; //8
+        constexpr index_t NumMacClusters = Traits::InterWaveSchedulingMacClusters; // 1
         constexpr index_t KPerInnerLoop =
             ck_tile::max(KPerThread / NumMacClusters, WarpGemm::kKPerThread);
         constexpr index_t KIterInterwave = KPerInnerLoop / WarpGemm::kKPerThread;

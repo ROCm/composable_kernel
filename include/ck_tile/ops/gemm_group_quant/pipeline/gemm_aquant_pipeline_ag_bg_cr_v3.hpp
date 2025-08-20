@@ -275,7 +275,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             using BDramTileWindowStep  = typename BDramBlockWindowTmp::BottomTensorIndex;
             using AQDramTileWindowStep = typename AQDramBlockWindowTmp::BottomTensorIndex;
 
-            auto&& [a_lds_block, b_lds_block] = Base::GetABLdsTensorViews(p_smem);
+            auto&& [a_lds_block, b_lds_block] = Base::GetABLdsTensorViews(p_smem); //lds window, block tile sizes
 
             constexpr auto a_lds_load_tile_distr =
                 make_static_tile_distribution(BlockGemm::MakeABlockDistributionEncode());
@@ -316,19 +316,19 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
                 is_aq_col_major ? make_array(KPerBlockAQ, 0) : make_array(0, KPerBlockAQ);
 
             // DRAM prefetch (global read 0)
-            Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
+            Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step); //Dram to vgpr
             Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
             Base::GlobalPrefetch(
                 aq_block_tile[currIdx], aq_copy_dram_window, aq_dram_tile_window_step);
 
-            tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
+            tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile); //vgpt to lds of warp tile size
 
             if constexpr(is_a_col_major)
             {
                 auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
                     Policy::template MakeShuffled2DStaticTileDistribution<Problem>());
                 transpose_tile2d(a_shuffle_tmp, a_block_tile);
-                Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
+                Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func); // vgpr to lds, block size (??)
             }
             else
             {

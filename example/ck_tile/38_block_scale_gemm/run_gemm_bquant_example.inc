@@ -174,6 +174,9 @@ int run_gemm_example_with_layouts(int argc,
     using AccDataType = typename TypeConfig::AccDataType;
     using CDataType   = typename TypeConfig::CDataType;
 
+    static_assert(std::is_same_v<ADataType, ck_tile::fp8_t>, "ADataType must be fp8.");
+    static_assert(std::is_same_v<BDataType, ck_tile::pk_int4_t>, "BDataType must be pk_int4_t.");
+    
     ck_tile::index_t M = arg_parser.get_int("m");
     ck_tile::index_t N = arg_parser.get_int("n");
     ck_tile::index_t K = arg_parser.get_int("k");

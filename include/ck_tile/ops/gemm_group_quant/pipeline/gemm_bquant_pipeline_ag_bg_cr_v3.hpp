@@ -92,6 +92,10 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
+    static_assert(std::is_same_v<ADataType, ck_tile::fp8_t>, "ADataType must be fp8.");
+    static_assert(std::is_same_v<BDataType, ck_tile::pk_int4_t>, "BDataType must be pk_int4_t.");
+    
+
     using I0 = number<0>;
     using I1 = number<1>;
     using I2 = number<2>;

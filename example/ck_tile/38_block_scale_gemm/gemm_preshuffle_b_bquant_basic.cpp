@@ -30,7 +30,9 @@ template <typename GemmConfig,
 float gemm_calc_bquant(const ck_tile::BQuantGemmHostArgs& args, const ck_tile::stream_config& s)
 {
     static_assert(std::is_same_v<ELayout, ck_tile::tensor_layout::gemm::RowMajor>);
-
+    static_assert(std::is_same_v<ADataType, ck_tile::fp8_t>, "ADataType must be fp8.");
+    static_assert(std::is_same_v<BDataType, ck_tile::pk_int4_t>, "BDataType must be pk_int4_t.");
+    
     using GemmShape = ck_tile::TileGemmShape<
         ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
         ck_tile::sequence<GemmConfig::M_Warp, GemmConfig::N_Warp, GemmConfig::K_Warp>,
@@ -160,6 +162,9 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
 {
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
+    // static_assert(std::is_same_v<typename TypeConfig::ADataType, ck_tile::fp8_t>, "ADataType must be fp8.");  //its becoming unsigned fp8
+    // static_assert(std::is_same_v<typename TypeConfig::BDataType, ck_tile::fp8_t>, "BDataType must be pk_int4_t.");
+    
 
     if constexpr(std::is_same_v<typename TypeConfig::BDataType, ck_tile::pk_int4_t> ||
                  std::is_same_v<typename TypeConfig::BDataType, ck_tile::fp8_t> ||
@@ -177,7 +182,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     }
     else
     {
-        throw std::runtime_error("Unsupported data type for A.");
+        throw std::runtime_error("Unsupported data type for B.");
     }
 
     return 0;
@@ -194,7 +199,7 @@ int run_gemm_example(int argc, char* argv[])
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
 
-    if(data_type == "fp8")
+    /*if(data_type == "fp8")
     {
         using TypeConfig =
             decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, float, ck_tile::fp8_t>{});
@@ -208,12 +213,15 @@ int run_gemm_example(int argc, char* argv[])
         return run_gemm_example_prec_type<GemmConfig, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
-    else if(data_type == "fp8i4")
+    else*/ if(data_type == "fp8i4")
     {
         using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::fp8_t,
                                                         ck_tile::pk_int4_t,
                                                         ck_tile::half_t,
                                                         ck_tile::fp8_t>{});
+        static_assert(std::is_same_v<typename TypeConfig::ADataType, ck_tile::fp8_t>, "ADataType must be fp8.");
+        static_assert(std::is_same_v<typename TypeConfig::BDataType, ck_tile::pk_int4_t>, "BDataType must be pk_int4_t.");
+
         return run_gemm_example_prec_type<GemmConfig, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }

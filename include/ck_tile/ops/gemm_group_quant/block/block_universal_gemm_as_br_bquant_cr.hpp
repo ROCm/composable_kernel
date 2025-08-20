@@ -22,6 +22,7 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
     using BQDataType     = remove_cvref_t<typename Problem::BQDataType>;
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
+    using ComputeDataType= remove_cvref_t<typename Problem::ComputeDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>; // TileFlatmmShape
 
     static constexpr auto I0   = number<0>();
@@ -43,6 +44,8 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
 
     static constexpr uint8_t kA_cvt_scale = std::is_same_v<ADataType, pk_int4_t> ? 16 : 1;
     static constexpr uint8_t kB_cvt_scale = std::is_same_v<BDataType, pk_int4_t> ? 16 : 1;
+    // static_assert(std::is_same_v<ADataType, ck_tile::fp8_t>, "ADataType must be pk_int4_t.");
+    // static_assert(std::is_same_v<BDataType, ck_tile::fp8_t>, "BDataType must be pk_int4_t.");
 
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
@@ -65,6 +68,34 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
 
     static constexpr index_t KIterPerQScale = KIterPerWarp / QScalesPerBlockRow;
 
+    static constexpr index_t InterWaveSchedulingMacClusters = 1;
+
+    static constexpr index_t KPack      = WG::kKPerThread;
+    static constexpr index_t KPerThread = KIterPerWarp * WG::kKPerThread; //64
+
+    CK_TILE_DEVICE static constexpr auto MakeBBlockDistributionEncode()
+    {
+        //constexpr index_t KPerThread     = KPerThread; //64
+        // constexpr index_t NumMacClusters = InterWaveSchedulingMacClusters; // 1
+        // constexpr index_t KPerInnerLoop =
+        //     ck_tile::max(KPerThread / NumMacClusters, WG::kKPerThread); //max(64, 8)
+        // constexpr index_t KIterInterwave = KPerInnerLoop / WG::kKPerThread; // 8
+
+        using KIterSeq = sequence<KIterPerWarp>;
+
+        constexpr auto b_block_outer_dstr_encoding =
+            tile_distribution_encoding<sequence<MWarp>,
+                                       tuple<sequence<NIterPerWarp, NWarp>, KIterSeq>,
+                                       tuple<sequence<0, 1>>,
+                                       tuple<sequence<0, 1>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 0>>{};
+        constexpr auto b_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            b_block_outer_dstr_encoding, typename WG::BWarpDstrEncoding{});
+
+        return b_block_dstr_encode;
+    }
+
     template <typename T>
     CK_TILE_DEVICE static float cvt_scale_to_fp32(T& scale)
     {
@@ -86,6 +117,23 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
             static_assert(false, "BQDataType must be float, fp8_t or bf8_t.");
         }
         return scale_reg_f;
+    }
+    template <typename WarpWindow, typename WarpTile>
+    CK_TILE_DEVICE static void load_interleaved_pk_type(WarpTile& warp_tile,
+                                                        const WarpWindow& warp_window)
+    {
+        const element_wise::PassThroughPack8 elementwise_op{};
+        const index_t UnaryOpSize = 8;
+        //static_assert(WarpTile::get_thread_buffer_size() == 0, "Get thread buffer size must be 0.");
+        static_assert(WarpTile::get_thread_buffer_size() % UnaryOpSize == 0);
+        constexpr index_t thread_buffer_size = WarpTile::get_thread_buffer_size() / UnaryOpSize;
+        const auto in_dstr_tensors           = load_tile(warp_window);
+
+        using ComputeVectorType = ComputeDataType __attribute__((ext_vector_type(UnaryOpSize)));
+        static_for<0, thread_buffer_size, 1>{}([&](auto i) {
+            elementwise_op(warp_tile.get_thread_buffer().template get_as<ComputeVectorType>()(i),
+                           in_dstr_tensors.get_thread_buffer().template get_as<pk_int4x4_t>()[i]);
+        });
     }
 
     CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
@@ -130,7 +178,7 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
                 static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                     // read A warp tensor from A block tensor
                     auto a_warp_tensor = load_tile(a_warp_windows(mIter)(kIter));
-
+                    
                     // warp GEMM
                     if constexpr(kIter % KIterPerQScale == 0)
                     {

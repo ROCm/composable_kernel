@@ -31,6 +31,7 @@ struct WeightPreshuffleBQuantPipelineAgBgCrV1
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
     using BQDataType     = remove_cvref_t<typename Problem::BQDataType>;
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
+    using ComputeDataType= remove_cvref_t<typename Problem::ComputeDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
     using ALayout  = remove_cvref_t<typename Problem::ALayout>;
@@ -285,6 +286,36 @@ struct WeightPreshuffleBQuantPipelineAgBgCrV1
                              b_flat_dram_block_window_tmp.get_window_origin(),
                              b_flat_distribution);
 
+        static constexpr auto BLdsTileDistr =
+            decltype(make_static_tile_distribution(block_flatmm.MakeBBlockDistributionEncode())){};
+
+        using BRegTile = decltype(make_static_distributed_tensor<ComputeDataType>(BLdsTileDistr));
+
+        BRegTile b_block_tile1;       
+        // // TODO:: need to define warp_tile
+        // auto  b_block_tile = load_tile(b_flat_dram_window);
+        
+        // auto b_flat_copy_dram_window =
+        //     make_tile_window(b_flat_dram_block_window_tmp.get_bottom_tensor_view(),
+        //                      make_tuple(number<flatNPerWarp>{}, number<flatKPerWarp>{}),
+        //                      b_flat_dram_block_window_tmp.get_window_origin(),
+        //                      b_flat_distribution);    
+        // if(get_block_id() == 0 && get_warp_id() == 0)
+        // {
+        //     printf("b_flat_dram_window: %f\n",
+        //             type_convert<float>(load_tile(b_flat_dram_window).get_thread_buffer().at(get_thread_id())));
+        //     printf("b_flat_copy_dram_window: %f\n",
+        //             type_convert<float>(load_tile(b_flat_copy_dram_window).get_thread_buffer().at(get_thread_id())));
+            
+        // }
+        if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+        {
+            static_assert(std::is_same_v<ComputeDataType, fp8_t> ||
+                            std::is_same_v<ComputeDataType, bf8_t>);
+            // it should be block tensor and tile_window for interleaved pk type
+            block_flatmm.load_interleaved_pk_type(b_block_tile1, b_flat_dram_window); 
+        }
+
         // BQ DRAM window for load
         auto bq_copy_dram_window =
             make_tile_window(bq_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -305,12 +336,12 @@ struct WeightPreshuffleBQuantPipelineAgBgCrV1
             b_flat_dram_windows;
 
         statically_indexed_array<
-            statically_indexed_array<decltype(load_tile(b_flat_dram_window)), KIterPerWarp>,
+            statically_indexed_array<decltype(b_block_tile1/*load_tile(b_flat_dram_window)*/), KIterPerWarp>,
             NIterPerWarp>
             b_warp_tensor;
 
         statically_indexed_array<
-            statically_indexed_array<decltype(load_tile(b_flat_dram_window)), KIterPerWarp>,
+            statically_indexed_array<decltype(b_block_tile1/*load_tile(b_flat_dram_window)*/), KIterPerWarp>,
             NIterPerWarp>
             b_warp_tensor_2;
 
@@ -321,7 +352,8 @@ struct WeightPreshuffleBQuantPipelineAgBgCrV1
                 move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                  {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
 
-                b_warp_tensor(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+                //b_warp_tensor(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+                block_flatmm.load_interleaved_pk_type(b_warp_tensor(nIter)(kIter), b_flat_dram_windows(nIter)(kIter)); 
             });
         });
 
@@ -353,6 +385,7 @@ struct WeightPreshuffleBQuantPipelineAgBgCrV1
             store_tile(a_copy_lds_window, tile_elementwise_in(a_element_func, a_block_tile));
 
             block_sync_lds();
+            //prefetch B tensor that convert int4 -> fp8 in registers.
         }
 
         index_t iCounter = num_loop / 2 - 1;
@@ -374,7 +407,8 @@ struct WeightPreshuffleBQuantPipelineAgBgCrV1
                     move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                      {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
 
-                    b_warp_tensor_2(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+                    //b_warp_tensor_2(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+                    block_flatmm.load_interleaved_pk_type(b_warp_tensor_2(nIter)(kIter), b_flat_dram_windows(nIter)(kIter)); 
                 });
             });
 
@@ -399,7 +433,7 @@ struct WeightPreshuffleBQuantPipelineAgBgCrV1
             a_block_tile = load_tile(a_copy_dram_window);
 
             // GEMM i + 1
-            block_flatmm(c_block_tile, a_warp_windows, b_warp_tensor_2, bq_block_tile_2);
+            //      block_flatmm(c_block_tile, a_warp_windows, b_warp_tensor_2, bq_block_tile_2);
 
             block_sync_lds();
 
@@ -411,7 +445,8 @@ struct WeightPreshuffleBQuantPipelineAgBgCrV1
                     move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                      {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
 
-                    b_warp_tensor(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+                    //b_warp_tensor(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+                    block_flatmm.load_interleaved_pk_type(b_warp_tensor(nIter)(kIter), b_flat_dram_windows(nIter)(kIter)); 
                 });
             });
 
@@ -435,6 +470,7 @@ struct WeightPreshuffleBQuantPipelineAgBgCrV1
             block_sync_lds();
 
             iCounter--;
+            break;
         }
         // tail
         {
@@ -453,7 +489,8 @@ struct WeightPreshuffleBQuantPipelineAgBgCrV1
                     move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                      {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
 
-                    b_warp_tensor_2(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+                    //b_warp_tensor_2(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+                    block_flatmm.load_interleaved_pk_type(b_warp_tensor_2(nIter)(kIter), b_flat_dram_windows(nIter)(kIter)); 
                 });
             });
 

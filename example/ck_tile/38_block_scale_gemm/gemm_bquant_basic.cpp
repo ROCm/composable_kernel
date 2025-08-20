@@ -210,7 +210,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     }
     else
     {
-        throw std::runtime_error("Unsupported data type for A.");
+        throw std::runtime_error("Unsupported data type for B.");
     }
 
     return 0;
@@ -227,7 +227,7 @@ int run_gemm_example(int argc, char* argv[])
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
 
-    if(data_type == "fp8")
+    /*if(data_type == "fp8")
     {
         using TypeConfig =
             decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, float, ck_tile::fp8_t>{});
@@ -241,7 +241,7 @@ int run_gemm_example(int argc, char* argv[])
         return run_gemm_example_prec_type<GemmConfig, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
-    else if(data_type == "fp8i4")
+    else */if(data_type == "fp8i4")
     {
         using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::fp8_t,
                                                         ck_tile::pk_int4_t,
@@ -249,7 +249,7 @@ int run_gemm_example(int argc, char* argv[])
                                                         ck_tile::fp8_t>{});
         return run_gemm_example_prec_type<GemmConfig, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
-    }
+    }/*
     else if(data_type == "bf8i4")
     {
         using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::bf8_t,
@@ -272,7 +272,7 @@ int run_gemm_example(int argc, char* argv[])
             decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::pk_int4_t, float, float>{});
         return run_gemm_example_prec_type<GemmConfig, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
-    }
+    }*/
     else
     {
         throw std::runtime_error("Unsupported data type for this operation !!!");
