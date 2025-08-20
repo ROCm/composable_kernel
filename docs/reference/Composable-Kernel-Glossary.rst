@@ -23,7 +23,7 @@ Composable Kernel glossaries
 
     VGPR
         See :term:`vector general purpose register`.
-        
+
     vector general purpose register 
         A vector general purpose register (VGPR) is a :term:`register` that stores individual thread data. Each thread in a :term:`wave<wavefront>` has its own set of VGPRs for private variables and calculations. 
 
@@ -91,8 +91,11 @@ Composable Kernel glossaries
         The ratio of active :term:`wavefronts<wavefront>` to the maximum possible number of wavefronts.
 
     kernel
-        A kernel is a function that runs computations on input data. A kernel will run in parallel on several :term:`work-items<work-item>` across the GPU. In Composable Kernel, kernels require :term:`pipelines<pipeline>`.
+        A kernel is a function that runs an :term:`operation` or a collection of operations. A kernel will run in parallel on several :term:`work-items<work-item>` across the GPU. In Composable Kernel, kernels require :term:`pipelines<pipeline>`.
 
+    operation
+        An operation is a computation on input data. 
+        
     pipeline
         A Composable Kernel pipeline schedules the sequence of operations for a :term:`kernel`, such as the data loading, computation, and storage phases. A pipeline consists of a :term:`problem` and a :term:`policy`. 
 
@@ -100,7 +103,7 @@ Composable Kernel glossaries
         The tile partitioner defines the mapping between the :term:`problem` dimensions and GPU hierarchy. It specifies :term:`workgroup`-level :term:`tile` sizes and determines :term:`grid` dimensions by dividing the problem size by the tile sizes.
 
     problem
-        The problem is the part of the :term:`pipeline` that defines input and output shapes, data types, and mathematical operations.
+        The problem is the part of the :term:`pipeline` that defines input and output shapes, data types, and mathematical :term:`operations<operation>`.
 
     policy
         The policy is the part of the :term:`pipeline` that defines memory access patterns and hardware-specific optimizations.
@@ -136,10 +139,10 @@ Composable Kernel glossaries
         Padding is the addition of extra elements, often zeros, to tensor edges in order to control output size in convolution and pooling, or to align data for memory access.
 
     transpose
-        Transpose is an operation that rearranges the order of tensor axes, often for the purposes of matching :term:`kernel` input formats or optimize memory access patterns.
+        Transpose is an :term:`operation` that rearranges the order of tensor axes, often for the purposes of matching :term:`kernel` input formats or optimize memory access patterns.
 
     permute
-        Permute is an operation that rearranges the order of tensor axes, often for the purposes of matching :term:`kernel` input formats or optimize memory access patterns.
+        Permute is an :term:`operation` that rearranges the order of tensor axes, often for the purposes of matching :term:`kernel` input formats or optimize memory access patterns.
 
     host-device transfer
         A host-device transfer is the process of moving data between :term:`host` and :term:`device` memory. 
@@ -148,7 +151,7 @@ Composable Kernel glossaries
         A stride is the step size to move from one element to the next in a specific dimension of a tensor or matrix. In convolution and pooling, the stride determines how far the :term:`kernel` moves at each step.
 
     dilation
-        Dilation is the spacing between :term:`kernel` elements in convolution operations, allowing the receptive field to grow without increasing kernel size.
+        Dilation is the spacing between :term:`kernel` elements in convolution :term:`operations<operation>`, allowing the receptive field to grow without increasing kernel size.
 
     Im2Col
         Im2Col is a data transformation technique that converts image data to column format.
@@ -172,7 +175,7 @@ Composable Kernel glossaries
         A block tile is a memory :term:`tile` processed by a :term:`work group`.
 
     wave tile
-        A wave :term:`tile` is a sub-tile processed by a single :term:`wavefront` within a :term:`work group`. 
+        A wave :term:`tile` is a sub-tile processed by a single :term:`wavefront` within a :term:`work group`. The wave tile is the base level granularity of a :term:`single-instruction, multi-thread (SIMD)<single-instruction, multi-thread>` model.
 
     tile distribution
         The tile distribution is the hierarchical data mapping from :term:`work-items<work-item>` to data in memory.
@@ -187,7 +190,7 @@ Composable Kernel glossaries
         Store tile is an operation that transfers data from  :term:`vector general purpose registers<vector general purpose register>` to :term:`global memory` or the :term:`load data share`.
 
     descriptor
-        Metadata structure that defines :term:`tile` properties, memory layouts, and coordinate transformations for Composable Kernel operations.
+        Metadata structure that defines :term:`tile` properties, memory layouts, and coordinate transformations for Composable Kernel :term:`operations<operation>`.
 
     input
         See :term:`problem shape`.
@@ -199,28 +202,28 @@ Composable Kernel glossaries
         The vector is the smallest data unit processed by an individual :term:`work-item`. A vectors is typically four to sixteen elements, depending on data type and hardware.
 
     elementwise
-        An elementwise operation is an operation applied to each tensor element independently. 
+        An elementwise :term:`operation` is an operation applied to each tensor element independently. 
 
     epilogue
-        The epilogue is the final stage of a kernel or operation. Activation functions, bias, and other post-processing steps are applied in the epilogue. 
+        The epilogue is the final stage of a kernel. Activation functions, bias, and other post-processing steps are applied in the epilogue. 
 
     Add+Multiply
         See :term:`fused add multiply`.
 
     fused add multiply
-        A common fused operation in machine language and linear algebra, where an :term:`elementwise` addition is immediately followed by a multiplication. Fused add multiply is often used for bias and scaling in neural network layers.
+        A common fused :term:`operation` in machine language and linear algebra, where an :term:`elementwise` addition is immediately followed by a multiplication. Fused add multiply is often used for bias and scaling in neural network layers.
 
     MFMA
         See :term:`matrix fused multiply-add`.
 
     matrix fused multiply-add
-        Matrix fused multiply-add (MFMA) is a :term:`matrix core` instruction for GEMM operations. 
+        Matrix fused multiply-add (MFMA) is a :term:`matrix core` instruction for GEMM :term:`operations<operation>`. 
 
     GEMM
         See :term:`general matrix multiply`.
 
     general matrix multiply 
-        A general matrix multiply (GEMM) is a Core matrix operation in linear algebra and deep learning. A GEMM is defined as :math:`C = {\alpha}AB + {\beta}C`, where :math:`A`, :math:`B`, and :math:`C` are matrices, and :math:`\alpha` and :math:`\beta` are scalars. 
+        A general matrix multiply (GEMM) is a Core matrix :term:`operation` in linear algebra and deep learning. A GEMM is defined as :math:`C = {\alpha}AB + {\beta}C`, where :math:`A`, :math:`B`, and :math:`C` are matrices, and :math:`\alpha` and :math:`\beta` are scalars. 
 
     VGEMM
         See :term:`naive GEMM`.
@@ -229,7 +232,7 @@ Composable Kernel glossaries
         See :term:`naive GEMM`.
 
     naive GEMM 
-        The naive GEMM, sometimes referred to as a vanilla GEMM or VGEMM, is the simplest form of :term:`GEMM` in Composable Kernel. The naive GEMM is defined as :math:`C = AB`, where :math:`A`, :math:`B`, and :math:`C` are matrices. The naive GEMM is the baseline GEMM that all other GEMM operations build on.
+        The naive GEMM, sometimes referred to as a vanilla GEMM or VGEMM, is the simplest form of :term:`GEMM` in Composable Kernel. The naive GEMM is defined as :math:`C = AB`, where :math:`A`, :math:`B`, and :math:`C` are matrices. The naive GEMM is the baseline GEMM that all other GEMM :term:`operations<operation>` build on.
 
     GGEMM
         See :term:`grouped GEMM`.
@@ -247,4 +250,4 @@ Composable Kernel glossaries
         See :term:`general matrix vector multiplication`
 
     general matrix vector multiplication
-        General matrix vector multiplication (GEMV) is an operation where a matrix is multiplied by a vector, producing another vector. 
+        General matrix vector multiplication (GEMV) is an :term:`operation` where a matrix is multiplied by a vector, producing another vector. 
