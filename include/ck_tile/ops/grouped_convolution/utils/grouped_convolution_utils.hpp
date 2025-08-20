@@ -42,6 +42,7 @@ struct GroupedConvHostArgs : public conv::ConvParam
 
 using GroupedConvFwdHostArgs       = GroupedConvHostArgs<const void*, const void*, void*>;
 using GroupedConvBwdWeightHostArgs = GroupedConvHostArgs<const void*, void*, const void*>;
+using GroupedConvBwdDataHostArgs   = GroupedConvHostArgs<void*, const void*, const void*>;
 
 template <index_t NDimSpatial_,
           ConvolutionSpecialization ConvSpecialization_,
