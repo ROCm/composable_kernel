@@ -50,16 +50,6 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
                                ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
                                ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
 
-#if CK_TILE_LOGGING_ENABLED
-    std::cout << "Block size on A: " << M_Tile << "x" << K_Tile << std::endl;
-    std::cout << "Block size on B: " << K_Tile << "x" << N_Tile << std::endl;
-    std::cout << "Block size on C: " << M_Tile << "x" << N_Tile << std::endl;
-
-    std::cout << "WaveTile on A: " << M_Warp_Tile << "x" << K_Warp_Tile << std::endl;
-    std::cout << "WaveTile on B: " << K_Warp_Tile << "x" << N_Warp_Tile << std::endl;
-    std::cout << "WaveTile on C: " << M_Warp_Tile << "x" << N_Warp_Tile << std::endl;
-#endif
-
     using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenGemmShape>;
 
     using CodegenGemmTraits =
@@ -80,15 +70,6 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
     const ck_tile::TailNumber tail_num  = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
     constexpr bool transposed_warp_gemm = false;
 
-#if CK_TILE_LOGGING_ENABLED
-    std::cout << "K_split: " << K_split << std::endl;
-    std::cout << "num_loop: (K/KPerBlock) " << num_loop << std::endl;
-    std::cout << "has_hot_loop (num_loop > PrefetchStages): " << (has_hot_loop ? "true" : "false")
-              << std::endl;
-    std::cout << "tail_num: " << tail_num << std::endl;
-    std::cout << "transposed_warp_gemm: " << (transposed_warp_gemm ? "true" : "false") << std::endl;
-#endif
-
     const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
         constexpr bool has_hot_loop_v = has_hot_loop_.value;
         constexpr auto tail_number_v  = tail_number_.value;
@@ -106,10 +87,7 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
                                                has_hot_loop_v,
                                                tail_number_v>;
         using CodegenGemmPipeline = ck_tile::AQuantGemmPipelineAgBgCrCompV3<CodegenPipelineProblem>;
-#if CK_TILE_LOGGING_ENABLED
-        std::cout << "Pipeline: " << CodegenGemmPipeline::GetName() << std::endl;
-        std::cout << "Pipeline Numbers:\n" << CodegenGemmPipeline::Print() << std::endl;
-#endif
+
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
                                              BDataType,
