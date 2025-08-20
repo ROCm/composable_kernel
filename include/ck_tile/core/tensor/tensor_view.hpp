@@ -445,6 +445,7 @@ struct null_tensor_view
 };
 
 template <address_space_enum BufferAddressSpace = address_space_enum::generic,
+          memory_operation_enum DstInMemOp      = memory_operation_enum::set,
           amd_buffer_coherence_enum Coherence   = amd_buffer_coherence_enum::coherence_default,
           typename DataType,
           typename... Ts>
