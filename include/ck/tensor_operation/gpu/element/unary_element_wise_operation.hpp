@@ -278,7 +278,6 @@ struct PassThroughPack2
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const;
 
-
     __host__ __device__ constexpr void operator()(half2_t& y, const f8x2_t& x) const
     {
         auto t = type_convert<float2_t>(x);

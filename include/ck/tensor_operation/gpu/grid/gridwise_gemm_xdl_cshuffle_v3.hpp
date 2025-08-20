@@ -290,17 +290,6 @@ struct GridwiseGemm_xdl_cshuffle_v3
             return 1;
     }();
 
-    // gfx950 specific optimizations for BF16 inputs
-#if defined(__gfx950__)
-    static constexpr bool is_gfx950_and_bf16_input_ = 
-        std::is_same_v<ADataType, ck::bhalf_t> && 
-        std::is_same_v<BDataType, ck::bhalf_t> && 
-        std::is_same_v<CShuffleDataType, ck::bhalf_t> &&
-        std::is_same_v<AccDataType, float>;
-#else
-    static constexpr bool is_gfx950_and_bf16_input_ = false;
-#endif  
-
     __host__ static auto CalculateGridSize(index_t M, index_t N, index_t KBatch)
     {
         return std::make_tuple(Block2CTileMap::CalculateGridSize(M, N), 1, KBatch);
@@ -737,10 +726,6 @@ struct GridwiseGemm_xdl_cshuffle_v3
               p_c_grid{p_c_grid_},
               is_reduce(is_reduce_)
         {
-            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-            {
-                std::cout << "[GridwiseGemm_xdl_cshuffle_v3] GFX950 and BF16 optimization enabled: " << is_gfx950_and_bf16_input_ << std::endl;
-            }
         }
 
         __host__ __device__ inline bool IsReduceAdd() const
