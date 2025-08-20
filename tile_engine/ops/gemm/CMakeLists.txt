@@ -5,6 +5,24 @@ option(GEMM_BUILD_INDIVIDUAL "Build individual GEMM targets" ON)
 option(GEMM_BUILD_MONOLITHIC "Build monolithic GEMM targets" OFF)
 
 function(build_gemm_for_datatype datatype layout)
+    # Filter GPU targets to only gfx90a, gfx942, and gfx950
+    set(GEMM_GPU_TARGETS "")
+    set(DESIRED_TARGETS "gfx90a;gfx942;gfx950")
+    
+    foreach(target IN LISTS SUPPORTED_GPU_TARGETS)
+        if(target IN_LIST DESIRED_TARGETS)
+            list(APPEND GEMM_GPU_TARGETS ${target})
+        endif()
+    endforeach()
+    
+    # Skip compilation if no matching targets found
+    if(NOT GEMM_GPU_TARGETS)
+        message(WARNING "Skipping Tile Engine GEMM compilation: No supported GPU targets (gfx90a, gfx942, gfx950) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
+        return()
+    endif()
+    
+    message(STATUS "Building GEMM for GPU targets: ${GEMM_GPU_TARGETS}")
+    
     set(working_path "${CMAKE_CURRENT_BINARY_DIR}/${datatype}/${layout}")
 
     # Comment this if-else block when using user_provided_config
@@ -99,6 +117,7 @@ function(build_gemm_for_datatype datatype layout)
             if(chunk_files)
                 set(sub_intermediate_lib_name "gemm_objlib_${name}_${i}_${datatype}_${layout}")
                 add_library(${sub_intermediate_lib_name} OBJECT ${chunk_files})
+                set_property(TARGET ${sub_intermediate_lib_name} PROPERTY HIP_ARCHITECTURES ${GEMM_GPU_TARGETS})
                 list(APPEND sub_intermediate_libs ${sub_intermediate_lib_name})
             endif()
 
@@ -118,6 +137,7 @@ function(build_gemm_for_datatype datatype layout)
             
             add_library(${intermediate_lib_name} STATIC ${obj_exprs})
             add_dependencies(${intermediate_lib_name} gemm_gen_${datatype}_${layout})
+            set_property(TARGET ${intermediate_lib_name} PROPERTY HIP_ARCHITECTURES ${GEMM_GPU_TARGETS})
             #foreach(objlib IN LISTS sub_intermediate_libs)
             #    target_sources(${intermediate_lib_name} PRIVATE $<TARGET_OBJECTS:${objlib}>)
             #endforeach()
@@ -148,6 +168,7 @@ function(build_gemm_for_datatype datatype layout)
     # Executable per datatype
     set(exec_name "benchmark_gemm_${datatype}_${layout}")
     add_executable(${exec_name} benchmark_gemm.cpp)
+    set_property(TARGET ${exec_name} PROPERTY HIP_ARCHITECTURES ${GEMM_GPU_TARGETS})
     target_link_libraries(${exec_name} PRIVATE gemm_host_api_${datatype}_${layout})
     target_compile_options(${exec_name} PRIVATE
         -Wno-undefined-func-template
@@ -161,6 +182,12 @@ set(GEMM_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR})
 
 # Function to create individual GEMM targets
 function(create_individual_gemm_target datatype layout trait tile_config)
+    # Use the parent scope GEMM_GPU_TARGETS_INDIVIDUAL variable
+    if(NOT GEMM_GPU_TARGETS_INDIVIDUAL)
+        message(WARNING "Skipping individual GEMM target ${datatype}_${layout}_${trait}_${tile_config}: No supported GPU targets")
+        return()
+    endif()
+    
     # Parse tile configuration: format is tile_mxtile_nxtile_k_warp_mxwarp_nxwarp_k_warp_tile_mxwarp_tile_nxwarp_tile_k
     # First split by underscore to get three groups
     string(REPLACE "_" ";" config_groups ${tile_config})
@@ -196,6 +223,9 @@ function(create_individual_gemm_target datatype layout trait tile_config)
     add_executable(${target_name} 
         ${GEMM_SOURCE_DIR}/benchmark_gemm_single.cpp
     )
+    
+    # Set GPU architectures
+    set_property(TARGET ${target_name} PROPERTY HIP_ARCHITECTURES ${GEMM_GPU_TARGETS_INDIVIDUAL})
     
     # Set compile definitions
     target_compile_definitions(${target_name} PRIVATE
@@ -311,12 +341,28 @@ if(GEMM_BUILD_MONOLITHIC)
 endif()
 
 if(GEMM_BUILD_INDIVIDUAL)
-    # Enable parallel compilation optimizations
-    # Set up job pools for better parallel compilation control
-    set_property(GLOBAL PROPERTY JOB_POOLS 
-        compile_heavy=4    # Limit heavy compilations to prevent OOM
-        compile_normal=16  # Allow more parallel normal compilations
-    )
+    # Filter GPU targets to only gfx90a, gfx942, and gfx950 for individual builds
+    set(GEMM_GPU_TARGETS_INDIVIDUAL "")
+    set(DESIRED_TARGETS "gfx90a;gfx942;gfx950")
+    
+    foreach(target IN LISTS SUPPORTED_GPU_TARGETS)
+        if(target IN_LIST DESIRED_TARGETS)
+            list(APPEND GEMM_GPU_TARGETS_INDIVIDUAL ${target})
+        endif()
+    endforeach()
+    
+    # Skip individual build if no matching targets found
+    if(NOT GEMM_GPU_TARGETS_INDIVIDUAL)
+        message(WARNING "Skipping Tile Engine GEMM individual build: No supported GPU targets (gfx90a, gfx942, gfx950) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
+    else()
+        message(STATUS "Building individual GEMM targets for GPU targets: ${GEMM_GPU_TARGETS_INDIVIDUAL}")
+    
+        # Enable parallel compilation optimizations
+        # Set up job pools for better parallel compilation control
+        set_property(GLOBAL PROPERTY JOB_POOLS 
+            compile_heavy=4    # Limit heavy compilations to prevent OOM
+            compile_normal=16  # Allow more parallel normal compilations
+        )
     
     # Enable compiler cache if available
     find_program(CCACHE_PROGRAM ccache)
@@ -363,12 +409,13 @@ if(GEMM_BUILD_INDIVIDUAL)
         add_custom_target(benchmark_gemm_${scheduler})
     endforeach()
     
-    # Build individual targets for each datatype/layout combination
-    foreach(dt IN LISTS GEMM_DATATYPE)
-        foreach(l IN LISTS GEMM_LAYOUT)
-            build_individual_gemm_targets(${dt} ${l})
+        # Build individual targets for each datatype/layout combination
+        foreach(dt IN LISTS GEMM_DATATYPE)
+            foreach(l IN LISTS GEMM_LAYOUT)
+                build_individual_gemm_targets(${dt} ${l})
+            endforeach()
         endforeach()
-    endforeach()
+    endif()
 endif()
 
 # Generate dispatcher after all targets are defined
