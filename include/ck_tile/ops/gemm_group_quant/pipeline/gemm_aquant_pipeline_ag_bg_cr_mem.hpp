@@ -13,12 +13,6 @@
 
 namespace ck_tile {
 
-// Compute optimized pipeline
-// GlobalPrefetchStages: 2
-// LocalPreFillStages: 1
-// LocalPreFetchStages: 1
-// LocalSharedMemoryBuffer: 1
-
 template <typename Problem>
 struct BaseAQuantGemmPipelineAgBgCrCompMem : public BaseGemmPipelineAgBgCrCompV3<Problem>
 {
@@ -139,8 +133,8 @@ struct AQuantGemmPipelineAgBgCrCompMem : public BaseAQuantGemmPipelineAgBgCrComp
     static constexpr auto TailNum    = Problem::TailNum;
     static constexpr auto Scheduler  = Problem::Scheduler;
 
-    static_assert("Schedular must Interwave for memory pipeline" &&
-                  Scheduler == GemmPipelineScheduler::Interwave);
+    static_assert(Scheduler == GemmPipelineScheduler::Interwave,
+                  "Scheduler must be Interwave for memory pipeline");
 
     using Base::PrefetchStages;
 
@@ -163,7 +157,7 @@ struct AQuantGemmPipelineAgBgCrCompMem : public BaseAQuantGemmPipelineAgBgCrComp
         return Policy::template GetSmemSize<Problem>();
     }
 
-    CK_TILE_HOST static std::string Print()
+    [[nodiscard]] CK_TILE_HOST static std::string Print()
     {
         constexpr index_t MPerXDL = BlockGemm::WarpGemm::kM;
         constexpr index_t NPerXDL = BlockGemm::WarpGemm::kN;
