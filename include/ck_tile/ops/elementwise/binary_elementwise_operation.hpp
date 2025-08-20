@@ -82,13 +82,12 @@ struct Add
         y                  = type_convert<bf16_t>(y_tmp);
     }
 
-
     template <>
     __host__ __device__ constexpr void
     operator()<bf16_t>(bf16_t& y, const float& x0, const float& x1) const
     {
-        const float y_tmp  = x0 + x1;
-        y                  = type_convert<bf16_t>(y_tmp);
+        const float y_tmp = x0 + x1;
+        y                 = type_convert<bf16_t>(y_tmp);
     }
 
     template <>
