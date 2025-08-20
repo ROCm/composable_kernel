@@ -128,7 +128,7 @@ Composable Kernel glossary
         Launch parameters are the configuration values, such as :term:`grid` and :term:`block size`, that determine how a :term:`kernel` is mapped to hardware resources.
 
     memory coalescing
-        Memory coalescing is an optimization strategy where consecutive :term:`work-items<work-item>` access consecutive memory addresses so that a single memory transaction serves multiple work-items.
+        Memory coalescing is an optimization strategy where consecutive :term:`work-items<work-item>` access consecutive memory addresses in such a way that a single memory transaction serves multiple work-items.
 
     alignment
         Alignment is a memory management strategy where data structures are stored at addresses that are multiples of a specific value.
@@ -253,3 +253,4 @@ Composable Kernel glossary
 
     general matrix vector multiplication
         General matrix vector multiplication (GEMV) is an :term:`operation` where a matrix is multiplied by a vector, producing another vector. 
+
