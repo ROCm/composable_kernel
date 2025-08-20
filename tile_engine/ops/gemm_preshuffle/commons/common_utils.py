@@ -131,12 +131,12 @@ PIPELINE_MAP = {
         "ck_tile::GemmPipelineAgBgCrCompV4",
     ],
     "preshufflev1": [
-        "ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV1",
         "ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV1",
+        "ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV1",
     ],
     "preshufflev2": [
-        "ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2",
         "ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2",
+        "ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2",
     ],
 }
 

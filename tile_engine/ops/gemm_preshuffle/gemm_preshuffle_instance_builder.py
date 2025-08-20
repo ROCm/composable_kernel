@@ -385,15 +385,15 @@ struct GemmKernel {{
         static constexpr bool permuteA = false;
         static constexpr bool permuteB = false;
         static constexpr bool TransposeC = false;
-        static constexpr bool UseStructuredSparsity = false;
+        //static constexpr bool UseStructuredSparsity = false;
         static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
         static constexpr ck_tile::index_t TileParitionerM01      = 4;
         static constexpr ck_tile::index_t NumWaveGroups = 1;
 
         // Variables overridden in Preshuffle Config
         static constexpr int kBlockPerCu           = 2;
-        static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
-        static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V2;
+        //static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
+        //static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V2;
         static constexpr bool Preshuffle           = true;
         static constexpr bool DoubleSmemBuffer     = true;
 
@@ -781,6 +781,8 @@ struct GemmPreshuffleDispatcher {
         {
             return it->second;
         }
+        printf("[DELETE] Inside dispatch of gemm_preshuffle_dispatcher.hpp");
+
         throw std::runtime_error("No suitable kernel found: " + key);
     }
 

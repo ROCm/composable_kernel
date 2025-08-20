@@ -7,22 +7,27 @@
     },
     "tile_n": {
       "values": [
+        128,
         256
       ]
     },
     "tile_k": {
       "values": [
-        64,128
+        32
       ]
     },
     "warp_m": {
       "values": [
-        2
+        1,
+        2,
+        4
       ]
     },
     "warp_n": {
       "values": [
-        2
+        1,
+        2,
+        4
       ]
     },
     "warp_k": {
@@ -32,26 +37,33 @@
     },
     "warp_tile_m": {
       "values": [
+        4,
+        16, 
         32
       ]
     },
     "warp_tile_n": {
       "values": [
-        32
+        16,
+        32,
+        64
       ]
     },
     "warp_tile_k": {
       "values": [
-        16
+        8,
+        16,
+        32,
+        64,
+        128
       ]
     }
   },
   "trait_config": {
     "pipeline": {
       "values": [
-        "compv3",
-        "compv4",
-        "mem"
+        "preshufflev1",
+        "preshufflev2"
       ]
     },
     "scheduler": {
@@ -64,7 +76,6 @@
       "values": [
         "cshuffle",
         "default"
-
       ]
     },
     "pad_m": {
@@ -83,10 +94,10 @@
       ]
     },
     "persistent": {
-        "values": [
-            false,
-            true
-        ]
+      "values": [
+        false,
+        true
+      ]
     }
   }
 }

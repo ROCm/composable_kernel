@@ -97,14 +97,11 @@ class ArgumentConfig:
         assert len(layout_parts) == 3, (
             f"Invalid layout string: {layout} (must be 3 characters like 'rcr' where r stands for row major and c stands for column major)"
         )
-        assert layout_parts[0] in ("r", "c"), (
-            f"Invalid matrix_a layout: {layout_parts[0]} (must be 'r' for row major or or 'c' for column major)"
-        )
-        assert layout_parts[1] in ("r", "c"), (
-            f"Invalid matrix_b layout: {layout_parts[1]} (must be 'r' for row major or or 'c' for column major)"
+        assert layout_parts[0] == "r" and layout_parts[1] == "c", (
+            f"Invalid matrix_a layout : {layout_parts[0]} or matrix_b layout: {layout_parts[1]} (matrix_a must be 'r' for row major and matrix_b must be 'c' for column major as it is the only supported layout for preshuffle)"
         )
         assert layout_parts[2] == "r", (
-            f"Invalid matrix_e layout: {layout_parts[2]} (must be 'r' only as currently we are supporting only row major)"
+            f"Invalid matrix_c layout: {layout_parts[2]} (must be 'r' only as currently we are supporting only row major)"
         )
 
         layouts = Layout(
