@@ -385,7 +385,7 @@ class FmhaFwdApiPool:
             for i, dtype in enumerate(self.pool.keys()):
                 per_hdim_case=str()
                 for j, (hdim, hdim_v) in enumerate(self.pool[dtype].keys()):
-                    traits=self.pool[dtype][(hdim, hdim_v)]
+                    traits=[t for t in self.pool[dtype][(hdim, hdim_v)] if tr_load == t.tr_load]
                     inners=str()
                     for k, trait in enumerate(traits):
                         if_k = 'if' if k == 0 else 'else if'
