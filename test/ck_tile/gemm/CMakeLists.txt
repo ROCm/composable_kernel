@@ -57,8 +57,6 @@ if(GPU_TARGETS MATCHES "gfx94" OR GPU_TARGETS MATCHES "gfx95" OR GPU_TARGETS MAT
 
     set(GEMM_TEST_CONFIG_NAMES
         config1
-        config2
-        # Add more config names (without .json) here
     )
 
     function(generate_ck_tile_test_instances_for_config datatype layout config_name)

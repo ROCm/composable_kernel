@@ -4,27 +4,27 @@
   "tile_config": {
     "tile_m": {
       "values": [
-        128
+        64, 128
       ]
     },
     "tile_n": {
       "values": [
-        128
+        64, 128
       ]
     },
     "tile_k": {
       "values": [
-        32
+        16, 32
       ]
     },
     "warp_m": {
       "values": [
-        2
+        2, 4
       ]
     },
     "warp_n": {
       "values": [
-        2
+        2,4
       ]
     },
     "warp_k": {
@@ -34,7 +34,7 @@
     },
     "warp_tile_m": {
       "values": [
-        32
+        16,32
       ]
     },
     "warp_tile_n": {

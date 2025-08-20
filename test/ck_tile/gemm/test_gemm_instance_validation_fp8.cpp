@@ -4,14 +4,14 @@
 #include "gemm_common.hpp"
 #include "gemm_dispatcher.hpp"
 
-using DispatcherTypesFP16 = ::testing::Types<GemmDispatcher>;
+using DispatcherTypesFP8 = ::testing::Types<GemmDispatcher>;
 
-// Base template class for FP16 GEMM validation
+// Base template class for FP8 GEMM validation
 template <typename DispatcherType, bool StructuredSparsity>
-class GemmKernelValidationTestFP16Base
-    : public GemmKernelValidationTestBase<ck_tile::fp16_t,
-                                          ck_tile::fp16_t,
-                                          ck_tile::fp16_t,
+class GemmKernelValidationTestFP8Base
+    : public GemmKernelValidationTestBase<ck_tile::fp8_t,
+                                          ck_tile::fp8_t,
+                                          ck_tile::fp8_t,
                                           float,
                                           ck_tile::tensor_layout::gemm::RowMajor,
                                           ck_tile::tensor_layout::gemm::ColumnMajor,
@@ -88,30 +88,30 @@ class GemmKernelValidationTestFP16Base
 
 // Test class for dense GEMM kernels
 template <typename DispatcherType>
-class GemmKernelValidationTestFP16Dense
-    : public GemmKernelValidationTestFP16Base<DispatcherType, false>
+class GemmKernelValidationTestFP8Dense
+    : public GemmKernelValidationTestFP8Base<DispatcherType, false>
 {
 };
 
 // Test class for structured sparse GEMM kernels
 template <typename DispatcherType>
-class GemmKernelValidationTestFP16Sparse
-    : public GemmKernelValidationTestFP16Base<DispatcherType, true>
+class GemmKernelValidationTestFP8Sparse
+    : public GemmKernelValidationTestFP8Base<DispatcherType, true>
 {
 };
 
 // Test suites for both dense and sparse variants
-TYPED_TEST_SUITE(GemmKernelValidationTestFP16Dense, DispatcherTypesFP16);
-TYPED_TEST_SUITE(GemmKernelValidationTestFP16Sparse, DispatcherTypesFP16);
+TYPED_TEST_SUITE(GemmKernelValidationTestFP8Dense, DispatcherTypesFP8);
+TYPED_TEST_SUITE(GemmKernelValidationTestFP8Sparse, DispatcherTypesFP8);
 
 // Test all dense GEMM kernel configurations
-TYPED_TEST(GemmKernelValidationTestFP16Dense, AllKernelConfigurations)
+TYPED_TEST(GemmKernelValidationTestFP8Dense, AllKernelConfigurations)
 {
     this->RunAllKernelConfigurations();
 }
 
 // Test all structured sparse GEMM kernel configurations
-TYPED_TEST(GemmKernelValidationTestFP16Sparse, AllKernelConfigurations)
+TYPED_TEST(GemmKernelValidationTestFP8Sparse, AllKernelConfigurations)
 {
     this->RunAllKernelConfigurations();
 }
