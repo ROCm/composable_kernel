@@ -17,19 +17,19 @@
 namespace ck_tile {
 
 /// @brief The Grouped Convolution kernel device arguments.
-template <typename GroupedConvTraitsType>
+template <typename GroupedConvTraitsType_>
 struct GroupedConvBwdWeightKernelArgs
 {
 
     using ConvToGemmTransformer =
-        TransformConvBwdWeightToGemm<GroupedConvTraitsType::NDimSpatial,
-                                     GroupedConvTraitsType::ConvSpecialization>;
-    static constexpr index_t NumDTensor = GroupedConvTraitsType::NumDTensor;
+        TransformConvBwdWeightToGemm<GroupedConvTraitsType_::NDimSpatial,
+                                     GroupedConvTraitsType_::ConvSpecialization>;
+    static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;
 
     template <
-        typename InLay                      = typename GroupedConvTraitsType::InLayout,
-        typename WeiLay                     = typename GroupedConvTraitsType::WeiLayout,
-        typename OutLay                     = typename GroupedConvTraitsType::OutLayout,
+        typename InLay                      = typename GroupedConvTraitsType_::InLayout,
+        typename WeiLay                     = typename GroupedConvTraitsType_::WeiLayout,
+        typename OutLay                     = typename GroupedConvTraitsType_::OutLayout,
         typename std::enable_if<std::is_same_v<InLay, tensor_layout::convolution::NWGC> &&
                                     std::is_same_v<WeiLay, tensor_layout::convolution::GKXC> &&
                                     std::is_same_v<OutLay, tensor_layout::convolution::NWGK>,
@@ -75,7 +75,7 @@ struct GroupedConvBwdWeightKernelArgs
         // tuple
         auto grid_descs =
             conv_to_gemm_transformer.template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<
-                GroupedConvTraitsType::NDimSpatial>();
+                GroupedConvTraitsType_::NDimSpatial>();
 
         a_grid_desc_m_k = grid_descs.at(number<0>{});
         b_grid_desc_n_k = grid_descs.at(number<1>{});
@@ -96,9 +96,9 @@ struct GroupedConvBwdWeightKernelArgs
     }
 
     template <
-        typename InLay                      = typename GroupedConvTraitsType::InLayout,
-        typename WeiLay                     = typename GroupedConvTraitsType::WeiLayout,
-        typename OutLay                     = typename GroupedConvTraitsType::OutLayout,
+        typename InLay                      = typename GroupedConvTraitsType_::InLayout,
+        typename WeiLay                     = typename GroupedConvTraitsType_::WeiLayout,
+        typename OutLay                     = typename GroupedConvTraitsType_::OutLayout,
         typename std::enable_if<std::is_same_v<InLay, tensor_layout::convolution::NHWGC> &&
                                     std::is_same_v<WeiLay, tensor_layout::convolution::GKYXC> &&
                                     std::is_same_v<OutLay, tensor_layout::convolution::NHWGK>,
@@ -151,7 +151,7 @@ struct GroupedConvBwdWeightKernelArgs
         // tuple
         auto grid_descs =
             conv_to_gemm_transformer.template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<
-                GroupedConvTraitsType::NDimSpatial>();
+                GroupedConvTraitsType_::NDimSpatial>();
 
         a_grid_desc_m_k = grid_descs.at(number<0>{});
         b_grid_desc_n_k = grid_descs.at(number<1>{});
@@ -172,9 +172,9 @@ struct GroupedConvBwdWeightKernelArgs
     }
 
     template <
-        typename InLay                      = typename GroupedConvTraitsType::InLayout,
-        typename WeiLay                     = typename GroupedConvTraitsType::WeiLayout,
-        typename OutLay                     = typename GroupedConvTraitsType::OutLayout,
+        typename InLay                      = typename GroupedConvTraitsType_::InLayout,
+        typename WeiLay                     = typename GroupedConvTraitsType_::WeiLayout,
+        typename OutLay                     = typename GroupedConvTraitsType_::OutLayout,
         typename std::enable_if<std::is_same_v<InLay, tensor_layout::convolution::NDHWGC> &&
                                     std::is_same_v<WeiLay, tensor_layout::convolution::GKZYXC> &&
                                     std::is_same_v<OutLay, tensor_layout::convolution::NDHWGK>,
@@ -234,7 +234,7 @@ struct GroupedConvBwdWeightKernelArgs
         // tuple
         auto grid_descs =
             conv_to_gemm_transformer.template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<
-                GroupedConvTraitsType::NDimSpatial>();
+                GroupedConvTraitsType_::NDimSpatial>();
 
         a_grid_desc_m_k = grid_descs.at(number<0>{});
         b_grid_desc_n_k = grid_descs.at(number<1>{});
@@ -263,14 +263,14 @@ struct GroupedConvBwdWeightKernelArgs
     using CGridDescMN = remove_cvref_t<decltype(ABCGridDescs{}[number<2>{}])>;
 
     static constexpr index_t NonSpatialDims = 3;
-    array<index_t, NonSpatialDims + GroupedConvTraitsType::NDimSpatial> in_g_n_c_wis_lengths;
-    array<index_t, NonSpatialDims + GroupedConvTraitsType::NDimSpatial> wei_g_k_c_xs_lengths;
-    array<index_t, NonSpatialDims + GroupedConvTraitsType::NDimSpatial> out_g_n_k_wos_lengths;
+    array<index_t, NonSpatialDims + GroupedConvTraitsType_::NDimSpatial> in_g_n_c_wis_lengths;
+    array<index_t, NonSpatialDims + GroupedConvTraitsType_::NDimSpatial> wei_g_k_c_xs_lengths;
+    array<index_t, NonSpatialDims + GroupedConvTraitsType_::NDimSpatial> out_g_n_k_wos_lengths;
 
-    array<index_t, GroupedConvTraitsType::NDimSpatial> conv_filter_strides;
-    array<index_t, GroupedConvTraitsType::NDimSpatial> conv_filter_dilations;
-    array<index_t, GroupedConvTraitsType::NDimSpatial> input_left_pads;
-    array<index_t, GroupedConvTraitsType::NDimSpatial> input_right_pads;
+    array<index_t, GroupedConvTraitsType_::NDimSpatial> conv_filter_strides;
+    array<index_t, GroupedConvTraitsType_::NDimSpatial> conv_filter_dilations;
+    array<index_t, GroupedConvTraitsType_::NDimSpatial> input_left_pads;
+    array<index_t, GroupedConvTraitsType_::NDimSpatial> input_right_pads;
 
     index_t k_batch;
     index_t GemmM;
@@ -315,7 +315,7 @@ struct GroupedConvBwdWeightKernelArgs
 ///            the policy is responsible for definition of all necessary data layouts and thread's
 ///            work distribution.
 ///
-/// tparam ConvSpecialization  Tensor descriptors specialization.
+/// @tparam GroupedConvTraitsType_       The type of class providing traits for grouped convolution.
 /// @tparam TilePartitioner_            The type of class providing mapping of workgroup index into
 /// the
 ///                                     output data tile to be calculated. It determines the
@@ -330,15 +330,15 @@ struct GroupedConvBwdWeightKernelArgs
 ///                                     multiplication implementation. It is responsible for storing
 ///                                     results calculated by @ref GemmPipeline_ "GemmPipeline" to
 ///                                     the output C tensor in global memory.
-template <typename GroupedConvTraitsType,
+template <typename GroupedConvTraitsType_,
           typename TilePartitioner_,
           typename GemmPipeline_,
           typename EpiloguePipeline_>
 struct GroupedConvolutionBackwardWeightKernel
 {
-    static constexpr index_t NDimSpatial = GroupedConvTraitsType::NDimSpatial_;
+    static constexpr index_t NDimSpatial = GroupedConvTraitsType_::NDimSpatial_;
     static constexpr ConvolutionSpecialization ConvSpecialization =
-        GroupedConvTraitsType::ConvSpecialization;
+        GroupedConvTraitsType_::ConvSpecialization;
     using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
     using GemmPipeline     = remove_cvref_t<GemmPipeline_>;
     using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
@@ -346,13 +346,13 @@ struct GroupedConvolutionBackwardWeightKernel
     using GemmBLayout      = remove_cvref_t<typename GemmPipeline::BLayout>;
     using GemmCLayout      = remove_cvref_t<typename GemmPipeline::CLayout>;
 
-    using InLayout  = remove_cvref_t<typename GroupedConvTraitsType::InLayout>;
-    using WeiLayout = remove_cvref_t<typename GroupedConvTraitsType::WeiLayout>;
-    using OutLayout = remove_cvref_t<typename GroupedConvTraitsType::OutLayout>;
-    using DsLayout  = remove_cvref_t<typename GroupedConvTraitsType::DsLayout>;
+    using InLayout  = remove_cvref_t<typename GroupedConvTraitsType_::InLayout>;
+    using WeiLayout = remove_cvref_t<typename GroupedConvTraitsType_::WeiLayout>;
+    using OutLayout = remove_cvref_t<typename GroupedConvTraitsType_::OutLayout>;
+    using DsLayout  = remove_cvref_t<typename GroupedConvTraitsType_::DsLayout>;
 
     using GemmDsLayout                  = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
-    static constexpr index_t NumDTensor = GroupedConvTraitsType::NumDTensor;
+    static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;
 
     static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
 
@@ -363,7 +363,7 @@ struct GroupedConvolutionBackwardWeightKernel
     using OutDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
     using GroupedConvBwdWeightKernelArgsSpecialized =
-        GroupedConvBwdWeightKernelArgs<GroupedConvTraitsType>;
+        GroupedConvBwdWeightKernelArgs<GroupedConvTraitsType_>;
 
     // TODO: Enable this
     static constexpr bool IsSplitKSupported = true;
