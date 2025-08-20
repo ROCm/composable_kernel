@@ -27,8 +27,7 @@ template <typename BlockTile_, // sequence<...
           typename Gemm0BlockWarps_,
           typename Gemm0WarpTile_,
           typename Gemm1BlockWarps_,
-          typename Gemm1WarpTile_,
-          bool IsVLayoutRowMajor_>
+          typename Gemm1WarpTile_>
 struct HstuAttentionFwdTileSettingClass
 {
     using BlockTile       = remove_cvref_t<BlockTile_>;
@@ -56,12 +55,6 @@ struct HstuAttentionFwdTileSettingClass
     static_assert(kQKHeaddim % kK0 == 0, "kQKHeaddim should be divisible by kK0");
 
     static constexpr index_t kSubQKHeaddim = ceil_to_qualified_tile_length(kQKHeaddim);
-
-    // v, rowmajor : seqlen*hdim, colmajor : hdim*seqlen
-    static constexpr bool IsVLayoutRowMajor = IsVLayoutRowMajor_;
-    using VLayout                           = std::conditional_t<IsVLayoutRowMajor,
-                                       ck_tile::tensor_layout::gemm::RowMajor,
-                                       ck_tile::tensor_layout::gemm::ColumnMajor>;
 };
 
 } // namespace ck_tile

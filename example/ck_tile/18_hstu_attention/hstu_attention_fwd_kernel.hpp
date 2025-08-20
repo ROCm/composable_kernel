@@ -41,8 +41,6 @@ struct HstuAttentionFwdKernel
     using BiasDataType = ck_tile::remove_cvref_t<typename HstuAttentionPipeline::BiasDataType>;
     using ODataType    = ck_tile::remove_cvref_t<typename HstuAttentionPipeline::ODataType>;
 
-    using VLayout = ck_tile::remove_cvref_t<typename HstuAttentionPipeline::VLayout>;
-
     static constexpr bool kIsJagged     = HstuAttentionPipeline::kIsJagged;
     static constexpr bool kPadSeqLenQ   = HstuAttentionPipeline::kPadSeqLenQ;
     static constexpr bool kPadSeqLenK   = HstuAttentionPipeline::kPadSeqLenK;
@@ -626,14 +624,8 @@ struct HstuAttentionFwdKernel
 
             batch_offset_q = query_start * kargs.seq_stride_q;
             batch_offset_k = key_start * kargs.seq_stride_k;
-            if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-            {
-                batch_offset_v = key_start * kargs.seq_stride_v;
-            }
-            else
-            {
-                batch_offset_v = key_start;
-            }
+            batch_offset_v = key_start * kargs.seq_stride_v;
+
             if constexpr(kHasBias)
             {
                 batch_offset_bias = query_start * kargs.seq_stride_bias;
@@ -759,41 +751,24 @@ struct HstuAttentionFwdKernel
                                    sequence<false, kPadHeadDimQK>{});
         }();
         const auto v_dram = [&]() {
-            if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-            {
-                const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                    v_ptr,
-                    make_tuple(kargs.seqlen, kargs.hdim_v),
-                    make_tuple(kargs.seq_stride_v, 1),
-                    number<HstuAttentionPipeline::kAlignmentV>{},
-                    number<1>{});
+            const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                v_ptr,
+                make_tuple(kargs.seqlen, kargs.hdim_v),
+                make_tuple(kargs.seq_stride_v, 1),
+                number<HstuAttentionPipeline::kAlignmentV>{},
+                number<1>{});
 
-                const auto v_dram_transposed =
-                    transform_tensor_view(v_dram_naive,
-                                          make_tuple(make_pass_through_transform(kargs.hdim_v),
-                                                     make_pass_through_transform(kargs.seqlen)),
-                                          make_tuple(sequence<1>{}, sequence<0>{}),
-                                          make_tuple(sequence<0>{}, sequence<1>{}));
+            const auto v_dram_transposed =
+                transform_tensor_view(v_dram_naive,
+                                      make_tuple(make_pass_through_transform(kargs.hdim_v),
+                                                 make_pass_through_transform(kargs.seqlen)),
+                                      make_tuple(sequence<1>{}, sequence<0>{}),
+                                      make_tuple(sequence<0>{}, sequence<1>{}));
 
-                return pad_tensor_view(v_dram_transposed,
-                                       make_tuple(number<HstuAttentionPipeline::kN1>{},
-                                                  number<HstuAttentionPipeline::kK1>{}),
-                                       sequence<kPadHeadDimV, false>{});
-            }
-            else
-            {
-                const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                    v_ptr,
-                    make_tuple(kargs.hdim_v, kargs.seqlen),
-                    make_tuple(kargs.seq_stride_v, 1),
-                    number<HstuAttentionPipeline::kAlignmentV>{},
-                    number<1>{});
-
-                return pad_tensor_view(v_dram_naive,
-                                       make_tuple(number<HstuAttentionPipeline::kN1>{},
-                                                  number<HstuAttentionPipeline::kK1>{}),
-                                       sequence<kPadHeadDimV, false>{});
-            }
+            return pad_tensor_view(v_dram_transposed,
+                                   make_tuple(number<HstuAttentionPipeline::kN1>{},
+                                              number<HstuAttentionPipeline::kK1>{}),
+                                   sequence<kPadHeadDimV, false>{});
         }();
 
         auto q_dram_window =
