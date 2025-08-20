@@ -95,6 +95,25 @@ inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(fl
  * @brief Converts two floats into a vector of 2 16-bit bfloat types (bhalf2_t) using
  * rounding to nearest/even (RNE).
  *
+ * @param x     First float value. The packed value is stored here.
+ * @param y     Second float value.
+ */
+inline __host__ __device__ void static_cast_float_to_bhalf_packed_v2(float& x, float y)
+{
+    union 
+    {
+        float fp32;
+        bhalf2_t bf16x2;
+    } converter;
+
+    converter.bf16x2 = {bf16_convert_rtn<bhalf_t>(x), bf16_convert_rtn<bhalf_t>(y)};
+    x = converter.fp32;
+}
+
+/**
+ * @brief Converts two floats into a vector of 2 16-bit bfloat types (bhalf2_t) using
+ * rounding to nearest/even (RNE).
+ *
  * @param x     First float value.
  * @param y     Second float value.
  * @return      Converted vector of 2 bhalf_t.
