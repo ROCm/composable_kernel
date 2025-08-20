@@ -1,1 +1,0 @@
-add_gtest_executable(test_pass_through test_pass_through.cpp)
