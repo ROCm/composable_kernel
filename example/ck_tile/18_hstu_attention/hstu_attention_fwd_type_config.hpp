@@ -30,5 +30,3 @@ struct HstuAttentionFwdTypeConfig<ck_tile::bf16_t>
     using OaccDataType    = GemmAccDataType;
     using ODataType       = ck_tile::bf16_t;
 };
-
-static constexpr bool IsVLayoutRowMajor = true;

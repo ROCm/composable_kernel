@@ -63,8 +63,7 @@ struct HstuAttentionFwdTileSetting<32>
         typename HstuAttentionFwdBlockTile<32>::gemm0_warps,
         HstuAttentionFwdWarpTile1,
         typename HstuAttentionFwdBlockTile<32>::gemm1_warps,
-        HstuAttentionFwdWarpTile1,
-        IsVLayoutRowMajor>;
+        HstuAttentionFwdWarpTile1>;
 };
 
 template <>
@@ -75,8 +74,7 @@ struct HstuAttentionFwdTileSetting<64>
         typename HstuAttentionFwdBlockTile<64>::gemm0_warps,
         HstuAttentionFwdWarpTile1,
         typename HstuAttentionFwdBlockTile<64>::gemm1_warps,
-        HstuAttentionFwdWarpTile1,
-        IsVLayoutRowMajor>;
+        HstuAttentionFwdWarpTile1>;
 };
 
 template <>
@@ -87,8 +85,7 @@ struct HstuAttentionFwdTileSetting<128>
         typename HstuAttentionFwdBlockTile<128>::gemm0_warps,
         HstuAttentionFwdWarpTile1,
         typename HstuAttentionFwdBlockTile<128>::gemm1_warps,
-        HstuAttentionFwdWarpTile1,
-        IsVLayoutRowMajor>;
+        HstuAttentionFwdWarpTile1>;
 };
 
 template <>
@@ -99,8 +96,7 @@ struct HstuAttentionFwdTileSetting<256>
         typename HstuAttentionFwdBlockTile<256>::gemm0_warps,
         HstuAttentionFwdWarpTile1,
         typename HstuAttentionFwdBlockTile<256>::gemm1_warps,
-        HstuAttentionFwdWarpTile1,
-        IsVLayoutRowMajor>;
+        HstuAttentionFwdWarpTile1>;
 };
 #endif
 
@@ -147,8 +143,7 @@ struct HstuAttentionFwdTileSetting<32>
         typename HstuAttentionFwdBlockTile<32>::gemm0_warps,
         HstuAttentionFwdWarpTile2,
         typename HstuAttentionFwdBlockTile<32>::gemm1_warps,
-        HstuAttentionFwdWarpTile1,
-        IsVLayoutRowMajor>;
+        HstuAttentionFwdWarpTile1>;
 };
 
 template <>
@@ -159,8 +154,7 @@ struct HstuAttentionFwdTileSetting<64>
         typename HstuAttentionFwdBlockTile<64>::gemm0_warps,
         HstuAttentionFwdWarpTile2,
         typename HstuAttentionFwdBlockTile<64>::gemm1_warps,
-        HstuAttentionFwdWarpTile1,
-        IsVLayoutRowMajor>;
+        HstuAttentionFwdWarpTile1>;
 };
 
 template <>
@@ -171,8 +165,7 @@ struct HstuAttentionFwdTileSetting<128>
         typename HstuAttentionFwdBlockTile<128>::gemm0_warps,
         HstuAttentionFwdWarpTile2,
         typename HstuAttentionFwdBlockTile<128>::gemm1_warps,
-        HstuAttentionFwdWarpTile1,
-        IsVLayoutRowMajor>;
+        HstuAttentionFwdWarpTile1>;
 };
 
 template <>
@@ -183,7 +176,6 @@ struct HstuAttentionFwdTileSetting<256>
         typename HstuAttentionFwdBlockTile<256>::gemm0_warps,
         HstuAttentionFwdWarpTile2,
         typename HstuAttentionFwdBlockTile<256>::gemm1_warps,
-        HstuAttentionFwdWarpTile1,
-        IsVLayoutRowMajor>;
+        HstuAttentionFwdWarpTile1>;
 };
 #endif

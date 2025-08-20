@@ -24,7 +24,6 @@ struct HstuAttentionFwdPipelineQRKSVS
     using HstuMask        = remove_cvref_t<typename Problem::HstuMask>;
 
     using HstuAttentionTileSetting = remove_cvref_t<typename Problem::HstuAttentionTileSetting>;
-    using VLayout                  = remove_cvref_t<typename HstuAttentionTileSetting::VLayout>;
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
@@ -54,12 +53,8 @@ struct HstuAttentionFwdPipelineQRKSVS
         kPadHeadDimQK ? 1 : Policy::template GetAlignmentQ<Problem>();
     static constexpr index_t kAlignmentK =
         kPadHeadDimQK ? 1 : Policy::template GetAlignmentK<Problem>();
-    static constexpr index_t kAlignmentV = []() {
-        if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-            return Problem::Traits::kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
-        else
-            return kPadSeqLenK ? 1 : Policy::template GetAlignmentV<Problem>();
-    }();
+    static constexpr index_t kAlignmentV =
+        Problem::Traits::kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
 
     static constexpr index_t kAlignmentO =
         kPadHeadDimV ? 1 : Policy::template GetAlignmentO<Problem>();
@@ -500,27 +495,16 @@ struct HstuAttentionFwdPipelineQRKSVS
 
                 tile_elementwise_inout(f_silu, pcomp_tile);
 
-                if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-                {
-                    auto v_shuffle_tmp = make_static_distributed_tensor<QKVDataType>(
-                        Policy::template MakeShuffledVRegTileDistribution<Problem>());
-                    shuffle_tile(v_shuffle_tmp, v_tile);
+                auto v_shuffle_tmp = make_static_distributed_tensor<QKVDataType>(
+                    Policy::template MakeShuffledVRegTileDistribution<Problem>());
+                shuffle_tile(v_shuffle_tmp, v_tile);
 
-                    // if K in this unroll uses Lds-buffer i, then V in this uroll uses Lds-buffer
-                    // i+2, No overlap occurs between V and K in the same unroll, and V in current
-                    // unroll and K in next unroll or first unroll in next iteration
-                    store_tile(
-                        v_lds_windows[number<(i_k1 + 2) % NumKVLdsBuffers>{}],
-                        tile_elementwise_in(v_element_func, v_shuffle_tmp)); // store the prefetch
-                }
-                else
-                {
-                    // if K in this unroll uses Lds-buffer i, then V in this uroll uses Lds-buffer
-                    // i+2, No overlap occurs between V and K in the same unroll, and V in current
-                    // unroll and K in next unroll or first unroll in next iteration
-                    store_tile(v_lds_windows[number<(i_k1 + 2) % NumKVLdsBuffers>{}],
-                               tile_elementwise_in(v_element_func, v_tile)); // store the prefetch
-                };
+                // if K in this unroll uses Lds-buffer i, then V in this uroll uses Lds-buffer
+                // i+2, No overlap occurs between V and K in the same unroll, and V in current
+                // unroll and K in next unroll or first unroll in next iteration
+                store_tile(
+                    v_lds_windows[number<(i_k1 + 2) % NumKVLdsBuffers>{}],
+                    tile_elementwise_in(v_element_func, v_shuffle_tmp)); // store the prefetch
 
                 if constexpr(kHasDropout)
                 {
