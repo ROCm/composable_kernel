@@ -62,7 +62,7 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
                                                                  CodegenGemmTraits,
                                                                  ComputeDataType>;
 
-    using BaseGemmPipeline = ck_tile::BaseAQuantGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
+    using BaseGemmPipeline = ck_tile::BaseAQuantGemmPipelineAgBgCrCompMem<GemmPipelineProblem>;
 
     const ck_tile::index_t K_split      = (args.K + K_Tile - 1) / K_Tile * K_Tile;
     const ck_tile::index_t num_loop     = TilePartitioner::GetLoopNum(K_split);
@@ -86,7 +86,8 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
                                                ck_tile::GemmPipelineScheduler::Interwave,
                                                has_hot_loop_v,
                                                tail_number_v>;
-        using CodegenGemmPipeline = ck_tile::AQuantGemmPipelineAgBgCrCompV3<CodegenPipelineProblem>;
+        using CodegenGemmPipeline =
+            ck_tile::AQuantGemmPipelineAgBgCrCompMem<CodegenPipelineProblem>;
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
