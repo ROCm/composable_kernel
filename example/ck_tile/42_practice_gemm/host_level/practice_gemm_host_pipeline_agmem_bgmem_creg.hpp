@@ -41,6 +41,12 @@ struct PracticeGemmHostPipeline
         // Number of block tile in the M direction to cover C (resultant) matrix
         const auto num_tile_m = integer_divide_ceil(M, MPerBlock);
 
+        // if(get_thread_id() == 0 && get_block_id() == 0)
+        // {
+        //     printf("num_tile_m: %d, num_tile_n: %d\n", num_tile_m, num_tile_n);
+        //     printf("total number of tiles: %d\n", num_tile_m * num_tile_n);
+        // }
+
         // Get block id
         const auto id_block =
             get_block_id(); // 0 to (M_block/BlockTile_M) * (N_block/BlockTile_N) - 1
@@ -53,6 +59,11 @@ struct PracticeGemmHostPipeline
         const auto tile_id_m = tile_id.template get(number<0>{});
         const auto tile_id_n = tile_id.template get(number<1>{});
 
+        // if(get_thread_id() == 0 && get_block_id() == 15)
+        // {
+        //     printf("tile_id_m: %d, tile_id_n: %d\n", tile_id_m, tile_id_n);
+        // }
+
         const auto tile_origin_m = tile_id_m * MPerBlock;
         const auto tile_origin_n = tile_id_n * NPerBlock;
 
@@ -62,9 +73,6 @@ struct PracticeGemmHostPipeline
 
         const auto b_block_window = make_tile_window(
             b_dram, make_tuple(number<NPerBlock>{}, number<KPerBlock>{}), {tile_origin_n, 0});
-
-        (void)a_block_window;
-        (void)b_block_window;
 
         constexpr auto block_gemm_pipeline =
             Policy::template GetPracticeGemmBlockPipeline<Problem>();

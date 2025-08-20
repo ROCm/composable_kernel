@@ -51,8 +51,6 @@ struct PracticeGemmKernel
                                    const index_t stride_b,
                                    const index_t stride_c) const
     {
-        // std::cout << "We start with creating tensor views (memory buffer (memory ptr & memory
-        // space)  and descriptors (shape and strides))" << std::endl;
 
         auto a_dram = [&] {
             return make_naive_tensor_view<address_space_enum::global>(
@@ -68,6 +66,21 @@ struct PracticeGemmKernel
             return make_naive_tensor_view<address_space_enum::global>(
                 p_c, make_tuple(M, N), make_tuple(stride_c, 1), number<8>{}, number<1>{});
         }();
+
+        // print shape of each tensor view
+        // if(threadIdx.x == 0 && blockIdx.x == 0)
+        // {
+        // printf("Shape of a_dram: ");
+        // printf("%d %d\n", a_dram.get_tensor_descriptor().get_length(number<0>{}),
+        //        a_dram.get_tensor_descriptor().get_length(number<1>{}));
+        // printf("Shape of b_dram: ");
+        // printf("%d %d\n", b_dram.get_tensor_descriptor().get_length(number<0>{}),
+        //        b_dram.get_tensor_descriptor().get_length(number<1>{}));
+        // printf("Shape of c_dram: ");
+        // printf("%d %d\n", c_dram.get_tensor_descriptor().get_length(number<0>{}),
+        //        c_dram.get_tensor_descriptor().get_length(number<1>{}));
+        // }
+
         PracticeGemmHostPipeline<Problem, Policy>{}(a_dram, b_dram, c_dram);
     }
 };

@@ -17,9 +17,9 @@ int main()
     using AccDataType = float;
 
     // ArgParser
-    ck_tile::index_t M            = 16;
-    ck_tile::index_t N            = 64;
-    ck_tile::index_t K            = 128;
+    ck_tile::index_t M            = 2048;
+    ck_tile::index_t N            = 2048;
+    ck_tile::index_t K            = 2048;
     ck_tile::index_t verification = 1;
 
     ck_tile::index_t stride_a = K;
@@ -40,41 +40,21 @@ int main()
     ck_tile::HostTensor<CDataType> c_host(c_lengths, c_strides);
 
     // initialize tensors
-    // ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_host);
-    // ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_host);
-
-    // I want to initialize the tensors with a specific value
-    for(int m = 0; m < M; ++m)
-    {
-        ck_tile::half_t value = 1.0f;
-        for(int k = 0; k < K; ++k)
-        {
-            a_host(m, k) = ck_tile::type_convert<ADataType>(value);
-            // value += 0.1f;
-        }
-    }
-
-    for(int n = 0; n < N; ++n)
-    {
-        ck_tile::half_t value = 1.25f;
-        for(int k = 0; k < K; ++k)
-        {
-            b_host(n, k) = ck_tile::type_convert<BDataType>(value);
-            // value += 0.1f;
-        }
-    }
+    ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_host);
+    ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_host);
+    c_host.SetZero();
 
     // Print the tensors using the new print_first_n member function
-    std::cout << "Tensor A (first 5 elements): ";
-    a_host.print_first_n(16);
-    std::cout << std::endl;
+    // std::cout << "Tensor A (first 10 elements): ";
+    // a_host.print_first_n(10);
+    // std::cout << std::endl;
 
-    std::cout << "Tensor B (first 5 elements): ";
-    b_host.print_first_n(16);
-    std::cout << std::endl;
+    // std::cout << "Tensor B (first 10 elements): ";
+    // b_host.print_first_n(10);
+    // std::cout << std::endl;
 
-    // std::cout << "Tensor C (first 5 elements): ";
-    // c_host.print_first_n(5);
+    // std::cout << "Tensor C (first 10 elements): ";
+    // c_host.print_first_n(10);
     // std::cout << std::endl;
 
     // Create device tensors of same size as host tensors and copy data
@@ -86,7 +66,7 @@ int main()
     // constexpr ck_tile::index_t warpSize    = 64;
     constexpr ck_tile::index_t kBlockSize = 256;
 
-    using BlockTile = ck_tile::sequence<256, 32, 64>;
+    using BlockTile = ck_tile::sequence<256, 128, 32>;
     using WaveTile  = ck_tile::sequence<16, 16, 16>;
 
     std::cout << "Creating PracticeGemmShape, PracticeGemmProblem, PracticeGemmPolicy" << std::endl;
