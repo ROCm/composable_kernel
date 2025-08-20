@@ -131,7 +131,8 @@ Composable Kernel glossary
         Memory coalescing is an optimization strategy where consecutive :term:`work-items<work-item>` access consecutive memory addresses so that a single memory transaction serves multiple work-items.
 
     alignment
-        Alignment is memory management strategy where data structures are stored at addresses that are multiples of a specific value.
+        Alignment is a memory management strategy where data structures are stored at addresses that are multiples of a specific value.
+
 
     bank conflict
         A bank conflict occurs when multiple :term:`work-items<work-item>` in a :term:`wavefront` access different addresses that map to the same shared memory bank.
