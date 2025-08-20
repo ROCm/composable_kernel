@@ -425,12 +425,12 @@ struct GroupedConvBwdDataKernelArgs
     long_index_t group_stride_c;
 };
 
-/// @brief The Grouped Convolution Forward kernel template.
+/// @brief The Grouped Convolution Backward Data kernel template.
 ///
 /// @paragraph Overview Overview
-///            This class provides the grouped convolution forward kernel template. By semantic
-///            division of Implicit GEMM algorithm into following parts we achieve flexible,
-///            versatile and robust kernel implementation.
+///            This class provides the grouped convolution backward data kernel template. By
+///            semantic division of Implicit GEMM algorithm into following parts we achieve
+///            flexible, versatile and robust kernel implementation.
 ///
 ///            @li @b Prolog - The start of GEMM kernel implementation in @ref operator()
 ///                function call operator" which determines the work scope of each workgroup.
@@ -492,7 +492,7 @@ struct GroupedConvolutionBackwardDataKernel
     using InDataType  = remove_cvref_t<typename GemmPipeline::ADataType>;
     using WeiDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
     using DsDataType  = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
-    // Below type is actually accumulation data type - the output of block GEMM.
+
     using OutDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
     using GroupedConvBwdDataKernelArgsSpecialized =
@@ -510,9 +510,12 @@ struct GroupedConvolutionBackwardDataKernel
 
     static_assert(GemmPipeline::kPadM && GemmPipeline::kPadN && GemmPipeline::kPadK,
                   "Not supported!");
-    static_assert(std::is_same_v<GemmALayout, tensor_layout::gemm::RowMajor>, "Not supported!");
-    static_assert(std::is_same_v<GemmBLayout, tensor_layout::gemm::ColumnMajor>, "Not supported!");
-    static_assert(std::is_same_v<GemmCLayout, tensor_layout::gemm::RowMajor>, "Not supported!");
+    static_assert(std::is_same_v<GemmALayout, tensor_layout::gemm::RowMajor>,
+                  "Not supported A GEMM layout!");
+    static_assert(std::is_same_v<GemmBLayout, tensor_layout::gemm::ColumnMajor>,
+                  "Not supported B GEMM layout!");
+    static_assert(std::is_same_v<GemmCLayout, tensor_layout::gemm::RowMajor>,
+                  "Not supported C GEMM layout!");
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
@@ -521,8 +524,7 @@ struct GroupedConvolutionBackwardDataKernel
         // clang-format on
     }
 
-    CK_TILE_HOST static constexpr auto
-    GridSize(const GroupedConvBwdDataKernelArgsSpecialized& kargs)
+    CK_TILE_HOST static auto GridSize(const GroupedConvBwdDataKernelArgsSpecialized& kargs)
     {
         // enable batched grouped gemm
         return dim3(kargs.grid_size_, kargs.GemmBatch, kargs.k_batch);
@@ -805,7 +807,7 @@ struct GroupedConvolutionBackwardDataKernel
      * @param b_ptr input B pointer
      * @param c_ptr output C pointer
      * @param smem_ptr_0 The start memory pointer of the shared memory block.
-     * @param kargs Grouped Convolution Forward kernel arguments
+     * @param kargs Grouped Convolution Backward Data kernel arguments
      * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
      * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
      *
@@ -856,7 +858,7 @@ struct GroupedConvolutionBackwardDataKernel
      * @param c_ptr output C pointer
      * @param smem_ptr_0 The starting pointer of 1st shared memory block.
      * @param smem_ptr_1 The starting pointer of 2nd shared memory block.
-     * @param kargs Grouped Convolution Forward kernel arguments
+     * @param kargs Grouped Convolution Backward Data kernel arguments
      * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
      * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
      *

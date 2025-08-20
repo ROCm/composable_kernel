@@ -292,12 +292,12 @@ struct GroupedConvBwdWeightKernelArgs
     long_index_t group_stride_c;
 };
 
-/// @brief The Grouped Convolution Forward kernel template.
+/// @brief The Grouped Convolution Backward Weight kernel template.
 ///
 /// @paragraph Overview Overview
-///            This class provides the grouped convolution forward kernel template. By semantic
-///            division of Implicit GEMM algorithm into following parts we achieve flexible,
-///            versatile and robust kernel implementation.
+///            This class provides the grouped convolution backward weight kernel template. By
+///            semantic division of Implicit GEMM algorithm into following parts we achieve
+///            flexible, versatile and robust kernel implementation.
 ///
 ///            @li @b Prolog - The start of GEMM kernel implementation in @ref operator()
 ///                function call operator" which determines the work scope of each workgroup.
@@ -594,12 +594,9 @@ struct GroupedConvolutionBackwardWeightKernel
         }();
 
         const auto& c_tensor_view = [&]() {
-            return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
+            return make_tensor_view<address_space_enum::global, DstInMemOp>(
                 c_ptr,
-                make_tuple(kargs.GemmM, kargs.GemmN),
-                make_tuple(kargs.GemmN, 1),
-                number<EpiloguePipeline::GetVectorSizeC()>{},
-                number<1>{});
+                kargs.c_grid_desc_m_n); // B: in
         }();
 
         const auto& ds_tensor_view = generate_tuple(
@@ -708,7 +705,7 @@ struct GroupedConvolutionBackwardWeightKernel
      * @param b_ptr input B pointer
      * @param c_ptr output C pointer
      * @param smem_ptr_0 The start memory pointer of the shared memory block.
-     * @param kargs Grouped Convolution Forward kernel arguments
+     * @param kargs Grouped Convolution Backward Weight kernel arguments
      * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
      * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
      *
@@ -758,7 +755,7 @@ struct GroupedConvolutionBackwardWeightKernel
      * @param c_ptr output C pointer
      * @param smem_ptr_0 The starting pointer of 1st shared memory block.
      * @param smem_ptr_1 The starting pointer of 2nd shared memory block.
-     * @param kargs Grouped Convolution Forward kernel arguments
+     * @param kargs Grouped Convolution Backward Weight kernel arguments
      * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
      * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
      *
