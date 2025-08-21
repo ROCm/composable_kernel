@@ -9,6 +9,7 @@
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
+#include "ck_tile/core/utility/ignore.hpp"
 
 #define CK_TILE_S_CNT_MAX 0b1100'1111'0111'1111
 #define CK_TILE_VMCNT(cnt)                                              \
@@ -66,6 +67,23 @@ CK_TILE_HOST_DEVICE constexpr index_t get_warp_size()
 #endif
 }
 
+CK_TILE_HOST bool is_wave32()
+{
+    hipDeviceProp_t props{};
+    int device;
+    auto status = hipGetDevice(&device);
+    if(status != hipSuccess)
+    {
+        return false;
+    }
+    status = hipGetDeviceProperties(&props, device);
+    if(status != hipSuccess)
+    {
+        return false;
+    }
+    return props.major > 9;
+}
+
 CK_TILE_DEVICE index_t get_grid_size() { return gridDim.x; }
 
 CK_TILE_DEVICE index_t get_block_size() { return blockDim.x; }
@@ -88,21 +106,6 @@ CK_TILE_DEVICE index_t get_warp_id()
 CK_TILE_DEVICE index_t get_thread_id() { return threadIdx.x; }
 
 CK_TILE_DEVICE index_t get_block_id() { return blockIdx.x; }
-
-CK_TILE_DEVICE void block_sync_lds()
-{
-#if CK_TILE_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM
-    // asm volatile("\
-    // s_waitcnt lgkmcnt(0) \n \
-    // s_barrier \
-    // " ::);
-
-    __builtin_amdgcn_s_waitcnt(0xc07f);
-    __builtin_amdgcn_s_barrier();
-#else
-    __syncthreads();
-#endif
-}
 
 CK_TILE_DEVICE void block_sync_load_raw(index_t cnt = 0)
 {
@@ -174,6 +177,18 @@ CK_TILE_DEVICE void s_waitcnt_barrier()
     __builtin_amdgcn_s_barrier();
 }
 
+template <index_t lgkmcnt = 0>
+CK_TILE_DEVICE void block_sync_lds()
+{
+    s_waitcnt_barrier<waitcnt_arg::kMaxVmCnt, waitcnt_arg::kMaxExpCnt, lgkmcnt>();
+}
+
+template <index_t vmcnt = 0>
+CK_TILE_DEVICE void block_sync_lds_direct_load()
+{
+    s_waitcnt_barrier<vmcnt, waitcnt_arg::kMaxExpCnt, waitcnt_arg::kMaxLgkmCnt>();
+}
+
 CK_TILE_DEVICE void s_nop(index_t cnt = 0)
 {
 #if 1
@@ -233,4 +248,20 @@ CK_TILE_HOST_DEVICE constexpr const char* address_space_to_string(address_space_
     }
 }
 
+// Architecture tags
+struct gfx11_t
+{
+};
+struct gfx12_t
+{
+};
+
+CK_TILE_DEVICE static constexpr auto get_device_arch()
+{
+#if defined(__gfx11__)
+    return gfx11_t{};
+#else // if defined(__gfx12__)
+    return gfx12_t{};
+#endif
+}
 } // namespace ck_tile
