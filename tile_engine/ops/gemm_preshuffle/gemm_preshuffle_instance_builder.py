@@ -188,7 +188,6 @@ class GemmPreshuffleCodeGenerator:
         ) = tile
         pipeline, *_ = trait.split("_")
 
-        # [DELETE AFTER KCHECK] Parameter validity check WHY IS THIS EXACTLY THIS?
         invalid_params = []
         if (warp_m, warp_n, warp_k) not in [(1, 4, 1), (2, 2, 1), (4, 1, 1)]:
             invalid_params.append(
@@ -209,7 +208,6 @@ class GemmPreshuffleCodeGenerator:
             )
             return False
 
-        # [DELETE AFTER KCHECK] Dimension alignment check WHY IS THIS EXACTLY THIS? I think it is because of dividing equally
         alignment_issues = []
         if tile_m % (warp_m * warp_tile_m) != 0:
             alignment_issues.append(
@@ -237,9 +235,7 @@ class GemmPreshuffleCodeGenerator:
         matrix_b_size = (tile_n * tile_k) * element_size(self.args.datatypes.b_datatype)
         total_tile_in_lds = matrix_a_size + matrix_b_size
 
-        max_tile_size = (
-            2**15 if pipeline == "preshufflev2" else 2**16
-        )  # [DELETE AFTER KCHECK] WHY IS THIS EXACTLY THIS? I think this has to be there because of DoubleSmemBuffer but check other valid pipeline and add in commons
+        max_tile_size = 2**15 if pipeline == "preshufflev2" else 2**16
 
         if total_tile_in_lds > max_tile_size:
             logging.debug(
@@ -355,9 +351,6 @@ namespace {trait} {{
         pad_k: str,
         persistent: str,
     ) -> str:
-        print(
-            "[DELETE] Clean this up later, _generate_kernel_struct needs work in hardcoded part!"
-        )
         """Generate the code block of kernel struct"""
         return f"""
 
@@ -507,7 +500,6 @@ struct GemmKernel {{
 
         }};
 
-        //[DELETE] Call MemoryOpSet and MemoryOpAtomicAdd
         const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {{
             if(args.k_batch == 1) {{
                 Run(has_hot_loop_,
@@ -527,7 +519,6 @@ struct GemmKernel {{
         return ave_time;
     }}
 
-    //[DELETE] MAKE THIS PRINT MORE INFORMATIVE
     static std::string get_name() {{
         return std::string("gemm_preshuffle") + std::to_string(TileM) + "x" + std::to_string(TileN) + "x" + std::to_string(TileK) +
                 "_" + std::to_string(WarpM) + "x" + std::to_string(WarpN) + "x" + std::to_string(WarpK) + "_" +
