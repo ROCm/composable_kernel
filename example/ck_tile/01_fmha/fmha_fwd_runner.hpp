@@ -577,19 +577,22 @@ fwd_result fmha_fwd_run(mode_enum mode,
     else if(init_method == "ufq" || init_method == "uf:q" || init_method == "3")
     {
         // suitable for fp8 quantization
-        ck_tile::FillUniformDistribution<QDataType>{-q_dtype_max, q_dtype_max, next_seed()}(q_host);
-        ck_tile::FillUniformDistribution<KDataType>{-k_dtype_max, k_dtype_max, next_seed()}(k_host);
-        ck_tile::FillUniformDistribution<KDataType>{-k_dtype_max, k_dtype_max, next_seed()}(
-            knew_host);
-        ck_tile::FillUniformDistribution<VDataType>{-v_dtype_max, v_dtype_max, next_seed()}(v_host);
-        ck_tile::FillUniformDistribution<VDataType>{-v_dtype_max, v_dtype_max, next_seed()}(
-            vnew_host);
+        if(!squant)
+        {
+            std::cerr << "init method " << init_method << " can not be used without quantization"
+                      << std::endl;
+            return fwd_result::invalid_args;
+        }
+        ck_tile::FillUniformDistribution<QDataType>{0.f, q_dtype_max, next_seed()}(q_host);
+        ck_tile::FillUniformDistribution<KDataType>{0.f, k_dtype_max, next_seed()}(k_host);
+        ck_tile::FillUniformDistribution<KDataType>{0.f, k_dtype_max, next_seed()}(knew_host);
+        ck_tile::FillUniformDistribution<VDataType>{0.f, v_dtype_max, next_seed()}(v_host);
+        ck_tile::FillUniformDistribution<VDataType>{0.f, v_dtype_max, next_seed()}(vnew_host);
 
         // bias_fp8 = qscale_bias * bias_fp32
         float qscale_bias = (q_dtype_max / range_q) * (k_dtype_max / range_k);
-        // Assume bias is in [-1.f, 1.f] in original fp32
-        ck_tile::FillUniformDistribution<BiasDataType>{-qscale_bias, qscale_bias, next_seed()}(
-            bias_host);
+        // Assume bias is in [0.f, 1.f] in original fp32
+        ck_tile::FillUniformDistribution<BiasDataType>{0.f, qscale_bias, next_seed()}(bias_host);
     }
     else
     {
