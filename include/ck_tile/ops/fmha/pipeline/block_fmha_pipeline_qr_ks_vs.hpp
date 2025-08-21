@@ -293,7 +293,8 @@ struct BlockFmhaPipelineQRKSVS
         });
     }
     : []() {};
-
+        // Use compile-time conditional for group barrier sequence
+        // (No runtime lambda selection)
         static_assert(2 <= k0_loops);
         static_assert(1 <= k1_loops);
         do
