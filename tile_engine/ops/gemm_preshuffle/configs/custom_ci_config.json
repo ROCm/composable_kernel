@@ -2,7 +2,8 @@
   "tile_config": {
     "tile_m": {
       "values": [
-        128      ]
+        128
+      ]
     },
     "tile_n": {
       "values": [
@@ -31,24 +32,23 @@
     },
     "warp_tile_m": {
       "values": [
-        16
+        32
       ]
     },
     "warp_tile_n": {
       "values": [
-        16
+        32
       ]
     },
     "warp_tile_k": {
       "values": [
-        32
+        64
       ]
     }
   },
   "trait_config": {
     "pipeline": {
       "values": [
-        "preshufflev1",
         "preshufflev2"
       ]
     },
@@ -78,10 +78,9 @@
       ]
     },
     "persistent": {
-      "values": [
-        false,
-        true
-      ]
+        "values": [
+            false
+        ]
     }
   }
 }

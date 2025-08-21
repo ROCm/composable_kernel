@@ -238,7 +238,7 @@ class GemmPreshuffleCodeGenerator:
         total_tile_in_lds = matrix_a_size + matrix_b_size
 
         max_tile_size = (
-            2**15 if pipeline == "compv4" else 2**16
+            2**15 if pipeline == "preshufflev2" else 2**16
         )  # [DELETE AFTER KCHECK] WHY IS THIS EXACTLY THIS? I think this has to be there because of DoubleSmemBuffer but check other valid pipeline and add in commons
 
         if total_tile_in_lds > max_tile_size:
@@ -373,45 +373,19 @@ struct GemmKernel {{
 
     static float launch(ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {{
         
-        //[DELETE] Start Cleaning Up from Here ---------------------------------------------
         //Variables from Common GEMM Config (Remove Unwanted Variables)
         static constexpr bool permuteA = false;
         static constexpr bool permuteB = false;
         static constexpr bool TransposeC = false;
-        //static constexpr bool UseStructuredSparsity = false;
         static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
         static constexpr ck_tile::index_t TileParitionerM01      = 4;
         static constexpr ck_tile::index_t NumWaveGroups = 1;
 
         // Variables overridden in Preshuffle Config
         static constexpr int kBlockPerCu           = 2;
-        //static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
-        //static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V2;
         static constexpr bool Preshuffle           = true;
-        static constexpr bool DoubleSmemBuffer     = true;
 
-
-        // [DELETE] SETUP THESE VARIABLES RIGHT ( I think this has to be true for PreshuffleV2 and compv4 is not relavent as they have their own pipeline)
-        // static constexpr bool DoubleSmemBuffer ={"true" if pipeline == "compv4" else "false"};
-
-
-        // [DELETE] Need MORE VARIABLES (First 5 line variables required)
-        // static constexpr int kBlockPerCu           = 2;
-        // static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
-        // static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V2;
-        // static constexpr bool Preshuffle           = true;
-        // static constexpr bool DoubleSmemBuffer     = true;
-
-        // [DELETE] These 2 are for GEMM
-        // static constexpr bool DoubleSmemBuffer     = false;
-        // static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
-
-        // [DELETE] These 2 are for GEMM
-        //static constexpr int kBlockPerCu                         = 1;
-        //static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
-        //static constexpr ck_tile::index_t TileParitionerM01      = 4;
-        //[DELETE] End Cleaning Up from Here ---------------------------------------------
-
+        static constexpr bool DoubleSmemBuffer ={"true" if pipeline == "preshufflev2" else "false"};
 
         using GemmShape =
             ck_tile::TileGemmShape<ck_tile::sequence<TileM, TileN, TileK>,
@@ -750,8 +724,13 @@ struct GemmPreshuffleDispatcher {
                     else:
                         content += """
                                 }, """
-            content += """
-            },std::make_tuple(16, 16, 32)};\n """
+
+                    content += """  },"""
+
+                    content += f"""
+                    std::make_tuple({warp_tile_m},{warp_tile_n},{warp_tile_k})"""
+
+                    content += """  };\n """
 
         content += """    }
 
