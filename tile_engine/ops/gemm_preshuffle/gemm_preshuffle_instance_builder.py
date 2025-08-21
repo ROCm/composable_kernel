@@ -781,8 +781,6 @@ struct GemmPreshuffleDispatcher {
         {
             return it->second;
         }
-        printf("[DELETE] Inside dispatch of gemm_preshuffle_dispatcher.hpp");
-
         throw std::runtime_error("No suitable kernel found: " + key);
     }
 

@@ -41,8 +41,8 @@ class GemmProfiler
 
         if(setting_.init_method_ == 0)
         {
-            ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
-            ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
+            ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_m_k);
+            ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_k_n);
         }
         else if(setting_.init_method_ == 1)
         {
@@ -51,8 +51,8 @@ class GemmProfiler
         }
         else if(setting_.init_method_ == 2)
         {
-            ck_tile::FillConstant<ADataType>{static_cast<ADataType>(1)}(a_m_k);
-            ck_tile::FillConstant<BDataType>{static_cast<BDataType>(1)}(b_k_n);
+            ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_m_k);
+            ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_k_n);
         }
         else
         {
@@ -60,30 +60,41 @@ class GemmProfiler
             b_k_n.SetZero();
         }
 
-        if(gemm_problem.structured_sparsity_)
-        {
-            ck_tile::AdjustToStructuredSparsity<ADataType>{}(a_m_k);
-        }
-
         ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
         ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
 
-        if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+        // Reference Verification
+        ck_tile::HostTensor<CDataType> c_m_n_ref(ck_tile::host_tensor_descriptor(
+            gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_c_, is_row_major(layout_c)));
+        c_m_n_ref.SetZero();
+
+        if(setting_.verify_)
         {
-            // Permute vector pk_i4x4 data for device implementation
-            ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
-            // permute_tensor_b<decltype(b_k_n_dev)>(b_k_n_dev);
-            permute_vectors_i4x4_b(b_k_n_dev);
-            b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
-        }
-        else
-        {
-            b_k_n_dev_buf.ToDevice(b_k_n.data());
+            gemm_host_reference(setting_.verify_,
+                                a_m_k,
+                                b_k_n,
+                                c_m_n_ref,
+                                a_m_k_dev_buf,
+                                b_k_n_dev_buf,
+                                gemm_problem.m_,
+                                gemm_problem.n_,
+                                gemm_problem.k_,
+                                gemm_problem.stride_a_,
+                                gemm_problem.stride_b_,
+                                gemm_problem.stride_c_);
         }
 
+        // Kernel Execution Setup
         a_m_k_dev_buf.ToDevice(a_m_k.data());
         c_m_n_dev_buf.SetZero();
+
+        //[DELETE] Get the right values for these (Should get it from kernel name)
+        static constexpr ck_tile::index_t N_Warp_Tile = 16;
+        static constexpr ck_tile::index_t K_Warp_Tile = 32;
+        ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b(b_k_n, N_Warp_Tile, K_Warp_Tile);
+        b_k_n_dev_buf.ToDevice(b_shuffle_host.data());
+
         c_m_n_dev_result.SetZero();
 
         ck_tile::GemmHostArgs gemm_args = {
@@ -99,25 +110,6 @@ class GemmProfiler
             gemm_problem.stride_c_,
         };
 
-        ck_tile::HostTensor<CDataType> c_m_n_host_result(ck_tile::host_tensor_descriptor(
-            gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_c_, is_row_major(layout_c)));
-
-        if(setting_.verify_)
-        {
-            gemm_host_reference(setting_.verify_,
-                                a_m_k,
-                                b_k_n,
-                                c_m_n_host_result,
-                                a_m_k_dev_buf,
-                                b_k_n_dev_buf,
-                                gemm_problem.m_,
-                                gemm_problem.n_,
-                                gemm_problem.k_,
-                                gemm_problem.stride_a_,
-                                gemm_problem.stride_b_,
-                                gemm_problem.stride_c_);
-        }
-
         for(auto& callable : callables)
         {
             auto kernel_run_result = callable(gemm_args,
@@ -129,17 +121,15 @@ class GemmProfiler
                                                                      setting_.is_gpu_timer_,
                                                                      setting_.flush_cache_,
                                                                      setting_.rotating_count_});
-            process_result(gemm_problem,
-                           c_m_n_dev_buf,
-                           c_m_n_host_result,
-                           c_m_n_dev_result,
-                           kernel_run_result);
+
+            process_result(
+                gemm_problem, c_m_n_dev_buf, c_m_n_ref, c_m_n_dev_result, kernel_run_result);
         }
     }
 
     void process_result(const GemmProblem& gemm_problem,
                         ck_tile::DeviceMem& c_m_n_dev_buf,
-                        ck_tile::HostTensor<CDataType>& c_m_n_host_result,
+                        ck_tile::HostTensor<CDataType>& c_m_n_ref,
                         ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
                         const std::tuple<std::string, float>& kernel_run_result)
     {
@@ -165,10 +155,24 @@ class GemmProfiler
 
         // verify result
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
+
+        ///////////////////////////////////[DELETE]
+        std::cout << "=== DEV RESULT ===" << std::endl;
+
+        // Print first few elements for inspection
+        std::cout << "Device result (first 10 elements): ";
+        for(size_t i = 0; i < std::min(static_cast<size_t>(10), c_m_n_dev_result.mData.size()); ++i)
+        {
+            std::cout << static_cast<float>(c_m_n_dev_result.mData[i]) << " ";
+        }
+
+        std::cout << "=== END DEV RESULT ===" << std::endl;
+
+        ///////////////////////////////////[DELETE]
+
         bool verified_correct =
             !setting_.verify_ ||
-            compare(
-                name, gemm_problem.k_, gemm_problem.split_k_, c_m_n_dev_result, c_m_n_host_result);
+            compare(name, gemm_problem.k_, gemm_problem.split_k_, c_m_n_dev_result, c_m_n_ref);
 
         if(verified_correct)
         {

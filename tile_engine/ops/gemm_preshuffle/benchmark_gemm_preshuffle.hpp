@@ -162,14 +162,35 @@ bool compare(std::string instanceName,
              ck_tile::index_t K,
              ck_tile::index_t kbatch,
              ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
-             ck_tile::HostTensor<CDataType>& c_m_n_host_result)
+             ck_tile::HostTensor<CDataType>& c_m_n_ref)
 {
+    ///////////////////////////////////[DELETE]
+    std::cout << "=== Tensor Comparison ===" << std::endl;
+    std::cout << "Device result tensor shape: " << c_m_n_dev_result.mDesc << std::endl;
+    std::cout << "Host result tensor shape: " << c_m_n_ref.mDesc << std::endl;
+
+    // Print first few elements for inspection
+    std::cout << "Device result (first 10 elements): ";
+    for(size_t i = 0; i < std::min(static_cast<size_t>(10), c_m_n_dev_result.mData.size()); ++i)
+    {
+        std::cout << static_cast<float>(c_m_n_dev_result.mData[i]) << " ";
+    }
+    std::cout << std::endl;
+
+    std::cout << "Host result (first 10 elements): ";
+    for(size_t i = 0; i < std::min(static_cast<size_t>(10), c_m_n_ref.mData.size()); ++i)
+    {
+        std::cout << static_cast<float>(c_m_n_ref.mData[i]) << " ";
+    }
+    std::cout << std::endl;
+    ///////////////////////////////////[DELETE]
+
     const float max_accumulated_value =
-        *std::max_element(c_m_n_host_result.mData.begin(), c_m_n_host_result.mData.end());
+        *std::max_element(c_m_n_ref.mData.begin(), c_m_n_ref.mData.end());
     const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
         K, kbatch, max_accumulated_value);
     bool pass = ck_tile::check_err(c_m_n_dev_result,
-                                   c_m_n_host_result,
+                                   c_m_n_ref,
                                    "Error: Incorrect results!",
                                    rtol_atol.at(ck_tile::number<0>{}),
                                    rtol_atol.at(ck_tile::number<1>{}));
@@ -186,7 +207,7 @@ bool compare(std::string instanceName,
 void gemm_host_reference(int verify,
                          ck_tile::HostTensor<ADataType>& a_m_k,
                          ck_tile::HostTensor<BDataType>& b_k_n,
-                         ck_tile::HostTensor<CDataType>& c_m_n_host_result,
+                         ck_tile::HostTensor<CDataType>& c_m_n_ref,
                          ck_tile::DeviceMem& a_m_k_dev_buf,
                          ck_tile::DeviceMem& b_k_n_dev_buf,
                          ck_tile::index_t M,
@@ -198,21 +219,15 @@ void gemm_host_reference(int verify,
 {
     if(verify == 1)
     {
-        c_m_n_host_result.SetZero();
-
         ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
-            a_m_k, b_k_n, c_m_n_host_result);
+            a_m_k, b_k_n, c_m_n_ref);
     }
     else if(verify == 2)
     {
-        if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
-        {
-            // Restore input for B for gpu reference
-            b_k_n_dev_buf.ToDevice(b_k_n.data());
-        }
+        a_m_k_dev_buf.ToDevice(a_m_k.data());
+        b_k_n_dev_buf.ToDevice(b_k_n.data());
 
-        ck_tile::DeviceMem c_m_n_gpu_buf_ref(c_m_n_host_result.get_element_space_size_in_bytes());
-        c_m_n_host_result.SetZero();
+        ck_tile::DeviceMem c_m_n_gpu_buf_ref(c_m_n_ref.get_element_space_size_in_bytes());
         c_m_n_gpu_buf_ref.SetZero();
 
         ADataType* d_A = static_cast<ADataType*>(a_m_k_dev_buf.GetDeviceBuffer());
@@ -227,6 +242,6 @@ void gemm_host_reference(int verify,
                                     BLayout,
                                     CLayout>(d_A, d_B, d_C, M, N, K, stride_A, stride_B, stride_C);
 
-        c_m_n_gpu_buf_ref.FromDevice(c_m_n_host_result.data());
+        c_m_n_gpu_buf_ref.FromDevice(c_m_n_ref.data());
     }
 }
