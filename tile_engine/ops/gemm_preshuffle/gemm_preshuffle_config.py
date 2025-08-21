@@ -79,12 +79,15 @@ class ArgumentConfig:
         """configuration loader with validation controls"""
 
         # [DELETE] TO DO : Make sure whether this validation is accurate or not.
+
+        assert datatype in ["fp16", "bf16", "fp8", "bf8"], (
+            f"Invalid datatype string: {datatype} (supported datatypes are [fp16, bf16, fp8, and bf8])"
+        )
+
         a_type = datatype
         b_type = datatype
         c_type = datatype
-        if b_type == "int4":
-            a_type = "fp16"
-        if b_type in ["bf8", "fp8", "int4"]:
+        if datatype in ["fp8", "bf8"]:
             c_type = "fp16"
 
         datatypes = DataType(

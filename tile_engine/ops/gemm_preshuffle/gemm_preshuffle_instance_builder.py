@@ -289,14 +289,7 @@ class GemmPreshuffleCodeGenerator:
     def _generate_common_header_file(self):
         """Generate common header file with datatypes and layout."""
 
-        # [DELETE AFTER KCHECK] Determine appropriate accumulation type based on input types
-        a_type = self.args.datatypes.a_datatype
-        b_type = self.args.datatypes.b_datatype
-
-        if a_type in ["int8", "int4"] and b_type in ["int8", "int4"]:
-            acc_type = "ck_tile::int32_t"
-        else:
-            acc_type = "float"
+        acc_type = "float"
 
         content = f"""
 #pragma once
@@ -847,7 +840,7 @@ if __name__ == "__main__":
         "-d",
         "--datatype",
         required=True,
-        help="Data type for kernel generation (supported: fp16, bf16, int8, fp8, bf8)",
+        help="Data type for kernel generation (supported: fp16, bf16, fp8, bf8)",
     )
     parser.add_argument(
         "-ly",
