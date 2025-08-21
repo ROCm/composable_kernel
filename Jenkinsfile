@@ -749,10 +749,15 @@ def process_results(Map conf=[:]){
                     if (params.RUN_CK_TILE_FMHA_TESTS){
                         try{
                             unstash "perf_fmha_log_gfx942"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the FMHA performance logs for gfx942: ${err.getMessage()}."
+                        }
+                        try{
                             unstash "perf_fmha_log_gfx90a"
                         }
                         catch(Exception err){
-                            echo "could not locate the FMHA performance logs: ${err.getMessage()}."
+                            echo "could not locate the FMHA performance logs for gfx90a: ${err.getMessage()}."
                         }
                     }
                     if (params.BUILD_INSTANCES_ONLY){
