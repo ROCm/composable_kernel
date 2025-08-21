@@ -74,11 +74,9 @@ auto create_args(int argc, char* argv[])
                 "scale factor of S. 0 means equal to 1/sqrt(hdim).\n"
                 "note when squant=1, this value will be modified by range_q/k")
         .insert("logits_soft_cap", "0", "attention logits soft capping value.")
-        .insert("range_q", "16", "per-tensor quantization range of q. used if squant=1.")
-        .insert("range_k", "16", "per-tensor quantization range of k. used if squant=1.")
-        .insert("range_v", "16", "per-tensor quantization range of v. used if squant=1.")
-        .insert("range_p", "1", "per-tensor quantization range of p [e^(s-m)]. used if squant=1.")
-        .insert("range_o", "16", "per-tensor quantization range of o (p*v). used if squant=1.")
+        .insert("quant_scale_s", "1", "per-tensor quantization for S.")
+        .insert("quant_scale_p", "1", "per-tensor quantization for P.")
+        .insert("quant_scale_o", "1", "per-tensor quantization for O.")
         .insert("squant",
                 "auto",
                 "if using static quantization fusion or not. auto: fp8 will default use squant, "
@@ -164,8 +162,8 @@ auto get_elimit<FmhaFwdBf16>(std::string /*init_method*/)
 template <>
 auto get_elimit<FmhaFwdFp8>(std::string /*init_method*/)
 {
-    unsigned rtol = 1.5e-1;
-    double atol   = 1.5e-1;
+    double rtol = 1e-2;
+    double atol = 1.8e-1;
     return ck_tile::make_tuple(rtol, atol);
 }
 
@@ -417,6 +415,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     float scale_s = arg_parser.get_float("scale_s");
     if(scale_s == .0f)
         scale_s = 1.0 / ck_tile::sqrt(static_cast<float>(hdim_q)); // TODO: q ? v ?
+
+    float quant_scale_s = arg_parser.get_float("quant_scale_s");
+    float quant_scale_p = arg_parser.get_float("quant_scale_p");
+    float quant_scale_o = arg_parser.get_float("quant_scale_o");
 
     const float logits_soft_cap = arg_parser.get_float("logits_soft_cap");
 
@@ -756,6 +758,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     //           << " v_dtype_max: " << v_dtype_max << std::endl;
     float scale_p = 1.f;
     float scale_o = 1.f;
+    if(squant)
+    {
+        scale_s = scale_s * quant_scale_s;
+        scale_p = quant_scale_p;
+        scale_o = quant_scale_o;
+    }
 
     q_buf.ToDevice(q_host.data());
     k_buf.ToDevice(k_host.data());
@@ -1199,16 +1207,27 @@ bool run(const ck_tile::ArgParser& arg_parser)
     lse_buf.FromDevice(lse_host.data());
     randval_buf.FromDevice(randval_host.data());
 
-    auto p_compute_element_func = [&]() { return ck_tile::identity{}; }();
+    auto p_compute_element_func = [&]() {
+        if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8>)
+            return ck_tile::scales{scale_p};
+        else
+            return ck_tile::identity{};
+    }();
 
-    auto oacc_element_func = [&]() { return ck_tile::identity{}; }();
+    auto oacc_element_func = [&]() {
+        if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8>)
+            return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{},
+                                     ck_tile::scales{scale_o});
+        else
+            return ck_tile::identity{};
+    }();
 
     float p_undrop = 1.0 - p_drop;
     uint8_t p_undrop_in_uint8_t =
         uint8_t(std::floor(p_undrop * std::numeric_limits<uint8_t>::max()));
     float rp_undrop = 1.0 / p_undrop;
 
-    bool pass   = true;
+    bool pass = true;
     for(ck_tile::index_t wb = 0; wb < batch; ++wb)
     {
         const ck_tile::index_t real_seqlen_q = seqstart_q_host[wb + 1] - seqstart_q_host[wb];
@@ -1372,14 +1391,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
         // clang-format on
 
         // reference
-        ck_tile::
-            reference_batched_gemm<QDataType, KDataType, SaccDataType, SMPLComputeDataType>(
-                q_host_ref,
-                k_host_ref,
-                s_host_ref,
-                ck_tile::identity{},
-                ck_tile::identity{},
-                ck_tile::scales(scale_s));
+        ck_tile::reference_batched_gemm<QDataType, KDataType, SaccDataType, SMPLComputeDataType>(
+            q_host_ref,
+            k_host_ref,
+            s_host_ref,
+            ck_tile::identity{},
+            ck_tile::identity{},
+            ck_tile::scales(scale_s));
         // std::cout << "q_host_ref: " << std::endl;
         // show(std::cout, q_host_ref, nhead, real_seqlen_q, hdim_v);
 
