@@ -764,14 +764,40 @@ def process_results(Map conf=[:]){
                         // unstash perf files to master
                         try{
                             unstash "perf_log"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the gfx90a performance logs: ${err.getMessage()}."
+                        }
+                        try{
                             unstash "perf_log_gfx942"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the gfx942 performance logs: ${err.getMessage()}."
+                        }
+                        try{
                             unstash "perf_log_gfx950"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the gfx950 performance logs: ${err.getMessage()}."
+                        }
+                        try{
                             unstash "perf_log_gfx908"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the gfx908 performance logs: ${err.getMessage()}."
+                        }
+                        try{
                             unstash "perf_log_gfx11"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the gfx11 performance logs: ${err.getMessage()}."
+                        }
+                        try{
+
                             unstash "perf_log_gfx12"
                         }
                         catch(Exception err){
-                            echo "could not locate the GEMM gfx11/gfx12 performance logs: ${err.getMessage()}."
+                            echo "could not locate the gfx12 performance logs: ${err.getMessage()}."
                         }
                     }
                     // process the logs
