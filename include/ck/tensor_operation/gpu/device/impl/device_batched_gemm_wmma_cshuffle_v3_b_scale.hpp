@@ -51,9 +51,9 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         // functions not directly using the Z dimension for other calculations. As it turns out, k
         // batching does rely directly on blockIdx.Z through SplitKBatchOffset. Therefore, for now
         // we will use the grid Y dimension for batching. This may be a bit fragile.
-        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-        const index_t g_idx = amd_wave_read_first_lane(blockIdx.y);
+    const index_t g_idx = amd_wave_read_first_lane(blockIdx.y);
 
         const long_index_t a_batch_offset =
             amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
@@ -62,17 +62,17 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         const long_index_t c_batch_offset =
             amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetCPtrOffset(g_idx));
         const long_index_t b_scale_batch_offset =
-            amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetSacleBPtrOffset(g_idx));
+            amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetScaleBPtrOffset(g_idx));
 
-        auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
+    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
 
-        GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-            karg.p_a_grid + a_batch_offset + splitk_batch_offset.a_k_split_offset,
-            karg.p_b_grid + b_batch_offset + splitk_batch_offset.b_k_split_offset,
-            karg.p_c_grid + c_batch_offset + splitk_batch_offset.c_reduce_offset,
-            karg.p_b_scale_grid + b_scale_batch_offset + splitk_batch_offset.scale_k_split_offset,
-            p_shared,
-            karg);
+    GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+        karg.p_a_grid + a_batch_offset + splitk_batch_offset.a_k_split_offset,
+        karg.p_b_grid + b_batch_offset + splitk_batch_offset.b_k_split_offset,
+        karg.p_c_grid + c_batch_offset + splitk_batch_offset.c_reduce_offset,
+        karg.p_b_scale_grid + b_scale_batch_offset + splitk_batch_offset.scale_k_split_offset,
+        p_shared,
+        karg);
 #if defined(__gfx11__)
     }
 #endif
@@ -227,19 +227,18 @@ template <typename ALayout,
           typename ComputeTypeB                       = ComputeTypeA,
           bool PermuteA                               = false,
           bool PermuteB                               = false>
-struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale
-    : public DeviceBatchedGemmV2BScale<ALayout,
-                                       BLayout,
-                                       CLayout,
-                                       ADataType,
-                                       BDataType,
-                                       BScaleDataType,
-                                       CDataType,
-                                       ScaleBlockN,
-                                       ScaleBlockK,
-                                       AElementwiseOperation,
-                                       BElementwiseOperation,
-                                       CElementwiseOperation>
+struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale : public DeviceBatchedGemmV2BScale<ALayout,
+                                                                    BLayout,
+                                                                    CLayout,
+                                                                    ADataType,
+                                                                    BDataType,
+                                                                    BScaleDataType,
+                                                                    CDataType,
+                                                                    ScaleBlockN,
+                                                                    ScaleBlockK,
+                                                                    AElementwiseOperation,
+                                                                    BElementwiseOperation,
+                                                                    CElementwiseOperation>
 {
     // We are inheriting from DeviceBatchedGemm and this base class does not support permuteA and
     // permuteB arguments so for now we are not including this functionality.
@@ -254,10 +253,10 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale
                                        index_t BatchStrideB,
                                        index_t BatchStrideC,
                                        index_t BatchStrideScaleB)
-            : BatchStrideA_(BatchStrideA),
-              BatchStrideB_(BatchStrideB),
+            : BatchStrideA_(BatchStrideA), 
+              BatchStrideB_(BatchStrideB), 
               BatchStrideC_(BatchStrideC),
-              BatchStrideScaleB_(BatchStrideScaleB)
+              BatchStrideScaleB_(BatchStrideScaleB) 
         {
         }
 
@@ -275,12 +274,11 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale
         {
             return g_idx * static_cast<long_index_t>(BatchStrideC_);
         }
-        __host__ __device__ constexpr long_index_t GetSacleBPtrOffset(index_t g_idx) const
+        __host__ __device__ constexpr long_index_t GetScaleBPtrOffset(index_t g_idx) const
 
         {
             return g_idx * static_cast<long_index_t>(BatchStrideScaleB_);
         }
-
         private:
         index_t BatchStrideA_;
         index_t BatchStrideB_;
@@ -338,8 +336,8 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale
         BlkGemmPipelineVer,
         ComputeTypeA,
         ComputeTypeB,
-        false,  // PermuteA not supported by DeviceBatchedGemm base class.
-        false>; // PermuteB not supported by DeviceBatchedGemm base class.
+        PermuteA,  // PermuteA not supported by DeviceBatchedGemm base class.
+        PermuteB>; // PermuteB not supported by DeviceBatchedGemm base class.
 
     // Argument
     struct Argument : public GridwiseGemm::Argument
@@ -382,8 +380,7 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale
                                      c_element_op_,
                                      is_reduce_),
               Batch(Batch_),
-              compute_ptr_offset_of_batch{
-                  BatchStrideA_, BatchStrideB_, BatchStrideC_, BatchStrideScaleB_}
+              compute_ptr_offset_of_batch{BatchStrideA_, BatchStrideB_, BatchStrideC_, BatchStrideScaleB_}
         {
         }
 
@@ -466,9 +463,7 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale
                     rotating_mem.Print();
 
                     auto run_flush_cache = [&]() {
-                        // flush icache
                         ck::utility::flush_icache();
-                        // rotating mem
                         rotating_mem.Next();
                         // clear c mem
                         if(arg_.KBatch > 1)
@@ -656,9 +651,9 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
-    index_t GetKPerBlock() override { return KPerBlock; }
-    //  bool GetPermuteA() override { return PermuteA; }
-    bool GetPermuteB() override { return PermuteB; }
+     index_t GetKPerBlock() override { return KPerBlock; }
+   //  bool GetPermuteA() override { return PermuteA; }
+     bool GetPermuteB() override { return PermuteB; }
 
     static auto MakeArgument(const ADataType* p_a,
                              const BDataType* p_b,
@@ -742,7 +737,8 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale
                                           KBatch,
                                           a_element_op,
                                           b_element_op,
-                                          c_element_op);
+                                          c_element_op
+                                        );
     }
 
     // polymorphic

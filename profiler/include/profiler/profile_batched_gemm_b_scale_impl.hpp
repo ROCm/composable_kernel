@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -117,8 +117,8 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
     switch(init_method)
     {
     case 0: break;
-    // NOTE: for an int4, there is no point differenciating between decimal and integer initialization
-    // also, the random number seem to be for a int4_2 type, so we use range 0...255
+    // NOTE: for an int4, there is no point differentiating between decimal and integer
+    // initialization also, the random number seem to be for a int4_2 type, so we use range 0...255
     default:
         a_g_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
         b_g_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-1, 2});
@@ -176,13 +176,13 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
                     // for proper testing, we need to replicate k_shuffle when used
                     // see unary_element_wise_operation.hpp
 #if CK_USE_PK4_LAYOUT_SHUFFLE
-                    int k_shuffle = (k/8)*8 + (k % 2)*4 + (k % 8)/2;
+                    int k_shuffle = (k / 8) * 8 + (k % 2) * 4 + (k % 8) / 2;
 #else
                     int k_shuffle = k;
 #endif
 
                     ck::pk_i4_t i4x2 = b_g_k_n(bs, k_shuffle, n).data;
-                    int i4        = 0;
+                    int i4           = 0;
                     if(k_shuffle % 2 == 0)
                         i4 = (i4x2.data >> 0) & 0xf;
                     else
@@ -191,33 +191,32 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
 
                     v_b = ck::type_convert<float>(i4);
 
-                    float out = 
-                        ck::type_convert<float>(v_b) *
-                        ck::type_convert<float>(b1_g_k_n(bs, k / ScaleBlockK, n));
+                    float out = ck::type_convert<float>(v_b) *
+                                ck::type_convert<float>(b1_g_k_n(bs, k / ScaleBlockK, n));
 
                     b_g_k_n_dequant(bs, k, n) = out;
                 }
             }
-        } 
-        using ReferenceBatchedGemmInstance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
-                                                                                BScaleDataType,
-                                                                                CDataType,
-                                                                                AccDataType,
-                                                                                AElementOp,
-                                                                                BElementOp,
-                                                                                CElementOp>;
+        }
+        using ReferenceBatchedGemmInstance =
+            ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
+                                                             BScaleDataType,
+                                                             CDataType,
+                                                             AccDataType,
+                                                             AElementOp,
+                                                             BElementOp,
+                                                             CElementOp>;
 
-        auto ref_batched_gemm    = ReferenceBatchedGemmInstance{};
-        auto ref_invoker = ref_batched_gemm.MakeInvoker();
-        auto ref_argument = ref_batched_gemm.MakeArgument(a_g_m_k,
-                                                  b_g_k_n_dequant,
-                                                  c_g_m_n_host_result,
-                                                  a_element_op,
-                                                  b_element_op,
-                                                  c_element_op,
-                                                  KBatch);
+        auto ref_batched_gemm = ReferenceBatchedGemmInstance{};
+        auto ref_invoker      = ref_batched_gemm.MakeInvoker();
+        auto ref_argument     = ref_batched_gemm.MakeArgument(a_g_m_k,
+                                                          b_g_k_n_dequant,
+                                                          c_g_m_n_host_result,
+                                                          a_element_op,
+                                                          b_element_op,
+                                                          c_element_op,
+                                                          KBatch);
         ref_invoker.Run(ref_argument);
-
     }
 
     std::string best_op_name;
@@ -364,7 +363,6 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
                 if(do_verification)
                 {
                     c_device_buf.FromDevice(c_g_m_n_device_result.mData.data());
-
 
 #if defined CK_ENABLE_FP8
                     // set softer tolerances for fp8

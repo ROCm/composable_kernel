@@ -18,6 +18,9 @@ enum struct GemmMatrixLayout
     KM_NK_MN, // 3
 };
 
+
+
+
 enum struct GemmDataType
 {
     F32_F32_F32,    // 0
@@ -30,7 +33,6 @@ enum struct GemmDataType
     F8_F8_BF16,     // 7
     F16_I4_F16,     // 8
 };
-
 
 enum struct BScaleBlockTile
 {
@@ -151,14 +153,6 @@ int profile_batched_gemm_b_scale(int argc, char* argv[])
         const int DefaultStrideB = ck::is_same_v<BLayout, Row> ? N : K;
         const int DefaultStrideC = ck::is_same_v<CLayout, Row> ? N : M;
 
-
-
-        
-
-
-
-
-
         bool pass = ck::profiler::profile_batched_gemm_b_scale_impl<ADataType,
                                                                     BDataType,
                                                                     BScaleDataType,
@@ -208,4 +202,3 @@ int profile_batched_gemm_b_scale(int argc, char* argv[])
 }
 
 REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_batched_gemm_b_scale);
-
