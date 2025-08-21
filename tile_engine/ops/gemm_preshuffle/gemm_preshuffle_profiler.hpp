@@ -1,9 +1,5 @@
 #pragma once
 
-// #include <iostream>
-// #include <fstream>
-// #include <iomanip>
-
 #include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "benchmark_gemm_preshuffle.hpp"
@@ -155,20 +151,6 @@ class GemmProfiler
 
         // verify result
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
-
-        ///////////////////////////////////[DELETE]
-        std::cout << "=== DEV RESULT ===" << std::endl;
-
-        // Print first few elements for inspection
-        std::cout << "Device result (first 10 elements): ";
-        for(size_t i = 0; i < std::min(static_cast<size_t>(10), c_m_n_dev_result.mData.size()); ++i)
-        {
-            std::cout << static_cast<float>(c_m_n_dev_result.mData[i]) << " ";
-        }
-
-        std::cout << "=== END DEV RESULT ===" << std::endl;
-
-        ///////////////////////////////////[DELETE]
 
         bool verified_correct =
             !setting_.verify_ ||

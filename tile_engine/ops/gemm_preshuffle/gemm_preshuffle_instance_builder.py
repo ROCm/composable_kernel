@@ -9,7 +9,7 @@ from commons.common_utils import (
     LAYOUT_MAP,
     PIPELINE_MAP,
     SCHEDULER_MAP,
-    EPILOGUE_MAP,  # Remoove this from Common Utils
+    EPILOGUE_MAP,
     BOOL_MAP,
     element_size,
     get_gpu_name_by_id,
@@ -188,7 +188,7 @@ class GemmPreshuffleCodeGenerator:
         ) = tile
         pipeline, *_ = trait.split("_")
 
-        # Parameter validity check #DELETE WHY IS THIS EXACTLY THIS?
+        # [DELETE AFTER KCHECK] Parameter validity check WHY IS THIS EXACTLY THIS?
         invalid_params = []
         if (warp_m, warp_n, warp_k) not in [(1, 4, 1), (2, 2, 1), (4, 1, 1)]:
             invalid_params.append(
@@ -209,7 +209,7 @@ class GemmPreshuffleCodeGenerator:
             )
             return False
 
-        # Dimension alignment check #DELETE WHY IS THIS EXACTLY THIS? I think it is because of dividing equally
+        # [DELETE AFTER KCHECK] Dimension alignment check WHY IS THIS EXACTLY THIS? I think it is because of dividing equally
         alignment_issues = []
         if tile_m % (warp_m * warp_tile_m) != 0:
             alignment_issues.append(
@@ -239,7 +239,7 @@ class GemmPreshuffleCodeGenerator:
 
         max_tile_size = (
             2**15 if pipeline == "compv4" else 2**16
-        )  # DELETE WHY IS THIS EXACTLY THIS? I think it is because of dividing equally
+        )  # [DELETE AFTER KCHECK] WHY IS THIS EXACTLY THIS? I think this has to be there because of DoubleSmemBuffer but check other valid pipeline and add in commons
 
         if total_tile_in_lds > max_tile_size:
             logging.debug(
@@ -289,7 +289,7 @@ class GemmPreshuffleCodeGenerator:
     def _generate_common_header_file(self):
         """Generate common header file with datatypes and layout."""
 
-        # Determine appropriate accumulation type based on input types
+        # [DELETE AFTER KCHECK] Determine appropriate accumulation type based on input types
         a_type = self.args.datatypes.a_datatype
         b_type = self.args.datatypes.b_datatype
 
@@ -664,9 +664,6 @@ template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {war
     def _generate_dispatcher_file(self):
         """Generate the code block of dispatch mechanism."""
         content = """
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
-
 #pragma once
 
 #include <unordered_map>

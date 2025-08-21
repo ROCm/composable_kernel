@@ -1,8 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
-
-// #include <functional>
-// #include <tuple>
 #include <exception>
 
 #include "benchmark_gemm_preshuffle.hpp"

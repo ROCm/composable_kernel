@@ -1,10 +1,5 @@
 #pragma once
 
-// #include <iostream>
-// #include <string>
-// #include <fstream>
-// #include <stdexcept>
-
 #include "gemm_preshuffle_host_api.hpp"
 
 enum class Metric
@@ -164,27 +159,6 @@ bool compare(std::string instanceName,
              ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
              ck_tile::HostTensor<CDataType>& c_m_n_ref)
 {
-    ///////////////////////////////////[DELETE]
-    std::cout << "=== Tensor Comparison ===" << std::endl;
-    std::cout << "Device result tensor shape: " << c_m_n_dev_result.mDesc << std::endl;
-    std::cout << "Host result tensor shape: " << c_m_n_ref.mDesc << std::endl;
-
-    // Print first few elements for inspection
-    std::cout << "Device result (first 10 elements): ";
-    for(size_t i = 0; i < std::min(static_cast<size_t>(10), c_m_n_dev_result.mData.size()); ++i)
-    {
-        std::cout << static_cast<float>(c_m_n_dev_result.mData[i]) << " ";
-    }
-    std::cout << std::endl;
-
-    std::cout << "Host result (first 10 elements): ";
-    for(size_t i = 0; i < std::min(static_cast<size_t>(10), c_m_n_ref.mData.size()); ++i)
-    {
-        std::cout << static_cast<float>(c_m_n_ref.mData[i]) << " ";
-    }
-    std::cout << std::endl;
-    ///////////////////////////////////[DELETE]
-
     const float max_accumulated_value =
         *std::max_element(c_m_n_ref.mData.begin(), c_m_n_ref.mData.end());
     const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(

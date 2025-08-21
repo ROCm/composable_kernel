@@ -78,7 +78,7 @@ class ArgumentConfig:
     ) -> "ArgumentConfig":
         """configuration loader with validation controls"""
 
-        # TO DO : Make sure whether this validation is accurate or not.
+        # [DELETE] TO DO : Make sure whether this validation is accurate or not.
         a_type = datatype
         b_type = datatype
         c_type = datatype

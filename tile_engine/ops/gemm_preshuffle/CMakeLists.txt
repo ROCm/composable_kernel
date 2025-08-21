@@ -11,7 +11,7 @@ function(build_gemm_preshuffle_for_datatype_layout datatype layout)
     #     set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/custom_ci_config.json")
     # endif()
 
-    # uncomment this if you want to use user_provided_config.json
+    # Uncomment this if you want to use user_provided_config.json
     set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/user_provided_config.json")
     
     # Generate kernel list
