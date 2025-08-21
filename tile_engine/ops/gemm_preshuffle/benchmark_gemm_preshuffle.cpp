@@ -35,8 +35,8 @@ void benchmark_gemm_preshuffle(const ck_tile::ArgParser& arg_parser)
 
     try
     {
-        auto kernel_func = get_kernel_func_by_trait(arg_parser);
-        profiler.benchmark(gemm_problem, kernel_func);
+        auto kernelinfo = get_kernel_func_by_trait(arg_parser);
+        profiler.benchmark(gemm_problem, kernelinfo.warptilevalues, kernelinfo.functions);
         profiler.select_best_instance(static_cast<Metric>(arg_parser.get_int("metric")));
     }
     catch(const std::exception& e)

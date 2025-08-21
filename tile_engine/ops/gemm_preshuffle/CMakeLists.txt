@@ -1,18 +1,18 @@
-set(GEMM_PRESHUFFLE_DATATYPE "fp8;fp16" CACHE STRING "List of datatypes for GEMM Preshuffle(semicolon-separated)")
+set(GEMM_PRESHUFFLE_DATATYPE "fp16" CACHE STRING "List of datatypes for GEMM Preshuffle(semicolon-separated)")
 set(GEMM_PRESHUFFLE_LAYOUT "rcr" CACHE STRING "List of layout for GEMM Preshuffle(semicolon-separated)")
 
 function(build_gemm_preshuffle_for_datatype_layout datatype layout)
     set(working_path "${CMAKE_CURRENT_BINARY_DIR}/${datatype}/${layout}")
 
     # Comment this if-else block when using user_provided_config
-    # if(layout STREQUAL "rcr")
-    #     set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_config.json")
-    # else()
-    #     set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/custom_ci_config.json")
-    # endif()
+    if(layout STREQUAL "rcr")
+        set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_config.json")
+    else()
+        set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/custom_ci_config.json")
+    endif()
 
     # Uncomment this if you want to use user_provided_config.json
-    set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/user_provided_config.json")
+    # set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/user_provided_config.json")
     
     # Generate kernel list
     execute_process(

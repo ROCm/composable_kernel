@@ -684,13 +684,15 @@ struct KernelTraits
     bool persistent;
 };
 
+struct KernelInfo {
+    std::vector<std::function<std::tuple<std::string, float>(ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>> functions;
+    std::tuple<int, int, int> warptilevalues;
+};
+
 struct GemmPreshuffleDispatcher {
     static auto& get_kernel_map() {
         // Use a static local variable
-        static std::unordered_map<
-            std::string,
-            std::vector<std::function<std::tuple<std::string, float>(ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>>
-            kernel_map;
+        static std::unordered_map<std::string,KernelInfo> kernel_map;
         return kernel_map;
     }
 
@@ -713,7 +715,7 @@ struct GemmPreshuffleDispatcher {
                         warp_tile_n,
                         warp_tile_k,
                     ) = tile[j]
-                    content += """[=](ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) { """
+                    content += """{[=](ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) { """
                     content += """ 
                                     if(structured_sparsity){ """
                     sparse = (
@@ -749,7 +751,7 @@ struct GemmPreshuffleDispatcher {
                         content += """
                                 }, """
             content += """
-            };\n """
+            },std::make_tuple(16, 16, 32)};\n """
 
         content += """    }
 

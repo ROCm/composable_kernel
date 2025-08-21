@@ -14,6 +14,7 @@ class GemmProfiler
     }
 
     void benchmark(GemmProblem& gemm_problem,
+                   std::tuple<int, int, int> warptilevalues,
                    std::vector<std::function<std::tuple<std::string, float>(
                        ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>& callables)
     {
@@ -86,8 +87,8 @@ class GemmProfiler
         c_m_n_dev_buf.SetZero();
 
         //[DELETE] Get the right values for these (Should get it from kernel name)
-        static constexpr ck_tile::index_t N_Warp_Tile = 16;
-        static constexpr ck_tile::index_t K_Warp_Tile = 32;
+        static ck_tile::index_t N_Warp_Tile           = std::get<1>(warptilevalues);
+        static ck_tile::index_t K_Warp_Tile           = std::get<2>(warptilevalues);
         ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b(b_k_n, N_Warp_Tile, K_Warp_Tile);
         b_k_n_dev_buf.ToDevice(b_shuffle_host.data());
 
