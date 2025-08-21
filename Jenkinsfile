@@ -894,7 +894,7 @@ pipeline {
             description: "Run the grouped conv large cases tests (default: OFF)")
         booleanParam(
             name: "RUN_CONV_COMPREHENSIVE_DATASET",
-            defaultValue: true,
+            defaultValue: false,
             description: "Run comprehensive convolution dataset tests before important changes (default: OFF)")
         booleanParam(
             name: "RUN_CODEGEN_TESTS",

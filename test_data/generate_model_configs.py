@@ -10,7 +10,7 @@ import csv
 import itertools
 import argparse
 
-def generate_2d_configs(mode='half'):
+def generate_2d_configs(mode='full'):
     """Generate all 2D model configuration combinations
     
     Args:
@@ -94,7 +94,7 @@ def generate_2d_configs(mode='half'):
     
     return configs
 
-def generate_3d_configs(mode='half'):
+def generate_3d_configs(mode='full'):
     """Generate all 3D model configuration combinations
     
     Args:
@@ -193,7 +193,7 @@ def main():
                        help='Output file for 2D configurations')
     parser.add_argument('--output-3d', type=str, default='model_configs_3d.csv', 
                        help='Output file for 3D configurations')
-    parser.add_argument('--mode', choices=['small', 'half', 'full'], default='half',
+    parser.add_argument('--mode', choices=['small', 'half', 'full'], default='full',
                        help='Configuration mode: small (~60 total), half (~300 total) or full (~600 total) (default: half)')
     parser.add_argument('--limit', type=int, 
                        help='Limit number of configurations per type (for testing)')
