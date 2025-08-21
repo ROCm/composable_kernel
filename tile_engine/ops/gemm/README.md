@@ -54,7 +54,7 @@ mkdir build && cd build
 # Replace [Arch] with your GPU architecture (e.g., gfx90a, gfx942)
 # Replace [Datatype1;Datatype2;...] with datatypes (fp8, bf8, int8, fp16, bf16, fp32, fp64)
 # Replace [Layout1;Layout2;...] with layouts (rcr, rrr, crr, ccr)
-sh ../script/cmake-ck-dev.sh ../ [Arch] -DGEMM_DATATYPE="[Datatype1;Datatype2]" -DGEMM_LAYOUT="[Layout1;Layout2]"
+../script/cmake-ck-dev.sh ../ [Arch] -DGEMM_DATATYPE="[Datatype1;Datatype2]" -DGEMM_LAYOUT="[Layout1;Layout2]"
 
 # Build specific benchmarks
 make benchmark_gemm_[Datatype1]_[Layout1] -j

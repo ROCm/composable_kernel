@@ -106,10 +106,10 @@ inline auto create_args(int argc, char* argv[])
                 "The method of tensor initialization. Set to 0 for random, to 1 for linear, or 2 "
                 "for constant(1). Default is 0, random.")
         .insert("flush_cache",
-                "false",
+                "true",
                 "To flush cache, possible values are true or false. "
-                "Default is false.")
-        .insert("rotating_count", "5", "number of iterations to rotate the cache. default is 5.")
+                "Default is true.")
+        .insert("rotating_count", "1000", "number of iterations to rotate the cache. default is 5.")
         .insert("metric",
                 "0",
                 "Metric with which to measure kernel performance. Set to 0 for latency, 1 for "
