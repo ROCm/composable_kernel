@@ -1116,7 +1116,7 @@ pipeline {
                                            # - small: ~60 test cases (minimal, quick testing - 3 models, 2 batch sizes, 2 image sizes)
                                            # - half: ~300 test cases (moderate coverage - 16 models, 3 batch sizes, 5 image sizes), ~ 17 hours testing time
                                            # - full: ~600 test cases (comprehensive - 16 models, 5 batch sizes, 9 image sizes), ~ 40 hours testing time
-                                           ./generate_test_dataset.sh small && \
+                                           ./generate_test_dataset.sh full && \
                                            cd ../build && \
                                            ./bin/test_grouped_convnd_fwd_dataset_xdl"""
                     }
