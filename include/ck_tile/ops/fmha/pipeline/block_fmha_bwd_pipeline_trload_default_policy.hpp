@@ -25,7 +25,7 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
 
         constexpr auto SwizzleA = false;
-        using WarpGemm          = WarpGemmMfmaDispatcher< //
+        using WarpGemm          = WarpGemmDispatcher< //
             typename Problem::QDataType,
             typename Problem::KDataType,
             typename Problem::AccDataType,
@@ -66,7 +66,7 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm2WarpTile>>;
 
         constexpr auto SwizzleA = false;
-        using WarpGemm          = WarpGemmMfmaDispatcher< //
+        using WarpGemm          = WarpGemmDispatcher< //
             typename Problem::OGradDataType,
             typename Problem::VDataType,
             typename Problem::AccDataType,
@@ -106,7 +106,7 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
                    typename BlockFmhaShape::Gemm4BlockWarps,
                    typename BlockFmhaShape::Gemm4WarpTile>>;
 
-        using WarpGemm = WarpGemmMfmaDispatcher< //
+        using WarpGemm = WarpGemmDispatcher< //
             typename Problem::GemmDataType,
             typename Problem::KDataType,
             typename Problem::AccDataType,

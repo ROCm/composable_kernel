@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright © Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier:  MIT
 
 #pragma once
 
@@ -33,6 +33,7 @@
 #include "ck_tile/ops/gemm/kernel/gemm_multi_d_kernel.hpp"
 #include "ck_tile/ops/gemm/kernel/gemm_tile_partitioner.hpp"
 #include "ck_tile/ops/gemm/kernel/grouped_gemm_kernel.hpp"
+#include "ck_tile/ops/gemm/kernel/streamk_gemm_kernel.hpp"
 #include "ck_tile/ops/gemm/kernel/universal_gemm_kernel.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_comp_v3.hpp"
@@ -58,9 +59,15 @@
 #include "ck_tile/ops/gemm/warp/warp_gemm_attribute_mfma_impl.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_attribute_smfmac.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_attribute_smfmac_impl.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_attribute_wmma.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_attribute_wmma_impl.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_attribute_wmma_impl_16bit_traits.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_attribute_wmma_impl_8bit_traits.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_attribute_wmma_impl_base_traits.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_impl.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_smfmac_impl.hpp"
+#include "ck_tile/ops/gemm/warp/warp_wmma_gemm.hpp"
 #include "ck_tile/ops/common/generic_2d_block_shape.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/common/utils.hpp"

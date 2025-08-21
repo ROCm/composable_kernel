@@ -9,7 +9,7 @@ Unlike standard smoothquant op, the input scale is from different expert `[exper
 ```
 # in the root of ck_tile
 mkdir build && cd build
-sh ../script/cmake-ck-dev.sh  ../ <arch>  # you can replace this <arch> to gfx90a, gfx942...
+../script/cmake-ck-dev.sh  ../ <arch>  # you can replace this <arch> to gfx90a, gfx942...
 make tile_example_moe_smoothquant -j
 ```
 This will result in an executable `build/bin/tile_example_moe_smoothquant`
