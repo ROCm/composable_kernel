@@ -131,7 +131,9 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 }
 
 template <typename APrecType, typename BPrecType = APrecType, typename CPrecType = APrecType>
-bool run_gemm_test_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
+bool run_gemm_test_prec_type(std::string a_layout,
+                             std::string b_layout,
+                             ck_tile::ArgParser& arg_parser)
 {
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
@@ -141,12 +143,12 @@ bool run_gemm_test_prec_type(std::string a_layout, std::string b_layout, int arg
         if(a_layout == "R" && b_layout == "C")
         {
             return run_gemm_test_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Col{}, Row{});
+                arg_parser, Row{}, Col{}, Row{});
         }
         else if(a_layout == "C" && b_layout == "C")
         {
             return run_gemm_test_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Col{}, Row{});
+                arg_parser, Col{}, Col{}, Row{});
         }
         else
         {
@@ -159,22 +161,22 @@ bool run_gemm_test_prec_type(std::string a_layout, std::string b_layout, int arg
         if(a_layout == "R" && b_layout == "C")
         {
             return run_gemm_test_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Col{}, Row{});
+                arg_parser, Row{}, Col{}, Row{});
         }
         else if(a_layout == "R" && b_layout == "R")
         {
             return run_gemm_test_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Row{}, Row{});
+                arg_parser, Row{}, Row{}, Row{});
         }
         else if(a_layout == "C" && b_layout == "R")
         {
             return run_gemm_test_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Row{}, Row{});
+                arg_parser, Col{}, Row{}, Row{});
         }
         else if(a_layout == "C" && b_layout == "C")
         {
             return run_gemm_test_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Col{}, Row{});
+                arg_parser, Col{}, Col{}, Row{});
         }
         else
         {
@@ -195,21 +197,21 @@ bool run_gemm_test(int argc, char* argv[])
 
     if(data_type == "fp16")
     {
-        return run_gemm_test_prec_type<ck_tile::half_t>(a_layout, b_layout, argc, argv);
+        return run_gemm_test_prec_type<ck_tile::half_t>(a_layout, b_layout, arg_parser);
     }
     else if(data_type == "bf16")
     {
-        return run_gemm_test_prec_type<ck_tile::bf16_t>(a_layout, b_layout, argc, argv);
+        return run_gemm_test_prec_type<ck_tile::bf16_t>(a_layout, b_layout, arg_parser);
     }
     else if(data_type == "fp8")
     {
         return run_gemm_test_prec_type<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>(
-            a_layout, b_layout, argc, argv);
+            a_layout, b_layout, arg_parser);
     }
     else if(data_type == "bf8")
     {
         return run_gemm_test_prec_type<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>(
-            a_layout, b_layout, argc, argv);
+            a_layout, b_layout, arg_parser);
     }
     else if(data_type == "pk_int4_t")
     {
@@ -217,7 +219,7 @@ bool run_gemm_test(int argc, char* argv[])
         if constexpr(GemmConfigBase::Pipeline == CK_TILE_PIPELINE_COMPUTE_V3)
         {
             return run_gemm_test_prec_type<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>(
-                a_layout, b_layout, argc, argv);
+                a_layout, b_layout, arg_parser);
         }
         else
         {
