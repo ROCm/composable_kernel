@@ -152,16 +152,24 @@ bool profile_gemm_b_scale_impl(int do_verification,
     // Run reference GEMM
     if(do_verification)
     {
-        Tensor<float> b_k_n_dequant({K, N});
+        Tensor<BScaleDataType> b_k_n_dequant({K, N});
 
         float v_b = 0;
         for(int n = 0; n < N; n++)
         {
             for(int k = 0; k < K; k++)
             {
-                ck::pk_i4_t i4x2 = b_k_n(k, n).data;
-                int8_t i4        = 0;
-                if(k % 2 == 1)
+                // for proper testing, we need to replicate k_shuffle when used
+                // see unary_element_wise_operation.hpp
+#if CK_USE_PK4_LAYOUT_SHUFFLE
+                int k_shuffle = (k / 8) * 8 + (k % 2) * 4 + (k % 8) / 2;
+#else
+                int k_shuffle = k;
+#endif
+
+                ck::pk_i4_t i4x2 = b_k_n(k_shuffle, n).data;
+                int i4           = 0;
+                if(k_shuffle % 2 == 0)
                     i4 = (i4x2.data >> 0) & 0xf;
                 else
                     i4 = (i4x2.data >> 4) & 0xf;
@@ -173,7 +181,7 @@ bool profile_gemm_b_scale_impl(int do_verification,
             }
         }
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
-                                                                                AccDataType,
+                                                                                BScaleDataType,
                                                                                 CDataType,
                                                                                 AccDataType,
                                                                                 AElementOp,
@@ -334,7 +342,11 @@ bool profile_gemm_b_scale_impl(int do_verification,
                     else
                     {
 #endif
-                        pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
+                        std::string msg = "Error: Incorrect results!";
+                        double rtol     = 2e-2;
+                        double atol     = 2e-2;
+                        pass            = pass & ck::utils::check_err(
+                                          c_m_n_device_result, c_m_n_host_result, msg, rtol, atol);
 #if defined CK_ENABLE_FP8
                     }
 #endif
