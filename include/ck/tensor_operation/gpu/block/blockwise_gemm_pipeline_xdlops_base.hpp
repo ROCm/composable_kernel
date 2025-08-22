@@ -41,7 +41,9 @@ struct BlockwiseGemmXdlops_pipeline_base
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     // Hardcode to 64, as HIP-provided "WarpSize" would return 32 on RDNA GPUs.
-    static constexpr index_t WaveSize = 64;
+    static constexpr index_t MWaves   = MPerBlock / (MRepeat * MPerXDL);
+    static constexpr index_t NWaves   = NPerBlock / (NRepeat * NPerXDL);
+    static constexpr index_t WaveSize = BlockSize / MWaves / NWaves;
 
     static constexpr index_t A_K0 = ATileDesc{}.GetLength(I0);
     static constexpr index_t B_K0 = BTileDesc{}.GetLength(I0);
@@ -73,9 +75,6 @@ struct BlockwiseGemmXdlops_pipeline_base
         else
             return 1;
     }();
-
-    static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
-    static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
 
     using HotLoopInstList =
         ck::BlockwiseGemmXdlops_pipeline_hotloop_inst<BlockSize,
@@ -219,6 +218,7 @@ struct BlockwiseGemmXdlops_pipeline_base
                                       Tuple4 b_origin = CalculateBThreadOriginDataIndex())
         : a_thread_copy_(a_origin), b_thread_copy_(b_origin)
     {
+#if defined(__HIP_DEVICE_COMPILE__)
         static_assert(AMmaTileDesc::IsKnownAtCompileTime() && BMmaTileDesc::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
 
@@ -227,6 +227,7 @@ struct BlockwiseGemmXdlops_pipeline_base
 
         static_assert(MPerBlock % (MPerXDL * MRepeat) == 0 && NPerBlock % (NPerXDL * NRepeat) == 0,
                       "wrong!");
+#endif
     }
 
     // transposed XDL output supporting C_xdl' = B_xdl' * A_xdl'

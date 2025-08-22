@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -139,9 +139,10 @@ struct BlockwiseGemmXdlops_pipeline_v2<BlockGemmPipelineScheduler::Intrawave,
 
     using Base::AMmaKStride;
     using Base::BMmaKStride;
+    using Base::WaveSize;
 
     static constexpr index_t WgpPerCU =
-        (4 * WarpSize / BlockSize) >= 1 ? 4 * WarpSize / BlockSize : 1;
+        (4 * WaveSize / BlockSize) >= 1 ? 4 * WaveSize / BlockSize : 1;
     static constexpr index_t FullMemBandPrefetchStages = math::integer_divide_ceil(
         32768 / WgpPerCU,
         (MPerBlock * sizeof(ADataType) + NPerBlock * sizeof(BDataType)) * KPerBlock);
@@ -625,13 +626,14 @@ struct BlockwiseGemmXdlops_pipeline_v2<BlockGemmPipelineScheduler::Interwave,
 
     using Base::a_block_desc_m0_m1_m2_k;
     using Base::b_block_desc_n0_n1_n2_k;
+    using Base::WaveSize;
 
     static constexpr index_t NumMacClusters = CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING_MAC_CLUSTERS;
     static constexpr index_t KPerInnerLoop  = math::max(KPerThread / NumMacClusters, KPack);
     static constexpr index_t KRepeat        = KPerThread / KPerInnerLoop;
 
     static constexpr index_t WgpPerCU =
-        (4 * WarpSize / BlockSize) >= 1 ? 4 * WarpSize / BlockSize : 1;
+        (4 * WaveSize / BlockSize) >= 1 ? 4 * WaveSize / BlockSize : 1;
     static constexpr index_t FullMemBandPrefetchStages = math::integer_divide_ceil(
         32768 / WgpPerCU,
         (MPerBlock * sizeof(ADataType) + NPerBlock * sizeof(BDataType)) * KPerBlock);
