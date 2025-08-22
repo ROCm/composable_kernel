@@ -114,7 +114,7 @@ float invoke_gemm(int n_warmup,
                                          DsDataType,
                                          AccDataType,
                                          CDataType,
-                                         ck_tile::element_wise::PassThrough>(stream, group_count, kargs_ptr, splitk);
+                                         CDEElementWise>(stream, group_count, kargs_ptr, splitk);
     }
 
     std::string op_name{"Grouped Gemm"};
@@ -251,10 +251,12 @@ int run_grouped_gemm_example_with_layouts(int argc,
                   << " b_k_n: " << b_k_n_tensors[i].mDesc << " c_m_n: " << c_m_n_tensors[i].mDesc
                   << std::endl;
 
-        ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k_tensors[i]);
-        ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensors[i]);
-        ck_tile::FillUniformDistribution<DsDataType>{-1.f, 1.f}(ds_m_n_tensors[i]);
-        
+        // ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k_tensors[i]);
+        // ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensors[i]);
+        // ck_tile::FillUniformDistribution<DsDataType>{-1.f, 1.f}(ds_m_n_tensors[i]);
+        ck_tile::FillUniformDistribution<ADataType>{0.5f, 0.5f}(a_m_k_tensors[i]);
+        ck_tile::FillUniformDistribution<BDataType>{0.5f, 0.5f}(b_k_n_tensors[i]);
+        ck_tile::FillUniformDistribution<DsDataType>{10.f, 10.f}(ds_m_n_tensors[i]);
         a_m_k_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
             a_m_k_tensors[i].get_element_space_size_in_bytes()));
         b_k_n_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
@@ -282,6 +284,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
             {p_a, p_b, ds_ptr_buf, p_c, kbatch, M, N, K, stride_As[i], stride_Bs[i], stridesDs, stride_Cs[i]});
     }
 
+    using CDElementWiseFn = SCALEADD;
     invoke_gemm<GemmConfig,
                 ADataType,
                 BDataType,
@@ -293,13 +296,16 @@ int run_grouped_gemm_example_with_layouts(int argc,
                 ck_tile::tuple<DsLayout>,
                 CLayout,
                 Persistent,
-                ck_tile::element_wise::PassThrough>(warmup, repeat, group_count, gemm_descs);
+                CDElementWiseFn>(warmup, repeat, group_count, gemm_descs);
 
     for(int i = 0; i < group_count; i++)
     {
         c_m_n_dev_buf[i]->FromDevice(c_m_n_tensors[i].data());
     }
-
+    for(int i = 0; i < 100; i++)
+    {
+        printf("%f \n",ck_tile::type_convert<float>(c_m_n_tensors[0](0,i)));
+    }
     bool pass{true};
     if(validate)
     {

@@ -124,6 +124,33 @@ struct GemmConfigComputeV4 : public GemmConfigBase
     static constexpr int kBlockPerCu = 2;
 };
 
+// struct ADDDD
+// {
+
+//     template <typename Y, typename X>
+//     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
+//     {
+//         y = ck_tile::type_convert<Y>(ck_tile::type_convert<float>(x) + ck_tile::type_convert<float>(y));
+//     }
+
+// };
+
+struct SCALEADD
+{
+    CK_TILE_HOST_DEVICE SCALEADD(float scale = 1.f) : scale_(scale) {}
+    
+    template <typename E, typename C, typename D0>
+    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const D0& d0) const -> void
+    {
+        const float x0_f = ck_tile::type_convert<float>(c) +
+                           scale_ * ck_tile::type_convert<float>(d0);
+
+        e = ck_tile::type_convert<E>(x0_f);
+    }
+    
+    float scale_;
+};
+
 template <ck_tile::index_t PipelineId>
 struct PipelineTypeTraits;
 
