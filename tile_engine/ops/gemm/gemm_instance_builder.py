@@ -4,6 +4,8 @@ import os
 import json
 import argparse
 import itertools
+import multiprocessing
+import concurrent.futures
 from pathlib import Path
 import logging
 from validation_utils import is_tile_config_valid, is_trait_combination_valid
@@ -95,7 +97,7 @@ class GemmKernelBuilder:
             "persistent": ["false"],
         }
 
-    def _get_tile_configs(self):
+    def _get_tile_configs(self, fast_mode=False):
         """Get tile configurations for the current datatype and layout"""
         if "tile_configs" in self.config:
             # Old format
@@ -139,6 +141,7 @@ class GemmKernelBuilder:
                                                     warp_tile_m,
                                                     warp_tile_n,
                                                     warp_tile_k,
+                                                    fast_mode=fast_mode,
                                                 ):
                                                     configs.append(
                                                         {
@@ -170,33 +173,54 @@ class GemmKernelBuilder:
         warp_tile_n,
         warp_tile_k,
         pipeline="mem",  # Default pipeline for validation
+        fast_mode=False,  # Add fast mode option
     ):
         """Validate that tile configuration is reasonable"""
-        # Determine data types for validation
-        a_datatype = self.datatype
-        b_datatype = self.datatype
-        c_datatype = self.datatype
+        if fast_mode:
+            # Fast validation for listing - only basic sanity checks
+            if tile_m <= 0 or tile_n <= 0 or tile_k <= 0:
+                return False
+            if warp_m <= 0 or warp_n <= 0 or warp_k <= 0:
+                return False
+            if warp_tile_m <= 0 or warp_tile_n <= 0 or warp_tile_k <= 0:
+                return False
 
-        # Special handling for certain data types
-        if self.datatype in ["fp8", "bf8"]:
-            c_datatype = "fp16"
+            # Basic divisibility check
+            if tile_m % (warp_m * warp_tile_m) != 0:
+                return False
+            if tile_n % (warp_n * warp_tile_n) != 0:
+                return False
+            if tile_k % (warp_k * warp_tile_k) != 0:
+                return False
 
-        # Use the comprehensive validation function
-        return is_tile_config_valid(
-            tile_m,
-            tile_n,
-            tile_k,
-            warp_m,
-            warp_n,
-            warp_k,
-            warp_tile_m,
-            warp_tile_n,
-            warp_tile_k,
-            a_datatype,
-            b_datatype,
-            c_datatype,
-            pipeline,
-        )
+            return True
+        else:
+            # Full validation for generation
+            # Determine data types for validation
+            a_datatype = self.datatype
+            b_datatype = self.datatype
+            c_datatype = self.datatype
+
+            # Special handling for certain data types
+            if self.datatype in ["fp8", "bf8"]:
+                c_datatype = "fp16"
+
+            # Use the comprehensive validation function
+            return is_tile_config_valid(
+                tile_m,
+                tile_n,
+                tile_k,
+                warp_m,
+                warp_n,
+                warp_k,
+                warp_tile_m,
+                warp_tile_n,
+                warp_tile_k,
+                a_datatype,
+                b_datatype,
+                c_datatype,
+                pipeline,
+            )
 
     def _generate_trait_combinations(self):
         """Generate all combinations of traits"""
@@ -337,13 +361,6 @@ class GemmKernelBuilder:
             "compv4": "ck_tile::GemmPipelineAgBgCrCompV4",
         }
 
-        # Map pipeline names to base pipeline for hot loop detection
-        base_pipeline_map = {
-            "mem": "ck_tile::BaseGemmPipelineAgBgCrMem",
-            "compv3": "ck_tile::BaseGemmPipelineAgBgCrCompV3",
-            "compv4": "ck_tile::BaseGemmPipelineAgBgCrCompV4",
-        }
-
         # Map scheduler names to the correct enum values
         scheduler_type_map = {
             "intrawave": "ck_tile::GemmPipelineScheduler::Intrawave",
@@ -370,6 +387,13 @@ class GemmKernelBuilder:
             b_layout = "ck_tile::tensor_layout::gemm::RowMajor"
         elif self.layout == "rcm":
             c_layout = "ck_tile::tensor_layout::gemm::ColumnMajor"
+
+        # Map pipeline names to base pipeline for hot loop detection
+        base_pipeline_map = {
+            "mem": "ck_tile::BaseGemmPipelineAgBgCrMem",
+            "compv3": "ck_tile::BaseGemmPipelineAgBgCrCompV3",
+            "compv4": "ck_tile::BaseGemmPipelineAgBgCrCompV4",
+        }
 
         # Generate kernel instance code using the correct API
         pragma_line = "#pragma once\n" if is_header else ""
@@ -576,183 +600,84 @@ struct SelectedKernel {{
 
         return kernel_name, instance_code
 
-    def list_kernels(self):
-        """List all kernel instances that will be generated"""
-        kernels = []
+    def generate_individual(self, num_workers=None):
+        """Generate individual kernel files for separate compilation with parallel processing"""
+        if num_workers is None:
+            num_workers = min(
+                multiprocessing.cpu_count(), 8
+            )  # Limit to avoid memory issues
+
         tile_configs = self._get_tile_configs()
         trait_combos = self._generate_trait_combinations()
 
+        # Prepare work items for parallel processing
+        work_items = []
         for tile_config in tile_configs:
             for trait_combo in trait_combos:
-                kernel_name, _ = self._generate_kernel_instance(
-                    tile_config, trait_combo
-                )
-                kernels.append(kernel_name)
-
-        return kernels
-
-    def generate_blobs(self):
-        """Generate blob files for monolithic build"""
-        tile_configs = self._get_tile_configs()
-        trait_combos = self._generate_trait_combinations()
-
-        # Group by trait for blob generation
-        trait_groups = {}
-        for trait_combo in trait_combos:
-            pipeline, epilogue, scheduler = trait_combo[:3]
-            trait_key = f"{pipeline}_{epilogue}_{scheduler}"
-            if trait_key not in trait_groups:
-                trait_groups[trait_key] = []
-            trait_groups[trait_key].append(trait_combo)
-
-        blob_files = []
-        blob_ranges = []
-
-        blob_index = 0
-        for trait_key, trait_list in trait_groups.items():
-            start_index = blob_index
-
-            for trait_combo in trait_list:
-                for tile_config in tile_configs:
-                    kernel_name, instance_code = self._generate_kernel_instance(
-                        tile_config, trait_combo, is_header=False
+                work_items.append(
+                    (
+                        tile_config,
+                        trait_combo,
+                        self.working_path,
+                        self.datatype,
+                        self.layout,
                     )
-
-                    # Write instance file
-                    instance_file = self.working_path / f"{kernel_name}.cpp"
-                    with open(instance_file, "w") as f:
-                        f.write(instance_code)
-
-                    blob_files.append(str(instance_file))
-                    blob_index += 1
-
-            end_index = blob_index
-            blob_ranges.append(f"{trait_key} {start_index} {end_index}")
-
-        # Write blob list files
-        with open(self.working_path / "gemm_instance_blobs.txt", "w") as f:
-            f.write("\n".join(blob_files))
-
-        with open(self.working_path / "gemm_instance_blobs_range.txt", "w") as f:
-            f.write("\n".join(blob_ranges))
-
-        # Generate dispatcher header
-        self._generate_dispatcher_header(trait_groups, tile_configs)
-
-    def _generate_dispatcher_header(self, trait_groups, tile_configs):
-        """Generate the dispatcher header for monolithic build"""
-        dispatcher_code = f"""
-// Generated GEMM dispatcher for {self.datatype} {self.layout}
-#pragma once
-
-#include <functional>
-#include <vector>
-#include <string>
-#include <tuple>
-#include "gemm_common.hpp"
-#include <ck_tile/host.hpp>
-
-// Forward declarations
-"""
-
-        # Add forward declarations for all kernels
-        for trait_key, trait_list in trait_groups.items():
-            for trait_combo in trait_list:
-                for tile_config in tile_configs:
-                    kernel_name, _ = self._generate_kernel_instance(
-                        tile_config, trait_combo
-                    )
-                    dispatcher_code += f"extern std::tuple<std::string, float> {kernel_name}(const ck_tile::GemmHostArgs&, const ck_tile::stream_config&);\n"
-
-        dispatcher_code += """
-class GemmDispatcher {
-public:
-    static std::vector<std::function<std::tuple<std::string, float>(const ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>
-    dispatch(bool structured_sparsity, const KernelTraits& trait) {
-        std::vector<std::function<std::tuple<std::string, float>(const ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>> kernels;
-        
-"""
-
-        # Add dispatcher logic
-        for trait_key, trait_list in trait_groups.items():
-            for trait_combo in trait_list:
-                pipeline, epilogue, scheduler, ss, pad_m, pad_n, pad_k, persistent = (
-                    trait_combo
                 )
 
-                # Create condition
-                conditions = []
-                conditions.append(f'trait.pipeline == "{pipeline}"')
-                conditions.append(f'trait.epilogue == "{epilogue}"')
-                conditions.append(f'trait.scheduler == "{scheduler}"')
-                conditions.append(
-                    f"structured_sparsity == {'true' if ss == 'true' else 'false'}"
-                )
-                conditions.append(
-                    f"trait.pad_m == {'true' if pad_m == 'true' else 'false'}"
-                )
-                conditions.append(
-                    f"trait.pad_n == {'true' if pad_n == 'true' else 'false'}"
-                )
-                conditions.append(
-                    f"trait.pad_k == {'true' if pad_k == 'true' else 'false'}"
-                )
-                conditions.append(
-                    f"trait.persistent == {'true' if persistent == 'true' else 'false'}"
-                )
+        print(
+            f"Generating {len(work_items)} individual kernel files using {num_workers} workers..."
+        )
+        print(f"  Tile configs: {len(tile_configs)}")
+        print(f"  Trait combinations: {len(trait_combos)}")
+        print(f"  Total kernels: {len(work_items)}")
 
-                condition_str = " && ".join(conditions)
+        # Show first few work items for debugging
+        if work_items:
+            print("  First work item example:")
+            tile_config, trait_combo = work_items[0][:2]
+            print(f"    Tile config: {tile_config}")
+            print(f"    Trait combo: {trait_combo[:3]}")  # Show first 3 traits
 
-                dispatcher_code += f"        if ({condition_str}) {{\n"
-
-                for tile_config in tile_configs:
-                    kernel_name, _ = self._generate_kernel_instance(
-                        tile_config, trait_combo
-                    )
-                    dispatcher_code += (
-                        f"            kernels.push_back({kernel_name});\n"
-                    )
-
-                dispatcher_code += "        }\n"
-
-        dispatcher_code += """
-        return kernels;
-    }
-};
-"""
-
-        # Write dispatcher header
-        with open(self.working_path / "gemm_dispatcher.hpp", "w") as f:
-            f.write(dispatcher_code)
-
-    def generate_individual(self):
-        """Generate individual kernel files for separate compilation"""
-        tile_configs = self._get_tile_configs()
-        trait_combos = self._generate_trait_combinations()
-
+        # Process work items in parallel
         kernel_list = []
+        completed = 0
 
-        for tile_config in tile_configs:
-            for trait_combo in trait_combos:
-                kernel_name, instance_code = self._generate_kernel_instance(
-                    tile_config, trait_combo
-                )
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=num_workers
+        ) as executor:
+            # Submit all work items
+            print(f"  Submitting {len(work_items)} tasks to executor...")
+            future_to_item = {
+                executor.submit(_generate_single_kernel_individual, item): item
+                for item in work_items
+            }
+            print("  All tasks submitted, waiting for completion...")
 
-                # Create simplified filename without the "gemm_" prefix
-                # Remove "gemm_" from the beginning of kernel_name for the filename
-                simplified_name = kernel_name
-                if simplified_name.startswith("gemm_"):
-                    simplified_name = simplified_name[5:]  # Remove "gemm_" prefix
+            # Collect results with progress reporting
+            for future in concurrent.futures.as_completed(future_to_item):
+                completed += 1
+                if completed % 100 == 0 or completed == len(work_items):
+                    print(
+                        f"  Progress: {completed}/{len(work_items)} kernels generated"
+                    )
 
-                # Write individual header file
-                header_file = self.working_path / f"gemm_single_{simplified_name}.hpp"
-                with open(header_file, "w") as f:
-                    f.write(instance_code)
+                try:
+                    result = future.result()
+                    if result:
+                        kernel_list.append(result)
+                except Exception as exc:
+                    item = future_to_item[future]
+                    print(f"Kernel generation failed for {item}: {exc}")
 
-                kernel_list.append((kernel_name, trait_combo, tile_config))
+        # Sort kernel list for consistent ordering
+        kernel_list.sort(key=lambda x: x[0])  # Sort by kernel name
 
         # Generate CMake include file for individual targets
         self._generate_cmake_individual_targets(kernel_list)
+
+        print(
+            f"Generated {len(kernel_list)} individual kernel files in {self.working_path}"
+        )
 
     def _generate_cmake_individual_targets(self, kernel_list):
         """Generate CMake include file that creates individual targets"""
@@ -779,76 +704,107 @@ public:
         with open(self.working_path / "gemm_individual_targets.cmake", "w") as f:
             f.write(cmake_code)
 
-    def run(self, mode):
-        """Run the builder in the specified mode"""
-        if mode == "list_blobs":
-            # Generate the list of blob files that will be created
-            tile_configs = self._get_tile_configs()
-            trait_combos = self._generate_trait_combinations()
+    def write_kernel_list(self):
+        """Write kernel list to file for CMake to read (with comprehensive validation)"""
+        # Get configurations using comprehensive validation
+        tile_configs = self._get_tile_configs(fast_mode=False)
+        trait_combos = self._generate_trait_combinations()
 
-            # Group by trait for blob generation
-            trait_groups = {}
+        kernel_list = []
+        for tile_config in tile_configs:
             for trait_combo in trait_combos:
-                pipeline, epilogue, scheduler = trait_combo[:3]
-                trait_key = f"{pipeline}_{epilogue}_{scheduler}"
-                if trait_key not in trait_groups:
-                    trait_groups[trait_key] = []
-                trait_groups[trait_key].append(trait_combo)
+                (
+                    pipeline,
+                    epilogue,
+                    scheduler,
+                    structured_sparsity,
+                    pad_m,
+                    pad_n,
+                    pad_k,
+                    persistent,
+                ) = trait_combo
 
-            # Generate list of blob files
-            blob_files = []
-            for trait_key, trait_list in trait_groups.items():
-                for trait_combo in trait_list:
-                    for tile_config in tile_configs:
-                        kernel_name, _ = self._generate_kernel_instance(
-                            tile_config, trait_combo
-                        )
-                        blob_file = str(self.working_path / f"{kernel_name}.cpp")
-                        blob_files.append(blob_file)
+                # Create kernel name
+                kernel_name = f"gemm_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{structured_sparsity}_{pad_m}_{pad_n}_{pad_k}_{persistent}"
 
-            # Sort blob files for consistent ordering
-            blob_files.sort()
+                # Create tile configuration string
+                tile_str = f"{tile_config['tile_m']}x{tile_config['tile_n']}x{tile_config['tile_k']}_"
+                tile_str += f"{tile_config['warp_m']}x{tile_config['warp_n']}x{tile_config['warp_k']}_"
+                tile_str += f"{tile_config['warp_tile_m']}x{tile_config['warp_tile_n']}x{tile_config['warp_tile_k']}"
 
-            # Generate blob ranges
-            blob_ranges = []
-            blob_index = 0
-            for trait_key, trait_list in trait_groups.items():
-                start_index = blob_index
+                kernel_name += f"_{tile_str}"
 
-                # Count kernels for this trait group
-                kernel_count = 0
-                for trait_combo in trait_list:
-                    kernel_count += len(tile_configs)
+                kernel_list.append(
+                    {
+                        "name": kernel_name,
+                        "tile_config": tile_config,
+                        "trait_combo": trait_combo,
+                    }
+                )
 
-                blob_index += kernel_count
-                end_index = blob_index
-                blob_ranges.append(f"{trait_key} {start_index} {end_index}")
+        # Write kernel count
+        with open(self.working_path / "gemm_kernel_count.txt", "w") as f:
+            f.write(str(len(kernel_list)))
 
-            # Write blob list files
-            with open(self.working_path / "gemm_instance_blobs.txt", "w") as f:
-                f.write("\n".join(blob_files))
+        # Write kernel list
+        with open(self.working_path / "gemm_kernel_list.txt", "w") as f:
+            for kernel in kernel_list:
+                # Format: kernel_name|tile_config|trait_combo
+                tile_config = kernel["tile_config"]
+                trait_combo = kernel["trait_combo"]
 
-            with open(self.working_path / "gemm_instance_blobs_range.txt", "w") as f:
-                f.write("\n".join(blob_ranges))
+                tile_str = f"{tile_config['tile_m']}x{tile_config['tile_n']}x{tile_config['tile_k']}_"
+                tile_str += f"{tile_config['warp_m']}x{tile_config['warp_n']}x{tile_config['warp_k']}_"
+                tile_str += f"{tile_config['warp_tile_m']}x{tile_config['warp_tile_n']}x{tile_config['warp_tile_k']}"
 
-            print(f"Listed {len(blob_files)} kernel blobs to be generated")
+                trait_str = (
+                    f"{trait_combo[0]}_{trait_combo[1]}_{trait_combo[2]}_"
+                    + "_".join(str(x) for x in trait_combo[3:])
+                )
 
-        elif mode == "gen_blobs":
-            # Generate blob files for monolithic build
-            self.generate_blobs()
-            print(f"Generated blob files in {self.working_path}")
+                f.write(f"{kernel['name']}|{tile_str}|{trait_str}\n")
 
-        elif mode == "gen_individual":
-            # Generate individual kernel files
-            self.generate_individual()
-            print(f"Generated individual kernel files in {self.working_path}")
+        print(f"Listed {len(kernel_list)} kernel configurations")
 
-        else:
-            raise ValueError(f"Unknown mode: {mode}")
+    def run(self, num_workers=None):
+        """Run the builder to generate individual kernel files"""
+        # Generate individual kernel files
+        self.generate_individual(num_workers)
+
+
+def _generate_single_kernel_individual(work_item):
+    """Worker function to generate a single individual kernel file"""
+    tile_config, trait_combo, working_path, datatype, layout = work_item
+
+    # Create a temporary builder instance for this worker
+    builder = GemmKernelBuilder(working_path, datatype, layout)
+
+    try:
+        kernel_name, instance_code = builder._generate_kernel_instance(
+            tile_config, trait_combo
+        )
+
+        # Create simplified filename without the "gemm_" prefix
+        # Remove "gemm_" from the beginning of kernel_name for the filename
+        simplified_name = kernel_name
+        if simplified_name.startswith("gemm_"):
+            simplified_name = simplified_name[5:]  # Remove "gemm_" prefix
+
+        # Write individual header file
+        header_file = working_path / f"gemm_single_{simplified_name}.hpp"
+        with open(header_file, "w") as f:
+            f.write(instance_code)
+
+        return (kernel_name, trait_combo, tile_config)
+    except Exception as e:
+        print(f"Error generating individual kernel: {e}")
+        return None
 
 
 def main():
-    parser = argparse.ArgumentParser(description="GEMM kernel instance builder")
+    parser = argparse.ArgumentParser(
+        description="GEMM kernel instance builder with parallel support"
+    )
     parser.add_argument("--working_path", required=True, help="Working directory path")
     parser.add_argument(
         "--datatype",
@@ -860,34 +816,99 @@ def main():
         "--layout", required=True, choices=["rcr", "rrr", "rcm"], help="Matrix layout"
     )
     parser.add_argument("--config_json", help="Configuration JSON file")
-
-    # Mode selection
     parser.add_argument(
-        "--list_blobs", action="store_true", help="List all kernel blobs"
+        "--num_workers", type=int, help="Number of parallel workers (default: auto)"
     )
-    parser.add_argument("--gen_blobs", action="store_true", help="Generate blob files")
     parser.add_argument(
         "--gen_individual", action="store_true", help="Generate individual kernel files"
+    )
+    parser.add_argument(
+        "--gen_single", action="store_true", help="Generate a single kernel file"
+    )
+    parser.add_argument("--kernel_name", help="Kernel name for single generation")
+    parser.add_argument(
+        "--tile_config", help="Tile configuration string for single generation"
+    )
+    parser.add_argument(
+        "--trait_combo", help="Trait combination string for single generation"
+    )
+    parser.add_argument(
+        "--list_kernels",
+        action="store_true",
+        help="List kernel configurations without generating files",
     )
 
     args = parser.parse_args()
 
-    # Determine mode
-    mode = None
-    if args.list_blobs:
-        mode = "list_blobs"
-    elif args.gen_blobs:
-        mode = "gen_blobs"
-    elif args.gen_individual:
-        mode = "gen_individual"
-    else:
-        parser.error("Must specify one of: --list_blobs, --gen_blobs, --gen_individual")
-
-    # Create builder and run
+    # Create builder
     builder = GemmKernelBuilder(
         args.working_path, args.datatype, args.layout, args.config_json
     )
-    builder.run(mode)
+
+    if args.list_kernels:
+        # Fast listing mode - just write kernel list without generating files
+        builder.write_kernel_list()
+    elif args.gen_single:
+        # Generate a single kernel file
+        if not args.kernel_name or not args.tile_config or not args.trait_combo:
+            parser.error(
+                "--gen_single requires --kernel_name, --tile_config, and --trait_combo"
+            )
+
+        # Parse tile config
+        tile_parts = args.tile_config.split("_")
+        tile_dims = tile_parts[0].split("x")
+        warp_dims = tile_parts[1].split("x")
+        warp_tile_dims = tile_parts[2].split("x")
+
+        tile_config = {
+            "tile_m": int(tile_dims[0]),
+            "tile_n": int(tile_dims[1]),
+            "tile_k": int(tile_dims[2]),
+            "warp_m": int(warp_dims[0]),
+            "warp_n": int(warp_dims[1]),
+            "warp_k": int(warp_dims[2]),
+            "warp_tile_m": int(warp_tile_dims[0]),
+            "warp_tile_n": int(warp_tile_dims[1]),
+            "warp_tile_k": int(warp_tile_dims[2]),
+        }
+
+        # Parse trait combo
+        trait_parts = args.trait_combo.split("_")
+        trait_combo = (
+            trait_parts[0],  # pipeline
+            trait_parts[1],  # epilogue
+            trait_parts[2],  # scheduler
+            trait_parts[3] == "True",  # structured_sparsity
+            trait_parts[4] == "True",  # pad_m
+            trait_parts[5] == "True",  # pad_n
+            trait_parts[6] == "True",  # pad_k
+            trait_parts[7] == "True",  # persistent
+        )
+
+        # Generate the kernel
+        kernel_name, instance_code = builder._generate_kernel_instance(
+            tile_config, trait_combo
+        )
+
+        # Write the file
+        simplified_name = kernel_name
+        if simplified_name.startswith("gemm_"):
+            simplified_name = simplified_name[5:]
+
+        header_file = builder.working_path / f"gemm_single_{simplified_name}.hpp"
+        with open(header_file, "w") as f:
+            f.write(instance_code)
+
+        print(f"Generated {header_file}")
+
+    elif args.gen_individual:
+        # Generate all individual kernel files
+        builder.run(args.num_workers)
+    else:
+        parser.error(
+            "Must specify one of: --list_kernels, --gen_individual, or --gen_single"
+        )
 
 
 if __name__ == "__main__":

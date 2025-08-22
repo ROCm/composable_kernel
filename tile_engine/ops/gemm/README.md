@@ -2,9 +2,7 @@
 
 ## Overview
 
-The CK Tile Engine GEMM module provides a comprehensive system for generating, building, and benchmarking GEMM (General Matrix Multiplication) kernels with various configurations. It supports multiple data types, layouts, and optimization strategies.
-
-The system has evolved from a monolithic build approach (where all kernels compile into a single executable) to a more flexible individual kernel compilation system, providing better build parallelism and targeted testing capabilities.
+The CK Tile Engine GEMM module provides a comprehensive system for generating, building, and benchmarking GEMM (General Matrix Multiplication) kernels with various configurations. It supports multiple data types, layouts, and optimization strategies. The system has evolved from a monolithic build approach (where all kernels compile into a single executable) to a more flexible individual kernel compilation system, providing better build parallelism and targeted testing capabilities.
 
 ## Table of Contents
 
@@ -59,6 +57,27 @@ mkdir build && cd build
 # Build specific benchmarks
 make benchmark_gemm_[Datatype1]_[Layout1] -j
 ```
+
+### Configuration Options
+
+The build system supports several configuration options:
+
+#### Using Custom Config Files
+```bash
+# Method 1: CMake variable (config file must be in configs/ directory)
+cmake -DGEMM_CONFIG_FILE=my_custom_config.json ...
+
+# Method 2: Environment variable (takes precedence over CMake variable)
+export GEMM_CONFIG_FILE=my_custom_config.json
+cmake ...
+```
+
+#### Config File Priority Order
+1. **Environment variable** `GEMM_CONFIG_FILE` (highest priority)
+2. **CMake variable** `GEMM_CONFIG_FILE`
+3. **Default config** (default_config.json for all layouts)
+
+**Note**: All custom config files must be placed in the `tile_engine/ops/gemm/configs/` directory.
 
 ### Example Build Commands
 

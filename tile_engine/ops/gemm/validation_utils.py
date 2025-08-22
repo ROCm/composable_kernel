@@ -296,12 +296,6 @@ def is_tile_config_valid(
     if warp_k * warp_tile_k > tile_k:
         return False
 
-    # Check reasonable limits
-    if tile_m > 512 or tile_n > 512 or tile_k > 256:
-        return False
-    if warp_tile_m > 64 or warp_tile_n > 64 or warp_tile_k > 128:
-        return False
-
     # Validate warp configuration
     if not validate_warp_configuration(warp_m, warp_n, warp_k):
         logging.debug(

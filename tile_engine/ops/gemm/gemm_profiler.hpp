@@ -20,6 +20,25 @@ class GemmProfiler
         return instance;
     }
 
+    // Overload for single kernel benchmarking
+    void benchmark(GemmProblem& gemm_problem,
+                   std::function<float(const ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>
+                       kernel_func)
+    {
+        // Create a vector with a single callable that returns both name and time
+        std::vector<std::function<std::tuple<std::string, float>(ck_tile::GemmHostArgs&,
+                                                                 const ck_tile::stream_config&)>>
+            callables;
+
+        callables.push_back(
+            [kernel_func](ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {
+                float time = kernel_func(args, stream);
+                return std::make_tuple(std::string(KERNEL_NAME), time);
+            });
+
+        benchmark(gemm_problem, callables);
+    }
+
     void benchmark(GemmProblem& gemm_problem,
                    std::vector<std::function<std::tuple<std::string, float>(
                        ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>& callables)
