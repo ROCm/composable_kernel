@@ -272,7 +272,7 @@ bool run_gemm_test(int argc, char* argv[])
     }
     else if(data_type == "bf16")
     {
-        return run_gemm_test_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::bf16_t>(
+        return run_gemm_test_prec_type<GemmConfig<ck_tile::bf16_t>, ck_tile::bf16_t>(
             a_layout, b_layout, arg_parser);
     }
     else if(data_type == "fp8")
