@@ -301,8 +301,8 @@ All benchmark executables support the following options:
 - `-warmup=<value>` - Warmup iterations (default: 50)
 - `-repeat=<value>` - Benchmark iterations (default: 100)
 - `-timer=<true|false>` - Use GPU timer (default: true)
-- `-flush_cache=<true|false>` - Flush cache between runs (default: false)
-- `-rotating_count=<value>` - Cache rotation count (default: 5)
+- `-flush_cache=<true|false>` - Flush cache between runs (default: true)
+- `-rotating_count=<value>` - Cache rotation count (default: 1000)
 
 ### Initialization
 - `-init=<0|1|2>` - Tensor initialization method
