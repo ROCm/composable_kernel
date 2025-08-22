@@ -289,8 +289,8 @@ int run_gemm_combinations()
                                             "-repeat=1"};
 
     // Create an array of const char pointers for argv
-    const size_t ARG_COUNT   = 10;
-    const size_t ARG_MAX_LEN = 64;
+    constexpr size_t ARG_COUNT   = 10;
+    constexpr size_t ARG_MAX_LEN = 64;
     char args[ARG_COUNT][ARG_MAX_LEN];
     char* argv[ARG_COUNT];
 
