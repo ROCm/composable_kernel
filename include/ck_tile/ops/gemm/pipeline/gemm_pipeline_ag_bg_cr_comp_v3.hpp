@@ -127,8 +127,16 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t GetVectorSizeA() { return Policy::template GetVectorSizeA<Problem>(); }
-    static constexpr index_t GetVectorSizeB() { return Policy::template GetVectorSizeB<Problem>(); }
+    template <bool IsWave32Host = false>
+    static constexpr index_t GetVectorSizeA()
+    {
+        return Policy::template GetVectorSizeA<Problem, IsWave32Host>();
+    }
+    template <bool IsWave32Host = false>
+    static constexpr index_t GetVectorSizeB()
+    {
+        return Policy::template GetVectorSizeB<Problem, IsWave32Host>();
+    }
     static constexpr index_t GetVectorSizeC() { return Policy::template GetVectorSizeC<Problem>(); }
 
     static constexpr index_t APackedSize =
@@ -182,7 +190,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
         constexpr index_t NPerXDL = BlockGemm::WarpGemm::kN;
         constexpr index_t KPerXDL = BlockGemm::WarpGemm::WarpGemmAttribute::Impl::kK;
 
-        constexpr index_t WaveSize = 64;
+        constexpr index_t WaveSize = get_warp_size();
         constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(I0{});
         constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
 
@@ -242,7 +250,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             constexpr index_t NPerXDL = BlockGemm::WarpGemm::kN;
             constexpr index_t KPerXDL = BlockGemm::WarpGemm::WarpGemmAttribute::Impl::kK;
 
-            constexpr index_t WaveSize = 64;
+            constexpr index_t WaveSize = get_warp_size();
             constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(I0{});
             constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
 

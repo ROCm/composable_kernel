@@ -5,6 +5,15 @@ on:
     branches:
       - develop
   workflow_dispatch:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+    branches:
+      - mainline
+      - release/*
+      - release-staging/*
+      - develop
 
 permissions:
   contents: read
@@ -18,8 +27,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  setup:
+    runs-on: ubuntu-24.04
+    env:
+      # The commit being checked out is the merge commit for a PR. Its first
+      # parent will be the tip of the base branch.
+      BASE_REF: HEAD^
+    outputs:
+      enable_therock_ci: ${{ steps.configure.outputs.enable_therock_ci }}
+    steps:
+      - name: "Checking out repository"
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          # We need the parent commit to do a diff
+          fetch-depth: 2
+
+      - name: "Configuring CI options"
+        id: configure
+        run: python .github/scripts/therock_configure_ci.py
+
   therock-ci-linux:
     name: TheRock CI Linux
+    needs: setup
+    if: ${{ needs.setup.outputs.enable_therock_ci == 'true' }}
     permissions:
       contents: read
       id-token: write
@@ -34,6 +64,7 @@ jobs:
     name: TheRock CI Summary
     if: always()
     needs:
+      - setup
       - therock-ci-linux
     runs-on: ubuntu-24.04
     steps:

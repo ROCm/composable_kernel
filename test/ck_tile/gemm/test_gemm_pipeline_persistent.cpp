@@ -3,7 +3,8 @@
 #include "gtest/gtest.h"
 
 template <typename T>
-class TestCkTileGemmPipelinePersistent : public TestCkTileGemmPipeline<T>
+class TestCkTileGemmPipelinePersistent
+    : public TestCkTileGemmPipeline<T, TestCkTileGemmPipelinePersistent<T>>
 {
 };
 
