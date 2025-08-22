@@ -854,12 +854,11 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
 
         __builtin_amdgcn_sched_barrier(0);
 
-        auto mainloop = [&] (index_t cur_loop, 
+        auto mainloop = [&](index_t cur_loop,
                             KDataType* __restrict__ k_lds_write_ptr,
                             KDataType* __restrict__ k_lds_read_ptr,
                             KDataType* __restrict__ v_lds_write_ptr,
                             KDataType* __restrict__ v_lds_read_ptr) {
-
             // move V tile windows
             block_sync_lds<k_lds_insts>();
             move_tile_window(v_dram_window, {kN0, 0});
@@ -1108,7 +1107,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
 
         do
         {
-            bool is_even_loop = i_total_loops % 2 == 0;
+            bool is_even_loop    = i_total_loops % 2 == 0;
             auto k_lds_write_ptr = is_even_loop ? static_cast<KDataType* __restrict__>(smem_ptrk0)
                                                 : static_cast<KDataType* __restrict__>(smem_ptrk1);
             auto k_lds_read_ptr  = is_even_loop ? static_cast<KDataType* __restrict__>(smem_ptrk1)
@@ -1117,7 +1116,8 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
                                                 : static_cast<VDataType* __restrict__>(smem_ptrv0);
             auto v_lds_read_ptr  = is_even_loop ? static_cast<VDataType* __restrict__>(smem_ptrv0)
                                                 : static_cast<VDataType* __restrict__>(smem_ptrv1);
-            mainloop(i_total_loops, k_lds_write_ptr, k_lds_read_ptr, v_lds_write_ptr, v_lds_read_ptr);
+            mainloop(
+                i_total_loops, k_lds_write_ptr, k_lds_read_ptr, v_lds_write_ptr, v_lds_read_ptr);
             i_total_loops++;
         } while(i_total_loops < num_total_loop);
 
