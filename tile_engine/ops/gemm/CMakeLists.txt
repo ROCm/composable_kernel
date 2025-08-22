@@ -1,6 +1,7 @@
 set(GEMM_DATATYPE "fp8;fp16" CACHE STRING "List of datatypes for GEMM (semicolon-separated)")
 set(GEMM_LAYOUT "rcr" CACHE STRING "List of layout for GEMM (semicolon-separated)")
 set(GEMM_CONFIG_FILE "" CACHE STRING "Custom config file name (without path, must be in configs/ folder)")
+option(ENABLE_CCACHE_GEMM "Enable ccache for GEMM ops compilation" OFF)
 
 # Store the directory path for use in functions
 set(GEMM_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR})
@@ -233,11 +234,18 @@ else()
         compile_normal=16  # Allow more parallel normal compilations
     )
 
-    # Enable compiler cache if available
-    find_program(CCACHE_PROGRAM ccache)
-    if(CCACHE_PROGRAM)
-        set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
-        message(STATUS "Using ccache for faster compilation")
+    # Enable compiler cache if available and explicitly requested
+    # Disabled by default due to permission issues in CI environments
+    if(ENABLE_CCACHE_GEMM)
+        find_program(CCACHE_PROGRAM ccache)
+        if(CCACHE_PROGRAM)
+            set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
+            message(STATUS "Using ccache for faster compilation")
+        else()
+            message(WARNING "ccache requested but not found")
+        endif()
+    else()
+        message(STATUS "ccache disabled for GEMM ops (use -DENABLE_CCACHE_GEMM=ON to enable)")
     endif()
 
     # Create master collection targets
