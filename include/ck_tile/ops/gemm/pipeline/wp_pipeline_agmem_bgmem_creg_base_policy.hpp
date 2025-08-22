@@ -196,34 +196,34 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
     {
         using TileShape = typename Problem::BlockGemmShape;
 
-        constexpr index_t BlockSize = Problem::kBlockSize;
-        constexpr index_t WaveSize  = get_warp_size();
-        constexpr index_t WaveNum   = BlockSize / WaveSize;
+        constexpr index_t BlockSize = Problem::kBlockSize; //256
+        constexpr index_t WaveSize  = get_warp_size(); //64
+        constexpr index_t WaveNum   = BlockSize / WaveSize; //4
 
-        constexpr index_t KBPerLoad   = GetKBPerLoad<Problem>();
-        constexpr index_t KThdPerWave = WaveSize; // threads cnt in K dim
+        constexpr index_t KBPerLoad   = GetKBPerLoad<Problem>(); //8
+        constexpr index_t KThdPerWave = WaveSize; // threads cnt in K dim //64
         constexpr index_t KWavePerBlk = 1;
         constexpr index_t KRepeat     = 1;
         static_assert(TileShape::flatKPerWarp == KThdPerWave * KBPerLoad, "wrong");
 
         constexpr index_t NBPerLoad   = 1;
         constexpr index_t NThdPerWave = 1;
-        constexpr index_t NWavePerBlk = TileShape::BlockWarps::at(number<1>{}); // N_Warp
+        constexpr index_t NWavePerBlk = TileShape::BlockWarps::at(number<1>{}); // N_Warp //4
         constexpr index_t NRepeat     = 1;
 
-        constexpr index_t WaveRepeat = WaveNum / TileShape::flatNPerWarp;
+        constexpr index_t WaveRepeat = WaveNum / TileShape::flatNPerWarp; //1
 
         return make_static_tile_distribution(
             tile_distribution_encoding<
-                sequence<WaveRepeat>,                                          // ?
-                tuple<sequence<NRepeat, NWavePerBlk, NThdPerWave, NBPerLoad>,  // second direction
-                      sequence<KRepeat, KWavePerBlk, KThdPerWave, KBPerLoad>>, // first  direction
+                sequence<WaveRepeat>,                                          // ?  //1
+                tuple<sequence<NRepeat, NWavePerBlk, NThdPerWave, NBPerLoad>,  // second direction  //1,4,1,1
+                      sequence<KRepeat, KWavePerBlk, KThdPerWave, KBPerLoad>>, // first  direction  //1,1,64,8
                 // wave in blk,     // thd in wave
                 // <M, K>           // <M, K>
-                tuple<sequence<0, 1, 2>, sequence<1, 2>>, // which direction
+                tuple<sequence<0, 1, 2>, sequence<1, 2>>, // which direction  //(1,4,1), (1, 64)
                 tuple<sequence<0, 1, 1>, sequence<2, 2>>, // which index
                 // <repeat, vec_load>
-                sequence<1, 1, 2, 2>,
+                sequence<1, 1, 2, 2>,  //(1,1,1,8)
                 sequence<0, 3, 0, 3>>{});
     }
 
@@ -244,7 +244,7 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
         constexpr index_t K3     = total_pixels / M1;
         constexpr index_t kKPack = GetSmemPackA<Problem>();
         static_assert(kKPack % K3 == 0);
-        constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
+        constexpr index_t K2 = kKPack / K3; // TODO: this dimension could be outside single wave
         constexpr index_t warp_size = get_warp_size();
         if constexpr(warp_size >= (K2 * M0))
         {

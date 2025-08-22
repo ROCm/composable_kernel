@@ -286,34 +286,24 @@ struct WeightPreshuffleBQuantPipelineAgBgCrV1
                              b_flat_dram_block_window_tmp.get_window_origin(),
                              b_flat_distribution);
 
-        static constexpr auto BLdsTileDistr =
-            decltype(make_static_tile_distribution(block_flatmm.MakeBBlockDistributionEncode())){};
+        // if(get_block_id() == 0 && get_warp_id() == 0 && get_thread_id() == 0){
+        //     printf("b_flat_dram_window: %d\n",
+        //              type_convert<int>(b_flat_dram_window.get_bottom_tensor_view().get_buffer_view()[get_thread_id()]));
+        // }
 
-        using BRegTile = decltype(make_static_distributed_tensor<ComputeDataType>(BLdsTileDistr));
+        using BRegTile = decltype(make_static_distributed_tensor<ComputeDataType>(b_flat_distribution));
 
         BRegTile b_block_tile1;       
-        // // TODO:: need to define warp_tile
-        // auto  b_block_tile = load_tile(b_flat_dram_window);
-        
-        // auto b_flat_copy_dram_window =
-        //     make_tile_window(b_flat_dram_block_window_tmp.get_bottom_tensor_view(),
-        //                      make_tuple(number<flatNPerWarp>{}, number<flatKPerWarp>{}),
-        //                      b_flat_dram_block_window_tmp.get_window_origin(),
-        //                      b_flat_distribution);    
-        // if(get_block_id() == 0 && get_warp_id() == 0)
-        // {
-        //     printf("b_flat_dram_window: %f\n",
-        //             type_convert<float>(load_tile(b_flat_dram_window).get_thread_buffer().at(get_thread_id())));
-        //     printf("b_flat_copy_dram_window: %f\n",
-        //             type_convert<float>(load_tile(b_flat_copy_dram_window).get_thread_buffer().at(get_thread_id())));
-            
-        // }
+      
         if constexpr(std::is_same_v<BDataType, pk_int4_t>)
         {
             static_assert(std::is_same_v<ComputeDataType, fp8_t> ||
                             std::is_same_v<ComputeDataType, bf8_t>);
             // it should be block tensor and tile_window for interleaved pk type
             block_flatmm.load_interleaved_pk_type(b_block_tile1, b_flat_dram_window); 
+            
+        }else{
+            b_block_tile1 = load_tile(b_flat_dram_window);
         }
 
         // BQ DRAM window for load

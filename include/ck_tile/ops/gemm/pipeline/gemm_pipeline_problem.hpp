@@ -214,7 +214,7 @@ struct UniversalGemmPipelineProblem
     static constexpr index_t NumWaveGroups      = Traits::NumWaveGroups;
     static constexpr bool UseStructuredSparsity = Traits::UseStructuredSparsity;
 
-    static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();
+    static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size(); // 4 * 64 = 256
 
     static constexpr bool kPadM = Traits::kPadM;
     static constexpr bool kPadN = Traits::kPadN;

@@ -241,8 +241,11 @@ int run_gemm_example_with_layouts(int argc,
     }
     else if(init_method == 2)
     {
-        ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x38)}(a_m_k);
-        ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x22)}(b_k_n);
+        // ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x38)}(a_m_k);
+        // ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x22)}(b_k_n);
+        // ck_tile::FillConstant<BQDataType>{static_cast<BQDataType>(0.5f)}(bq_bqk_n);
+        ck_tile::FillConstant<ADataType>{ck_tile::float_to_fp8(1.0f)}(a_m_k); 
+        ck_tile::FillConstant<BDataType>{0xaa}(b_k_n);
         ck_tile::FillConstant<BQDataType>{static_cast<BQDataType>(0.5f)}(bq_bqk_n);
     }
     else

@@ -73,29 +73,6 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
     static constexpr index_t KPack      = WG::kKPerThread;
     static constexpr index_t KPerThread = KIterPerWarp * WG::kKPerThread; //64
 
-    CK_TILE_DEVICE static constexpr auto MakeBBlockDistributionEncode()
-    {
-        //constexpr index_t KPerThread     = KPerThread; //64
-        // constexpr index_t NumMacClusters = InterWaveSchedulingMacClusters; // 1
-        // constexpr index_t KPerInnerLoop =
-        //     ck_tile::max(KPerThread / NumMacClusters, WG::kKPerThread); //max(64, 8)
-        // constexpr index_t KIterInterwave = KPerInnerLoop / WG::kKPerThread; // 8
-
-        using KIterSeq = sequence<KIterPerWarp>;
-
-        constexpr auto b_block_outer_dstr_encoding =
-            tile_distribution_encoding<sequence<MWarp>,
-                                       tuple<sequence<NIterPerWarp, NWarp>, KIterSeq>,
-                                       tuple<sequence<0, 1>>,
-                                       tuple<sequence<0, 1>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 0>>{};
-        constexpr auto b_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            b_block_outer_dstr_encoding, typename WG::BWarpDstrEncoding{});
-
-        return b_block_dstr_encode;
-    }
-
     template <typename T>
     CK_TILE_DEVICE static float cvt_scale_to_fp32(T& scale)
     {
@@ -129,11 +106,39 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
         constexpr index_t thread_buffer_size = WarpTile::get_thread_buffer_size() / UnaryOpSize;
         const auto in_dstr_tensors           = load_tile(warp_window);
 
+
+        if(get_block_id() == 0 && get_warp_id() == 0 && get_thread_id() == 0){
+            auto& a_tb  = in_dstr_tensors.get_thread_buffer();
+            printf("---------Warp window thread buffer size=%d, first up to 16:\n", int(decltype(in_dstr_tensors)::get_thread_buffer_size()));
+            for(int j = 0; j < (thread_buffer_size < 16 ? thread_buffer_size : 16); ++j)
+            {
+                float v = pk_int4_t_to_fp32x2_t(a_tb.at(j)).x;
+                printf(" --------- Warp Window[%d]=%f\n", j, v);
+            }
+            //  printf("type convert input[%d] : %f\n",
+            //          get_thread_id(), pk_int4_t_to_fp32x2_t((in_dstr_tensors.get_thread_buffer().at(get_thread_id()))).x);
+        }
         using ComputeVectorType = ComputeDataType __attribute__((ext_vector_type(UnaryOpSize)));
         static_for<0, thread_buffer_size, 1>{}([&](auto i) {
             elementwise_op(warp_tile.get_thread_buffer().template get_as<ComputeVectorType>()(i),
                            in_dstr_tensors.get_thread_buffer().template get_as<pk_int4x4_t>()[i]);
         });
+
+        if(get_block_id() == 0 && get_warp_id() == 0 && get_thread_id() == 0){
+            auto& a_tb  = warp_tile.get_thread_buffer();
+            printf("*******Warp Tile thread buffer size=%d, first up to 16:\n", int(WarpTile::get_thread_buffer_size()));
+            for(int j = 0; j < (thread_buffer_size < 16 ? thread_buffer_size : 16); ++j)
+            {
+                float v = type_convert<float>(a_tb.at(j));
+                printf(" ******* Warp Tile[%d]=%f\n", j, v);
+            }
+        }
+
+
+        // if(get_block_id() == 0 && get_warp_id() == 0){
+        //      printf("type_convert output[%d]: %f\n",
+        //              get_thread_id(), type_convert<float>(warp_tile.get_thread_buffer().at(get_thread_id())));
+        // }
     }
 
     CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
