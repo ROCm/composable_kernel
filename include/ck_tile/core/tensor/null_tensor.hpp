@@ -7,6 +7,10 @@ namespace ck_tile {
 
 struct null_tensor
 {
+    CK_TILE_HOST_DEVICE static constexpr auto is_valid()
+    {
+        return false;
+    }
 };
 
 } // namespace ck_tile

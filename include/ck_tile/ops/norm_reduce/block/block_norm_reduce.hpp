@@ -46,7 +46,7 @@ struct BlockNormReduce
                     constexpr auto out_dstr_idx = make_tuple(dstr_idx_i0);
 
                     auto x = ck_tile::type_convert<ComputeDataType>(x_tensor[in_dstr_idx]);
-                    if(kWelford)
+                    if constexpr(kWelford)
                     {
                         welford_update(mean_tensor(out_dstr_idx),
                                        var_tensor(out_dstr_idx),
@@ -59,6 +59,42 @@ struct BlockNormReduce
                         mean_tensor(out_dstr_idx) += x;
                         var_tensor(out_dstr_idx) += x * x;
                     }
+                });
+            }
+        });
+    }
+
+    template <typename XDistributedTensor_,
+              typename MeanDistributedTensor_,
+              typename VarDistributedTensor_,
+              typename MinDistributedTensor_,
+              typename MaxDistributedTensor_>
+    CK_TILE_DEVICE void operator()(const XDistributedTensor_& x_tensor,
+                                   MeanDistributedTensor_& mean_tensor,
+                                   VarDistributedTensor_& var_tensor,
+                                   MinDistributedTensor_& min_tensor,
+                                   MaxDistributedTensor_& max_tensor,
+                                   int& cur_count_, // -> prefer init as zero
+                                   const int& max_count_)
+    {
+        constexpr auto I0 = number<0>{};
+        constexpr auto I1 = number<1>{};
+
+        constexpr auto spans = XDistributedTensor_::get_distributed_spans();
+
+        sweep_tile_span(spans[I1], [&](auto dstr_idx_i1) {
+            if(cur_count_ < max_count_)
+            {
+                ++cur_count_;
+                sweep_tile_span(spans[I0], [&](auto dstr_idx_i0) {
+                    constexpr auto in_dstr_idx  = make_tuple(dstr_idx_i0, dstr_idx_i1);
+                    constexpr auto out_dstr_idx = make_tuple(dstr_idx_i0);
+
+                    auto x = ck_tile::type_convert<ComputeDataType>(x_tensor[in_dstr_idx]);
+                    mean_tensor(out_dstr_idx) += x;
+                    var_tensor(out_dstr_idx) += x * x;
+                    min_tensor(out_dstr_idx) = ck_tile::min(x, min_tensor(out_dstr_idx));
+                    max_tensor(out_dstr_idx) = ck_tile::max(x, max_tensor(out_dstr_idx));
                 });
             }
         });
@@ -162,7 +198,7 @@ struct BlockNormReduceSync
                         // pull data from remote lane
                         const auto v_remote_mean = warp_shuffle(v_local_mean, src_lane);
                         const auto v_remote_var  = warp_shuffle(v_local_var, src_lane);
-                        if(kWelford)
+                        if constexpr(kWelford)
                         {
                             const auto v_remote_count = warp_shuffle(v_local_count, src_lane);
 
@@ -192,6 +228,95 @@ struct BlockNormReduceSync
             }
         });
     }
+
+    template <typename MeanDistributedTensor_,
+              typename VarDistributedTensor_,
+              typename MinDistributedTensor_,
+              typename MaxDistributedTensor_>
+    CK_TILE_DEVICE void
+    operator()(MeanDistributedTensor_& mean_tensor,
+               VarDistributedTensor_& var_tensor,
+               MinDistributedTensor_& min_tensor,
+               MaxDistributedTensor_& max_tensor,
+               int& count)
+    {
+        using Dstr             = typename MeanDistributedTensor_::StaticTileDistribution;
+        using DstrEncode       = typename Dstr::DstrEncode;
+        using DstrEncodeDetail = typename DstrEncode::detail;
+
+        static_assert(std::is_same_v<Dstr, typename VarDistributedTensor_::StaticTileDistribution>,
+                      "wrong!");
+
+        constexpr index_t NDimP = Dstr::get_num_of_dimension_p();
+        constexpr index_t NDimR = Dstr::get_num_of_dimension_r();
+
+        constexpr index_t idim_p_lane = NDimP - 1;
+
+        // const auto ps_idx = make_array<index_t>(get_warp_id(), get_lane_id());
+        // const auto rs_idx =
+        //     mean_tensor.get_tile_distribution().calculate_rs_index_from_ps_index(ps_idx);
+
+        constexpr index_t thread_buf_size = MeanDistributedTensor_::get_thread_buffer_size();
+        static_assert(thread_buf_size == VarDistributedTensor_::get_thread_buffer_size());
+
+        const int original_count = count;
+
+        // loop over thread data
+        static_for<0, thread_buf_size, 1>{}([&](auto i) {
+            auto v_local_mean  = mean_tensor.get_thread_buffer()[i];
+            auto v_local_var   = var_tensor.get_thread_buffer()[i];
+            auto v_local_min   = min_tensor.get_thread_buffer()[i];
+            auto v_local_max   = max_tensor.get_thread_buffer()[i];
+            auto v_local_count = original_count;
+
+            // cross-lane reduce for replication
+            // only reduce on R dimension correspond to lane
+            // (lane id maps to this R dimension)
+            static_for<0, NDimR, 1>{}([&](auto idim_r) {
+                // FIXME: nasty to use does_p_own_r_
+                if constexpr(DstrEncodeDetail::does_p_own_r_[idim_p_lane][idim_r])
+                {
+                    constexpr index_t r_length = DstrEncode::rs_lengths_[idim_r];
+
+                    constexpr index_t lid_over_rid_derivative =
+                        DstrEncodeDetail::ps_over_rs_derivative_[idim_p_lane][idim_r];
+
+                    static_assert(is_power_of_two_integer(r_length),
+                                  "wrong! only support power of 2 reduction");
+
+                    constexpr index_t nstage = integer_log2_floor(r_length);
+
+                    // reduction sweep forward
+                    static_for<0, nstage, 1>{}([&](auto istage) {
+                        // xor
+                        index_t src_lane =
+                            (__lane_id()) ^
+                            (number<lid_over_rid_derivative << istage.value>{}.value);
+
+                        // pull data from remote lane
+                        const auto v_remote_mean = warp_shuffle(v_local_mean, src_lane);
+                        const auto v_remote_var  = warp_shuffle(v_local_var, src_lane);
+                        v_local_mean += v_remote_mean;
+                        v_local_var += v_remote_var;
+                        const auto v_remote_min = warp_shuffle(v_local_min, src_lane);
+                        const auto v_remote_max  = warp_shuffle(v_local_max, src_lane);
+                        v_local_min = ck_tile::min(v_remote_min, v_local_min);
+                        v_local_max = ck_tile::max(v_remote_max, v_local_min);
+                    });
+                }
+            });
+
+            mean_tensor.get_thread_buffer()(i) = v_local_mean;
+            var_tensor.get_thread_buffer()(i)  = v_local_var;
+            max_tensor.get_thread_buffer()(i)  = v_local_min;
+            min_tensor.get_thread_buffer()(i)  = v_local_max;
+            if constexpr(kWelford)
+            {
+                count = v_local_count;
+            }
+        });
+    }
+
 };
 
 template <typename Problem_, typename Policy_ = void>
@@ -290,7 +415,7 @@ struct BlockNormReduceCrossWarpSync
                 smem_dtype local_scratch_;
                 local_scratch_[0] = bit_cast<float>(mean_tensor.get_thread_buffer()[i]);
                 local_scratch_[1] = bit_cast<float>(var_tensor.get_thread_buffer()[i]);
-                if(kWelford)
+                if constexpr(kWelford)
                 {
                     local_scratch_[2] = bit_cast<float>(count);
                 }
@@ -326,7 +451,7 @@ struct BlockNormReduceCrossWarpSync
                 const smem_dtype v_remote = all_scratch[i_0 * num_reduce_warps + i_1];
                 const auto v_remote_mean  = bit_cast<DataType>(v_remote[0]);
                 const auto v_remote_var   = bit_cast<DataType>(v_remote[1]);
-                if(kWelford)
+                if constexpr(kWelford)
                 {
                     const auto v_remote_count = bit_cast<int>(v_remote[2]);
 
@@ -347,8 +472,100 @@ struct BlockNormReduceCrossWarpSync
 
             mean_tensor.get_thread_buffer()(i_0) = v_local_mean;
             var_tensor.get_thread_buffer()(i_0)  = v_local_var;
-            if(kWelford)
+            if constexpr(kWelford)
                 count = v_local_count;
+        });
+    }
+
+    template <typename MeanDistributedTensor_,
+              typename VarDistributedTensor_,
+              typename MinDistributedTensor_,
+              typename MaxDistributedTensor_>
+    CK_TILE_DEVICE void operator()(MeanDistributedTensor_& mean_tensor,
+                                   VarDistributedTensor_& var_tensor,
+                                   MinDistributedTensor_& min_tensor,
+                                   MaxDistributedTensor_& max_tensor,
+                                   int& count,
+                                   void* smem)
+    {
+        using DataType = typename MeanDistributedTensor_::DataType;
+        using Dstr     = typename MeanDistributedTensor_::StaticTileDistribution;
+        // using DstrEncode       = typename Dstr::DstrEncode;
+        // using DstrEncodeDetail = typename DstrEncode::detail;
+
+        static_assert(std::is_same_v<Dstr, typename VarDistributedTensor_::StaticTileDistribution>,
+                      "wrong!");
+
+        constexpr index_t thread_buf_size = MeanDistributedTensor_::get_thread_buffer_size();
+        static_assert(thread_buf_size == VarDistributedTensor_::get_thread_buffer_size());
+
+        using fused_smem_dtype = fp32x4_t;
+        // Note: we always pack everything into fp32x4
+        fused_smem_dtype* smem_ptr      = reinterpret_cast<fused_smem_dtype*>(smem);
+        const index_t lane_id           = get_lane_id();
+        const index_t warp_id           = get_warp_id();
+        constexpr auto num_reduce_warps = GetReduceWarps<MeanDistributedTensor_>();
+        constexpr index_t num_warps     = BlockShape::BlockSize / get_warp_size();
+        const index_t smem_offset       = warp_id;
+
+        // skip if nonthing to do
+        if constexpr(num_reduce_warps == 1)
+            return;
+
+        // store into smem only for lane-0 within one warp
+        if(lane_id == 0)
+        {
+            static_for<0, thread_buf_size, 1>{}([&](auto i) {
+                fused_smem_dtype local_scratch_;
+                local_scratch_[0] = bit_cast<float>(mean_tensor.get_thread_buffer()[i]);
+                local_scratch_[1] = bit_cast<float>(var_tensor.get_thread_buffer()[i]);
+                local_scratch_[2] = bit_cast<float>(min_tensor.get_thread_buffer()[i]);
+                local_scratch_[3] = bit_cast<float>(max_tensor.get_thread_buffer()[i]);
+                smem_ptr[smem_offset + i * num_warps] = local_scratch_;
+            });
+        }
+        block_sync_lds();
+
+        // load from smem. here we let everythread to do compute :)
+        index_t local_warp_id = warp_id / num_reduce_warps;
+        index_t local_smem_os = local_warp_id * num_reduce_warps;
+        fused_smem_dtype all_scratch[thread_buf_size * num_reduce_warps];
+        static_for<0, thread_buf_size, 1>{}([&](auto i_0) {
+            static_for<0, num_reduce_warps, 1>{}([&](auto i_1) {
+                all_scratch[i_0 * num_reduce_warps + i_1] =
+                    smem_ptr[i_0 * num_warps + local_smem_os + i_1];
+            });
+        });
+        block_sync_lds(); // TODO: we don't need sync here
+
+        // const int original_count = count;
+
+        static_for<0, thread_buf_size, 1>{}([&](auto i_0) {
+            // TODO: use descriptor for this
+            auto v_local      = all_scratch[i_0 * num_reduce_warps];
+            auto v_local_mean = bit_cast<DataType>(v_local[0]);
+            auto v_local_var  = bit_cast<DataType>(v_local[1]);
+            auto v_local_min  = bit_cast<DataType>(v_local[2]);
+            auto v_local_max  = bit_cast<DataType>(v_local[3]);
+
+            // further reduce mean/var
+            static_for<0, num_reduce_warps - 1, 1>{}([&](auto i_1_n1) {
+                constexpr auto i_1        = number<i_1_n1 + 1>{};
+                const fused_smem_dtype v_remote = all_scratch[i_0 * num_reduce_warps + i_1];
+                const auto v_remote_mean  = bit_cast<DataType>(v_remote[0]);
+                const auto v_remote_var   = bit_cast<DataType>(v_remote[1]);
+                v_local_mean += v_remote_mean;
+                v_local_var += v_remote_var;
+                const auto v_remote_min   = bit_cast<DataType>(v_remote[2]);
+                const auto v_remote_max   = bit_cast<DataType>(v_remote[3]);
+                v_local_min = ck_tile::min(v_remote_min, v_local_min);
+                v_local_max = ck_tile::max(v_remote_max, v_local_max);
+            });
+
+            mean_tensor.get_thread_buffer()(i_0) = v_local_mean;
+            var_tensor.get_thread_buffer()(i_0)  = v_local_var;
+            min_tensor.get_thread_buffer()(i_0)  = v_local_min;
+            max_tensor.get_thread_buffer()(i_0)  = v_local_max;
         });
     }
 };

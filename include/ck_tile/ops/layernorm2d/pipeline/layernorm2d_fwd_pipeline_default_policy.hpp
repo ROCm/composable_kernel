@@ -95,7 +95,7 @@ struct Layernorm2dFwdPipelineDefaultPolicy
             using mean_var_block_tile =
                 decltype(block_welford::template MakeMeanVarBlockTile<x_block_tile>());
 
-            return GetBlockNormReduceCrossWarpSync<Problem>()
+            return 2 * GetBlockNormReduceCrossWarpSync<Problem>()
                 .template GetSmemSize<mean_var_block_tile>();
         }
         else

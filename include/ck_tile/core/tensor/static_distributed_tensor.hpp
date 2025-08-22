@@ -48,6 +48,11 @@ struct static_distributed_tensor
         return StaticTileDistribution{};
     }
 
+    CK_TILE_HOST_DEVICE static constexpr auto is_valid()
+    {
+        return true;
+    }
+
     CK_TILE_HOST_DEVICE static constexpr auto get_distributed_spans()
     {
         return StaticTileDistribution::get_distributed_spans();

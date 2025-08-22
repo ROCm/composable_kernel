@@ -367,7 +367,7 @@ struct Layernorm2dFwd
 
                     return pad_tensor_view(tmp_0_,
                                            make_tuple(number<Block_N>{}),
-                                           sequence<false>{}); // sm_scale no need pad
+                                           sequence<kPadN>{}); // sm_scale no need pad
                 }();
                 return make_tile_window(win_, make_tuple(number<Block_N>{}), {0});
             }

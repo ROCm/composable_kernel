@@ -52,7 +52,20 @@ struct Layernorm2dFwdPipelineOnePass
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
-        return Policy::template GetSmemSize<Problem>();
+        return 2 * Policy::template GetSmemSize<Problem>();
+    }
+
+    CK_TILE_DEVICE static constexpr auto MakeSmoothInputScaleTileDistribution()
+    {
+        using S = Problem::BlockShape;
+        return make_static_tile_distribution(
+            tile_distribution_encoding<
+                sequence<S::WarpPerBlock_M, S::ThreadPerWarp_M>,
+                tuple<sequence<S::Repeat_N, S::WarpPerBlock_N, S::ThreadPerWarp_N, S::Vector_N>>,
+                tuple<sequence<0, 1>, sequence<0, 1>>,
+                tuple<sequence<0, 1>, sequence<1, 2>>,
+                sequence<1, 1>,
+                sequence<0, 3>>{});
     }
 
     template <typename XWindow,
@@ -117,6 +130,9 @@ struct Layernorm2dFwdPipelineOnePass
         const auto gamma = load_tile(gamma_window);
         const auto beta  = load_tile(beta_window);
 
+        const auto sm_scale_window =
+            make_tile_window(sm_scale_window_, MakeSmoothInputScaleTileDistribution());
+
         auto acc = cast_tile<ComputeDataType>(x);
 
         if constexpr(kXbias == Layernorm2dXBiasEnum::ADD_BIAS)
@@ -147,6 +163,9 @@ struct Layernorm2dFwdPipelineOnePass
         block_norm_reduce(acc, mean, var, cur_count, max_count);
         block_norm_reduce_sync(mean, var, cur_count);
         block_norm_reduce_cross_warp_sync(mean, var, cur_count, smem);
+
+
+        auto sm_scale = load_tile(sm_scale_window);
         if(kWelford)
         {
             block_tile_welford_post_scale_var(var, cur_count, constant<kFastFDiv>{});
@@ -189,6 +208,11 @@ struct Layernorm2dFwdPipelineOnePass
 
             auto ln_ = (acc[idx] - mean_[i_idx]) * inv_std[i_idx] * gamma_ + beta_;
             ln(idx)  = ln_;
+            if constexpr(sm_scale.is_valid())
+            {
+                const auto xs_ = type_convert<ComputeDataType>(sm_scale[j_idx]);
+                ln(idx)  = ln(idx) * xs_;
+            }
         });
 
         if constexpr(kFusedQuant == Layernorm2dFusedQuantEnum::DYNAMIC_QUANT ||

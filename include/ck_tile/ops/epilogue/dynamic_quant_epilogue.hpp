@@ -88,6 +88,23 @@ struct DynamicQuantEpilogue
                 sequence<0, 1, 1>,
                 sequence<0, 0, 3>>{});
 #else
+        // return make_static_tile_distribution(
+        //     tile_distribution_encoding<
+        //         sequence<S::WarpPerBlock_M, S::ThreadPerWarp_M>,
+        //         tuple<sequence<S::Repeat_N, S::WarpPerBlock_N, S::ThreadPerWarp_N, S::Vector_N>>,
+        //         tuple<sequence<0, 1>, sequence<0, 1>>,
+        //         tuple<sequence<0, 1>, sequence<1, 2>>,
+        //         sequence<1, 1>,
+        //         sequence<0, 3>>{});
+    //     return make_static_tile_distribution(
+    //         tile_distribution_encoding<
+    //             sequence<>,
+				// tuple<sequence<1>,
+				// 	  sequence<S::WarpPerBlock_N, S::ThreadPerWarp_N, S::Vector_N>>,
+				// tuple<sequence<2>, sequence<2>>,
+				// tuple<sequence<1>, sequence<2>>,
+				// sequence<2, 2>,
+				// sequence<0, 3>>{});
         return make_static_tile_distribution(
             tile_distribution_encoding<
                 sequence<S::WarpPerBlock_M, S::ThreadPerWarp_M>,
@@ -96,6 +113,15 @@ struct DynamicQuantEpilogue
                 tuple<sequence<0, 1>, sequence<1, 2>>,
                 sequence<1, 1>,
                 sequence<0, 3>>{});
+        // return make_static_tile_distribution(
+        //     tile_distribution_encoding<
+        //         sequence<1>,
+        //         tuple<sequence<S::WarpPerBlock_M, S::ThreadPerWarp_M>,
+        //               sequence<S::Repeat_N, S::WarpPerBlock_N, S::ThreadPerWarp_N, S::Vector_N>>,
+        //         tuple<sequence<0, 1>, sequence<0, 1>>,
+        //         tuple<sequence<0, 1>, sequence<1, 2>>,
+        //         sequence<1, 1>,
+        //         sequence<0, 3>>{});
 #endif
     }
 
@@ -108,17 +134,14 @@ struct DynamicQuantEpilogue
     template <typename ODramWindowTmp, typename YScaleWindow, typename OAccTile>
     CK_TILE_DEVICE auto Impl(ODramWindowTmp& o_dram_window_tmp,
                              YScaleWindow& y_scale_window,
-                             const OAccTile& o_acc_tile,
+                             OAccTile& o_acc_tile,
                              void* smem)
     {
         auto reduce                = GetBlockReduce2d();
         auto reduce_sync           = GetBlockReduce2dSync();
         auto reduce_crosswarp_sync = GetBlockReduce2dCrossWarpSync();
 
-        auto o_acc_tmp = o_acc_tile;
-
         const auto f_absmax = [](auto acc_, auto v_0_) { return max(acc_, abs(v_0_)); };
-
         auto row_absmax = [&]() {
             constexpr auto y_size_per_row =
                 OAccTile{}.get_tile_distribution().get_ys_to_d_descriptor().get_lengths().at(
@@ -133,39 +156,49 @@ struct DynamicQuantEpilogue
                                  : "v"(acc_), "v"(v_0_), "v"(v_1_));
                     return rtn;
                 };
-                return reduce(o_acc_tmp, type_convert<AccDataType>(0), f_max3, sequence<1, 2>{});
+                return reduce(o_acc_tile, type_convert<AccDataType>(0), f_max3, sequence<1, 2>{});
             }
             else
             {
-                return reduce(o_acc_tmp, type_convert<AccDataType>(0), f_absmax);
+                return reduce(o_acc_tile, type_convert<AccDataType>(0), f_absmax);
             }
         }();
         reduce_sync(row_absmax, f_absmax);
         reduce_crosswarp_sync(row_absmax, smem, f_absmax);
 
         // here y_scale is Acc TYpe, need convert to YScale type later
+		auto max_scale = 1 / type_convert<AccDataType>(numeric<ODataType>::max());
         auto y_scale = tile_elementwise_in(
             [&](const auto& v_) {
-                return v_ / type_convert<AccDataType>(numeric<ODataType>::max());
+                return v_ * max_scale ;
             },
             row_absmax);
 
         store_tile(y_scale_window, cast_tile<YScaleDataType>(y_scale));
 
-        sweep_tile(o_acc_tmp, [&](auto idx) {
-            constexpr auto row_id = make_tuple(idx[number<0>{}]);
-            o_acc_tmp(idx)        = o_acc_tmp[idx] / y_scale(row_id);
-        });
+        if constexpr(y_scale.get_thread_buffer_size() == 1)
+        {
+            auto scale = 1 / y_scale.get_thread_buffer().get(0);
+            sweep_tile(o_acc_tile, [&](auto idx) {
+                o_acc_tile(idx)       = o_acc_tile[idx] * scale ;
+            });
+        }
+        else
+        {
+            sweep_tile(o_acc_tile, [&](auto idx) {
+                constexpr auto row_id = make_tuple(idx[number<0>{}]);
+                o_acc_tile(idx)       = o_acc_tile[idx] / y_scale(row_id);
+            });
+        }
 
-        // TODO: this is ugly
         if constexpr(UseRawStore && (kPadM || kPadN))
         {
-            store_tile_raw(o_dram_window_tmp, cast_tile<ODataType>(o_acc_tmp));
+            store_tile_raw(o_dram_window_tmp, cast_tile<ODataType>(o_acc_tile));
             buffer_store_fence();
         }
         else
         {
-            store_tile(o_dram_window_tmp, cast_tile<ODataType>(o_acc_tmp));
+            store_tile(o_dram_window_tmp, cast_tile<ODataType>(o_acc_tile));
         }
     }
 
@@ -180,23 +213,21 @@ struct DynamicQuantEpilogue
     CK_TILE_DEVICE auto operator()(ODramWindowTmp& o_dram_window_tmp,
                                    const SmoothScaleWindow& sm_scale_window_,
                                    YScaleWindow& y_scale_window,
-                                   const OAccTile& o_acc_tile,
+                                   OAccTile& o_acc_tile,
                                    void* smem)
     {
-        const auto sm_scale_window =
-            make_tile_window(sm_scale_window_, MakeSmoothInputScaleTileDistribution());
+        // const auto sm_scale_window =
+        //     make_tile_window(sm_scale_window_, MakeSmoothInputScaleTileDistribution());
+        //
+        // auto sm_scale = load_tile(sm_scale_window);
+        //
+        // sweep_tile(o_acc_tile, [&](auto idx) {
+        //     constexpr auto j_idx = make_tuple(idx[number<1>{}]);
+        //     const auto xs_       = type_convert<AccDataType>(sm_scale[j_idx]);
+        //     o_acc_tile(idx)      = o_acc_tile(idx) * xs_;
+        // });
 
-        auto sm_scale = load_tile(sm_scale_window);
-
-        auto o_acc_tmp = o_acc_tile;
-
-        sweep_tile(o_acc_tmp, [&](auto idx) {
-            constexpr auto j_idx = make_tuple(idx[number<1>{}]);
-            const auto xs_       = type_convert<AccDataType>(sm_scale[j_idx]);
-            o_acc_tmp(idx)       = o_acc_tmp(idx) * xs_;
-        });
-
-        Impl(o_dram_window_tmp, y_scale_window, o_acc_tmp, smem);
+        Impl(o_dram_window_tmp, y_scale_window, o_acc_tile, smem);
     }
 
     // Dynamic Quant
@@ -208,5 +239,22 @@ struct DynamicQuantEpilogue
     {
         Impl(o_dram_window_tmp, y_scale_window, o_acc_tile, smem);
     }
+
+    template <typename ODramWindowTmp, typename OAccTile>
+    CK_TILE_DEVICE auto
+    operator()(ODramWindowTmp& o_dram_window_tmp, const OAccTile& o_acc_tile, void* = nullptr) const
+    {
+        // TODO: this is ugly
+        if constexpr(UseRawStore && (kPadM || kPadN))
+        {
+			store_tile_raw(o_dram_window_tmp, cast_tile<ODataType>(o_acc_tile));
+            buffer_store_fence();
+        }
+        else
+        {
+			store_tile(o_dram_window_tmp, cast_tile<ODataType>(o_acc_tile));
+        }
+    }
+
 };
 } // namespace ck_tile
