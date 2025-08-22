@@ -58,6 +58,19 @@ struct BlockFmhaPipelineQRKSVS
     static constexpr bool kStoreLSE         = Problem::kStoreLSE;
     static constexpr bool kHasDropout       = Problem::kHasDropout;
 
+    using Gemm_0 = remove_cvref_t<decltype(Policy::template GetQKBlockGemm<Problem>())>;
+    static constexpr auto WG0_config = Gemm_0::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+    using WG0                        = remove_cvref_t<decltype(WG0_config.template at<0>())>;
+    static constexpr index_t MWarp0  = WG0_config.template at<1>();
+    static constexpr index_t NWarp0  = WG0_config.template at<2>();
+    static constexpr index_t WG0_kM  = WG0 ::WarpGemmAttribute::Impl::kM;
+    static constexpr index_t WG0_kN  = WG0 ::WarpGemmAttribute::Impl::kN;
+    static constexpr index_t WG0_kK  = WG0 ::WarpGemmAttribute::Impl::kK;
+    static constexpr uint32_t DS_READ_BARRIER = 0x100; // Barrier for DS (data share) read
+    static constexpr uint32_t MFMA_BARRIER = 0x008; // Barrier for MFMA (matrix multiply-accumulate)
+    static constexpr int num_mfma_insts =
+        (kM0 / WG0_kM) * (kN0 / WG0_kN) * (kK0 / WG0_kK) / (MWarp0 * NWarp0);
+
     static_assert((CK_TILE_FMHA_FWD_FAST_EXP2 &&
                    (kHasLogitsSoftCap && Problem::BiasEnum == BlockAttentionBiasEnum::NO_BIAS ||
                     !kHasLogitsSoftCap)) ||
@@ -281,20 +294,23 @@ struct BlockFmhaPipelineQRKSVS
         index_t i_total_loops      = 0;
         constexpr index_t k0_loops = kQKHeaddim / kK0;
         constexpr index_t k1_loops = kN0 / kK1;
-        auto group_barrier_seq = (kQKHeaddim == 256)
-    ? []() {
-        static_for<0, 2, 1>{}([&](auto) {
-        __builtin_amdgcn_sched_group_barrier(0x100, 2, 0); // DS read
-        __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
-        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-        __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
-        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-        __builtin_amdgcn_sched_group_barrier(0x008, 4, 0); // MFMA
-        });
-    }
-    : []() {};
         // Use compile-time conditional for group barrier sequence
-        // (No runtime lambda selection)
+        - // (No runtime lambda selection)
+            auto schedule_gemm0 = [] {
+            if constexpr(kQKHeaddim == 256)
+            {
+                static_assert(num_mfma_insts % 8 == 0);
+                static_for<0, num_mfma_insts / 8, 1>{}([&](auto) {
+                    __builtin_amdgcn_sched_group_barrier(DS_READ_BARRIER, 2, 0); // DS read
+                    __builtin_amdgcn_sched_group_barrier(MFMA_BARRIER, 2, 0);    // MFMA
+                    __builtin_amdgcn_sched_group_barrier(DS_READ_BARRIER, 1, 0); // DS read
+                    __builtin_amdgcn_sched_group_barrier(MFMA_BARRIER, 2, 0);    // MFMA
+                    __builtin_amdgcn_sched_group_barrier(DS_READ_BARRIER, 1, 0); // DS read
+                    __builtin_amdgcn_sched_group_barrier(MFMA_BARRIER, 4, 0);    // MFMA
+                });
+            }
+        };
+
         static_assert(2 <= k0_loops);
         static_assert(1 <= k1_loops);
         do
@@ -336,7 +352,7 @@ struct BlockFmhaPipelineQRKSVS
                                           sequence<0, i_k0 * kK0>{},
                                           sequence<kM0, (i_k0 + 1) * kK0>{}),
                            k_lds_window);
-                    group_barrier_seq();
+                    schedule_gemm0();
                     block_sync_lds();
                     move_tile_window(k_dram_window, {0, kK0});
 
@@ -355,7 +371,7 @@ struct BlockFmhaPipelineQRKSVS
                                       sequence<0, (k0_loops - 2) * kK0>{},
                                       sequence<kM0, (k0_loops - 1) * kK0>{}),
                        k_lds_window);
-                group_barrier_seq();
+                schedule_gemm0();
                 block_sync_lds();
 
                 store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
@@ -366,7 +382,7 @@ struct BlockFmhaPipelineQRKSVS
                                       sequence<0, (k0_loops - 1) * kK0>{},
                                       sequence<kM0, k0_loops * kK0>{}),
                        k_lds_window);
-                group_barrier_seq();
+                schedule_gemm0();
             }
 
             // STAGE 2, scale_s, add bias, mask, softmax
