@@ -95,11 +95,11 @@ float gemm_calc(const ck_tile::Block_quant_GemmHostArgs& args, const ck_tile::st
                                                  GemmPipelineProblem::kBlockSize,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,
-                                                 GemmConfig::M_Warp,
-                                                 GemmConfig::N_Warp,
-                                                 GemmConfig::M_Warp_Tile,
-                                                 GemmConfig::N_Warp_Tile,
-                                                 GemmConfig::K_Warp_Tile,
+                                                 GemmConfig_fp8::M_Warp,
+                                                 GemmConfig_fp8::N_Warp,
+                                                 GemmConfig_fp8::M_Warp_Tile,
+                                                 GemmConfig_fp8::N_Warp_Tile,
+                                                 GemmConfig_fp8::K_Warp_Tile,
                                                  UniversalGemmProblem::TransposeC,
                                                  memory_operation,
                                                  GemmConfig::NumWaveGroups>>;
@@ -163,7 +163,7 @@ float gemm_calc(const ck_tile::Block_quant_GemmHostArgs& args, const ck_tile::st
                         hipGetErrorString(hipMemsetAsync(
                             args.c_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
                 };
-                ave_time = ck_tile::launch_kernel_preprocess(
+                ave_time = ck_tile::launch_kernel_time_mask(
                     s,
                     run_flush_cache,
                     ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(

@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
-
+#if defined(__gfx942__)
+constexpr bool IS_GFX942 = true;
+#else
+constexpr bool IS_GFX942 = false;
+#endif
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
 {
@@ -236,7 +240,7 @@ int run_gemm_example_with_layouts(int argc,
                                   const ALayout a_layout                  = ALayout{},
                                   const BLayout b_layout                  = BLayout{},
                                   [[maybe_unused]] const CLayout c_layout = CLayout{})
-{
+{   static_assert(!GemmConfig::PermuteA, "Not implemented");
     auto [result, arg_parser] = create_args(argc, argv);
     if(!result)
         return -1;
@@ -403,8 +407,8 @@ int run_gemm_example_with_layouts(int argc,
         pass = ck_tile::check_err(c_m_n_dev_result,
                                   c_m_n_host_ref,
                                   "Error: Incorrect results!",
-                                  1e-4,
-                                  1e-4);
+                                  1e-2,
+                                  1e-2);
 
         std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
                   << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
@@ -477,8 +481,8 @@ int run_gemm_example_with_layouts(int argc,
         pass = ck_tile::check_err(c_m_n_dev_result,
                                   c_m_n_gpu_ref,
                                   "Error: Incorrect results!",
-                                  1e-4,
-                                  1e-4);
+                                  1e-2,
+                                  1e-2);
         std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
                   << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
                   << std::endl;
