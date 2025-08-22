@@ -18,6 +18,13 @@ class GemmProfiler
                    std::vector<std::function<std::tuple<std::string, float>(
                        ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>& callables)
     {
+
+        printf("Warptile values: (%d, %d, %d)\n",
+               std::get<0>(warptilevalues),
+               std::get<1>(warptilevalues),
+               std::get<2>(warptilevalues));
+        printf("Callables size: %zu\n", callables.size());
+
         const ALayout layout_a = ALayout{};
         const BLayout layout_b = BLayout{};
         const CLayout layout_c = CLayout{};
@@ -87,10 +94,12 @@ class GemmProfiler
         c_m_n_dev_buf.SetZero();
 
         //[DELETE] Get the right values for these (Should get it from kernel name)
+        printf("I AM HERE 1\n");
         static ck_tile::index_t N_Warp_Tile           = std::get<1>(warptilevalues);
         static ck_tile::index_t K_Warp_Tile           = std::get<2>(warptilevalues);
         ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b(b_k_n, N_Warp_Tile, K_Warp_Tile);
         b_k_n_dev_buf.ToDevice(b_shuffle_host.data());
+        printf("I AM HERE 2\n");
 
         c_m_n_dev_result.SetZero();
 

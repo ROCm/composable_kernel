@@ -54,14 +54,12 @@
     },
     "scheduler": {
       "values": [
-        "intrawave",
-        "interwave"
+        "intrawave"
       ]
     },
     "epilogue": {
       "values": [
-        "cshuffle",
-        "default"
+        "cshuffle"
       ]
     },
     "pad_m": {

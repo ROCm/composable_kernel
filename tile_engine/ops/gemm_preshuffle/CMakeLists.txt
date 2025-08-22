@@ -1,4 +1,4 @@
-set(GEMM_PRESHUFFLE_DATATYPE "fp16" CACHE STRING "List of datatypes for GEMM Preshuffle(semicolon-separated)")
+set(GEMM_PRESHUFFLE_DATATYPE "fp16;bf16;fp8;bf8" CACHE STRING "List of datatypes for GEMM Preshuffle(semicolon-separated)")
 set(GEMM_PRESHUFFLE_LAYOUT "rcr" CACHE STRING "List of layout for GEMM Preshuffle(semicolon-separated)")
 
 function(build_gemm_preshuffle_for_datatype_layout datatype layout)

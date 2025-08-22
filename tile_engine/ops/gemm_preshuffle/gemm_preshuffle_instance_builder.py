@@ -665,6 +665,7 @@ struct GemmPreshuffleDispatcher {
         auto& kernel_map = get_kernel_map();
         if(!kernel_map.empty()) return;
         \n"""
+
         for trait, tile_valid_params in self.valid_trait_tile_combinations.items():
             content += f"""         kernel_map["{trait}"] = {{"""
             for _, tile in enumerate(tile_valid_params):
@@ -711,19 +712,25 @@ struct GemmPreshuffleDispatcher {
 
                     if j == len(tile) - 1:
                         content += """
-                                } """
+                            } """
                     else:
                         content += """
-                                }, """
+                    }, """
 
-                    content += """  },"""
+                    content += """
+                    }, """
 
                     content += f"""
                     std::make_tuple({warp_tile_m},{warp_tile_n},{warp_tile_k})"""
 
-                    content += """  };\n """
+                    # content += f"""
+                    # std::make_tuple(10,10,10)"""
+
+            content += """
+            };\n """
 
         content += """    }
+
 
     template <typename Kernel>
     static std::tuple<std::string, float> run_kernel(ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream)
