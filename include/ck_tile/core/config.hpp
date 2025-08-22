@@ -262,18 +262,6 @@
 #endif
 #endif
 
-#ifndef CK_TILE_USE_WMMA
-#if defined(__HIP_DEVICE_COMPILE__)
-#if defined(__gfx11__) || defined(__gfx12__)
-#define CK_TILE_USE_WMMA 1
-#else
-#define CK_TILE_USE_WMMA 0
-#endif
-#else
-#define CK_TILE_USE_WMMA 0
-#endif
-#endif
-
 #ifndef CK_TILE_USE_BUFFER_ADDRESSING_BUILTIN
 #if __clang_major__ >= 20
 #define CK_TILE_USE_BUFFER_ADDRESSING_BUILTIN 1
