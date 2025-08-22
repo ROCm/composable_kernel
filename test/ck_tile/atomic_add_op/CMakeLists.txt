@@ -1,0 +1,1 @@
+add_gtest_executable(test_atomic test_atomic.cpp)
