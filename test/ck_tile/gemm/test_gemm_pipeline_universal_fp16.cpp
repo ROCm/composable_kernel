@@ -6,4 +6,4 @@
 #include "test_gemm_pipeline_smoke_run_test.inc"
 #include "test_gemm_pipeline_universal_run_test.inc"
 
-int main() { return run_gemm_combinations("fp16"); }
+int main() { return run_gemm_combinations<ck_tile::half_t>(); }
