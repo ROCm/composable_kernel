@@ -347,22 +347,19 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
 
         auto bias_dram_window =
-            make_tile_window(Policy::template TransformXDramTensorView<QDataType>(
-                                 bias_dram_block_window_tmp.get_bottom_tensor_view()),
+            make_tile_window(bias_dram_block_window_tmp.get_bottom_tensor_view(),
                              bias_dram_block_window_tmp.get_window_lengths(),
                              {seqlen_q_start, bias_origin.at(number<1>{})},
                              Policy::template MakeBiasTileDistribution<Problem>());
 
         auto bias_lds = make_tensor_view<address_space_enum::lds>(
-            bias_lds_ptr, Policy::template MakeBiasLdsWriteBlockDescriptor<Problem>());
+            bias_lds_ptr, Policy::template MakeBiasLdsBlockDescriptor<Problem>());
         auto bias_lds_write_window =
             make_tile_window(bias_lds, make_tuple(number<kM0>{}, number<kN0>{}), {0, 0});
 
-        auto bias_lds_read = make_tensor_view<address_space_enum::lds>(
-            bias_lds_ptr, Policy::template MakeBiasLdsReadBlockDescriptor<Problem>());
         auto bias_s_lds_read_window =
-            make_tile_window(bias_lds_read,
-                             make_tuple(number<kM0>{}, number<kN0>{}),
+            make_tile_window(bias_lds_write_window.get_bottom_tensor_view(),
+                             bias_lds_write_window.get_window_lengths(),
                              bias_lds_write_window.get_window_origin(),
                              Policy::template MakeBiasSTileDistribution<decltype(gemm_0)>());
 
@@ -500,8 +497,11 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
                 // STAGE 2, Scale, Add bias, Mask, Softmax, Dropout
                 if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
                 {
-                    async_load_tile(bias_lds_write_window, bias_dram_window);
-                    __builtin_amdgcn_s_waitcnt(3952);
+                    const auto bias_tile    = load_tile(bias_dram_window);
+                    auto shuffled_bias_tile = make_static_distributed_tensor<BiasDataType>(
+                        Policy::template MakeShuffledBiasTileDistribution<Problem>());
+                    shuffle_tile(shuffled_bias_tile, bias_tile);
+                    store_tile(bias_lds_write_window, shuffled_bias_tile);
                     block_sync_lds();
                     auto bias_s_tile = load_tile(bias_s_lds_read_window);
                     tile_elementwise_inout(
