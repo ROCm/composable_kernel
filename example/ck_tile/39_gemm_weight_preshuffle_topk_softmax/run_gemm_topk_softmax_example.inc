@@ -438,16 +438,17 @@ int run_gemm_example_with_layouts(int argc,
             ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
         c_m_n_host_ref.SetZero();
 
-        ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
-            a_m_k, b_k_n, c_m_n_host_ref);
-
-        // ck_tile::HostTensor<CDataType> c_m_n_host_ref_gemm(
-        //     ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
-        // c_m_n_host_ref_gemm.SetZero();
-
         // ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
-        //     a_m_k, b_k_n, c_m_n_host_ref_gemm);
-        // ck_tile::reference_softmax<CDataType, AccDataType, CDataType>(c_m_n_host_ref_gemm, c_m_n_host_ref, -1);
+        //     a_m_k, b_k_n, c_m_n_host_ref);
+
+        ck_tile::HostTensor<CDataType> c_m_n_host_ref_gemm(
+            ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
+        c_m_n_host_ref_gemm.SetZero();
+
+        ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
+            a_m_k, b_k_n, c_m_n_host_ref_gemm);
+        ck_tile::reference_softmax<CDataType, AccDataType, CDataType>(c_m_n_host_ref_gemm, c_m_n_host_ref, -1);
+
         const float max_accumulated_value =
             *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
         const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
@@ -470,12 +471,18 @@ int run_gemm_example_with_layouts(int argc,
             auto s_debug_ref  = c_m_n_host_ref.slice(s_begin, s_end);
             // auto s_debug_ref  = value_ref.slice(s_begin, s_end);
             // auto s_debug_ref  = index_ref.slice(s_begin, s_end);
+            // pass &= ck_tile::check_err(s_debug_host,
+            //                           s_debug_ref,
+            //                           std::string("[") + std::to_string(i_t) +
+            //                               std::string("] Value Error:"),
+            //                           rtol_atol.at(ck_tile::number<0>{}),
+            //                           rtol_atol.at(ck_tile::number<1>{}));
             pass &= ck_tile::check_err(s_debug_host,
                                       s_debug_ref,
                                       std::string("[") + std::to_string(i_t) +
                                           std::string("] Value Error:"),
-                                      rtol_atol.at(ck_tile::number<0>{}),
-                                      rtol_atol.at(ck_tile::number<1>{}));
+                                      5e-5,
+                                      5e-5);
             printf("row [%d]\n", i_t);
             for(std::size_t i = 0; i < s_debug_ref.size(); ++i) {
                 // const double o = *std::next(std::begin(s_debug_host), i);
