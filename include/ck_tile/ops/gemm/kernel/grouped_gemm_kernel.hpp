@@ -155,7 +155,17 @@ struct GroupedGemmKernel
         return group_count * sizeof(GemmTransKernelArg);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() -> dim3 { return dim3(kBlockSize); }
+    CK_TILE_HOST static auto BlockSize() -> dim3
+    {
+        if(is_wave32())
+        {
+            return dim3(kBlockSize / 2);
+        }
+        else
+        {
+            return dim3(kBlockSize);
+        }
+    }
 
     /**
      * @brief Get the maximum occupancy grid size for the persistent kernel on the current device.
