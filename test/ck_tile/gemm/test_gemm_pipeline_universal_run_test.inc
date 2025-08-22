@@ -349,5 +349,5 @@ int run_gemm_combinations()
             }
         }
     }
-    return is_success ? EXIT_SUCCESS : EXIT_FAILURE;
+    return is_success;
 }
