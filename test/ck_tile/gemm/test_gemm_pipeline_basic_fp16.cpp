@@ -6,5 +6,7 @@ int main()
 {
     bool is_success = true;
     is_success      = run_gemm_combinations<ck_tile::half_t>() && is_success;
+    is_success =
+        run_gemm_combinations<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>() && is_success;
     return is_success ? EXIT_SUCCESS : EXIT_FAILURE;
 }
