@@ -1646,7 +1646,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
             using ThreadwiseTransfer = std::conditional_t<
                 is_gfx650_and_bf16_output(),
-                    ThreadwiseTensorSliceTransfer_v1r3_pass_through<
+                    ThreadwiseTensorSliceTransfer_v1r3_packed_cast<
                                                     AccDataType,
                                                     CShuffleDataType,
                                                     decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
@@ -1763,20 +1763,20 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 // make sure it's safe to write to LDS
                 block_sync_lds();
 
-                if constexpr (is_gfx650_and_bf16_output())
-                {
-                    auto c_thread_packed_cast = PackedCastV2<
-                            M2,
-                            M4,
-                            CShuffleMXdlPerWavePerShuffle,
-                            CShuffleNXdlPerWavePerShuffle
-                        >{};
-                    c_thread_packed_cast.Run(
-                            c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2, // source desc (TensorDescriptor struct)
-                            sfc_c_vgpr.GetIndexTupleOfNumber(access_id),  // source slice origin
-                            c_thread_buf // source buffer
-                    );
-                }
+                // if constexpr (is_gfx650_and_bf16_output())
+                // {
+                //     auto c_thread_packed_cast = PackedCastV2<
+                //             M2,
+                //             M4,
+                //             CShuffleMXdlPerWavePerShuffle,
+                //             CShuffleNXdlPerWavePerShuffle
+                //         >{};
+                //     c_thread_packed_cast.Run(
+                //             c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2, // source desc (TensorDescriptor struct)
+                //             sfc_c_vgpr.GetIndexTupleOfNumber(access_id),  // source slice origin
+                //             c_thread_buf // source buffer
+                //     );
+                // }
 
                 // each thread write its data from VGPR to LDS
                 c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
@@ -2093,7 +2093,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
             using ThreadwiseTransfer = std::conditional_t<
                 is_gfx650_and_bf16_output(),
-                    ThreadwiseTensorSliceTransfer_v1r3_pass_through<
+                    ThreadwiseTensorSliceTransfer_v1r3_packed_cast<
                                                     AccDataType,
                                                     CShuffleDataType,
                                                     decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
@@ -2204,20 +2204,20 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 // make sure it's safe to write to LDS
                 block_sync_lds();
 
-                if constexpr (is_gfx650_and_bf16_output())
-                {
-                    auto c_thread_packed_cast = PackedCastV2<
-                            M2,
-                            M4,
-                            CShuffleMXdlPerWavePerShuffle,
-                            CShuffleNXdlPerWavePerShuffle
-                        >{};
-                    c_thread_packed_cast.Run(
-                            c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2, // source desc
-                            sfc_c_vgpr.GetIndexTupleOfNumber(access_id),  // source slice origin
-                            c_thread_buf // source buffer
-                    );
-                }
+                // if constexpr (is_gfx650_and_bf16_output())
+                // {
+                //     auto c_thread_packed_cast = PackedCastV2<
+                //             M2,
+                //             M4,
+                //             CShuffleMXdlPerWavePerShuffle,
+                //             CShuffleNXdlPerWavePerShuffle
+                //         >{};
+                //     c_thread_packed_cast.Run(
+                //             c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2, // source desc
+                //             sfc_c_vgpr.GetIndexTupleOfNumber(access_id),  // source slice origin
+                //             c_thread_buf // source buffer
+                //     );
+                // }
 
                 // each thread write its data from VGPR to LDS
                 c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,

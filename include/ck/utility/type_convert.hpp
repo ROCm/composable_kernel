@@ -106,6 +106,9 @@ inline __host__ __device__ void static_cast_float_to_bhalf_packed_v2(float& x, f
         bhalf2_t bf16x2;
     } converter;
 
+    // typedef __attribute__((__vector_size__(4))) __bf16 llvm_bf16x2_t;
+    // typedef __attribute__((__vector_size__(8))) float llvm_fp32x2_t;
+    // converter.bf16x2 = __builtin_convertvector(llvm_fp32x2_t{x, y}, llvm_bf16x2_t);
     converter.bf16x2 = {bf16_convert_rtn<bhalf_t>(x), bf16_convert_rtn<bhalf_t>(y)};
     x = converter.fp32;
 }
@@ -119,10 +122,11 @@ inline __host__ __device__ void static_cast_float_to_bhalf_packed_v2(float& x, f
  * @return      Converted vector of 2 bhalf_t.
  */
 template<>
-inline __host__ __device__ constexpr bhalf2_t bf16x2_convert_rne<bhalf2_t, float>(float x, float y)
+inline __host__ __device__ bhalf2_t bf16x2_convert_rne<bhalf2_t, float>(float x, float y)
 {
-    // for gfx950, the compiler will use device instruction v_cvt_pk_bf16_f32 to execute packed cast. 
-    return {bf16_convert_rtn<bhalf_t>(x), bf16_convert_rtn<bhalf_t>(y)};
+    typedef __attribute__((__vector_size__(4))) __bf16 llvm_bf16x2_t;
+    typedef __attribute__((__vector_size__(8))) float llvm_fp32x2_t;
+    return __builtin_convertvector(llvm_fp32x2_t{x, y}, llvm_bf16x2_t);
 }
 
 // convert fp16 to bfp16 via fp32 with RTN if higher precision is needed
