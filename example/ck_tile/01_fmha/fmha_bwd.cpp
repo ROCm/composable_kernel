@@ -809,20 +809,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::stream_config stream_config_v{
         nullptr, true, 0, 0, 1, arg_parser.get_str("timer") == std::string("gpu")};
-
-    printf("\nfmha_bwd_traits: hdim_q=%d, hdim_v=%d, data_type=%s, is_group_mode=%d, mask_type=%d, "
-           "bias_type=%d, has_dbias=%d, has_dropout=%d, is_store_randval=%d, is_deterministic=%d\n",
-           fmha_traits.hdim_q,
-           fmha_traits.hdim_v,
-           fmha_traits.data_type.c_str(),
-           fmha_traits.is_group_mode,
-           static_cast<int>(fmha_traits.mask_type),
-           static_cast<int>(fmha_traits.bias_type),
-           fmha_traits.has_dbias,
-           fmha_traits.has_dropout,
-           fmha_traits.is_store_randval,
-           fmha_traits.is_deterministic);
-    fflush(stdout);
     fmha_bwd(fmha_traits, fmha_args, stream_config_v);
 
     dq_buf.FromDevice(dq_host.data());
