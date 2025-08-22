@@ -121,6 +121,11 @@ inline auto create_args(int argc, char* argv[])
         .insert("structured_sparsity",
                 "false",
                 "Whether use sparsity kernel or not. Possible values are true or false. Default is "
+                "false")
+        .insert("json_output",
+                "false",
+                "Whether to output results in JSON format only. Possible values are true or false. "
+                "Default is "
                 "false");
 
     bool result = arg_parser.parse(argc, argv);
@@ -181,7 +186,8 @@ void benchmark_gemm_single(const ck_tile::ArgParser& arg_parser)
                     arg_parser.get_bool("log"),
                     arg_parser.get_str("csv_filename"),
                     arg_parser.get_bool("flush_cache"),
-                    arg_parser.get_int("rotating_count")};
+                    arg_parser.get_int("rotating_count"),
+                    arg_parser.get_bool("json_output")};
 
     // Get the profiler instance
     auto& profiler = GemmProfiler::instance(setting);

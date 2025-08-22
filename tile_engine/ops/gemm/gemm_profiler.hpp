@@ -180,7 +180,7 @@ class GemmProfiler
         kernel_instance.perf_result_.tflops_    = static_cast<float>(flop) / 1.E9 / avg_time;
         kernel_instance.perf_result_.bandwidth_ = num_byte / 1.E6 / avg_time;
 
-        if(setting_.log_ > 0)
+        if(setting_.log_ > 0 && !setting_.json_output_)
         {
             std::cout << kernel_instance << std::endl;
         }
@@ -218,10 +218,18 @@ class GemmProfiler
                                                          b.perf_result_, a.perf_result_, metric);
                                                  });
 
-        std::cout << "**********************************" << std::endl;
-        std::cout << "According to given metrics: " << get_metric_name(metric) << "\n"
-                  << "The best kernel instance is: " << kernel_instance << std::endl;
-        std::cout << "**********************************" << std::endl;
+        if(setting_.json_output_)
+        {
+            // Output clean JSON only
+            std::cout << kernel_instance << std::endl;
+        }
+        else
+        {
+            std::cout << "**********************************" << std::endl;
+            std::cout << "According to given metrics: " << get_metric_name(metric) << "\n"
+                      << "Current kernel performance is: " << kernel_instance << std::endl;
+            std::cout << "**********************************" << std::endl;
+        }
 
         if(!setting_.csv_filename_.empty())
         {

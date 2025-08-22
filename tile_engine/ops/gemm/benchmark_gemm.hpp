@@ -138,6 +138,7 @@ struct Setting
     std::string csv_filename_;
     bool flush_cache_;
     int rotating_count_;
+    bool json_output_;
 };
 
 inline std::string get_rocm_version()
