@@ -739,7 +739,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
             else if constexpr(std::is_same_v<fmha_fwd_pagedkv_traits,
                                              std::decay_t<decltype(traits)>>)
             {
-                traits.use_pagedkv = use_kvcache;
+                traits.use_pagedkv = (0 < page_block_size);
             }
         }
     };
