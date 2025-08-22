@@ -295,8 +295,8 @@ struct BlockFmhaPipelineQRKSVS
         constexpr index_t k0_loops = kQKHeaddim / kK0;
         constexpr index_t k1_loops = kN0 / kK1;
         // Use compile-time conditional for group barrier sequence
-        - // (No runtime lambda selection)
-            auto schedule_gemm0 = [] {
+        // (No runtime lambda selection)
+        auto schedule_gemm0 = [] {
             if constexpr(kQKHeaddim == 256)
             {
                 static_assert(num_mfma_insts % 8 == 0);
