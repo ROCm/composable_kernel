@@ -45,6 +45,7 @@ struct GemmTypeConfig<ck_tile::half_t>
     using ADataType   = ck_tile::half_t;
     using BDataType   = ck_tile::half_t;
     using CDataType   = ck_tile::half_t;
+    using DsDataType  = ck_tile::half_t;
     using AccDataType = float;
 };
 
@@ -53,6 +54,7 @@ struct GemmTypeConfig<ck_tile::fp8_t>
 {
     using ADataType   = ck_tile::fp8_t;
     using BDataType   = ck_tile::fp8_t;
+    using DsDataType   = ck_tile::half_t;
     using AccDataType = float;
     using CDataType   = ck_tile::half_t;
 };
@@ -81,8 +83,8 @@ struct GemmConfigBase
 template <typename PrecType>
 struct GemmConfigComputeV3_2 : public GemmConfigBase
 {
-    static constexpr ck_tile::index_t M_Tile = 128;
-    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t M_Tile = 256;
+    static constexpr ck_tile::index_t N_Tile = 256;
     static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
 
     static constexpr ck_tile::index_t M_Warp = 2;
@@ -152,7 +154,7 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V4>
     using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV4<PipelineProblem>;
 };
 
-using grouped_gemm_kargs = ck_tile::GroupedGemmHostArgs;
+using grouped_gemm_kargs = ck_tile::GroupedGemmHostArgs<1>;
 
 auto create_args(int argc, char* argv[])
 {
@@ -163,6 +165,7 @@ auto create_args(int argc, char* argv[])
         .insert("stride_As", "", "Tensor A strides - it is empty by default.")
         .insert("stride_Bs", "", "Tensor B strides - it is empty by default.")
         .insert("stride_Cs", "", "Tensor C strides - it is empty by default.")
+        .insert("stride_Dss", "", "Tensor Ds strides - it is empty by default.")
         .insert("a_layout", "R", "A tensor data layout - Row by default.")
         .insert("b_layout", "C", "B tensor data layout - Row by default.")
         .insert("c_layout", "R", "C tensor data layout - Row by default.")
@@ -200,11 +203,14 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
 template <typename GemmConfig,
           typename ALayout,
           typename BLayout,
+          typename DsLayout,
           typename CLayout,
           typename ADataType,
           typename BDataType,
+          typename DsDataType,
           typename AccDataType,
-          typename CDataType>
+          typename CDataType,
+          typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                             const ck_tile::index_t num_groups,
                             void* kargs_ptr,

@@ -19,11 +19,14 @@
 template <typename GemmConfig,
           typename ALayout,
           typename BLayout,
+          typename DsLayout,
           typename CLayout,
           typename ADataType,
           typename BDataType,
+          typename DsDataType,
           typename AccDataType,
-          typename CDataType>
+          typename CDataType,
+          typename CDEElementWise>
 float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                             const ck_tile::index_t num_groups,
                             void* kargs_ptr,
@@ -69,12 +72,12 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
                                              BDataType,
-                                             ck_tile::tuple<>,
+                                             DsDataType,
                                              AccDataType,
                                              CDataType,
-                                             ck_tile::tuple<>,
+                                             DsLayout,
                                              CLayout,
-                                             ck_tile::element_wise::PassThrough,
+                                             CDEElementWise,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,
                                              GemmConfig::M_Warp,
@@ -127,5 +130,6 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
 constexpr bool Persistent = true;
 int main(int argc, char* argv[])
 {
-    return !run_grouped_gemm_example<Persistent, GemmConfigComputeV4>(argc, argv);
+    run_grouped_gemm_example<Persistent, GemmConfigComputeV3_2>(argc, argv);
+    run_grouped_gemm_example<Persistent, GemmConfigComputeV4>(argc, argv);
 }

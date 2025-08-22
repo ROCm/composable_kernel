@@ -85,16 +85,16 @@ float invoke_gemm(int n_warmup,
         const bool splitk = args[0].k_batch > 1;
         for(const auto& arg : args)
         {
-            kargs.emplace_back(ck_tile::UniversalGemmKernelArgs<>{{arg.a_ptr},
+            kargs.emplace_back(ck_tile::UniversalGemmKernelArgs<1,1,1>{{arg.a_ptr},
                                                                   {arg.b_ptr},
-                                                                  {/*arg.ds_ptr*/},
+                                                                  arg.ds_ptr,
                                                                   arg.e_ptr,
                                                                   arg.M,
                                                                   arg.N,
                                                                   arg.K,
                                                                   {arg.stride_A},
                                                                   {arg.stride_B},
-                                                                  {/*arg.stride_Ds*/},
+                                                                  arg.stride_Ds,
                                                                   arg.stride_E,
                                                                   arg.k_batch});
         }
@@ -107,11 +107,14 @@ float invoke_gemm(int n_warmup,
         ave_time = grouped_gemm_tileloop<GemmConfig,
                                          ALayout,
                                          BLayout,
+                                         DsLayout,
                                          CLayout,
                                          ADataType,
                                          BDataType,
+                                         DsDataType,
                                          AccDataType,
-                                         CDataType>(stream, group_count, kargs_ptr, splitk);
+                                         CDataType,
+                                         ck_tile::element_wise::PassThrough>(stream, group_count, kargs_ptr, splitk);
     }
 
     std::string op_name{"Grouped Gemm"};
@@ -140,16 +143,21 @@ template <bool Persistent,
           typename ADataType,
           typename BDataType,
           typename CDataType,
+          typename DsDataType,
           typename AccDataType,
           typename ALayout,
           typename BLayout,
-          typename CLayout>
+          typename CLayout,
+          typename DsLayout
+        >
 int run_grouped_gemm_example_with_layouts(int argc,
                                           char* argv[],
                                           const ALayout a_layout                  = ALayout{},
                                           const BLayout b_layout                  = BLayout{},
+                                          [[maybe_unused]] const DsLayout ds_layout = DsLayout{},
                                           [[maybe_unused]] const CLayout c_layout = CLayout{})
 {
+
     auto [result, arg_parser] = create_args(argc, argv);
 
     if(!result)
@@ -180,6 +188,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
     std::vector<ck_tile::index_t> stride_As = arg_parser.get_int_vec("stride_As");
     std::vector<ck_tile::index_t> stride_Bs = arg_parser.get_int_vec("stride_Bs");
     std::vector<ck_tile::index_t> stride_Cs = arg_parser.get_int_vec("stride_Cs");
+    std::vector<ck_tile::index_t> stride_Dss = arg_parser.get_int_vec("stride_Dss");
 
     if(!valid_input_data(group_count, Ms, Ns, Ks, stride_As, stride_Bs, stride_Cs))
     {
@@ -193,25 +202,29 @@ int run_grouped_gemm_example_with_layouts(int argc,
             stride_As.push_back(Ks[i]);
             stride_Bs.push_back(Ks[i]);
             stride_Cs.push_back(Ns[i]);
+            stride_Dss.push_back(Ns[i]);
         }
     }
 
     std::vector<ck_tile::HostTensor<ADataType>> a_m_k_tensors;
     std::vector<ck_tile::HostTensor<BDataType>> b_k_n_tensors;
     std::vector<ck_tile::HostTensor<CDataType>> c_m_n_tensors;
+    std::vector<ck_tile::HostTensor<DsDataType>> ds_m_n_tensors;
 
     a_m_k_tensors.reserve(group_count);
     b_k_n_tensors.reserve(group_count);
     c_m_n_tensors.reserve(group_count);
+    ds_m_n_tensors.reserve(group_count);
 
     std::vector<std::unique_ptr<ck_tile::DeviceMem>> a_m_k_dev_buf;
     std::vector<std::unique_ptr<ck_tile::DeviceMem>> b_k_n_dev_buf;
     std::vector<std::unique_ptr<ck_tile::DeviceMem>> c_m_n_dev_buf;
+    std::vector<std::unique_ptr<ck_tile::DeviceMem>> ds_m_n_dev_buf;
 
     a_m_k_dev_buf.reserve(group_count);
     b_k_n_dev_buf.reserve(group_count);
     c_m_n_dev_buf.reserve(group_count);
-
+    ds_m_n_dev_buf.reserve(group_count);
     std::vector<grouped_gemm_kargs> gemm_descs;
     gemm_descs.reserve(group_count);
 
@@ -224,13 +237,15 @@ int run_grouped_gemm_example_with_layouts(int argc,
         stride_As[i] = ck_tile::get_default_stride(M, N, stride_As[i], is_row_major(a_layout));
         stride_Bs[i] = ck_tile::get_default_stride(K, N, stride_Bs[i], is_row_major(b_layout));
         stride_Cs[i] = ck_tile::get_default_stride(M, N, stride_Cs[i], is_row_major(CLayout{}));
-
+        stride_Dss[i] = ck_tile::get_default_stride(M, N, stride_Dss[i], is_row_major(DsLayout{}));
         a_m_k_tensors.push_back(ck_tile::HostTensor<ADataType>(
             ck_tile::host_tensor_descriptor(M, K, stride_As[i], is_row_major(a_layout))));
         b_k_n_tensors.push_back(ck_tile::HostTensor<BDataType>(
             ck_tile::host_tensor_descriptor(K, N, stride_Bs[i], is_row_major(b_layout))));
         c_m_n_tensors.push_back(ck_tile::HostTensor<CDataType>(
             ck_tile::host_tensor_descriptor(M, N, stride_Cs[i], is_row_major(CLayout{}))));
+        ds_m_n_tensors.push_back(ck_tile::HostTensor<DsDataType>(
+            ck_tile::host_tensor_descriptor(M, N, stride_Dss[i], is_row_major(DsLayout{}))));
 
         std::cout << "gemm[" << i << "]" << " a_m_k: " << a_m_k_tensors[i].mDesc
                   << " b_k_n: " << b_k_n_tensors[i].mDesc << " c_m_n: " << c_m_n_tensors[i].mDesc
@@ -238,38 +253,47 @@ int run_grouped_gemm_example_with_layouts(int argc,
 
         ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k_tensors[i]);
         ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensors[i]);
-
+        ck_tile::FillUniformDistribution<DsDataType>{-1.f, 1.f}(ds_m_n_tensors[i]);
+        
         a_m_k_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
             a_m_k_tensors[i].get_element_space_size_in_bytes()));
         b_k_n_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
             b_k_n_tensors[i].get_element_space_size_in_bytes()));
         c_m_n_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
             c_m_n_tensors[i].get_element_space_size_in_bytes()));
+        ds_m_n_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
+            ds_m_n_tensors[i].get_element_space_size_in_bytes()));
 
         a_m_k_dev_buf[i]->ToDevice(a_m_k_tensors[i].data());
         b_k_n_dev_buf[i]->ToDevice(b_k_n_tensors[i].data());
+        ds_m_n_dev_buf[i]->ToDevice(ds_m_n_tensors[i].data());
         c_m_n_dev_buf[i]->SetZero();
         c_m_n_tensors[i].SetZero();
-
+        
         const void* p_a = a_m_k_dev_buf[i]->GetDeviceBuffer();
         const void* p_b = b_k_n_dev_buf[i]->GetDeviceBuffer();
+        // const void* p_ds = ds_m_n_dev_buf[i]->GetDeviceBuffer();
         void* p_c       = c_m_n_dev_buf[i]->GetDeviceBuffer();
-
+        
+        
+        std::array<const void*, 1> ds_ptr_buf = {ds_m_n_dev_buf[i]->GetDeviceBuffer()};
+        std::array<ck_tile::index_t, 1> stridesDs = {stride_Dss[i]};
         gemm_descs.push_back(
-            {p_a, p_b, p_c, kbatch, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
+            {p_a, p_b, ds_ptr_buf, p_c, kbatch, M, N, K, stride_As[i], stride_Bs[i], stridesDs, stride_Cs[i]});
     }
 
     invoke_gemm<GemmConfig,
                 ADataType,
                 BDataType,
-                ck_tile::tuple<>,
+                ck_tile::tuple<DsDataType>,
                 AccDataType,
                 CDataType,
                 ALayout,
                 BLayout,
-                ck_tile::tuple<>,
+                ck_tile::tuple<DsLayout>,
                 CLayout,
-                Persistent>(warmup, repeat, group_count, gemm_descs);
+                Persistent,
+                ck_tile::element_wise::PassThrough>(warmup, repeat, group_count, gemm_descs);
 
     for(int i = 0; i < group_count; i++)
     {
@@ -318,7 +342,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     using BDataType   = typename Types::BDataType;
     using AccDataType = typename Types::AccDataType;
     using CDataType   = typename Types::CDataType;
-
+    using DsDataType  = typename Types::DsDataType;
     if(a_layout == "R" && b_layout == "C")
     {
         return run_grouped_gemm_example_with_layouts<Persistent,
@@ -326,7 +350,8 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
                                                      ADataType,
                                                      BDataType,
                                                      CDataType,
-                                                     AccDataType>(argc, argv, Row{}, Col{}, Row{});
+                                                     DsDataType,
+                                                     AccDataType>(argc, argv, Row{}, Col{}, Row{}, Row{});
     }
     else if(a_layout == "R" && b_layout == "R")
     {
@@ -335,7 +360,8 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
                                                      ADataType,
                                                      BDataType,
                                                      CDataType,
-                                                     AccDataType>(argc, argv, Row{}, Row{}, Row{});
+                                                     DsDataType,
+                                                     AccDataType>(argc, argv, Row{}, Row{}, Row{}, Row{});
     }
     else if(a_layout == "C" && b_layout == "R")
     {
@@ -344,7 +370,8 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
                                                      ADataType,
                                                      BDataType,
                                                      CDataType,
-                                                     AccDataType>(argc, argv, Col{}, Row{}, Row{});
+                                                     DsDataType,
+                                                     AccDataType>(argc, argv, Col{}, Row{}, Row{}, Row{});
     }
     else if(a_layout == "C" && b_layout == "C")
     {
@@ -353,7 +380,8 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
                                                      ADataType,
                                                      BDataType,
                                                      CDataType,
-                                                     AccDataType>(argc, argv, Col{}, Col{}, Row{});
+                                                     DsDataType,
+                                                     AccDataType>(argc, argv, Col{}, Col{}, Row{}, Row{});
     }
     else
     {
