@@ -23,8 +23,7 @@ struct TileGemmShape
 
     static constexpr index_t kM = BlockTile::at(number<0>{});
     static constexpr index_t kN = BlockTile::at(number<1>{});
-    static constexpr index_t kK = BlockTile::at(number<2>{});
-    
+    static constexpr index_t kK = BlockTile::at(number<2>{});    
     static constexpr bool PermuteA = PermuteA_;
     static constexpr bool PermuteB = PermuteB_;
 
