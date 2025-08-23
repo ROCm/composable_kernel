@@ -16,64 +16,7 @@
 
 // The kernel header is included via the compile command line with -include flag
 // It defines SelectedKernel struct and KERNEL_NAME
-
-// DataTypeTraits for all supported types
-template <typename T>
-struct DataTypeTraits;
-
-template <>
-struct DataTypeTraits<float>
-{
-    static constexpr const char* name = "fp32";
-};
-
-template <>
-struct DataTypeTraits<double>
-{
-    static constexpr const char* name = "fp64";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::half_t>
-{
-    static constexpr const char* name = "fp16";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::bf16_t>
-{
-    static constexpr const char* name = "bf16";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::fp8_t>
-{
-    static constexpr const char* name = "fp8";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::bf8_t>
-{
-    static constexpr const char* name = "bf8";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::int8_t>
-{
-    static constexpr const char* name = "int8";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::int32_t>
-{
-    static constexpr const char* name = "int32";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::pk_int4_t>
-{
-    static constexpr const char* name = "pk_int4_t";
-};
+// DataTypeTraits are now defined in gemm_common.hpp
 
 // Create argument parser
 inline auto create_args(int argc, char* argv[])
@@ -134,31 +77,17 @@ inline auto create_args(int argc, char* argv[])
 
 void benchmark_gemm_single(const ck_tile::ArgParser& arg_parser)
 {
-    // Extract datatype and layout from kernel name
-    // Kernel name format: gemm_{datatype}_{layout}_{pipeline}_{epilogue}_{scheduler}_{...}
-    std::string kernel_name_str(KERNEL_NAME);
-    std::vector<std::string> parts;
-    std::stringstream ss(kernel_name_str);
-    std::string part;
-    while(std::getline(ss, part, '_'))
-    {
-        parts.push_back(part);
-    }
+    // Use DataTypeTraits to get the actual type names from the generated header
+    // The generated header defines ADataType, BDataType, AccDataType, CDataType
+    std::string dtype_a   = DataTypeTraits<ADataType>::name;
+    std::string dtype_b   = DataTypeTraits<BDataType>::name;
+    std::string dtype_acc = DataTypeTraits<AccDataType>::name;
+    std::string dtype_c   = DataTypeTraits<CDataType>::name;
 
-    // Extract datatype and layout from kernel name
-    std::string dtype_str  = (parts.size() > 1) ? parts[1] : "unknown";
-    std::string layout_str = (parts.size() > 2) ? parts[2] : "unknown";
-
-    // Parse layout string to get individual layouts
-    std::string layout_a = "row";
-    std::string layout_b = "col";
-    std::string layout_c = "row";
-    if(layout_str.length() == 3)
-    {
-        layout_a = (layout_str[0] == 'r') ? "row" : "col";
-        layout_b = (layout_str[1] == 'r') ? "row" : "col";
-        layout_c = (layout_str[2] == 'r') ? "row" : "col";
-    }
+    // Layout names from the layout types
+    std::string layout_a = ALayout::name;
+    std::string layout_b = BLayout::name;
+    std::string layout_c = CLayout::name;
 
     // Create GemmProblem struct
     GemmProblem gemm_problem{arg_parser.get_int("split_k"),
@@ -168,10 +97,10 @@ void benchmark_gemm_single(const ck_tile::ArgParser& arg_parser)
                              arg_parser.get_int("stride_a"),
                              arg_parser.get_int("stride_b"),
                              arg_parser.get_int("stride_c"),
-                             dtype_str, // dtype_a
-                             dtype_str, // dtype_b
-                             "fp32",    // dtype_acc (accumulator is typically fp32)
-                             dtype_str, // dtype_c
+                             dtype_a,
+                             dtype_b,
+                             dtype_acc,
+                             dtype_c,
                              layout_a,
                              layout_b,
                              layout_c,
