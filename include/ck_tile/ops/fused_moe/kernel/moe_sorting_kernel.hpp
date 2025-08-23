@@ -11,23 +11,23 @@
 #include <type_traits>
 
 #if !defined(CK_TILE_HAS_ROW_NEWBCAST)
-  // row_newbcast (DPP modifier 0x157) support by architecture:
-  // - Not supported: gfx908 (MI100) and older
-  // - Supported: gfx90a (MI200), gfx94x (MI300), and all RDNA architectures
-  
-  #if defined(__HIP_DEVICE_COMPILE__) && defined(__HIP_PLATFORM_AMD__)
-    #if defined(__gfx908__) || defined(__gfx906__) || defined(__gfx900__)
-      // Explicitly disable for known unsupported architectures
-      #define CK_TILE_HAS_ROW_NEWBCAST 0
-    #else
-      // Assume support for gfx90a and newer (including all gfx94x and RDNA)
-      // This is safer as new architectures typically maintain backward compatibility
-      #define CK_TILE_HAS_ROW_NEWBCAST 1
-    #endif
-  #else
-    // Conservative default for non-AMD or host compilation
-    #define CK_TILE_HAS_ROW_NEWBCAST 0
-  #endif
+// row_newbcast (DPP modifier 0x157) support by architecture:
+// - Not supported: gfx908 (MI100) and older
+// - Supported: gfx90a (MI200), gfx94x (MI300), and all RDNA architectures
+
+#if defined(__HIP_DEVICE_COMPILE__) && defined(__HIP_PLATFORM_AMD__)
+#if defined(__gfx908__) || defined(__gfx906__) || defined(__gfx900__)
+// Explicitly disable for known unsupported architectures
+#define CK_TILE_HAS_ROW_NEWBCAST 0
+#else
+// Assume support for gfx90a and newer (including all gfx94x and RDNA)
+// This is safer as new architectures typically maintain backward compatibility
+#define CK_TILE_HAS_ROW_NEWBCAST 1
+#endif
+#else
+// Conservative default for non-AMD or host compilation
+#define CK_TILE_HAS_ROW_NEWBCAST 0
+#endif
 #endif
 
 namespace ck_tile {
@@ -1288,28 +1288,30 @@ CK_TILE_DEVICE void moe_sorting_wave_cumsum(data_t& thread_data)
                                                         bank_mask,
                                                         bound_ctrl))); // row_shr:8
 #if CK_TILE_HAS_ROW_NEWBCAST
-            data_t xxx =__builtin_bit_cast(data_t, 
-                            __builtin_amdgcn_mov_dpp(__builtin_bit_cast(int, thread_data),
+        data_t xxx =
+            __builtin_bit_cast(data_t,
+                               __builtin_amdgcn_mov_dpp(__builtin_bit_cast(int, thread_data),
                                                         0x157,
                                                         row_mask,
                                                         bank_mask,
                                                         bound_ctrl)); // row_newbcast:7
-            
-            data_t yyy = (__lane_id() / 8) % 2 == 0 ? 0 : xxx;
-            thread_data = thread_data - yyy;
-#else
-            // portable fallback for gfx908 and older: emulate row_newbcast:7 via ds_bpermute
-            // For wave_size == 8 context, we need to broadcast from lane 7 of the 16-lane group
-            int broadcast_src_lane = (__lane_id() & ~15) + 7;  // Lane 7 of the 16-lane group
-            int broadcast_addr = broadcast_src_lane << 2;      // Convert to byte address
-            int bcast7 = __builtin_amdgcn_ds_bpermute(broadcast_addr, __builtin_bit_cast(int, thread_data));
-            
-            // Apply subtraction only to odd 8-lane groups (lanes 8-15 of each 16-lane unit)
-            if ((__lane_id() / 8) % 2 != 0) {  // Note: != 0, not == 0
-                thread_data = thread_data - __builtin_bit_cast(data_t, bcast7);
-            }
-#endif
 
+        data_t yyy  = (__lane_id() / 8) % 2 == 0 ? 0 : xxx;
+        thread_data = thread_data - yyy;
+#else
+        // portable fallback for gfx908 and older: emulate row_newbcast:7 via ds_bpermute
+        // For wave_size == 8 context, we need to broadcast from lane 7 of the 16-lane group
+        int broadcast_src_lane = (__lane_id() & ~15) + 7; // Lane 7 of the 16-lane group
+        int broadcast_addr     = broadcast_src_lane << 2; // Convert to byte address
+        int bcast7 =
+            __builtin_amdgcn_ds_bpermute(broadcast_addr, __builtin_bit_cast(int, thread_data));
+
+        // Apply subtraction only to odd 8-lane groups (lanes 8-15 of each 16-lane unit)
+        if((__lane_id() / 8) % 2 != 0)
+        { // Note: != 0, not == 0
+            thread_data = thread_data - __builtin_bit_cast(data_t, bcast7);
+        }
+#endif
     }
     if constexpr(wave_size > 8)
     {
