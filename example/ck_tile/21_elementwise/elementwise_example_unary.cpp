@@ -38,7 +38,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     using XDataType             = DataType;
     using YDataType             = DataType;
-    using ComputeDataType       = float;
     using XElementwiseOperation = ck_tile::element_wise::UnarySquare;
 
     // 1. Initialize the input data on the host
@@ -64,7 +63,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                              // will cover some part of blockTile)
     using WarpTile = ck_tile::sequence<64>;  // How many elements are covered by a warp
 
-    using Shape   = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, ComputeDataType>;
+    using Shape   = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, XDataType>;
     using Problem = ck_tile::ElementWisePipelineProblem<XDataType,
                                                         XDataType, // ComputeDataType is same as
                                                                    // XDataType in the unary case
@@ -100,17 +99,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     // 4. Run the kernel
-    float ave_time = launch_kernel(ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
-                                   ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
-                                       Kernel{},
-                                       kGridSize,
-                                       kBlockSize,
-                                       0,
-                                       input_size,
-                                       ck_tile::make_tuple(N, 1), // Input Stride
-                                       ck_tile::make_tuple(N, 1), // Output Stride
-                                       input_tensors,
-                                       static_cast<YDataType*>(y_buf.GetDeviceBuffer())));
+    float ave_time = launch_kernel(
+        ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
+        ck_tile::make_kernel<kBlockPerCu>(Kernel{},
+                                          kGridSize,
+                                          kBlockSize,
+                                          0,
+                                          input_size,
+                                          ck_tile::make_tuple(N, 1), // Input Stride
+                                          ck_tile::make_tuple(N, 1), // Output Stride
+                                          input_tensors,
+                                          static_cast<YDataType*>(y_buf.GetDeviceBuffer())));
 
     std::cout << "Average time: " << ave_time << " ms" << std::endl;
 
