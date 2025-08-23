@@ -255,18 +255,63 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         return math::max(gemm0_bytes_end, gemm1_bytes_end, c1_block_bytes_end);
     }
 
+    template <
+        InMemoryDataOperationEnum CGlobalMemoryDataOperation_ = InMemoryDataOperationEnum::Set>
+    __device__ static bool constexpr IsValidCompilationParameter()
+    {
+        return ck::tensor_operation::device::IsValidGemmCompilationParameter<
+                   BlockSize,
+                   Gemm0MPerBlock,
+                   Gemm0NPerBlock,
+                   Gemm0MPerXdl,
+                   Gemm0NPerXdl,
+                   Gemm0MXdlPerWave,
+                   Gemm0NXdlPerWave,
+                   E1DataType,
+                   CGlobalMemoryDataOperation_>() &&
+               ck::tensor_operation::device::IsValidGemmCompilationParameter<
+                   BlockSize,
+                   Gemm0MPerBlock,
+                   Gemm1NPerBlock,
+                   Gemm0MPerXdl,
+                   Gemm0NPerXdl,
+                   Gemm0MXdlPerWave,
+                   Gemm1NXdlPerWave,
+                   E1DataType,
+                   CGlobalMemoryDataOperation_>();
+    }
+
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename Block2E1TileMap>
-    __host__ __device__ static constexpr bool
-    CheckValidity(const A0GridDesc_M_K& a0_grid_desc_m_k,
-                  const B0GridDesc_N_K& b0_grid_desc_n_k,
-                  const B1GridDesc_N_K& b1_grid_desc_n_k,
-                  const E1GridDesc_M_N& e1_grid_desc_m_n,
-                  const Block2E1TileMap& block_2_e1tile_map)
+    __host__ static constexpr bool CheckValidity(const A0GridDesc_M_K& a0_grid_desc_m_k,
+                                                 const B0GridDesc_N_K& b0_grid_desc_n_k,
+                                                 const B1GridDesc_N_K& b1_grid_desc_n_k,
+                                                 const E1GridDesc_M_N& e1_grid_desc_m_n,
+                                                 const Block2E1TileMap& block_2_e1tile_map)
     {
         static_assert((Gemm0MPerBlock % (Gemm0MPerXdl * Gemm0MXdlPerWave) == 0) &&
                           (Gemm0NPerBlock % (Gemm0NXdlPerWave * Gemm0NPerXdl)) == 0,
                       "Invalid tuning param!");
+        if constexpr((Gemm0MPerXdl * Gemm0MXdlPerWave) == 0 ||
+                     (Gemm0NXdlPerWave * Gemm0NPerXdl) == 0)
+        {
+            return false;
+        }
+        else
+        {
+            if constexpr((Gemm0MPerBlock % (Gemm0MPerXdl * Gemm0MXdlPerWave) != 0) ||
+                         (Gemm0NPerBlock % (Gemm0NXdlPerWave * Gemm0NPerXdl) != 0))
+            {
+                return false;
+            }
+            else
+            {
+                if(WaveSize != get_warp_size())
+                {
+                    return false;
+                }
+            }
+        }
 
         const auto M      = a0_grid_desc_m_k.GetLength(I0);
         const auto N      = b0_grid_desc_n_k.GetLength(I0);

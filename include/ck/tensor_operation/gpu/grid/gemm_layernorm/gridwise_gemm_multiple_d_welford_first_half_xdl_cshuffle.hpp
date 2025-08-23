@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -267,6 +267,9 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
             e_grid_desc_m_n);
     }
 
+    using CDataType = CShuffleDataType;
+    IS_VALID_COMPILATION_PARAMETER_IMPL
+
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename Block2ETileMap>
     __host__ __device__ static constexpr bool CheckValidity(const AGridDesc_M_K& a_grid_desc_m_k,
@@ -275,9 +278,7 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
                                                             const EGridDesc_M_N& e_grid_desc_m_n,
                                                             const Block2ETileMap& block_2_etile_map)
     {
-        static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
-                          (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
-                      "Invalid tuning param!");
+        CHECK_XDL_LAYOUT
 
         const auto M = a_grid_desc_m_k.GetLength(I0);
         const auto N = b_grid_desc_n_k.GetLength(I0);

@@ -322,6 +322,9 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         return true;
     }
 
+    using CDataType = EDataType;
+    IS_VALID_COMPILATION_PARAMETER_IMPL
+
     template <typename AGridDesc_M_K,
               typename BGridDesc_N_K,
               typename DsGridDesc_M_N,
@@ -334,9 +337,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                                             [[maybe_unused]] const Block2ETileMap&,
                                                             index_t k_batch = 1)
     {
-        static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
-                          (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
-                      "Invalid tuning param!");
+        CHECK_XDL_LAYOUT
+
         static_assert(KPerBlock % AK1Value == 0 && KPerBlock % BK1Value == 0,
                       "KPerBlock must be divisible by AK1Value and BK1Value!");
 

@@ -75,6 +75,23 @@ inline bool is_xdl_supported()
         ;
 }
 
+template <typename ADataType, typename BDataType, index_t MPerXDL, index_t NPerXDL>
+inline bool is_xdl_wmma_supported()
+{
+    if(is_gfx12_supported() || is_gfx11_supported())
+    {
+        if constexpr((MPerXDL != 16) || (NPerXDL != 16))
+        {
+            return false;
+        }
+        if constexpr(sizeof(ADataType) > 2 || sizeof(BDataType) > 2)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 inline bool is_lds_direct_load_supported()
 {
     // Check if direct loads from global memory to LDS are supported.

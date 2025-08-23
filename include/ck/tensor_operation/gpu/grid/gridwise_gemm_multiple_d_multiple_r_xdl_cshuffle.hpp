@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -201,6 +201,9 @@ struct GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
 
+    using CDataType = FloatE;
+    IS_VALID_COMPILATION_PARAMETER_IMPL
+
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename Block2ETileMap>
     __host__ __device__ static constexpr bool CheckValidity(const AGridDesc_M_K& a_grid_desc_m_k,
@@ -209,9 +212,7 @@ struct GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                                             const RGridDesc_M& r_grid_desc_m,
                                                             const Block2ETileMap& block_2_etile_map)
     {
-        static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
-                          (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
-                      "Invalid tuning param!");
+        CHECK_XDL_LAYOUT
 
         static_assert(AGridDesc_M_K::GetNumOfDimension() == 2);
         static_assert(BGridDesc_N_K::GetNumOfDimension() == 2);

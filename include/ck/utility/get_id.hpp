@@ -41,7 +41,8 @@ inline __host__ index_t get_warp_size()
 #else
 __host__ __device__ constexpr index_t get_warp_size()
 {
-#if defined(__GFX9__) || !defined(__HIP_DEVICE_COMPILE__)
+#if defined(__HIP_DEVICE_COMPILE__)
+#if defined(__GFX9__)
     return 64;
 #else
     return 32;

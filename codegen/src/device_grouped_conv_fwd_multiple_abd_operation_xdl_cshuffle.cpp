@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/host/device_grouped_conv_fwd_multiple_d/conv_fwd_op.hpp"
 #include <iostream>
@@ -223,7 +223,7 @@ extern "C" __global__ void run_${name}(
     constexpr ck::LoopScheduler LoopSched = ck::make_default_loop_scheduler();
 
     // GridwiseGemm
-    using GridwiseGemm = DeviceConv::GridwiseGemm;
+    using GridwiseGemm = DeviceConv::GridwiseGemm64;
 
     static constexpr auto I0 = ck::Number<0>{};
 

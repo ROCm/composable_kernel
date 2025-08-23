@@ -284,6 +284,11 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
     ///
     struct Invoker : public BaseInvoker
     {
+        /// @brief  This function issues GPU kernel execution.
+        /// @param arg           The GPU kernel arguments.
+        /// @param stream_config The HIP stream configuration helper structure.
+        /// @return              The kernel's average execution time (if time measurement is
+        ///                      enabled).
         template <typename GridwiseGemm>
         float RunImp(const typename GridwiseGemm::Argument& arg,
                      const StreamConfig& stream_config = StreamConfig{})
@@ -760,31 +765,7 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
             return ave_time;
         }
 
-        /// @brief  This function issues GPU kernel execution.
-        /// @param arg           The GPU kernel arguments.
-        /// @param stream_config The HIP stream configuration helper structure.
-        /// @return              The kernel's average execution time (if time measurement is
-        ///                      enabled).
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
-        {
-            if(get_warp_size() == 64)
-            {
-                if constexpr(NXdlPerWave64 > 0)
-                {
-                    return RunImp<GridwiseGemm64>(arg, stream_config);
-                }
-            }
-            else
-            {
-                if constexpr(NXdlPerWave32 > 0)
-                {
-                    return RunImp<GridwiseGemm32>(
-                        reinterpret_cast<const typename GridwiseGemm32::Argument&>(arg),
-                        stream_config);
-                }
-            }
-            return 0;
-        }
+        INVOKER_RUN3_IMPL
         // polymorphic
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override
@@ -805,7 +786,10 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
         {
             return false;
         }
-
+        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        {
+            return false;
+        }
         if(arg.KBatch > 1)
         {
             if(is_gfx11_supported())
@@ -819,14 +803,6 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
             }
 
             if(sizeof(CDataType) == 1)
-            {
-                return false;
-            }
-        }
-
-        if(is_gfx11_supported() || is_gfx12_supported())
-        {
-            if(MPerXDL != 16 || NPerXDL != 16)
             {
                 return false;
             }
@@ -855,10 +831,6 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
             {
                 return GridwiseGemm64::CheckValidity(arg);
             }
-            else
-            {
-                return false;
-            }
         }
         else
         {
@@ -867,11 +839,8 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                 return GridwiseGemm32::CheckValidity(
                     reinterpret_cast<const typename GridwiseGemm32::Argument&>(arg));
             }
-            else
-            {
-                return false;
-            }
         }
+        return false;
     }
 
     // polymorphic
