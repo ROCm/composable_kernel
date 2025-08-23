@@ -9,6 +9,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/common.hpp"
 
 namespace ck_tile {
 
@@ -364,12 +365,6 @@ struct GemmSpatiallyLocalTilePartitioner
     index_t N;
 };
 
-enum StreamKReductionStrategy : uint32_t
-{
-    Atomic    = 0u,
-    Reduction = 1u
-};
-
 /**
  * @brief Stream-K tile partitioner that dynamically balances work across workgroups
  *
@@ -379,7 +374,7 @@ enum StreamKReductionStrategy : uint32_t
  * improving load balancing especially for cases where the K dimension is large.
  */
 template <typename BlockGemmShape,
-          StreamKReductionStrategy ReductionStrategy = StreamKReductionStrategy::Atomic,
+          StreamKReductionStrategy ReductionStrategy = ck_tile::StreamKReductionStrategy::Atomic,
           index_t TileSwizzleSubM                    = 8>
 struct StreamKTilePartitioner
 {
@@ -541,7 +536,7 @@ struct StreamKTilePartitioner
         n_tiles                   = mdiv2(num_tile_n_);
         reduction_start_block_idx = dp_start_block_idx + dp_num_blocks;
 
-        if constexpr(ReductionStrategy == StreamKReductionStrategy::Reduction)
+        if constexpr(ReductionStrategy == ck_tile::StreamKReductionStrategy::Reduction)
         {
             index_t upper_big    = lcm(k_iters_per_big_block, k_iters_per_tile.get());
             index_t upper_little = lcm(k_iters_per_big_block - 1, k_iters_per_tile.get());
@@ -555,7 +550,7 @@ struct StreamKTilePartitioner
      */
     CK_TILE_HOST auto GridSize() const noexcept -> dim3
     {
-        if constexpr(ReductionStrategy == StreamKReductionStrategy::Reduction)
+        if constexpr(ReductionStrategy == ck_tile::StreamKReductionStrategy::Reduction)
         {
             return dim3(reduction_start_block_idx + GetSkTiles(), 1, 1);
         }
