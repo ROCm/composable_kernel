@@ -41,7 +41,6 @@ template <typename GemmConfig,
           typename BLayout,
           typename DsLayout,
           typename CLayout,
-          bool Persistent,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float invoke_gemm(int n_warmup,
                   int n_repeat,
@@ -53,7 +52,7 @@ float invoke_gemm(int n_warmup,
     gemm_workspace.Realloc(get_workspace_size(args));
 
     float ave_time = 0;
-    if constexpr(!Persistent)
+    if constexpr(!GemmConfig::Persistent)
     {
         // Regular version of grouped gemm
         ave_time = grouped_gemm<GemmConfig,
@@ -136,8 +135,7 @@ float invoke_gemm(int n_warmup,
     return ave_time;
 }
 
-template <bool Persistent,
-          typename GemmConfig,
+template <typename GemmConfig,
           typename ADataType,
           typename BDataType,
           typename CDataType,
@@ -265,8 +263,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
                 ALayout,
                 BLayout,
                 ck_tile::tuple<>,
-                CLayout,
-                Persistent>(warmup, repeat, group_count, gemm_descs);
+                CLayout>(warmup, repeat, group_count, gemm_descs);
 
     for(int i = 0; i < group_count; i++)
     {
@@ -304,7 +301,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
     return pass;
 }
 
-template <bool Persistent, typename GemmConfig, typename PrecType>
+template <typename GemmConfig, typename PrecType>
 int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
 {
     using Row   = ck_tile::tensor_layout::gemm::RowMajor;
@@ -318,8 +315,8 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
 
     if(a_layout == "R" && b_layout == "C")
     {
-        return run_grouped_gemm_example_with_layouts<Persistent,
-                                                     GemmConfig,
+        
+        return run_grouped_gemm_example_with_layouts<GemmConfig,
                                                      ADataType,
                                                      BDataType,
                                                      CDataType,
@@ -327,8 +324,8 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     }
     else if(a_layout == "R" && b_layout == "R")
     {
-        return run_grouped_gemm_example_with_layouts<Persistent,
-                                                     GemmConfig,
+        
+        return run_grouped_gemm_example_with_layouts<GemmConfig,
                                                      ADataType,
                                                      BDataType,
                                                      CDataType,
@@ -336,8 +333,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     }
     else if(a_layout == "C" && b_layout == "R")
     {
-        return run_grouped_gemm_example_with_layouts<Persistent,
-                                                     GemmConfig,
+        return run_grouped_gemm_example_with_layouts<GemmConfig,
                                                      ADataType,
                                                      BDataType,
                                                      CDataType,
@@ -345,8 +341,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     }
     else if(a_layout == "C" && b_layout == "C")
     {
-        return run_grouped_gemm_example_with_layouts<Persistent,
-                                                     GemmConfig,
+        return run_grouped_gemm_example_with_layouts<GemmConfig,
                                                      ADataType,
                                                      BDataType,
                                                      CDataType,
@@ -358,7 +353,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     }
 }
 
-template <bool Persistent, template <typename PrecType> typename GemmConfig>
+template <template <typename PrecType> typename GemmConfig>
 int run_grouped_gemm_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -373,12 +368,12 @@ int run_grouped_gemm_example(int argc, char* argv[])
 
     if(data_type == "fp16")
     {
-        return run_gemm_example_prec_type<Persistent, GemmConfig<ck_tile::half_t>, ck_tile::half_t>(
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::half_t>(
             a_layout, b_layout, argc, argv);
     }
     else if(data_type == "fp8")
     {
-        return run_gemm_example_prec_type<Persistent, GemmConfig<ck_tile::fp8_t>, ck_tile::fp8_t>(
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>, ck_tile::fp8_t>(
             a_layout, b_layout, argc, argv);
     }
     else

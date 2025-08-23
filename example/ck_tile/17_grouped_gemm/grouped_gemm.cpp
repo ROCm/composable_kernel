@@ -260,8 +260,7 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
 
 #include "run_grouped_gemm_example.inc"
 
-constexpr bool Persistent = true;
 int main(int argc, char* argv[])
 {
-    return !run_grouped_gemm_example<Persistent, GemmConfigComputeV4>(argc, argv);
+    return !run_grouped_gemm_example<GemmConfigComputeV3_2>(argc, argv);
 }

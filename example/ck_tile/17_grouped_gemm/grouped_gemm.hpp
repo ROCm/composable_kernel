@@ -76,6 +76,7 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t Pipeline      = CK_TILE_PIPELINE_COMPUTE_V3;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
     static constexpr bool Preshuffle                = false;
+    static constexpr bool Persistent                = false;
 };
 
 template <typename PrecType>
@@ -192,7 +193,6 @@ template <typename GemmConfig,
           typename BLayout,
           typename DsLayout,
           typename CLayout,
-          bool Persistent,
           typename CDEElementWise>
 float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                    const ck_tile::stream_config& s,
