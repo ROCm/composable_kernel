@@ -44,7 +44,6 @@ list(APPEND GEMM_OPTIONS "SHELL: -mllvm -greedy-reverse-local-assignment=1 -mllv
 example_compile_options(example_gemm_xdl_fp8_v3 PRIVATE ${GEMM_OPTIONS})
 example_compile_options(example_gemm_xdl_bf16_v3 PRIVATE ${GEMM_OPTIONS})
 
-
 list(APPEND gpu_list gfx942 gfx950)
 set(target 0)
 foreach(gpu IN LISTS GPU_TARGETS)
@@ -130,3 +129,8 @@ add_example_executable(example_gemm_wmma_fp16_fp8_v3 gemm_wmma_fp16_fp8_v3.cpp)
 add_example_dependencies(example_gemm_wmma example_gemm_wmma_fp16_fp8_v3)
 add_example_executable(example_gemm_wmma_fp16_pk_i4_v3_b_scale gemm_wmma_fp16_pk_i4_v3_b_scale.cpp)
 add_example_dependencies(example_gemm_wmma example_gemm_wmma_fp16_pk_i4_v3_b_scale)
+
+add_example_executable(example_gemm_tmp_fp16_v3 gemm_tmp_fp16_v3.cpp)
+add_example_executable(example_gemm_tmp_bf16_v3 gemm_tmp_bf16_v3.cpp)
+add_example_executable(example_gemm_tmp_int8 gemm_tmp_int8.cpp)
+add_example_executable(example_gemm_tmp_fp8 gemm_tmp_fp8.cpp)

@@ -153,7 +153,7 @@ list(APPEND DEVICE_INSTANCES device_column_to_image_instance)
 list(APPEND DEVICE_INSTANCES device_transpose_instance)
 list(APPEND DEVICE_INSTANCES device_permute_scale_instance)
 
-if(SUPPORTED_GPU_TARGETS MATCHES "gfx9")
+if(SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR SUPPORTED_GPU_TARGETS MATCHES "gfx11" OR SUPPORTED_GPU_TARGETS MATCHES "gfx12")
   if(DTYPES MATCHES "fp32" OR DTYPES MATCHES "fp64" OR NOT DEFINED DTYPES)
     list(APPEND DEVICE_INSTANCES device_contraction_bilinear_instance)
     list(APPEND DEVICE_INSTANCES device_contraction_scale_instance)
