@@ -56,7 +56,8 @@ float invoke_gemm(int n_warmup,
     if constexpr(!Persistent)
     {
         // Regular version of grouped gemm
-        ave_time = grouped_gemm<ADataType,
+        ave_time = grouped_gemm<GemmConfig,
+                                ADataType,
                                 BDataType,
                                 DsDataType,
                                 AccDataType,

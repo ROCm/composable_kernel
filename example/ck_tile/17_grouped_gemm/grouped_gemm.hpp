@@ -182,7 +182,8 @@ inline std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gem
     return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg);
 }
 
-template <typename ADataType,
+template <typename GemmConfig,
+          typename ADataType,
           typename BDataType,
           typename DsDataType,
           typename AccDataType,
