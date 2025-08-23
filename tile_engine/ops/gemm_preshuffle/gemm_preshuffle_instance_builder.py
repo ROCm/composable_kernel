@@ -650,8 +650,7 @@ struct KernelTraits
 };
 
 struct KernelInfo {
-    std::vector<std::function<std::tuple<std::string, float>(ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>> functions;
-    std::tuple<int, int, int> warptilevalues;
+    std::vector<std::pair<std::function<std::tuple<std::string, float>(ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>, std::tuple<int, int, int>>> callable_warptile;
 };
 
 struct GemmPreshuffleDispatcher {
@@ -667,7 +666,8 @@ struct GemmPreshuffleDispatcher {
         \n"""
 
         for trait, tile_valid_params in self.valid_trait_tile_combinations.items():
-            content += f"""         kernel_map["{trait}"] = {{"""
+            content += f"""         kernel_map["{trait}"] = {{
+            {{"""
             for _, tile in enumerate(tile_valid_params):
                 for j in range(len(tile)):
                     (
@@ -681,9 +681,15 @@ struct GemmPreshuffleDispatcher {
                         warp_tile_n,
                         warp_tile_k,
                     ) = tile[j]
-                    content += """{[=](ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) { """
+
+                    content += """
+                {"""
+
+                    content += """
+                    [=](ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) { """
+
                     content += """ 
-                                    if(structured_sparsity){ """
+                        if(structured_sparsity){ """
                     sparse = (
                         self.args.datatypes.a_datatype == "fp16"
                         and self.args.datatypes.a_datatype == "fp16"
@@ -702,32 +708,29 @@ struct GemmPreshuffleDispatcher {
                         )
                     )
                     content += f"""
-                                        return run_kernel<{trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, {BOOL_MAP(sparse)}>>(args, stream);"""
+                                return run_kernel<{trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, {BOOL_MAP(sparse)}>>(args, stream);"""
                     content += """
-                                    } else {"""
+                        } else {"""
                     content += f"""
-                                        return run_kernel<{trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, {BOOL_MAP(False)}>>(args, stream);"""
+                                return run_kernel<{trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, {BOOL_MAP(False)}>>(args, stream);"""
                     content += """
-                                    } """
+                        } """
+
+                    content += f"""
+                    }}, std::make_tuple({warp_tile_m},{warp_tile_n},{warp_tile_k})"""
 
                     if j == len(tile) - 1:
                         content += """
-                            } """
+                } """
                     else:
                         content += """
-                    }, """
-
-                    content += """
-                    }, """
-
-                    content += f"""
-                    std::make_tuple({warp_tile_m},{warp_tile_n},{warp_tile_k})"""
-
-                    # content += f"""
-                    # std::make_tuple(10,10,10)"""
+                }, """
 
             content += """
-            };\n """
+            } """
+
+            content += """       
+        };\n """
 
         content += """    }
 

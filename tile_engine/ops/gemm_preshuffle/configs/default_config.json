@@ -32,36 +32,33 @@
     },
     "warp_tile_m": {
       "values": [
-        10
+        16
       ]
     },
     "warp_tile_n": {
       "values": [
-        10
+        16
       ]
     },
     "warp_tile_k": {
       "values": [
-        10
+        16, 32
       ]
     }
   },
   "trait_config": {
     "pipeline": {
       "values": [
-        "preshufflev1",
         "preshufflev2"
       ]
     },
     "scheduler": {
       "values": [
-        "intrawave",
-        "interwave"
+        "intrawave"
       ]
     },
     "epilogue": {
       "values": [
-        "default",
         "cshuffle"
       ]
     },
@@ -82,8 +79,7 @@
     },
     "persistent": {
       "values": [
-        false,
-        true
+        false
       ]
     }
   }

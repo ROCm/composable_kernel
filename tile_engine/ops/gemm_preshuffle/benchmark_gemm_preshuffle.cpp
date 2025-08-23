@@ -38,7 +38,7 @@ void benchmark_gemm_preshuffle(const ck_tile::ArgParser& arg_parser)
         printf("Completed 1\n");
         auto kernelinfo = get_kernel_func_by_trait(arg_parser);
         printf("Completed 2\n");
-        profiler.benchmark(gemm_problem, kernelinfo.warptilevalues, kernelinfo.functions);
+        profiler.benchmark(gemm_problem, kernelinfo);
         printf("Completed 3\n");
         profiler.select_best_instance(static_cast<Metric>(arg_parser.get_int("metric")));
     }
