@@ -74,9 +74,6 @@ auto create_args(int argc, char* argv[])
                 "scale factor of S. 0 means equal to 1/sqrt(hdim).\n"
                 "note when squant=1, this value will be modified by range_q/k")
         .insert("logits_soft_cap", "0", "attention logits soft capping value.")
-        .insert("quant_scale_s", "1", "per-tensor quantization for S.")
-        .insert("quant_scale_p", "1", "per-tensor quantization for P.")
-        .insert("quant_scale_o", "1", "per-tensor quantization for O.")
         .insert("squant",
                 "auto",
                 "if using static quantization fusion or not. auto: fp8 will default use squant, "
@@ -416,10 +413,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(scale_s == .0f)
         scale_s = 1.0 / ck_tile::sqrt(static_cast<float>(hdim_q)); // TODO: q ? v ?
 
-    float quant_scale_s = arg_parser.get_float("quant_scale_s");
-    float quant_scale_p = arg_parser.get_float("quant_scale_p");
-    float quant_scale_o = arg_parser.get_float("quant_scale_o");
-
     const float logits_soft_cap = arg_parser.get_float("logits_soft_cap");
 
     std::string squant_str = arg_parser.get_str("squant");
@@ -500,12 +493,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using PDataType             = typename TypeConfig::PDataType;
     using OaccDataType          = typename TypeConfig::OaccDataType;
     using ODataType             = typename TypeConfig::ODataType;
-
-    // float range_q = arg_parser.get_float("range_q");
-    // float range_k = arg_parser.get_float("range_k");
-    // float range_v = arg_parser.get_float("range_v");
-    // float range_p = arg_parser.get_float("range_p");
-    // float range_o = arg_parser.get_float("range_o");
 
     // accumulation numbers for performance evaluation
     std::size_t flop = 0, num_byte = 0;
@@ -721,10 +708,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     iota_shuffle(block_table_host.begin(), block_table_host.end(), 0);
     iota_shuffle(cache_batch_idx_host.begin(), cache_batch_idx_host.end(), 0);
 
-    ck_tile::DeviceMem q_buf(q_host.get_element_space_size() * sizeof(QDataType));
-    ck_tile::DeviceMem k_buf(k_host.get_element_space_size() * sizeof(KDataType));
-    ck_tile::DeviceMem v_buf(v_host.get_element_space_size() * sizeof(VDataType));
-
+    ck_tile::DeviceMem q_buf(q_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem k_buf(k_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem v_buf(v_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem knew_buf(knew_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem vnew_buf(vnew_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem bias_buf(bias_host.get_element_space_size_in_bytes());
@@ -749,20 +735,72 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem block_table_buf(block_table_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem cache_batch_idx_buf(cache_batch_idx_host.get_element_space_size_in_bytes());
 
-    // float q_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<QDataType>::max());
-    // float k_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<KDataType>::max());
-    // float v_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<VDataType>::max());
-    // float p_dtype_max = v_dtype_max; // assume p and v is the same type
-    // // float o_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<ODataType>::max());
-    // std::cout << "q_dtype_max: " << q_dtype_max << " k_dtype_max: " << k_dtype_max
-    //           << " v_dtype_max: " << v_dtype_max << std::endl;
     float scale_p = 1.f;
     float scale_o = 1.f;
     if(squant)
     {
-        scale_s = scale_s * quant_scale_s;
-        scale_p = quant_scale_p;
-        scale_o = quant_scale_o;
+        float q_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<QDataType>::max());
+        float k_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<KDataType>::max());
+        float v_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<VDataType>::max());
+        float p_dtype_max = v_dtype_max; // assume p and v is the same type
+        // float o_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<ODataType>::max());
+        std::cout << "q_dtype_max: " << q_dtype_max << " k_dtype_max: " << k_dtype_max
+                  << " v_dtype_max: " << v_dtype_max << std::endl;
+        //Q tensor
+        {
+            float max_value = ck_tile::type_convert<float>(ck_tile::numeric<QDataType>::min());
+            q_host.ForEach([&](auto& self, auto idx) {
+                float val = ck_tile::type_convert<float>(self(idx));
+                if(val > max_value)
+                    max_value = val;
+            });
+
+            float scale = q_dtype_max / max_value;
+
+            q_host.ForEach([&](auto& self, auto idx) {
+                float val = ck_tile::type_convert<float>(self(idx));
+                self(idx) = ck_tile::type_convert<QDataType>(val * scale);
+            });
+            scale_s = scale_s / scale;
+        }
+
+        //K tensor
+        {
+            float max_value = ck_tile::type_convert<float>(ck_tile::numeric<KDataType>::min());
+            k_host.ForEach([&](auto& self, auto idx) {
+                float val = ck_tile::type_convert<float>(self(idx));
+                if(val > max_value)
+                    max_value = val;
+            });
+            std::cout << "k max: " << max_value << std::endl;
+            float scale = k_dtype_max / max_value;
+            k_host.ForEach([&](auto& self, auto idx) {
+                float val = ck_tile::type_convert<float>(self(idx));
+                self(idx) = ck_tile::type_convert<KDataType>(val * scale);
+            });
+            scale_s = scale_s / scale;
+        }
+
+        //V tensor
+        {
+            float max_value = ck_tile::type_convert<float>(ck_tile::numeric<VDataType>::min());
+            v_host.ForEach([&](auto& self, auto idx) {
+                float val = ck_tile::type_convert<float>(self(idx));
+                if(val > max_value)
+                    max_value = val;
+            });
+            std::cout << "v max: " << max_value << std::endl;
+
+            float scale = k_dtype_max / max_value;
+            v_host.ForEach([&](auto& self, auto idx) {
+                float val = ck_tile::type_convert<float>(self(idx));
+                self(idx) = ck_tile::type_convert<VDataType>(val * scale);
+            });
+
+            scale_o = (1.0 / p_dtype_max) / scale;
+        }
+
+        scale_p = p_dtype_max;
     }
 
     q_buf.ToDevice(q_host.data());
@@ -1144,7 +1182,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     std::cout << std::fixed << ", " << std::setprecision(3) << ave_time << " ms, "
               << std::setprecision(2) << tflops << " TFlops, " << std::setprecision(2) << gb_per_sec
-              << " GB/s" << std::flush << std::endl;
+              << " GB/s" << std::flush;
 
     if(do_validation == 0)
     {
@@ -1398,15 +1436,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ck_tile::identity{},
             ck_tile::identity{},
             ck_tile::scales(scale_s));
-        // std::cout << "q_host_ref: " << std::endl;
-        // show(std::cout, q_host_ref, nhead, real_seqlen_q, hdim_v);
-
-        // std::cout << "k_host_ref: " << std::endl;
-        // show(std::cout, k_host_ref, nhead, real_seqlen_k, hdim_q);
-
-        // std::cout << "s_host_ref: " << std::endl;
-        // show(std::cout, s_host_ref, nhead, real_seqlen_q, real_seqlen_k);
-
+        
         if(0.f < logits_soft_cap)
         {
             ck_tile::reference_unary_elementwise<SaccDataType, SaccDataType, SaccDataType>(
@@ -1528,8 +1558,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ck_tile::reference_batched_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(
                 s_host_ref, p_host_ref, p_compute_element_func);
         }
-        // std::cout << "p_host_ref: " << std::endl;
-        // show(std::cout, p_host_ref, nhead, real_seqlen_q, real_seqlen_k);
+        
         if(p_drop > 0)
         {
             ck_tile::HostTensor<RandValOutputDataType> randval_host_ref(
@@ -1548,10 +1577,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ck_tile::identity{},
             ck_tile::identity{},
             oacc_element_func);
-        // std::cout << "v_host_ref: " << std::endl;
-        // show(std::cout, v_host_ref, nhead, hdim_v, real_seqlen_k);
-        // std::cout << "o_host_ref: " << std::endl;
-        // show(std::cout, o_host_ref, nhead, real_seqlen_q, hdim_v);
 
         ck_tile::HostTensor<ODataType> o_host_result({nhead, real_seqlen_q, hdim_v});
         // clang-format off
@@ -1559,8 +1584,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
         if(o_perm) o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host(b_idx, idx[0], idx[1] + query_offset, idx[2]); });
         else       o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host(b_idx, idx[1] + query_offset, idx[0], idx[2]); });
         // clang-format on
-        // std::cout << "o_host_result: " << std::endl;
-        // show(std::cout, o_host_result, nhead, real_seqlen_q, hdim_v);
 
         auto [rtol, atol] = get_elimit<DataTypeConfig>(init_method);
         bool cur_pass     = ck_tile::check_err(
