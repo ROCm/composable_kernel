@@ -11,22 +11,21 @@
 #include <type_traits>
 
 #if !defined(CK_TILE_HAS_ROW_NEWBCAST)
-  // Clang/amdclang++ defines per-arch HIP macros like __HIP_ARCH_GFX908__ during device compilation
-  // when you pass --offload-arch=gfx* (or CMAKE_HIP_ARCHITECTURES). 
-  // On MI100 (gfx908) row_newbroadcast is illegal; it’s OK on gfx90a and gfx10+.
-  // Sources:
-  // - __HIP_ARCH_GFX*__ macros: enabled with --offload-arch=gfx908, etc.
-  // - amdclang++ defines __gfx*__ macros for arch-specific code.
-  // We conservatively enable the fast path on 90A and newer/RDNA.
-  #if defined(__HIP_DEVICE_COMPILE__) && defined(__HIP_PLATFORM_AMD__) && \
-     ( defined(__HIP_ARCH_GFX90A__) || /* MI200 series */                  \
-       defined(__HIP_ARCH_GFX940__)  || defined(__HIP_ARCH_GFX941__) || defined(__HIP_ARCH_GFX942__) || \
-       /* RDNA (gfx10+) families, add more if you build for them */        \
-       defined(__HIP_ARCH_GFX1010__) || defined(__HIP_ARCH_GFX1012__) ||   \
-       defined(__HIP_ARCH_GFX1030__) || defined(__HIP_ARCH_GFX1031__) || defined(__HIP_ARCH_GFX1032__) || \
-       defined(__HIP_ARCH_GFX1100__) || defined(__HIP_ARCH_GFX1101__) || defined(__HIP_ARCH_GFX1102__) )
-    #define CK_TILE_HAS_ROW_NEWBCAST 1
+  // row_newbcast (DPP modifier 0x157) support by architecture:
+  // - Not supported: gfx908 (MI100) and older
+  // - Supported: gfx90a (MI200), gfx94x (MI300), and all RDNA architectures
+  
+  #if defined(__HIP_DEVICE_COMPILE__) && defined(__HIP_PLATFORM_AMD__)
+    #if defined(__gfx908__) || defined(__gfx906__) || defined(__gfx900__)
+      // Explicitly disable for known unsupported architectures
+      #define CK_TILE_HAS_ROW_NEWBCAST 0
+    #else
+      // Assume support for gfx90a and newer (including all gfx94x and RDNA)
+      // This is safer as new architectures typically maintain backward compatibility
+      #define CK_TILE_HAS_ROW_NEWBCAST 1
+    #endif
   #else
+    // Conservative default for non-AMD or host compilation
     #define CK_TILE_HAS_ROW_NEWBCAST 0
   #endif
 #endif
