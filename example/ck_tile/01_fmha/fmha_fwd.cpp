@@ -743,10 +743,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         float k_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<KDataType>::max());
         float v_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<VDataType>::max());
         float p_dtype_max = v_dtype_max; // assume p and v is the same type
-        // float o_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<ODataType>::max());
-        std::cout << "q_dtype_max: " << q_dtype_max << " k_dtype_max: " << k_dtype_max
-                  << " v_dtype_max: " << v_dtype_max << std::endl;
-        //Q tensor
+        // Q tensor
         {
             float max_value = ck_tile::type_convert<float>(ck_tile::numeric<QDataType>::min());
             q_host.ForEach([&](auto& self, auto idx) {
@@ -764,7 +761,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             scale_s = scale_s / scale;
         }
 
-        //K tensor
+        // K tensor
         {
             float max_value = ck_tile::type_convert<float>(ck_tile::numeric<KDataType>::min());
             k_host.ForEach([&](auto& self, auto idx) {
@@ -772,7 +769,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 if(val > max_value)
                     max_value = val;
             });
-            std::cout << "k max: " << max_value << std::endl;
             float scale = k_dtype_max / max_value;
             k_host.ForEach([&](auto& self, auto idx) {
                 float val = ck_tile::type_convert<float>(self(idx));
@@ -781,7 +777,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             scale_s = scale_s / scale;
         }
 
-        //V tensor
+        // V tensor
         {
             float max_value = ck_tile::type_convert<float>(ck_tile::numeric<VDataType>::min());
             v_host.ForEach([&](auto& self, auto idx) {
@@ -789,7 +785,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 if(val > max_value)
                     max_value = val;
             });
-            std::cout << "v max: " << max_value << std::endl;
 
             float scale = k_dtype_max / max_value;
             v_host.ForEach([&](auto& self, auto idx) {
@@ -1436,7 +1431,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ck_tile::identity{},
             ck_tile::identity{},
             ck_tile::scales(scale_s));
-        
+
         if(0.f < logits_soft_cap)
         {
             ck_tile::reference_unary_elementwise<SaccDataType, SaccDataType, SaccDataType>(
@@ -1558,7 +1553,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ck_tile::reference_batched_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(
                 s_host_ref, p_host_ref, p_compute_element_func);
         }
-        
+
         if(p_drop > 0)
         {
             ck_tile::HostTensor<RandValOutputDataType> randval_host_ref(
