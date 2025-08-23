@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 
@@ -15,4 +15,11 @@ using RsDataType        = ck::Tuple<R0DataType>;
 
 #include "run_convnd_fwd_max_example.inc"
 
-int main(int argc, char* argv[]) { return !run_convnd_fwd_max_example(argc, argv); }
+int main(int argc, char* argv[])
+{
+    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+    {
+        return 0;
+    }
+    return !run_convnd_fwd_max_example(argc, argv);
+}

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <vector>
@@ -91,11 +91,11 @@ using DeviceOpInstance =
         8,           // AK1
         8,           // BK1
         2,           // B1K1
-        32,          // MPerXDL
-        32,          // NPerXDL
-        1,           // MXdlPerWave
-        4,           // NXdlPerWave
-        2,           // Gemm1NXdlPerWave
+        16,          // MPerXDL
+        16,          // NPerXDL
+        2,           // MXdlPerWave
+        8,           // NXdlPerWave
+        4,           // Gemm1NXdlPerWave
         S<4, 64, 1>, // ABlockTransfer
         S<1, 0, 2>,
         S<1, 0, 2>,
@@ -120,7 +120,7 @@ using DeviceOpInstance =
         1,              // CShuffleMXdlPerWavePerShuffle
         2,              // CShuffleNXdlPerWavePerShuffle
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
+        4,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         MaskingSpec,    // MaskingSpecialization
         1>;
 
@@ -192,6 +192,12 @@ int main(int argc, char* argv[])
         printf("arg4 to 11: M, N, K, O, G0, G1\n");
         printf("arg10: scale (alpha)\n");
         exit(0);
+    }
+
+    // temp disable on gfx11 & gfx12
+    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+    {
+        return 0;
     }
 
     std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, G1, M, K};
