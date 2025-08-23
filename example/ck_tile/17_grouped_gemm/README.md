@@ -166,8 +166,23 @@ args:
  -a_layout    A tensor data layout - (Default: Row).
  -b_layout    B tensor data layout - (Default: Col).
  -c_layout    C tensor data layout - (Default: Row).
+ -prec        data type. fp16/fp8 - (Default: fp16).
  -validate    0. No validation, 1. Validation on CPU. (Default: 1).
  -warmup      Number of iterations before benchmark the kernel. (Default: 10).
  -repeat      Number of iterations to benchmark the kernel. (Default: 100).
- -group_count Group count. (Default: 16).
+ -group_count Group count. (Default: 8).
+ -kbatch      kbatch for SplitK (Default: 1).
+```
+
+If any of `Ms`, `Ns`, `Ks`, `stride_As`, `stride_Bs`, or `stride_Cs` are missing or their sizes
+don't match `group_count`, the example generates defaults per group index `i` (0-based):
+
+```text
+M[i] = 256 + 256 * i
+N[i] = 256 + 512 * i
+K[i] = 512 + 128 * i
+
+stride_A[i] = K[i]
+stride_B[i] = K[i]
+stride_C[i] = N[i]
 ```
