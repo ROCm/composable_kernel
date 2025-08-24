@@ -256,7 +256,9 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                   const CGridDesc_M_N& c_grid_desc_m_n,
                   const Block2CTileMap& block_2_ctile_map)
     {
-        CHECK_XDL_LAYOUT
+        static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
+                          (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
+                      "Invalid tuning param!");
 
         const auto M = a_grid_desc_ak0_m_ak1.GetLength(I1);
         const auto N = b_grid_desc_bk0_n_bk1.GetLength(I1);

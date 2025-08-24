@@ -211,7 +211,9 @@ struct GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                                             const RGridDesc_M& r_grid_desc_m,
                                                             const Block2ETileMap& block_2_etile_map)
     {
-        CHECK_XDL_LAYOUT
+        static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
+                          (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
+                      "Invalid tuning param!");
 
         static_assert(AGridDesc_M_K::GetNumOfDimension() == 2);
         static_assert(BGridDesc_N_K::GetNumOfDimension() == 2);

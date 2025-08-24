@@ -312,7 +312,9 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
                                                             const EGridDesc_M_N& e_grid_desc_m_n,
                                                             const Block2ETileMap& block_2_etile_map)
     {
-        CHECK_XDL_LAYOUT
+        static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
+                          (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
+                      "Invalid tuning param!");
 
         static_assert(KPerBlock % AK1Value == 0 && KPerBlock % BK1Value == 0,
                       "KPerBlock must be divisible by AK1Value and BK1Value!");

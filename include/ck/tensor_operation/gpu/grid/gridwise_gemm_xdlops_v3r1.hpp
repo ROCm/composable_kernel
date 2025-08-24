@@ -248,7 +248,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
         //               is_known_at_compile_time<remove_cv_t<decltype(BK1)>>::value,
         //               "wrong! K1 need to be known at compile-time");
 
-        CHECK_XDL_LAYOUT
+        static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
+                          (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
+                      "Invalid tuning param!");
 
         const auto M = a_grid_desc_ak0_m_ak1.GetLength(I1);
         const auto N = b_grid_desc_bk0_n_bk1.GetLength(I1);

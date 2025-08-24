@@ -1178,7 +1178,9 @@ struct GridwiseMoeGemmMX
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     __host__ static constexpr bool CheckValidity(const Argument& karg)
     {
-        CHECK_XDL_LAYOUT
+        static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
+                          (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
+                      "Invalid tuning param!");
 
         static_assert(KPerBlock % (ScaleBlockSize / BPackedSize) == 0,
                       "KPerBlock should be multiple of ScaleBlockSize");

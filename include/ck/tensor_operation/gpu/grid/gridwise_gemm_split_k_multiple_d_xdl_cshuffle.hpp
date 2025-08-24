@@ -296,7 +296,9 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
                   const EGridDesc_M_N& e_grid_desc_m_n,
                   const Block2ETileMap& block_2_etile_map)
     {
-        CHECK_XDL_LAYOUT
+        static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
+                          (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
+                      "Invalid tuning param!");
 
         const auto M = a_grid_desc_akb_ak0_m_ak1.GetLength(I2);
         const auto N = b_grid_desc_bkb_bk0_n_bk1.GetLength(I2);
