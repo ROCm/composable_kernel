@@ -562,69 +562,44 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
 
                     grid_size_ += grid_size_grp;
 
+                    template <typename GridwiseGemm>
+                    auto init_gemm_args() = [&]() {
+                        if(GridwiseGemm::CheckValidity(a_grid_desc_m_k,
+                                                       b_grid_desc_n_k,
+                                                       ds_grid_desc_m_n,
+                                                       e_grid_desc_m_n,
+                                                       block_2_etile_map))
+                        {
+                            gemm_desc_kernel_args_(valid_gemms_count_) = GemmArgs{
+                                a_grid_ptrs[i],
+                                static_cast<const BDataType*>(p_b),
+                                ds_grid_ptrs[i],
+                                c_grid_ptrs[i],
+                                GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k),
+                                GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k),
+                                GridwiseGemm::
+                                    MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                        ds_grid_desc_m_n),
+                                GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                    e_grid_desc_m_n),
+                                block_2_etile_map,
+                                BlockStart,
+                                BlockEnd};
+
+                            valid_gemms_count_++;
+                        }
+                    };
                     if(get_warp_size() == 64)
                     {
                         if constexpr(NXdlPerWave64 > 0)
                         {
-                            if(GridwiseGemm64::CheckValidity(a_grid_desc_m_k,
-                                                             b_grid_desc_n_k,
-                                                             ds_grid_desc_m_n,
-                                                             e_grid_desc_m_n,
-                                                             block_2_etile_map))
-                            {
-                                gemm_desc_kernel_args_(valid_gemms_count_) = GemmArgs{
-                                    a_grid_ptrs[i],
-                                    static_cast<const BDataType*>(p_b),
-                                    ds_grid_ptrs[i],
-                                    c_grid_ptrs[i],
-                                    GridwiseGemm64::MakeDefaultAGridDescriptor_AK0_M_AK1(
-                                        a_grid_desc_m_k),
-                                    GridwiseGemm64::MakeDefaultBGridDescriptor_BK0_N_BK1(
-                                        b_grid_desc_n_k),
-                                    GridwiseGemm64::
-                                        MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                            ds_grid_desc_m_n),
-                                    GridwiseGemm64::
-                                        MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                            e_grid_desc_m_n),
-                                    block_2_etile_map,
-                                    BlockStart,
-                                    BlockEnd};
-
-                                valid_gemms_count_++;
-                            }
+                            init_gemm_args<GridwiseGemm64>();
                         }
                         else
                         {
                             if constexpr(NXdlPerWave32 > 0)
                             {
-                                if(GridwiseGemm32::CheckValidity(a_grid_desc_m_k,
-                                                                 b_grid_desc_n_k,
-                                                                 ds_grid_desc_m_n,
-                                                                 e_grid_desc_m_n,
-                                                                 block_2_etile_map))
-                                {
-                                    gemm_desc_kernel_args_(valid_gemms_count_) = GemmArgs{
-                                        a_grid_ptrs[i],
-                                        static_cast<const BDataType*>(p_b),
-                                        ds_grid_ptrs[i],
-                                        c_grid_ptrs[i],
-                                        GridwiseGemm32::MakeDefaultAGridDescriptor_AK0_M_AK1(
-                                            a_grid_desc_m_k),
-                                        GridwiseGemm32::MakeDefaultBGridDescriptor_BK0_N_BK1(
-                                            b_grid_desc_n_k),
-                                        GridwiseGemm32::
-                                            MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                                ds_grid_desc_m_n),
-                                        GridwiseGemm32::
-                                            MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                                e_grid_desc_m_n),
-                                        block_2_etile_map,
-                                        BlockStart,
-                                        BlockEnd};
-
-                                    valid_gemms_count_++;
-                                }
+                                init_gemm_args<GridwiseGemm32>();
                             }
                         }
                     }

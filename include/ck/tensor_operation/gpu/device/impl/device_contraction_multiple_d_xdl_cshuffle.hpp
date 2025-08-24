@@ -416,8 +416,6 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
                   GridwiseGemm64::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k_)},
               b_grid_desc_bk0_n_bk1_{
                   GridwiseGemm64::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k_)},
-              ds_grid_desc_mblock_mperblock_nblock_nperblock_{},
-              e_grid_desc_mblock_mperblock_nblock_nperblock_{},
               block_2_etile_map_{GridwiseGemm64::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
@@ -434,48 +432,6 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
                 ds_grid_desc_m_n_(i) =
                     DeviceOp::MakeEGridDescriptor_M_N(ds_ms_ns_lengths[i], ds_ms_ns_strides[i]);
             });
-
-            // populate desc for Ds/E
-            if(get_warp_size() == 64)
-            {
-                if constexpr(NXdlPerWave64 > 0)
-                {
-                    if(GridwiseGemm64::CheckValidity(a_grid_desc_m_k_,
-                                                     b_grid_desc_n_k_,
-                                                     ds_grid_desc_m_n_,
-                                                     e_grid_desc_m_n_,
-                                                     block_2_etile_map_))
-                    {
-                        e_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                            GridwiseGemm64::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                e_grid_desc_m_n_);
-
-                        ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                            GridwiseGemm64::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                ds_grid_desc_m_n_);
-                    }
-                }
-            }
-            else
-            {
-                if constexpr(NXdlPerWave32 > 0)
-                {
-                    if(GridwiseGemm32::CheckValidity(a_grid_desc_m_k_,
-                                                     b_grid_desc_n_k_,
-                                                     ds_grid_desc_m_n_,
-                                                     e_grid_desc_m_n_,
-                                                     block_2_etile_map_))
-                    {
-                        e_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                            GridwiseGemm32::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                e_grid_desc_m_n_);
-
-                        ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                            GridwiseGemm32::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                ds_grid_desc_m_n_);
-                    }
-                }
-            }
 
             // for sanity check of vector memory access
             tie(a_continous_dim_, a_max_read_elems_) =
@@ -560,7 +516,13 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
                 throw std::runtime_error(
                     "wrong! GridwiseGemmMultipleD_xdl_cshuffle has invalid setting");
             }
+            auto e_grid_desc_mblock_mperblock_nblock_nperblock =
+                GridwiseGemm64::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                    e_grid_desc_m_n_);
 
+            auto ds_grid_desc_mblock_mperblock_nblock_nperblock =
+                GridwiseGemm64::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                    ds_grid_desc_m_n_);
             const index_t grid_size =
                 arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_);
 
@@ -599,8 +561,8 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
                                               arg.cde_element_op_,
                                               arg.a_grid_desc_ak0_m_ak1_,
                                               arg.b_grid_desc_bk0_n_bk1_,
-                                              arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                              arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                              ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                              e_grid_desc_mblock_mperblock_nblock_nperblock,
                                               arg.block_2_etile_map_);
             };
 

@@ -253,7 +253,6 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
               a_grid_desc_k0_m_k1_{},
               b_grid_desc_k0_n_k1_{},
               c_grid_desc_m_n_{},
-              block_2_ctile_map_{},
               M01_{M01},
               N01_{N01},
               a_element_op_{a_element_op},
@@ -265,39 +264,6 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
             b_grid_desc_k0_n_k1_ =
                 DeviceGemmXdlSkipBLds::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
             c_grid_desc_m_n_ = DeviceGemmXdlSkipBLds::MakeCGridDescriptor_M_N(M, N, StrideC);
-
-            if(get_warp_size() == 64)
-            {
-                if constexpr(NXdlPerWave64 > 0)
-                {
-                    if(GridwiseGemm64::CheckValidity(a_grid_desc_k0_m_k1_,
-                                                     b_grid_desc_k0_n_k1_,
-                                                     c_grid_desc_m_n_,
-                                                     M01_,
-                                                     N01_))
-                    {
-
-                        block_2_ctile_map_ =
-                            GridwiseGemm64::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
-                    }
-                }
-            }
-            else
-            {
-                if constexpr(NXdlPerWave32 > 0)
-                {
-                    if(GridwiseGemm32::CheckValidity(a_grid_desc_k0_m_k1_,
-                                                     b_grid_desc_k0_n_k1_,
-                                                     c_grid_desc_m_n_,
-                                                     M01_,
-                                                     N01_))
-                    {
-
-                        block_2_ctile_map_ =
-                            GridwiseGemm32::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
-                    }
-                }
-            }
         }
 
         //  private:
@@ -307,7 +273,6 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
         AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
         CGridDesc_M_N c_grid_desc_m_n_;
-        typename GridwiseGemm64::DefaultBlock2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
         AElementwiseOperation a_element_op_;
@@ -346,7 +311,8 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
                 throw std::runtime_error(
                     "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
             }
-
+            auto block_2_ctile_map =
+                GridwiseGemm::MakeDefaultBlock2CTileMap(arg.c_grid_desc_m_n_, arg.M01_, arg.N01_);
             const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_);
 
             const auto K0 = arg.a_grid_desc_k0_m_k1_.GetLength(I0);
@@ -391,7 +357,7 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
                                                   arg.c_element_op_,
-                                                  arg.block_2_ctile_map_);
+                                                  block_2_ctile_map);
             }
             else
             {
@@ -423,7 +389,7 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
                                                   arg.c_element_op_,
-                                                  arg.block_2_ctile_map_);
+                                                  block_2_ctile_map);
             }
 
             return ave_time;

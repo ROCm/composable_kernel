@@ -480,7 +480,6 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
               b1_grid_desc_bk0_n_bk1_{
                   DeviceOp::MakeB1GridDescriptor_BK0_N_BK1(NRaw, Gemm1NRaw, StrideB1)},
               c_grid_desc_m_n_{DeviceOp::MakeCGridDescriptor_M_N(MRaw, Gemm1NRaw, StrideC)},
-              c_grid_desc_mblock_mperblock_nblock_nperblock_{},
               block_2_ctile_map_{GridwiseGemm64::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
@@ -492,38 +491,6 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
               c0_matrix_mask_{NRaw},
               raw_lengths_m_n_k_o_{MRaw, NRaw, KRaw, Gemm1NRaw}
         {
-            if(get_warp_size() == 64)
-            {
-                if constexpr(MXdlPerWave64 > 0)
-                {
-                    if(GridwiseGemm64::CheckValidity(a_grid_desc_ak0_m_ak1_,
-                                                     b_grid_desc_bk0_n_bk1_,
-                                                     b1_grid_desc_bk0_n_bk1_,
-                                                     c_grid_desc_m_n_,
-                                                     block_2_ctile_map_))
-                    {
-                        c_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                            GridwiseGemm64::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                c_grid_desc_m_n_);
-                    }
-                }
-            }
-            else
-            {
-                if constexpr(MXdlPerWave32 > 0)
-                {
-                    if(GridwiseGemm32::CheckValidity(a_grid_desc_ak0_m_ak1_,
-                                                     b_grid_desc_bk0_n_bk1_,
-                                                     b1_grid_desc_bk0_n_bk1_,
-                                                     c_grid_desc_m_n_,
-                                                     block_2_ctile_map_))
-                    {
-                        c_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                            GridwiseGemm32::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                c_grid_desc_m_n_);
-                    }
-                }
-            }
         }
 
         //  private:
@@ -535,8 +502,6 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1_;
         CGridDesc_M_N c_grid_desc_m_n_;
-        typename GridwiseGemm64::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-            c_grid_desc_mblock_mperblock_nblock_nperblock_;
         typename GridwiseGemm64::DefaultBlock2CTileMap block_2_ctile_map_;
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
@@ -569,7 +534,9 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
             {
                 throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
-
+            auto c_grid_desc_mblock_mperblock_nblock_nperblock =
+                GridwiseGemm64::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                    arg.c_grid_desc_m_n_);
             const index_t grid_size =
                 arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_) * arg.batch_count_;
 
@@ -615,7 +582,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                               arg.a_grid_desc_ak0_m_ak1_,
                                               arg.b_grid_desc_bk0_n_bk1_,
                                               arg.b1_grid_desc_bk0_n_bk1_,
-                                              arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                              c_grid_desc_mblock_mperblock_nblock_nperblock,
                                               arg.block_2_ctile_map_,
                                               arg.batch_count_,
                                               arg.compute_base_ptr_of_batch_,

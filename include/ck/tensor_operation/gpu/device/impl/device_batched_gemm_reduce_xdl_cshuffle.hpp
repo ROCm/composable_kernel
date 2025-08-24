@@ -611,8 +611,6 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<0, ReduceO
               b_grid_desc_bk0_n_bk1_{DeviceOp::MakeBGridDescriptor_BK0_N_BK1(KRaw, NRaw, StrideB)},
               c_grid_desc_m_n_{DeviceOp::MakeCGridDescriptor_M_N(MRaw, NRaw, StrideC)},
               reduce_grid_desc_m_{DeviceOp::MakeReduceGridDescriptor_M(MRaw)},
-              c_grid_desc_mblock_mperblock_nblock_nperblock_{},
-              reduce_grid_desc_mblock_mperblock_{},
               compute_base_ptr_of_batch_{
                   type_convert<index_t>(a_grid_desc_ak0_m_ak1_.GetElementSpaceSize()),
                   type_convert<index_t>(b_grid_desc_bk0_n_bk1_.GetElementSpaceSize()),
@@ -625,44 +623,6 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<0, ReduceO
               reduce_in_element_ops_{reduce_in_element_ops},
               reduce_out_element_ops_{reduce_out_element_ops}
         {
-            if(get_warp_size() == 64)
-            {
-                if constexpr(NXdlPerWave64 > 0)
-                {
-                    if(GridwiseGemm64::CheckValidity(a_grid_desc_ak0_m_ak1_,
-                                                     b_grid_desc_bk0_n_bk1_,
-                                                     c_grid_desc_m_n_,
-                                                     block_2_ctile_map_))
-                    {
-                        c_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                            GridwiseGemm64::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                c_grid_desc_m_n_);
-
-                        reduce_grid_desc_mblock_mperblock_ =
-                            GridwiseGemm64::MakeReduceGridDescriptor_MBlock_MPerBlock(
-                                reduce_grid_desc_m_);
-                    }
-                }
-            }
-            else
-            {
-                if constexpr(NXdlPerWave32 > 0)
-                {
-                    if(GridwiseGemm32::CheckValidity(a_grid_desc_ak0_m_ak1_,
-                                                     b_grid_desc_bk0_n_bk1_,
-                                                     c_grid_desc_m_n_,
-                                                     block_2_ctile_map_))
-                    {
-                        c_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                            GridwiseGemm32::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                c_grid_desc_m_n_);
-
-                        reduce_grid_desc_mblock_mperblock_ =
-                            GridwiseGemm32::MakeReduceGridDescriptor_MBlock_MPerBlock(
-                                reduce_grid_desc_m_);
-                    }
-                }
-            }
         }
 
         //  private:
@@ -675,10 +635,6 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<0, ReduceO
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         CGridDesc_M_N c_grid_desc_m_n_;
         ReduceGridDesc_M reduce_grid_desc_m_;
-        typename GridwiseGemm64::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-            c_grid_desc_mblock_mperblock_nblock_nperblock_;
-        typename GridwiseGemm64::ReduceGridDescriptor_MBlock_MPerBlock
-            reduce_grid_desc_mblock_mperblock_;
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
         typename GridwiseGemm64::DefaultBlock2CTileMap block_2_ctile_map_;
         AElementwiseOperation a_element_op_;
@@ -696,6 +652,21 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<0, ReduceO
         template <typename GridwiseGemm>
         float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
+            if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
+                                            arg.b_grid_desc_bk0_n_bk1_,
+                                            arg.c_grid_desc_m_n_,
+                                            arg.block_2_ctile_map_))
+            {
+                throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
+            }
+
+            auto c_grid_desc_mblock_mperblock_nblock_nperblock =
+                GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                    c_grid_desc_m_n_);
+
+            auto reduce_grid_desc_mblock_mperblock =
+                GridwiseGemm::MakeReduceGridDescriptor_MBlock_MPerBlock(reduce_grid_desc_m_);
+
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
                 {
@@ -718,15 +689,6 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<0, ReduceO
                               << arg.reduce_grid_desc_m_.GetLength(I0) << "}" << std::endl;
                 }
             }
-
-            if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
-                                            arg.b_grid_desc_bk0_n_bk1_,
-                                            arg.c_grid_desc_m_n_,
-                                            arg.block_2_ctile_map_))
-            {
-                throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
-            }
-
             const index_t grid_size =
                 arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_) * arg.Batch_;
 
@@ -754,28 +716,27 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<0, ReduceO
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     true>;
 
-                elapsed_time =
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(grid_size),
-                                           dim3(BlockSize),
-                                           0,
-                                           arg.p_a_grid_,
-                                           arg.p_b_grid_,
-                                           arg.p_c_grid_,
-                                           arg.p_reduces_grid_,
-                                           arg.Batch_,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.c_element_op_,
-                                           arg.reduce_in_element_ops_,
-                                           arg.reduce_out_element_ops_,
-                                           arg.a_grid_desc_ak0_m_ak1_,
-                                           arg.b_grid_desc_bk0_n_bk1_,
-                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.reduce_grid_desc_mblock_mperblock_,
-                                           arg.compute_base_ptr_of_batch_,
-                                           arg.block_2_ctile_map_);
+                elapsed_time = launch_and_time_kernel(stream_config,
+                                                      kernel,
+                                                      dim3(grid_size),
+                                                      dim3(BlockSize),
+                                                      0,
+                                                      arg.p_a_grid_,
+                                                      arg.p_b_grid_,
+                                                      arg.p_c_grid_,
+                                                      arg.p_reduces_grid_,
+                                                      arg.Batch_,
+                                                      arg.a_element_op_,
+                                                      arg.b_element_op_,
+                                                      arg.c_element_op_,
+                                                      arg.reduce_in_element_ops_,
+                                                      arg.reduce_out_element_ops_,
+                                                      arg.a_grid_desc_ak0_m_ak1_,
+                                                      arg.b_grid_desc_bk0_n_bk1_,
+                                                      c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                      reduce_grid_desc_mblock_mperblock,
+                                                      arg.compute_base_ptr_of_batch_,
+                                                      arg.block_2_ctile_map_);
             }
             else
             {
@@ -797,28 +758,27 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<0, ReduceO
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     false>;
 
-                elapsed_time =
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(grid_size),
-                                           dim3(BlockSize),
-                                           0,
-                                           arg.p_a_grid_,
-                                           arg.p_b_grid_,
-                                           arg.p_c_grid_,
-                                           arg.p_reduces_grid_,
-                                           arg.Batch_,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.c_element_op_,
-                                           arg.reduce_in_element_ops_,
-                                           arg.reduce_out_element_ops_,
-                                           arg.a_grid_desc_ak0_m_ak1_,
-                                           arg.b_grid_desc_bk0_n_bk1_,
-                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.reduce_grid_desc_mblock_mperblock_,
-                                           arg.compute_base_ptr_of_batch_,
-                                           arg.block_2_ctile_map_);
+                elapsed_time = launch_and_time_kernel(stream_config,
+                                                      kernel,
+                                                      dim3(grid_size),
+                                                      dim3(BlockSize),
+                                                      0,
+                                                      arg.p_a_grid_,
+                                                      arg.p_b_grid_,
+                                                      arg.p_c_grid_,
+                                                      arg.p_reduces_grid_,
+                                                      arg.Batch_,
+                                                      arg.a_element_op_,
+                                                      arg.b_element_op_,
+                                                      arg.c_element_op_,
+                                                      arg.reduce_in_element_ops_,
+                                                      arg.reduce_out_element_ops_,
+                                                      arg.a_grid_desc_ak0_m_ak1_,
+                                                      arg.b_grid_desc_bk0_n_bk1_,
+                                                      c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                      reduce_grid_desc_mblock_mperblock,
+                                                      arg.compute_base_ptr_of_batch_,
+                                                      arg.block_2_ctile_map_);
             }
 
             return elapsed_time;

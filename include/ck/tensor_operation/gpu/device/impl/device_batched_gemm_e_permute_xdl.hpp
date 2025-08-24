@@ -440,7 +440,6 @@ struct DeviceBatchedGemmEPermuteXdl : public DeviceBatchedGemmEPermute<ALayout,
                   GridwiseGemm64::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k_)},
               b_grid_desc_bk0_n_bk1_{
                   GridwiseGemm64::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k_)},
-              e_grid_desc_mblock_mperblock_nblock_nperblock{},
               e_grid_desc_g0_g1_m_n_{
                   DeviceOp::MakeEGridDescriptor_G0_G1_M_N(batched_gemm_e_permute_desc.G0_,
                                                           batched_gemm_e_permute_desc.G1_,
@@ -456,38 +455,6 @@ struct DeviceBatchedGemmEPermuteXdl : public DeviceBatchedGemmEPermute<ALayout,
               b_element_op_{b_element_op},
               cde_element_op_{cde_element_op}
         {
-            if(get_warp_size() == 64)
-            {
-                if constexpr(NXdlPerWave64 > 0)
-                {
-                    if(GridwiseGemm64::CheckValidity(a_grid_desc_m_k_,
-                                                     b_grid_desc_n_k_,
-                                                     ck::Tuple<>{},
-                                                     e_grid_desc_m_n_,
-                                                     block_2_etile_map_))
-                    {
-                        e_grid_desc_mblock_mperblock_nblock_nperblock =
-                            GridwiseGemm64::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                e_grid_desc_m_n_);
-                    }
-                }
-            }
-            else
-            {
-                if constexpr(NXdlPerWave32 > 0)
-                {
-                    if(GridwiseGemm32::CheckValidity(a_grid_desc_m_k_,
-                                                     b_grid_desc_n_k_,
-                                                     ck::Tuple<>{},
-                                                     e_grid_desc_m_n_,
-                                                     block_2_etile_map_))
-                    {
-                        e_grid_desc_mblock_mperblock_nblock_nperblock =
-                            GridwiseGemm32::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                e_grid_desc_m_n_);
-                    }
-                }
-            }
         }
 
         void Print() const
@@ -548,7 +515,9 @@ struct DeviceBatchedGemmEPermuteXdl : public DeviceBatchedGemmEPermute<ALayout,
                     "wrong! GridwiseBatchedGemmCPermute_km_kn_m0m1n0n1_xdlops_v2r3 has invalid "
                     "setting");
             }
-
+            auto e_grid_desc_mblock_mperblock_nblock_nperblock =
+                GridwiseGemm64::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                    arg.e_grid_desc_m_n_);
             const index_t grid_size =
                 arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * arg.BatchCount_;
 
@@ -581,7 +550,7 @@ struct DeviceBatchedGemmEPermuteXdl : public DeviceBatchedGemmEPermute<ALayout,
                                               arg.BatchCount_,
                                               arg.a_grid_desc_ak0_m_ak1_,
                                               arg.b_grid_desc_bk0_n_bk1_,
-                                              arg.e_grid_desc_mblock_mperblock_nblock_nperblock,
+                                              e_grid_desc_mblock_mperblock_nblock_nperblock,
                                               arg.a_element_op_,
                                               arg.b_element_op_,
                                               arg.cde_element_op_,

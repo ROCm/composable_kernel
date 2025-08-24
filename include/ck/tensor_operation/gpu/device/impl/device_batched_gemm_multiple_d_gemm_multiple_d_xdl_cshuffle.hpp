@@ -591,11 +591,8 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
                   GridwiseGemm64::MakeDefaultA0GridDescriptor_AK0_M_AK1(a0_grid_desc_m_k_)},
               b0_grid_desc_bk0_n_bk1_{
                   GridwiseGemm64::MakeDefaultB0GridDescriptor_BK0_N_BK1(b0_grid_desc_n_k_)},
-              d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_{},
               b1_grid_desc_bk0_n_bk1_{
                   GridwiseGemm64::MakeDefaultB1GridDescriptor_BK0_N_BK1(b1_grid_desc_n_k_)},
-              d1s_grid_desc_mblock_mperblock_nblock_nperblock_{},
-              e1_grid_desc_mblock_mperblock_nblock_nperblock_{},
               block_2_e1tile_map_{GridwiseGemm64::MakeDefaultBlock2E1TileMap(e1_grid_desc_m_n_)},
               a0_element_op_{a0_element_op},
               b0_element_op_{b0_element_op},
@@ -620,18 +617,6 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
                           << ", " << d0s_grid_desc_m_n_[I0].GetLength(I1) << "}" << std::endl;
                 std::cout << "b1_grid_desc_n_k_{" << b1_grid_desc_n_k_.GetLength(I0) << ", "
                           << b1_grid_desc_n_k_.GetLength(I1) << "}" << std::endl;
-                std::cout << "d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_{"
-                          << d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_[I0].GetLength(I0) << ", "
-                          << d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_[I0].GetLength(I1) << ", "
-                          << d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_[I0].GetLength(I2) << ", "
-                          << d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_[I0].GetLength(I3) << ", "
-                          << d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_[I0].GetLength(I4) << ", "
-                          << d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_[I0].GetLength(I5) << ", "
-                          << d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_[I0].GetLength(I6) << ", "
-                          << d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_[I0].GetLength(I7) << ", "
-                          << d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_[I0].GetLength(I8) << ", "
-                          << d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_[I0].GetLength(I9) << "}"
-                          << std::endl;
                 std::cout << "e1_grid_desc_m_n_{" << e1_grid_desc_m_n_.GetLength(I0) << ", "
                           << e1_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
             }
@@ -659,55 +644,6 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
                 d1s_grid_desc_m_n_(i) =
                     DeviceOp::MakeE1GridDescriptor_M_N<D1Layout>(MRaw, Gemm1NRaw, StrideD1s[i]);
             });
-
-            if(get_warp_size() == 64)
-            {
-                if constexpr(Gemm0MXdlPerWave64 > 0)
-                {
-                    if(GridwiseGemm64::CheckValidity(a0_grid_desc_m_k_,
-                                                     b0_grid_desc_n_k_,
-                                                     b1_grid_desc_n_k_,
-                                                     e1_grid_desc_m_n_,
-                                                     block_2_e1tile_map_))
-                    {
-                        e1_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                            GridwiseGemm64::MakeE1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                e1_grid_desc_m_n_);
-
-                        d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_ =
-                            GridwiseGemm64::MakeD0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
-                                d0s_grid_desc_m_n_);
-
-                        d1s_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                            GridwiseGemm64::MakeD1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                d1s_grid_desc_m_n_);
-                    }
-                }
-            }
-            else
-            {
-                if constexpr(Gemm0MXdlPerWave32 > 0)
-                {
-                    if(GridwiseGemm32::CheckValidity(a0_grid_desc_m_k_,
-                                                     b0_grid_desc_n_k_,
-                                                     b1_grid_desc_n_k_,
-                                                     e1_grid_desc_m_n_,
-                                                     block_2_e1tile_map_))
-                    {
-                        e1_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                            GridwiseGemm32::MakeE1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                e1_grid_desc_m_n_);
-
-                        d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_ =
-                            GridwiseGemm32::MakeD0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
-                                d0s_grid_desc_m_n_);
-
-                        d1s_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                            GridwiseGemm32::MakeD1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                d1s_grid_desc_m_n_);
-                    }
-                }
-            }
         }
 
         //  private:
@@ -730,15 +666,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         // tensor descriptors for block/thread-wise copy
         A0GridDesc_AK0_M_AK1 a0_grid_desc_ak0_m_ak1_;
         B0GridDesc_BK0_N_BK1 b0_grid_desc_bk0_n_bk1_;
-        typename GridwiseGemm64::D0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
-            d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_;
-        typename GridwiseGemm32::D0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
-            d0s_grid_desc32_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_;
         B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1_;
-        typename GridwiseGemm64::D1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-            d1s_grid_desc_mblock_mperblock_nblock_nperblock_;
-        typename GridwiseGemm64::E1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-            e1_grid_desc_mblock_mperblock_nblock_nperblock_;
 
         // block-to-e1-tile map
         typename GridwiseGemm64::DefaultBlock2E1TileMap block_2_e1tile_map_;
@@ -771,6 +699,18 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
             {
                 throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
+
+            auto e1_grid_desc_mblock_mperblock_nblock_nperblock =
+                GridwiseGemm::MakeE1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                    e1_grid_desc_m_n_);
+
+            auto d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
+                GridwiseGemm::MakeD0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
+                    d0s_grid_desc_m_n_);
+
+            auto d1s_grid_desc_mblock_mperblock_nblock_nperblock =
+                GridwiseGemm::MakeD1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                    d1s_grid_desc_m_n_);
 
             const index_t grid_size =
                 arg.block_2_e1tile_map_.CalculateGridSize(arg.e1_grid_desc_m_n_) * arg.batch_count_;
@@ -818,10 +758,10 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
                                               arg.cde1_element_op_,
                                               arg.a0_grid_desc_ak0_m_ak1_,
                                               arg.b0_grid_desc_bk0_n_bk1_,
-                                              arg.d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
+                                              d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
                                               arg.b1_grid_desc_bk0_n_bk1_,
-                                              arg.d1s_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                              arg.e1_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                              d1s_grid_desc_mblock_mperblock_nblock_nperblock,
+                                              e1_grid_desc_mblock_mperblock_nblock_nperblock,
                                               arg.block_2_e1tile_map_,
                                               arg.batch_count_,
                                               arg.compute_base_ptr_of_batch_);

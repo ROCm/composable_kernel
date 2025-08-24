@@ -635,7 +635,6 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
               a_grid_desc_kbatch_k0_m_k1_{},
               b_grid_desc_kbatch_k0_n_k1_{},
               ce_grid_desc_m_n_{},
-              c_grid_desc_mblock_mperblock_nblock_nperblock_{},
               block_2_ctile_map_{},
               compute_ptr_offset_of_batch_{},
               M01_{M01},
@@ -738,37 +737,6 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                                 end(filter_spatial_lengths_),
                                 index_t{1},
                                 std::multiplies<>{});
-
-            if(get_warp_size() == 64)
-            {
-                if constexpr(NXdlPerWave64 > 0)
-                {
-                    if(GridwiseGemm64::CheckValidity(a_grid_desc_kbatch_k0_m_k1_,
-                                                     b_grid_desc_kbatch_k0_n_k1_,
-                                                     ce_grid_desc_m_n_,
-                                                     block_2_ctile_map_))
-                    {
-                        c_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                            GridwiseGemm64::MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(
-                                ce_grid_desc_m_n_);
-                    }
-                }
-            }
-            else
-            {
-                if constexpr(NXdlPerWave32 > 0)
-                {
-                    if(GridwiseGemm32::CheckValidity(a_grid_desc_kbatch_k0_m_k1_,
-                                                     b_grid_desc_kbatch_k0_n_k1_,
-                                                     ce_grid_desc_m_n_,
-                                                     block_2_ctile_map_))
-                    {
-                        c_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                            GridwiseGemm32::MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(
-                                ce_grid_desc_m_n_);
-                    }
-                }
-            }
         }
 
         std::size_t GetWorkspaceSizeBytes() const
@@ -784,7 +752,6 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
         AGridDesc_K0_M_K1 a_grid_desc_kbatch_k0_m_k1_;
         BGridDesc_K0_N_K1 b_grid_desc_kbatch_k0_n_k1_;
         CGridDesc_M_N ce_grid_desc_m_n_;
-        CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock c_grid_desc_mblock_mperblock_nblock_nperblock_;
         DsGridDesc_M_N ds_grid_descs_tuple_;
 
         Block2CTileMap block_2_ctile_map_;
@@ -849,6 +816,9 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                     "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v3r1 has invalid setting");
             }
 
+            auto c_grid_desc_mblock_mperblock_nblock_nperblock =
+                GridwiseGemm::MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(
+                    arg.ce_grid_desc_m_n_);
             const auto K0                     = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I1);
             const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
 
@@ -895,7 +865,7 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                     arg.Conv_G_,
                     arg.a_grid_desc_kbatch_k0_m_k1_,
                     arg.b_grid_desc_kbatch_k0_n_k1_,
-                    arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                    c_grid_desc_mblock_mperblock_nblock_nperblock,
                     arg.block_2_ctile_map_,
                     arg.compute_ptr_offset_of_batch_);
             };

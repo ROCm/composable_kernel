@@ -455,94 +455,58 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                 const auto block_2_etile_map =
                     GroupedGemmBlock2ETileMap(e_grid_desc_m_n, BlockStart);
 
+                template <typename GridwiseGemm>
+                auto init_gridwise_gemm_desc = [&]() {
+                    if(GridwiseGemm64::CheckValidity(a_grid_desc_m_k,
+                                                     b_grid_desc_n_k,
+                                                     ds_grid_desc_m_n,
+                                                     e_grid_desc_m_n,
+                                                     block_2_etile_map))
+                    {
+                        // tensor descriptors for block/thread-wise copy
+                        DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+                            ds_grid_desc_mblock_mperblock_nblock_nperblock;
+
+                        static_for<0, NumDTensor, 1>{}([&](auto j) {
+                            ds_grid_desc_mblock_mperblock_nblock_nperblock(j) = GridwiseGemm64::
+                                MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                    ds_grid_desc_m_n[j]);
+                        });
+
+                        const auto e_grid_desc_mblock_mperblock_nblock_nperblock =
+                            GridwiseGemm64::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                e_grid_desc_m_n);
+
+                        gemm_desc_kernel_arg_.push_back(
+                            GemmBiasTransKernelArg{static_cast<const ADataType*>(p_As[i]),
+                                                   static_cast<const BDataType*>(p_Bs[i]),
+                                                   p_ds_grid,
+                                                   static_cast<EDataType*>(p_Es[i]),
+                                                   a_grid_desc_m_k,
+                                                   b_grid_desc_n_k,
+                                                   ds_grid_desc_m_n,
+                                                   e_grid_desc_m_n,
+                                                   a_grid_desc_ak0_m_ak1,
+                                                   b_grid_desc_bk0_n_bk1,
+                                                   ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                   e_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                   block_2_etile_map,
+                                                   BlockStart,
+                                                   BlockEnd});
+                    }
+                };
                 if(get_warp_size() == 64)
                 {
                     if constexpr(NXdlPerWave64 > 0)
                     {
-                        if(GridwiseGemm64::CheckValidity(a_grid_desc_m_k,
-                                                         b_grid_desc_n_k,
-                                                         ds_grid_desc_m_n,
-                                                         e_grid_desc_m_n,
-                                                         block_2_etile_map))
-                        {
-                            // tensor descriptors for block/thread-wise copy
-                            DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-                                ds_grid_desc_mblock_mperblock_nblock_nperblock;
-
-                            static_for<0, NumDTensor, 1>{}([&](auto j) {
-                                ds_grid_desc_mblock_mperblock_nblock_nperblock(j) = GridwiseGemm64::
-                                    MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                        ds_grid_desc_m_n[j]);
-                            });
-
-                            const auto e_grid_desc_mblock_mperblock_nblock_nperblock =
-                                GridwiseGemm64::
-                                    MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                        e_grid_desc_m_n);
-
-                            gemm_desc_kernel_arg_.push_back(GemmBiasTransKernelArg{
-                                static_cast<const ADataType*>(p_As[i]),
-                                static_cast<const BDataType*>(p_Bs[i]),
-                                p_ds_grid,
-                                static_cast<EDataType*>(p_Es[i]),
-                                a_grid_desc_m_k,
-                                b_grid_desc_n_k,
-                                ds_grid_desc_m_n,
-                                e_grid_desc_m_n,
-                                a_grid_desc_ak0_m_ak1,
-                                b_grid_desc_bk0_n_bk1,
-                                ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                                e_grid_desc_mblock_mperblock_nblock_nperblock,
-                                block_2_etile_map,
-                                BlockStart,
-                                BlockEnd});
-                        }
+                        init_gridwise_gemm_desc<GridwiseGemm64>();
                     }
-                    else
+                }
+                else
+                {
+                    if constexpr(NXdlPerWave32 > 0)
                     {
-
-                        if constexpr(NXdlPerWave32 > 0)
-                        {
-                            if(GridwiseGemm32::CheckValidity(a_grid_desc_m_k,
-                                                             b_grid_desc_n_k,
-                                                             ds_grid_desc_m_n,
-                                                             e_grid_desc_m_n,
-                                                             block_2_etile_map))
-                            {
-                                // tensor descriptors for block/thread-wise copy
-                                DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-                                    ds_grid_desc_mblock_mperblock_nblock_nperblock;
-
-                                static_for<0, NumDTensor, 1>{}([&](auto j) {
-                                    ds_grid_desc_mblock_mperblock_nblock_nperblock(j) =
-                                        GridwiseGemm32::
-                                            MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                                ds_grid_desc_m_n[j]);
-                                });
-
-                                const auto e_grid_desc_mblock_mperblock_nblock_nperblock =
-                                    GridwiseGemm32::
-                                        MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                            e_grid_desc_m_n);
-
-                                gemm_desc_kernel_arg_.push_back(GemmBiasTransKernelArg{
-                                    static_cast<const ADataType*>(p_As[i]),
-                                    static_cast<const BDataType*>(p_Bs[i]),
-                                    p_ds_grid,
-                                    static_cast<EDataType*>(p_Es[i]),
-                                    a_grid_desc_m_k,
-                                    b_grid_desc_n_k,
-                                    ds_grid_desc_m_n,
-                                    e_grid_desc_m_n,
-                                    a_grid_desc_ak0_m_ak1,
-                                    b_grid_desc_bk0_n_bk1,
-                                    ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                                    e_grid_desc_mblock_mperblock_nblock_nperblock,
-                                    block_2_etile_map,
-                                    BlockStart,
-                                    BlockEnd});
-                            }
-                        }
+                        init_gridwise_gemm_desc<GridwiseGemm32>();
                     }
                 }
             }

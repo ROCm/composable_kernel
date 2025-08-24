@@ -471,50 +471,12 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
               b_grid_desc_bk0_n_bk1_{DeviceOp::MakeBGridDescriptor_BK0_N_BK1(KRaw, NRaw, StrideB)},
               c_grid_desc_m_n_{DeviceOp::MakeCGridDescriptor_M_N(MRaw, NRaw, StrideC)},
               c0_grid_desc_n_{MakeGridDescriptor_N(NRaw)},
-              c_grid_desc_mblock_mperblock_nblock_nperblock_{},
-              c0_grid_desc_nblock_nperblock_{},
               block_2_ctile_map_{Block2CTileMap(c_grid_desc_m_n_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               acc_element_op_{acc_element_op},
               c_element_op_{c_element_op}
         {
-            if(get_warp_size() == 64)
-            {
-                if constexpr(NXdlPerWave64 > 0)
-                {
-                    if(GridwiseGemm64::CheckValidity(a_grid_desc_ak0_m_ak1_,
-                                                     b_grid_desc_bk0_n_bk1_,
-                                                     c_grid_desc_m_n_,
-                                                     block_2_ctile_map_))
-                    {
-                        c_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                            GridwiseGemm64::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                c_grid_desc_m_n_);
-
-                        c0_grid_desc_nblock_nperblock_ =
-                            GridwiseGemm64::MakeC0GridDescriptor_NBlock_NPerBlock(c0_grid_desc_n_);
-                    }
-                }
-            }
-            else
-            {
-                if constexpr(NXdlPerWave32 > 0)
-                {
-                    if(GridwiseGemm32::CheckValidity(a_grid_desc_ak0_m_ak1_,
-                                                     b_grid_desc_bk0_n_bk1_,
-                                                     c_grid_desc_m_n_,
-                                                     block_2_ctile_map_))
-                    {
-                        c_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                            GridwiseGemm32::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                c_grid_desc_m_n_);
-
-                        c0_grid_desc_nblock_nperblock_ =
-                            GridwiseGemm32::MakeC0GridDescriptor_NBlock_NPerBlock(c0_grid_desc_n_);
-                    }
-                }
-            }
         }
 
         //  private:
@@ -529,9 +491,6 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         CGridDesc_M_N c_grid_desc_m_n_;
         C0GridDesc_N c0_grid_desc_n_;
-        typename GridwiseGemm64::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-            c_grid_desc_mblock_mperblock_nblock_nperblock_;
-        typename GridwiseGemm64::C0GridDescriptor_NBlock_NPerBlock c0_grid_desc_nblock_nperblock_;
         Block2CTileMap block_2_ctile_map_;
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
@@ -570,7 +529,12 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
             {
                 throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
+            auto c_grid_desc_mblock_mperblock_nblock_nperblock =
+                GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                    arg.c_grid_desc_m_n_);
 
+            auto c0_grid_desc_nblock_nperblock =
+                GridwiseGemm::MakeC0GridDescriptor_NBlock_NPerBlock(arg.c0_grid_desc_n_);
             const index_t grid_size =
                 arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_);
 
@@ -597,28 +561,27 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
                     Block2CTileMap,
                     true>;
 
-                ave_time =
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(grid_size),
-                                           dim3(BlockSize),
-                                           0,
-                                           arg.p_a_grid_,
-                                           arg.p_b_grid_,
-                                           arg.p_c_grid_,
-                                           arg.p_c0_grid_bias_,
-                                           arg.p_c0_grid_add_,
-                                           arg.p_c0_grid_gamma_,
-                                           arg.p_c0_grid_beta_,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.acc_element_op_,
-                                           arg.c_element_op_,
-                                           arg.a_grid_desc_ak0_m_ak1_,
-                                           arg.b_grid_desc_bk0_n_bk1_,
-                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.c0_grid_desc_nblock_nperblock_,
-                                           arg.block_2_ctile_map_);
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
+                                                  dim3(grid_size),
+                                                  dim3(BlockSize),
+                                                  0,
+                                                  arg.p_a_grid_,
+                                                  arg.p_b_grid_,
+                                                  arg.p_c_grid_,
+                                                  arg.p_c0_grid_bias_,
+                                                  arg.p_c0_grid_add_,
+                                                  arg.p_c0_grid_gamma_,
+                                                  arg.p_c0_grid_beta_,
+                                                  arg.a_element_op_,
+                                                  arg.b_element_op_,
+                                                  arg.acc_element_op_,
+                                                  arg.c_element_op_,
+                                                  arg.a_grid_desc_ak0_m_ak1_,
+                                                  arg.b_grid_desc_bk0_n_bk1_,
+                                                  c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                  c0_grid_desc_nblock_nperblock,
+                                                  arg.block_2_ctile_map_);
             }
             else
             {
@@ -637,28 +600,27 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
                     typename GridwiseGemm::C0GridDescriptor_NBlock_NPerBlock,
                     Block2CTileMap,
                     false>;
-                ave_time =
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(grid_size),
-                                           dim3(BlockSize),
-                                           0,
-                                           arg.p_a_grid_,
-                                           arg.p_b_grid_,
-                                           arg.p_c_grid_,
-                                           arg.p_c0_grid_bias_,
-                                           arg.p_c0_grid_add_,
-                                           arg.p_c0_grid_gamma_,
-                                           arg.p_c0_grid_beta_,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.acc_element_op_,
-                                           arg.c_element_op_,
-                                           arg.a_grid_desc_ak0_m_ak1_,
-                                           arg.b_grid_desc_bk0_n_bk1_,
-                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.c0_grid_desc_nblock_nperblock_,
-                                           arg.block_2_ctile_map_);
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
+                                                  dim3(grid_size),
+                                                  dim3(BlockSize),
+                                                  0,
+                                                  arg.p_a_grid_,
+                                                  arg.p_b_grid_,
+                                                  arg.p_c_grid_,
+                                                  arg.p_c0_grid_bias_,
+                                                  arg.p_c0_grid_add_,
+                                                  arg.p_c0_grid_gamma_,
+                                                  arg.p_c0_grid_beta_,
+                                                  arg.a_element_op_,
+                                                  arg.b_element_op_,
+                                                  arg.acc_element_op_,
+                                                  arg.c_element_op_,
+                                                  arg.a_grid_desc_ak0_m_ak1_,
+                                                  arg.b_grid_desc_bk0_n_bk1_,
+                                                  c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                  c0_grid_desc_nblock_nperblock,
+                                                  arg.block_2_ctile_map_);
             }
 
             return ave_time;

@@ -688,44 +688,35 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
             });
 
             // populate desc for Ds/E
+            template <typename GridwiseGemm>
+            auto init_ds_e_grid_desc = [&]() {
+                if(GridwiseGemm::CheckValidity(a_grid_desc_m_k_,
+                                               b_grid_desc_n_k_,
+                                               ds_grid_desc_m_n_,
+                                               e_grid_desc_m_n_,
+                                               block_2_etile_map_))
+                {
+                    e_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                        GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                            e_grid_desc_m_n_);
+
+                    ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                        GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                            ds_grid_desc_m_n_);
+                }
+            };
             if(get_warp_size() == 64)
             {
                 if constexpr(NXdlPerWave64 > 0)
                 {
-                    if(GridwiseGemm64::CheckValidity(a_grid_desc_m_k_,
-                                                     b_grid_desc_n_k_,
-                                                     ds_grid_desc_m_n_,
-                                                     e_grid_desc_m_n_,
-                                                     block_2_etile_map_))
-                    {
-                        e_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                            GridwiseGemm64::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                e_grid_desc_m_n_);
-
-                        ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                            GridwiseGemm64::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                ds_grid_desc_m_n_);
-                    }
+                    init_ds_e_grid_desc<GridwiseGemm64>();
                 }
             }
             else
             {
                 if constexpr(NXdlPerWave32 > 0)
                 {
-                    if(GridwiseGemm32::CheckValidity(a_grid_desc_m_k_,
-                                                     b_grid_desc_n_k_,
-                                                     ds_grid_desc_m_n_,
-                                                     e_grid_desc_m_n_,
-                                                     block_2_etile_map_))
-                    {
-                        e_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                            GridwiseGemm32::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                e_grid_desc_m_n_);
-
-                        ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                            GridwiseGemm32::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                ds_grid_desc_m_n_);
-                    }
+                    init_ds_e_grid_desc<GridwiseGemm32>();
                 }
             }
 
