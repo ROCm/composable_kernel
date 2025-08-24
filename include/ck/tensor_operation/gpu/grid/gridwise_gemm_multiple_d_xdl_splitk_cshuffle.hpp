@@ -351,8 +351,7 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
             e_grid_desc_m_n);
     }
 
-    using CDataType = EDataType;
-    IS_VALID_COMPILATION_PARAMETER_IMPL
+    IS_VALID_COMPILATION_PARAMETER_IMPL(EDataType)
 
     template <typename ALayout,
               typename BLayout,

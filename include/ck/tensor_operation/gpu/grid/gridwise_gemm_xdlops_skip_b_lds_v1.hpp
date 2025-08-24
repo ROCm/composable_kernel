@@ -168,8 +168,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
         return (a_block_space_size_aligned) * sizeof(FloatAB);
     }
 
-    using CDataType = FloatC;
-    IS_VALID_COMPILATION_PARAMETER_IMPL
+    IS_VALID_COMPILATION_PARAMETER_IMPL(FloatC)
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     __host__ __device__ static constexpr bool
     CheckValidity(const AGridDesc_K0_M_K1& a_grid_desc_k0_m_k1,

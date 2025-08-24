@@ -267,8 +267,7 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
             e_grid_desc_m_n);
     }
 
-    using CDataType = CShuffleDataType;
-    IS_VALID_COMPILATION_PARAMETER_IMPL
+    IS_VALID_COMPILATION_PARAMETER_IMPL(CShuffleDataType)
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename Block2ETileMap>

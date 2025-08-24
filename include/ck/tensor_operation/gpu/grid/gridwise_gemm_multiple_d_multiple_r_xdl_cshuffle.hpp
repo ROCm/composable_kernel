@@ -201,8 +201,7 @@ struct GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
 
-    using CDataType = FloatE;
-    IS_VALID_COMPILATION_PARAMETER_IMPL
+    IS_VALID_COMPILATION_PARAMETER_IMPL(FloatE)
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename Block2ETileMap>

@@ -332,8 +332,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         return (a_block_space_size_aligned + b_block_space_size_aligned) * sizeof(FloatAB);
     }
 
-    using CDataType = FloatC;
-    IS_VALID_COMPILATION_PARAMETER_IMPL
+    IS_VALID_COMPILATION_PARAMETER_IMPL(FloatC)
 
     template <typename AGridDesc_K0_M_K1, typename BGridDesc_K0_N_K1, typename CGridDesc_M_N>
     __host__ __device__ static constexpr bool
@@ -978,8 +977,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3_ext
         }
     }
 
-    using CDataType = FloatC;
-    IS_VALID_COMPILATION_PARAMETER_IMPL
+    IS_VALID_COMPILATION_PARAMETER_IMPL(FloatC)
 
     __host__ static constexpr bool CheckValidity(const Problem& problem)
     {

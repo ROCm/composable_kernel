@@ -189,7 +189,7 @@ __device__ static bool constexpr IsValidGemmCompilationParameter()
     }
 }
 
-#define IS_VALID_COMPILATION_PARAMETER_IMPL                                   \
+#define IS_VALID_COMPILATION_PARAMETER_IMPL(CDataType_)                       \
     template <InMemoryDataOperationEnum CGlobalMemoryDataOperation_ =         \
                   InMemoryDataOperationEnum::Set>                             \
     __device__ static bool constexpr IsValidCompilationParameter()            \
@@ -202,7 +202,7 @@ __device__ static bool constexpr IsValidGemmCompilationParameter()
             NPerXdl,                                                          \
             MXdlPerWave,                                                      \
             NXdlPerWave,                                                      \
-            CDataType,                                                        \
+            CDataType_,                                                       \
             CGlobalMemoryDataOperation_>();                                   \
     }
 

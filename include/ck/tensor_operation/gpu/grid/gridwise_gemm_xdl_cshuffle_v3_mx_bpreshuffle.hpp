@@ -1031,7 +1031,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
                          c_block_size * sizeof(CShuffleDataType));
     }
 
-    IS_VALID_COMPILATION_PARAMETER_IMPL
+    IS_VALID_COMPILATION_PARAMETER_IMPL(CDataType)
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     __host__ static constexpr bool CheckValidity(const Argument& karg)

@@ -523,10 +523,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
                          c_block_size * sizeof(FloatC));
     }
 
-    using CDataType                   = FloatC;
     static constexpr auto MXdlPerWave = MRepeat;
     static constexpr auto NXdlPerWave = NRepeat;
-    IS_VALID_COMPILATION_PARAMETER_IMPL
+    IS_VALID_COMPILATION_PARAMETER_IMPL(FloatC)
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename Block2CTileMap>
     __host__ __device__ static constexpr bool

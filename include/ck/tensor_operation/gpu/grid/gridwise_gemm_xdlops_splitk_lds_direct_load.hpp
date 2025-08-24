@@ -397,10 +397,9 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
                          c_block_size * sizeof(FloatC));
     }
 
-    using CDataType                      = FloatC;
     static constexpr index_t MXdlPerWave = MRepeat;
     static constexpr index_t NXdlPerWave = NRepeat;
-    IS_VALID_COMPILATION_PARAMETER_IMPL
+    IS_VALID_COMPILATION_PARAMETER_IMPL(FloatC)
 
     __host__ __device__ static constexpr bool CheckValidity(const Argument& karg)
     {

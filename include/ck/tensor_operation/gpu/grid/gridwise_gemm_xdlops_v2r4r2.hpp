@@ -433,11 +433,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                          c_block_size * sizeof(FloatC));
     }
 
-    using CDataType                   = FloatC;
     static constexpr auto MXdlPerWave = MRepeat;
     static constexpr auto NXdlPerWave = NRepeat;
-
-    IS_VALID_COMPILATION_PARAMETER_IMPL
+    IS_VALID_COMPILATION_PARAMETER_IMPL(FloatC)
 
     __host__ __device__ static constexpr bool CheckValidity(const Argument& karg)
     {
