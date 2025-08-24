@@ -160,6 +160,8 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
             std::string op_name = op_ptr->GetTypeString();
             valids++;
 
+            out_device_buf.SetZero();
+
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
             float avg_time =
