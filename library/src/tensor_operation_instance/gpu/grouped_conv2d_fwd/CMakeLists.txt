@@ -135,7 +135,7 @@ set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_instances
   TEMPLATE_FILE wmma/device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_instance.in
-  NUM_SHARDS 16
+  NUM_SHARDS 1
   SRC_LIST GROUPED_CONV2D_FWD
   OUTPUT_DIR ${GENERATED_DIR}/wmma
 )
@@ -151,7 +151,7 @@ set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_instances
   TEMPLATE_FILE wmma/device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_instance.in
-  NUM_SHARDS 16
+  NUM_SHARDS 1
   SRC_LIST GROUPED_CONV2D_FWD
   OUTPUT_DIR ${GENERATED_DIR}/wmma
 )
