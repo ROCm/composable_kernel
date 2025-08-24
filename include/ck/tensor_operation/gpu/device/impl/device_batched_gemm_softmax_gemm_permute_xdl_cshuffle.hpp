@@ -498,6 +498,8 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                   b1_gs_gemm1ns_gemm1ks_lengths, b1_gs_gemm1ns_gemm1ks_strides)},
               c1_grid_desc_m_n_{Transform::MakeCGridDescriptor_M_N(c_gs_ms_gemm1ns_lengths,
                                                                    c_gs_ms_gemm1ns_strides)},
+              d0s_grid_desc_m_n_{DeviceOp::MakeD0sGridDescriptor_M_N(acc0_biases_gs_ms_ns_lengths,
+                                                                     acc0_biases_gs_ms_ns_strides)},
               a_grid_desc_g_m_k_{
                   Transform::MakeAGridDescriptor_G_M_K(a_gs_ms_ks_lengths, a_gs_ms_ks_strides)},
               b_grid_desc_g_n_k_{
@@ -579,6 +581,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1_;
         C1GridDesc_M_N c1_grid_desc_m_n_;
+        D0sGridDesc_M_N d0s_grid_desc_m_n_;
         AGridDesc_G_M_K a_grid_desc_g_m_k_;
         BGridDesc_G_N_K b_grid_desc_g_n_k_;
         B1GridDesc_G_N_K b1_grid_desc_g_n_k_;

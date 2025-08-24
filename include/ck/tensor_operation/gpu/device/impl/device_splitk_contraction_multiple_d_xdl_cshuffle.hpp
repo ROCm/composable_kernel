@@ -641,6 +641,24 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
     // Argument
     struct Argument : public BaseArgument
     {
+        template <typename GridwiseGemm>
+        void init_ds_e_grid_desc()
+        {
+            if(GridwiseGemm::CheckValidity(a_grid_desc_akb_ak0_m_ak1_,
+                                           b_grid_desc_bkb_bk0_n_bk1_,
+                                           ds_grid_desc_m_n_,
+                                           e_grid_desc_m_n_,
+                                           block_2_etile_map_))
+            {
+                e_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                    GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                        e_grid_desc_m_n_);
+
+                ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                    GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                        ds_grid_desc_m_n_);
+            }
+        }
         Argument(const void* p_a_grid,
                  const void* p_b_grid,
                  std::array<const void*, NumDTensor> p_ds_grid,
@@ -710,23 +728,6 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
             });
 
             // populate desc for Ds/E
-            template <typename GridwiseGemm>
-            auto init_ds_e_grid_desc = [&]() {
-                if(GridwiseGemm::CheckValidity(a_grid_desc_akb_ak0_m_ak1_,
-                                               b_grid_desc_bkb_bk0_n_bk1_,
-                                               ds_grid_desc_m_n_,
-                                               e_grid_desc_m_n_,
-                                               block_2_etile_map_))
-                {
-                    e_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                        GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                            e_grid_desc_m_n_);
-
-                    ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                        GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                            ds_grid_desc_m_n_);
-                }
-            };
             if(get_warp_size() == 64)
             {
                 if constexpr(NXdlPerWave64 > 0)

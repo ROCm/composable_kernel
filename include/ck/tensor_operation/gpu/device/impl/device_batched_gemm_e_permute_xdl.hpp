@@ -516,7 +516,7 @@ struct DeviceBatchedGemmEPermuteXdl : public DeviceBatchedGemmEPermute<ALayout,
                     "setting");
             }
             auto e_grid_desc_mblock_mperblock_nblock_nperblock =
-                GridwiseGemm64::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                     arg.e_grid_desc_m_n_);
             const index_t grid_size =
                 arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * arg.BatchCount_;

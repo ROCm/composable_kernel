@@ -535,7 +535,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
                 throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
             auto c_grid_desc_mblock_mperblock_nblock_nperblock =
-                GridwiseGemm64::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                     arg.c_grid_desc_m_n_);
             const index_t grid_size =
                 arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_) * arg.batch_count_;
