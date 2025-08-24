@@ -623,11 +623,11 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                 throw std::runtime_error("wrong! unsupported argument");
             }
             auto c1_grid_desc_mblock_mperblock_nblock_nperblock =
-                GridwiseGemm64::MakeC1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                GridwiseGemm::MakeC1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                     arg.c1_grid_desc_m_n_);
 
             auto d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
-                GridwiseGemm64::MakeD0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
+                GridwiseGemm::MakeD0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
                     arg.d0s_grid_desc_m_n_);
 
             const index_t grid_size =

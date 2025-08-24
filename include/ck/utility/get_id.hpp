@@ -47,6 +47,9 @@ __host__ __device__ constexpr index_t get_warp_size()
 #else
     return 32;
 #endif
+#else
+    return 64;
+#endif
 }
 #endif
 

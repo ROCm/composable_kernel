@@ -176,31 +176,8 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                                                        BElementwiseOperation,
                                                        CElementwiseOperation>
 {
-    template <bool isWave64>
-    static constexpr auto GetNXdlPerWave()
-    {
-        constexpr index_t Waves  = isWave64 ? BlockSize / 64 : BlockSize / 32;
-        constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXDL);
-        static_assert(MWaves > 0);
-
-        constexpr index_t NWaves = Waves / MWaves;
-        if constexpr(NWaves == 0)
-        {
-            return 0;
-        }
-        else
-        {
-            if constexpr(NPerBlock % (NPerXDL * NWaves) == 0)
-            {
-                return NPerBlock / (NWaves * NPerXDL);
-            }
-            else
-            {
-                return 0;
-            }
-        }
-    }
     // GridwiseGemm
+    GET_NXDL_PER_WAVE_IMPL
     static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
     static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
 

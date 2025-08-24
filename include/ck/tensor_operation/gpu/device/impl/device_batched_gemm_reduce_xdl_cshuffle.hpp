@@ -662,10 +662,10 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<0, ReduceO
 
             auto c_grid_desc_mblock_mperblock_nblock_nperblock =
                 GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                    c_grid_desc_m_n_);
+                    arg.c_grid_desc_m_n_);
 
             auto reduce_grid_desc_mblock_mperblock =
-                GridwiseGemm::MakeReduceGridDescriptor_MBlock_MPerBlock(reduce_grid_desc_m_);
+                GridwiseGemm::MakeReduceGridDescriptor_MBlock_MPerBlock(arg.reduce_grid_desc_m_);
 
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {

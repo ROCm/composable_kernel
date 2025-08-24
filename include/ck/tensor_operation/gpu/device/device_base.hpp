@@ -82,7 +82,7 @@ static constexpr auto GetNXdlPerWave2()
     template <bool IsWave64>                \
     static constexpr auto GetNXdlPerWave()  \
     {                                       \
-        retrun GetNXdlPerWave2<BlockSize,   \
+        return GetNXdlPerWave2<BlockSize,   \
                                MPerBlock,   \
                                NPerBlock,   \
                                MPerXDL,     \
@@ -169,24 +169,10 @@ __device__ static bool constexpr IsValidGemmCompilationParameter()
         if constexpr(MWaves > 0 && NWaves > 0)
         {
             constexpr index_t WaveSize = BlockSize / (MWaves * NWaves);
-            if constexpr(WaveSize == get_warp_size())
-            {
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-        }
-        else
-        {
-            return false;
+            return WaveSize == get_warp_size();
         }
     }
-    else
-    {
-        return false;
-    }
+    return false;
 }
 
 #define IS_VALID_COMPILATION_PARAMETER_IMPL(CDataType_)                       \
@@ -220,7 +206,7 @@ __device__ static bool constexpr IsValidGemmCompilationParameter()
         }                                                                      \
         else                                                                   \
         {                                                                      \
-            if(0) /*WaveSize != get_warp_size())*/                             \
+            if(WaveSize != get_warp_size())                                    \
             {                                                                  \
                 return false;                                                  \
             }                                                                  \

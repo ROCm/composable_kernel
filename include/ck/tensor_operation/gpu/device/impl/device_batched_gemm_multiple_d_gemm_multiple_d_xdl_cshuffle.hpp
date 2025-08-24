@@ -702,15 +702,15 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
 
             auto e1_grid_desc_mblock_mperblock_nblock_nperblock =
                 GridwiseGemm::MakeE1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                    e1_grid_desc_m_n_);
+                    arg.e1_grid_desc_m_n_);
 
             auto d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
                 GridwiseGemm::MakeD0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
-                    d0s_grid_desc_m_n_);
+                    arg.d0s_grid_desc_m_n_);
 
             auto d1s_grid_desc_mblock_mperblock_nblock_nperblock =
                 GridwiseGemm::MakeD1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                    d1s_grid_desc_m_n_);
+                    arg.d1s_grid_desc_m_n_);
 
             const index_t grid_size =
                 arg.block_2_e1tile_map_.CalculateGridSize(arg.e1_grid_desc_m_n_) * arg.batch_count_;
