@@ -531,19 +531,19 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle : public DeviceGemmReduce<1, ReduceO
             {
                 throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
-            auto c_grid_desc_mblock_mperblock_nblock_nperblock_ =
+            auto c_grid_desc_mblock_mperblock_nblock_nperblock =
                 GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                     arg.c_grid_desc_m_n_);
 
-            auto c0_grid_desc_mblock_mperblock_nblock_nperblock_ =
+            auto c0_grid_desc_mblock_mperblock_nblock_nperblock =
                 GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                     arg.c0_grid_desc_m_n_);
 
-            auto c1_grid_desc_mblock_mperblock_nblock_nperblock_ =
+            auto c1_grid_desc_mblock_mperblock_nblock_nperblock =
                 GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                     arg.c1_grid_desc_m_n_);
 
-            auto reduce_grid_desc_mblock_mperblock_ =
+            auto reduce_grid_desc_mblock_mperblock =
                 GridwiseGemm::MakeReduceGridDescriptor_MBlock_MPerBlock(arg.reduce_grid_desc_m_);
             const index_t grid_size =
                 arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_);
@@ -597,7 +597,7 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle : public DeviceGemmReduce<1, ReduceO
                                            arg.a_grid_desc_ak0_m_ak1_,
                                            arg.b_grid_desc_bk0_n_bk1_,
                                            c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                           0_grid_desc_mblock_mperblock_nblock_nperblock,
+                                           c0_grid_desc_mblock_mperblock_nblock_nperblock,
                                            c1_grid_desc_mblock_mperblock_nblock_nperblock,
                                            reduce_grid_desc_mblock_mperblock,
                                            arg.block_2_ctile_map_);
