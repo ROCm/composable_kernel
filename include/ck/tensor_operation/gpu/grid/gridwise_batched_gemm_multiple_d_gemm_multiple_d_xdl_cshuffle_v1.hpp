@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -99,7 +99,6 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
     static constexpr auto I6 = Number<6>{};
     static constexpr auto I7 = Number<7>{};
 
-    static constexpr auto WaveSize = 64;
     // K1 should be Number<...>
     // Gemm0
     static constexpr auto A0K1 = Number<A0K1Value>{};
@@ -110,6 +109,7 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
 
     static constexpr auto Gemm0MWaves = Gemm0MPerBlock / (Gemm0MPerXdl * Gemm0MXdlPerWave);
     static constexpr auto Gemm0NWaves = Gemm0NPerBlock / (Gemm0NPerXdl * Gemm0NXdlPerWave);
+    static constexpr auto WaveSize    = BlockSize / (Gemm0MWaves * Gemm0NWaves);
     // Gemm1
     static constexpr auto B1K1         = Number<B1K1Value>{};
     static constexpr auto B1K0PerBlock = Number<Gemm1KPerBlock / B1K1Value>{};
