@@ -526,11 +526,11 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<0, ReduceOperatio
             {
                 throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
-            auto c_grid_desc_mblock_mperblock_nblock_nperblock_ =
+            auto c_grid_desc_mblock_mperblock_nblock_nperblock =
                 GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                     arg.c_grid_desc_m_n_);
 
-            auto reduce_grid_desc_mblock_mperblock_ =
+            auto reduce_grid_desc_mblock_mperblock =
                 GridwiseGemm::MakeReduceGridDescriptor_MBlock_MPerBlock(arg.reduce_grid_desc_m_);
 
             const index_t grid_size =

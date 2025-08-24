@@ -704,7 +704,7 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
                                    NumRTensor>
                 rs_grid_desc_mblock_mperblock = {};
 
-            auto e_grid_desc_mblock_mperblock_nblock_nperblock_ =
+            auto e_grid_desc_mblock_mperblock_nblock_nperblock =
                 GridwiseGemm64::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                     arg.e_grid_desc_m_n_);
 

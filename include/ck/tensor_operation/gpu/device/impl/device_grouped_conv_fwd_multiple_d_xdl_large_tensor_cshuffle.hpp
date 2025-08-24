@@ -464,6 +464,43 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
     // Argument
     struct Argument : public BaseArgument
     {
+        template <typename GridwiseGemm, typename DsGridDesc_M_N_, typename EGridDescriptor_M_N_>
+        void init_gemm_args(const ADataType* a_ptr,
+                            const BDataType* b_ptr,
+                            DsPointer ds_ptr,
+                            EDataType* e_ptr,
+                            const AGridDesc_M_K& a_grid_desc_m_k,
+                            const BGridDesc_N_K& b_grid_desc_n_k,
+                            const DsGridDesc_M_N_& ds_grid_desc_m_n,
+                            const EGridDescriptor_M_N_& e_grid_desc_m_n,
+                            const Block2ETileMap& block_2_etile_map,
+                            index_t BlockStart,
+                            index_t BlockEnd)
+        {
+            if(GridwiseGemm::CheckValidity(a_grid_desc_m_k,
+                                           b_grid_desc_n_k,
+                                           ds_grid_desc_m_n,
+                                           e_grid_desc_m_n,
+                                           block_2_etile_map))
+            {
+                gemm_desc_kernel_args_(valid_gemms_count_) =
+                    GemmArgs{a_ptr,
+                             b_ptr,
+                             ds_ptr,
+                             e_ptr,
+                             GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k),
+                             GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k),
+                             GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                 ds_grid_desc_m_n),
+                             GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                 e_grid_desc_m_n),
+                             block_2_etile_map,
+                             BlockStart,
+                             BlockEnd};
+
+                valid_gemms_count_++;
+            }
+        }
         Argument(const void* p_a,
                  const void* p_b,
                  const std::array<const void*, NumDTensor>& p_ds,
@@ -562,45 +599,38 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
 
                     grid_size_ += grid_size_grp;
 
-                    template <typename GridwiseGemm>
-                    auto init_gemm_args() = [&]() {
-                        if(GridwiseGemm::CheckValidity(a_grid_desc_m_k,
-                                                       b_grid_desc_n_k,
-                                                       ds_grid_desc_m_n,
-                                                       e_grid_desc_m_n,
-                                                       block_2_etile_map))
-                        {
-                            gemm_desc_kernel_args_(valid_gemms_count_) = GemmArgs{
-                                a_grid_ptrs[i],
-                                static_cast<const BDataType*>(p_b),
-                                ds_grid_ptrs[i],
-                                c_grid_ptrs[i],
-                                GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k),
-                                GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k),
-                                GridwiseGemm::
-                                    MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                        ds_grid_desc_m_n),
-                                GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                    e_grid_desc_m_n),
-                                block_2_etile_map,
-                                BlockStart,
-                                BlockEnd};
-
-                            valid_gemms_count_++;
-                        }
-                    };
                     if(get_warp_size() == 64)
                     {
                         if constexpr(NXdlPerWave64 > 0)
                         {
-                            init_gemm_args<GridwiseGemm64>();
+                            init_gemm_args<GridwiseGemm64>(a_grid_ptrs[i],
+                                                           static_cast<const BDataType*>(p_b),
+                                                           ds_grid_ptrs[i],
+                                                           c_grid_ptrs[i],
+                                                           a_grid_desc_m_k,
+                                                           b_grid_desc_n_k,
+                                                           ds_grid_desc_m_n,
+                                                           e_grid_desc_m_n,
+                                                           block_2_etile_map,
+                                                           BlockStart,
+                                                           BlockEnd);
                         }
-                        else
+                    }
+                    else
+                    {
+                        if constexpr(NXdlPerWave32 > 0)
                         {
-                            if constexpr(NXdlPerWave32 > 0)
-                            {
-                                init_gemm_args<GridwiseGemm32>();
-                            }
+                            init_gemm_args<GridwiseGemm32>(a_grid_ptrs[i],
+                                                           static_cast<const BDataType*>(p_b),
+                                                           ds_grid_ptrs[i],
+                                                           c_grid_ptrs[i],
+                                                           a_grid_desc_m_k,
+                                                           b_grid_desc_n_k,
+                                                           ds_grid_desc_m_n,
+                                                           e_grid_desc_m_n,
+                                                           block_2_etile_map,
+                                                           BlockStart,
+                                                           BlockEnd);
                         }
                     }
                 }

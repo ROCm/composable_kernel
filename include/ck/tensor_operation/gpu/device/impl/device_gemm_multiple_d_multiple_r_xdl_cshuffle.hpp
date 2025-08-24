@@ -381,6 +381,8 @@ struct DeviceGemmMultipleDMultipleR_Xdl_CShuffle
               p_ds_grid_{}, // FIXME
               p_e_grid_{static_cast<EDataType*>(p_e_grid)},
               p_rs_grid_{}, // FIXME
+              MRaw_(MRaw),
+              NRaw_(NRaw),
               a_grid_desc_m_k_{DeviceOp::MakeAGridDescriptor_M_K(MRaw, KRaw, StrideA)},
               b_grid_desc_n_k_{DeviceOp::MakeBGridDescriptor_N_K(KRaw, NRaw, StrideB)},
               e_grid_desc_m_n_{DeviceOp::MakeEGridDescriptor_M_N(MRaw, NRaw, StrideE)},
@@ -414,7 +416,9 @@ struct DeviceGemmMultipleDMultipleR_Xdl_CShuffle
         typename GridwiseGemm64::DsGridPointer p_ds_grid_;
         EDataType* p_e_grid_;
         typename GridwiseGemm64::RsGridPointer p_rs_grid_;
-        std::array<index_t, NumDTensor> ds_stride_;
+        index_t MRaw_;
+        index_t NRaw_;
+        std::array<index_t, NumDTensor> stride_ds_;
         // tensor descriptors
         AGridDesc_M_K a_grid_desc_m_k_;
         BGridDesc_N_K b_grid_desc_n_k_;
@@ -464,9 +468,8 @@ struct DeviceGemmMultipleDMultipleR_Xdl_CShuffle
                     arg.e_grid_desc_m_n_);
 
             static_for<0, NumDTensor, 1>{}([&](auto i) {
-                using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
                 const auto d_grid_desc_m_n =
-                    DeviceOp::MakeEGridDescriptor_M_N(MRaw, NRaw, arg.stride_ds_[i]);
+                    DeviceOp::MakeEGridDescriptor_M_N(arg.MRaw_, arg.NRaw_, arg.stride_ds_[i]);
                 ds_grid_desc_mblock_mperblock_nblock_nperblock(i) =
                     GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         d_grid_desc_m_n);
@@ -474,7 +477,7 @@ struct DeviceGemmMultipleDMultipleR_Xdl_CShuffle
 
             static_for<0, NumRTensor, 1>{}([&](auto i) {
                 rs_grid_desc_mblock_mperblock(i) =
-                    GridwiseGemm64::MakeRGridDescriptor_MBlock_MPerBlock(r_grid_desc_m_);
+                    GridwiseGemm64::MakeRGridDescriptor_MBlock_MPerBlock(arg.r_grid_desc_m_);
             });
 
             const index_t grid_size =

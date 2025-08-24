@@ -516,6 +516,49 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     // Argument
     struct Argument
     {
+        template <typename GridwiseGemm>
+        void init_ds_e_grid_desc()
+        {
+            if constexpr(isMultiA || isMultiB)
+            {
+                const auto as_grid_desc_ak0_m_ak1 =
+                    generate_tuple([&](auto) { return a_grid_desc_m_k_; }, Number<NumATensor>{});
+                const auto bs_grid_desc_bk0_n_bk1 =
+                    generate_tuple([&](auto) { return b_grid_desc_n_k_; }, Number<NumBTensor>{});
+
+                if(GridwiseGemm::CheckValidity(as_grid_desc_ak0_m_ak1,
+                                               bs_grid_desc_bk0_n_bk1,
+                                               ds_grid_desc_m_n_,
+                                               e_grid_desc_m_n_,
+                                               block_2_etile_map_))
+                {
+                    e_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                        GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                            e_grid_desc_m_n_);
+
+                    ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                        GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                            ds_grid_desc_m_n_);
+                }
+            }
+            else
+            {
+                if(GridwiseGemm::CheckValidity(a_grid_desc_m_k_,
+                                               b_grid_desc_n_k_,
+                                               ds_grid_desc_m_n_,
+                                               e_grid_desc_m_n_,
+                                               block_2_etile_map_))
+                {
+                    e_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                        GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                            e_grid_desc_m_n_);
+
+                    ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                        GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                            ds_grid_desc_m_n_);
+                }
+            }
+        }
         __device__ __host__ Argument(
             APointers p_as,
             BPointers p_bs,
@@ -663,50 +706,8 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                     DeviceOp::MakeEGridDescriptor_M_N<DLayout>(conv_to_gemm_transformer_d);
             });
             compute_ptr_offset_of_batch_.BatchStrideE_ = e_g_n_k_wos_strides[0];
+
             // populate desc for Ds/E
-            template <typename GridwiseGemm>
-            auto init_ds_e_grid_desc = [&]() {
-                if constexpr(isMultiA || isMultiB)
-                {
-                    const auto as_grid_desc_ak0_m_ak1 = generate_tuple(
-                        [&](auto) { return a_grid_desc_m_k_; }, Number<NumATensor>{});
-                    const auto bs_grid_desc_bk0_n_bk1 = generate_tuple(
-                        [&](auto) { return b_grid_desc_n_k_; }, Number<NumBTensor>{});
-
-                    if(GridwiseGemm::CheckValidity(as_grid_desc_ak0_m_ak1,
-                                                   bs_grid_desc_bk0_n_bk1,
-                                                   ds_grid_desc_m_n_,
-                                                   e_grid_desc_m_n_,
-                                                   block_2_etile_map_))
-                    {
-                        e_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                            GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                e_grid_desc_m_n_);
-
-                        ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                            GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                ds_grid_desc_m_n_);
-                    }
-                }
-                else
-                {
-                    if(GridwiseGemm::CheckValidity(a_grid_desc_m_k_,
-                                                   b_grid_desc_n_k_,
-                                                   ds_grid_desc_m_n_,
-                                                   e_grid_desc_m_n_,
-                                                   block_2_etile_map_))
-                    {
-                        e_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                            GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                e_grid_desc_m_n_);
-
-                        ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                            GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                ds_grid_desc_m_n_);
-                    }
-                }
-            };
-
             if(get_warp_size() == 64)
             {
                 if constexpr(NXdlPerWave64 > 0)
