@@ -578,31 +578,60 @@ def Build_CK(Map conf=[:]){
                         if (params.RUN_FULL_QA && arch == 1){
                             // run full tests on gfx90a
                             echo "Run full performance tests"
-                            sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
-                            archiveArtifacts "perf_gemm.log"
-                            archiveArtifacts "perf_resnet50_N256.log"
-                            archiveArtifacts "perf_resnet50_N4.log"
-                            archiveArtifacts "perf_batched_gemm.log"
-                            archiveArtifacts "perf_grouped_gemm.log"
-                            archiveArtifacts "perf_grouped_conv_fwd.log"
-                            archiveArtifacts "perf_grouped_conv_bwd_data.log"
-                            archiveArtifacts "perf_grouped_conv_bwd_weight.log"
-                            archiveArtifacts "perf_gemm_bilinear.log"
-                            archiveArtifacts "perf_reduction.log"
-                            archiveArtifacts "perf_splitK_gemm.log"
-                            archiveArtifacts "perf_onnx_gemm.log"
-                            archiveArtifacts "perf_mixed_gemm.log"
-                            stash includes: "perf_**.log", name: "perf_log"
+                            sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx90a"
+                            archiveArtifacts "perf_gemm_gfx90a.log"
+                            archiveArtifacts "perf_resnet50_N256_gfx90a.log"
+                            archiveArtifacts "perf_resnet50_N4_gfx90a.log"
+                            archiveArtifacts "perf_batched_gemm_gfx90a.log"
+                            archiveArtifacts "perf_grouped_gemm_gfx90a.log"
+                            archiveArtifacts "perf_grouped_conv_fwd_gfx90a.log"
+                            archiveArtifacts "perf_grouped_conv_bwd_data_gfx90a.log"
+                            archiveArtifacts "perf_grouped_conv_bwd_weight_gfx90a.log"
+                            archiveArtifacts "perf_gemm_bilinear_gfx90a.log"
+                            archiveArtifacts "perf_reduction_gfx90a.log"
+                            archiveArtifacts "perf_splitK_gemm_gfx90a.log"
+                            archiveArtifacts "perf_onnx_gemm_gfx90a.log"
+                            archiveArtifacts "perf_mixed_gemm_gfx90a.log"
+                            stash includes: "perf_**.log", name: "perf_log_gfx90a"
+                        }
+                        if (params.RUN_FULL_QA && arch == 2){
+                            // run full tests on gfx942
+                            echo "Run full performance tests"
+                            sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx942"
+                            archiveArtifacts "perf_gemm_gfx942.log"
+                            archiveArtifacts "perf_resnet50_N256_gfx942.log"
+                            archiveArtifacts "perf_resnet50_N4_gfx942.log"
+                            archiveArtifacts "perf_batched_gemm_gfx942.log"
+                            archiveArtifacts "perf_grouped_gemm_gfx942.log"
+                            archiveArtifacts "perf_grouped_conv_fwd_gfx942.log"
+                            archiveArtifacts "perf_grouped_conv_bwd_data_gfx942.log"
+                            archiveArtifacts "perf_grouped_conv_bwd_weight_gfx942.log"
+                            archiveArtifacts "perf_gemm_bilinear_gfx942.log"
+                            archiveArtifacts "perf_reduction_gfx942.log"
+                            archiveArtifacts "perf_splitK_gemm_gfx942.log"
+                            archiveArtifacts "perf_onnx_gemm_gfx942.log"
+                            archiveArtifacts "perf_mixed_gemm_gfx942.log"
+                            stash includes: "perf_**.log", name: "perf_log_gfx942"
                         }
                         else if ( arch == 1 ){
                             // run standard tests on gfx90a
                             echo "Run performance tests"
-                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
-                            archiveArtifacts "perf_gemm.log"
-                            archiveArtifacts "perf_onnx_gemm.log"
-                            archiveArtifacts "perf_resnet50_N256.log"
-                            archiveArtifacts "perf_resnet50_N4.log"
-                            stash includes: "perf_**.log", name: "perf_log"
+                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx90a"
+                            archiveArtifacts "perf_gemm_gfx90a.log"
+                            archiveArtifacts "perf_onnx_gemm_gfx90a.log"
+                            archiveArtifacts "perf_resnet50_N256_gfx90a.log"
+                            archiveArtifacts "perf_resnet50_N4_gfx90a.log"
+                            stash includes: "perf_**.log", name: "perf_log_gfx90a"
+                        }
+                        else if ( arch == 2 ){
+                            // run standard tests on gfx942
+                            echo "Run performance tests"
+                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx942"
+                            archiveArtifacts "perf_gemm_gfx942.log"
+                            archiveArtifacts "perf_onnx_gemm_gfx942.log"
+                            archiveArtifacts "perf_resnet50_N256_gfx942.log"
+                            archiveArtifacts "perf_resnet50_N4_gfx942.log"
+                            stash includes: "perf_**.log", name: "perf_log_gfx942"
                         }
                         // disable performance tests on gfx1030 for now.
                         //else if ( arch == 3){
@@ -720,10 +749,15 @@ def process_results(Map conf=[:]){
                     if (params.RUN_CK_TILE_FMHA_TESTS){
                         try{
                             unstash "perf_fmha_log_gfx942"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the FMHA performance logs for gfx942: ${err.getMessage()}."
+                        }
+                        try{
                             unstash "perf_fmha_log_gfx90a"
                         }
                         catch(Exception err){
-                            echo "could not locate the FMHA performance logs: ${err.getMessage()}."
+                            echo "could not locate the FMHA performance logs for gfx90a: ${err.getMessage()}."
                         }
                     }
                     if (params.BUILD_INSTANCES_ONLY){
@@ -733,16 +767,46 @@ def process_results(Map conf=[:]){
                     }
                     else{
                         // unstash perf files to master
-                        unstash "perf_log"
+                        try{
+                            unstash "perf_log_gfx90a"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the gfx90a performance logs: ${err.getMessage()}."
+                        }
+                        try{
+                            unstash "perf_log_gfx942"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the gfx942 performance logs: ${err.getMessage()}."
+                        }
+                        try{
+                            unstash "perf_log_gfx950"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the gfx950 performance logs: ${err.getMessage()}."
+                        }
+                        try{
+                            unstash "perf_log_gfx908"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the gfx908 performance logs: ${err.getMessage()}."
+                        }
                         try{
                             unstash "perf_log_gfx11"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the gfx11 performance logs: ${err.getMessage()}."
+                        }
+                        try{
+
                             unstash "perf_log_gfx12"
                         }
                         catch(Exception err){
-                            echo "could not locate the GEMM gfx11/gfx12 performance logs: ${err.getMessage()}."
+                            echo "could not locate the gfx12 performance logs: ${err.getMessage()}."
                         }
-                        sh "./process_perf_data.sh"
                     }
+                    // process the logs
+                    sh "./process_perf_data.sh"
                 }
             }
             catch(e){
@@ -1505,7 +1569,7 @@ pipeline {
                 stage("Process results"){
                     when {
                         beforeAgent true
-                        expression { (params.RUN_PERFORMANCE_TESTS.toBoolean() || params.BUILD_INSTANCES_ONLY.toBoolean()) && !params.BUILD_LEGACY_OS.toBoolean() }
+                        expression { (params.RUN_PERFORMANCE_TESTS.toBoolean() || params.BUILD_INSTANCES_ONLY.toBoolean() || params.RUN_CK_TILE_FMHA_TESTS.toBoolean()) && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     agent { label 'mici' }
                     steps{
