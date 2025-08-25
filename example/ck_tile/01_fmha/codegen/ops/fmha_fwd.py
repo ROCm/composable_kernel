@@ -702,7 +702,6 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
                     cond = dtype in ['fp8']
                     cond &= pipeline.F_vlayout == 'row'
                     cond &= hdim == 128
-                    cond &= pipeline.F_squant == 't'
                     if not cond:
                         continue
 
