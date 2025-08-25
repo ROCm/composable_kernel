@@ -54,6 +54,7 @@ float invoke_gemm(int n_warmup,
     float ave_time = 0;
     if constexpr(!GemmConfig::Persistent)
     {
+        std::cout << __func__ << "Non Persistent grouped gemm" << std::endl;
         // Regular version of grouped gemm
         ave_time = grouped_gemm<GemmConfig,
                                 ADataType,
@@ -72,6 +73,7 @@ float invoke_gemm(int n_warmup,
     }
     else
     {
+        std::cout << __func__ << "Persistent grouped gemm" << std::endl;
         // NOTE: With the persistent TileLoop kernel, we do not necessarily need to have
         // the gemm problems known on the host. Instead, we can just pass the pointer
         // to the kernel and let the workgroups figure out which tiles to work on.
@@ -315,7 +317,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
 
     if(a_layout == "R" && b_layout == "C")
     {
-        
+        std::cout << __func__ << "R C" << std::endl;
         return run_grouped_gemm_example_with_layouts<GemmConfig,
                                                      ADataType,
                                                      BDataType,
@@ -324,7 +326,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     }
     else if(a_layout == "R" && b_layout == "R")
     {
-        
+        std::cout << __func__ << "R R" << std::endl;
         return run_grouped_gemm_example_with_layouts<GemmConfig,
                                                      ADataType,
                                                      BDataType,
@@ -333,6 +335,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     }
     else if(a_layout == "C" && b_layout == "R")
     {
+        std::cout << __func__ << "C R" << std::endl;
         return run_grouped_gemm_example_with_layouts<GemmConfig,
                                                      ADataType,
                                                      BDataType,
@@ -341,6 +344,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     }
     else if(a_layout == "C" && b_layout == "C")
     {
+        std::cout << __func__ << "C C" << std::endl;
         return run_grouped_gemm_example_with_layouts<GemmConfig,
                                                      ADataType,
                                                      BDataType,
@@ -373,6 +377,7 @@ int run_grouped_gemm_example(int argc, char* argv[])
     }
     else if(data_type == "fp8")
     {
+        std::cout << __func__ << "fp8" << std::endl;
         return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>, ck_tile::fp8_t>(
             a_layout, b_layout, argc, argv);
     }

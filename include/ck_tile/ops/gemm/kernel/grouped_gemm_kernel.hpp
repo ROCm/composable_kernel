@@ -284,9 +284,17 @@ struct GroupedGemmKernel
 
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
+            if(get_block_id() == 0 && get_thread_id() == 0)
+            {
+                printf("%s\n DoubleSmemBuffer", __func__);
+            }
             __shared__ char smem_ptr_1[GetSmemSize()];
             if constexpr(UsePersistentKernel)
             {
+                if(get_block_id() == 0 && get_thread_id() == 0)
+                {
+                    printf("%s\n RunGemmWithPipelineSelection2LDS", __func__);
+                }
                 RunGemmWithPipelineSelection2LDS(a_ptr,
                                                  b_ptr,
                                                  c_ptr,
@@ -299,6 +307,10 @@ struct GroupedGemmKernel
             }
             else
             {
+                if(get_block_id() == 0 && get_thread_id() == 0)
+                {
+                    printf("%s\n RunGemm2LDS", __func__);
+                }
                 Base::RunGemm2LDS({a_ptr},
                                   {b_ptr},
                                   {/*ds_ptr*/},
@@ -313,13 +325,25 @@ struct GroupedGemmKernel
         }
         else
         {
+            if(get_block_id() == 0 && get_thread_id() == 0)
+            {
+                printf("%s\n SingleSmemBuffer", __func__);
+            }
             if constexpr(UsePersistentKernel)
             {
+                if(get_block_id() == 0 && get_thread_id() == 0)
+                {
+                    printf("%s\n RunGemmWithPipelineSelection\n", __func__);
+                }
                 RunGemmWithPipelineSelection(
                     a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
             }
             else
             {
+                if(get_block_id() == 0 && get_thread_id() == 0)
+                {
+                    printf("%s\n RunGemm", __func__);
+                }
                 Base::RunGemm({a_ptr},
                               {b_ptr},
                               {/*ds_ptr*/},
@@ -487,6 +511,10 @@ struct GroupedGemmKernel
     CK_TILE_DEVICE void operator()(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
                                    index_t group_count) const
     {
+        if(get_block_id() == 0 && get_thread_id() == 0)
+        {
+            printf("%s\n Non persistent grouped gemm\n", __func__);
+        }
         const index_t block_id   = ck_tile::get_block_1d_id();
         const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg*>(
             cast_pointer_to_generic_address_space(gemm_descs_const));
@@ -509,6 +537,10 @@ struct GroupedGemmKernel
     CK_TILE_DEVICE void operator()(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
                                    const index_t group_count) const
     {
+        if(get_block_id() == 0 && get_thread_id() == 0)
+        {
+            printf("%s\n Persistent grouped gemm\n", __func__);
+        }
         const index_t grid_size  = ck_tile::get_grid_size();
         const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg*>(
             cast_pointer_to_generic_address_space(gemm_descs_const));

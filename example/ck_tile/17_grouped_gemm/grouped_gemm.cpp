@@ -79,6 +79,7 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                                                                            tail_number_v>;
 
         using GemmPipeline = typename PipelineTypeTraits<GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
+        std::cout << __func__ << "GemmPipeline" << GemmPipeline::GetName() << std::endl;
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
                                              BDataType,
@@ -98,6 +99,7 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                                              UniversalGemmProblem::TransposeC,
                                              memory_operation>>;
         using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        std::cout << __func__ << "Kernel" << Kernel::GetName() << std::endl;
         auto kargs   = Kernel::MakeKargs(gemm_descs);
         if(!Kernel::IsSupportedArgument(kargs))
         {
@@ -262,5 +264,6 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
 
 int main(int argc, char* argv[])
 {
-    return !run_grouped_gemm_example<GemmConfigComputeV3_2>(argc, argv);
+    std::cout << __func__ << "Config::ComputeV4" << std::endl;
+    return !run_grouped_gemm_example<GemmConfigComputeV4>(argc, argv);
 }
