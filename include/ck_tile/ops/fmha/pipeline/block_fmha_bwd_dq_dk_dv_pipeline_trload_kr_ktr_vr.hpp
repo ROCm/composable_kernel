@@ -506,23 +506,8 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
             constexpr bool is_epilogue = is_epilogue_.value;
             static_assert(is_prologue || is_epilogue, "is_prologue or is_epilogue should be true");
             constexpr bool is_main_body = is_prologue && is_epilogue;
-            if constexpr(is_epilogue)
-            {
-                lse_lds_read_window.set_bottom_tensor_view_data_ptr(lse_lds_ptr_curr);
-                lse = load_tile(lse_lds_read_window);
-                d_lds_read_window.set_bottom_tensor_view_data_ptr(d_lds_ptr_curr);
-                d = load_tile(d_lds_read_window);
-            }
             if constexpr(is_prologue)
             {
-                q_lds_write_window.set_bottom_tensor_view_data_ptr(q_lds_ptr_next);
-                async_load_tile(q_lds_write_window, q_dram_window);
-                move_tile_window(q_dram_window, {kM0, 0});
-
-                do_lds_write_window.set_bottom_tensor_view_data_ptr(do_lds_ptr_next);
-                async_load_tile(do_lds_write_window, do_dram_window);
-                move_tile_window(do_dram_window, {kM0, 0});
-
                 lse_lds_write_window.set_bottom_tensor_view_data_ptr(lse_lds_ptr_next);
                 async_load_tile(lse_lds_write_window, lse_dram_window);
                 move_tile_window(lse_dram_window, {kM0});
@@ -530,6 +515,14 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
                 d_lds_write_window.set_bottom_tensor_view_data_ptr(d_lds_ptr_next);
                 async_load_tile(d_lds_write_window, d_dram_window);
                 move_tile_window(d_dram_window, {kM0});
+
+                q_lds_write_window.set_bottom_tensor_view_data_ptr(q_lds_ptr_next);
+                async_load_tile(q_lds_write_window, q_dram_window);
+                move_tile_window(q_dram_window, {kM0, 0});
+
+                do_lds_write_window.set_bottom_tensor_view_data_ptr(do_lds_ptr_next);
+                async_load_tile(do_lds_write_window, do_dram_window);
+                move_tile_window(do_dram_window, {kM0, 0});
             }
             if constexpr(is_epilogue)
             {
@@ -538,6 +531,13 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
 
                 dot_lds_read_window.set_bottom_tensor_view_data_ptr(do_lds_ptr_curr);
                 dot_reg_tensor = load_tile_transpose(dot_lds_read_window);
+            }
+            if constexpr(is_epilogue)
+            {
+                lse_lds_read_window.set_bottom_tensor_view_data_ptr(lse_lds_ptr_curr);
+                lse = load_tile(lse_lds_read_window);
+                d_lds_read_window.set_bottom_tensor_view_data_ptr(d_lds_ptr_curr);
+                d = load_tile(d_lds_read_window);
             }
             if constexpr(is_main_body)
                 Policy::template HotLoopScheduler<Problem>::SchedulerGemm0();
@@ -700,7 +700,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
 
                 store_tile(ds_lds_window, ds_gemm);
             }
-            __builtin_amdgcn_s_waitcnt(3952);
+            s_waitcnt</*vmcnt=*/0>();
             block_sync_lds();
             if constexpr(is_prologue)
             {

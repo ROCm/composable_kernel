@@ -194,13 +194,7 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetTransposedAlignmentOGrad()
     {
-        constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kVHeaddim;
-
-        constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
-
-        return total_pixels / GetAlignmentOGrad<Problem>();
+        return GetTransposedAlignmentX<typename Problem::OGradDataType>();
     }
 
     template <typename Problem>
@@ -1112,6 +1106,8 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
         static constexpr index_t LSE_VMEM_READ = 1;
         static constexpr index_t D_VMEM_READ   = 1;
 
+        static constexpr index_t DQ_VMEM_WRITE = kM0 * kQKHeaddim / kBlockSize; // atomic add
+
         // LDS Read
         static constexpr index_t OGradT_LDS_READ =
             kM0 * kVHeaddim / get_warp_size() / GetTransposedAlignmentOGrad<Problem>();
@@ -1141,6 +1137,9 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
         static constexpr index_t SGradT_LDS_WRITE = kM0 * kN0 / kBlockSize;
 
         public:
+        static constexpr index_t TOTAL_VMEM_READ =
+            Q_VMEM_READ + OGrad_VMEM_READ + LSE_VMEM_READ + D_VMEM_READ + DQ_VMEM_WRITE;
+
         CK_TILE_DEVICE static constexpr void SchedulerGemm0()
         {
             // Mem: Q, LSE, OGrad, D global load, OGrad^T LDS load
