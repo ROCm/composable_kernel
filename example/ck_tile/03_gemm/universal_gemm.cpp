@@ -335,7 +335,11 @@ int main(int argc, char* argv[])
 
     try
     {
+#if CK_TILE_USE_WMMA
+        return !run_gemm_example<GemmConfigComputeV3_WMMA>(arg_parser);
+#else
         return !run_gemm_example<GemmConfigComputeV3>(arg_parser);
+#endif
     }
     catch(const std::runtime_error& e)
     {

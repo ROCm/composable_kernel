@@ -172,6 +172,7 @@ struct GemmConfigComputeV3_2 : public GemmConfigBase
     static constexpr int kBlockPerCu = 2;
 };
 
+#if CK_TILE_USE_WMMA
 template <typename PrecType>
 struct GemmConfigComputeV3_WMMA : public GemmConfigBase
 {
@@ -192,6 +193,7 @@ struct GemmConfigComputeV3_WMMA : public GemmConfigBase
 
     static constexpr int kBlockPerCu = 2;
 };
+#endif
 
 template <typename PrecType>
 struct GemmConfigComputeV4 : public GemmConfigBase
