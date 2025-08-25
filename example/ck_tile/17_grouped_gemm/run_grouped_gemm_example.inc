@@ -55,6 +55,7 @@ float invoke_gemm(int n_warmup,
     if constexpr(!GemmConfig::Persistent)
     {
         std::cout << __func__ << "Non Persistent grouped gemm" << std::endl;
+        std::cout << __func__ << "Preshuffling: " << GemmConfig::Preshuffle << std::endl;
         // Regular version of grouped gemm
         ave_time = grouped_gemm<GemmConfig,
                                 ADataType,
@@ -74,6 +75,7 @@ float invoke_gemm(int n_warmup,
     else
     {
         std::cout << __func__ << "Persistent grouped gemm" << std::endl;
+        std::cout << __func__ << "Preshuffling: " << GemmConfig::Preshuffle << std::endl;
         // NOTE: With the persistent TileLoop kernel, we do not necessarily need to have
         // the gemm problems known on the host. Instead, we can just pass the pointer
         // to the kernel and let the workgroups figure out which tiles to work on.
@@ -241,7 +243,18 @@ int run_grouped_gemm_example_with_layouts(int argc,
         ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensors[i]);
 
         a_m_k_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(a_m_k_tensors[i]));
-        b_k_n_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(b_k_n_tensors[i]));
+
+        // Perform preshuffle for B tensor
+        if constexpr(GemmConfig::Preshuffle)
+        {
+            std::cout << __func__ << "Preshuffling B tensor [" << i << "]" << std::endl;
+            ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<GemmConfig>(b_k_n_tensors[i]);
+            b_k_n_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(b_shuffle_host));
+        }
+        else
+        {
+            b_k_n_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(b_k_n_tensors[i]));
+        }
 
         c_m_n_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(c_m_n_tensors[i]));
 
@@ -315,42 +328,52 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     using AccDataType = typename Types::AccDataType;
     using CDataType   = typename Types::CDataType;
 
+    bool preshuffle = GemmConfig::Preshuffle;
+
+
+    // Preshuffle is supported only for A(Row major), B(column major) input matrices!
+    if(preshuffle && (a_layout != "R" || b_layout != "C"))
+    {
+        throw std::runtime_error(
+            "Preshuffle is supported only for A(Row major), B(column major) input matrices!");
+    }
+
     if(a_layout == "R" && b_layout == "C")
     {
-        std::cout << __func__ << "R C" << std::endl;
+        std::cout << __func__ << " R C and Preshuffle: " << preshuffle << std::endl;
         return run_grouped_gemm_example_with_layouts<GemmConfig,
                                                      ADataType,
                                                      BDataType,
                                                      CDataType,
                                                      AccDataType>(argc, argv, Row{}, Col{}, Row{});
     }
-    else if(a_layout == "R" && b_layout == "R")
-    {
-        std::cout << __func__ << "R R" << std::endl;
-        return run_grouped_gemm_example_with_layouts<GemmConfig,
-                                                     ADataType,
-                                                     BDataType,
-                                                     CDataType,
-                                                     AccDataType>(argc, argv, Row{}, Row{}, Row{});
-    }
-    else if(a_layout == "C" && b_layout == "R")
-    {
-        std::cout << __func__ << "C R" << std::endl;
-        return run_grouped_gemm_example_with_layouts<GemmConfig,
-                                                     ADataType,
-                                                     BDataType,
-                                                     CDataType,
-                                                     AccDataType>(argc, argv, Col{}, Row{}, Row{});
-    }
-    else if(a_layout == "C" && b_layout == "C")
-    {
-        std::cout << __func__ << "C C" << std::endl;
-        return run_grouped_gemm_example_with_layouts<GemmConfig,
-                                                     ADataType,
-                                                     BDataType,
-                                                     CDataType,
-                                                     AccDataType>(argc, argv, Col{}, Col{}, Row{});
-    }
+    // else if(a_layout == "R" && b_layout == "R")
+    // {
+    //     std::cout << __func__ << "R R" << std::endl;
+    //     return run_grouped_gemm_example_with_layouts<GemmConfig,
+    //                                                  ADataType,
+    //                                                  BDataType,
+    //                                                  CDataType,
+    //                                                  AccDataType>(argc, argv, Row{}, Row{}, Row{});
+    // }
+    // else if(a_layout == "C" && b_layout == "R")
+    // {
+    //     std::cout << __func__ << "C R" << std::endl;
+    //     return run_grouped_gemm_example_with_layouts<GemmConfig,
+    //                                                  ADataType,
+    //                                                  BDataType,
+    //                                                  CDataType,
+    //                                                  AccDataType>(argc, argv, Col{}, Row{}, Row{});
+    // }
+    // else if(a_layout == "C" && b_layout == "C")
+    // {
+    //     std::cout << __func__ << "C C" << std::endl;
+    //     return run_grouped_gemm_example_with_layouts<GemmConfig,
+    //                                                  ADataType,
+    //                                                  BDataType,
+    //                                                  CDataType,
+    //                                                  AccDataType>(argc, argv, Col{}, Col{}, Row{});
+    // }
     else
     {
         throw std::runtime_error("Unsupported data layout configuration for A and B tensors!");
@@ -372,15 +395,16 @@ int run_grouped_gemm_example(int argc, char* argv[])
 
     if(data_type == "fp16")
     {
+        std::cout << __func__ << "fp16" << std::endl;
         return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::half_t>(
             a_layout, b_layout, argc, argv);
     }
-    else if(data_type == "fp8")
-    {
-        std::cout << __func__ << "fp8" << std::endl;
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>, ck_tile::fp8_t>(
-            a_layout, b_layout, argc, argv);
-    }
+    // else if(data_type == "fp8")
+    // {
+    //     std::cout << __func__ << "fp8" << std::endl;
+    //     return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>, ck_tile::fp8_t>(
+    //         a_layout, b_layout, argc, argv);
+    // }
     else
     {
         throw std::runtime_error("Unsupported data type configuration.");
