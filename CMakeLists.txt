@@ -21,7 +21,7 @@ if(NOT WIN32)
     set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
 endif()
 
-set(version 1.1.0)
+set(version 1.2.0)
 # Check support for CUDA/HIP in Cmake
 project(composable_kernel VERSION ${version} LANGUAGES CXX HIP)
 include(CTest)

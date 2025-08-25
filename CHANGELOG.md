@@ -2,7 +2,7 @@
 
 Documentation for Composable Kernel available at [https://rocm.docs.amd.com/projects/composable_kernel/en/latest/](https://rocm.docs.amd.com/projects/composable_kernel/en/latest/).
 
-## Composable Kernel 1.1.0 for ROCm 7.0.0
+## Composable Kernel 1.2.0 for ROCm 7.0.0
 
 ### Added
 
