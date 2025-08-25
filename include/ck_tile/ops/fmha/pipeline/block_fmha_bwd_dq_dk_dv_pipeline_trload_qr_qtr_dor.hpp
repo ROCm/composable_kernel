@@ -738,6 +738,24 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
     }
 };
 
-template <class T>
-concept fmha_bwd_qr_qtr_dor_pipeline_c = T::is_qr_qtr_dor_pipeline;
+// We don't support C++20 concepts yet, so we use SFINAE check the existence and truthiness
+// of is_qr_qtr_dor_pipeline static member instead of using concepts directly.
+//
+// The template struct's value field is equivalent to the following commented concept definition.
+//
+// template <class T>
+// concept fmha_bwd_qr_qtr_dor_pipeline_c = T::is_qr_qtr_dor_pipeline;
+
+// SFINAE test for existence and truthiness of static member is_qr_qtr_dor_pipeline.
+template <typename, typename = void>
+struct fmha_bwd_qr_qtr_dor_pipeline : std::false_type
+{
+};
+
+template <typename T>
+struct fmha_bwd_qr_qtr_dor_pipeline<T, std::void_t<decltype(T::is_qr_qtr_dor_pipeline)>>
+    : std::bool_constant<T::is_qr_qtr_dor_pipeline>
+{
+};
+
 } // namespace ck_tile
