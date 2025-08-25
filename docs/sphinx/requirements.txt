@@ -272,7 +272,7 @@ sphinx-design==0.6.1
     # via rocm-docs-core
 sphinx-external-toc==1.0.1
     # via rocm-docs-core
-sphinx-notfound-page==1.2.0
+sphinx-notfound-page==1.1.0
     # via rocm-docs-core
 sphinxcontrib-applehelp==2.0.0
     # via sphinx
