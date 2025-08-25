@@ -22,9 +22,7 @@ using trait_ = smoothquant_traits_<DataType_,
                                    kTwoPass_>;
 
 template <typename data_type>
-float smoothquant_dispatch(smoothquant_traits /*t*/,
-                           smoothquant_args a,
-                           const ck_tile::stream_config& s)
+float smoothquant_dispatch(smoothquant_args a, const ck_tile::stream_config& s)
 {
     float r = -1;
     // clang-format off
@@ -128,16 +126,14 @@ float smoothquant_dispatch(smoothquant_traits /*t*/,
     // clang-format on
 }
 
-float smoothquant(smoothquant_traits t, smoothquant_args a, const ck_tile::stream_config& s)
+template <>
+float smoothquant<ck_tile::fp16_t>(smoothquant_args a, const ck_tile::stream_config& s)
 {
-    if(t.data_type.compare("fp16") == 0)
-    {
-        return smoothquant_dispatch<ck_tile::fp16_t>(t, a, s);
-    }
-    else if(t.data_type.compare("bf16") == 0)
-    {
-        return smoothquant_dispatch<ck_tile::bf16_t>(t, a, s);
-    }
-    else
-        throw std::runtime_error("Without supported instances!");
+    return smoothquant_dispatch<ck_tile::fp16_t>(a, s);
+}
+
+template <>
+float smoothquant<ck_tile::bf16_t>(smoothquant_args a, const ck_tile::stream_config& s)
+{
+    return smoothquant_dispatch<ck_tile::bf16_t>(a, s);
 }

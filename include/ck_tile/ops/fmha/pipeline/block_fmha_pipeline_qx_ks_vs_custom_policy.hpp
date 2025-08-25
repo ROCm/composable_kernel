@@ -364,7 +364,13 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         using KDataType = remove_cvref_t<typename Problem::KDataType>;
         if constexpr(AsyncCopy)
         {
-            return 4 / sizeof(KDataType);
+#if defined(__gfx950__)
+            constexpr index_t MaxLoadSizeInBytes = 4 * 4; // dwordx4
+#else
+            constexpr index_t MaxLoadSizeInBytes = 4; // dword
+#endif
+
+            return MaxLoadSizeInBytes / sizeof(KDataType);
         }
         else
         {
@@ -956,20 +962,19 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             {
                 return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<>{};
                 // return
-                // WarpGemmImpl<WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB<
+                // WarpGemmImpl<WarpGemmAttributeMfmaTransposedCDistribution_SwizzleB<
                 //         WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<typename
                 //         Problem::PDataType, typename Problem::VDataType>>>{};
             }
             else
             {
-                return WarpGemmMfmaDispatcher<
-                    typename Problem::PDataType,
-                    typename Problem::VDataType,
-                    typename Problem::OaccDataType,
-                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
-                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
-                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
-                    true>{};
+                return WarpGemmDispatcher<typename Problem::PDataType,
+                                          typename Problem::VDataType,
+                                          typename Problem::OaccDataType,
+                                          Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
+                                          Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
+                                          Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
+                                          true>{};
             }
         }();
 

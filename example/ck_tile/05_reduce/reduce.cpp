@@ -94,18 +94,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
         throw std::runtime_error("Wrong! Arguments not supported!\n");
     }
 
-    float ave_time = launch_kernel(ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
-                                   ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
-                                       Kernel{},
-                                       kGridSize,
-                                       kBlockSize,
-                                       0,
-                                       static_cast<XDataType*>(x_buf.GetDeviceBuffer()),
-                                       static_cast<YDataType*>(y_buf.GetDeviceBuffer()),
-                                       input_shape,
-                                       input_strides,
-                                       kept_dim,
-                                       reduce_dims));
+    float ave_time = launch_kernel(
+        ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
+        ck_tile::make_kernel<kBlockPerCu>(Kernel{},
+                                          kGridSize,
+                                          kBlockSize,
+                                          0,
+                                          static_cast<XDataType*>(x_buf.GetDeviceBuffer()),
+                                          static_cast<YDataType*>(y_buf.GetDeviceBuffer()),
+                                          input_shape,
+                                          input_strides,
+                                          kept_dim,
+                                          reduce_dims));
 
     std::size_t num_btype = sizeof(XDataType) * N * C * H * W + sizeof(YDataType) * N * C;
 
