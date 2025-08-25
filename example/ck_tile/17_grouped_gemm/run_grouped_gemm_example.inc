@@ -189,13 +189,20 @@ int run_grouped_gemm_example_with_layouts(int argc,
         std::cout << "Please check the input data. Default values will be used." << std::endl;
         for(int i = 0; i < group_count; i++)
         {
-            Ms.push_back(256 + 256 * i);
-            Ns.push_back(256 + 512 * i);
-            Ks.push_back(512 + 128 * i);
+            // Ms.push_back(256 + 256 * i);
+            // Ns.push_back(256 + 512 * i);
+            // Ks.push_back(512 + 128 * i);
 
-            stride_As.push_back(Ks[i]);
-            stride_Bs.push_back(Ks[i]);
-            stride_Cs.push_back(Ns[i]);
+            // stride_As.push_back(Ks[i]);
+            // stride_Bs.push_back(Ks[i]);
+            // stride_Cs.push_back(Ns[i]);
+            // all the values are 1024
+            Ms.push_back(512);
+            Ns.push_back(768);
+            Ks.push_back(640);
+            stride_As.push_back(640);
+            stride_Bs.push_back(640);
+            stride_Cs.push_back(768);
         }
     }
 

@@ -30,17 +30,26 @@ template <typename GemmConfig,
 float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                    const ck_tile::stream_config& s,
                    void* kargs_ptr)
-{   
-    std::cout << "Hello from grouped_gemm_preshuffle.cpp" << std::endl;
-    std::cout << __func__ << "Preshuffling: " << GemmConfig::Preshuffle << std::endl;
-    using GemmShape =
-        ck_tile::TileGemmShape<ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
-                               ck_tile::sequence<GemmConfig::M_Warp, GemmConfig::N_Warp, GemmConfig::K_Warp>,
-                               ck_tile::sequence<GemmConfig::M_Warp_Tile, GemmConfig::N_Warp_Tile, GemmConfig::K_Warp_Tile>>;
-    using TilePartitioner = ck_tile::
-        GemmSpatiallyLocalTilePartitioner<GemmShape, GemmConfig::TileParitionerGroupNum, GemmConfig::TileParitionerM01>;
+{
+    //std::cout << "[WATCHING]: Hello from grouped_gemm_preshuffle.cpp" << std::endl;
+    // std::cout << __func__ << "Preshuffling: " << GemmConfig::Preshuffle << std::endl;
+    using GemmShape = ck_tile::TileGemmShape<
+        ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
+        ck_tile::sequence<GemmConfig::M_Warp, GemmConfig::N_Warp, GemmConfig::K_Warp>,
+        ck_tile::
+            sequence<GemmConfig::M_Warp_Tile, GemmConfig::N_Warp_Tile, GemmConfig::K_Warp_Tile>>;
+    using TilePartitioner =
+        ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
+                                                   GemmConfig::TileParitionerGroupNum,
+                                                   GemmConfig::TileParitionerM01>;
 
-    using Traits = ck_tile::TileGemmTraits<GemmConfig::kPadM, GemmConfig::kPadN, GemmConfig::kPadK, ALayout, BLayout, CLayout>;
+    using Traits              = ck_tile::TileGemmTraits<GemmConfig::kPadM,
+                                                        GemmConfig::kPadN,
+                                                        GemmConfig::kPadK,
+                                                        ALayout,
+                                                        BLayout,
+                                                        CLayout,
+                                                        GemmConfig::NumWaveGroups>;
     using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
                                                                  GemmConfig::kPadN,
                                                                  GemmConfig::kPadK,
@@ -50,16 +59,17 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                                                                  CLayout,
                                                                  GemmConfig::TransposeC,
                                                                  GemmConfig::UseStructuredSparsity,
-                                                                 GemmConfig::Persistent, 
+                                                                 GemmConfig::Persistent,
                                                                  GemmConfig::NumWaveGroups,
                                                                  GemmConfig::Preshuffle>;
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
-    using BaseGemmPipeline = typename PipelineTypeTraits<GemmConfig::Pipeline>::template UniversalGemmPipeline<GemmPipelineProblem>;
+    using BaseGemmPipeline = typename PipelineTypeTraits<
+        GemmConfig::Pipeline>::template UniversalGemmPipeline<GemmPipelineProblem>;
 
-    const ck_tile::index_t k_grain     = gemm_descs[0].k_batch * GemmConfig::K_Tile;
-    const ck_tile::index_t K_split     = (gemm_descs[0].K + k_grain - 1) / k_grain * GemmConfig::K_Tile;
+    const ck_tile::index_t k_grain = gemm_descs[0].k_batch * GemmConfig::K_Tile;
+    const ck_tile::index_t K_split = (gemm_descs[0].K + k_grain - 1) / k_grain * GemmConfig::K_Tile;
     const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
     const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
     const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
@@ -83,7 +93,8 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                                                                            has_hot_loop_v,
                                                                            tail_number_v>;
 
-        using GemmPipeline = typename PipelineTypeTraits<GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
+        using GemmPipeline = typename PipelineTypeTraits<
+            GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
         std::cout << __func__ << "GemmPipeline" << GemmPipeline::GetName() << std::endl;
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
