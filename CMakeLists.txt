@@ -19,9 +19,10 @@ endif()
 # Allow user to specify the C++ standard.
 # We must support C++17 builds until downstream users are migrated to C++20, but we default to C++20.
 set(CK_CXX_STANDARD "20" CACHE STRING "C++ standard to use (e.g. 17 or 20)")
-set_property(CACHE CK_CXX_STANDARD PROPERTY STRINGS 17 20)
-if(NOT CK_CXX_STANDARD IN_LIST 17 20)
-    message(FATAL_ERROR "CK_CXX_STANDARD must 17 or 20")
+set(valid_cxx_standards 17 20)
+set_property(CACHE CK_CXX_STANDARD PROPERTY STRINGS ${valid_cxx_standards})
+if(NOT CK_CXX_STANDARD IN_LIST valid_cxx_standards)
+    message(FATAL_ERROR "CK_CXX_STANDARD must be one of ${valid_cxx_standards}")
 endif()
 
 # Default installation path
