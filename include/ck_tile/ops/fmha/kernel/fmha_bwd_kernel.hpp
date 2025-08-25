@@ -40,7 +40,7 @@ struct FmhaBwdDQDKDVKernel
     static constexpr ck_tile::index_t kBlockSize  = FmhaPipeline::kBlockSize;
     static constexpr ck_tile::index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
     static constexpr bool kUseQrQtrDorPipeline =
-        ck_tile::fmha_bwd_qr_qtr_dor_pipeline_c<FmhaPipeline>;
+        ck_tile::fmha_bwd_qr_qtr_dor_pipeline<FmhaPipeline>::value;
     static_assert(!kUseQrQtrDorPipeline || !std::is_same_v<QGradEpiloguePipeline_, void>,
                   "QrQtrDorPipeline needs QGradEpiloguePipeline");
 
