@@ -977,6 +977,11 @@ fwd_result fmha_fwd_run(mode_enum mode,
 #endif
         return 0.0f;
     }();
+    if(appendkv_ave_time < 0.0f)
+    {
+        std::cout << ", not supported yet" << std::flush << std::endl;
+        return fwd_result::no_instance;
+    }
 
     const float fwd_ave_time = [&] {
 #if CK_TILE_FMHA_FWD_PAGEDKV_API
@@ -1019,8 +1024,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
         return fmha_fwd(fmha_traits, fmha_args, stream_config);
     }();
-
-    if(appendkv_ave_time < 0.0f || fwd_ave_time < 0.0f)
+    if(fwd_ave_time < 0.0f)
     {
         std::cout << ", not supported yet" << std::flush << std::endl;
         return fwd_result::no_instance;

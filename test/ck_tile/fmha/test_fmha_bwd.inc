@@ -7,7 +7,7 @@ using ::testing::TestWithParam;
 using ::testing::Values;
 using ::testing::ValuesIn;
 
-CK_TILE_DECLARE_ENV_VAR_BOOL(CK_TILE_FMHA_RUN_LONG_TESTS)
+CK_TILE_DECLARE_ENV_VAR_BOOL(CK_TILE_FMHA_LONG_TESTS)
 
 #define CHECK_RESULT(result)                                      \
     do                                                            \
@@ -28,6 +28,11 @@ const ck_tile::stream_config stream_config{
     1,       // rotating_count_
 };
 
+auto EnableTestIf(bool condition)
+{
+    return ValuesIn(condition ? std::vector<bool>{true} : std::vector<bool>{});
+}
+
 class AllLong : public TestWithParam<std::tuple<bool,
                                                 std::tuple<int, int>,
                                                 bool,
@@ -38,28 +43,25 @@ class AllLong : public TestWithParam<std::tuple<bool,
 {
 };
 
-const auto RunLongTestValues = ValuesIn(
-    ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_FMHA_RUN_LONG_TESTS)) ? std::vector<bool>{true}
-                                                                    : std::vector<bool>{});
-
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(AllLong);
 
 // Test cases from example/ck_tile/01_fmha/script/smoke_test_bwd.sh
 
-INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaBwd,
-                         AllLong,
-                         Combine(RunLongTestValues,
-                                 HDimValues,
-                                 Bool(),
-                                 ModeValues,
-                                 Values("n", "a"),
-                                 Values(0.0f, 0.2f),
-                                 Values(std::tuple{1, 4, 2, 259, -1, "0"},
-                                        std::tuple{2, 2, -1, 516, 253, "0"},
-                                        std::tuple{1, 4, 1, 500, 251, "1"},
-                                        std::tuple{1, 2, -1, 900, 258, "2"},
-                                        std::tuple{2, 1, -1, 987, 219, "t:128,30"},
-                                        std::tuple{2, 3, 1, 244, 499, "b:4,35"})));
+INSTANTIATE_TEST_SUITE_P(
+    TestCkTileFmhaBwd,
+    AllLong,
+    Combine(EnableTestIf(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_FMHA_LONG_TESTS))),
+            HDimValues,
+            Bool(),
+            ModeValues,
+            Values("n", "a"),
+            Values(0.0f, 0.2f),
+            Values(std::tuple{1, 4, 2, 259, -1, "0"},
+                   std::tuple{2, 2, -1, 516, 253, "0"},
+                   std::tuple{1, 4, 1, 500, 251, "1"},
+                   std::tuple{1, 2, -1, 900, 258, "2"},
+                   std::tuple{2, 1, -1, 987, 219, "t:128,30"},
+                   std::tuple{2, 3, 1, 244, 499, "b:4,35"})));
 
 TEST_P(AllLong, Test)
 {
