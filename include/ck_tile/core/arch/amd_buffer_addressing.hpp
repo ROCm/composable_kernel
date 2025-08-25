@@ -1835,6 +1835,7 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wold-style-cast"
+    // Use c-stype cast to change address space without droping noalias info
     llvm_amdgcn_raw_buffer_load_lds(src_wave_buffer_resource,
                                     (as3_uint32_ptr)(smem),
                                     bytes,
@@ -2797,6 +2798,7 @@ __device__ auto amd_transpose_load_to_vgpr(const T* __restrict__ in_ptr)
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wold-style-cast"
+    // Use c-stype cast to change address space without droping noalias info
     const auto in_ptr_ = (__LDS_ADDR T*)(const_cast<T*>(in_ptr));
 #pragma clang diagnostic pop
     if constexpr(std::is_same_v<remove_cvref_t<T>, ck_tile::half_t>)
