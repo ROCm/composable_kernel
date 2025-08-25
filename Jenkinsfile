@@ -400,8 +400,8 @@ def cmake_build(Map conf=[:]){
                     echo "Build packages"
                     sh 'ninja -j64 package'
                     archiveArtifacts artifacts: 'composablekernel-dev*.deb'
-                    sh 'mv composablekernel-dev_*.deb composablekernel-dev_all_targets_1.1.0_amd64.deb'
-                    sh 'mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.1.0_amd64.deb'
+                    sh 'mv composablekernel-dev_*.deb composablekernel-dev_all_targets_1.2.0_amd64.deb'
+                    sh 'mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64.deb'
                     stash includes: "composablekernel-**.deb", name: "packages"
                 }
             }
