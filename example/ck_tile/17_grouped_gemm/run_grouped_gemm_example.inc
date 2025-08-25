@@ -54,8 +54,8 @@ float invoke_gemm(int n_warmup,
     float ave_time = 0;
     if constexpr(!GemmConfig::Persistent)
     {
-        std::cout << __func__ << "Non Persistent grouped gemm" << std::endl;
-        std::cout << __func__ << "Preshuffling: " << GemmConfig::Preshuffle << std::endl;
+        std::cout << "[ALL GOOD]: " << __func__ << " Non Persistent grouped gemm" << std::endl;
+        // std::cout << "[WATCHING]: " << __func__ << " Preshuffling: " << GemmConfig::Preshuffle << std::endl;
         // Regular version of grouped gemm
         ave_time = grouped_gemm<GemmConfig,
                                 ADataType,
@@ -153,6 +153,9 @@ int run_grouped_gemm_example_with_layouts(int argc,
                                           const BLayout b_layout                  = BLayout{},
                                           [[maybe_unused]] const CLayout c_layout = CLayout{})
 {
+    // print the GemmConfig::Preshuffle
+    // std::cout << "[WATCHING]: " << __func__ << " GemmConfig::Preshuffle: " << GemmConfig::Preshuffle
+    //           << std::endl;
     auto [result, arg_parser] = create_args(argc, argv);
 
     if(!result)
@@ -227,6 +230,8 @@ int run_grouped_gemm_example_with_layouts(int argc,
 
     for(int i = 0; i < group_count; ++i)
     {
+        // std::cout << "[WATCHING]: " << __func__ << " GemmConfig::Preshuffle: " << GemmConfig::Preshuffle
+        //           << std::endl;
         const ck_tile::index_t M = Ms[i];
         const ck_tile::index_t N = Ns[i];
         const ck_tile::index_t K = Ks[i];
@@ -254,12 +259,15 @@ int run_grouped_gemm_example_with_layouts(int argc,
         // Perform preshuffle for B tensor
         if constexpr(GemmConfig::Preshuffle)
         {
-            std::cout << __func__ << "Preshuffling B tensor [" << i << "]" << std::endl;
+            std::cout << "[ALL GOOD]: " << __func__ << " Preshuffling B tensor [" << i << "]"
+                      << std::endl;
             ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<GemmConfig>(b_k_n_tensors[i]);
             b_k_n_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(b_shuffle_host));
         }
         else
         {
+            // std::cout << "[WATCHING]: " << __func__ << " Not Preshuffling B tensor [" << i << "]"
+            //           << std::endl;
             b_k_n_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(b_k_n_tensors[i]));
         }
 
@@ -309,7 +317,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
                     Ks[i], kbatch, max_accumulated_value);
             pass &= ck_tile::check_err(c_m_n_tensors[i],
                                        c_m_n_host_ref,
-                                       "Error: Incorrect results!",
+                                       "Error: Incorrect results! in group [" + std::to_string(i) + "]",
                                        rtol_atol.at(ck_tile::number<0>{}),
                                        rtol_atol.at(ck_tile::number<1>{}));
             std::cout << "gemm[" << i
@@ -347,7 +355,8 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
 
     if(a_layout == "R" && b_layout == "C")
     {
-        std::cout << __func__ << " R C and Preshuffle: " << preshuffle << std::endl;
+        std::cout << "[ALL GOOD]: " << __func__ << " R C and Preshuffle: " << preshuffle
+                  << std::endl;
         return run_grouped_gemm_example_with_layouts<GemmConfig,
                                                      ADataType,
                                                      BDataType,
@@ -402,7 +411,7 @@ int run_grouped_gemm_example(int argc, char* argv[])
 
     if(data_type == "fp16")
     {
-        std::cout << __func__ << "fp16" << std::endl;
+        std::cout << "[ALL GOOD]: " << __func__ << " fp16 " << std::endl;
         return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::half_t>(
             a_layout, b_layout, argc, argv);
     }

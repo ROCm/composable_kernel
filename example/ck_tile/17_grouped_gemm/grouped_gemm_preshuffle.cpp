@@ -115,15 +115,15 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                                              UniversalGemmProblem::TransposeC,
                                              memory_operation>>;
         using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-        std::cout << __func__ << "Kernel" << Kernel::GetName() << std::endl;
-        auto kargs   = Kernel::MakeKargs(gemm_descs);
+        std::cout << "[WATCHING]: " << __func__ << " Kernel" << Kernel::GetName() << std::endl;
+        auto kargs = Kernel::MakeKargs(gemm_descs);
         if(!Kernel::IsSupportedArgument(kargs))
         {
             throw std::runtime_error("Kernel arguments not supported!");
         }
 
         const dim3 blocks = Kernel::BlockSize();
-        const dim3 grids      = Kernel::GridSize(gemm_descs);
+        const dim3 grids  = Kernel::GridSize(gemm_descs);
 
         HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
                                             kargs.data(),
@@ -177,6 +177,6 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
 
 int main(int argc, char* argv[])
 {
-    std::cout << __func__ << "GemmConfigPreshuffleDecode" << std::endl;
+    std::cout << "[ALL GOOD]: " << __func__ << " GemmConfigPreshuffleDecode" << std::endl;
     return !run_grouped_gemm_example<GemmConfigPreshuffleDecode>(argc, argv);
 }

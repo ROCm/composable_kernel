@@ -13,7 +13,7 @@
 #define CK_TILE_PIPELINE_COMPUTE_V3 1
 #define CK_TILE_PIPELINE_MEMORY 2
 #define CK_TILE_PIPELINE_COMPUTE_V4 3
-// #define CK_TILE_PIPELINE_PRESHUFFLE_V1 5
+#define CK_TILE_PIPELINE_PRESHUFFLE_V1 5
 #define CK_TILE_PIPELINE_PRESHUFFLE_V2 6
 
 #ifndef CK_TILE_PIPELINE_DEFAULT
@@ -159,32 +159,32 @@ struct GemmConfigPreshuffleDecode : public GemmConfigBase
 
     static constexpr int kBlockPerCu           = 1;
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V1;
+    static constexpr bool Preshuffle           = true;
+    static constexpr bool DoubleSmemBuffer     = false;
+};
+
+template <typename PrecType>
+struct GemmConfigPreshufflePrefill : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile_flatmm<PrecType, M_Warp_Tile>();
+
+    static constexpr int kBlockPerCu           = 2;
+    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V2;
     static constexpr bool Preshuffle           = true;
     static constexpr bool DoubleSmemBuffer     = true;
 };
-
-// template <typename PrecType>
-// struct GemmConfigPreshufflePrefill : public GemmConfigBase
-// {
-//     static constexpr ck_tile::index_t M_Tile = 128;
-//     static constexpr ck_tile::index_t N_Tile = 128;
-//     static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
-
-//     static constexpr ck_tile::index_t M_Warp = 1;
-//     static constexpr ck_tile::index_t N_Warp = 4;
-//     static constexpr ck_tile::index_t K_Warp = 1;
-
-//     static constexpr ck_tile::index_t M_Warp_Tile = 16;
-//     static constexpr ck_tile::index_t N_Warp_Tile = 16;
-//     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile_flatmm<PrecType, M_Warp_Tile>();
-
-//     static constexpr int kBlockPerCu           = 2;
-//     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
-//     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V2;
-//     static constexpr bool Preshuffle           = true;
-//     static constexpr bool DoubleSmemBuffer     = true;
-// };
 
 template <ck_tile::index_t PipelineId>
 struct PipelineTypeTraits;
@@ -216,15 +216,15 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V4>
     using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV4<PipelineProblem>;
 };
 
-// template <>
-// struct PipelineTypeTraits<CK_TILE_PIPELINE_PRESHUFFLE_V1>
-// {
-//     template <typename PipelineProblem>
-//     using GemmPipeline = ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV1<PipelineProblem>;
-//     template <typename PipelineProblem>
-//     using UniversalGemmPipeline =
-//         ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV1<PipelineProblem>;
-// };
+template <>
+struct PipelineTypeTraits<CK_TILE_PIPELINE_PRESHUFFLE_V1>
+{
+    template <typename PipelineProblem>
+    using GemmPipeline = ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV1<PipelineProblem>;
+    template <typename PipelineProblem>
+    using UniversalGemmPipeline =
+        ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV1<PipelineProblem>;
+};
 
 template <>
 struct PipelineTypeTraits<CK_TILE_PIPELINE_PRESHUFFLE_V2>
@@ -254,7 +254,7 @@ std::pair<bool, ck_tile::ArgParser> create_args(int argc, char* argv[])
         .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
         .insert("warmup", "0", "number of iterations before benchmark the kernel.")
         .insert("repeat", "1", "number of iterations to benchmark the kernel.")
-        .insert("group_count", "8", "group count.")
+        .insert("group_count", "2", "group count.")
         .insert("kbatch", "1", "kbatch for SplitK");
 
     bool result = arg_parser.parse(argc, argv);

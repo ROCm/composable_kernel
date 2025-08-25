@@ -151,6 +151,8 @@ mkdir build && cd build
 ../script/cmake-ck-dev.sh  ../ <arch>
 # The basic pipeline method on the gemm calculation
 make tile_example_grouped_gemm -j
+# The preshuffle example
+make tile_example_grouped_gemm_preshuffle -j
 ```
 This will result in an executable `build/bin/tile_example_grouped_gemm`
 

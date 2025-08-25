@@ -342,7 +342,7 @@ struct GroupedGemmKernel
             {
                 if(get_block_id() == 0 && get_thread_id() == 0)
                 {
-                    printf("%s\n RunGemm", __func__);
+                    printf("%s\n RunGemm\n", __func__);
                 }
                 Base::RunGemm({a_ptr},
                               {b_ptr},
@@ -513,8 +513,9 @@ struct GroupedGemmKernel
     {
         if(get_block_id() == 0 && get_thread_id() == 0)
         {
-            printf("%s\n Non persistent grouped gemm\n", __func__);
+            printf("[WATCHING]: %s\n Non persistent grouped gemm\n", __func__);
         }
+
         const index_t block_id   = ck_tile::get_block_1d_id();
         const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg*>(
             cast_pointer_to_generic_address_space(gemm_descs_const));
@@ -527,6 +528,19 @@ struct GroupedGemmKernel
             kargs.group_karg.M,
             kargs.group_karg.N,
             (block_id - kargs.block_start) % grid_size_2d);
+        // if group id is odd, do nothing
+        // if(group_id % 2 != 0)
+        // {
+        //     return;
+        // }
+        // if(group_id % 2 == 1 && get_thread_id() == 0)
+        // {
+        //     printf("[WATCHING]: %s\n Odd group %d: block_id=%d, group_id=%d\n",
+        //            __func__,
+        //            group_id,
+        //            block_id,
+        //            group_id);
+        // }
         Run(kargs.group_karg, block_idx_2d, (block_id - kargs.block_start) / grid_size_2d);
     }
 
