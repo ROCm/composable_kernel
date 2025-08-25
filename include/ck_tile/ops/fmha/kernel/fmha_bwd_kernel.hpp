@@ -1115,7 +1115,8 @@ struct FmhaBwdDQDKDVKernel
             {i_n0, 0});
         if constexpr(!kUseQrQtrDorPipeline)
         {
-            auto [dk_acc_tile, dv_acc_tile] = FmhaPipeline{}(q_dram_window,
+            auto [dk_acc_tile, dv_acc_tile] = FmhaPipeline{}(smem_ptr,
+                                                             q_dram_window,
                                                              k_dram_window,
                                                              v_dram_window,
                                                              bias_dram_window,
@@ -1131,7 +1132,6 @@ struct FmhaBwdDQDKDVKernel
                                                              kargs.scale,
                                                              rp_undrop,
                                                              scale_rp_undrop,
-                                                             smem_ptr,
                                                              dropout);
 
             KGradEpiloguePipeline{}(dk_dram_window, dk_acc_tile);
@@ -1139,7 +1139,8 @@ struct FmhaBwdDQDKDVKernel
         }
         else
         {
-            FmhaPipeline{}(q_dram_window,
+            FmhaPipeline{}(smem_ptr,
+                           q_dram_window,
                            k_dram_window,
                            v_dram_window,
                            bias_dram_window,
@@ -1160,7 +1161,6 @@ struct FmhaBwdDQDKDVKernel
                            kargs.scale,
                            rp_undrop,
                            scale_rp_undrop,
-                           smem_ptr,
                            dropout);
         }
     }

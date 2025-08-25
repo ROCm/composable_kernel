@@ -449,7 +449,7 @@ template <address_space_enum BufferAddressSpace = address_space_enum::generic,
           amd_buffer_coherence_enum Coherence   = amd_buffer_coherence_enum::coherence_default,
           typename DataType,
           typename... Ts>
-CK_TILE_HOST_DEVICE constexpr auto make_tensor_view(DataType* p,
+CK_TILE_HOST_DEVICE constexpr auto make_tensor_view(DataType* __restrict__ p,
                                                     const tensor_descriptor<Ts...>& desc)
 {
     auto buffer_view =
@@ -468,7 +468,7 @@ template <address_space_enum BufferAddressSpace = address_space_enum::generic,
           index_t GuaranteedLastDimensionVectorStride                                   = -1,
           typename std::enable_if<sizeof...(Lengths) == sizeof...(Strides), bool>::type = false>
 CK_TILE_HOST_DEVICE constexpr auto
-make_naive_tensor_view(DataType* p,
+make_naive_tensor_view(DataType* __restrict__ p,
                        const tuple<Lengths...>& lengths,
                        const tuple<Strides...>& strides,
                        number<GuaranteedLastDimensionVectorLength> = number<-1>{},
@@ -491,7 +491,7 @@ template <address_space_enum BufferAddressSpace = address_space_enum::generic,
           typename... Lengths,
           index_t GuaranteedLastDimensionVectorLength = -1>
 CK_TILE_HOST_DEVICE constexpr auto
-make_naive_tensor_view_packed(DataType* p,
+make_naive_tensor_view_packed(DataType* __restrict__ p,
                               const tuple<Lengths...>& lengths,
                               number<GuaranteedLastDimensionVectorLength> = number<-1>{})
 {
