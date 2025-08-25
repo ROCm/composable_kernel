@@ -1239,11 +1239,7 @@ pipeline {
                                            ninja -j64 benchmark_gemm_preshuffle_fp16_rcr && \
                                            ./bin/benchmark_gemm_preshuffle_fp16_rcr && \
                                            ninja -j64 benchmark_gemm_preshuffle_fp8_rcr && \
-                                           ./bin/benchmark_gemm_preshuffle_fp8_rcr && \
-                                           ninja -j64 benchmark_gemm_preshuffle_bf16_rcr && \
-                                           ./bin/benchmark_gemm_preshuffle_bf16_rcr && \
-                                           ninja -j64 benchmark_gemm_preshuffle_bf8_rcr && \
-                                           ./bin/benchmark_gemm_preshuffle_bf8_rcr """
+                                           ./bin/benchmark_gemm_preshuffle_fp8_rcr """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1297,11 +1293,7 @@ pipeline {
                                             ninja -j64 benchmark_gemm_preshuffle_fp16_rcr && \
                                            ./bin/benchmark_gemm_preshuffle_fp16_rcr && \
                                            ninja -j64 benchmark_gemm_preshuffle_fp8_rcr && \
-                                           ./bin/benchmark_gemm_preshuffle_fp8_rcr && \
-                                           ninja -j64 benchmark_gemm_preshuffle_bf16_rcr && \
-                                           ./bin/benchmark_gemm_preshuffle_bf16_rcr && \
-                                           ninja -j64 benchmark_gemm_preshuffle_bf8_rcr && \
-                                           ./bin/benchmark_gemm_preshuffle_bf8_rcr """
+                                           ./bin/benchmark_gemm_preshuffle_fp8_rcr """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)

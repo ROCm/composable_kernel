@@ -2,18 +2,13 @@ import subprocess
 import re
 from functools import lru_cache
 
-# [DELETE AFTER CLEANUP] Why are the values exactly these? I think compv4 will not work with intrawave also for both
 trait_unsupported_combinations = {
     ("compv3", "cshuffle", "interwave"),
     ("compv3", "default", "interwave"),
     ("compv4", "cshuffle", "interwave"),
     ("compv4", "default", "interwave"),
-    # ("compv4", "cshuffle", "intrawave"),
-    # ("compv4", "default", "intrawave"),
 }
 
-# [DEDELETE AFTER CLEANUPLETE] Why are the values exactly these?
-# Can add some more supported combinations
 warp_tile_supported_combinations = {
     "gfx90a": {
         "fp16_fp16_fp16": [
@@ -118,7 +113,6 @@ LAYOUT_MAP = {
     "c": "ck_tile::tensor_layout::gemm::ColumnMajor",
 }
 
-# [DELETE AFTER CLEANUP] Pipelines that are not supported / Keep to move to commons
 PIPELINE_MAP = {
     "mem": ["ck_tile::BaseGemmPipelineAgBgCrMem", "ck_tile::GemmPipelineAgBgCrMem"],
     "compv3": [
@@ -144,7 +138,6 @@ SCHEDULER_MAP = {
     "intrawave": "ck_tile::GemmPipelineScheduler::Intrawave",
 }
 
-# [DELETE AFTER CLEANUP] Epilogue has to be moved to the ops folder only, when done remove the dependency in instance builder
 DEFAULT_EPILOGUE = """
             using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
                                 ck_tile::DefaultGemm2DEpilogueProblem<ADataType,
