@@ -98,9 +98,18 @@ CK_TILE_DEVICE index_t get_block_1d_id() { return blockIdx.x; }
 // Use these instead
 CK_TILE_DEVICE index_t get_lane_id() { return __lane_id(); }
 
-CK_TILE_DEVICE index_t get_warp_id()
+template <bool ReturnSgpr = true>
+CK_TILE_DEVICE index_t get_warp_id(bool_constant<ReturnSgpr> = {})
 {
-    return __builtin_amdgcn_readfirstlane(threadIdx.x / get_warp_size());
+    const index_t warp_id = threadIdx.x / get_warp_size();
+    if constexpr(ReturnSgpr)
+    {
+        return __builtin_amdgcn_readfirstlane(warp_id);
+    }
+    else
+    {
+        return warp_id;
+    }
 }
 
 CK_TILE_DEVICE index_t get_thread_id() { return threadIdx.x; }
