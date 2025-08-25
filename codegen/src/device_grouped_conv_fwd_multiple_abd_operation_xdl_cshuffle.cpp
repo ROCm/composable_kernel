@@ -223,8 +223,9 @@ extern "C" __global__ void run_${name}(
     constexpr ck::LoopScheduler LoopSched = ck::make_default_loop_scheduler();
 
     // GridwiseGemm
-    using GridwiseGemm = DeviceConv::GridwiseGemm64;
-
+    using GridwiseGemm = ck::conditional_t<ck::get_warp_size() == 64,
+                                           typename DeviceConv::GridwiseGemm64,
+                                           typename DeviceConv::GridwiseGemm32>;
     static constexpr auto I0 = ck::Number<0>{};
 
     ck::tensor_operation::device::device_grouped_conv_fwd_multiple_abd_xdl_cshuffle<

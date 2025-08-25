@@ -517,7 +517,7 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     struct Argument
     {
         template <typename GridwiseGemm>
-        void init_ds_e_grid_desc()
+        __host__ __device__ void init_ds_e_grid_desc()
         {
             if constexpr(isMultiA || isMultiB)
             {
@@ -774,7 +774,31 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         ck::Array<index_t, NDimSpatial> input_left_pads_;
         ck::Array<index_t, NDimSpatial> input_right_pads_;
     };
-
+    template <typename GridwiseGemm>
+    static __device__ __host__ bool check_gemm_validity(const Argument& arg)
+    {
+        if constexpr(isMultiA || isMultiB)
+        {
+            // Genarate tuples with the same descriptors
+            const auto as_grid_desc_ak0_m_ak1 =
+                generate_tuple([&](auto) { return arg.a_grid_desc_m_k_; }, Number<NumATensor>{});
+            const auto bs_grid_desc_bk0_n_bk1 =
+                generate_tuple([&](auto) { return arg.b_grid_desc_n_k_; }, Number<NumBTensor>{});
+            return GridwiseGemm::CheckValidity(as_grid_desc_ak0_m_ak1,
+                                               bs_grid_desc_bk0_n_bk1,
+                                               arg.ds_grid_desc_m_n_,
+                                               arg.e_grid_desc_m_n_,
+                                               arg.block_2_etile_map_);
+        }
+        else
+        {
+            return GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
+                                               arg.b_grid_desc_n_k_,
+                                               arg.ds_grid_desc_m_n_,
+                                               arg.e_grid_desc_m_n_,
+                                               arg.block_2_etile_map_);
+        }
+    }
     static __device__ __host__ bool IsSupportedArgument(const Argument& arg)
     {
         namespace ctc = tensor_layout::convolution;
@@ -926,43 +950,18 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         }
 
         // check Gridwise GEMM
-        template <typename GridwiseGemm>
-        auto check_gemm_validity = [&]() {
-            if constexpr(isMultiA || isMultiB)
-            {
-                // Genarate tuples with the same descriptors
-                const auto as_grid_desc_ak0_m_ak1 = generate_tuple(
-                    [&](auto) { return arg.a_grid_desc_m_k_; }, Number<NumATensor>{});
-                const auto bs_grid_desc_bk0_n_bk1 = generate_tuple(
-                    [&](auto) { return arg.b_grid_desc_n_k_; }, Number<NumBTensor>{});
-                return GridwiseGemm::CheckValidity(as_grid_desc_ak0_m_ak1,
-                                                   bs_grid_desc_bk0_n_bk1,
-                                                   arg.ds_grid_desc_m_n_,
-                                                   arg.e_grid_desc_m_n_,
-                                                   arg.block_2_etile_map_);
-            }
-            else
-            {
-                return GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
-                                                   arg.b_grid_desc_n_k_,
-                                                   arg.ds_grid_desc_m_n_,
-                                                   arg.e_grid_desc_m_n_,
-                                                   arg.block_2_etile_map_);
-            }
-        };
-
         if(get_warp_size() == 64)
         {
             if constexpr(NXdlPerWave64 > 0)
             {
-                return check_gemm_validity<GridwiseGemm64>();
+                return check_gemm_validity<GridwiseGemm64>(arg);
             }
         }
         else
         {
             if constexpr(NXdlPerWave32 > 0)
             {
-                return check_gemm_validity<GridwiseGemm32>();
+                return check_gemm_validity<GridwiseGemm32>(arg);
             }
         }
         return false;
