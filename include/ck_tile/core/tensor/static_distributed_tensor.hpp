@@ -33,6 +33,11 @@ struct static_distributed_tensor
     static constexpr index_t kThreadElementSpaceSize = ThreadTensorDesc{}.get_element_space_size();
     static_assert(0 < kThreadElementSpaceSize, "Make sure tile distribution is valid");
 
+    CK_TILE_HOST_DEVICE static constexpr auto is_valid()
+    {
+        return true;
+    }
+
     CK_TILE_HOST_DEVICE static constexpr auto get_num_of_dimension()
     {
         return StaticTileDistribution::get_num_of_dimension_x();

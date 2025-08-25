@@ -152,10 +152,20 @@ struct DynamicQuantEpilogue
 
         store_tile(y_scale_window, cast_tile<YScaleDataType>(y_scale));
 
-        sweep_tile(o_acc_tmp, [&](auto idx) {
-            constexpr auto row_id = make_tuple(idx[number<0>{}]);
-            o_acc_tmp(idx)        = o_acc_tmp[idx] / y_scale(row_id);
-        });
+        if constexpr(y_scale.get_thread_buffer_size() == 1)
+        {
+            auto scale = 1 / type_convert<AccDataType>(y_scale.get_thread_buffer().get(0));
+            sweep_tile(o_acc_tmp, [&](auto idx) {
+                o_acc_tmp(idx)       = o_acc_tmp[idx] * scale ;
+            });
+        }
+        else
+        {
+            sweep_tile(o_acc_tmp, [&](auto idx) {
+                constexpr auto row_id = make_tuple(idx[number<0>{}]);
+                o_acc_tmp(idx)       = o_acc_tmp[idx] / y_scale(row_id);
+            });
+        }
 
         // TODO: this is ugly
         if constexpr(UseRawStore && (kPadM || kPadN))
@@ -180,23 +190,23 @@ struct DynamicQuantEpilogue
     CK_TILE_DEVICE auto operator()(ODramWindowTmp& o_dram_window_tmp,
                                    const SmoothScaleWindow& sm_scale_window_,
                                    YScaleWindow& y_scale_window,
-                                   const OAccTile& o_acc_tile,
+                                   OAccTile& o_acc_tile,
                                    void* smem)
     {
-        const auto sm_scale_window =
-            make_tile_window(sm_scale_window_, MakeSmoothInputScaleTileDistribution());
+        // const auto sm_scale_window =
+        //     make_tile_window(sm_scale_window_, MakeSmoothInputScaleTileDistribution());
+        //
+        // auto sm_scale = load_tile(sm_scale_window);
+        //
+        // auto o_acc_tmp = o_acc_tile;
+        //
+        // sweep_tile(o_acc_tmp, [&](auto idx) {
+        //     constexpr auto j_idx = make_tuple(idx[number<1>{}]);
+        //     const auto xs_       = type_convert<AccDataType>(sm_scale[j_idx]);
+        //     o_acc_tmp(idx)       = o_acc_tmp(idx) * xs_;
+        // });
 
-        auto sm_scale = load_tile(sm_scale_window);
-
-        auto o_acc_tmp = o_acc_tile;
-
-        sweep_tile(o_acc_tmp, [&](auto idx) {
-            constexpr auto j_idx = make_tuple(idx[number<1>{}]);
-            const auto xs_       = type_convert<AccDataType>(sm_scale[j_idx]);
-            o_acc_tmp(idx)       = o_acc_tmp(idx) * xs_;
-        });
-
-        Impl(o_dram_window_tmp, y_scale_window, o_acc_tmp, smem);
+        Impl(o_dram_window_tmp, y_scale_window, o_acc_tile, smem);
     }
 
     // Dynamic Quant
