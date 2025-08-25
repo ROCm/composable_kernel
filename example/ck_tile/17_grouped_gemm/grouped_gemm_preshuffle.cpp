@@ -31,8 +31,8 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                    const ck_tile::stream_config& s,
                    void* kargs_ptr)
 {
-    //std::cout << "[WATCHING]: Hello from grouped_gemm_preshuffle.cpp" << std::endl;
-    // std::cout << __func__ << "Preshuffling: " << GemmConfig::Preshuffle << std::endl;
+    // std::cout << "[WATCHING]: Hello from grouped_gemm_preshuffle.cpp" << std::endl;
+    //  std::cout << __func__ << "Preshuffling: " << GemmConfig::Preshuffle << std::endl;
     using GemmShape = ck_tile::TileGemmShape<
         ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
         ck_tile::sequence<GemmConfig::M_Warp, GemmConfig::N_Warp, GemmConfig::K_Warp>,

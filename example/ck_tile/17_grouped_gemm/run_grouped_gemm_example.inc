@@ -55,8 +55,8 @@ float invoke_gemm(int n_warmup,
     if constexpr(!GemmConfig::Persistent)
     {
         std::cout << "[ALL GOOD]: " << __func__ << " Non Persistent grouped gemm" << std::endl;
-        // std::cout << "[WATCHING]: " << __func__ << " Preshuffling: " << GemmConfig::Preshuffle << std::endl;
-        // Regular version of grouped gemm
+        // std::cout << "[WATCHING]: " << __func__ << " Preshuffling: " << GemmConfig::Preshuffle <<
+        // std::endl; Regular version of grouped gemm
         ave_time = grouped_gemm<GemmConfig,
                                 ADataType,
                                 BDataType,
@@ -154,7 +154,8 @@ int run_grouped_gemm_example_with_layouts(int argc,
                                           [[maybe_unused]] const CLayout c_layout = CLayout{})
 {
     // print the GemmConfig::Preshuffle
-    // std::cout << "[WATCHING]: " << __func__ << " GemmConfig::Preshuffle: " << GemmConfig::Preshuffle
+    // std::cout << "[WATCHING]: " << __func__ << " GemmConfig::Preshuffle: " <<
+    // GemmConfig::Preshuffle
     //           << std::endl;
     auto [result, arg_parser] = create_args(argc, argv);
 
@@ -230,7 +231,8 @@ int run_grouped_gemm_example_with_layouts(int argc,
 
     for(int i = 0; i < group_count; ++i)
     {
-        // std::cout << "[WATCHING]: " << __func__ << " GemmConfig::Preshuffle: " << GemmConfig::Preshuffle
+        // std::cout << "[WATCHING]: " << __func__ << " GemmConfig::Preshuffle: " <<
+        // GemmConfig::Preshuffle
         //           << std::endl;
         const ck_tile::index_t M = Ms[i];
         const ck_tile::index_t N = Ns[i];
@@ -315,11 +317,12 @@ int run_grouped_gemm_example_with_layouts(int argc,
             const auto rtol_atol =
                 calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
                     Ks[i], kbatch, max_accumulated_value);
-            pass &= ck_tile::check_err(c_m_n_tensors[i],
-                                       c_m_n_host_ref,
-                                       "Error: Incorrect results! in group [" + std::to_string(i) + "]",
-                                       rtol_atol.at(ck_tile::number<0>{}),
-                                       rtol_atol.at(ck_tile::number<1>{}));
+            pass &=
+                ck_tile::check_err(c_m_n_tensors[i],
+                                   c_m_n_host_ref,
+                                   "Error: Incorrect results! in group [" + std::to_string(i) + "]",
+                                   rtol_atol.at(ck_tile::number<0>{}),
+                                   rtol_atol.at(ck_tile::number<1>{}));
             std::cout << "gemm[" << i
                       << "] Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
                       << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
@@ -345,7 +348,6 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
 
     bool preshuffle = GemmConfig::Preshuffle;
 
-
     // Preshuffle is supported only for A(Row major), B(column major) input matrices!
     if(preshuffle && (a_layout != "R" || b_layout != "C"))
     {
@@ -370,7 +372,8 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     //                                                  ADataType,
     //                                                  BDataType,
     //                                                  CDataType,
-    //                                                  AccDataType>(argc, argv, Row{}, Row{}, Row{});
+    //                                                  AccDataType>(argc, argv, Row{}, Row{},
+    //                                                  Row{});
     // }
     // else if(a_layout == "C" && b_layout == "R")
     // {
@@ -379,7 +382,8 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     //                                                  ADataType,
     //                                                  BDataType,
     //                                                  CDataType,
-    //                                                  AccDataType>(argc, argv, Col{}, Row{}, Row{});
+    //                                                  AccDataType>(argc, argv, Col{}, Row{},
+    //                                                  Row{});
     // }
     // else if(a_layout == "C" && b_layout == "C")
     // {
@@ -388,7 +392,8 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     //                                                  ADataType,
     //                                                  BDataType,
     //                                                  CDataType,
-    //                                                  AccDataType>(argc, argv, Col{}, Col{}, Row{});
+    //                                                  AccDataType>(argc, argv, Col{}, Col{},
+    //                                                  Row{});
     // }
     else
     {

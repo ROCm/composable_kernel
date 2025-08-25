@@ -75,10 +75,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
     }
 
     // bogus function to compile grouped gemm
-    static constexpr index_t GetVectorSizeC()
-    {
-            return -5;
-    }
+    static constexpr index_t GetVectorSizeC() { return -5; }
 
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
