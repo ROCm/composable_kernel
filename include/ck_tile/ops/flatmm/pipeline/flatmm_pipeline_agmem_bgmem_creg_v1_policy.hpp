@@ -237,15 +237,16 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetKBPerLoad()
     {
-        using TileShape = typename Problem::BlockGemmShape;
+        using TileShape         = typename Problem::BlockGemmShape;
+        constexpr index_t scale = get_warp_size() == 32 ? 2 : 1;
         if constexpr(TileShape::WarpTile::at(I1) == 32)
         {
-            return TileShape::WarpTile::at(I2) / 2;
+            return TileShape::WarpTile::at(I2) * scale / 2;
         }
         else
         {
             static_assert(TileShape::WarpTile::at(I1) == 16);
-            return TileShape::WarpTile::at(I2) / 4;
+            return TileShape::WarpTile::at(I2) * scale / 4;
         }
     }
 
@@ -430,13 +431,13 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
         // using AccDataType = float;
         using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
-        using WarpGemm   = WarpGemmMfmaDispatcher<typename Problem::ADataType,
-                                                  typename Problem::BDataType,
-                                                  typename Problem::CDataType,
-                                                  WarpTile::at(I0),
-                                                  WarpTile::at(I1),
-                                                  WarpTile::at(I2),
-                                                  Problem::TransposeC>;
+        using WarpGemm   = WarpGemmDispatcher<typename Problem::ADataType,
+                                              typename Problem::BDataType,
+                                              typename Problem::CDataType,
+                                              WarpTile::at(I0),
+                                              WarpTile::at(I1),
+                                              WarpTile::at(I2),
+                                              Problem::TransposeC>;
 
         using BlockFlatmmPolicy = BlockFlatmmASmemBSmemCRegV1CustomPolicy<
             typename Problem::ADataType,
