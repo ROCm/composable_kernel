@@ -162,13 +162,10 @@ struct AsmScopeMarker
     CK_TILE_HOST_DEVICE AsmScopeMarker()
     {
         // in some future version of clang we might be able to use string_view to customize
-        asm volatile (";;# CK_ASM_SCOPE_START");
+        asm volatile(";;# CK_ASM_SCOPE_START");
     }
- 
-    CK_TILE_HOST_DEVICE ~AsmScopeMarker()
-    {
-        asm volatile (";;# CK_ASM_SCOPE_END");
-    }
+
+    CK_TILE_HOST_DEVICE ~AsmScopeMarker() { asm volatile(";;# CK_ASM_SCOPE_END"); }
 };
 
 } // namespace ck_tile
