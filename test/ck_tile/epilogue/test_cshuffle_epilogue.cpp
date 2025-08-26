@@ -23,7 +23,6 @@ TEST_F(CShuffleEpilogueTest, BasicHalfTest)
     using AccDataType = float;
     using ODataType = ck_tile::half_t;
     
-    constexpr index_t kBlockSize = 256;
     constexpr index_t kMPerBlock = 256;
     constexpr index_t kNPerBlock = 256;
     constexpr index_t MWave = 2;
@@ -32,25 +31,18 @@ TEST_F(CShuffleEpilogueTest, BasicHalfTest)
     constexpr index_t NPerXdl = 32;
     constexpr index_t KPerXdl = 8;
     
-    using TestProblem = CShuffleEpilogueProblem<
+    using TestProblem = SimpleCShuffleEpilogueProblem<
         ADataType,
         BDataType,
-        ck_tile::tuple<>, // Empty Ds tuple
         AccDataType,
         ODataType,
-        ck_tile::tuple<>, // Empty Ds layout 
-        tensor_layout::gemm::RowMajor, // ELayout
-        ck_tile::element_wise::PassThrough,     // CDElementwise
-        kBlockSize,
         kMPerBlock,
         kNPerBlock,
         MWave,
         NWave,
         MPerXdl,
         NPerXdl,
-        KPerXdl,
-        false, // isCTransposed
-        memory_operation_enum::set>;
+        KPerXdl>;
 
     bool result = run_cshuffle_epilogue_test<TestProblem, kMPerBlock, kNPerBlock>();
     EXPECT_TRUE(result) << "Basic CShuffleEpilogue test failed";
@@ -64,7 +56,6 @@ TEST_F(CShuffleEpilogueTest, BasicHalfTestWithScale)
     using AccDataType = float;
     using ODataType = ck_tile::half_t;
     
-    constexpr index_t kBlockSize = 256;
     constexpr index_t kMPerBlock = 256;
     constexpr index_t kNPerBlock = 256;
     constexpr index_t MWave = 2;
@@ -73,25 +64,18 @@ TEST_F(CShuffleEpilogueTest, BasicHalfTestWithScale)
     constexpr index_t NPerXdl = 32;
     constexpr index_t KPerXdl = 8;
     
-    using TestProblem = CShuffleEpilogueProblem<
+    using TestProblem = SimpleCShuffleEpilogueProblem<
         ADataType,
         BDataType,
-        ck_tile::tuple<>, // Empty Ds tuple
         AccDataType,
         ODataType,
-        ck_tile::tuple<>, // Empty Ds layout 
-        tensor_layout::gemm::RowMajor, // ELayout
-        ck_tile::element_wise::PassThrough,     // CDElementwise
-        kBlockSize,
         kMPerBlock,
         kNPerBlock,
         MWave,
         NWave,
         MPerXdl,
         NPerXdl,
-        KPerXdl,
-        false, // isCTransposed
-        memory_operation_enum::set>;
+        KPerXdl>;
 
     bool result = run_cshuffle_epilogue_test<TestProblem, kMPerBlock, kNPerBlock>(true);
     EXPECT_TRUE(result) << "Scale CShuffleEpilogue test failed";

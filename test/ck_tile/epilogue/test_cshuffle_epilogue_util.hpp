@@ -90,25 +90,22 @@ template <typename ADataType,
           typename BDataType,
           typename AccDataType,
           typename ODataType,
-          index_t kBlockSize,
           index_t kM,
           index_t kN,
           index_t MWave,
           index_t NWave,
           index_t MPerXdl,
           index_t NPerXdl,
-          index_t KPerXdl,
-          bool isCTransposed = false>
+          index_t KPerXdl>
 using SimpleCShuffleEpilogueProblem = CShuffleEpilogueProblem<
     ADataType,
     BDataType,
-    ck_tile::tuple<>, // Empty Ds tuple
+    ck_tile::tuple<>, // Empty Ds datatype tuple
     AccDataType,
     ODataType,
     ck_tile::tuple<>, // Empty Ds layout
     tensor_layout::gemm::RowMajor, // ELayout
     ck_tile::element_wise::PassThrough,     // CDElementwise
-    kBlockSize,
     kM,
     kN,
     MWave,
@@ -116,7 +113,7 @@ using SimpleCShuffleEpilogueProblem = CShuffleEpilogueProblem<
     MPerXdl,
     NPerXdl,
     KPerXdl,
-    isCTransposed,
+    false, // isCTransposed,
     memory_operation_enum::set>;
 
 template <typename Problem, index_t M, index_t N>
