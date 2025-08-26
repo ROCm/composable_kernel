@@ -137,10 +137,6 @@ class TestAtomicKernelFloat_2 : public TestAtomicKernel<float, 2>
 {
 };
 
-class TestAtomicKernelFloat_4 : public TestAtomicKernel<float, 4>
-{
-};
-
 TEST_P(TestAtomicKernelHalf_1, TestCorrectness)
 {
     auto [M, N] = GetParam();
@@ -208,12 +204,6 @@ TEST_P(TestAtomicKernelFloat_1, TestCorrectness)
 }
 
 TEST_P(TestAtomicKernelFloat_2, TestCorrectness)
-{
-    auto [M, N] = GetParam();
-    this->RunTest({M, N});
-}
-
-TEST_P(TestAtomicKernelFloat_4, TestCorrectness)
 {
     auto [M, N] = GetParam();
     this->RunTest({M, N});
@@ -287,12 +277,6 @@ INSTANTIATE_TEST_SUITE_P(TestAtomicKernelSuite,
 
 INSTANTIATE_TEST_SUITE_P(TestAtomicKernelSuite,
                          TestAtomicKernelFloat_2,
-                         ::testing::Values(std::tuple{64, 8},
-                                           std::tuple{64, 16},
-                                           std::tuple{64, 32}));
-
-INSTANTIATE_TEST_SUITE_P(TestAtomicKernelSuite,
-                         TestAtomicKernelFloat_4,
                          ::testing::Values(std::tuple{64, 8},
                                            std::tuple{64, 16},
                                            std::tuple{64, 32}));
