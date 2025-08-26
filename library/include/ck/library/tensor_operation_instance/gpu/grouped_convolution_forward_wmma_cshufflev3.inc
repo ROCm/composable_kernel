@@ -312,19 +312,19 @@ void add_device_grouped_conv3d_fwd_wmma_cshufflev3_gndhwc_gkzyxc_gndhwk_f16_inst
 #endif
 
 #ifdef CK_ENABLE_INT8
-// void add_device_grouped_conv3d_fwd_wmma_cshufflev3_gndhwc_gkzyxc_gndhwk_int8_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
-//                                                                 GNDHWC,
-//                                                                 GKZYXC,
-//                                                                 Empty_Tuple,
-//                                                                 GNDHWK,
-//                                                                 int8_t,
-//                                                                 int8_t,
-//                                                                 Empty_Tuple,
-//                                                                 int8_t,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 PassThrough>>>& instances);
+void add_device_grouped_conv3d_fwd_wmma_cshufflev3_gndhwc_gkzyxc_gndhwk_int8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                GNDHWC,
+                                                                GKZYXC,
+                                                                Empty_Tuple,
+                                                                GNDHWK,
+                                                                int8_t,
+                                                                int8_t,
+                                                                Empty_Tuple,
+                                                                int8_t,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_BF16
@@ -404,89 +404,89 @@ void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f16_16x1
 //                                                                 PassThrough,
 //                                                                 F8>>>& instances);
 
-// void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f8_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
-//                                                                 NDHWGC,
-//                                                                 GKZYXC,
-//                                                                 Empty_Tuple,
-//                                                                 NDHWGK,
-//                                                                 F8,
-//                                                                 F8,
-//                                                                 Empty_Tuple,
-//                                                                 F8,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 F8>>>& instances);
+void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                Empty_Tuple,
+                                                                NDHWGK,
+                                                                F8,
+                                                                F8,
+                                                                Empty_Tuple,
+                                                                F8,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                F8>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_INT8
-// void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_int8_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
-//                                                                 NDHWGC,
-//                                                                 GKZYXC,
-//                                                                 Empty_Tuple,
-//                                                                 NDHWGK,
-//                                                                 int8_t,
-//                                                                 int8_t,
-//                                                                 Empty_Tuple,
-//                                                                 int8_t,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 PassThrough>>>& instances);
+void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_int8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                Empty_Tuple,
+                                                                NDHWGK,
+                                                                int8_t,
+                                                                int8_t,
+                                                                Empty_Tuple,
+                                                                int8_t,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_BF8
-// void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf8_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
-//                                                                 NDHWGC,
-//                                                                 GKZYXC,
-//                                                                 Empty_Tuple,
-//                                                                 NDHWGK,
-//                                                                 BF8,
-//                                                                 BF8,
-//                                                                 Empty_Tuple,
-//                                                                 F8,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 BF8>>>& instances);
+void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                Empty_Tuple,
+                                                                NDHWGK,
+                                                                BF8,
+                                                                BF8,
+                                                                Empty_Tuple,
+                                                                F8,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                BF8>>>& instances);
 #endif
 
 #if(defined(CK_ENABLE_FP8) && defined(CK_ENABLE_BF8))
-// void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f8_bf8_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
-//                                                                 NDHWGC,
-//                                                                 GKZYXC,
-//                                                                 Empty_Tuple,
-//                                                                 NDHWGK,
-//                                                                 F8,
-//                                                                 BF8,
-//                                                                 Empty_Tuple,
-//                                                                 F8,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 F8,
-//                                                                 BF8>>>& instances);
+void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f8_bf8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                Empty_Tuple,
+                                                                NDHWGK,
+                                                                F8,
+                                                                BF8,
+                                                                Empty_Tuple,
+                                                                F8,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                F8,
+                                                                BF8>>>& instances);
 #endif
 
 #if(defined(CK_ENABLE_FP8) && defined(CK_ENABLE_BF8))
-// void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf8_f8_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
-//                                                                 NDHWGC,
-//                                                                 GKZYXC,
-//                                                                 Empty_Tuple,
-//                                                                 NDHWGK,
-//                                                                 BF8,
-//                                                                 F8,
-//                                                                 Empty_Tuple,
-//                                                                 F8,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 BF8,
-//                                                                 F8>>>& instances);
+void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf8_f8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                Empty_Tuple,
+                                                                NDHWGK,
+                                                                BF8,
+                                                                F8,
+                                                                Empty_Tuple,
+                                                                F8,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                BF8,
+                                                                F8>>>& instances);
 #endif
 
 // grouped conv3d forward, NGCDHW/GKCZYX/NGKDHW

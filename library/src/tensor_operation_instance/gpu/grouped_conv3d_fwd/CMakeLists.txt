@@ -63,10 +63,12 @@ set(GROUPED_CONV3D_FWD
    # WMMA CSHUFFLE V3
    wmma/device_grouped_conv3d_fwd_wmma_cshufflev3_gndhwc_gkzyxc_gndhwk_bf16_instance.cpp
    wmma/device_grouped_conv3d_fwd_wmma_cshufflev3_gndhwc_gkzyxc_gndhwk_f16_instance.cpp
+   wmma/device_grouped_conv3d_fwd_wmma_cshufflev3_gndhwc_gkzyxc_gndhwk_int8_instance.cpp
    wmma/device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_instance.cpp
    wmma/device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f16_instance.cpp
    wmma/device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_16x16_instance.cpp
    wmma/device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f16_16x16_instance.cpp
+   wmma/device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_int8_instance.cpp
    wmma/device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_bf16_16x16_instance.cpp
    wmma/device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_f16_16x16_instance.cpp
 )
@@ -187,19 +189,23 @@ endif()
 
 if((DTYPES MATCHES "fp8") OR NOT DEFINED DTYPES)
     list(APPEND GROUPED_CONV3D_FWD
-      xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_fp8_instance.cpp)
+      xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_fp8_instance.cpp
+      wmma/device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_fp8_instance.cpp)
 endif()
 
 if((DTYPES MATCHES "bf8") OR NOT DEFINED DTYPES)
     list(APPEND GROUPED_CONV3D_FWD
-      xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf8_instance.cpp)
+      xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf8_instance.cpp
+      wmma/device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf8_instance.cpp)
 endif()
 
 if((DTYPES MATCHES "fp8" AND DTYPES MATCHES "bf8") OR NOT DEFINED DTYPES)
     list(APPEND GROUPED_CONV3D_FWD
-      xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_fp8_bf8_instance.cpp)
+      xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_fp8_bf8_instance.cpp
+      wmma/device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_fp8_bf8_instance.cpp)
     list(APPEND GROUPED_CONV3D_FWD
-      xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf8_fp8_instance.cpp)
+      xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf8_fp8_instance.cpp
+      wmma/device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf8_fp8_instance.cpp)
 endif()
 
 add_instance_library(device_grouped_conv3d_fwd_instance ${GROUPED_CONV3D_FWD})

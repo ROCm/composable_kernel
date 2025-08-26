@@ -970,7 +970,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<OutDataType, int8_t> && is_same_v<AComputeType, int8_t> &&
                          is_same_v<BComputeType, int8_t>)
             {
-                // add_device_grouped_conv3d_fwd_wmma_cshufflev3_gndhwc_gkzyxc_gndhwk_int8_instances(op_ptrs);
+                add_device_grouped_conv3d_fwd_wmma_cshufflev3_gndhwc_gkzyxc_gndhwk_int8_instances(
+                    op_ptrs);
             }
 #endif
         }
@@ -992,7 +993,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<OutDataType, ck::f8_t> && is_same_v<AComputeType, ck::f8_t> &&
                          is_same_v<BComputeType, ck::f8_t>)
             {
-                // add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f8_instances(op_ptrs);
+                add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f8_instances(
+                    op_ptrs);
             }
 #endif
 #ifdef CK_ENABLE_BF8
@@ -1000,7 +1002,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<OutDataType, ck::f8_t> && is_same_v<AComputeType, ck::bf8_t> &&
                          is_same_v<BComputeType, ck::bf8_t>)
             {
-                // add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf8_instances(op_ptrs);
+                add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf8_instances(
+                    op_ptrs);
             }
 #endif
 #if(defined(CK_ENABLE_FP8) && defined(CK_ENABLE_BF8))
@@ -1008,7 +1011,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<OutDataType, ck::f8_t> && is_same_v<AComputeType, ck::f8_t> &&
                          is_same_v<BComputeType, ck::bf8_t>)
             {
-                // add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f8_bf8_instances(op_ptrs);
+                add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f8_bf8_instances(
+                    op_ptrs);
             }
 #endif
 #if(defined(CK_ENABLE_FP8) && defined(CK_ENABLE_BF8))
@@ -1016,7 +1020,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<OutDataType, ck::f8_t> && is_same_v<AComputeType, ck::bf8_t> &&
                          is_same_v<BComputeType, ck::f8_t>)
             {
-                // add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf8_f8_instances(op_ptrs);
+                add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf8_f8_instances(
+                    op_ptrs);
             }
 #endif
 #ifdef CK_ENABLE_FP16
@@ -1066,7 +1071,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<OutDataType, int8_t> && is_same_v<AComputeType, int8_t> &&
                          is_same_v<BComputeType, int8_t>)
             {
-                // add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_int8_instances(op_ptrs);
+                add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_int8_instances(
+                    op_ptrs);
             }
 #endif
         }

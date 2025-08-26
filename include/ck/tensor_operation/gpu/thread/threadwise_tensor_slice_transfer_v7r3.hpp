@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -283,7 +283,8 @@ struct ThreadwiseTensorSliceTransfer_v7r3
             static_for<0, nDst, 1>{}([&](auto i) {
                 using elm_vector_t = typename remove_cvref_t<decltype(elm_vectors[i])>::type;
                 elm_vectors(i).template AsType<elm_vector_t>()(I0) =
-                    oob_val ? elm_vectors(i).template AsType<elm_vector_t>()[I0] : elm_vector_t{0};
+                    oob_val ? elm_vector_t{elm_vectors(i).template AsType<elm_vector_t>()[I0]}
+                            : elm_vector_t{0};
             });
 
             elm_vectors_tuple_(thread_scratch_id)(iAccess) = elm_vectors;
