@@ -68,17 +68,18 @@ auto create_args(int argc, char* argv[])
         .insert("b_layout", "C", "B tensor data layout - Col by default.")
         .insert("c_layout", "R", "C tensor data layout - Row by default.")
         .insert("gemm_kind",
-                "gemm1_gate_only",
-                "Gemm kind in FFN network [gemm1_gate_only | gemm1_gate_up | gemm2] - "
-                "gemm1_gate_only by default.")
+                "gemm1_gate_up",
+                "Gemm kind in FFN network [gemm1_gate_up | gemm2] - "
+                "gemm1_gate_up by default.")
         .insert("validate", "1", "0. No validation, 1. Validation on CPU.")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("mixed_prec",
                 "bf16xfp4",
                 "data type for activation and weight, support: bf16xfp4, fp16xfp4")
         .insert("init", "0", "0:random, 1:constant(1)")
-        .insert(
-            "warp_tile", "0", "0: 16x16, 1: 32x32, 2: 16x16x128 (950 only), 3: 32x32x64 (950 only)")
+        .insert("warp_tile",
+                "0",
+                "0: 16x16, 1: 16x16 (950 only, may use a larger tile than warp_tile=0)")
         .insert("repeat", "10", "number of iterations to benchmark the kernel.");
 
     bool result = arg_parser.parse(argc, argv);

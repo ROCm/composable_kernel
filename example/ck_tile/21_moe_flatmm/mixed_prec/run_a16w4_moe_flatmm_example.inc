@@ -47,21 +47,6 @@ float invoke_a16w4_moe_gemm(int n_warmup, int n_repeat, const MoeHostArgs& args)
     return ave_time;
 }
 
-namespace {
-
-struct LocalSilu
-{
-    template <typename T>
-    CK_TILE_HOST_DEVICE T operator()(const T& x) const
-    {
-        T y;
-        ck_tile::element_wise::Silu{}(y, x);
-        return y;
-    };
-};
-
-} // namespace
-
 template <typename PrecActType,
           typename PrecWeightType,
           typename FlatmmConfig,
@@ -314,16 +299,15 @@ int run_a16w4_moe_gemm_example_with_layouts(int argc,
             std::make_unique<ck_tile::DeviceMem>(c_m_n_tensor.get_element_space_size_in_bytes());
         c_m_n_ref_buf->SetZero();
 
-        ck_tile::reference_moe_gemm_gpu<
-            ADataType,
-            BDataType,
-            AccDataType,
-            CDataType,
-            ALayout,
-            BLayout,
-            CLayout,
-            static_cast<int>(kind),
-            std::conditional_t<IsInputGemm, LocalSilu, ck_tile::identity>>(
+        ck_tile::reference_moe_gemm_gpu<ADataType,
+                                        BDataType,
+                                        AccDataType,
+                                        CDataType,
+                                        ALayout,
+                                        BLayout,
+                                        CLayout,
+                                        static_cast<int>(kind),
+                                        ck_tile::moe::Swiglu>(
             p_sorted_token_ids_dev,
             p_expert_ids_dev,
             p_max_token_id_dev,

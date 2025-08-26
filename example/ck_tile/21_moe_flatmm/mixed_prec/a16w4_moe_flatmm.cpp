@@ -174,9 +174,14 @@ float a16w4_moe_gemm(const ck_tile::MoeFlatmmHostArgs<ScaleM, ScaleN>& args,
             MXFP4_Pipeline,
             ck_tile::F16xMXF4FlatmmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>,
             ck_tile::MoeFlatmmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>>;
+        using FusedAct =
+            std::conditional_t<MXFP4_Pipeline, ck_tile::moe::Swiglu, ck_tile::moe::MoeSilu>;
 
-        using Kernel = ck_tile::
-            MoeFlatmmKernel<TilePartitioner, CodegenFlatmmPipeline, GemmEpilogue, moe_kind>;
+        using Kernel = ck_tile::MoeFlatmmKernel<TilePartitioner,
+                                                CodegenFlatmmPipeline,
+                                                GemmEpilogue,
+                                                moe_kind,
+                                                FusedAct>;
 
         auto kargs = Kernel::MakeKernelArgs(args);
 
@@ -449,29 +454,6 @@ int run_a16w4_moe_flatmm_example(int argc, char* argv[])
                 throw std::runtime_error("Unsupported precision type for gemm1_gate_up!");
             }
         }
-        else if(gemm_kind == "gemm1_gate_only")
-        {
-            if(mixed_prec == "fp16xfp4")
-            {
-                return run_a16w4_moe_gemm_example_with_layouts<
-                    ck_tile::half_t,
-                    ck_tile::pk_fp4_t,
-                    FlatmmConfig,
-                    ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_only>(argc, argv, Row{}, Col{}, Row{});
-            }
-            else if(mixed_prec == "bf16xfp4")
-            {
-                return run_a16w4_moe_gemm_example_with_layouts<
-                    ck_tile::bfloat16_t,
-                    ck_tile::pk_fp4_t,
-                    FlatmmConfig,
-                    ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_only>(argc, argv, Row{}, Col{}, Row{});
-            }
-            else
-            {
-                throw std::runtime_error("Unsupported precision type for gemm1_gate_only!");
-            }
-        }
         else if(gemm_kind == "gemm2")
         {
             if(mixed_prec == "fp16xfp4")
@@ -498,7 +480,7 @@ int run_a16w4_moe_flatmm_example(int argc, char* argv[])
         else
         {
             throw std::runtime_error("Unrecoginized gemm_kind parameter, only accept value "
-                                     "[gemm1_gate_only | gemm1_gate_up | gemm2]");
+                                     "[gemm1_gate_up | gemm2]");
         }
     }
     else

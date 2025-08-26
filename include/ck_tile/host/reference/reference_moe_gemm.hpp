@@ -205,14 +205,13 @@ __global__ void moe_gemm_kernel(const ck_tile::index_t* p_sorted_token_ids_,
                           : col * strideC + scatter_token_id;
         if constexpr(MoeGemmKind < 2)
         {
-            AccDataType acc_gate = ActivationOp{}(acc);
-            C[c_index] =
-                ck_tile::type_convert<CDataType>(MoeGemmKind == 1 ? acc_gate * acc_up : acc_gate);
+            C[c_index] = ck_tile::type_convert<CDataType>(
+                ActivationOp{}(acc, MoeGemmKind == 1 ? acc_up : 1));
         }
         else
         {
-            CDataType res =
-                ck_tile::type_convert<CDataType>(ActivationOp{}(acc * expert_weight_ptr[row]));
+            // moe gemm2 don't use activation.
+            CDataType res   = ck_tile::type_convert<CDataType>(acc * expert_weight_ptr[row]);
             using ResV2Type = std::conditional_t<std::is_same_v<CDataType, ck_tile::half_t>,
                                                  ck_tile::fp16x2_t,
                                                  ck_tile::bf16x2_t>;
