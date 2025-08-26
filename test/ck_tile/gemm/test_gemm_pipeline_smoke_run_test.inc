@@ -256,16 +256,11 @@ template <typename GemmConfig,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-bool run_gemm_test_with_layouts(int argc,
-                                char* argv[],
+bool run_gemm_test_with_layouts(ck_tile::ArgParser& arg_parser,
                                 const ALayout a_layout                  = ALayout{},
                                 const BLayout b_layout                  = BLayout{},
                                 [[maybe_unused]] const CLayout c_layout = CLayout{})
 {
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
-        return false;
-
     using AccDataType = typename GemmTypeConfig<ADataType, BDataType, CDataType>::AccDataType;
 
     ck_tile::index_t M = arg_parser.get_int("m");
