@@ -221,13 +221,20 @@ if (SUPPORTED_GPU_TARGETS MATCHES "gfx94" OR SUPPORTED_GPU_TARGETS MATCHES "gfx9
     add_definitions(-DCK_USE_GFX94)
     set(CK_USE_GFX94 "ON")
 endif()
+
+# new macro CK_TILE_USE_WMMA in order to separately compile examples for MFMA/WMMA
+set(CK_TILE_USE_WMMA 0)
+
 if (SUPPORTED_GPU_TARGETS MATCHES "gfx11" OR SUPPORTED_GPU_TARGETS MATCHES "gfx12")
     message(STATUS "Enabling WMMA instances")
     add_definitions(-DCK_USE_WMMA)
     set(CK_USE_WMMA "ON")
-    add_definitions(-DCK_TILE_USE_WMMA)
-    set(CK_TILE_USE_WMMA "ON")
+    set(CK_TILE_USE_WMMA 1)
 endif()
+
+# define the macro with the current value (0 or 1)
+add_definitions(-DCK_TILE_USE_WMMA=${CK_TILE_USE_WMMA})
+
 if (SUPPORTED_GPU_TARGETS MATCHES "gfx12")
     message(STATUS "Enabling WMMA FP8 gemms on native architectures")
     add_definitions(-DCK_USE_WMMA_FP8)
