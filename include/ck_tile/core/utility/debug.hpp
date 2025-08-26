@@ -154,16 +154,20 @@ struct CK_PRINTF_WARP0 : public CK_PRINTF<ConvertTo, FMT, PREFIX, SUFFIX>
     }
 };
 
+/*
+ *  RAII struct which inserts markers into generated asm
+ */
 struct AsmScopeMarker
 {
     CK_TILE_HOST_DEVICE AsmScopeMarker()
     {
-        asm __volatile__ ("; CK_ASM_SCOPE_START");
+        // in some future version of clang we might be able to use string_view to customize
+        asm volatile (";;# CK_ASM_SCOPE_START");
     }
  
     CK_TILE_HOST_DEVICE ~AsmScopeMarker()
     {
-        asm __volatile__ ("; CK_ASM_SCOPE_END");
+        asm volatile (";;# CK_ASM_SCOPE_END");
     }
 };
 
