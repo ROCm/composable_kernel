@@ -135,21 +135,6 @@ struct GemmConfigComputeV4 : public GemmConfigBase
 
 // };
 
-struct SCALEADD
-{
-    CK_TILE_HOST_DEVICE SCALEADD(float scale = 1.f) : scale_(scale) {}
-    
-    template <typename E, typename C, typename D0>
-    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const D0& d0) const -> void
-    {
-        const float x0_f = ck_tile::type_convert<float>(c) +
-                           scale_ * ck_tile::type_convert<float>(d0);
-
-        e = ck_tile::type_convert<E>(x0_f);
-    }
-    
-    float scale_;
-};
 
 template <ck_tile::index_t PipelineId>
 struct PipelineTypeTraits;
@@ -181,7 +166,7 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V4>
     using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV4<PipelineProblem>;
 };
 
-using grouped_gemm_kargs = ck_tile::GroupedGemmHostArgs<1>;
+using grouped_gemm_kargs = ck_tile::GroupedGemmHostArgs<2>;
 
 auto create_args(int argc, char* argv[])
 {
@@ -209,7 +194,7 @@ auto create_args(int argc, char* argv[])
 
 inline std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gemm_descs)
 {
-    return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg);
+    return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg<2>);
 }
 
 template <typename ADataType,
