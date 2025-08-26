@@ -998,10 +998,10 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeLSE()
     {
-        return sizeof(typename Problem::LSEDataType) *
-               max(static_cast<index_t>(
-                       MakeLSEDLdsWriteBlockDescriptor<Problem>().get_element_space_size()),
-                   get_warp_size());
+        return static_cast<index_t>(max( //
+            sizeof(int) * get_warp_size(),
+            sizeof(typename Problem::LSEDataType) *
+                MakeLSEDLdsWriteBlockDescriptor<Problem>().get_element_space_size()));
     }
 
     template <typename Problem>

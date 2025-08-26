@@ -661,7 +661,7 @@ class FmhaBwdApiTrait:
 
     @property
     def extra_cond(self) -> str:
-        if self.tile.max_seq_q == 0 and self.tile.F_bn0 == 128:
+        if self.tr_load == 't' and self.tile.max_seq_q == 0 and self.tile.F_bn0 == 128:
             return "&& (a.seqlen_k <= 256)"
         else:
             return ""
