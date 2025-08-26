@@ -16,7 +16,7 @@ struct AtomicKernelParam
     ck_tile::index_t n;
 };
 
-template <typename DataType_>
+template <typename DataType_, ck_tile::index_t multiple_>
 class TestAtomicKernel : public ::testing::TestWithParam<std::tuple<int, int>>
 {
     protected:
@@ -33,7 +33,7 @@ class TestAtomicKernel : public ::testing::TestWithParam<std::tuple<int, int>>
 
         if(n % (dword_bytes / sizeof(XDataType)) != 0)
         {
-            std::cerr << "n size should be multiple of dword_bytes" << std::endl;
+            ASSERT_EQ(n % (multiple_ * (dword_bytes / sizeof(XDataType))), 0) << " Row dimension must be divisible by vector width";
         }
 
         // host tensor
@@ -48,9 +48,9 @@ class TestAtomicKernel : public ::testing::TestWithParam<std::tuple<int, int>>
         using BlockWaves = ck_tile::sequence<2, 1>;
         using BlockTile  = ck_tile::sequence<64, 8>;
         using WaveTile   = ck_tile::sequence<64, 8>;
-        using Vector     = ck_tile::sequence<1, dword_bytes / sizeof(XDataType)>;
+        using Vector     = ck_tile::sequence<1, multiple_ * (dword_bytes / sizeof(XDataType))>;
 
-        std::cout << "Vector size / Yield per thread = " << (dword_bytes / sizeof(XDataType))
+        std::cout << "Vector size / Yield per thread = " << multiple_ * (dword_bytes / sizeof(XDataType))
                   << std::endl;
 
         ck_tile::index_t kGridSize =
@@ -88,16 +88,210 @@ class TestAtomicKernel : public ::testing::TestWithParam<std::tuple<int, int>>
     }
 };
 
-class TestAtomicKernelHalf : public TestAtomicKernel<ck_tile::half_t>
+class TestAtomicKernelHalf_1 : public TestAtomicKernel<ck_tile::half_t, 1>
 {
 };
 
-TEST_P(TestAtomicKernelHalf, TestCorrectness)
+class TestAtomicKernelHalf_2 : public TestAtomicKernel<ck_tile::half_t, 2>
+{
+};
+
+class TestAtomicKernelHalf_4 : public TestAtomicKernel<ck_tile::half_t, 4>
+{
+};
+
+class TestAtomicKernelBF16_1 : public TestAtomicKernel<ck_tile::bf16_t, 1>
+{
+};
+
+class TestAtomicKernelBF16_2 : public TestAtomicKernel<ck_tile::bf16_t, 2>
+{
+};
+
+class TestAtomicKernelBF16_4 : public TestAtomicKernel<ck_tile::bf16_t, 4>
+{
+};
+
+class TestAtomicKernelBF8_1 : public TestAtomicKernel<ck_tile::bf8_t, 1>
+{
+};
+
+class TestAtomicKernelBF8_2 : public TestAtomicKernel<ck_tile::bf8_t, 2>
+{
+};
+
+class TestAtomicKernelFP8_1 : public TestAtomicKernel<ck_tile::fp8_t, 1>
+{
+};
+
+class TestAtomicKernelFP8_2 : public TestAtomicKernel<ck_tile::fp8_t, 2>
+{
+};
+
+class TestAtomicKernelFloat_1 : public TestAtomicKernel<float, 1>
+{
+};
+
+class TestAtomicKernelFloat_2 : public TestAtomicKernel<float, 2>
+{
+};
+
+class TestAtomicKernelFloat_4 : public TestAtomicKernel<float, 4>
+{
+};
+
+TEST_P(TestAtomicKernelHalf_1, TestCorrectness)
+{
+    auto [M, N] = GetParam();
+    this->RunTest({M, N});
+}
+
+TEST_P(TestAtomicKernelHalf_2, TestCorrectness)
+{
+    auto [M, N] = GetParam();
+    this->RunTest({M, N});
+}
+
+TEST_P(TestAtomicKernelHalf_4, TestCorrectness)
+{
+    auto [M, N] = GetParam();
+    this->RunTest({M, N});
+}
+
+TEST_P(TestAtomicKernelBF16_1, TestCorrectness)
+{
+    auto [M, N] = GetParam();
+    this->RunTest({M, N});
+}
+
+TEST_P(TestAtomicKernelBF16_2, TestCorrectness)
+{
+    auto [M, N] = GetParam();
+    this->RunTest({M, N});
+}
+
+TEST_P(TestAtomicKernelBF16_4, TestCorrectness)
+{
+    auto [M, N] = GetParam();
+    this->RunTest({M, N});
+}
+
+TEST_P(TestAtomicKernelBF8_1, TestCorrectness)
+{
+    auto [M, N] = GetParam();
+    this->RunTest({M, N});
+}
+
+TEST_P(TestAtomicKernelBF8_2, TestCorrectness)
+{
+    auto [M, N] = GetParam();
+    this->RunTest({M, N});
+}
+
+TEST_P(TestAtomicKernelFP8_1, TestCorrectness)
+{
+    auto [M, N] = GetParam();
+    this->RunTest({M, N});
+}
+
+TEST_P(TestAtomicKernelFP8_2, TestCorrectness)
+{
+    auto [M, N] = GetParam();
+    this->RunTest({M, N});
+}
+
+TEST_P(TestAtomicKernelFloat_1, TestCorrectness)
+{
+    auto [M, N] = GetParam();
+    this->RunTest({M, N});
+}
+
+TEST_P(TestAtomicKernelFloat_2, TestCorrectness)
+{
+    auto [M, N] = GetParam();
+    this->RunTest({M, N});
+}
+
+TEST_P(TestAtomicKernelFloat_4, TestCorrectness)
 {
     auto [M, N] = GetParam();
     this->RunTest({M, N});
 }
 
 INSTANTIATE_TEST_SUITE_P(TestAtomicKernelSuite,
-                         TestAtomicKernelHalf,
-                         ::testing::Values(std::tuple{64, 8}));
+                         TestAtomicKernelHalf_1,
+                         ::testing::Values(std::tuple{64, 8}, 
+                                           std::tuple{64, 16}, 
+                                           std::tuple{64, 32}));
+
+INSTANTIATE_TEST_SUITE_P(TestAtomicKernelSuite,
+                         TestAtomicKernelHalf_2,
+                         ::testing::Values(std::tuple{64, 8}, 
+                                           std::tuple{64, 16}, 
+                                           std::tuple{64, 32}));
+                                           
+INSTANTIATE_TEST_SUITE_P(TestAtomicKernelSuite,
+                         TestAtomicKernelHalf_4,
+                         ::testing::Values(std::tuple{64, 8}, 
+                                           std::tuple{64, 16}, 
+                                           std::tuple{64, 32}));                                           
+
+INSTANTIATE_TEST_SUITE_P(TestAtomicKernelSuite,
+                         TestAtomicKernelBF16_1,
+                         ::testing::Values(std::tuple{64, 8}, 
+                                           std::tuple{64, 16}, 
+                                           std::tuple{64, 32}));
+
+INSTANTIATE_TEST_SUITE_P(TestAtomicKernelSuite,
+                         TestAtomicKernelBF16_2,
+                         ::testing::Values(std::tuple{64, 8}, 
+                                           std::tuple{64, 16}, 
+                                           std::tuple{64, 32}));
+                                           
+INSTANTIATE_TEST_SUITE_P(TestAtomicKernelSuite,
+                         TestAtomicKernelBF16_4,
+                         ::testing::Values(std::tuple{64, 8}, 
+                                           std::tuple{64, 16}, 
+                                           std::tuple{64, 32}));
+
+INSTANTIATE_TEST_SUITE_P(TestAtomicKernelSuite,
+                         TestAtomicKernelBF8_1,
+                         ::testing::Values(std::tuple{64, 8}, 
+                                           std::tuple{64, 16}, 
+                                           std::tuple{64, 32}));
+
+INSTANTIATE_TEST_SUITE_P(TestAtomicKernelSuite,
+                         TestAtomicKernelBF8_2,
+                         ::testing::Values(std::tuple{64, 8}, 
+                                           std::tuple{64, 16}, 
+                                           std::tuple{64, 32}));
+
+INSTANTIATE_TEST_SUITE_P(TestAtomicKernelSuite,
+                         TestAtomicKernelFP8_1,
+                         ::testing::Values(std::tuple{64, 8}, 
+                                           std::tuple{64, 16}, 
+                                           std::tuple{64, 32}));
+
+INSTANTIATE_TEST_SUITE_P(TestAtomicKernelSuite,
+                         TestAtomicKernelFP8_2,
+                         ::testing::Values(std::tuple{64, 8}, 
+                                           std::tuple{64, 16}, 
+                                           std::tuple{64, 32}));                                            
+
+INSTANTIATE_TEST_SUITE_P(TestAtomicKernelSuite,
+                         TestAtomicKernelFloat_1,
+                         ::testing::Values(std::tuple{64, 8}, 
+                                           std::tuple{64, 16}, 
+                                           std::tuple{64, 32}));  
+
+INSTANTIATE_TEST_SUITE_P(TestAtomicKernelSuite,
+                         TestAtomicKernelFloat_2,
+                         ::testing::Values(std::tuple{64, 8}, 
+                                           std::tuple{64, 16}, 
+                                           std::tuple{64, 32}));
+                                           
+INSTANTIATE_TEST_SUITE_P(TestAtomicKernelSuite,
+                         TestAtomicKernelFloat_4,
+                         ::testing::Values(std::tuple{64, 8}, 
+                                           std::tuple{64, 16}, 
+                                           std::tuple{64, 32}));                                           
