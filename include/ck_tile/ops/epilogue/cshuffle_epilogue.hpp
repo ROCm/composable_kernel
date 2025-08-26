@@ -261,9 +261,40 @@ struct CShuffleEpilogue
         return MPerIterationShuffle * NPerIterationShuffle * sizeof(ODataType);
     }
 
-    template <auto iAccess, typename LdsTile, typename ScaleM, typename ScaleN>
-    CK_TILE_DEVICE void scale_tile(LdsTile& lds_tile, const ScaleM* scale_m, const ScaleN* scale_n)
+    template <auto iAccess, typename LdsTile, typename ScaleM, typename ScaleN, typename LdsTileDstr>
+    CK_TILE_DEVICE void scale_tile(LdsTile& lds_tile, const ScaleM* scale_m, const ScaleN* scale_n, const LdsTileDstr& lds_tile_dstr)
     {
+        // Create tensors for scales
+        const auto scale_m_tensor_view = make_naive_tensor_view<address_space_enum::global>(
+            scale_m,
+            make_tuple(kMPerBlock, kNPerBlock),  // TODO: need total size
+            make_tuple(1, 0),  // broadcasting over n
+            number<1>{},
+            number<1>{});
+        const auto scale_m_tensor_window = make_tile_window(
+            scale_m_tensor_view,
+            make_tuple(kMPerBlock, kNPerBlock),
+            {0, 0},  // TODO: need offset to tensor view
+            lds_tile_dstr);
+        
+        const auto scale_n_tensor_view = make_naive_tensor_view<address_space_enum::global>(
+            scale_n,
+            make_tuple(kMPerBlock, kNPerBlock),  // TODO: need total size
+            make_tuple(0, 1),  // broadcasting over m
+            number<1>{},
+            number<1>{});
+        const auto scale_n_tensor_window = make_tile_window(
+            scale_n_tensor_view,
+            make_tuple(kMPerBlock, kNPerBlock),
+            {0, 0},   // TODO: need offset to tensor view
+            lds_tile_dstr);
+        
+        // Load tiles
+        const auto scale_m_tile = load_tile(scale_m_tensor_window);
+        const auto scale_n_tile = load_tile(scale_n_tensor_window);
+
+        tile_elementwise_inout(MultiDMultiply{}, make_tuple(lds_tile, lds_tile, scale_m_tile, scale_n_tile));
+#if 0
         // TODO: try to get rid off these here, and get them from elsewhere
         constexpr auto idx_y_start = SFC::get_index(iAccess);
 
@@ -290,6 +321,7 @@ struct CShuffleEpilogue
                 lds_tile.get_thread_buffer()[m0 * kM2 + m2] *= scale_A * scale_B;
             });
         });
+#endif
     }
 
     template <auto iAccess, typename OAccTile, typename LdsTile>
@@ -417,7 +449,7 @@ struct CShuffleEpilogue
             if constexpr(!std::is_same<ScaleM, std::nullptr_t>::value &&
                          !std::is_same<ScaleN, std::nullptr_t>::value)
             {
-                scale_tile<iAccess>(lds_tile, scale_m, scale_n);
+                scale_tile<iAccess>(lds_tile, scale_m, scale_n, LdsTileDistr{});
             }
 
             cast_lds_tile(lds_tile, in_lds_window);

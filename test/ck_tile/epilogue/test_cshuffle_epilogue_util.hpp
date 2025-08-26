@@ -51,7 +51,7 @@ test_cshuffle_epilogue_kernel(typename Problem::ODataType* __restrict__ output_d
     
     // Create accumulator tile
     constexpr auto lds_distribution_encode = make_static_tile_distribution(Epilogue::MakeLdsDistributionEncode());
-    auto acc_tile = make_static_distributed_tensor<float/*typename Epilogue::ODataType*/>(lds_distribution_encode);
+    auto acc_tile = make_static_distributed_tensor<typename Epilogue::AccDataType>(lds_distribution_encode);
 
     // Fill acc_tile with a simple pattern
     auto& acc_buffer = acc_tile.get_thread_buffer();
