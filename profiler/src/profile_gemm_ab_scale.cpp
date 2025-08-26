@@ -80,7 +80,7 @@ int profile_gemm_ab_scale(int argc, char* argv[])
     const int StrideA = std::stoi(argv[12]);
     const int StrideB = std::stoi(argv[13]);
     const int StrideE = std::stoi(argv[14]);
-    const int KBatch  = argc == 16 ? std::stoi(argv[15]) : 1;
+    const int KBatch  = (argc > 15) ? std::stoi(argv[15]) : 1;
 
     int n_warmup      = 1;
     int n_iter        = 10;
