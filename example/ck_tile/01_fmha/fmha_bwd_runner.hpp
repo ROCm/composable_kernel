@@ -47,8 +47,7 @@ auto get_elimit<FmhaBwdBf16>(ck_tile::index_t hdim_q, ck_tile::index_t hdim_v)
     return ck_tile::make_tuple(rtol, atol);
 }
 
-template <>
-float fmha_bwd<2>(fmha_bwd_traits, fmha_bwd_args, const ck_tile::stream_config&);
+extern template float fmha_bwd<2>(fmha_bwd_traits, fmha_bwd_args, const ck_tile::stream_config&);
 
 template <typename DataTypeConfig>
 bwd_result fmha_bwd_run(mode_enum mode,
