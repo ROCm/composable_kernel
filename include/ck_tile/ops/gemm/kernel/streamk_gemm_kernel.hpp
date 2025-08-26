@@ -171,6 +171,47 @@ struct StreamKKernel
                                                  host_args.num_sk_blocks}};
     }
 
+    template <bool UseDefaultScheduler = true>
+    CK_TILE_DEVICE static void
+    RunGemm(const std::array<const ADataType*, UniversalGemmKernel::NumATensor>& as_ptr,
+            const std::array<const BDataType*, UniversalGemmKernel::NumBTensor>& bs_ptr,
+            const std::array<const void*, UniversalGemmKernel::NumDTensor>& ds_ptr,
+            CDataType* c_ptr,
+            void* smem_ptr_0,
+            const typename UniversalGemmKernel::KernelArgs& kargs,
+            const index_t num_loop,
+            const index_t block_idx_m,
+            const index_t block_idx_n,
+            const index_t k_size)
+    {
+        // Create Gemm tensor views, pad views and tile windows
+        const auto& gemm_tensor_views_tuple =
+            UniversalGemmKernel::template MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
+                as_ptr, bs_ptr, ds_ptr, c_ptr, kargs, k_size);
+
+        const auto& gemm_pad_views = UniversalGemmKernel::MakeGemmPadViews(gemm_tensor_views_tuple);
+        auto gemm_tile_windows =
+            UniversalGemmKernel::MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
+
+        // Run GEMM cooperatively by whole workgroup.
+        const auto& as_block_window = gemm_tile_windows.at(UniversalGemmKernel::I0);
+        const auto& bs_block_window = gemm_tile_windows.at(UniversalGemmKernel::I1);
+        const auto& ds_block_window = gemm_tile_windows.at(UniversalGemmKernel::I2);
+
+        const auto& c_block_tile = GemmPipeline{}(as_block_window[UniversalGemmKernel::I0],
+                                                  bs_block_window[UniversalGemmKernel::I0],
+                                                  num_loop,
+                                                  smem_ptr_0);
+
+        if(UseDefaultScheduler || (get_warp_id() == 0))
+        {
+            // Run Epilogue Pipeline
+            auto& c_block_window = gemm_tile_windows.at(UniversalGemmKernel::I3);
+
+            EpiloguePipeline{}(c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
+        }
+    }
+
     CK_TILE_HOST static bool
     IsSupportedArgument(const typename UniversalGemmKernel::KernelArgs& kargs)
     {
