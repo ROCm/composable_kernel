@@ -465,7 +465,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3_vectorized
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
-    static constexpr bool SnakedAccess = false;
+    static constexpr bool SnakedAccess = true;
 
     static constexpr index_t nDim = SliceLengths::Size();
 

@@ -1662,9 +1662,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                             I1,
                                                             M4,
                                                             I1>,
-                                                    Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
-                                                    7,
-                                                    1,
+                                                    Sequence<0, 1, 2, 3, 4, 5, 7, 6>, // swap order of last two dims for vectorized access
+                                                    6, // Fastest changing dim
+                                                    2, // Vectorized load/store
                                                     InMemoryDataOperationEnum::Set,
                                                     1,
                                                     true>,
@@ -1734,17 +1734,31 @@ struct GridwiseGemm_xdl_cshuffle_v3
                  lds_to_global_element_op()};
 
             // space filling curve for threadwise C in VGPR
-            constexpr auto sfc_c_vgpr =
-                SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
-                                  Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
-                                  Sequence<CShuffleMXdlPerWavePerShuffle,
-                                           CShuffleNXdlPerWavePerShuffle,
-                                           1,
-                                           1,
-                                           M2,
-                                           1,
-                                           M4,
-                                           1>>{};
+            using ScfVgpr = std::conditional_t<
+                is_gfx650_and_bf16_output(),
+                    SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
+                                    Sequence<0, 1, 2, 3, 4, 5, 7, 6>,
+                                    Sequence<CShuffleMXdlPerWavePerShuffle,
+                                            CShuffleNXdlPerWavePerShuffle,
+                                            1,
+                                            1,
+                                            M2,
+                                            1,
+                                            M4,
+                                            1>,
+                                    true>,
+                    SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
+                                    Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                                    Sequence<CShuffleMXdlPerWavePerShuffle,
+                                            CShuffleNXdlPerWavePerShuffle,
+                                            1,
+                                            1,
+                                            M2,
+                                            1,
+                                            M4,
+                                            1>>
+                                                >;
+            constexpr auto sfc_c_vgpr = ScfVgpr{};
 
             // space filling curve for shuffled blockwise C in global mem
             constexpr auto sfc_c_global =
@@ -2107,9 +2121,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                                 I1,
                                                                 M4,
                                                                 I1>,
-                                                    Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
-                                                    7,
-                                                    1,
+                                                    Sequence<0, 1, 2, 3, 4, 5, 7, 6>, // swap order of last two dims for vectorized access
+                                                    6, // Fastest changing dim
+                                                    2, // Vectorized load/store
                                                     InMemoryDataOperationEnum::Set,
                                                     1,
                                                     true>,
@@ -2175,17 +2189,31 @@ struct GridwiseGemm_xdl_cshuffle_v3
                  problem.c_element_op_};
 
             // space filling curve for threadwise C in VGPR
-            constexpr auto sfc_c_vgpr =
-                SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
-                                  Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
-                                  Sequence<CShuffleMXdlPerWavePerShuffle,
-                                           CShuffleNXdlPerWavePerShuffle,
-                                           1,
-                                           1,
-                                           M2,
-                                           1,
-                                           M4,
-                                           1>>{};
+            using ScfVgpr = std::conditional_t<
+                is_gfx650_and_bf16_output(),
+                    SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
+                                    Sequence<0, 1, 2, 3, 4, 5, 7, 6>,
+                                    Sequence<CShuffleMXdlPerWavePerShuffle,
+                                            CShuffleNXdlPerWavePerShuffle,
+                                            1,
+                                            1,
+                                            M2,
+                                            1,
+                                            M4,
+                                            1>,
+                                    true>,
+                    SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
+                                    Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                                    Sequence<CShuffleMXdlPerWavePerShuffle,
+                                            CShuffleNXdlPerWavePerShuffle,
+                                            1,
+                                            1,
+                                            M2,
+                                            1,
+                                            M4,
+                                            1>>
+                                                >;
+            constexpr auto sfc_c_vgpr = ScfVgpr{};
 
             // space filling curve for shuffled blockwise C in global mem
             constexpr auto sfc_c_global =
