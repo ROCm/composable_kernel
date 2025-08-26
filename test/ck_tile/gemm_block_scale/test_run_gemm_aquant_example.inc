@@ -584,7 +584,7 @@ int run_gemm_combinations(std::string const& data_type)
             // Call the function with the current configuration
             try
             {
-                is_success = run_gemm_test<GemmConfigComputeV3>(ARG_COUNT, argv) && is_success;
+                is_success = run_gemm_test<GemmConfigDecode>(ARG_COUNT, argv) && is_success;
             }
             catch(const ArgumentsNotSupportedException& e)
             {
