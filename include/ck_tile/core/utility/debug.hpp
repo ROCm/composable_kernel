@@ -153,4 +153,18 @@ struct CK_PRINTF_WARP0 : public CK_PRINTF<ConvertTo, FMT, PREFIX, SUFFIX>
             base_t::operator()(buf);
     }
 };
+
+struct AsmScopeMarker
+{
+    CK_TILE_HOST_DEVICE AsmScopeMarker()
+    {
+        asm __volatile__ ("; CK_ASM_SCOPE_START");
+    }
+ 
+    CK_TILE_HOST_DEVICE ~AsmScopeMarker()
+    {
+        asm __volatile__ ("; CK_ASM_SCOPE_END");
+    }
+};
+
 } // namespace ck_tile
