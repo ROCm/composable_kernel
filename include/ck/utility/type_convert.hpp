@@ -106,10 +106,10 @@ inline __host__ __device__ void static_cast_float_to_bhalf_packed_v2(float& x, f
         bhalf2_t bf16x2;
     } converter;
 
-    // typedef __attribute__((__vector_size__(4))) __bf16 llvm_bf16x2_t;
-    // typedef __attribute__((__vector_size__(8))) float llvm_fp32x2_t;
-    // converter.bf16x2 = __builtin_convertvector(llvm_fp32x2_t{x, y}, llvm_bf16x2_t);
-    converter.bf16x2 = {bf16_convert_rtn<bhalf_t>(x), bf16_convert_rtn<bhalf_t>(y)};
+    typedef __attribute__((__vector_size__(4))) __bf16 llvm_bf16x2_t;
+    typedef __attribute__((__vector_size__(8))) float llvm_fp32x2_t;
+    converter.bf16x2 = __builtin_convertvector(llvm_fp32x2_t{x, y}, llvm_bf16x2_t);
+    //converter.bf16x2 = {bf16_convert_rtn<bhalf_t>(x), bf16_convert_rtn<bhalf_t>(y)};
     x = converter.fp32;
 }
 

@@ -1646,7 +1646,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
             using ThreadwiseTransfer = std::conditional_t<
                 is_gfx650_and_bf16_output(),
-                    ThreadwiseTensorSliceTransfer_v1r3_packed_cast<
+                    ThreadwiseTensorSliceTransfer_v1r3_vectorized<
                                                     AccDataType,
                                                     CShuffleDataType,
                                                     decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
@@ -2093,7 +2093,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
             using ThreadwiseTransfer = std::conditional_t<
                 is_gfx650_and_bf16_output(),
-                    ThreadwiseTensorSliceTransfer_v1r3_packed_cast<
+                    ThreadwiseTensorSliceTransfer_v1r3_vectorized<
                                                     AccDataType,
                                                     CShuffleDataType,
                                                     decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),

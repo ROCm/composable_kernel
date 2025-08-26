@@ -460,6 +460,185 @@ template <typename SrcData,
           index_t DstScalarStrideInVector,
           bool DstResetCoordinateAfterRun,
           typename enable_if<SrcDesc::IsKnownAtCompileTime(), bool>::type = false>
+struct ThreadwiseTensorSliceTransfer_v1r3_vectorized
+{
+    static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
+    static constexpr auto I2 = Number<2>{};
+    static constexpr bool SnakedAccess = false;
+
+    static constexpr index_t nDim = SliceLengths::Size();
+
+    using Index = MultiIndex<nDim>;
+
+    using DstCoord = decltype(make_tensor_coordinate(DstDesc{}, Index{}));
+
+    using DstCoordStep = decltype(make_tensor_coordinate_step(DstDesc{}, Index{}));
+
+    __device__ constexpr ThreadwiseTensorSliceTransfer_v1r3_vectorized(const DstDesc& dst_desc,
+                                                            const Index& dst_slice_origin_idx,
+                                                            const ElementwiseOperation&)
+        : dst_coord_(make_tensor_coordinate(dst_desc, dst_slice_origin_idx))
+    {
+        static_assert(SrcDesc::IsKnownAtCompileTime(),
+                      "wrong! SrcDesc need to known at compile-time");
+        static_assert(SliceLengths::At(Number<DstVectorDim>{}) % DstScalarPerVector == 0,
+                      "wrong! Not divisible");
+
+        // Assert that elementwise op is pass through.
+        static_assert(
+            std::is_same_v<remove_cvref_t<ElementwiseOperation>, ck::tensor_operation::element_wise::PassThrough>,
+            "wrong! ElementwiseOperation must be PassThrough");
+
+        // For now, SrcData must be float and DstData must be ck::bhalf_t
+        static_assert(std::is_same_v<SrcData, float>,
+                      "wrong! SrcData must be float");
+        static_assert(std::is_same_v<DstData, ck::bhalf_t>,
+                      "wrong! DstData must be bhalf_t");
+    }
+
+    __device__ void SetDstSliceOrigin(const DstDesc& dst_desc, const Index& dst_slice_origin_idx)
+    {
+        dst_coord_ = make_tensor_coordinate(dst_desc, dst_slice_origin_idx);
+    }
+
+    template <typename SrcSliceOriginIdx, typename SrcBuffer, typename DstBuffer>
+    __device__ void Run(const SrcDesc&,
+                        const SrcSliceOriginIdx&,
+                        const SrcBuffer& src_buf,
+                        const DstDesc& dst_desc,
+                        DstBuffer& dst_buf)
+    {
+        static_assert(SrcDesc::IsKnownAtCompileTime(),
+                      "wrong! SrcDesc need to known at compile-time");
+
+        static_assert(is_known_at_compile_time<remove_cvref_t<SrcSliceOriginIdx>>::value,
+                      "wrong! SrcSliceOrigin need to known at compile-time");
+
+        static_assert(SrcBuffer::IsStaticBuffer(), "wrong! SrcBuffer need to be StaticBuffer");
+
+        // SrcDesc and src_slice_origin_idx are known at compile-time
+        constexpr auto src_desc             = remove_cvref_t<SrcDesc>{};
+        constexpr auto src_slice_origin_idx = to_multi_index(SrcSliceOriginIdx{});
+
+        constexpr auto dst_scalar_per_access = generate_sequence(
+            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
+
+        constexpr auto src_scalar_step_in_vector =
+            generate_sequence(detail::lambda_scalar_step_in_vector<DstVectorDim>{}, Number<nDim>{});
+
+        using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
+                                                    DimAccessOrder,
+                                                    remove_cv_t<decltype(dst_scalar_per_access)>,
+                                                    SnakedAccess>;
+          
+        static_assert(2 == SpaceFillingCurve::ScalarPerVector, "wrong!2 != SpaceFillingCurve::ScalarPerVector");
+        ck::bhalf2_t dst_vector;
+        using dst_vector_t = ck::bhalf2_t;
+
+        constexpr index_t num_access = SpaceFillingCurve::GetNumOfAccess();
+        static_for<0, num_access, 1>{}([&](auto idx_1d) 
+        {
+            constexpr auto idx_md = SpaceFillingCurve::GetIndex(idx_1d);
+            constexpr auto idx_src_0 = src_desc.CalculateOffset(src_slice_origin_idx + idx_md);
+            constexpr auto idx_src_1 = src_desc.CalculateOffset(src_slice_origin_idx + idx_md + src_scalar_step_in_vector);
+
+            const float val_0 = src_buf[Number<idx_src_0>{}];
+            const float val_1 = src_buf[Number<idx_src_1>{}]; 
+            dst_vector = bf16x2_convert_rne<ck::bhalf2_t, float>(val_0, val_1);
+
+            const bool is_dst_valid =
+                coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
+
+            // copy data from dst_vector into dst_buf
+            dst_buf.template Update<DstInMemOp, dst_vector_t>(
+                dst_coord_.GetOffset(),
+                is_dst_valid,
+                dst_vector);
+            
+            if constexpr(idx_1d.value != num_access - 1)
+            {
+                constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(idx_1d);
+                move_tensor_coordinate(
+                    dst_desc, dst_coord_, make_tensor_coordinate_step(dst_desc, forward_step));
+            }
+        });
+
+        // move dst coordinate back to slice origin (or not)
+        if constexpr(DstResetCoordinateAfterRun)
+        {
+            const auto dst_reset_step =
+                make_tensor_coordinate_step(dst_desc, GetDstCoordinateResetStep());
+
+            move_tensor_coordinate(dst_desc, dst_coord_, dst_reset_step);
+        }
+    }
+
+
+    __device__ static constexpr auto GetDstCoordinateResetStep()
+    {
+        constexpr auto dst_scalar_per_access = generate_sequence(
+            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
+
+        using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
+                                                    DimAccessOrder,
+                                                    remove_cv_t<decltype(dst_scalar_per_access)>,
+                                                    SnakedAccess>;
+
+        constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
+        if constexpr(num_access == 0)
+        {
+            return typename SpaceFillingCurve::Index{};
+        }
+        else
+        {
+            constexpr auto reset_step =
+                SpaceFillingCurve::GetStepBetween(Number<num_access - 1>{}, Number<0>{});
+
+            return reset_step;
+        }
+    }
+
+    // dst_slice_origin_step_idx need to be known at compile-time, for performance reason
+    __device__ void MoveDstSliceWindow(const DstDesc& dst_desc,
+                                       const Index& dst_slice_origin_step_idx)
+    {
+        // if dst coord was not reset by Run(), then need to adjust the step here
+        const auto adjusted_step_idx =
+            DstResetCoordinateAfterRun ? dst_slice_origin_step_idx
+                                       : dst_slice_origin_step_idx + GetDstCoordinateResetStep();
+
+        // is it OK to construct a new step every time?
+        const auto adjusted_step = make_tensor_coordinate_step(dst_desc, adjusted_step_idx);
+
+        move_tensor_coordinate(dst_desc, dst_coord_, adjusted_step);
+    }
+private:
+    DstCoord dst_coord_;
+};
+
+// Assume:
+//   1. src:
+//     1. SrcDesc is known at compile-time
+//     2. SrcBuffer is StaticBuffer
+//     3. SrcSliceOrginIdx is known at compile-time
+//   2. dst:
+//     1. DstDesc is not known at compile-time
+//     2. DstBuffer is DynamicBuffer
+//     3. DstSliceOrginIdx is not known at compile time
+template <typename SrcData,
+          typename DstData,
+          typename SrcDesc,
+          typename DstDesc,
+          typename ElementwiseOperation,
+          typename SliceLengths,
+          typename DimAccessOrder,
+          index_t DstVectorDim,
+          index_t DstScalarPerVector,
+          InMemoryDataOperationEnum DstInMemOp,
+          index_t DstScalarStrideInVector,
+          bool DstResetCoordinateAfterRun,
+          typename enable_if<SrcDesc::IsKnownAtCompileTime(), bool>::type = false>
 struct ThreadwiseTensorSliceTransfer_v1r3
 {
     static constexpr index_t nDim = SliceLengths::Size();

@@ -897,7 +897,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
 
             using ThreadwiseTransfer = std::conditional_t<
                 is_gfx650_and_bf16_output(),
-                    ThreadwiseTensorSliceTransfer_v1r3_pass_through<
+                    ThreadwiseTensorSliceTransfer_v1r3_packed_cast<
                                                     FloatAcc,
                                                     FloatC,
                                                     decltype(c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc),
@@ -1002,20 +1002,20 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
                     // make sure it's safe to do ds_write
                     block_sync_lds();
 
-                    if constexpr (is_gfx650_and_bf16_output())
-                    {
-                        auto c_thread_packed_cast = PackedCastV2<
-                                M2,
-                                M4,
-                                CShuffleMRepeatPerShuffle,
-                                CShuffleNRepeatPerShuffle
-                            >{};
-                        c_thread_packed_cast.Run(
-                                c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc, // source desc (TensorDescriptor struct)
-                                make_tuple(mxdlperwave, nxdlperwave, I0, I0, I0, I0, I0, I0),  // source slice origin
-                                c_thread_buf // source buffer
-                        );
-                    }
+                    // if constexpr (is_gfx650_and_bf16_output())
+                    // {
+                    //     auto c_thread_packed_cast = PackedCastV2<
+                    //             M2,
+                    //             M4,
+                    //             CShuffleMRepeatPerShuffle,
+                    //             CShuffleNRepeatPerShuffle
+                    //         >{};
+                    //     c_thread_packed_cast.Run(
+                    //             c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc, // source desc (TensorDescriptor struct)
+                    //             make_tuple(mxdlperwave, nxdlperwave, I0, I0, I0, I0, I0, I0),  // source slice origin
+                    //             c_thread_buf // source buffer
+                    //     );
+                    // }
 
                     // VGPR to LDS
                     c_thread_copy_vgpr_to_lds.Run(
