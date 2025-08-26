@@ -33,9 +33,10 @@ class GemmBenchmark:
         return kernels
 
     def extract_kernel_info(self, kernel_path: Path) -> Dict[str, str]:
-        """Extract kernel information from filename"""
+        """Extract comprehensive kernel information from filename"""
         name = kernel_path.stem
 
+        # Initialize with basic info
         info = {
             "executable": str(kernel_path),
             "name": name,
@@ -46,37 +47,156 @@ class GemmBenchmark:
             "epilogue": "unknown",
         }
 
-        # Extract data type
-        for dtype in ["fp16", "fp32", "fp64", "bf16", "fp8", "bf8", "int8", "int32"]:
-            if dtype in name:
-                info["data_type"] = dtype
-                break
+        # Parse the kernel name pattern:
+        # benchmark_gemm_fp16_rcr_mem_default_intrawave_False_False_False_False_False_256x256x32_2x2x1_4x64x16
+        parts = name.split("_")
 
-        # Extract layout
-        for layout in ["rrr", "rcr", "rrc", "rcc", "crr", "crc", "ccr", "ccc"]:
-            if layout in name:
-                info["layout"] = layout
-                break
+        if len(parts) >= 3:
+            # Extract data type (3rd part after benchmark_gemm_)
+            info["data_type"] = parts[2] if len(parts) > 2 else "unknown"
 
-        # Extract pipeline
-        for pipeline in ["compv3", "compv4", "mem"]:
-            if pipeline in name:
-                info["pipeline"] = pipeline
-                break
+            # Extract layout (4th part)
+            info["layout"] = parts[3] if len(parts) > 3 else "unknown"
 
-        # Extract scheduler
-        if "interwave" in name:
-            info["scheduler"] = "interwave"
-        else:
-            info["scheduler"] = "intrawave"
+            # Extract pipeline (5th part)
+            info["pipeline"] = parts[4] if len(parts) > 4 else "unknown"
 
-        # Extract epilogue
-        if "default" in name and "default_" not in name:
-            info["epilogue"] = "default"
-        else:
-            info["epilogue"] = "cshuffle"
+            # Extract epilogue (6th part)
+            info["epilogue"] = parts[5] if len(parts) > 5 else "unknown"
+
+            # Extract scheduler (7th part)
+            info["scheduler"] = parts[6] if len(parts) > 6 else "unknown"
+
+        # Extract detailed configuration from the end of the name
+        config_info = self.parse_detailed_config(name)
+        info.update(config_info)
+
+        # Generate config ID
+        info["config_id"] = self.generate_config_id(info)
 
         return info
+
+    def parse_detailed_config(self, kernel_name: str) -> Dict:
+        """Parse detailed configuration from kernel name"""
+        config = {
+            "tile_sizes": {"tile_m": 0, "tile_n": 0, "tile_k": 0},
+            "warp_config": {"warp_m": 0, "warp_n": 0, "warp_k": 0},
+            "warp_tile": {"warp_tile_m": 0, "warp_tile_n": 0, "warp_tile_k": 0},
+            "optimization_flags": {
+                "pad_m": False,
+                "pad_n": False,
+                "pad_k": False,
+                "persistent": False,
+            },
+        }
+
+        # Split by underscore and look for patterns
+        parts = kernel_name.split("_")
+
+        # Look for boolean flags (sequence of True/False values)
+        bool_sequence = []
+        for i, part in enumerate(parts):
+            if part in ["True", "False"]:
+                bool_sequence.append(part == "True")
+                # Continue collecting consecutive boolean values
+                j = i + 1
+                while j < len(parts) and parts[j] in ["True", "False"]:
+                    bool_sequence.append(parts[j] == "True")
+                    j += 1
+                break
+
+        # Assign boolean flags if we found them
+        # Order: structured_sparsity (skip - already in problem), pad_m, pad_n, pad_k, persistent
+        if len(bool_sequence) >= 5:
+            # Skip structured_sparsity (index 0) as it's already in the problem section
+            config["optimization_flags"]["pad_m"] = bool_sequence[1]
+            config["optimization_flags"]["pad_n"] = bool_sequence[2]
+            config["optimization_flags"]["pad_k"] = bool_sequence[3]
+            config["optimization_flags"]["persistent"] = bool_sequence[4]
+
+        # Look for tile size patterns (e.g., 256x256x32_2x2x1_4x64x16)
+        # The pattern is: tile_sizes_warp_config_warp_tile
+        dimension_groups = []
+        for part in parts:
+            if "x" in part and len(part.split("x")) == 3:
+                try:
+                    dims = [int(x) for x in part.split("x")]
+                    if all(d > 0 for d in dims):
+                        dimension_groups.append(dims)
+                except ValueError:
+                    continue
+
+        # Assign dimensions based on order and magnitude
+        if len(dimension_groups) >= 3:
+            # Sort by magnitude to identify: largest=tile_sizes, smallest=warp_config, middle=warp_tile
+            sorted_groups = sorted(dimension_groups, key=lambda x: max(x), reverse=True)
+
+            # Largest dimensions = tile sizes
+            config["tile_sizes"]["tile_m"] = sorted_groups[0][0]
+            config["tile_sizes"]["tile_n"] = sorted_groups[0][1]
+            config["tile_sizes"]["tile_k"] = sorted_groups[0][2]
+
+            # Smallest dimensions = warp config
+            config["warp_config"]["warp_m"] = sorted_groups[2][0]
+            config["warp_config"]["warp_n"] = sorted_groups[2][1]
+            config["warp_config"]["warp_k"] = sorted_groups[2][2]
+
+            # Middle dimensions = warp tile
+            config["warp_tile"]["warp_tile_m"] = sorted_groups[1][0]
+            config["warp_tile"]["warp_tile_n"] = sorted_groups[1][1]
+            config["warp_tile"]["warp_tile_k"] = sorted_groups[1][2]
+        elif len(dimension_groups) == 2:
+            # If only 2 groups, assign based on magnitude
+            sorted_groups = sorted(dimension_groups, key=lambda x: max(x), reverse=True)
+
+            # Larger = tile sizes
+            config["tile_sizes"]["tile_m"] = sorted_groups[0][0]
+            config["tile_sizes"]["tile_n"] = sorted_groups[0][1]
+            config["tile_sizes"]["tile_k"] = sorted_groups[0][2]
+
+            # Smaller = warp config
+            config["warp_config"]["warp_m"] = sorted_groups[1][0]
+            config["warp_config"]["warp_n"] = sorted_groups[1][1]
+            config["warp_config"]["warp_k"] = sorted_groups[1][2]
+        elif len(dimension_groups) == 1:
+            # Only one group - assume it's tile sizes
+            config["tile_sizes"]["tile_m"] = dimension_groups[0][0]
+            config["tile_sizes"]["tile_n"] = dimension_groups[0][1]
+            config["tile_sizes"]["tile_k"] = dimension_groups[0][2]
+
+        return config
+
+    def generate_config_id(self, info: Dict) -> str:
+        """Generate a compact config ID from kernel info"""
+        # Create a compact identifier
+        parts = [
+            info.get("data_type", "unk"),
+            info.get("layout", "unk"),
+            info.get("pipeline", "unk"),
+            info.get("scheduler", "unk"),
+        ]
+
+        # Add tile configuration if available
+        tile_sizes = info.get("tile_sizes", {})
+        if tile_sizes.get("tile_m", 0) > 0:
+            tile_str = (
+                f"{tile_sizes['tile_m']}x{tile_sizes['tile_n']}x{tile_sizes['tile_k']}"
+            )
+            parts.append(tile_str)
+
+        # Add warp config if available
+        warp_config = info.get("warp_config", {})
+        if warp_config.get("warp_m", 0) > 0:
+            warp_str = f"w{warp_config['warp_m']}x{warp_config['warp_n']}x{warp_config['warp_k']}"
+            parts.append(warp_str)
+
+        # Add warp tile if available
+        warp_tile = info.get("warp_tile", {})
+        if warp_tile.get("warp_tile_m", 0) > 0:
+            warp_tile_str = f"wt{warp_tile['warp_tile_m']}x{warp_tile['warp_tile_n']}x{warp_tile['warp_tile_k']}"
+            parts.append(warp_tile_str)
+
+        return "_".join(parts)
 
     def run_kernel(self, kernel_path: Path, params: Dict[str, str]) -> Optional[Dict]:
         """Run a single kernel with given parameters and save output to individual JSON file"""
@@ -231,13 +351,34 @@ class GemmBenchmark:
             result = self.run_kernel(kernel_path, params)
 
             if result:
-                # Merge kernel info and benchmark result
-                result.update(kernel_info)
-                results.append(result)
+                # Create new structured result format
+                structured_result = {
+                    "config_id": kernel_info["config_id"],
+                    "problem": result.get("problem", {}),
+                    "perf_result": result.get("perf_result", {}),
+                    "config": {
+                        "data_type": kernel_info["data_type"],
+                        "layout": kernel_info["layout"],
+                        "pipeline": kernel_info["pipeline"],
+                        "scheduler": kernel_info["scheduler"],
+                        "epilogue": kernel_info["epilogue"],
+                        "tile_sizes": kernel_info.get("tile_sizes", {}),
+                        "warp_config": kernel_info.get("warp_config", {}),
+                        "warp_tile": kernel_info.get("warp_tile", {}),
+                        "optimization_flags": kernel_info.get("optimization_flags", {}),
+                    },
+                    "executable": kernel_info["executable"],
+                    # Keep backward compatibility fields
+                    "time_ms": result.get("time_ms", 0),
+                    "tflops": result.get("tflops", 0),
+                    "bandwidth_gb_s": result.get("bandwidth_gb_s", 0),
+                }
+
+                results.append(structured_result)
 
                 if self.verbose:
                     print(
-                        f"  {kernel_info['name']}: {result['tflops']:.2f} TFLOPS, {result['bandwidth_gb_s']:.2f} GB/s, {result['time_ms']:.2f}ms"
+                        f"  {kernel_info['config_id']}: {structured_result['tflops']:.2f} TFLOPS, {structured_result['bandwidth_gb_s']:.2f} GB/s, {structured_result['time_ms']:.2f}ms"
                     )
 
         return results
@@ -361,8 +502,11 @@ class GemmBenchmark:
         data_type_stats = {}
 
         for result in successful_results:
+            # Get config info from the new structure
+            config = result.get("config", {})
+
             # Pipeline statistics
-            pipeline = result.get("pipeline", "unknown")
+            pipeline = config.get("pipeline", "unknown")
             if pipeline not in pipeline_stats:
                 pipeline_stats[pipeline] = {
                     "count": 0,
@@ -375,7 +519,7 @@ class GemmBenchmark:
             )
 
             # Scheduler statistics
-            scheduler = result.get("scheduler", "unknown")
+            scheduler = config.get("scheduler", "unknown")
             if scheduler not in scheduler_stats:
                 scheduler_stats[scheduler] = {
                     "count": 0,
@@ -388,7 +532,7 @@ class GemmBenchmark:
             )
 
             # Data type statistics
-            data_type = result.get("data_type", "unknown")
+            data_type = config.get("data_type", "unknown")
             if data_type not in data_type_stats:
                 data_type_stats[data_type] = {
                     "count": 0,
@@ -401,16 +545,19 @@ class GemmBenchmark:
             )
 
         # Calculate averages for breakdown stats
-        for stats in [pipeline_stats, scheduler_stats, data_type_stats]:
-            for key in stats:
+        for stats_dict, field_name in [
+            (pipeline_stats, "pipeline"),
+            (scheduler_stats, "scheduler"),
+            (data_type_stats, "data_type"),
+        ]:
+            for key in stats_dict:
                 relevant_results = [
                     r
                     for r in successful_results
-                    if r.get(key.split("_")[0] if "_" in key else "pipeline", "unknown")
-                    == key
+                    if r.get("config", {}).get(field_name, "unknown") == key
                 ]
                 if relevant_results:
-                    stats[key]["avg_tflops"] = sum(
+                    stats_dict[key]["avg_tflops"] = sum(
                         r.get("tflops", 0) for r in relevant_results
                     ) / len(relevant_results)
 
