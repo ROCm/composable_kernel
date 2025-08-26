@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
+#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
 namespace ck_tile {
 
@@ -293,7 +294,7 @@ struct CShuffleEpilogue
         const auto scale_m_tile = load_tile(scale_m_tensor_window);
         const auto scale_n_tile = load_tile(scale_n_tensor_window);
 
-        tile_elementwise_inout(MultiDMultiply{}, make_tuple(lds_tile, lds_tile, scale_m_tile, scale_n_tile));
+        tile_elementwise_inout(element_wise::MultiDMultiply{}, lds_tile, lds_tile, scale_m_tile, scale_n_tile);
 #if 0
         // TODO: try to get rid off these here, and get them from elsewhere
         constexpr auto idx_y_start = SFC::get_index(iAccess);
@@ -449,7 +450,7 @@ struct CShuffleEpilogue
             if constexpr(!std::is_same<ScaleM, std::nullptr_t>::value &&
                          !std::is_same<ScaleN, std::nullptr_t>::value)
             {
-                scale_tile<iAccess>(lds_tile, scale_m, scale_n, LdsTileDistr{});
+                scale_tile<iAccess>(lds_tile, scale_m, scale_n, LdsTileDistr);
             }
 
             cast_lds_tile(lds_tile, in_lds_window);
