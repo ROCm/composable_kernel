@@ -841,7 +841,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<OutDataType, int8_t> && is_same_v<AComputeType, int8_t> &&
                          is_same_v<BComputeType, int8_t>)
             {
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_instances(
+                    op_ptrs);
                 // add_device_grouped_conv2d_fwd_wmma_cshufflev3_large_tensor_nhwgc_gkyxc_nhwgk_int8_instances(
                 //     op_ptrs);
                 // add_device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_nhwgc_gkyxc_nhwgk_int8_instances(
@@ -935,7 +936,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<OutDataType, int8_t> && is_same_v<AComputeType, int8_t> &&
                          is_same_v<BComputeType, int8_t>)
             {
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkyxc_ngkhw_int8_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkyxc_ngkhw_int8_instances(
+                    op_ptrs);
             }
 #endif
         }

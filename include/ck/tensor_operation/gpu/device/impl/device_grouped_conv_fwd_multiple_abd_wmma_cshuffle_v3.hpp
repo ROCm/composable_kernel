@@ -1533,10 +1533,16 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
             {
                 if(ABlockTransferSrcVectorDim != 1)
                 {
+                    std::cout << "ABlockTransferSrcVectorDim must be 1!" << " In " << __FILE__
+                              << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
                     return false;
                 }
                 if(input_spatial_acum % ABlockTransferSrcScalarPerVector != 0)
                 {
+                    std::cout << "[A Layout] The number of input channels is not a multiple of "
+                                 "ABlockTransferSrcScalarPerVector!"
+                              << " In " << __FILE__ << ":" << __LINE__
+                              << ", in function: " << __func__ << std::endl;
                     return false;
                 }
             }

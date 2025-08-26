@@ -240,6 +240,25 @@ template <index_t NDimSpatial,
           ConvolutionForwardSpecialization ConvSpec,
           typename DsDataTypes  = Tuple<>,
           typename OutElementOp = PassThrough>
+using device_grouped_conv_fwd_wmma_cshufflev3_int8_generic_instances = std::tuple<
+    // clang-format off
+          //########################################|     NumDim|       A|       B|          Ds|       E|  AData|  BData| AccData| CShuffle|             Ds|  EData|           A|           B|          CDE|    ConvForward|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MWmma| NWmma|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|     CShuffle|     CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
+          //########################################|    Spatial|  Layout|  Layout|      Layout|  Layout|   Type|   Type|    Type| DataType|       DataType|   Type| Elementwise| Elementwise|  Elementwise| Specialization| Specialization| Prefetch|  Size| Block| Block| Block|    |    | WMMA| WMMA|   Per|   Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MWmmaPerWave| NWmmaPerWave|        _MBlock_MWaveMPerWmma| ScalarPerVector| TODO: Other pipelines
+          //########################################|           |        |        |            |        |       |       |        |         |               |       |   Operation|   Operation|    Operation|               |               |    Stage|      |      |      |      |    |    |     |     |  Wave|  Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |   PerShuffle|   PerShuffle|        _NBlock_NWaveNPerWmma|  _NWaveNPerWmma|
+          //########################################|           |        |        |            |        |       |       |        |         |               |       |            |            |             |               |               | TODO: ??|      |      |      |      |    |    |     |     |      |      |                |               |               |               |               |               |          |                |               |               |              |               |               |          |             |             |                             |                |
+          // generic instance
+    DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3<NDimSpatial, ALayout, BLayout,    DsLayout, ELayout, int8_t, int8_t, int32_t,   int8_t,    DsDataTypes, int8_t, PassThrough, PassThrough, OutElementOp,       ConvSpec, GemmMNKPadding,              64,    64,    64,    32,   8,   8,   16,   16,     4,     2,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              8,         1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              8,         1,            1,            1,               S<1, 16, 1, 4>,               1, BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v1>
+    // clang-format on
+    >;
+
+template <index_t NDimSpatial,
+          typename ALayout,
+          typename BLayout,
+          typename DsLayout,
+          typename ELayout,
+          ConvolutionForwardSpecialization ConvSpec,
+          typename DsDataTypes  = Tuple<>,
+          typename OutElementOp = PassThrough>
 using device_grouped_conv_fwd_wmma_cshufflev3_int8_instances = std::tuple<
     // clang-format off
           //########################################|     NumDim|       A|       B|          Ds|       E|  AData|  BData| AccData| CShuffle|             Ds|  EData|           A|           B|          CDE|    ConvForward|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MWmma| NWmma|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|     CShuffle|     CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
