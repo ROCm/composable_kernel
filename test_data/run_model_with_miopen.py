@@ -87,6 +87,16 @@ def main():
     else:
         device = torch.device(args.device)
     
+    # Check if actually running on GPU
+    if device.type == 'cpu':
+        import sys
+        print(f"WARNING: Running on CPU, MIOpen commands will not be generated!", file=sys.stderr)
+        print(f"CUDA/ROCm available: {torch.cuda.is_available()}", file=sys.stderr)
+        if torch.cuda.is_available():
+            print(f"GPU device count: {torch.cuda.device_count()}", file=sys.stderr)
+            print(f"GPU name: {torch.cuda.get_device_name(0) if torch.cuda.device_count() > 0 else 'N/A'}", file=sys.stderr)
+        # Continue anyway for testing purposes
+    
     if not args.quiet:
         print(f"Using device: {device}")
     
