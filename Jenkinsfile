@@ -871,6 +871,73 @@ def run_aiter_tests(Map conf=[:]){
     }
 }
 
+
+def run_pytorch_tests(Map conf=[:]){
+    show_node_info()
+    env.HSA_ENABLE_SDMA=0
+    checkout scm
+    //use the latest pytorch-nightly image
+    def image = "rocm/pytorch-nightly:latest"
+    def dockerOpts="--network=host --device=/dev/kfd --device=/dev/dri --group-add video --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --user=jenkins -v=/var/jenkins/:/var/jenkins"
+    def variant = env.STAGE_NAME
+    def retimage
+    def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3')
+    def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3')
+    dockerOpts = dockerOpts + " --group-add=${video_id} --group-add=${render_id} "
+    echo "Docker flags: ${dockerOpts}"
+
+    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
+        try
+        {
+            echo "Pulling image: ${image}"
+            retimage = docker.image("${image}")
+            withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
+                retimage.pull()
+            }
+        }
+        catch(Exception ex)
+        {
+            error "Unable to locate image: ${image}"
+        }
+    }
+
+    withDockerContainer(image: image, args: dockerOpts) {
+        timeout(time: 45, unit: 'MINUTES'){
+            try{
+                dir("/tmp/pytorch/third_party"){
+                    sh "rm -rf composable_kernel"
+                    sh "git clone https://github.com/ROCm/composable_kernel.git"
+                }
+                dir("/tmp/pytorch/third_party/aiter/3rdparty"){
+                    sh "rm -rf composable_kernel"
+                    sh "git clone https://github.com/ROCm/composable_kernel.git"
+                }
+                dir("/tmp/pytorch/third_party/fbgemm/external"){
+                    sh "rm -rf composable_kernel"
+                    sh "git clone https://github.com/ROCm/composable_kernel.git"
+                }
+                dir("/tmp/pytorch/third_party/flash-attention/csrc"){
+                    sh "rm -rf composable_kernel"
+                    sh "git clone https://github.com/ROCm/composable_kernel.git"
+                }
+                dir("/tmp/pytorch"){
+                    sh "rm -rf build"
+                    sh "python3 tools/amd_build/build_amd.py"
+                    sh "USE_ROCM_CK_SDPA=1 PYTORCH_ROCM_ARCH=gfx942 python setup.py develop"
+                }
+            }
+            catch(e){
+                echo "Throwing error exception while building Pytorch"
+                echo 'Exception occurred: ' + e.toString()
+                throw e
+            }
+            finally{
+                echo "Finished building Pytorch"
+            }
+        }
+    }
+}
+
 //launch develop branch daily jobs
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_TILE_ENGINE_GEMM_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
                                               0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX908=true;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
@@ -1013,6 +1080,10 @@ pipeline {
             defaultValue: false,
             description: "Run all unit tests (default: OFF)")
         booleanParam(
+            name: "RUN_PYTORCH_TESTS",
+            defaultValue: false,
+            description: "Try building PYTORCH with latest CK develop branch (default: OFF)")
+        booleanParam(
             name: "RUN_AITER_TESTS",
             defaultValue: false,
             description: "Run AITER tests with latest CK develop branch (default: OFF)")
@@ -1099,6 +1170,24 @@ pipeline {
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
+                        cleanWs()
+                    }
+                }
+            }
+        }
+         stage("Run Pytorch Tests")
+        {
+            parallel
+            {
+                stage("Run Pytorch Tests on gfx942")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_PYTORCH_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx942")}
+                    steps{
+                        run_pytorch_tests()
                         cleanWs()
                     }
                 }
