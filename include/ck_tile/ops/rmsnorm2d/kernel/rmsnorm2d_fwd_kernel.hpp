@@ -70,6 +70,7 @@ struct Rmsnorm2dFwd
     static constexpr index_t ThreadPerWarp_N = Problem::BlockShape::ThreadPerWarp_N;
     static constexpr index_t Vector_N        = Problem::BlockShape::Vector_N;
     static constexpr index_t Repeat_N        = Problem::BlockShape::Repeat_N;
+    static constexpr index_t Stride_N        = Block_N / Repeat_N;
 
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
@@ -194,7 +195,7 @@ struct Rmsnorm2dFwd
             const auto tmp2_ = pad_tensor_view(
                 tmp_, make_tuple(number<Block_M>{}, number<Block_N>{}), sequence<kPadM, kPadN>{});
             return make_tile_window(
-                tmp2_, make_tuple(number<Block_M>{}, number<Block_N / Repeat_N>{}), {iM, 0});
+                tmp2_, make_tuple(number<Block_M>{}, number<Stride_N>{}), {iM, 0});
         }();
 
         const auto x_residual_window = [&]() {
@@ -212,7 +213,7 @@ struct Rmsnorm2dFwd
                                                    make_tuple(number<Block_M>{}, number<Block_N>{}),
                                                    sequence<kPadM, kPadN>{});
                 return make_tile_window(
-                    tmp2_, make_tuple(number<Block_M>{}, number<Block_N / Repeat_N>{}), {iM, 0});
+                    tmp2_, make_tuple(number<Block_M>{}, number<Stride_N>{}), {iM, 0});
             }
             else
             {
@@ -231,7 +232,7 @@ struct Rmsnorm2dFwd
             const auto tmp2_ =
                 pad_tensor_view(tmp_, make_tuple(number<Block_N>{}), sequence<kPadN>{});
 
-            return make_tile_window(tmp2_, make_tuple(number<Block_N>{}), {0});
+            return make_tile_window(tmp2_, make_tuple(number<Stride_N>{}), {0});
         }();
 
         auto y_window = [&]() {
@@ -262,7 +263,7 @@ struct Rmsnorm2dFwd
                                              make_tuple(number<Block_M>{}, number<Block_N>{}),
                                              sequence<kPadM, kPadN>{});
                 return make_tile_window(
-                    tmp2_, make_tuple(number<Block_M>{}, number<Block_N / Repeat_N>{}), {iM, 0});
+                    tmp2_, make_tuple(number<Block_M>{}, number<Stride_N>{}), {iM, 0});
             }
             else
             {
@@ -302,11 +303,11 @@ struct Rmsnorm2dFwd
                                            make_tuple(number<Block_N>{}),
                                            sequence<false>{}); // sm_scale no need pad
                 }();
-                return make_tile_window(win_, make_tuple(number<Block_N>{}), {0});
+                return make_tile_window(win_, make_tuple(number<Stride_N>{}), {0});
             }
             else
             {
-                return make_null_tile_window(make_tuple(number<Block_N>{}));
+                return make_null_tile_window(make_tuple(number<Stride_N>{}));
             }
         }();
 
@@ -347,11 +348,11 @@ struct Rmsnorm2dFwd
                                              make_tuple(number<Block_M>{}, number<Block_N>{}),
                                              sequence<kPadM, kPadN>{});
                 return make_tile_window(
-                    tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {iM, 0});
+                    tmp2_, make_tuple(number<Block_M>{}, number<Stride_N>{}), {iM, 0});
             }
             else
             {
-                return make_null_tile_window(make_tuple(number<Block_M>{}, number<Block_N>{}));
+                return make_null_tile_window(make_tuple(number<Block_M>{}, number<Stride_N>{}));
             }
         }();
 

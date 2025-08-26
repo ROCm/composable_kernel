@@ -100,6 +100,7 @@ struct Default2DAndDynamicQuantEpilogue
                                    const bool isArray,
                                    void* smem)
     {
+        // Default2D{}(o_direct_dram_window_tmp, o_acc_tiles, Problem::BlockShape::Repeat_N, smem);
         // DynamicQuant{}(o_quant_dram_window_tmp, sm_scale_window_, y_scale_window, o_acc_tiles, true, smem);
     }
 };

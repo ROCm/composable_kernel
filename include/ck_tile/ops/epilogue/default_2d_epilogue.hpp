@@ -109,6 +109,28 @@ struct Default2DEpilogue
     {
         return operator()<ODramWindowTmp, OAccTile>(o_dram_window_tmp, o_acc_tile);
     }
+
+    template <typename ODramWindowTmp, typename OAccTiles>
+    CK_TILE_DEVICE auto
+    operator()(ODramWindowTmp& o_dram_window_tmp, const OAccTiles& o_acc_tiles, int Repeat_N, void* = nullptr) const
+    {
+        // TODO: this is ugly
+        for (int repeat_n = 0; repeat_n < Repeat_N; ++repeat_n)
+        {
+            auto o_acc_tmp = o_acc_tiles[repeat_n];
+
+            if constexpr(UseRawStore && (kPadM || kPadN))
+            {
+                store_tile_raw(o_dram_window_tmp, cast_tile<ODataType>(o_acc_tmp));
+                buffer_store_fence();
+            }
+            else
+            {
+                store_tile(o_dram_window_tmp, cast_tile<ODataType>(o_acc_tmp));
+            }
+            o_dram_window_tmp.move({0, 5120 / Repeat_N});
+        }
+    }
 };
 
 template <typename Problem_, typename Policy_ = void>
