@@ -181,58 +181,55 @@ struct DynamicQuantEpilogue
 
     template <typename ODramWindowTmp,
               typename YScaleWindow,
-              typename MaxTile,
               typename OAccTiles>
     CK_TILE_DEVICE auto Impl(ODramWindowTmp& o_window,
                              YScaleWindow& y_scale_window,
-                             OAccTile& y_scale_window,
-                             MaxTile& row_absmax,
                              OAccTiles& o_acc_tiles,
                              const bool isArray,
                              void* smem)
     {
-//         auto reduce                = GetBlockReduce2d();
-//         auto reduce_sync           = GetBlockReduce2dSync();
-//         auto reduce_crosswarp_sync = GetBlockReduce2dCrossWarpSync();
-//
-//         // auto o_acc_tmp = o_acc_tile;
-//
-//         const auto f_absmax = [](auto acc_, auto v_0_) { return max(acc_, abs(v_0_)); };
-//         auto absmax = ReduceOp::AbsMax{};
-//
-//         const auto f_max3 = [](auto acc_, auto v_0_, auto v_1_) {
-//             float rtn;
-//             asm volatile("v_max3_f32 %0, %1, abs(%2), abs(%3)"
-//                          : "=v"(rtn)
-//                          : "v"(acc_), "v"(v_0_), "v"(v_1_));
-//             return rtn;
-//         };
-//
-//         auto row_absmax = decltype(reduce(o_acc_tiles[0], absmax.GetIdentityValue<AccDataType>(), absmax)){};
-//         clear_tile(row_absmax);
-//
-//         // static_for<0, BlockShape::Repeat_N, 1>{}([&](auto repeat_n)
-// #pragma unroll
-//         for (int repeat_n = 0; repeat_n < BlockShape::Repeat_N; ++repeat_n)
-//         {
-//             auto row_absmax_local = [&]() {
-//                 // if constexpr(UseMax3 && std::is_same_v<AccDataType, float>)
-//                 // {
-//                 //     // fast max3+abs implementation
-//                 //     return reduce(o_acc_tmp, type_convert<AccDataType>(0), f_max3, sequence<1, 2>{});
-//                 // }
-//                 // else
-//                 // {
-//                     return reduce(o_acc_tiles[repeat_n], absmax.GetIdentityValue<AccDataType>(), absmax);
-//                 // }
-//             }();
-//             ck_tile::sweep_tile(row_absmax, [&](auto idx) {
-//                 row_absmax(idx) = max(row_absmax[idx], row_absmax_local[idx]);
-//             });
-//         // });
-//         }
-//         reduce_sync(row_absmax, f_absmax);
-//         reduce_crosswarp_sync(row_absmax, smem, f_absmax);
+        auto reduce                = GetBlockReduce2d();
+        auto reduce_sync           = GetBlockReduce2dSync();
+        auto reduce_crosswarp_sync = GetBlockReduce2dCrossWarpSync();
+
+        // auto o_acc_tmp = o_acc_tile;
+
+        const auto f_absmax = [](auto acc_, auto v_0_) { return max(acc_, abs(v_0_)); };
+        auto absmax = ReduceOp::AbsMax{};
+
+        const auto f_max3 = [](auto acc_, auto v_0_, auto v_1_) {
+            float rtn;
+            asm volatile("v_max3_f32 %0, %1, abs(%2), abs(%3)"
+                         : "=v"(rtn)
+                         : "v"(acc_), "v"(v_0_), "v"(v_1_));
+            return rtn;
+        };
+
+        auto row_absmax = decltype(reduce(o_acc_tiles[0], absmax.GetIdentityValue<AccDataType>(), absmax)){};
+        clear_tile(row_absmax);
+
+        // static_for<0, BlockShape::Repeat_N, 1>{}([&](auto repeat_n)
+#pragma unroll
+        for (int repeat_n = 0; repeat_n < BlockShape::Repeat_N; ++repeat_n)
+        {
+            auto row_absmax_local = [&]() {
+                // if constexpr(UseMax3 && std::is_same_v<AccDataType, float>)
+                // {
+                //     // fast max3+abs implementation
+                //     return reduce(o_acc_tmp, type_convert<AccDataType>(0), f_max3, sequence<1, 2>{});
+                // }
+                // else
+                // {
+                    return reduce(o_acc_tiles[repeat_n], absmax.GetIdentityValue<AccDataType>(), absmax);
+                // }
+            }();
+            ck_tile::sweep_tile(row_absmax, [&](auto idx) {
+                row_absmax(idx) = max(row_absmax[idx], row_absmax_local[idx]);
+            });
+        // });
+        }
+        reduce_sync(row_absmax, f_absmax);
+        reduce_crosswarp_sync(row_absmax, smem, f_absmax);
 
         // here y_scale is Acc TYpe, need convert to YScale type later
         auto y_scale = tile_elementwise_in(
