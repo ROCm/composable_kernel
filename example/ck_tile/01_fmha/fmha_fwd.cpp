@@ -159,6 +159,14 @@ auto get_elimit<FmhaFwdBf16>(std::string /*init_method*/)
 template <>
 auto get_elimit<FmhaFwdFp8>(std::string /*init_method*/)
 {
+    double rtol = 0;
+    double atol = 16;
+    return ck_tile::make_tuple(rtol, atol);
+}
+
+template <>
+auto get_elimit<FmhaFwdFp8Bf16>(std::string /*init_method*/)
+{
     double rtol = 1e-2;
     double atol = 1.8e-1;
     return ck_tile::make_tuple(rtol, atol);
@@ -641,7 +649,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<int32_t> cache_batch_idx_host(use_cache_batch_idx
                                                           ? std::array<ck_tile::index_t, 1>{batch}
                                                           : std::array<ck_tile::index_t, 1>{1});
-
+    float max_o = 3.0;
     if(init_method == "ui" || init_method == "0")
     {
         ck_tile::FillUniformDistributionIntegerValue<QDataType>{-3.f, 3.f, seed}(q_host);
@@ -796,6 +804,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
 
         scale_p = p_dtype_max;
+
+        if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8>)
+        {
+            float o_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<ODataType>::max());
+            scale_o           = scale_o * o_dtype_max / max_o;
+        }
     }
 
     q_buf.ToDevice(q_host.data());
@@ -1241,14 +1255,16 @@ bool run(const ck_tile::ArgParser& arg_parser)
     randval_buf.FromDevice(randval_host.data());
 
     auto p_compute_element_func = [&]() {
-        if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8>)
+        if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8> ||
+                     std::is_same_v<DataTypeConfig, FmhaFwdFp8Bf16>)
             return ck_tile::scales{scale_p};
         else
             return ck_tile::identity{};
     }();
 
     auto oacc_element_func = [&]() {
-        if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8>)
+        if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8> ||
+                     std::is_same_v<DataTypeConfig, FmhaFwdFp8Bf16>)
             if constexpr(std::is_same_v<ODataType, ck_tile::fp8_t>)
                 return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{},
                                          ck_tile::scales{scale_o});
@@ -1649,6 +1665,10 @@ int main(int argc, char* argv[])
     else if(data_type == "fp8")
     {
         return run<FmhaFwdFp8>(arg_parser) ? 0 : -2;
+    }
+    else if(data_type == "fp8bf16")
+    {
+        return run<FmhaFwdFp8Bf16>(arg_parser) ? 0 : -2;
     }
 
     return -3;
