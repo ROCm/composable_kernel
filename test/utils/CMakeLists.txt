@@ -1,4 +1,5 @@
 add_gtest_executable(test_sequencies test_sequencies.cpp)
+add_gtest_executable(test_vector_buffers test_vector_buffers.cpp)
 if(result EQUAL 0)
   target_link_libraries(test_sequencies PRIVATE utility)
 endif()
