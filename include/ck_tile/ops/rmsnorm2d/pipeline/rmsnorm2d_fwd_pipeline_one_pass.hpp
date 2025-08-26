@@ -83,7 +83,7 @@ struct Rmsnorm2dFwdPipelineOnePass
                                    InvRmsWindow& inv_rms_window,
                                    const SmoothScaleWindow& sm_scale_window_,
                                    YScaleWindow& y_scale_window_,
-                                   UnquantYWindow& unquant_y_window,
+                                   UnquantYWindow& unquant_y_window_,
                                    ComputeDataType epsilon,
                                    ck_tile::index_t row_size,
                                    void* smem,
@@ -93,7 +93,7 @@ struct Rmsnorm2dFwdPipelineOnePass
             make_tile_window(x_window_.get_bottom_tensor_view(),
                              x_window_.get_window_lengths(),
                              x_window_.get_window_origin(),
-		                     Policy::template MakeXInnerBlockTileDistribution<Problem>());
+                             Policy::template MakeXInnerBlockTileDistribution<Problem>());
         auto gamma_window =
             make_tile_window(gamma_window_.get_bottom_tensor_view(),
                              gamma_window_.get_window_lengths(),
@@ -103,18 +103,18 @@ struct Rmsnorm2dFwdPipelineOnePass
             make_tile_window(x_residual_window_.get_bottom_tensor_view(),
                              x_residual_window_.get_window_lengths(),
                              x_residual_window_.get_window_origin(),
-		                     Policy::template MakeXInnerBlockTileDistribution<Problem>());
+                             Policy::template MakeXInnerBlockTileDistribution<Problem>());
         auto y_residual_window =
             make_tile_window(y_residual_window_.get_bottom_tensor_view(),
                              y_residual_window_.get_window_lengths(),
                              y_residual_window_.get_window_origin(),
-		                     Policy::template MakeXInnerBlockTileDistribution<Problem>());
+                             Policy::template MakeXInnerBlockTileDistribution<Problem>());
 
         auto o_window =
             make_tile_window(y_window_.get_bottom_tensor_view(),
                              make_tuple(number<Problem::BlockShape::Block_M>{}, number<Problem::BlockShape::Block_N / Repeat_N>{}),
                              y_window_.get_window_origin(),
-		                     Policy::template MakeXInnerBlockTileDistribution<Problem>());
+                             Policy::template MakeXInnerBlockTileDistribution<Problem>());
 
         auto sm_scale_window =
             make_tile_window(sm_scale_window_.get_bottom_tensor_view(),
@@ -122,11 +122,11 @@ struct Rmsnorm2dFwdPipelineOnePass
                              sm_scale_window_.get_window_origin(),
                              Policy::template MakeGammaBlockTileDistribution<Problem>());
 
-        auto o_all_window =
-            make_tile_window(y_window_.get_bottom_tensor_view(),
-                             y_window_.get_window_lengths(),
-                             y_window_.get_window_origin(),
-		                     Policy::template MakeXInnerBlockTileDistribution<Problem>());
+        auto unquant_y_window =
+            make_tile_window(unquant_y_window_.get_bottom_tensor_view(),
+                             unquant_y_window_.get_window_lengths(),
+                             unquant_y_window_.get_window_origin(),
+                             Policy::template MakeXInnerBlockTileDistribution<Problem>());
 
         auto reduce_square_sum_func = ReduceOp::SquareAdd{};
         auto reduce_sum_func        = ReduceOp::Add{};
@@ -145,6 +145,7 @@ struct Rmsnorm2dFwdPipelineOnePass
 
         AccTensorType x_warp_tensors[Repeat_N];
         AccTensorType o_warp_tensors[Repeat_N];
+        AccTensorType no_quant_warp_tensors[Repeat_N];
 
         GammaTensorType gamma_warp_tensors[Repeat_N];
         SmScaleTensorType sm_scale_warp_tensors[Repeat_N];
@@ -155,27 +156,27 @@ struct Rmsnorm2dFwdPipelineOnePass
         clear_tile(square_sum);
         XTensorType x[2];
         XResTensorType x_resi[2];
-        x[0] = load_tile(x_window);
-        x_window.move({0, Stride_N});
 
         x_resi[0] = load_tile(x_residual_window);
         if constexpr(x_resi[0].is_valid())
             move_tile_window(x_residual_window, {0, Stride_N});
+        x[0] = load_tile(x_window);
+        x_window.move({0, Stride_N});
 
-        static_for<0, Repeat_N, 1>{}([&](auto repeat_n)
+        // static_for<0, Repeat_N - 1, 1>{}([&](auto repeat_n)
+        for (int repeat_n = 0; repeat_n < Repeat_N - 1; ++repeat_n)
         {
-            auto ld_stage = repeat_n % 2 + 1;
+            // constexpr auto ld_stage = (repeat_n.value + 1) % 2 ;
+            // constexpr auto st_stage = repeat_n.value % 2;
+            auto ld_stage = (repeat_n + 1) % 2 ;
             auto st_stage = repeat_n % 2;
             x[ld_stage] = load_tile(x_window);
             x_window.move({0, Stride_N});
-
             x_resi[ld_stage] = load_tile(x_residual_window);
             if constexpr(x_resi[0].is_valid())
                 move_tile_window(x_residual_window, {0, Stride_N});
 
             // load gamma (TODO: support no gamma?)
-            
-
             x_warp_tensors[repeat_n] = cast_tile<ComputeDataType>(x[st_stage]);
 
             if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD ||
@@ -187,16 +188,23 @@ struct Rmsnorm2dFwdPipelineOnePass
                 });
             }
 
+            // if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
+            // {
+            // 	store_tile(y_residual_window, cast_tile<YResidualDataType>(x_warp_tensors[repeat_n]));
+            // 	if constexpr(AccResTensorType::is_valid())
+            // 		move_tile_window(y_residual_window, {0, Stride_N});
+            // }
+
             // compute mean square each-thread->cross-lane->cross-warp
             auto square_sum_local = block_reduce2d(x_warp_tensors[repeat_n],
-										reduce_square_sum_func.GetIdentityValue<ComputeDataType>(),
-										reduce_square_sum_func);
+                                        reduce_square_sum_func.GetIdentityValue<ComputeDataType>(),
+                                        reduce_square_sum_func);
 
             ck_tile::sweep_tile(square_sum, [&](auto idx) {
                 square_sum(idx) += square_sum_local[idx];
             });
-        });
-
+        }
+        // });
 
         {
             constexpr auto tail_stage = Repeat_N - 1;
@@ -212,10 +220,17 @@ struct Rmsnorm2dFwdPipelineOnePass
                 });
             }
 
+            // if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
+            // {
+            // 	store_tile(y_residual_window, cast_tile<YResidualDataType>(x_warp_tensors[tail_stage]));
+            // 	if constexpr(AccResTensorType::is_valid())
+            // 		move_tile_window(y_residual_window, {0, Stride_N});
+            // }
+
             // compute mean square each-thread->cross-lane->cross-warp
             auto square_sum_local = block_reduce2d(x_warp_tensors[tail_stage],
-										reduce_square_sum_func.GetIdentityValue<ComputeDataType>(),
-										reduce_square_sum_func);
+                                        reduce_square_sum_func.GetIdentityValue<ComputeDataType>(),
+                                        reduce_square_sum_func);
 
             ck_tile::sweep_tile(square_sum, [&](auto idx) {
                 square_sum(idx) += square_sum_local[idx];
@@ -255,29 +270,31 @@ struct Rmsnorm2dFwdPipelineOnePass
 
                 const auto gamma_ = type_convert<ComputeDataType>(gamma_warp_tensors[repeat_n][j_idx]);
 
-                auto rmsn_ = x_warp_tensors[repeat_n][idx] * inv_rms_[i_idx] * gamma_;
-
+                no_quant_warp_tensors[repeat_n](idx) = x_warp_tensors[repeat_n][idx] * inv_rms_[i_idx] * gamma_;
                 if constexpr(SmScaleTensorType::is_valid())
                 {
                     const auto xs_ = type_convert<ComputeDataType>(sm_scale_warp_tensors[repeat_n][j_idx]);
-                    o_warp_tensors[repeat_n](idx) = rmsn_ * xs_;
+                    o_warp_tensors[repeat_n](idx) = no_quant_warp_tensors[repeat_n][idx] * xs_;
                 }
             });
+        }
 
-			if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
-			{
-				store_tile(y_residual_window, cast_tile<YResidualDataType>(x_warp_tensors[repeat_n]));
-				if constexpr(AccResTensorType::is_valid())
-					move_tile_window(y_residual_window, {0, Stride_N});
-			}
+#pragma unroll
+        for (int repeat_n = 0; repeat_n < Repeat_N; ++repeat_n)
+        {
+            if constexpr(kSaveUnquant)
+            {
+                store_tile(unquant_y_window, cast_tile<UnquantYDataType>(no_quant_warp_tensors[repeat_n]));
+                move_tile_window(unquant_y_window, {0, Stride_N});
+            }
         }
 
         if constexpr(kFusedQuant == Rmsnorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT)
         {
             if constexpr(kSaveUnquant)
             {
-                // Epilogue{}(
-                //     unquant_y_window, o_all_window, sm_scale_window_, y_scale_window_, o_warp_tensors, true, smem);
+                Epilogue{}(
+                    unquant_y_window, o_window, sm_scale_window_, y_scale_window_, o_warp_tensors, true, smem);
             }
             else
             {

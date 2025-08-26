@@ -206,6 +206,7 @@ struct DynamicQuantEpilogue
         };
 
         auto row_absmax = decltype(reduce(o_acc_tiles[0], absmax.GetIdentityValue<AccDataType>(), absmax)){};
+        // auto row_absmax = decltype(reduce(o_acc_tiles[0], type_convert<AccDataType>(0), f_max3, sequence<1, 2>{})){};
         clear_tile(row_absmax);
 
         // static_for<0, BlockShape::Repeat_N, 1>{}([&](auto repeat_n)
@@ -216,7 +217,7 @@ struct DynamicQuantEpilogue
                 // if constexpr(UseMax3 && std::is_same_v<AccDataType, float>)
                 // {
                 //     // fast max3+abs implementation
-                //     return reduce(o_acc_tmp, type_convert<AccDataType>(0), f_max3, sequence<1, 2>{});
+                    // return reduce(o_acc_tiles[repeat_n], type_convert<AccDataType>(0), f_max3, sequence<1, 2>{});
                 // }
                 // else
                 // {
@@ -230,18 +231,18 @@ struct DynamicQuantEpilogue
         }
         reduce_sync(row_absmax, f_absmax);
         reduce_crosswarp_sync(row_absmax, smem, f_absmax);
-
+		auto max_scale = __builtin_amdgcn_rcpf(type_convert<AccDataType>(numeric<ODataType>::max()));
         // here y_scale is Acc TYpe, need convert to YScale type later
         auto y_scale = tile_elementwise_in(
             [&](const auto& v_) {
-                return v_ / type_convert<AccDataType>(numeric<ODataType>::max());
+                return v_ * max_scale;
             },
             row_absmax);
 
         store_tile(y_scale_window, cast_tile<YScaleDataType>(y_scale));
 
 
-        auto scale = 1 / type_convert<AccDataType>(y_scale.get_thread_buffer().get(0));
+        auto scale = __builtin_amdgcn_rcpf(type_convert<AccDataType>(y_scale.get_thread_buffer().get(0)));
 
         static_for<0, BlockShape::Repeat_N, 1>{}([&](auto repeat_n)
         {
