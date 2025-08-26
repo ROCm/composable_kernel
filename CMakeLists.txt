@@ -16,6 +16,15 @@ else()
             "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel.")
 endif()
 
+# Allow user to specify the C++ standard.
+# We must support C++17 builds until downstream users are migrated to C++20, but we default to C++20.
+set(CK_CXX_STANDARD "20" CACHE STRING "C++ standard to use (e.g. 17 or 20)")
+set(valid_cxx_standards 17 20)
+set_property(CACHE CK_CXX_STANDARD PROPERTY STRINGS ${valid_cxx_standards})
+if(NOT CK_CXX_STANDARD IN_LIST valid_cxx_standards)
+    message(FATAL_ERROR "CK_CXX_STANDARD must be one of ${valid_cxx_standards}")
+endif()
+
 # Default installation path
 if(NOT WIN32)
     set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
@@ -345,7 +354,7 @@ find_package(Threads REQUIRED)
 link_libraries(Threads::Threads)
 
 ## C++
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD ${CK_CXX_STANDARD})
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 message(STATUS "CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
