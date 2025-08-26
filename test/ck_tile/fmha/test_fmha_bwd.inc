@@ -7,6 +7,10 @@ using ::testing::TestWithParam;
 using ::testing::Values;
 using ::testing::ValuesIn;
 
+// Random seed used for initializing input tensors. 0 for non-deterministic seed
+CK_TILE_DECLARE_ENV_VAR(CK_TILE_TEST_SEED, uint64_t, 123456)
+
+// Whether to run long tests (from smoke_test_fwd.sh)
 CK_TILE_DECLARE_ENV_VAR_BOOL(CK_TILE_FMHA_LONG_TESTS)
 
 #define CHECK_RESULT(result)                                      \
@@ -27,6 +31,10 @@ const ck_tile::stream_config stream_config{
     false,   // flush_cache_
     1,       // rotating_count_
 };
+
+#define COMMON_ARGS                                                                           \
+    init_method, static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))), 1, \
+        stream_config
 
 auto EnableTestIf(bool condition)
 {
@@ -77,21 +85,18 @@ TEST_P(AllLong, Test)
                                                {seqlen_k},
                                                hdim_q,
                                                hdim_v,
-                                               perm,           // i_perm
-                                               perm,           // o_perm
-                                               0,              // scale
-                                               bias_str,       // bias_str
-                                               false,          // use_dbias
-                                               p_drop,         // p_drop
-                                               123,            // drop_seed
-                                               1024,           // drop_offset
-                                               true,           // drop_prefs
-                                               mask_str,       // mask_str
-                                               false,          // deterministic
-                                               init_method,    // init_method
-                                               67889,          // seed
-                                               1,              // do_validation
-                                               stream_config); // stream_config
+                                               perm,     // i_perm
+                                               perm,     // o_perm
+                                               0,        // scale
+                                               bias_str, // bias_str
+                                               false,    // use_dbias
+                                               p_drop,   // p_drop
+                                               123,      // drop_seed
+                                               1024,     // drop_offset
+                                               true,     // drop_prefs
+                                               mask_str, // mask_str
+                                               false,    // deterministic
+                                               COMMON_ARGS);
     CHECK_RESULT(result);
 }
 
@@ -131,21 +136,18 @@ TEST_P(HDimPadding, Test)
                                                {seqlen_k},
                                                hdim_q,
                                                hdim_v,
-                                               perm,           // i_perm
-                                               perm,           // o_perm
-                                               0,              // scale
-                                               "n",            // bias_str
-                                               false,          // use_dbias
-                                               0.0f,           // p_drop
-                                               0,              // drop_seed
-                                               0,              // drop_offset
-                                               false,          // drop_prefs
-                                               mask_str,       // mask_str
-                                               false,          // deterministic
-                                               init_method,    // init_method
-                                               345352,         // seed
-                                               1,              // do_validation
-                                               stream_config); // stream_config
+                                               perm,     // i_perm
+                                               perm,     // o_perm
+                                               0,        // scale
+                                               "n",      // bias_str
+                                               false,    // use_dbias
+                                               0.0f,     // p_drop
+                                               0,        // drop_seed
+                                               0,        // drop_offset
+                                               false,    // drop_prefs
+                                               mask_str, // mask_str
+                                               false,    // deterministic
+                                               COMMON_ARGS);
     CHECK_RESULT(result);
 }
 
@@ -184,21 +186,18 @@ TEST_P(ElementwiseBias, Test)
                                                {seqlen_k},
                                                hdim_q,
                                                hdim_v,
-                                               i_perm,         // i_perm
-                                               false,          // o_perm
-                                               0,              // scale
-                                               bias_str,       // bias_str
-                                               use_dbias,      // use_dbias
-                                               0.0f,           // p_drop
-                                               123,            // drop_seed
-                                               1024,           // drop_offset
-                                               true,           // drop_prefs
-                                               mask_str,       // mask_str
-                                               false,          // deterministic
-                                               init_method,    // init_method
-                                               45645645,       // seed
-                                               1,              // do_validation
-                                               stream_config); // stream_config
+                                               i_perm,    // i_perm
+                                               false,     // o_perm
+                                               0,         // scale
+                                               bias_str,  // bias_str
+                                               use_dbias, // use_dbias
+                                               0.0f,      // p_drop
+                                               123,       // drop_seed
+                                               1024,      // drop_offset
+                                               true,      // drop_prefs
+                                               mask_str,  // mask_str
+                                               false,     // deterministic
+                                               COMMON_ARGS);
     CHECK_RESULT(result);
 }
 
@@ -234,21 +233,18 @@ TEST_P(Alibi, Test)
                                                {seqlen_k},
                                                hdim_q,
                                                hdim_v,
-                                               true,           // i_perm
-                                               true,           // o_perm
-                                               0,              // scale
-                                               bias_str,       // bias_str
-                                               false,          // use_dbias
-                                               0.0f,           // p_drop
-                                               0,              // drop_seed
-                                               0,              // drop_offset
-                                               false,          // drop_prefs
-                                               mask_str,       // mask_str
-                                               false,          // deterministic
-                                               init_method,    // init_method
-                                               45645645,       // seed
-                                               1,              // do_validation
-                                               stream_config); // stream_config
+                                               true,     // i_perm
+                                               true,     // o_perm
+                                               0,        // scale
+                                               bias_str, // bias_str
+                                               false,    // use_dbias
+                                               0.0f,     // p_drop
+                                               0,        // drop_seed
+                                               0,        // drop_offset
+                                               false,    // drop_prefs
+                                               mask_str, // mask_str
+                                               false,    // deterministic
+                                               COMMON_ARGS);
     CHECK_RESULT(result);
 }
 
@@ -286,21 +282,18 @@ TEST_P(Dropout, Test)
                                                {seqlen_k},
                                                hdim_q,
                                                hdim_v,
-                                               true,           // i_perm
-                                               true,           // o_perm
-                                               0.1f,           // scale
-                                               "n",            // bias_str
-                                               false,          // use_dbias
-                                               p_drop,         // p_drop
-                                               drop_seed,      // drop_seed
-                                               drop_offset,    // drop_offset
-                                               drop_prefs,     // drop_prefs
-                                               mask_str,       // mask_str
-                                               false,          // deterministic
-                                               init_method,    // init_method
-                                               888444,         // seed
-                                               1,              // do_validation
-                                               stream_config); // stream_config
+                                               true,        // i_perm
+                                               true,        // o_perm
+                                               0.1f,        // scale
+                                               "n",         // bias_str
+                                               false,       // use_dbias
+                                               p_drop,      // p_drop
+                                               drop_seed,   // drop_seed
+                                               drop_offset, // drop_offset
+                                               drop_prefs,  // drop_prefs
+                                               mask_str,    // mask_str
+                                               false,       // deterministic
+                                               COMMON_ARGS);
     CHECK_RESULT(result);
 }
 
@@ -335,20 +328,17 @@ TEST_P(Deterministic, Test)
                                                {seqlen_k},
                                                hdim_q,
                                                hdim_v,
-                                               i_perm,         // i_perm
-                                               true,           // o_perm
-                                               0.0f,           // scale
-                                               "n",            // bias_str
-                                               false,          // use_dbias
-                                               0.0f,           // p_drop
-                                               0,              // drop_seed
-                                               0,              // drop_offset
-                                               false,          // drop_prefs
-                                               mask_str,       // mask_str
-                                               true,           // deterministic
-                                               init_method,    // init_method
-                                               1266444,        // seed
-                                               1,              // do_validation
-                                               stream_config); // stream_config
+                                               i_perm,   // i_perm
+                                               true,     // o_perm
+                                               0,        // scale
+                                               "n",      // bias_str
+                                               false,    // use_dbias
+                                               0.0f,     // p_drop
+                                               0,        // drop_seed
+                                               0,        // drop_offset
+                                               false,    // drop_prefs
+                                               mask_str, // mask_str
+                                               true,     // deterministic
+                                               COMMON_ARGS);
     CHECK_RESULT(result);
 }

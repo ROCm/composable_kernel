@@ -7,6 +7,10 @@ using ::testing::TestWithParam;
 using ::testing::Values;
 using ::testing::ValuesIn;
 
+// Random seed used for initializing input tensors. 0 for non-deterministic seed
+CK_TILE_DECLARE_ENV_VAR(CK_TILE_TEST_SEED, uint64_t, 123456)
+
+// Whether to run long tests (from smoke_test_fwd.sh)
 CK_TILE_DECLARE_ENV_VAR_BOOL(CK_TILE_FMHA_LONG_TESTS)
 
 #define CHECK_RESULT(result)                                      \
@@ -30,6 +34,10 @@ const ck_tile::stream_config stream_config{
 
 // range_q, range_k, range_v, range_p, range_o, squant
 #define QUANT_ARGS 1, 1, 1, 1, 1, squant
+
+#define COMMON_ARGS                                                                           \
+    init_method, static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))), 1, \
+        stream_config
 
 auto EnableTestIf(bool condition)
 {
@@ -110,12 +118,9 @@ TEST_P(AllLong, Test)
                                                false,         // drop_prefs
                                                mask_str,      // mask_str
                                                QUANT_ARGS,
-                                               true,           // is_rotary_interleaved
-                                               1,              // num_splits
-                                               init_method,    // init_method
-                                               5675,           // seed
-                                               1,              // do_validation
-                                               stream_config); // stream_config
+                                               true, // is_rotary_interleaved
+                                               1,    // num_splits
+                                               COMMON_ARGS);
     CHECK_RESULT(result);
 }
 
@@ -175,12 +180,9 @@ TEST_P(HDimPadding, Test)
                                                false,         // drop_prefs
                                                mask_str,      // mask_str
                                                QUANT_ARGS,
-                                               true,           // is_rotary_interleaved
-                                               1,              // num_splits
-                                               init_method,    // init_method
-                                               5675,           // seed
-                                               1,              // do_validation
-                                               stream_config); // stream_config
+                                               true, // is_rotary_interleaved
+                                               1,    // num_splits
+                                               COMMON_ARGS);
     CHECK_RESULT(result);
 }
 
@@ -235,12 +237,9 @@ TEST_P(ElementwiseBias, Test)
                                                false,             // drop_prefs
                                                mask_str,          // mask_str
                                                QUANT_ARGS,
-                                               true,           // is_rotary_interleaved
-                                               1,              // num_splits
-                                               init_method,    // init_method
-                                               38963,          // seed
-                                               1,              // do_validation
-                                               stream_config); // stream_config
+                                               true, // is_rotary_interleaved
+                                               1,    // num_splits
+                                               COMMON_ARGS);
     CHECK_RESULT(result);
 }
 
@@ -294,12 +293,9 @@ TEST_P(Alibi, Test)
                                                false,             // drop_prefs
                                                mask_str,          // mask_str
                                                QUANT_ARGS,
-                                               true,           // is_rotary_interleaved
-                                               1,              // num_splits
-                                               init_method,    // init_method
-                                               4564,           // seed
-                                               1,              // do_validation
-                                               stream_config); // stream_config
+                                               true, // is_rotary_interleaved
+                                               1,    // num_splits
+                                               COMMON_ARGS);
     CHECK_RESULT(result);
 }
 
@@ -355,12 +351,9 @@ TEST_P(Dropout, Test)
                                                drop_prefs,        // drop_prefs
                                                mask_str,          // mask_str
                                                QUANT_ARGS,
-                                               true,           // is_rotary_interleaved
-                                               1,              // num_splits
-                                               init_method,    // init_method
-                                               38963,          // seed
-                                               1,              // do_validation
-                                               stream_config); // stream_config
+                                               true, // is_rotary_interleaved
+                                               1,    // num_splits
+                                               COMMON_ARGS);
     CHECK_RESULT(result);
 }
 
@@ -418,12 +411,9 @@ TEST_P(PagedKV, Test)
                                                false,           // drop_prefs
                                                mask_str,        // mask_str
                                                QUANT_ARGS,
-                                               true,           // is_rotary_interleaved
-                                               1,              // num_splits
-                                               init_method,    // init_method
-                                               38963,          // seed
-                                               1,              // do_validation
-                                               stream_config); // stream_config
+                                               true, // is_rotary_interleaved
+                                               1,    // num_splits
+                                               COMMON_ARGS);
     CHECK_RESULT(result);
 }
 
@@ -487,12 +477,9 @@ TEST_P(SplitKV, Test)
                                                false,               // drop_prefs
                                                mask_str,            // mask_str
                                                QUANT_ARGS,
-                                               true,           // is_rotary_interleaved
-                                               num_splits,     // num_splits
-                                               init_method,    // init_method
-                                               42534,          // seed
-                                               1,              // do_validation
-                                               stream_config); // stream_config
+                                               true,       // is_rotary_interleaved
+                                               num_splits, // num_splits
+                                               COMMON_ARGS);
     CHECK_RESULT(result);
 }
 
@@ -562,12 +549,9 @@ TEST_P(AppendKV, Test)
                                                false,               // drop_prefs
                                                mask_str,            // mask_str
                                                QUANT_ARGS,
-                                               false,          // is_rotary_interleaved
-                                               1,              // num_splits
-                                               init_method,    // init_method
-                                               84525,          // seed
-                                               1,              // do_validation
-                                               stream_config); // stream_config
+                                               false, // is_rotary_interleaved
+                                               1,     // num_splits
+                                               COMMON_ARGS);
     CHECK_RESULT(result);
 }
 
@@ -637,10 +621,7 @@ TEST_P(AppendKVRoPE, Test)
                                                QUANT_ARGS,
                                                is_rotary_interleaved, // is_rotary_interleaved
                                                1,                     // num_splits
-                                               init_method,           // init_method
-                                               42534,                 // seed
-                                               1,                     // do_validation
-                                               stream_config);        // stream_config
+                                               COMMON_ARGS);
     CHECK_RESULT(result);
 }
 
