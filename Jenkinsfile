@@ -1358,6 +1358,7 @@ pipeline {
                         def docker_name = "${env.CK_DOCKERHUB_PRIVATE}:ck_rhel8_rocm6.3"
                         setup_args = """ -DGPU_TARGETS="gfx942" \
                                          -DCMAKE_CXX_FLAGS=" -O3 " \
+                                         -DCK_CXX_STANDARD="17" \
                                          -DCK_USE_ALTERNATIVE_PYTHON=/opt/Python-3.8.13/bin/python3.8 """
                         execute_args = " "
                     }
