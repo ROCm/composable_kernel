@@ -58,18 +58,19 @@ struct BlockFmhaPipelineQRKSVS
     static constexpr bool kStoreLSE         = Problem::kStoreLSE;
     static constexpr bool kHasDropout       = Problem::kHasDropout;
 
-    using Gemm_0 = remove_cvref_t<decltype(Policy::template GetQKBlockGemm<Problem>())>;
-    static constexpr auto WG0_config = Gemm_0::Policy::template GetWarpGemmMWarpNWarp<Problem>();
-    using WG0                        = remove_cvref_t<decltype(WG0_config.template at<0>())>;
-    static constexpr index_t MWarp0  = WG0_config.template at<1>();
-    static constexpr index_t NWarp0  = WG0_config.template at<2>();
-    static constexpr index_t WG0_kM  = WG0 ::WarpGemmAttribute::Impl::kM;
-    static constexpr index_t WG0_kN  = WG0 ::WarpGemmAttribute::Impl::kN;
-    static constexpr index_t WG0_kK  = WG0 ::WarpGemmAttribute::Impl::kK;
-    static constexpr uint32_t DS_READ_BARRIER = 0x100; // Barrier for DS (data share) read
-    static constexpr uint32_t MFMA_BARRIER = 0x008; // Barrier for MFMA (matrix multiply-accumulate)
-    static constexpr int num_mfma_insts =
-        (kM0 / WG0_kM) * (kN0 / WG0_kN) * (kK0 / WG0_kK) / (MWarp0 * NWarp0);
+    using BlockGemm0 = remove_cvref_t<decltype(Policy::template GetQKBlockGemm<Problem>())>;
+    static constexpr auto WarpGemmConfig =
+        BlockGemm0::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+    using WarpGemm0                     = remove_cvref_t<decltype(WarpGemmConfig.template at<0>())>;
+    static constexpr index_t Gemm0MWarp = WarpGemmConfig.template at<1>();
+    static constexpr index_t Gemm0NWarp = WarpGemmConfig.template at<2>();
+    static constexpr index_t WarpGemm0M = WarpGemm0::WarpGemmAttribute::Impl::kM;
+    static constexpr index_t WarpGemm0N = WarpGemm0::WarpGemmAttribute::Impl::kN;
+    static constexpr index_t WarpGemm0K = WarpGemm0::WarpGemmAttribute::Impl::kK;
+    static constexpr int NumMfmaInsts =
+        (kM0 / WarpGemm0M) * (kN0 / WarpGemm0N) * (kK0 / WarpGemm0K) / (Gemm0MWarp * Gemm0NWarp);
+    static constexpr uint32_t DS_READ = 0x100; // Barrier for DS (data share) read
+    static constexpr uint32_t MFMA    = 0x008; // Barrier for MFMA (matrix multiply-accumulate)
 
     static_assert((CK_TILE_FMHA_FWD_FAST_EXP2 &&
                    (kHasLogitsSoftCap && Problem::BiasEnum == BlockAttentionBiasEnum::NO_BIAS ||
@@ -299,14 +300,14 @@ struct BlockFmhaPipelineQRKSVS
         auto schedule_gemm0 = [] {
             if constexpr(kQKHeaddim == 256)
             {
-                static_assert(num_mfma_insts % 8 == 0);
-                static_for<0, num_mfma_insts / 8, 1>{}([&](auto) {
-                    __builtin_amdgcn_sched_group_barrier(DS_READ_BARRIER, 2, 0); // DS read
-                    __builtin_amdgcn_sched_group_barrier(MFMA_BARRIER, 2, 0);    // MFMA
-                    __builtin_amdgcn_sched_group_barrier(DS_READ_BARRIER, 1, 0); // DS read
-                    __builtin_amdgcn_sched_group_barrier(MFMA_BARRIER, 2, 0);    // MFMA
-                    __builtin_amdgcn_sched_group_barrier(DS_READ_BARRIER, 1, 0); // DS read
-                    __builtin_amdgcn_sched_group_barrier(MFMA_BARRIER, 4, 0);    // MFMA
+                static_assert(NumMfmaInsts % 8 == 0);
+                static_for<0, NumMfmaInsts / 8, 1>{}([&](auto) {
+                    __builtin_amdgcn_sched_group_barrier(DS_READ, 2, 0); // DS read
+                    __builtin_amdgcn_sched_group_barrier(MFMA, 2, 0);    // MFMA
+                    __builtin_amdgcn_sched_group_barrier(DS_READ, 1, 0); // DS read
+                    __builtin_amdgcn_sched_group_barrier(MFMA, 2, 0);    // MFMA
+                    __builtin_amdgcn_sched_group_barrier(DS_READ, 1, 0); // DS read
+                    __builtin_amdgcn_sched_group_barrier(MFMA, 4, 0);    // MFMA
                 });
             }
         };
