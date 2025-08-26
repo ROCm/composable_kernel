@@ -12,6 +12,22 @@ namespace ck_tile {
 struct Rmsnorm2dFwdPipelineDefaultPolicy
 {
     template <typename Problem>
+    CK_TILE_DEVICE static constexpr auto MakeXInnerBlockTileDistribution()
+    {
+        using S = typename Problem::BlockShape;
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<S::WarpPerBlock_M, S::ThreadPerWarp_M, S::Vector_M>,
+                      sequence<S::WarpPerBlock_N, S::ThreadPerWarp_N, S::Vector_N>>,
+                tuple<sequence<1, 2>, sequence<1, 2>>,
+                tuple<sequence<0, 0>, sequence<1, 1>>,
+                sequence<1, 2>,
+                sequence<2, 2>>{});
+    }
+
+    template <typename Problem>
     CK_TILE_DEVICE static constexpr auto MakeXBlockTileDistribution()
     {
         using S = typename Problem::BlockShape;

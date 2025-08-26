@@ -59,6 +59,26 @@ CK_TILE_DEVICE auto tile_elementwise_in(const InElementFunc& in_element_func,
     return out_dstr_tensor;
 }
 
+template <typename InElementFunc,
+          typename OutTensor,
+          typename InTensor>
+CK_TILE_DEVICE void tile_elementwise_in_out(const InElementFunc& in_element_func,
+                                            OutTensor&      out_dstr_tensor,
+                                            const InTensor& in_dstr_tensors)
+{
+    // TODO: make sure all distributed tensors have same lengths and distribution
+    // static_assert(xxx);
+    constexpr auto in_tile_dstr = __type_pack_element<0, InTensor>::get_tile_distribution();
+
+    constexpr index_t thread_buffer_size =
+        __type_pack_element<0, InTensor>::get_thread_buffer_size();
+
+    static_for<0, thread_buffer_size, 1>{}([&](auto i) {
+        out_dstr_tensor.get_thread_buffer()(i) =
+            in_element_func(in_dstr_tensors.get_thread_buffer()[i]);
+    });
+}
+
 /**
  * @brief  Template function that "unpacks" a tuple and applies an element-wise operation.
  *
@@ -321,6 +341,65 @@ CK_TILE_DEVICE auto cast_tile_opt_subdword(const InTensor& in_dstr_tensors)
 
     return out_dstr_tensor;
 }
+
+// template <typename OutTensor, typename InTensor>
+// CK_TILE_DEVICE void cast_tile_opt_subdword(
+//     OutTensor&       out_dstr_tensor,
+//     const InTensor&  in_dstr_tensors)
+// {
+//     constexpr auto in_tile_dstr = InTensor::get_tile_distribution();
+//
+//     using i_type                   = remove_cvref_t<typename InTensor::DataType>;
+//     using o_type                   = remove_cvref_t<OutDataType>;
+//     constexpr index_t i_elem_bytes = sizeof(i_type);
+//     constexpr index_t o_elem_bytes = sizeof(o_type);
+//     static_assert(i_elem_bytes < 4 || o_elem_bytes < 4);
+//
+//     constexpr index_t bulk_size =
+//         (i_elem_bytes >= o_elem_bytes) ? (4 / o_elem_bytes) : (4 / i_elem_bytes);
+//     static_assert(bulk_size != 0);
+//
+//     using o_bulk_type =
+//         std::conditional_t<i_elem_bytes >= o_elem_bytes, float, array<o_type, bulk_size>>;
+//
+//     constexpr index_t thread_buffer_size = InTensor::get_thread_buffer_size();
+//
+//     constexpr index_t iters = thread_buffer_size / bulk_size;
+//     constexpr index_t rems  = thread_buffer_size % bulk_size;
+//
+//     // cast the sequence per-bulk
+//     static_for<0, iters, 1>{}([&](auto i) {
+//         union bulk_wrapper
+//         {
+//             o_bulk_type bulk{};
+//             o_type data[bulk_size];
+//         } o_bulk;
+//
+//         // TODO: should use below function, but somehow will result in spill (same as c-forloop)
+//         static_for<0, bulk_size, 1>{}([&o_bulk, &in_dstr_tensors, &i](auto ib) {
+//             o_bulk.data[ib.value] = static_cast<o_type>(
+//                 in_dstr_tensors.get_thread_buffer()
+//                     .template get_as<i_type>()[number<bulk_size * i.value + ib.value>{}]);
+//         });
+//
+//         // TODO: fixme, should use above!
+//         // static_assert(sizeof(i_type) / sizeof(o_type) == 2);
+//         // o_bulk.data[0] = static_cast<o_type>(
+//         //     in_dstr_tensors.get_thread_buffer().template get_as<i_type>()[number<2 * i + 0>{}]);
+//         // o_bulk.data[1] = static_cast<o_type>(
+//         //     in_dstr_tensors.get_thread_buffer().template get_as<i_type>()[number<2 * i + 1>{}]);
+//
+//         out_dstr_tensor.get_thread_buffer().template set_as<o_bulk_type>(i, o_bulk.bulk);
+//     });
+//
+//     static_for<0, rems, 1>{}([&](auto r) {
+//         // TODO: introducing local scratch pad?
+//         auto idx = number<iters * bulk_size + r>{};
+//         out_dstr_tensor.get_thread_buffer().at(idx) =
+//             static_cast<o_type>(in_dstr_tensors.get_thread_buffer().at(idx));
+//     });
+// }
+
 #endif
 } // namespace impl
 
@@ -349,6 +428,18 @@ CK_TILE_DEVICE auto cast_tile(const SrcTensor& src_tensor)
 #endif
     else
         return tile_elementwise_in(type_convert<DstType, typename SrcTensor::DataType>, src_tensor);
+}
+
+template <typename DstTensor, typename SrcTensor>
+CK_TILE_DEVICE void cast_tile(DstTensor& dst_tensor, const SrcTensor& src_tensor)
+{
+    // if constexpr(sizeof(typename DstTensor::DataType) < 4 || sizeof(typename SrcTensor::DataType) < 4)
+    // {
+    //     impl::cast_tile_opt_subdword(dst_tensor, src_tensor);
+    // }
+    tile_elementwise_in_out(type_convert<DstTensor::DataType, typename SrcTensor::DataType>,
+                            dst_tensor, 
+                            src_tensor);
 }
 
 // no-op function for null_tensor arguments

@@ -194,7 +194,7 @@ struct Rmsnorm2dFwd
             const auto tmp2_ = pad_tensor_view(
                 tmp_, make_tuple(number<Block_M>{}, number<Block_N>{}), sequence<kPadM, kPadN>{});
             return make_tile_window(
-                tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {iM, 0});
+                tmp2_, make_tuple(number<Block_M>{}, number<Block_N / Repeat_N>{}), {iM, 0});
         }();
 
         const auto x_residual_window = [&]() {
@@ -212,7 +212,7 @@ struct Rmsnorm2dFwd
                                                    make_tuple(number<Block_M>{}, number<Block_N>{}),
                                                    sequence<kPadM, kPadN>{});
                 return make_tile_window(
-                    tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {iM, 0});
+                    tmp2_, make_tuple(number<Block_M>{}, number<Block_N / Repeat_N>{}), {iM, 0});
             }
             else
             {
@@ -262,7 +262,7 @@ struct Rmsnorm2dFwd
                                              make_tuple(number<Block_M>{}, number<Block_N>{}),
                                              sequence<kPadM, kPadN>{});
                 return make_tile_window(
-                    tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {iM, 0});
+                    tmp2_, make_tuple(number<Block_M>{}, number<Block_N / Repeat_N>{}), {iM, 0});
             }
             else
             {

@@ -35,6 +35,10 @@ struct Rmsnorm2dFwdPipelineOnePass
     static constexpr auto kFusedAdd          = Problem::Traits::kFusedAdd;
     static constexpr auto kFusedQuant        = Problem::Traits::kFusedQuant;
 
+    static constexpr auto Vector_N           = Problem::BlockShape::Vector_N;
+    static constexpr auto Repeat_N           = Problem::BlockShape::Repeat_N;
+    static constexpr auto Stride_N           = Problem::BlockShape::Block_N / Repeat_N;
+
     static constexpr const char* name = []() {
         if constexpr(kNeedCrossWarpSync)
             return "bpr_op"; // block per row
@@ -84,15 +88,35 @@ struct Rmsnorm2dFwdPipelineOnePass
                                    void* smem,
                                    Epilogue) const
     {
-        const auto x_window =
-            make_tile_window(x_window_, Policy::template MakeXBlockTileDistribution<Problem>());
+        auto x_window =
+            make_tile_window(x_window_.get_bottom_tensor_view(),
+                             x_window_.get_window_lengths(),
+                             x_window_.get_window_origin(),
+		                     Policy::template MakeXInnerBlockTileDistribution<Problem>());
         const auto gamma_window = make_tile_window(
             gamma_window_, Policy::template MakeGammaBlockTileDistribution<Problem>());
-        const auto x_residual_window = make_tile_window(
-            x_residual_window_, Policy::template MakeXBlockTileDistribution<Problem>());
-        auto y_residual_window = make_tile_window(
-            y_residual_window_, Policy::template MakeXBlockTileDistribution<Problem>());
+        auto x_residual_window =
+            make_tile_window(x_residual_window_.get_bottom_tensor_view(),
+                             x_residual_window_.get_window_lengths(),
+                             x_residual_window_.get_window_origin(),
+		                     Policy::template MakeXInnerBlockTileDistribution<Problem>());
+        auto y_residual_window =
+            make_tile_window(y_residual_window_.get_bottom_tensor_view(),
+                             y_residual_window_.get_window_lengths(),
+                             y_residual_window_.get_window_origin(),
+		                     Policy::template MakeXInnerBlockTileDistribution<Problem>());
 
+        auto o_window =
+            make_tile_window(y_window_.get_bottom_tensor_view(),
+                             make_tuple(number<Problem::BlockShape::Block_M>{}, number<Problem::BlockShape::Block_N / Repeat_N>{}),
+                             y_window_.get_window_origin(),
+		                     Policy::template MakeXInnerBlockTileDistribution<Problem>());
+
+        auto o_all_window =
+            make_tile_window(y_window_.get_bottom_tensor_view(),
+                             y_window_.get_window_lengths(),
+                             y_window_.get_window_origin(),
+		                     Policy::template MakeXBlockTileDistribution<Problem>());
         auto reduce_square_sum_func = ReduceOp::SquareAdd{};
         auto reduce_sum_func        = ReduceOp::Add{};
         auto block_reduce2d         = Policy::template GetBlockReduce2d<Problem>();
@@ -100,36 +124,61 @@ struct Rmsnorm2dFwdPipelineOnePass
         auto block_reduce2d_cross_warp_sync =
             Policy::template GetBlockReduce2dCrossWarpSync<Problem>();
 
-        auto x      = load_tile(x_window);
-        auto x_resi = load_tile(x_residual_window);
+        using AccTensorType = decltype(cast_tile<ComputeDataType>(load_tile(x_window)));
 
-        // load gamma (TODO: support no gamma?)
-        const auto gamma = load_tile(gamma_window);
-        
+        AccTensorType x_warp_tensors[Repeat_N];
+
+        auto square_sum = decltype(block_reduce2d(AccTensorType{},
+                                                  reduce_square_sum_func.GetIdentityValue<ComputeDataType>(),
+                                                  reduce_square_sum_func)){};
+        clear_tile(square_sum);
+
         const auto sm_scale_window =
             make_tile_window(sm_scale_window_, MakeSmoothInputScaleTileDistribution());
 
-        auto acc = cast_tile<ComputeDataType>(x);
-
-        if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD ||
-                     kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
+#pragma unroll
+        for (int repeat_n = 0; repeat_n < Repeat_N; ++repeat_n)
         {
-            sweep_tile(x_resi, [&](auto idx) {
-                // compute x = x_resi + x
-                acc(idx) = type_convert<ComputeDataType>(x_resi(idx)) + acc(idx);
-            });
-            if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
-            {
-                store_tile(y_residual_window, cast_tile<YResidualDataType>(acc));
-            }
-        }
+            auto x = load_tile(x_window);
+            x_window.move({0, Stride_N});
 
+            auto x_resi = load_tile(x_residual_window);
+            if constexpr(x_resi.is_valid())
+                move_tile_window(x_residual_window, {0, Stride_N});
+
+            // load gamma (TODO: support no gamma?)
+            
+
+            x_warp_tensors[repeat_n] = cast_tile<ComputeDataType>(x);
+
+            if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD ||
+                         kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
+            {
+                sweep_tile(x_resi, [&](auto idx) {
+                    // compute x = x_resi + x
+                    x_warp_tensors[repeat_n](idx) = type_convert<ComputeDataType>(x_resi(idx)) + x_warp_tensors[repeat_n](idx);
+                });
+                if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
+                {
+                    store_tile(y_residual_window, cast_tile<YResidualDataType>(x_warp_tensors[repeat_n]));
+                    if constexpr(x_resi.is_valid())
+                        move_tile_window(y_residual_window, {0, Stride_N});
+                }
+            }
+
+            // compute mean square each-thread->cross-lane->cross-warp
+            auto square_sum_local = block_reduce2d(x_warp_tensors[repeat_n],
+                                        reduce_square_sum_func.GetIdentityValue<ComputeDataType>(),
+                                        reduce_square_sum_func);
+
+            ck_tile::sweep_tile(square_sum, [&](auto idx) {
+                square_sum(idx) += square_sum_local[idx];
+            });
+        }
         auto sm_scale = load_tile(sm_scale_window);
 
-        // compute mean square each-thread->cross-lane->cross-warp
-        auto square_sum = block_reduce2d(acc,
-                                         reduce_square_sum_func.GetIdentityValue<ComputeDataType>(),
-                                         reduce_square_sum_func);
+        const auto gamma = load_tile(gamma_window);
+
         block_reduce2d_sync(square_sum, reduce_sum_func);
         block_reduce2d_cross_warp_sync(square_sum, smem, reduce_sum_func);
 
@@ -141,21 +190,24 @@ struct Rmsnorm2dFwdPipelineOnePass
             store_tile(inv_rms_window, cast_tile<InvRmsDataType>(inv_rms));
 
         // rmsnorm computation
-        auto rmsn = make_static_distributed_tensor<ComputeDataType>(x.get_tile_distribution());
-        sweep_tile(rmsn, [&, inv_rms_ = inv_rms](auto idx) {
-            constexpr auto i_idx = make_tuple(idx[number<0>{}]);
-            constexpr auto j_idx = make_tuple(idx[number<1>{}]);
+        auto rmsn = make_static_distributed_tensor<ComputeDataType>(Policy::template MakeXBlockTileDistribution<Problem>());
 
-            const auto gamma_ = type_convert<ComputeDataType>(gamma[j_idx]);
+        static_for<0, Repeat_N, 1>{}([&](auto repeat_n)
+        {
+            sweep_tile(x_warp_tensors[0], [&, inv_rms_ = inv_rms](auto idx) {
+                constexpr auto i_idx = make_tuple(idx[number<0>{}]);
+                constexpr auto j_idx = make_tuple(idx[number<1>{}]);
 
-            auto rmsn_ = acc[idx] * inv_rms_[i_idx] * gamma_;
+                const auto gamma_ = type_convert<ComputeDataType>(gamma[j_idx]);
 
-            rmsn(idx) = rmsn_;
-            if constexpr(sm_scale.is_valid())
-            {
-                const auto xs_ = type_convert<ComputeDataType>(sm_scale[j_idx]);
-                rmsn(idx)  = rmsn(idx) * xs_;
-            }
+                auto rmsn_ = x_warp_tensors[repeat_n][idx] * inv_rms_[i_idx] * gamma_;
+
+                if constexpr(sm_scale.is_valid())
+                {
+                    const auto xs_ = type_convert<ComputeDataType>(sm_scale[j_idx]);
+                    x_warp_tensors[repeat_n](idx) = rmsn_ * xs_;
+                }
+            });
         });
 
         if constexpr(kFusedQuant == Rmsnorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT)
@@ -163,27 +215,27 @@ struct Rmsnorm2dFwdPipelineOnePass
             if constexpr(kSaveUnquant)
             {
                 Epilogue{}(
-                    unquant_y_window, y_window_, sm_scale_window_, y_scale_window_, rmsn, smem);
+                    unquant_y_window, o_all_window, sm_scale_window_, y_scale_window_, x_warp_tensors, true, smem);
             }
             else
             {
-                Epilogue{}(y_window_, sm_scale_window_, y_scale_window_, rmsn, smem);
+                Epilogue{}(o_window, sm_scale_window_, y_scale_window_, x_warp_tensors, true, smem);
             }
         }
         else if constexpr(kFusedQuant == Rmsnorm2dFusedQuantEnum::DYNAMIC_QUANT)
         {
             if constexpr(kSaveUnquant)
             {
-                Epilogue{}(unquant_y_window, y_window_, y_scale_window_, rmsn, smem);
+                Epilogue{}(unquant_y_window, o_all_window, y_scale_window_, rmsn, smem);
             }
             else
             {
-                Epilogue{}(y_window_, y_scale_window_, rmsn, smem);
+                Epilogue{}(o_all_window, y_scale_window_, rmsn, smem);
             }
         }
         else
         {
-            Epilogue{}(y_window_, rmsn);
+            Epilogue{}(o_all_window, rmsn);
         }
     }
 };

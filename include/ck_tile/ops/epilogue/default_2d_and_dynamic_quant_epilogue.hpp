@@ -86,6 +86,22 @@ struct Default2DAndDynamicQuantEpilogue
         Default2D{}(o_direct_dram_window_tmp, o_acc_tile, smem);
         DynamicQuant{}(o_quant_dram_window_tmp, y_scale_window, o_acc_tile, smem);
     }
+
+    template <typename ODramWindowTmpD,
+              typename ODramWindowTmpQ,
+              typename SmoothScaleWindow,
+              typename YScaleWindow,
+              typename OAccTiles>
+    CK_TILE_DEVICE auto operator()(ODramWindowTmpD& o_direct_dram_window_tmp,
+                                   ODramWindowTmpQ& o_quant_dram_window_tmp,
+                                   const SmoothScaleWindow& sm_scale_window_,
+                                   YScaleWindow& y_scale_window,
+                                   OAccTiles& o_acc_tiles,
+                                   const bool isArray,
+                                   void* smem)
+    {
+        // DynamicQuant{}(o_quant_dram_window_tmp, sm_scale_window_, y_scale_window, o_acc_tiles, true, smem);
+    }
 };
 
 } // namespace ck_tile
