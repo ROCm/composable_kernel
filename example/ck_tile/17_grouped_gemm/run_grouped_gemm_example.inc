@@ -302,12 +302,12 @@ int run_grouped_gemm_example_with_layouts(int argc,
         
         std::array<const void*, DssDataType::size()> ds_ptr_buf = {d0_m_n_dev_buf[i]->GetDeviceBuffer(),
                                                               d1_m_n_dev_buf[i]->GetDeviceBuffer()};
-        std::array<ck_tile::index_t, DssDataType::size()> stridesDs = {stride_D0s[i], stride_D1s[1]};                                                      
+        std::array<ck_tile::index_t, DssDataType::size()> stridesDs = {stride_D0s[i], stride_D1s[i]};                                                      
         gemm_descs.push_back(
             {p_a, p_b, ds_ptr_buf, p_c, kbatch, M, N, K, stride_As[i], stride_Bs[i], stridesDs, stride_Cs[i]});
     }
 
-    using CDElementWiseFn = ck_tile::element_wise::PassThrough; // D0 for A scale; D1 for B scale
+    using CDElementWiseFn = ck_tile::element_wise::MultiDMultiply; // D0 for A scale; D1 for B scale
    
     invoke_gemm<GemmConfig,
                 ADataType,
@@ -326,10 +326,10 @@ int run_grouped_gemm_example_with_layouts(int argc,
     {
         c_m_n_dev_buf[i]->FromDevice(c_m_n_tensors[i].data());
     }
-    for(int i = 0; i < 100; i++)
-    {
-        printf("%f \n",ck_tile::type_convert<float>(c_m_n_tensors[0](0,i)));
-    }
+    // for(int i = 0; i < 100; i++)
+    // {
+    //     printf("%f \n",ck_tile::type_convert<float>(c_m_n_tensors[0](0,i)));
+    // }
     bool pass{true};
     if(validate)
     {
@@ -338,8 +338,17 @@ int run_grouped_gemm_example_with_layouts(int argc,
             ck_tile::HostTensor<CDataType> c_m_n_host_ref(ck_tile::host_tensor_descriptor(
                 Ms[i], Ns[i], stride_Cs[i], is_row_major(CLayout{})));
             c_m_n_host_ref.SetZero();
-            ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
-                a_m_k_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
+
+            ck_tile::reference_gemm_multiple_d<ADataType,
+                                       BDataType,
+                                       DssDataType,
+                                       AccDataType,
+                                       CDataType,
+                                       CDElementWiseFn>(
+            a_m_k_tensors[i], b_k_n_tensors[i], {d0_m_n_tensors[i], d1_m_n_tensors[i]}, c_m_n_host_ref);
+
+            // ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
+            //     a_m_k_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
             const float max_accumulated_value =
                 *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
             const auto rtol_atol =
