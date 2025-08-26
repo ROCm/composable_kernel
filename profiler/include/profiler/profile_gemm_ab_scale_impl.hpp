@@ -48,6 +48,7 @@ bool profile_gemm_ab_scale_impl(int do_verification,
                                 int StrideA,
                                 int StrideB,
                                 int StrideE,
+				int KBatch,
                                 int n_warmup,
                                 int n_iter,
                                 uint64_t rotating = 0)
@@ -77,7 +78,7 @@ bool profile_gemm_ab_scale_impl(int do_verification,
 
     ck::utils::validate_gemm_stride<ALayout>(M, K, StrideA, "StrideA");
     ck::utils::validate_gemm_stride<BLayout>(K, N, StrideB, "StrideB");
-    ck::utils::validate_gemm_stride<BLayout>(M, N, StrideE, "StrideE");
+    ck::utils::validate_gemm_stride<ELayout>(M, N, StrideE, "StrideE");
 
     Tensor<A0DataType> a0_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<A1DataType> a1_m_k(f_host_tensor_descriptor((M + ScaleBlockM - 1) / ScaleBlockM,
@@ -243,6 +244,7 @@ bool profile_gemm_ab_scale_impl(int do_verification,
                                         a_element_op,
                                         b_element_op,
                                         c_element_op);
+	op_ptr->SetKBatch(argument_ptr.get(), KBatch);
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 

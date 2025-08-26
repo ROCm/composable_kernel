@@ -169,6 +169,7 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
 
             index_t gdx, gdy, gdz;
             std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(arg.M, arg.N, arg.KBatch);
+	    std::cout << "GridSize: " << gdx << "x" << gdy << "x" << gdz << " = " << gdx * gdy * gdz << std::endl;
 
             float ave_time = 0;
 
@@ -300,6 +301,12 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
             return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
+
+    void SetKBatch(BaseArgument* base_arg, int KBatch) const override
+    {
+	auto& arg = *dynamic_cast<Argument*>(base_arg);
+	arg.KBatch = KBatch;
+    }
 
     static constexpr bool IsValidCompilationParameter()
     {

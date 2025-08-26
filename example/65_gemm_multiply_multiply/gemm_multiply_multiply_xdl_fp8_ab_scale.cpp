@@ -59,20 +59,35 @@ static constexpr ck::index_t Scale_Block_M = 1;
 static constexpr ck::index_t Scale_Block_N = 128;
 static constexpr ck::index_t Scale_Block_K = 128;
 
+//using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
+//    // clang-format off
+//         <Row, Col, DsLayout, ELayout,
+//          A0DataType, A1DataType, B0DataType, B1DataType, DsDataType, EDataType, AccDataType, CShuffleDataType, 
+//          AElementOp,  BElementOp, CDEElementOp, GemmSpec,
+//          256, Scale_Block_M, Scale_Block_N, Scale_Block_K,
+//          128, 128,
+//          128, 16, 16,
+//          16,   16,
+//          4,    4,
+//          S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+//          S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+//          1,    2,  S<1, 32, 1, 8>,  S<8>,
+//          ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, FP8>;
+//// clang-format on
 using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
     // clang-format off
          <Row, Col, DsLayout, ELayout,
           A0DataType, A1DataType, B0DataType, B1DataType, DsDataType, EDataType, AccDataType, CShuffleDataType, 
           AElementOp,  BElementOp, CDEElementOp, GemmSpec,
           256, Scale_Block_M, Scale_Block_N, Scale_Block_K,
-          128, 128,
-          128, 16, 16,
-          16,   16,
-          4,    4,
-          S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-          S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-          1,    2,  S<1, 32, 1, 8>,  S<8>,
-          ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, FP8>;
+          16, 64, 256,
+          16, 16,
+          16, 16,
+          1,   1,
+          S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+          S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+          1,    1,  S<1, 16, 1, 16>,  S<4>,
+          ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, FP8>;
 // clang-format on
 
 int main(int argc, char* argv[])
@@ -91,6 +106,8 @@ int main(int argc, char* argv[])
     ck::index_t StrideB = K;
     ck::index_t StrideE = N;
 
+    ck::index_t KBatch = 1;
+
     if(argc == 1)
     {
         // use default case
@@ -101,7 +118,7 @@ int main(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
     }
-    else if(argc == 8)
+    else if(argc == 8 || argc == 9)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
@@ -112,6 +129,9 @@ int main(int argc, char* argv[])
         K = std::stoi(argv[6]);
 
         flush_cache = std::stoi(argv[7]);
+
+	if (argc == 9)
+	    KBatch = std::stoi(argv[8]);
 
         StrideA = K;
         StrideB = K;
@@ -124,6 +144,7 @@ int main(int argc, char* argv[])
         printf("arg3: time kernel (0=no, 1=yes)\n");
         printf("arg4 to 6: M, N, K\n");
         printf("arg7: flush both I$ and L2$ (0=no, 1=yes)\n");
+        printf("arg8: KBatch (default: 1)\n");
         exit(0);
     }
 
@@ -251,6 +272,7 @@ int main(int argc, char* argv[])
                                            a_element_op,
                                            b_element_op,
                                            cde_element_op);
+    argument.KBatch = KBatch;
 
     if(!device_op.IsSupportedArgument(argument))
     {

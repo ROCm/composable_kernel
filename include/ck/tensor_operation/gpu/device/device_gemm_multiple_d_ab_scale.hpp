@@ -58,6 +58,8 @@ struct DeviceGemmMultipleD_ABScale : public BaseOperator
                         CDEElementwiseOperation cde_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
+
+    virtual void SetKBatch(BaseArgument* arg, int KBatch) const = 0;
 };
 
 template <typename ALayout,
