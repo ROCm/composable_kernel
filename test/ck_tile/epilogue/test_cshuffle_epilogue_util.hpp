@@ -5,10 +5,11 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/hip_check_error.hpp"
-#include "ck_tile/ops/epilogue/cshuffle_epilogue.hpp"
 #include "ck_tile/ops/elementwise.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
+#include "ck_tile/ops/epilogue/epilogue_chainer.hpp"
+#include "ck_tile/ops/epilogue/cshuffle_chained_epilogues.hpp"
 
 #include <iostream>
 #include <memory>
@@ -73,11 +74,18 @@ __global__ void test_cshuffle_epilogue_kernel(typename Problem::ODataType* __res
                 n_scale, make_tuple(M, N), make_tuple(0, 1), number<1>{}, number<1>{}),
             make_tuple(number<Problem::kMPerBlock>{}, number<Problem::kNPerBlock>{}),
             {0, 0});
-        Epilogue{}(output_tile_window, acc_tile, empty_ds, smem, m_scale_window, n_scale_window);
+        
+        // Use the new interface with separate argument tuples
+        auto init_args = make_tuple();
+        auto main_args = make_tuple(make_tuple(), make_tuple(m_scale_window, n_scale_window), make_tuple(), make_tuple(), make_tuple(), make_tuple(), make_tuple());
+        auto final_args = make_tuple();
+        
+        EpilogueScale{}(output_tile_window, acc_tile, empty_ds, smem, init_args, main_args, final_args, std::true_type{});
     }
     else
     {
-        Epilogue{}(output_tile_window, acc_tile, empty_ds, smem);
+        // Simple interface - no arguments needed
+        Epilogue{}(output_tile_window, acc_tile, empty_ds, smem, std::true_type{});
     }
 }
 
