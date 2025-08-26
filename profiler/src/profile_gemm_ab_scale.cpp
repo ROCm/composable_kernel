@@ -57,7 +57,7 @@ int profile_gemm_ab_scale(int argc, char* argv[])
         printf("arg7: print tensor value (0: no; 1: yes)\n");
         printf("arg8: time kernel (0=no, 1=yes)\n");
         printf("arg9 to 14: M, N, K, StrideA, StrideB, StrideE\n");
-	printf("arg15: KBatch (default: 1)\n");
+        printf("arg15: KBatch (default: 1)\n");
         printf("optional:\n");
         printf("arg16: number of warm-up cycles (default 1)\n");
         printf("arg17: number of iterations (default 10)\n");
@@ -151,7 +151,7 @@ int profile_gemm_ab_scale(int argc, char* argv[])
             (StrideA < 0) ? DefaultStrideA : StrideA,
             (StrideB < 0) ? DefaultStrideB : StrideB,
             (StrideE < 0) ? DefaultStrideE : StrideE,
-	    KBatch,
+            KBatch,
             n_warmup,
             n_iter,
             rotating);

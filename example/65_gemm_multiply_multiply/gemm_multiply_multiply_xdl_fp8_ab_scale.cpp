@@ -60,7 +60,7 @@ static constexpr ck::index_t Scale_Block_N = 128;
 static constexpr ck::index_t Scale_Block_K = 128;
 
 using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
-// clang-format off
+    // clang-format off
          <Row, Col, DsLayout, ELayout,
           A0DataType, A1DataType, B0DataType, B1DataType, DsDataType, EDataType, AccDataType, CShuffleDataType, 
           AElementOp,  BElementOp, CDEElementOp, GemmSpec,
@@ -115,8 +115,8 @@ int main(int argc, char* argv[])
 
         flush_cache = std::stoi(argv[7]);
 
-	if (argc == 9)
-	    KBatch = std::stoi(argv[8]);
+        if(argc == 9)
+            KBatch = std::stoi(argv[8]);
 
         StrideA = K;
         StrideB = K;
@@ -239,9 +239,9 @@ int main(int argc, char* argv[])
     constexpr ck::index_t NumDTensor = DsDataType::Size();
 
     // do GEMM
-    auto device_op = DeviceOpInstance{};
-    auto invoker   = device_op.MakeInvoker();
-    auto argument  = device_op.MakeArgument(a0_device_buf.GetDeviceBuffer(),
+    auto device_op  = DeviceOpInstance{};
+    auto invoker    = device_op.MakeInvoker();
+    auto argument   = device_op.MakeArgument(a0_device_buf.GetDeviceBuffer(),
                                            b0_device_buf.GetDeviceBuffer(),
                                            std::array<const void*, NumDTensor>{},
                                            e_device_buf.GetDeviceBuffer(),

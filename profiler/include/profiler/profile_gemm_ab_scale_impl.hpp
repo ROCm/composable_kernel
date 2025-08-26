@@ -48,7 +48,7 @@ bool profile_gemm_ab_scale_impl(int do_verification,
                                 int StrideA,
                                 int StrideB,
                                 int StrideE,
-				int KBatch,
+                                int KBatch,
                                 int n_warmup,
                                 int n_iter,
                                 uint64_t rotating = 0)
@@ -244,7 +244,7 @@ bool profile_gemm_ab_scale_impl(int do_verification,
                                         a_element_op,
                                         b_element_op,
                                         c_element_op);
-	op_ptr->SetKBatch(argument_ptr.get(), KBatch);
+        op_ptr->SetKBatch(argument_ptr.get(), KBatch);
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
