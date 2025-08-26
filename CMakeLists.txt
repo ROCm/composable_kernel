@@ -21,7 +21,7 @@ if(NOT WIN32)
     set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
 endif()
 
-set(version 1.1.0)
+set(version 1.2.0)
 # Check support for CUDA/HIP in Cmake
 project(composable_kernel VERSION ${version} LANGUAGES CXX HIP)
 include(CTest)
@@ -225,6 +225,8 @@ if (SUPPORTED_GPU_TARGETS MATCHES "gfx11" OR SUPPORTED_GPU_TARGETS MATCHES "gfx1
     message(STATUS "Enabling WMMA instances")
     add_definitions(-DCK_USE_WMMA)
     set(CK_USE_WMMA "ON")
+    add_definitions(-DCK_TILE_USE_WMMA)
+    set(CK_TILE_USE_WMMA "ON")
 endif()
 if (SUPPORTED_GPU_TARGETS MATCHES "gfx12")
     message(STATUS "Enabling WMMA FP8 gemms on native architectures")
@@ -324,21 +326,10 @@ if(USE_BITINT_EXTENSION_INT4)
     message(STATUS "CK compiled with USE_BITINT_EXTENSION_INT4 set to ${USE_BITINT_EXTENSION_INT4}")
 endif()
 
-if(USE_OPT_GFX11)
-    add_compile_options(-mcumode)
-    add_compile_options(-mno-wavefrontsize64)
-    message(STATUS "CK compiled with USE_OPT_GFX11 set to ${USE_OPT_GFX11}")
-endif()
-
 if(ENABLE_ASM_DUMP)
     add_compile_options(--save-temps) 
     add_compile_options(-Wno-gnu-line-marker)
     message("CK compiled with ENABLE_ASM_DUMP set to ${ENABLE_ASM_DUMP}")
-endif()
-
-if(USE_OPT_GFX12 AND (SUPPORTED_GPU_TARGETS MATCHES "gfx12"))
-    add_compile_options(-mno-wavefrontsize64)
-    message(STATUS "CK compiled with USE_OPT_GFX12 set to ${USE_OPT_GFX12}")
 endif()
 
 ## Threads
