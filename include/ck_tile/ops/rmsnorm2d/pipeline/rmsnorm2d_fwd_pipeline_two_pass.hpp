@@ -195,7 +195,7 @@ struct Rmsnorm2dFwdPipelineTwoPass
             });
 
             static_assert(kFusedQuant == Rmsnorm2dFusedQuantEnum::NO_SWEEP);
-            Epilogue{}(y_window, rmsn);
+            Epilogue{}(y_window, rmsn, nullptr);
 
             move_tile_window(gamma_window, {-Block_N});
             move_tile_window(y_window, {0, -Block_N});

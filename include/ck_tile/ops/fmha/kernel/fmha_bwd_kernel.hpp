@@ -1134,8 +1134,8 @@ struct FmhaBwdDQDKDVKernel
                                                              scale_rp_undrop,
                                                              dropout);
 
-            KGradEpiloguePipeline{}(dk_dram_window, dk_acc_tile);
-            VGradEpiloguePipeline{}(dv_dram_window, dv_acc_tile);
+            KGradEpiloguePipeline{}(dk_dram_window, dk_acc_tile, nullptr);
+            VGradEpiloguePipeline{}(dv_dram_window, dv_acc_tile, nullptr);
         }
         else
         {
