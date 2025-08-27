@@ -14,6 +14,7 @@ namespace ck_tile {
 template <typename ADataType_,
           typename AQDataType_,
           typename BDataType_,
+          typename BQDataType_,
           typename CDataType_,
           typename BlockGemmShape_,
           typename Traits_,
@@ -22,12 +23,12 @@ template <typename ADataType_,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
           bool HasHotLoop_                 = true,
           TailNumber TailNum_              = TailNumber::Full>
-struct GemmAQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_,
-                                                                      BDataType_,
-                                                                      CDataType_,
-                                                                      BlockGemmShape_,
-                                                                      Traits_,
-                                                                      ComputeDataType_>
+struct GemmQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_,
+                                                                     BDataType_,
+                                                                     CDataType_,
+                                                                     BlockGemmShape_,
+                                                                     Traits_,
+                                                                     ComputeDataType_>
 {
     using Base = GemmPipelineProblemBase<ADataType_,
                                          BDataType_,
@@ -43,6 +44,7 @@ struct GemmAQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_
     using typename Base::CDataType;
     using typename Base::ComputeDataType;
     using AQDataType = remove_cvref_t<AQDataType_>;
+    using BQDataType = remove_cvref_t<BQDataType_>;
 
     using BlockGemmShape = typename Base::BlockGemmShape;
 
@@ -62,6 +64,7 @@ struct GemmAQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_
     using Base::VectorLoadSize;
 
     using AQLayout = remove_cvref_t<typename Traits::AQLayout>;
+    using BQLayout = remove_cvref_t<typename Traits::BQLayout>;
 
     static constexpr uint32_t kQuantGroupSize = QuantGroupSize_;
     static constexpr auto Scheduler           = Scheduler_;
@@ -106,16 +109,40 @@ template <typename ADataType_,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
           bool HasHotLoop_                 = true,
           TailNumber TailNum_              = TailNumber::Full>
-using GemmAQuantPipelineProblem = GemmAQuantPipelineProblemBase<ADataType_,
-                                                                AQDataType_,
-                                                                BDataType_,
-                                                                CDataType_,
-                                                                BlockGemmShape_,
-                                                                Traits_,
-                                                                QuantGroupSize_,
-                                                                ComputeDataType_,
-                                                                Scheduler_,
-                                                                HasHotLoop_,
-                                                                TailNum_>;
+using GemmAQuantPipelineProblem = GemmQuantPipelineProblemBase<ADataType_,
+                                                               AQDataType_,
+                                                               BDataType_,
+                                                               void,  // no BQDataType for AQuant
+                                                               CDataType_,
+                                                               BlockGemmShape_,
+                                                               Traits_,
+                                                               QuantGroupSize_,
+                                                               ComputeDataType_,
+                                                               Scheduler_,
+                                                               HasHotLoop_,
+                                                               TailNum_>;
+
+template <typename ADataType_,
+          typename BDataType_,
+          typename CDataType_,
+          typename AccDataType_,
+          typename BlockGemmShape_,
+          typename Traits_,
+          typename ComputeDataType_        = BDataType_,
+          GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
+          bool HasHotLoop_                 = true,
+          TailNumber TailNum_              = TailNumber::Full>
+using GemmRowColQuantPipelineProblem = GemmQuantPipelineProblemBase<ADataType_,
+                                                               AccDataType_,
+                                                               BDataType_,
+                                                               AccDataType_,
+                                                               CDataType_,
+                                                               BlockGemmShape_,
+                                                               Traits_,
+                                                               0, // no group size applicable
+                                                               ComputeDataType_,
+                                                               Scheduler_,
+                                                               HasHotLoop_,
+                                                               TailNum_>;
 
 } // namespace ck_tile
