@@ -1937,7 +1937,7 @@ struct XdlopsGemm
     template <bool SwizzleA>
     __device__ static auto GetGfx11InputBlkIdx()
     {
-        const auto laneId = GetLaneId() % mfma_instr.num_threads_per_blk;
+        auto laneId = GetLaneId() % mfma_instr.num_threads_per_blk;
         if constexpr(SwizzleA)
         {
             laneId = ((laneId & 1) << 3) | (laneId >> 1);
