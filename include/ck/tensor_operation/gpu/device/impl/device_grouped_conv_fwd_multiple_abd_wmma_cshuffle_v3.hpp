@@ -320,7 +320,8 @@ template <index_t NDimSpatial,
                                       ADataType>()), // ComputeType is InputType by default (first
                                                      // in tuple for MultiAB), unpack if tuple was
                                                      // passed
-          typename BComputeDataType = AComputeDataType>
+          typename BComputeDataType = AComputeDataType,
+          index_t NumGroupsToMerge  = 1>
 struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
     : public DeviceGroupedConvFwdMultipleABD<NDimSpatial,
                                              ALayout,
@@ -339,7 +340,7 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
 {
     using DeviceOp = DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3;
 
-    static constexpr index_t NumGroupsToMerge = 1; // TODO: Implement merge groups.
+    static_assert(NumGroupsToMerge >= 1);
 
     static constexpr bool isMultiA  = is_detected<is_tuple, ADataType>::value;
     static constexpr bool isMultiB  = is_detected<is_tuple, BDataType>::value;
@@ -809,9 +810,11 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
         {
             // A/B/E Batch/N Stride
             compute_ptr_offset_of_groups_.BatchStrideA_ =
-                CTranspose ? b_g_k_c_xs_strides_[0] : a_g_n_c_wis_strides_[0];
+                CTranspose ? b_g_k_c_xs_strides_[0] * NumGroupsToMerge
+                           : a_g_n_c_wis_strides_[0] * NumGroupsToMerge;
             compute_ptr_offset_of_groups_.BatchStrideB_ =
-                CTranspose ? a_g_n_c_wis_strides_[0] : b_g_k_c_xs_strides_[0];
+                CTranspose ? a_g_n_c_wis_strides_[0] * NumGroupsToMerge
+                           : b_g_k_c_xs_strides_[0] * NumGroupsToMerge;
             compute_ptr_offset_of_n_.BatchStrideA_ =
                 CTranspose ? 0 : a_g_n_c_wis_strides_[1] * conv_N_per_block_;
             compute_ptr_offset_of_n_.BatchStrideB_ =
@@ -825,7 +828,8 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
             static_for<0, NumDTensor, 1>{}([&](auto i) {
                 using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
                 // D batch stride
-                compute_ptr_offset_of_groups_.BatchStrideDs_(i) = ds_g_n_k_wos_strides_[i][0];
+                compute_ptr_offset_of_groups_.BatchStrideDs_(i) =
+                    ds_g_n_k_wos_strides_[i][0] * NumGroupsToMerge;
                 compute_ptr_offset_of_n_.BatchStrideDs_(i) =
                     ds_g_n_k_wos_strides_[i][1] * conv_N_per_block_;
 
@@ -845,7 +849,8 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                     DeviceOp::MakeEGridDescriptor_M_N<DLayout>(conv_to_gemm_transformer_d);
             });
 
-            compute_ptr_offset_of_groups_.BatchStrideE_ = e_g_n_k_wos_strides_[0];
+            compute_ptr_offset_of_groups_.BatchStrideE_ =
+                e_g_n_k_wos_strides_[0] * NumGroupsToMerge;
             compute_ptr_offset_of_n_.BatchStrideE_ = e_g_n_k_wos_strides_[1] * conv_N_per_block_;
 
             if constexpr(NeedTransposeKernel)
@@ -1056,7 +1061,7 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                     : GridwiseGemmCTranspose::CalculateGridSize(GemmM, GemmN, I1 /*arg.KBatch*/);
 
             // TODO: Suspicious use of grid dims. Check run function.
-            gdy = arg.num_group_;
+            gdy = arg.num_group_ / NumGroupsToMerge;
             gdz = num_workgroups_per_Conv_N;
 
             // TODO: does this need to be updated for splitK?
@@ -1498,6 +1503,70 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                 }
             }
         }
+        else if constexpr(ConvForwardSpecialization == ConvolutionForwardSpecialization::Filter3x3)
+        {
+            if(C != 1)
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "When using 3x3 ConvSpec C must be 1!" << " In " << __FILE__ << ":"
+                              << __LINE__ << ", in function: " << __func__ << std::endl;
+                }
+                return false;
+            }
+            for(index_t i = 0; i < NDimSpatial; ++i)
+            {
+                const index_t filter_spatial_dim = arg.b_g_k_c_xs_lengths_[i + I3];
+
+                if(filter_spatial_dim != I3)
+                {
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout << "Filter spatial dims do not match 3x3 ConvSpec!" << " In "
+                                  << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                                  << std::endl;
+                    }
+                    return false;
+                }
+            }
+        }
+
+        if constexpr(NumGroupsToMerge > 1)
+        {
+            if(!(C == 1))
+            {
+                // TODO: Why this restriction?
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "When using mergegroups C must be 1!" << " In " << __FILE__ << ":"
+                              << __LINE__ << ", in function: " << __func__ << std::endl;
+                }
+                return false;
+            }
+            if(G % NumGroupsToMerge != 0)
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Number of groups must be devisable by NumGroupsToMerge!" << " In "
+                              << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                              << std::endl;
+                }
+                return false;
+            }
+            if constexpr(!(is_NSpatialGC_GKSpatial_NSpatialGK<ALayout, BLayout, ELayout>() ||
+                           is_NGCSpatial_GKSpatial_NGKSpatial<ALayout, BLayout, ELayout>() ||
+                           is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
+                           is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>()))
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported layout in combination with mergegroups!" << " In "
+                              << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                              << std::endl;
+                }
+                return false;
+            }
+        }
 
         // check vector access of A
         // FIXME: layout
@@ -1512,16 +1581,25 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
             // blocking all instances with a value of 1. I've tried some though and they work just
             // fine. So I changed it to allow a value of 1 for now but there might be cases where
             // this does not work.
+            // Check access per C
             if(!(ABlockTransferSrcVectorDim <= 2 && C % ABlockTransferSrcScalarPerVector == 0))
             {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                // If not possible, check access per G
+                if(!(ABlockTransferSrcVectorDim == 1 && (C == 1 || NumGroupsToMerge == 1) &&
+                     (is_NSpatialGC_GKSpatial_NSpatialGK<ALayout, BLayout, ELayout>() ||
+                      is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
+                      is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>()) &&
+                     G % ABlockTransferSrcScalarPerVector == 0))
                 {
-                    std::cout << "[A Layout] The number of input channels is not a multiple of "
-                                 "ABlockTransferSrcScalarPerVector!"
-                              << " In " << __FILE__ << ":" << __LINE__
-                              << ", in function: " << __func__ << std::endl;
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout << "[A Layout] The number of input channels is not a multiple of "
+                                     "ABlockTransferSrcScalarPerVector!"
+                                  << " In " << __FILE__ << ":" << __LINE__
+                                  << ", in function: " << __func__ << std::endl;
+                    }
+                    return false;
                 }
-                return false;
             }
         }
         else if constexpr(is_same_v<ALayout, ctc::NGCHW> || is_same_v<ALayout, ctc::NGCDHW>)
@@ -1533,16 +1611,22 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
             {
                 if(ABlockTransferSrcVectorDim != 1)
                 {
-                    std::cout << "ABlockTransferSrcVectorDim must be 1!" << " In " << __FILE__
-                              << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout << "ABlockTransferSrcVectorDim must be 1!" << " In " << __FILE__
+                                  << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
+                    }
                     return false;
                 }
                 if(input_spatial_acum % ABlockTransferSrcScalarPerVector != 0)
                 {
-                    std::cout << "[A Layout] The number of input channels is not a multiple of "
-                                 "ABlockTransferSrcScalarPerVector!"
-                              << " In " << __FILE__ << ":" << __LINE__
-                              << ", in function: " << __func__ << std::endl;
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout << "[A Layout] The number of input channels is not a multiple of "
+                                     "ABlockTransferSrcScalarPerVector!"
+                                  << " In " << __FILE__ << ":" << __LINE__
+                                  << ", in function: " << __func__ << std::endl;
+                    }
                     return false;
                 }
             }
@@ -2037,7 +2121,8 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
             << "BlkGemmPipelineScheduler: "
             << BlkGemmPipelineSchedulerToString[BlkGemmPipeSched] << ", "
             << "BlkGemmPipelineVersion: "
-            << BlkGemmPipelineVersionToString[BlkGemmPipelineVer]
+            << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
+            << NumGroupsToMerge
             << ">";
         // clang-format on
 
