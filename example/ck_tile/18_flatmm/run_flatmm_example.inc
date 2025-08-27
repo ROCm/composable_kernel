@@ -40,8 +40,8 @@ template <typename FlatmmConfig, typename T>
 auto shuffle_b(const ck_tile::HostTensor<T>& t)
 {
     assert(t.get_lengths().size() == 2);
-    int n_                = t.get_lengths()[1];
-    int k_                = t.get_lengths()[0];
+    int n_ = t.get_lengths()[1];
+    int k_ = t.get_lengths()[0];
 
     int divisor = ck_tile::is_wave32() ? (FlatmmConfig::N_Warp_Tile == 32 ? 1 : 2)
                                        : (FlatmmConfig::N_Warp_Tile == 32 ? 2 : 4);
