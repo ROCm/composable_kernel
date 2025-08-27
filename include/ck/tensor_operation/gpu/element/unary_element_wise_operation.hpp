@@ -100,18 +100,19 @@ __device__ inline f8x8_t i4_to_fp8x8(int q)
 #if defined(__gfx12__)
     uint32_t fp8x4_0;
     uint32_t fp8x4_1;
-    float f32_0 = __builtin_amdgcn_cvt_off_f32_i4(q);
-    float f32_1 = __builtin_amdgcn_cvt_off_f32_i4(q >> 16);
+    // todo: replace amd_assemble_cvt_f32_i4 with __builtin_amdgcn_cvt_off_f32_i4
+    float f32_0 = amd_assemble_cvt_f32_i4(q);
+    float f32_1 = amd_assemble_cvt_f32_i4(q >> 16);
     fp8x4_0     = __builtin_amdgcn_cvt_pk_fp8_f32(f32_0, f32_1, 0, 0);
-    float f32_2 = __builtin_amdgcn_cvt_off_f32_i4(q >> 8);
-    float f32_3 = __builtin_amdgcn_cvt_off_f32_i4(q >> 24);
+    float f32_2 = amd_assemble_cvt_f32_i4(q >> 8);
+    float f32_3 = amd_assemble_cvt_f32_i4(q >> 24);
     fp8x4_1     = __builtin_amdgcn_cvt_pk_fp8_f32(f32_2, f32_3, 0, 0);
     q           = q >> 4;
-    f32_0       = __builtin_amdgcn_cvt_off_f32_i4(q);
-    f32_1       = __builtin_amdgcn_cvt_off_f32_i4(q >> 16);
+    f32_0       = amd_assemble_cvt_f32_i4(q);
+    f32_1       = amd_assemble_cvt_f32_i4(q >> 16);
     fp8x4_0     = __builtin_amdgcn_cvt_pk_fp8_f32(f32_0, f32_1, fp8x4_0, 1);
-    f32_2       = __builtin_amdgcn_cvt_off_f32_i4(q >> 8);
-    f32_3       = __builtin_amdgcn_cvt_off_f32_i4(q >> 24);
+    f32_2       = amd_assemble_cvt_f32_i4(q >> 8);
+    f32_3       = amd_assemble_cvt_f32_i4(q >> 24);
     fp8x4_1     = __builtin_amdgcn_cvt_pk_fp8_f32(f32_2, f32_3, fp8x4_1, 1);
     return bit_cast<f8x8_t>(((static_cast<uint64_t>(fp8x4_1) << 32) | fp8x4_0));
 #else
