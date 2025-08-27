@@ -131,5 +131,4 @@ constexpr bool Persistent = true;
 int main(int argc, char* argv[])
 {
     run_grouped_gemm_example<Persistent, GemmConfigComputeV3_2>(argc, argv);
-    // run_grouped_gemm_example<Persistent, GemmConfigComputeV4>(argc, argv);
 }
