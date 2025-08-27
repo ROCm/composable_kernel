@@ -147,11 +147,19 @@ class TraitConfig:
 
 
 @dataclass
+class TunableParams:
+    """Configuration class for kernel traits."""
+
+    kBlockPerCu: int
+
+
+@dataclass
 class JsonConfig:
     """Main configuration class for GEMM operations"""
 
     tile_config: TileConfig
     trait_config: TraitConfig
+    tunable_params: TunableParams
 
     @classmethod
     def from_json(cls: Type["JsonConfig"], filepath: str) -> "JsonConfig":
@@ -214,7 +222,16 @@ class JsonConfig:
                 ),
             )
 
-            return cls(tile_config=tile_config, trait_config=trait_config)
+            # Tunable params
+            tunable_params = TunableParams(
+                kBlockPerCu=config_dict["tunable_params"]["kBlockPerCu"]
+            )
+
+            return cls(
+                tunable_params=tunable_params,
+                tile_config=tile_config,
+                trait_config=trait_config,
+            )
 
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON format: {str(e)}")

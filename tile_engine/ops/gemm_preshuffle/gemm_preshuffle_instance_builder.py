@@ -375,7 +375,7 @@ struct GemmKernel {{
         static constexpr ck_tile::index_t NumWaveGroups = 1;
 
         // Variables overridden in Preshuffle Config
-        static constexpr int kBlockPerCu           = 2;
+        static constexpr int kBlockPerCu           = {self.config.tunable_params.kBlockPerCu};
         static constexpr bool Preshuffle           = true;
 
         static constexpr bool DoubleSmemBuffer ={"true" if pipeline == "preshufflev2" else "false"};
