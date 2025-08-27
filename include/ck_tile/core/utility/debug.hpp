@@ -154,7 +154,6 @@ struct CK_PRINTF_WARP0 : public CK_PRINTF<ConvertTo, FMT, PREFIX, SUFFIX>
     }
 };
 
-/*
  /*
  * RAII struct which inserts start/end markers into the generated assembly.
  *
@@ -166,13 +165,10 @@ struct CK_PRINTF_WARP0 : public CK_PRINTF<ConvertTo, FMT, PREFIX, SUFFIX>
  *
  * Example:
  *   {
- *       AsmScopeMarker marker;   // Emits CK_ASM_SCOPE_START
- *
+ *       [[maybe_unused]] AsmScopeMarker marker;   // Emits CK_ASM_SCOPE_START
  *       // ... code you want to delimit in assembly ...
- *
  *   } // marker goes out of scope → Emits CK_ASM_SCOPE_END
  *
- */
  */
 struct AsmScopeMarker
 {
