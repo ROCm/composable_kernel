@@ -18,6 +18,9 @@
 #endif
 
 #define ADD_SBARRIER_FOR_PHASE0 1
+#if !defined(CK_TILE_DISABLE_PACKED_FP32)
+#define CK_TILE_DISABLE_PACKED_FP32 0
+#endif
 
 #define WARP_ID 0
 #define LANE_ID 0
@@ -113,9 +116,9 @@ struct CoreLoopScheduler<PipelineProblem, /*kIsMasking=*/false>
             else if constexpr(Phase == 1) {}
             else if constexpr(Phase == 2)
             {
-                /// FIXME: remove v_perm_b32 (fp32->bf16 conversion) and re-write following
-                /// sched_group_barrier() calls
+#if !CK_TILE_DISABLE_PACKED_FP32
                 __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
+#endif
                 static_for<0, 8, 1>{}([&](auto) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
                     __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
@@ -137,9 +140,9 @@ struct CoreLoopScheduler<PipelineProblem, /*kIsMasking=*/false>
             else if constexpr(Phase == 2) {}
             else if constexpr(Phase == 3)
             {
-                /// FIXME: remove v_perm_b32 (fp32->bf16 conversion) and re-write following
-                /// sched_group_barrier() calls
+#if !CK_TILE_DISABLE_PACKED_FP32
                 __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
+#endif
                 static_for<0, 8, 1>{}([&](auto) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
                     __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
@@ -152,11 +155,15 @@ struct CoreLoopScheduler<PipelineProblem, /*kIsMasking=*/false>
 namespace detail {
 CK_TILE_DEVICE float fma_impl_vsv(float a, float b, float c)
 {
+#if CK_TILE_DISABLE_PACKED_FP32
+    return a * b + c;
+#else
     float result;
     asm volatile("v_fma_f32 %[result], %[a], %[b], %[c]"
                  : [result] "=v"(result)
                  : [a] "v"(a), [b] "s"(b), [c] "v"(c));
     return result;
+#endif
 }
 
 CK_TILE_DEVICE fp16x2_t cvt_pk_fp16_f32(float a, float b)
@@ -184,16 +191,6 @@ CK_TILE_DEVICE fp32x2_t pk_mul_f32(fp32x2_t lhs, fp32x2_t rhs)
                  : [result] "=v"(result)
                  : [lhs] "v"(lhs), [rhs] "v"(rhs));
     return result;
-}
-
-/// TODO: Use op_sel/op_sel_hi to avoid copy
-CK_TILE_DEVICE fp32x2_t pk_mul_f32(fp32x2_t lhs, float rhs)
-{
-    fp32x2_t pk_rhs;
-    pk_rhs.x = rhs;
-    pk_rhs.y = rhs;
-
-    return pk_mul_f32(lhs, pk_rhs);
 }
 } // namespace detail
 
@@ -809,16 +806,33 @@ struct BlockFmhaFwdV3Pipeline
         auto fmha_alu_D_upd = [&] {
             o_acc_scale = ck_tile::exp2(scale_s * (m_old.thread_buf_[0] - m.thread_buf_[0]));
 
+            fp32x2_t pk_o_acc_scale;
+            pk_o_acc_scale.x = o_acc_scale;
+            pk_o_acc_scale.y = o_acc_scale;
+
+            static_assert((o_acc.thread_buf_.size() - fmha_alu_D_reg_cnt) % 2 == 0);
+#if CK_TILE_DISABLE_PACKED_FP32
+            static_assert(fmha_alu_D_reg_cnt + 2 <= o_acc.thread_buf_.size());
+            static_for<fmha_alu_D_reg_cnt, fmha_alu_D_reg_cnt + 2, 1>{}(
+                [&](auto idx) { o_acc.thread_buf_[idx] *= o_acc_scale; });
+#endif
+
+            constexpr auto issued_D_reg_cnt =
+#if CK_TILE_DISABLE_PACKED_FP32
+                fmha_alu_D_reg_cnt + 2
+#else
+                fmha_alu_D_reg_cnt
+#endif
+                ;
             /// NOTICE: Use inline asm v_pk_mul_f32 to reduce latency. The fmha_alu_D_upd() call
             /// should be placed at the end of a phase.
-            // update partial o_acc after [fmha_alu_D_reg_cnt]
-            static_assert((o_acc.thread_buf_.size() - fmha_alu_D_reg_cnt) % 2 == 0);
-            static_for<fmha_alu_D_reg_cnt, o_acc.thread_buf_.size(), 2>{}([&](auto idx) {
+            // update partial o_acc after [issued_D_reg_cnt]
+            static_for<issued_D_reg_cnt, o_acc.thread_buf_.size(), 2>{}([&](auto idx) {
                 fp32x2_t input;
                 input.x = o_acc.thread_buf_[idx];
                 input.y = o_acc.thread_buf_[idx + 1];
 
-                auto output = detail::pk_mul_f32(input, o_acc_scale);
+                auto output = detail::pk_mul_f32(input, pk_o_acc_scale);
 
                 o_acc.thread_buf_[idx]     = output.x;
                 o_acc.thread_buf_[idx + 1] = output.y;
