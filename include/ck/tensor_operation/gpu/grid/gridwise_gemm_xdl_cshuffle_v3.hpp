@@ -1375,6 +1375,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
     {
 #if defined(__gfx950__)
             return 
+                !DoElementwiseBeforeCShuffle &&
                 std::is_same_v<CShuffleDataType, ck::bhalf_t> &&
                 std::is_same_v<AccDataType, float>;
 #else
@@ -1651,9 +1652,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                     CShuffleDataType,
                                                     decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                     decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                    conditional_t<DoElementwiseBeforeCShuffle,
-                                                                CElementwiseOperation,
-                                                                tensor_operation::element_wise::PassThrough>,
+                                                    tensor_operation::element_wise::PassThrough,
                                                     Sequence<CShuffleMXdlPerWavePerShuffle,
                                                             CShuffleNXdlPerWavePerShuffle,
                                                             I1,
@@ -2117,7 +2116,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                     CShuffleDataType,
                                                     decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                     decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                    ck::tensor_operation::element_wise::PassThrough,
+                                                    conditional_t<DoElementwiseBeforeCShuffle,
+                                                        CElementwiseOperation,
+                                                        tensor_operation::element_wise::PassThrough>,
                                                     Sequence<CShuffleMXdlPerWavePerShuffle,
                                                                 CShuffleNXdlPerWavePerShuffle,
                                                                 I1,
