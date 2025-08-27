@@ -269,14 +269,10 @@ int run_grouped_gemm_example_with_layouts(int argc,
                   << " b_k_n: " << b_k_n_tensors[i].mDesc << " c_m_n: " << c_m_n_tensors[i].mDesc
                   << std::endl;
 
-        // ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k_tensors[i]);
-        // ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensors[i]);
-        // ck_tile::FillUniformDistribution<DsDataType>{-1.f, 1.f}(d0_m_n_tensors[i]);
-        // ck_tile::FillUniformDistribution<DsDataType>{-1.f, 1.f}(d1_m_n_tensors[i]);
-        ck_tile::FillUniformDistribution<ADataType>{0.5f, 0.5f}(a_m_k_tensors[i]);
-        ck_tile::FillUniformDistribution<BDataType>{0.5f, 0.5f}(b_k_n_tensors[i]);
-        ck_tile::FillUniformDistribution<DsDataType>{4.f, 4.f}(d0_m_n_tensors[i]);
-        ck_tile::FillUniformDistribution<DsDataType>{6.f, 6.f}(d1_m_n_tensors[i]);
+        ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k_tensors[i]);
+        ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensors[i]);
+        ck_tile::FillUniformDistribution<DsDataType>{-1.f, 1.f}(d0_m_n_tensors[i]);
+        ck_tile::FillUniformDistribution<DsDataType>{-1.f, 1.f}(d1_m_n_tensors[i]);
         a_m_k_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
             a_m_k_tensors[i].get_element_space_size_in_bytes()));
         b_k_n_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
