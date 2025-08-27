@@ -723,6 +723,7 @@ struct QuantGemmKernel
             }
             else if constexpr(kQuantType == QuantType::RowColQuant)
             {
+                // TODO: verify that this is the correct window size and offset for the epilogue!
                 return make_tile_window(
                     aq_pad_view,
                     make_tuple(number<TilePartitioner::MPerBlock>{},
@@ -755,6 +756,7 @@ struct QuantGemmKernel
         const auto& bq_block_window = [&]() {
             if constexpr(kQuantType == QuantType::RowColQuant)
             {
+                // TODO: verify that this is the correct window size and offset for the epilogue!
                 return make_tile_window(
                     bq_pad_view,
                     make_tuple(number<TilePartitioner::MPerBlock>{},

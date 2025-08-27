@@ -77,7 +77,25 @@ test_cshuffle_epilogue_kernel(typename Problem::ODataType* __restrict__ output_d
     // Call the epilogue
     if constexpr(UseScale)
     {
-        Epilogue{}(output_tile_window, acc_tile, empty_ds, smem, m_scale, n_scale);
+        const auto m_scale_window = make_tile_window(
+            make_naive_tensor_view<address_space_enum::global>(
+                m_scale,
+                make_tuple(M, N),
+                make_tuple(1, 0),
+                number<1>{},
+                number<1>{}),
+            make_tuple(number<Problem::kMPerBlock>{}, number<Problem::kNPerBlock>{}),
+            {0, 0});
+        const auto n_scale_window = make_tile_window(
+            make_naive_tensor_view<address_space_enum::global>(
+                n_scale,
+                make_tuple(M, N),
+                make_tuple(0, 1),
+                number<1>{},
+                number<1>{}),
+            make_tuple(number<Problem::kMPerBlock>{}, number<Problem::kNPerBlock>{}),
+            {0, 0});
+        Epilogue{}(output_tile_window, acc_tile, empty_ds, smem, m_scale_window, n_scale_window);
     }
     else
     {

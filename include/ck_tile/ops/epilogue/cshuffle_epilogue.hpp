@@ -263,37 +263,13 @@ struct CShuffleEpilogue
     }
 
     template <auto iAccess, typename LdsTile, typename ScaleM, typename ScaleN, typename LdsTileDstr>
-    CK_TILE_DEVICE void scale_tile(LdsTile& lds_tile, const ScaleM* scale_m, const ScaleN* scale_n, const LdsTileDstr& lds_tile_dstr)
+    CK_TILE_DEVICE void scale_tile(LdsTile& lds_tile, const ScaleM& scale_m_window, const ScaleN& scale_n_window, const LdsTileDstr& lds_tile_dstr)
     {
-        // Create tensors for scales
-        const auto scale_m_tensor_view = make_naive_tensor_view<address_space_enum::global>(
-            scale_m,
-            make_tuple(kMPerBlock, kNPerBlock),  // TODO: need total size
-            make_tuple(1, 0),  // broadcasting over n
-            number<1>{},
-            number<1>{});
-        const auto scale_m_tensor_window = make_tile_window(
-            scale_m_tensor_view,
-            make_tuple(kMPerBlock, kNPerBlock),
-            {0, 0},  // TODO: need offset to tensor view
-            lds_tile_dstr);
-        
-        const auto scale_n_tensor_view = make_naive_tensor_view<address_space_enum::global>(
-            scale_n,
-            make_tuple(kMPerBlock, kNPerBlock),  // TODO: need total size
-            make_tuple(0, 1),  // broadcasting over m
-            number<1>{},
-            number<1>{});
-        const auto scale_n_tensor_window = make_tile_window(
-            scale_n_tensor_view,
-            make_tuple(kMPerBlock, kNPerBlock),
-            {0, 0},   // TODO: need offset to tensor view
-            lds_tile_dstr);
-        
         // Load tiles
-        const auto scale_m_tile = load_tile(scale_m_tensor_window);
-        const auto scale_n_tile = load_tile(scale_n_tensor_window);
+        const auto scale_m_tile = load_tile(make_tile_window(scale_m_window, lds_tile_dstr));
+        const auto scale_n_tile = load_tile(make_tile_window(scale_n_window, lds_tile_dstr));
 
+        // Compute element-wise product in-place i.e. lds_tile = lds_tile * scale_m * scale_n
         tile_elementwise_inout(element_wise::MultiDMultiply{}, lds_tile, lds_tile, scale_m_tile, scale_n_tile);
 #if 0
         // TODO: try to get rid off these here, and get them from elsewhere
@@ -395,14 +371,14 @@ struct CShuffleEpilogue
             });
         }
     }
-
+    // TODO: use some better type also here for "empty" types, not nullptr_t
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename ScaleM=std::nullptr_t, typename ScaleN=std::nullptr_t>
     CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window,
                                    const OAccTile& o_acc_tile,
                                    const DsDramWindows& ds_dram_windows,
                                    void* p_smem,
-                                   ScaleM* scale_m = nullptr,
-                                   ScaleN* scale_n = nullptr)
+                                   const ScaleM& scale_m = nullptr,
+                                   const ScaleN& scale_n = nullptr)
     {
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
 
