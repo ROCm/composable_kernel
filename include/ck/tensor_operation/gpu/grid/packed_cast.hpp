@@ -6,6 +6,7 @@
 
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/type_convert.hpp"
+#include "ck/utility/static_buffer.hpp"
 #include "ck/tensor_description/tensor_space_filling_curve.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
@@ -54,6 +55,7 @@ namespace ck {
 
       static_assert(!has_odd_element, "PackedCastV2 does not support odd number of elements");
 
+      ck::float2_t float2_buffer;
       static_for<0, num_pairs, 1>{}([&](auto i_pair) 
       {
         constexpr auto idx_1d_0 = I2 * i_pair;
@@ -64,9 +66,26 @@ namespace ck {
         constexpr index_t src_offset_0 = src_desc.CalculateOffset(src_slice_origin_idx + idx_md_0);
         constexpr index_t src_offset_1 = src_desc.CalculateOffset(src_slice_origin_idx + idx_md_1);
 
-        float& val_0 = src_buf(Number<src_offset_0>{});
-        const float val_1 = src_buf[Number<src_offset_1>{}];     
-        static_cast_float_to_bhalf_packed_v2(val_0, val_1);
+        if constexpr (src_offset_1 - src_offset_0 == 1)
+        {
+            // Load two consecutive float values from the src buffer
+            float2_buffer = src_buf.template GetAsType<ck::float2_t>(Number<src_offset_0>{});
+        }
+        else 
+        {
+            // Load the two float values one by one
+            float2_buffer= {src_buf[Number<src_offset_0>{}], src_buf[Number<src_offset_1>{}]};
+        }
+
+        // Store the packed bfloat2 value back to the src buffer
+        // Note: The value is stored to the space of the first float value.
+        const ck::bhalf2_t packed_value= bf16x2_convert_rne<ck::bhalf2_t, float>(float2_buffer[0], float2_buffer[1]);
+        union {
+            ck::bhalf2_t bhalf2;
+            float fp32;
+        } converter;
+        converter.bhalf2 = packed_value;
+        src_buf(Number<src_offset_0>{}) = converter.fp32;
       });
     };
   };
