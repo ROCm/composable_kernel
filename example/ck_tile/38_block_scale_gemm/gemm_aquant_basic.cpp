@@ -8,107 +8,118 @@
 #include <string>
 #include <tuple>
 
-#include "ck_tile/core/config.hpp"
-#include "ck_tile/host.hpp"
 #include "gemm_utils.hpp"
 
 template <typename GemmConfig,
           typename ADataType,
           typename AQDataType,
           typename BDataType,
-          typename DsDataType,
           typename AccDataType,
           typename CDataType,
           typename ComputeDataType,
           typename ALayout,
           typename BLayout,
-          typename DsLayout,
-          typename ELayout,
-          uint32_t QuantGroupSize,
-          typename CDEElementWise>
+          typename CLayout,
+          uint32_t QuantGroupSize>
 float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::stream_config& s)
 {
-    static_assert(std::is_same_v<ELayout, ck_tile::tensor_layout::gemm::RowMajor>);
+    constexpr bool kPadM = false;
+    constexpr bool kPadN = false;
+    constexpr bool kPadK = false;
 
-    using GemmShape = ck_tile::TileGemmShape<
-        ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
-        ck_tile::sequence<GemmConfig::M_Warp, GemmConfig::N_Warp, GemmConfig::K_Warp>,
-        ck_tile::
-            sequence<GemmConfig::M_Warp_Tile, GemmConfig::N_Warp_Tile, GemmConfig::K_Warp_Tile>>;
+    constexpr int kBlockPerCu = 1;
 
-    using TilePartitioner = ck_tile::GemmTile1DPartitioner<GemmShape>;
+    static_assert(std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::RowMajor>);
 
-    using Traits = ck_tile::TileGemmAQuantTraits<GemmConfig::kPadM,
-                                                 GemmConfig::kPadN,
-                                                 GemmConfig::kPadK,
-                                                 ALayout,
-                                                 BLayout,
-                                                 ELayout>;
+    constexpr ck_tile::index_t M_Tile = GemmConfig::M_Tile;
+    constexpr ck_tile::index_t N_Tile = GemmConfig::N_Tile;
+    constexpr ck_tile::index_t K_Tile = GemmConfig::K_Tile;
+
+    constexpr ck_tile::index_t M_Warp = GemmConfig::M_Warp;
+    constexpr ck_tile::index_t N_Warp = GemmConfig::N_Warp;
+    constexpr ck_tile::index_t K_Warp = GemmConfig::K_Warp;
+
+    constexpr ck_tile::index_t M_Warp_Tile = GemmConfig::M_Warp_Tile;
+    constexpr ck_tile::index_t N_Warp_Tile = GemmConfig::N_Warp_Tile;
+    constexpr ck_tile::index_t K_Warp_Tile = GemmConfig::K_Warp_Tile;
+
+    using CodegenGemmShape =
+        ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
+                               ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
+                               ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
+
+    using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenGemmShape>;
+
+    using CodegenGemmTraits = ck_tile::TileGemmAQuantTraits<kPadM,
+                                                            kPadN,
+                                                            kPadK,
+                                                            GemmConfig::PreshuffleQuant,
+                                                            ALayout,
+                                                            BLayout,
+                                                            CLayout>;
 
     using GemmPipelineProblem = ck_tile::GemmPipelineProblemBase<ADataType,
                                                                  BDataType,
                                                                  AccDataType,
-                                                                 GemmShape,
-                                                                 Traits,
+                                                                 CodegenGemmShape,
+                                                                 CodegenGemmTraits,
                                                                  ComputeDataType>;
 
-    using BaseGemmPipeline = typename PipelineTypeTraits<
-        GemmConfig::Pipeline>::template UniversalGemmPipeline<GemmPipelineProblem>;
+    using BaseGemmPipeline = ck_tile::BaseAQuantGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
 
-    const ck_tile::index_t K_split =
-        (args.K + GemmConfig::K_Tile - 1) / GemmConfig::K_Tile * GemmConfig::K_Tile;
-    const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
-    const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
-    const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
-    float ave_time{0};
+    const ck_tile::index_t K_split      = (args.K + K_Tile - 1) / K_Tile * K_Tile;
+    const ck_tile::index_t num_loop     = TilePartitioner::GetLoopNum(K_split);
+    const bool has_hot_loop             = BaseGemmPipeline::BlockHasHotloop(num_loop);
+    const ck_tile::TailNumber tail_num  = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
+    constexpr bool transposed_warp_gemm = false;
 
-    const auto Run = [&](const auto has_hot_loop_,
-                         const auto tail_number_,
-                         const auto memory_operation_) {
-        constexpr bool has_hot_loop_v   = has_hot_loop_.value;
-        constexpr auto tail_number_v    = tail_number_.value;
-        constexpr auto scheduler        = GemmConfig::Scheduler;
-        constexpr auto memory_operation = memory_operation_.value;
+    const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
+        constexpr bool has_hot_loop_v = has_hot_loop_.value;
+        constexpr auto tail_number_v  = tail_number_.value;
 
-        using UniversalGemmProblem = ck_tile::GemmAQuantPipelineProblem<ADataType,
-                                                                        AQDataType,
-                                                                        BDataType,
-                                                                        AccDataType,
-                                                                        GemmShape,
-                                                                        Traits,
-                                                                        QuantGroupSize,
-                                                                        ComputeDataType,
-                                                                        scheduler,
-                                                                        has_hot_loop_v,
-                                                                        tail_number_v>;
-        using GemmPipeline         = typename PipelineTypeTraits<
-                    GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
-
-        using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<ADataType,
-                                             BDataType,
-                                             DsDataType,
-                                             AccDataType,
-                                             CDataType,
-                                             DsLayout,
-                                             ELayout,
-                                             CDEElementWise,
-                                             UniversalGemmProblem::kBlockSize,
-                                             TilePartitioner::MPerBlock,
-                                             TilePartitioner::NPerBlock,
-                                             GemmConfig::M_Warp,
-                                             GemmConfig::N_Warp,
-                                             GemmConfig::M_Warp_Tile,
-                                             GemmConfig::N_Warp_Tile,
-                                             GemmConfig::K_Warp_Tile,
-                                             UniversalGemmProblem::TransposeC,
-                                             memory_operation>>;
-        using Kernel = ck_tile::AQuantGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        using CodegenPipelineProblem =
+            ck_tile::GemmAQuantPipelineProblem<ADataType,
+                                               AQDataType,
+                                               BDataType,
+                                               AccDataType,
+                                               CodegenGemmShape,
+                                               CodegenGemmTraits,
+                                               QuantGroupSize,
+                                               ComputeDataType,
+                                               ck_tile::GemmPipelineScheduler::Intrawave,
+                                               has_hot_loop_v,
+                                               tail_number_v>;
+        using CodegenGemmPipeline = ck_tile::AQuantGemmPipelineAgBgCrCompV3<CodegenPipelineProblem>;
+        using GemmEpilogue        = ck_tile::CShuffleEpilogue<
+                   ck_tile::CShuffleEpilogueProblem<ADataType,
+                                                    BDataType,
+                                                    ck_tile::tuple<>,
+                                                    AccDataType,
+                                                    CDataType,
+                                                    ck_tile::tuple<>,
+                                                    CLayout,
+                                                    ck_tile::element_wise::PassThrough,
+                                                    TilePartitioner::MPerBlock,
+                                                    TilePartitioner::NPerBlock,
+                                                    M_Warp,
+                                                    N_Warp,
+                                                    M_Warp_Tile,
+                                                    N_Warp_Tile,
+                                                    K_Warp_Tile,
+                                                    transposed_warp_gemm,
+                                                    ck_tile::memory_operation_enum::set>>;
+        using Kernel =
+            ck_tile::AQuantGemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
 
         auto kargs = Kernel::MakeKernelArgs(args);
 
-        const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
-        constexpr dim3 blocks = Kernel::BlockSize();
+        const dim3 grids  = Kernel::GridSize(args.M, args.N, args.k_batch);
+        const dim3 blocks = Kernel::BlockSize();
+
+        if(args.k_batch != 1)
+        {
+            throw std::runtime_error("split-k is not supported yet!");
+        }
 
         if(!Kernel::IsSupportedArgument(kargs))
         {
@@ -118,36 +129,20 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
         if(s.log_level_ > 0)
         {
             std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
-                      << "shape: " << GemmShape::GetName() << '\n'
-                      << "problem: " << UniversalGemmProblem::GetName() << '\n'
-                      << "pipeline: " << GemmPipeline::GetName() << '\n'
+                      << "shape: " << CodegenGemmShape::GetName() << '\n'
+                      << "problem: " << CodegenPipelineProblem::GetName() << '\n'
+                      << "pipeline: " << CodegenGemmPipeline::GetName() << '\n'
                       << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
                       << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
                       << std::endl;
         }
 
-        ave_time = ck_tile::launch_kernel(s,
-                                          ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(
-                                              Kernel{}, grids, blocks, 0, kargs));
+        float ave_time = ck_tile::launch_kernel(
+            s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 
         return ave_time;
     };
-    const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
-        if(args.k_batch == 1)
-        {
-            Run(has_hot_loop_,
-                tail_number_,
-                ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::set>{});
-        }
-        else
-        {
-            throw std::runtime_error("split-k is not supported yet!");
-        }
-    };
-
-    BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
-    return ave_time;
+    return BaseGemmPipeline::TailHandler(Run, has_hot_loop, tail_num);
 }
 
 #include "run_gemm_aquant_example.inc"
@@ -180,7 +175,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     return 0;
 }
 
-template <typename GemmConfig>
+template <template <typename PreType> typename GemmConfig>
 int run_gemm_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -194,46 +189,33 @@ int run_gemm_example(int argc, char* argv[])
     if(data_type == "fp8")
     {
         using TypeConfig =
-            decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>{});
-        return run_gemm_example_prec_type<GemmConfig, TypeConfig, 128>(
+            decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t, float>{});
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
     else if(data_type == "bf8")
     {
-        using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, float>{});
-        return run_gemm_example_prec_type<GemmConfig, TypeConfig, 128>(
+        using TypeConfig =
+            decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t, float>{});
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
     else if(data_type == "i4fp8")
     {
         using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t,
                                                         ck_tile::fp8_t,
-                                                        float,
+                                                        ck_tile::half_t,
                                                         ck_tile::fp8_t>{});
-        return run_gemm_example_prec_type<GemmConfig, TypeConfig, 128>(
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
     else if(data_type == "i4bf8")
     {
         using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t,
                                                         ck_tile::bf8_t,
-                                                        float,
+                                                        ck_tile::half_t,
                                                         ck_tile::bf8_t>{});
-        return run_gemm_example_prec_type<GemmConfig, TypeConfig, 128>(
-            a_layout, b_layout, argc, argv);
-    }
-    else if(data_type == "i4f32fp8")
-    {
-        using TypeConfig =
-            decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::fp8_t, float, float>{});
-        return run_gemm_example_prec_type<GemmConfig, TypeConfig, 128>(
-            a_layout, b_layout, argc, argv);
-    }
-    else if(data_type == "i4f32bf8")
-    {
-        using TypeConfig =
-            decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::bf8_t, float, float>{});
-        return run_gemm_example_prec_type<GemmConfig, TypeConfig, 128>(
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
     else
@@ -242,17 +224,4 @@ int run_gemm_example(int argc, char* argv[])
     }
 }
 
-int main(int argc, char* argv[])
-{
-    try
-    {
-        return !run_gemm_example<GemmConfigAQuantComputeV3>(argc, argv);
-    }
-    catch(const std::runtime_error& e)
-    {
-        std::cerr << "Caught runtime error: " << e.what() << '\n';
-        // Return a non-zero code to indicate failure
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
+int main(int argc, char* argv[]) { return !run_gemm_example<GemmConfigDecode>(argc, argv); }

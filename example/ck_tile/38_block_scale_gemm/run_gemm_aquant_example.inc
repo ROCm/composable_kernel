@@ -1,9 +1,11 @@
+
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 #include <bit>
 #include <random>
+#include <stdexcept>
 
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
@@ -12,41 +14,35 @@ static constexpr inline auto is_row_major(Layout layout_)
                                                  ck_tile::tensor_layout::gemm::RowMajor>>{};
 }
 
-template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
-auto calculate_rtol_atol(const ck_tile::index_t K,
-                         const ck_tile::index_t kbatch,
-                         const float max_accumulated_value)
+template <typename T>
+auto shuffle_aq(const ck_tile::HostTensor<T>& t, int block_aq_k)
 {
-    using ComputeType =
-        std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
-    // Calculate thresholds
-    const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType, AccDataType>(
-        ck_tile::integer_divide_ceil(K, kbatch));
-    const auto atol = ck_tile::get_absolute_threshold<ComputeType, CDataType, AccDataType>(
-        max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
-    // Calculate error due to split_k accumulation
-    const auto rtol_split_k =
-        ck_tile::get_relative_threshold<CDataType, CDataType, CDataType>(kbatch);
-    const auto atol_split_k = ck_tile::get_absolute_threshold<CDataType, CDataType, CDataType>(
-        max_accumulated_value, kbatch);
-    // Use higher threshold
-    return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
+    if(t.get_lengths().size() != 2)
+    {
+        throw std::runtime_error("Host tensor is not rank 2 tensor.");
+    }
+    int m_   = t.get_lengths()[0];
+    int aqk_ = t.get_lengths()[1];
+    if(aqk_ % block_aq_k != 0)
+    {
+        throw std::runtime_error("shuffle_aq needs a aqk of multiple times of block_aq_k.");
+    }
+    ck_tile::HostTensor<T> t_view({m_, aqk_ / block_aq_k, block_aq_k});
+    std::copy(t.begin(), t.end(), t_view.begin());
+    return ck_tile::reference_permute(t_view, {1, 0, 2});
 }
 
 template <typename GemmConfig,
           typename ADataType,
           typename AQDataType,
           typename BDataType,
-          typename DsDataType,
           typename AccDataType,
           typename CDataType,
           typename ALayout,
           typename AQLayout,
           typename BLayout,
-          typename DsLayout,
           typename CLayout,
-          uint32_t QuantGroupSize,
-          typename CDEElementWise = ck_tile::element_wise::PassThrough>
+          uint32_t QuantGroupSize>
 float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   ck_tile::DeviceMem& aq_m_aqk_dev_buf,
                   ck_tile::DeviceMem& b_k_n_dev_buf,
@@ -82,16 +78,13 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                       ADataType,
                                       AQDataType,
                                       BDataType,
-                                      DsDataType,
                                       AccDataType,
                                       CDataType,
-                                      BDataType, // computeDatatype
+                                      BDataType,
                                       ALayout,
                                       BLayout,
-                                      DsLayout,
                                       CLayout,
-                                      QuantGroupSize,
-                                      CDEElementWise>(
+                                      QuantGroupSize>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::size_t flop     = std::size_t(2) * M * N * K;
@@ -214,8 +207,18 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
 
+    if constexpr(GemmConfig::PreshuffleQuant)
+    {
+        ck_tile::HostTensor<AQDataType> aq_shuffle_host =
+            shuffle_aq(aq_m_aqk, GemmConfig::K_Tile / QuantGroupSize);
+        aq_m_aqk_dev_buf.ToDevice(aq_shuffle_host.data());
+    }
+    else
+    {
+        aq_m_aqk_dev_buf.ToDevice(aq_m_aqk.data());
+    }
+
     a_m_k_dev_buf.ToDevice(a_m_k.data());
-    aq_m_aqk_dev_buf.ToDevice(aq_m_aqk.data());
     b_k_n_dev_buf.ToDevice(b_k_n.data());
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
@@ -224,13 +227,11 @@ int run_gemm_example_with_layouts(int argc,
                 ADataType,
                 AQDataType,
                 BDataType,
-                ck_tile::tuple<>,
                 AccDataType,
                 CDataType,
                 ALayout,
                 AQLayout,
                 BLayout,
-                ck_tile::tuple<>,
                 CLayout,
                 QuantGroupSize>(a_m_k_dev_buf,
                                 aq_m_aqk_dev_buf,

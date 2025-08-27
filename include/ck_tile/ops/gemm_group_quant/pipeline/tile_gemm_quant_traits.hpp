@@ -10,6 +10,7 @@ namespace ck_tile {
 template <bool kPadM_,
           bool kPadN_,
           bool kPadK_,
+          bool Preshuffle_,
           typename ALayout_,
           typename BLayout_,
           typename CLayout_,
@@ -55,6 +56,7 @@ struct TileGemmBQuantTraits
     static constexpr bool TransposeC            = false;
     static constexpr bool UseStructuredSparsity = false;
     static constexpr index_t NumWaveGroups      = 1;
+    static constexpr bool Preshuffle            = Preshuffle_;
 };
 
 } // namespace ck_tile
