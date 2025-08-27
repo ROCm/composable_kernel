@@ -908,10 +908,10 @@ def run_pytorch_tests(Map conf=[:]){
     withDockerContainer(image: image, args: dockerOpts) {
         timeout(time: 45, unit: 'MINUTES'){
             try{
-                dir("/tmp/pytorch"){
-                    sh "python3 tools/amd_build/build_amd.py"
-                    sh "USE_ROCM_CK_SDPA=1 PYTORCH_ROCM_ARCH=gfx942 python setup.py develop"
-                }
+                sh "rocminfo"
+                sh "python3 --version"
+                sh "python3 /tmp/pytorch/tools/amd_build/build_amd.py"
+                sh "USE_ROCM_CK_SDPA=1 PYTORCH_ROCM_ARCH=gfx942 python /tmp/pytorch/setup.py develop"
             }
             catch(e){
                 echo "Throwing error exception while building Pytorch"
