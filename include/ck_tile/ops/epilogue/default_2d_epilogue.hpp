@@ -57,6 +57,7 @@ struct DefaultGemm2DEpilogueProblem : public Default2DEpilogueProblem<AccDataTyp
     using BDataType                        = remove_cvref_t<BDataType_>;
     using CLayout                          = remove_cvref_t<CLayout_>;
     using DsDataType                       = remove_cvref_t<DsDataType_>;
+    using CDElementwise                    = remove_cvref_t<CDElementwise_>;
     using DsLayout                         = remove_cvref_t<DsLayout_>;
     static constexpr index_t kMPerBlock    = kM_;
     static constexpr index_t kNPerBlock    = kN_;
