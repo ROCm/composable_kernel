@@ -92,7 +92,7 @@ int run_a16w4_moe_gemm_example_with_layouts(int argc,
     // TODO: replace the magic declaration
     const ck_tile::index_t MPerBlock = FlatmmConfig::M_Tile;
 
-    ck_tile::index_t sorted_tile_num = num_tokens * topk / MPerBlock;
+    ck_tile::index_t sorted_tile_num = (num_tokens + MPerBlock - 1) / MPerBlock * MPerBlock * topk;
     ck_tile::index_t valid_tile_num  = sorted_tile_num;
     ck_tile::index_t sorted_size     = sorted_tile_num * MPerBlock;
 
