@@ -1358,7 +1358,7 @@ struct FmhaFwdPagedKVKernel
                 make_tuple(kargs.stride_o, 1),
                 number<FmhaPipeline::kAlignmentO>{},
                 number<1>{});
-            m return pad_tensor_view(
+            return pad_tensor_view(
                 o_dram_naive,
                 make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
                 sequence<kPadSeqLenQ, kPadHeadDimV>{});
