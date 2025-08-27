@@ -129,7 +129,6 @@ using CDEElementOp = MulABScaleExpertWeight; // combine MulRoutedWeight = true
 #if 1
 void preShuffleBuffer(const I4* src, I4* dst, int N, int K, int NXdl)
 {
-    int KPack = 32;
     int NLane = NXdl;
     int KLane = 64 / NLane;
 
@@ -169,13 +168,14 @@ static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecializatio
 static constexpr ck::index_t MPerBlock = 128;
 static constexpr ck::index_t Nswizzle  = false;
 static constexpr ck::index_t Act_OP    = 1; // 0: gelu_and_mul, 1: silu_and_mul
+static constexpr ck::index_t KPack     = 32;
 // clang-format off
 using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm<
             Row, Col, DsLayout, ELayout, 
             A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
             AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   
             256,   MPerBlock,   64,    128,
-            16,   32,
+            16,   KPack,
             16,   16,
             8,    1,
             S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
@@ -458,9 +458,10 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-    if(!(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950"))
+    if(!(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950" ||
+         ck::is_gfx11_supported() || ck::is_gfx12_supported()))
     {
-        std::cout << "This kernel support gfx942 and gfx950 only" << std::endl;
+        std::cout << "This kernel support gfx942, gfx950, gfx11 and gfx12 only" << std::endl;
     }
 
     if(time_kernel)
