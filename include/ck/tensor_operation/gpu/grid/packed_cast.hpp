@@ -111,7 +111,8 @@ namespace ck {
       using DstScalarPerAccess = Sequence<1, 1, 1, 1, 1, 1, 1, 1>;
       using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
                                                   DimAccessOrder,
-                                                  DstScalarPerAccess>;
+                                                  DstScalarPerAccess,
+                                                  false>;
 
       static_assert(SpaceFillingCurve::ScalarPerVector == 1,
                       "wrong! SpaceFillingCurve::ScalarPerVector must be 1 for PackedCastV2");

@@ -44,6 +44,8 @@ struct ThreadwiseTensorSliceTransfer_v1r3_pass_through
 
     static constexpr index_t nDim = SliceLengths::Size();
 
+    static constexpr bool SerpentineAccessPattern = false;
+
     static constexpr bool float_input_and_bf16_output_ = 
         std::is_same_v<SrcData, float> && std::is_same_v<DstData, ck::bhalf_t>;
 
@@ -96,7 +98,8 @@ struct ThreadwiseTensorSliceTransfer_v1r3_pass_through
 
         using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
                                                     DimAccessOrder,
-                                                    remove_cv_t<decltype(dst_scalar_per_access)>>;
+                                                    remove_cv_t<decltype(dst_scalar_per_access)>,
+                                                    SerpentineAccessPattern>;
 
         // TODO: Use SpaceFillingCurve::ScalarsPerAccess instread of DstScalarPerVector?
         static_assert(DstScalarPerVector == SpaceFillingCurve::ScalarPerVector,
@@ -172,7 +175,8 @@ struct ThreadwiseTensorSliceTransfer_v1r3_pass_through
 
         using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
                                                     DimAccessOrder,
-                                                    remove_cv_t<decltype(dst_scalar_per_access)>>;
+                                                    remove_cv_t<decltype(dst_scalar_per_access)>,
+                                                    SerpentineAccessPattern>;
 
         constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
         if constexpr(num_access == 0)

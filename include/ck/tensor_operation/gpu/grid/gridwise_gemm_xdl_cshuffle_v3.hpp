@@ -1646,7 +1646,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
             using ThreadwiseTransfer = std::conditional_t<
                 is_gfx650_and_bf16_output(),
-                    ThreadwiseTensorSliceTransfer_v1r3_vectorized<
+                    ThreadwiseTensorSliceTransfer_v1r3_pass_through<
                                                     AccDataType,
                                                     CShuffleDataType,
                                                     decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
@@ -1662,9 +1662,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                             I1,
                                                             M4,
                                                             I1>,
-                                                    Sequence<0, 1, 2, 3, 4, 5, 7, 6>, // swap order of last two dims for vectorized access
-                                                    6, // Fastest changing dim
-                                                    2, // Vectorized load/store
+                                                    Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                                                    7,
+                                                    1,
                                                     InMemoryDataOperationEnum::Set,
                                                     1,
                                                     true>,
@@ -1734,20 +1734,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                  lds_to_global_element_op()};
 
             // space filling curve for threadwise C in VGPR
-            using ScfVgpr = std::conditional_t<
-                is_gfx650_and_bf16_output(),
-                    SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
-                                    Sequence<0, 1, 2, 3, 4, 5, 7, 6>,
-                                    Sequence<CShuffleMXdlPerWavePerShuffle,
-                                            CShuffleNXdlPerWavePerShuffle,
-                                            1,
-                                            1,
-                                            M2,
-                                            1,
-                                            M4,
-                                            1>,
-                                    true>,
-                    SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
+            constexpr auto sfc_c_vgpr = SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
                                     Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
                                     Sequence<CShuffleMXdlPerWavePerShuffle,
                                             CShuffleNXdlPerWavePerShuffle,
@@ -1756,9 +1743,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                             M2,
                                             1,
                                             M4,
-                                            1>>
-                                                >;
-            constexpr auto sfc_c_vgpr = ScfVgpr{};
+                                            1>>{};
 
             // space filling curve for shuffled blockwise C in global mem
             constexpr auto sfc_c_global =
@@ -1777,20 +1762,20 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 // make sure it's safe to write to LDS
                 block_sync_lds();
 
-                // if constexpr (is_gfx650_and_bf16_output())
-                // {
-                //     auto c_thread_packed_cast = PackedCastV2<
-                //             M2,
-                //             M4,
-                //             CShuffleMXdlPerWavePerShuffle,
-                //             CShuffleNXdlPerWavePerShuffle
-                //         >{};
-                //     c_thread_packed_cast.Run(
-                //             c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2, // source desc (TensorDescriptor struct)
-                //             sfc_c_vgpr.GetIndexTupleOfNumber(access_id),  // source slice origin
-                //             c_thread_buf // source buffer
-                //     );
-                // }
+                if constexpr (is_gfx650_and_bf16_output())
+                {
+                    auto c_thread_packed_cast = PackedCastV2<
+                            M2,
+                            M4,
+                            CShuffleMXdlPerWavePerShuffle,
+                            CShuffleNXdlPerWavePerShuffle
+                        >{};
+                    c_thread_packed_cast.Run(
+                            c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2, // source desc (TensorDescriptor struct)
+                            sfc_c_vgpr.GetIndexTupleOfNumber(access_id),  // source slice origin
+                            c_thread_buf // source buffer
+                    );
+                }
 
                 // each thread write its data from VGPR to LDS
                 c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
@@ -2107,7 +2092,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
             using ThreadwiseTransfer = std::conditional_t<
                 is_gfx650_and_bf16_output(),
-                    ThreadwiseTensorSliceTransfer_v1r3_vectorized<
+                    ThreadwiseTensorSliceTransfer_v1r3_pass_through<
                                                     AccDataType,
                                                     CShuffleDataType,
                                                     decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
@@ -2121,9 +2106,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                                 I1,
                                                                 M4,
                                                                 I1>,
-                                                    Sequence<0, 1, 2, 3, 4, 5, 7, 6>, // swap order of last two dims for vectorized access
-                                                    6, // Fastest changing dim
-                                                    2, // Vectorized load/store
+                                                    Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                                                    7,
+                                                    1,
                                                     InMemoryDataOperationEnum::Set,
                                                     1,
                                                     true>,
@@ -2189,31 +2174,16 @@ struct GridwiseGemm_xdl_cshuffle_v3
                  problem.c_element_op_};
 
             // space filling curve for threadwise C in VGPR
-            using ScfVgpr = std::conditional_t<
-                is_gfx650_and_bf16_output(),
-                    SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
-                                    Sequence<0, 1, 2, 3, 4, 5, 7, 6>,
-                                    Sequence<CShuffleMXdlPerWavePerShuffle,
-                                            CShuffleNXdlPerWavePerShuffle,
-                                            1,
-                                            1,
-                                            M2,
-                                            1,
-                                            M4,
-                                            1>,
-                                    true>,
-                    SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
-                                    Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
-                                    Sequence<CShuffleMXdlPerWavePerShuffle,
-                                            CShuffleNXdlPerWavePerShuffle,
-                                            1,
-                                            1,
-                                            M2,
-                                            1,
-                                            M4,
-                                            1>>
-                                                >;
-            constexpr auto sfc_c_vgpr = ScfVgpr{};
+            constexpr auto sfc_c_vgpr = SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
+                                            Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                                            Sequence<CShuffleMXdlPerWavePerShuffle,
+                                                    CShuffleNXdlPerWavePerShuffle,
+                                                    1,
+                                                    1,
+                                                    M2,
+                                                    1,
+                                                    M4,
+                                                    1>>{};
 
             // space filling curve for shuffled blockwise C in global mem
             constexpr auto sfc_c_global =
@@ -2232,20 +2202,20 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 // make sure it's safe to write to LDS
                 block_sync_lds();
 
-                // if constexpr (is_gfx650_and_bf16_output())
-                // {
-                //     auto c_thread_packed_cast = PackedCastV2<
-                //             M2,
-                //             M4,
-                //             CShuffleMXdlPerWavePerShuffle,
-                //             CShuffleNXdlPerWavePerShuffle
-                //         >{};
-                //     c_thread_packed_cast.Run(
-                //             c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2, // source desc
-                //             sfc_c_vgpr.GetIndexTupleOfNumber(access_id),  // source slice origin
-                //             c_thread_buf // source buffer
-                //     );
-                // }
+                if constexpr (is_gfx650_and_bf16_output())
+                {
+                    auto c_thread_packed_cast = PackedCastV2<
+                            M2,
+                            M4,
+                            CShuffleMXdlPerWavePerShuffle,
+                            CShuffleNXdlPerWavePerShuffle
+                        >{};
+                    c_thread_packed_cast.Run(
+                            c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2, // source desc
+                            sfc_c_vgpr.GetIndexTupleOfNumber(access_id),  // source slice origin
+                            c_thread_buf // source buffer
+                    );
+                }
 
                 // each thread write its data from VGPR to LDS
                 c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
