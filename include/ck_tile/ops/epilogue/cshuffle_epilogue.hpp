@@ -8,6 +8,8 @@
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
+#include <optional>
+
 namespace ck_tile {
 
 template <typename ADataType_,
@@ -262,15 +264,25 @@ struct CShuffleEpilogue
         return MPerIterationShuffle * NPerIterationShuffle * sizeof(ODataType);
     }
 
-    template <auto iAccess, typename LdsTile, typename ScaleM, typename ScaleN, typename LdsTileDstr>
-    CK_TILE_DEVICE void scale_tile(LdsTile& lds_tile, const ScaleM& scale_m_window, const ScaleN& scale_n_window, const LdsTileDstr& lds_tile_dstr)
+    template <auto iAccess, typename LdsTile, typename ScaleM, typename ScaleN>
+    CK_TILE_DEVICE void scale_tile(LdsTile& lds_tile, ScaleM& scale_m_window, ScaleN& scale_n_window)
     {
         // Load tiles
-        const auto scale_m_tile = load_tile(make_tile_window(scale_m_window, lds_tile_dstr));
-        const auto scale_n_tile = load_tile(make_tile_window(scale_n_window, lds_tile_dstr));
+        const auto scale_m_tile = load_tile(scale_m_window);
+        const auto scale_n_tile = load_tile(scale_n_window);
 
         // Compute element-wise product in-place i.e. lds_tile = lds_tile * scale_m * scale_n
         tile_elementwise_inout(element_wise::MultiDMultiply{}, lds_tile, lds_tile, scale_m_tile, scale_n_tile);
+
+        // Move scale windows
+        constexpr index_t num_access = SFC::get_num_of_access();
+        if constexpr(iAccess != num_access - 1)
+        {
+            constexpr auto step = SFC::get_forward_step(iAccess);
+
+            move_tile_window(scale_m_window, {step.at(number<0>{}), step.at(number<1>{})});
+            move_tile_window(scale_n_window, {step.at(number<0>{}), step.at(number<1>{})});
+        }
 #if 0
         // TODO: try to get rid off these here, and get them from elsewhere
         constexpr auto idx_y_start = SFC::get_index(iAccess);
@@ -371,14 +383,16 @@ struct CShuffleEpilogue
             });
         }
     }
-    // TODO: use some better type also here for "empty" types, not nullptr_t
-    template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename ScaleM=std::nullptr_t, typename ScaleN=std::nullptr_t>
+
+    // TODO: Check if there would be nicer ways to overload rather than with EmptyScale or nullptr_t
+    struct EmptyScale {};
+    template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename ScaleM=EmptyScale, typename ScaleN=EmptyScale>
     CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window,
                                    const OAccTile& o_acc_tile,
                                    const DsDramWindows& ds_dram_windows,
                                    void* p_smem,
-                                   const ScaleM& scale_m = nullptr,
-                                   const ScaleN& scale_n = nullptr)
+                                   const ScaleM& scale_m = {},
+                                   const ScaleN& scale_n = {})
     {
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
 
@@ -418,15 +432,37 @@ struct CShuffleEpilogue
                 return make_tile_window(ds_dram_windows[idx], dram_tile_distribution);
             },
             number<NumDTensor>{});
+        
+        constexpr bool has_scales = !std::is_same<ScaleM, EmptyScale>::value &&
+                         !std::is_same<ScaleN, EmptyScale>::value;
+        auto scale_m_window = [&]() {
+            if constexpr(has_scales)
+            {
+                return make_tile_window(scale_m, lds_tile.get_tile_distribution());
+            }
+            else
+            {
+                return EmptyScale{};
+            }
+        }();
+        auto scale_n_window = [&]() {
+            if constexpr(has_scales)
+            {
+                return make_tile_window(scale_n, lds_tile.get_tile_distribution());
+            }
+            else
+            {
+                return EmptyScale{};
+            }
+        }();
 
         static_for<0, num_access, 1>{}([&](auto iAccess) {
             block_sync_lds();
             slice_acc_tile<iAccess>(o_acc_tile, lds_tile);
 
-            if constexpr(!std::is_same<ScaleM, std::nullptr_t>::value &&
-                         !std::is_same<ScaleN, std::nullptr_t>::value)
+            if constexpr(has_scales)
             {
-                scale_tile<iAccess>(lds_tile, scale_m, scale_n, LdsTileDistr);
+                scale_tile<iAccess>(lds_tile, scale_m_window, scale_n_window);
             }
 
             cast_lds_tile(lds_tile, in_lds_window);

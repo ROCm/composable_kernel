@@ -818,14 +818,13 @@ struct QuantGemmKernel
             TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
 
         // Run GEMM cooperatively by whole workgroup.
-        const auto& a_block_window  = gemm_tile_windows.at(I0);
-        const auto& aq_block_window = gemm_tile_windows.at(I1);
+        const auto& a_block_window  = gemm_tile_windows.at(I0);        
         const auto& b_block_window  = gemm_tile_windows.at(I2);
-        const auto& bq_block_window = gemm_tile_windows.at(I3);
 
         const auto& c_block_tile = [&]() {
             if constexpr(kQuantType == QuantType::AQuantGrouped)
             {
+                const auto& aq_block_window = gemm_tile_windows.at(I1);
                 return GemmPipeline{}.template operator()(
                     a_block_window, b_block_window, aq_block_window, num_loop, smem_ptr_0);
             }
@@ -847,6 +846,8 @@ struct QuantGemmKernel
         }
         else if constexpr(kQuantType == QuantType::RowColQuant)
         {
+            const auto& aq_block_window = gemm_tile_windows.at(I1);
+            const auto& bq_block_window = gemm_tile_windows.at(I3);
             EpiloguePipeline{}.template
                 operator()<decltype(c_block_window), decltype(c_block_tile), decltype(c_block_window)>(
                     c_block_window, c_block_tile, c_block_window, smem_ptr_0, aq_block_window, bq_block_window);
