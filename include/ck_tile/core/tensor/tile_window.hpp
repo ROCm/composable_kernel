@@ -288,8 +288,11 @@ struct tile_window_with_static_distribution
                 sizeof(LdsDataType) -
             size_per_buf;
 
-        const index_t m0_init_value = size_per_buf + size_per_wave * get_warp_id();
-        m0_set_with_memory(m0_init_value); // This should be wave independent
+        // Use VALU so the compiler can optimize redundant/repeated computations
+        const index_t m0_init_value =
+            size_per_buf + size_per_wave * get_warp_id(/*ReturnSgpr=*/bool_constant<false>{});
+        m0_set_with_memory(
+            __builtin_amdgcn_readfirstlane(m0_init_value)); // This should be wave independent
 
         using Traits = typename Base::Traits;
 

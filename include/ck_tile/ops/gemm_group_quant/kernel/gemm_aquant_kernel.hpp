@@ -131,7 +131,7 @@ struct AQuantGemmKernel
         return dim3(TilePartitioner::GridSize(M, N), 1, KBatch);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
+    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
 
     CK_TILE_HOST static constexpr AQuantGemmKernelArgs
     MakeKernelArgs(const AQuantGemmHostArgs& hostArgs)

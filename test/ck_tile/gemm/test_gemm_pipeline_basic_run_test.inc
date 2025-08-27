@@ -77,7 +77,6 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                                              ck_tile::tuple<>,
                                              CLayout,
                                              ck_tile::element_wise::PassThrough,
-                                             CodegenPipelineProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,
                                              M_Warp,
@@ -93,8 +92,8 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
         using Kernel = ck_tile::GemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
         auto kargs   = Kernel::MakeKernelArgs(args);
 
-        const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
-        constexpr dim3 blocks = Kernel::BlockSize();
+        const dim3 grids  = Kernel::GridSize(args.M, args.N, args.k_batch);
+        const dim3 blocks = Kernel::BlockSize();
 
         if(!Kernel::IsSupportedArgument(kargs))
         {
@@ -114,7 +113,7 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
         }
 
         float ave_time = ck_tile::launch_kernel(
-            s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+            s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 
         return ave_time;
     };
@@ -132,7 +131,9 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 }
 
 template <typename APrecType, typename BPrecType = APrecType, typename CPrecType = APrecType>
-bool run_gemm_test_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
+bool run_gemm_test_prec_type(std::string a_layout,
+                             std::string b_layout,
+                             ck_tile::ArgParser& arg_parser)
 {
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
@@ -142,12 +143,12 @@ bool run_gemm_test_prec_type(std::string a_layout, std::string b_layout, int arg
         if(a_layout == "R" && b_layout == "C")
         {
             return run_gemm_test_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Col{}, Row{});
+                arg_parser, Row{}, Col{}, Row{});
         }
         else if(a_layout == "C" && b_layout == "C")
         {
             return run_gemm_test_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Col{}, Row{});
+                arg_parser, Col{}, Col{}, Row{});
         }
         else
         {
@@ -160,22 +161,22 @@ bool run_gemm_test_prec_type(std::string a_layout, std::string b_layout, int arg
         if(a_layout == "R" && b_layout == "C")
         {
             return run_gemm_test_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Col{}, Row{});
+                arg_parser, Row{}, Col{}, Row{});
         }
         else if(a_layout == "R" && b_layout == "R")
         {
             return run_gemm_test_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Row{}, Row{});
+                arg_parser, Row{}, Row{}, Row{});
         }
         else if(a_layout == "C" && b_layout == "R")
         {
             return run_gemm_test_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Row{}, Row{});
+                arg_parser, Col{}, Row{}, Row{});
         }
         else if(a_layout == "C" && b_layout == "C")
         {
             return run_gemm_test_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Col{}, Row{});
+                arg_parser, Col{}, Col{}, Row{});
         }
         else
         {
@@ -184,60 +185,26 @@ bool run_gemm_test_prec_type(std::string a_layout, std::string b_layout, int arg
     }
 }
 
+template <typename APrecType, typename BPrecType, typename CPrecType>
 bool run_gemm_test(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
     if(!result)
         return false;
 
-    std::string data_type = arg_parser.get_str("prec");
-    std::string a_layout  = arg_parser.get_str("a_layout");
-    std::string b_layout  = arg_parser.get_str("b_layout");
+    std::string a_layout = arg_parser.get_str("a_layout");
+    std::string b_layout = arg_parser.get_str("b_layout");
 
-    if(data_type == "fp16")
-    {
-        return run_gemm_test_prec_type<ck_tile::half_t>(a_layout, b_layout, argc, argv);
-    }
-    else if(data_type == "bf16")
-    {
-        return run_gemm_test_prec_type<ck_tile::bf16_t>(a_layout, b_layout, argc, argv);
-    }
-    else if(data_type == "fp8")
-    {
-        return run_gemm_test_prec_type<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>(
-            a_layout, b_layout, argc, argv);
-    }
-    else if(data_type == "bf8")
-    {
-        return run_gemm_test_prec_type<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>(
-            a_layout, b_layout, argc, argv);
-    }
-    else if(data_type == "pk_int4_t")
-    {
-        // TODO: Add support for bhalf_t ADataType
-        if constexpr(GemmConfigBase::Pipeline == CK_TILE_PIPELINE_COMPUTE_V3)
-        {
-            return run_gemm_test_prec_type<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>(
-                a_layout, b_layout, argc, argv);
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported data type for this operation !!!");
-        }
-    }
-    else
-    {
-        throw std::runtime_error("Unsupported data type for this operation !!!");
-    }
+    return run_gemm_test_prec_type<APrecType, BPrecType, CPrecType>(a_layout, b_layout, arg_parser);
 }
 
-int run_gemm_combinations(std::string const& data_type)
+template <typename APrecType, typename BPrecType = APrecType, typename CPrecType = APrecType>
+int run_gemm_combinations()
 {
     // Define possible values for each parameter
-    std::vector<std::string> m_values    = {"128", "1024"};
-    std::vector<std::string> n_values    = {"128", "2048"};
-    std::vector<std::string> k_values    = {"64", "128"};
-    std::vector<std::string> prec_values = {data_type};
+    std::vector<std::string> m_values = {"128", "1024"};
+    std::vector<std::string> n_values = {"128", "2048"};
+    std::vector<std::string> k_values = {"64", "128"};
 
     // We'll store all our arguments as strings first
     std::vector<std::string> arg_strings = {"./bin/tile_example_gemm_basic",
@@ -247,13 +214,12 @@ int run_gemm_combinations(std::string const& data_type)
                                             "-stride_a=0",
                                             "-stride_b=0",
                                             "-stride_c=0",
-                                            "", // prec placeholder
                                             "-v=2",
                                             "-warmup=0",
                                             "-repeat=1"};
 
     // Create an array of const char pointers for argv
-    constexpr size_t ARG_COUNT   = 11;
+    constexpr size_t ARG_COUNT   = 10;
     constexpr size_t ARG_MAX_LEN = 64;
     char args[ARG_COUNT][ARG_MAX_LEN];
     char* argv[ARG_COUNT];
@@ -272,39 +238,35 @@ int run_gemm_combinations(std::string const& data_type)
             {
                 arg_strings[3] = "-k=" + k;
 
-                for(const auto& prec : prec_values)
+                // Set up the argv array with pointers to the string data
+                for(size_t i = 0; i < ARG_COUNT; i++)
                 {
-                    arg_strings[7] = "-prec=" + prec;
+                    strncpy(args[i], arg_strings[i].c_str(), ARG_MAX_LEN);
+                    argv[i] = args[i];
+                }
 
-                    // Set up the argv array with pointers to the string data
-                    for(size_t i = 0; i < ARG_COUNT; i++)
-                    {
-                        strncpy(args[i], arg_strings[i].c_str(), ARG_MAX_LEN);
-                        argv[i] = args[i];
-                    }
+                std::cout << "Arguments received: ";
+                for(size_t i = 1; i < ARG_COUNT; ++i)
+                {
+                    std::cout << argv[i] << " ";
+                }
+                std::cout << std::endl;
 
-                    std::cout << "Arguments received: ";
-                    for(size_t i = 1; i < ARG_COUNT; ++i)
-                    {
-                        std::cout << argv[i] << " ";
-                    }
-                    std::cout << std::endl;
-
-                    // Call the function with the current configuration
-                    try
-                    {
-                        is_success = run_gemm_test(ARG_COUNT, argv) && is_success;
-                    }
-                    catch(const ArgumentsNotSupportedException& e)
-                    {
-                        std::cerr << "Caught ArgumentsNotSupportedException: " << e.what() << '\n';
-                        // ArgumentsNotSupportedException  is not an error. Do not change is_success
-                    }
-                    catch(const std::runtime_error& e)
-                    {
-                        std::cerr << "Caught runtime error: " << e.what() << '\n';
-                        is_success = false;
-                    }
+                // Call the function with the current configuration
+                try
+                {
+                    is_success = run_gemm_test<APrecType, BPrecType, CPrecType>(ARG_COUNT, argv) &&
+                                 is_success;
+                }
+                catch(const ArgumentsNotSupportedException& e)
+                {
+                    std::cerr << "Caught ArgumentsNotSupportedException: " << e.what() << '\n';
+                    // ArgumentsNotSupportedException  is not an error. Do not change is_success
+                }
+                catch(const std::runtime_error& e)
+                {
+                    std::cerr << "Caught runtime error: " << e.what() << '\n';
+                    is_success = false;
                 }
             }
         }
