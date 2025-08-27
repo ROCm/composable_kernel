@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -638,11 +638,11 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
               typename LSEaccDramBlockWindowTmp,
               typename PositionEncoding>
     CK_TILE_HOST_DEVICE auto
-    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
-               const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
-               const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
-               const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
-               LSEaccDramBlockWindowTmp& lse_acc_dram_window_tmp,        // M0*1 tile
+    operator()(const QDramBlockWindowTmp& __restrict__ q_dram_block_window_tmp,       // M0*K0 tile
+               const KDramBlockWindowTmp& __restrict__ k_dram_block_window_tmp,       // N0*K0 tile
+               const VDramBlockWindowTmp& __restrict__ v_dram_block_window_tmp,       // N1*K1 tile
+               const BiasDramBlockWindowTmp& __restrict__ bias_dram_block_window_tmp, // M0*N0 tile
+               LSEaccDramBlockWindowTmp& __restrict__ lse_acc_dram_window_tmp,        // M0*1 tile
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
@@ -854,18 +854,10 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
 
         __builtin_amdgcn_sched_barrier(0);
 
-        auto mainloop = [&](index_t cur_loop) {
-            const bool is_even_loop = (cur_loop % 2 == 0);
-
-            auto k_lds_write_ptr = is_even_loop ? static_cast<KDataType* __restrict__>(smem_ptrk0)
-                                                : static_cast<KDataType* __restrict__>(smem_ptrk1);
-            auto k_lds_read_ptr  = is_even_loop ? static_cast<KDataType* __restrict__>(smem_ptrk1)
-                                                : static_cast<KDataType* __restrict__>(smem_ptrk0);
-            auto v_lds_write_ptr = is_even_loop ? static_cast<VDataType* __restrict__>(smem_ptrv1)
-                                                : static_cast<VDataType* __restrict__>(smem_ptrv0);
-            auto v_lds_read_ptr  = is_even_loop ? static_cast<VDataType* __restrict__>(smem_ptrv0)
-                                                : static_cast<VDataType* __restrict__>(smem_ptrv1);
-
+        auto mainloop = [&](KDataType* __restrict__ k_lds_write_ptr,
+                            KDataType* __restrict__ k_lds_read_ptr,
+                            KDataType* __restrict__ v_lds_write_ptr,
+                            KDataType* __restrict__ v_lds_read_ptr) {
             // move V tile windows
             block_sync_lds<k_lds_insts>();
             move_tile_window(v_dram_window, {kN0, 0});
@@ -1110,11 +1102,20 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
                 __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS_READ
             });
-        };
+        }; // mainloop
 
         do
         {
-            mainloop(i_total_loops);
+            bool is_even_loop    = i_total_loops % 2 == 0;
+            auto k_lds_write_ptr = is_even_loop ? static_cast<KDataType* __restrict__>(smem_ptrk0)
+                                                : static_cast<KDataType* __restrict__>(smem_ptrk1);
+            auto k_lds_read_ptr  = is_even_loop ? static_cast<KDataType* __restrict__>(smem_ptrk1)
+                                                : static_cast<KDataType* __restrict__>(smem_ptrk0);
+            auto v_lds_write_ptr = is_even_loop ? static_cast<VDataType* __restrict__>(smem_ptrv1)
+                                                : static_cast<VDataType* __restrict__>(smem_ptrv0);
+            auto v_lds_read_ptr  = is_even_loop ? static_cast<VDataType* __restrict__>(smem_ptrv0)
+                                                : static_cast<VDataType* __restrict__>(smem_ptrv1);
+            mainloop(k_lds_write_ptr, k_lds_read_ptr, v_lds_write_ptr, v_lds_read_ptr);
             i_total_loops++;
         } while(i_total_loops < num_total_loop);
 
