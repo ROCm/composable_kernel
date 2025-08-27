@@ -1580,7 +1580,7 @@ struct GridwiseMoeGemmBlockScale
 
             static_assert(N0 * N1 * N2 * N3 * N4 == NPerBlock);
             static_assert(M0 * M1 * M2 == MPerBlock);
-            static_assert(N4 == 4);
+            static_assert(N4 == 4 || N4 == 8);
             const index_t m1 = get_warp_local_1d_id() / NWave;
             const index_t m2 = threadIdx.x % get_warp_size() % M2;
 
@@ -2326,7 +2326,7 @@ struct GridwiseMoeGemmBlockScale
 
             static_assert(N0 * N1 * N2 * N3 * N4 == NPerBlock);
             static_assert(M0 * M1 * M2 == MPerBlock);
-            static_assert(N4 == 4);
+            static_assert(N4 == 4 || N4 == 8);
             const index_t m1 = get_warp_local_1d_id() / NWave;
             const index_t m2 = threadIdx.x % get_warp_size() % M2;
 
