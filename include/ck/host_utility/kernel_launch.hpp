@@ -88,9 +88,11 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
     }
     else
     {
+        std::cout << "launch_and_time_kernel: Before CK non-time kernel" << std::endl;
         kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
-        std::cout << "From CK 16:" << std::endl;
+        std::cout << "launch_and_time_kernel: After CK non-time kernel" << std::endl;
         hip_check_error(hipGetLastError());
+        std::cout << "launch_and_time_kernel: non-time kernel. After hip_check_error call" << std::endl;
 
         return 0;
     }
@@ -172,8 +174,11 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
     else
     {
         preprocess();
+        std::cout << "launch_and_time_kernel_with_preprocess: Before CK non-time kernel" << std::endl;
         kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+        std::cout << "launch_and_time_kernel_with_preprocess: After CK non-time kernel" << std::endl;
         hip_check_error(hipGetLastError());
+        std::cout << "launch_and_time_kernel_with_preprocess: non-time kernel. After hip_check_error call" << std::endl;
 
         return 0;
     }
