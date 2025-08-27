@@ -264,6 +264,11 @@ struct GemmSpatiallyLocalTilePartitioner
         return integer_divide_ceil(K, KPerBlock);
     }
 
+    CK_TILE_HOST_DEVICE auto GetPingPongMLoops(index_t NumWavefronts) noexcept -> index_t
+    {
+        return integer_divide_ceil(M, MPerBlock * NumWavefronts);
+    }    
+
     /**
      * @brief Calculate workgroup 1D index mapping into 2D output C-tile space.
      *

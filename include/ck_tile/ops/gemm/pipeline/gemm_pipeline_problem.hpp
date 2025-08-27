@@ -212,6 +212,8 @@ struct UniversalGemmPipelineProblem
 
     static constexpr bool TransposeC            = Traits::TransposeC;
     static constexpr index_t NumWaveGroups      = Traits::NumWaveGroups;
+    static constexpr index_t PingPongDim   = Traits::PingPongDim;
+
     static constexpr bool UseStructuredSparsity = Traits::UseStructuredSparsity;
 
     static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();

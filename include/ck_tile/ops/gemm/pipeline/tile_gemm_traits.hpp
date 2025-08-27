@@ -43,7 +43,8 @@ template <bool kPadM_,
           bool UseStructuredSparsity_ = false,
           bool UsePersistentKernel_   = false,
           index_t NumWaveGroups_      = 1,
-          bool Preshuffle_            = 0>
+          bool Preshuffle_            = 0, 
+          index_t PingPongDim         = 0>
 struct TileGemmUniversalTraits
 {
     static constexpr bool kPadM            = kPadM_;
@@ -61,6 +62,7 @@ struct TileGemmUniversalTraits
     static constexpr bool UsePersistentKernel   = UsePersistentKernel_;
     static constexpr index_t NumWaveGroups      = NumWaveGroups_;
     static constexpr bool Preshuffle            = Preshuffle_;
+    static constexpr index_t PingPongDim        = PingPongDim_;
 };
 
 template <bool kPadM_,

@@ -60,7 +60,8 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                                                                  GemmConfig::UseStructuredSparsity,
                                                                  Persistent,
                                                                  GemmConfig::NumWaveGroups,
-                                                                 GemmConfig::Preshuffle>;
+                                                                 GemmConfig::Preshuffle, 
+                                                                 GemmConfig::PingPongDim>;
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
@@ -94,6 +95,24 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
         using GemmPipeline = typename PipelineTypeTraits<
             GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
 
+            /*
+            using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
+                ck_tile::DefaultGemm2DEpilogueProblem<
+                                                    ADataType, 
+                                                    BDataType,
+                                                    AccDataType, 
+                                                    CDataType, 
+                                                    CLayout, 
+                                                    GemmConfig::kPadM,
+                                                    GemmConfig::kPadN, 
+                                                    GemmConfig::M_Warp_Tile, 
+                                                    GemmConfig::N_Warp_Tile, 
+                                                    GemmConfig::K_Warp_Tile, 
+                                                    UniversalGemmProblem::TransposeC, 
+                                                    false,
+                                                    memory_operation>>;
+            */
+
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
                                              BDataType,
@@ -124,7 +143,14 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
         }
         else
         {
-            grids = Kernel::GridSize(args.M, args.N, args.k_batch);
+                if constexpr(GemmConfig::PingPongDim == 0)
+                {
+                    grids = Kernel::GridSize(args.M, args.N, args.k_batch);
+                }
+                else
+                {
+                    grids = Kernel::PingPongGridSize(args.M, args.N, args.K, args.k_batch);
+                }
         }
         dim3 blocks = Kernel::BlockSize();
 
@@ -186,7 +212,21 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
         if(args.k_batch == 1)
         {
-            Run(has_hot_loop_, tail_number_, MemoryOpSet{});
+            //Run(has_hot_loop_, tail_number_, MemoryOpSet{});
+            if constexpr(GemmConfig::PingPongDim == 0)
+            {
+                Run(has_hot_loop_,
+                    tail_number_,
+                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                               ck_tile::memory_operation_enum::set>{});
+            }
+            else
+            {
+                Run(has_hot_loop_, 
+                    tail_number_, 
+                    ck_tile::integral_constant<ck_tile::memory_operation_enum, 
+                                               ck_tile::memory_operation_enum::atomic_add>{});
+            }            
         }
         else
         {
@@ -210,61 +250,18 @@ int run_gemm_example_prec_type(std::string a_layout,
     using Col       = ck_tile::tensor_layout::gemm::ColumnMajor;
     bool preshuffle = GemmConfig::Preshuffle;
 
-    if(preshuffle && std::is_same_v<BPrecType, ck_tile::pk_int4_t>)
-    {
-        throw std::runtime_error("Preshuffle is not supported for this int4 datatype!");
-    }
+    using Row = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
-    if(preshuffle && a_layout != "R" && b_layout != "C")
-    {
-        throw std::runtime_error(
-            "Preshuffle is supported only for A(Row major), B(column major) input matrices!");
-    }
 
-    if constexpr(std::is_same_v<BPrecType, ck_tile::pk_int4_t>)
+    if(a_layout == "R" && b_layout == "C")
     {
-        if(a_layout == "R" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                arg_parser, Row{}, Col{}, Row{});
-        }
-        else if(a_layout == "C" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                arg_parser, Col{}, Col{}, Row{});
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported memory layout for the input matrices when "
-                                     "BPrecType is ck_tile::pk_int4_t!");
-        }
+        return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+            argc, argv, Row{}, Col{}, Row{});
     }
     else
     {
-        if(a_layout == "R" && b_layout == "R")
-        {
-            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                arg_parser, Row{}, Row{}, Row{});
-        }
-        else if(a_layout == "R" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                arg_parser, Row{}, Col{}, Row{});
-        }
-        else if(a_layout == "C" && b_layout == "R")
-        {
-            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                arg_parser, Col{}, Row{}, Row{});
-        }
-        else if(a_layout == "C" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                arg_parser, Col{}, Col{}, Row{});
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported memory layout for the input matrices!");
-        }
+        throw std::runtime_error("Unsupported memory layout for the input matrices!");
     }
 }
 
@@ -275,51 +272,10 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
 
-    if(data_type == "fp16")
-    {
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::half_t>(
-            a_layout, b_layout, arg_parser);
-    }
-    else if(data_type == "bf16")
+    if(data_type == "bf16")
     {
         return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::bf16_t>(
             a_layout, b_layout, arg_parser);
-    }
-    else if(data_type == "fp8")
-    {
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
-                                          ck_tile::fp8_t,
-                                          ck_tile::fp8_t,
-                                          ck_tile::half_t>(a_layout, b_layout, arg_parser);
-    }
-    else if(data_type == "bf8")
-    {
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
-                                          ck_tile::bf8_t,
-                                          ck_tile::bf8_t,
-                                          ck_tile::half_t>(a_layout, b_layout, arg_parser);
-    }
-    else if(data_type == "int8")
-    {
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::int8_t>,
-                                          ck_tile::int8_t,
-                                          ck_tile::int8_t,
-                                          ck_tile::int32_t>(a_layout, b_layout, arg_parser);
-    }
-    else if(data_type == "pk_int4_t")
-    {
-        // TODO: Add support for bhalf_t ADataType
-        if constexpr(GemmConfig<ck_tile::half_t>::Pipeline == CK_TILE_PIPELINE_COMPUTE_V3)
-        {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>,
-                                              ck_tile::half_t,
-                                              ck_tile::pk_int4_t,
-                                              ck_tile::half_t>(a_layout, b_layout, arg_parser);
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported pipeline for this operation !!!");
-        }
     }
     else
     {
