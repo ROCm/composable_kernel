@@ -192,12 +192,16 @@ def buildDocker(install_prefix){
         image_name = "rocm/composable_kernel:ck_aiter"
         dockerArgs = dockerArgs + " --no-cache -f Dockerfile.aiter --build-arg AITER_BRANCH='${params.aiter_branch}' --build-arg CK_AITER_BRANCH='${params.ck_aiter_branch}' . "
     }
-    else{
+     else if(params.RUN_PYTORCH_TESTS){
+        image_name = "rocm/composable_kernel:ck_pytorch"
+        dockerArgs = dockerArgs + " --no-cache -f Dockerfile.pytorch --build-arg CK_PYTORCH_BRANCH='${params.ck_pytorch_branch}' . "
+    }
+   else{
         dockerArgs = dockerArgs + " -f Dockerfile . "
     }
     echo "Build Args: ${dockerArgs}"
     try{
-        if(params.BUILD_DOCKER || params.RUN_AITER_TESTS){
+        if(params.BUILD_DOCKER || params.RUN_AITER_TESTS || params.RUN_PYTORCH_TESTS){
             //force building the new docker if that parameter is true
             echo "Building image: ${image_name}"
             retimage = docker.build("${image_name}", dockerArgs)
@@ -877,8 +881,8 @@ def run_pytorch_tests(Map conf=[:]){
     env.HSA_ENABLE_SDMA=0
     checkout scm
     //use the latest pytorch-nightly image
-    def image = "rocm/pytorch-nightly:latest"
-    def dockerOpts="--network=host --device=/dev/kfd --device=/dev/dri --group-add video --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --user=jenkins -v=/var/jenkins/:/var/jenkins"
+    def image = "rocm/composable_kernel:ck_pytorch"
+    def dockerOpts="--network=host --device=/dev/kfd --device=/dev/dri --group-add video --group-add render --group-add irc --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --user=jenkins -v=/var/jenkins/:/var/jenkins"
     def variant = env.STAGE_NAME
     def retimage
     def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3')
@@ -904,24 +908,7 @@ def run_pytorch_tests(Map conf=[:]){
     withDockerContainer(image: image, args: dockerOpts) {
         timeout(time: 45, unit: 'MINUTES'){
             try{
-                dir("/tmp/pytorch/third_party"){
-                    sh "rm -rf composable_kernel"
-                    sh "git clone https://github.com/ROCm/composable_kernel.git"
-                }
-                dir("/tmp/pytorch/third_party/aiter/3rdparty"){
-                    sh "rm -rf composable_kernel"
-                    sh "git clone https://github.com/ROCm/composable_kernel.git"
-                }
-                dir("/tmp/pytorch/third_party/fbgemm/external"){
-                    sh "rm -rf composable_kernel"
-                    sh "git clone https://github.com/ROCm/composable_kernel.git"
-                }
-                dir("/tmp/pytorch/third_party/flash-attention/csrc"){
-                    sh "rm -rf composable_kernel"
-                    sh "git clone https://github.com/ROCm/composable_kernel.git"
-                }
                 dir("/tmp/pytorch"){
-                    sh "rm -rf build"
                     sh "python3 tools/amd_build/build_amd.py"
                     sh "USE_ROCM_CK_SDPA=1 PYTORCH_ROCM_ARCH=gfx942 python setup.py develop"
                 }
@@ -1083,6 +1070,10 @@ pipeline {
             name: "RUN_PYTORCH_TESTS",
             defaultValue: false,
             description: "Try building PYTORCH with latest CK develop branch (default: OFF)")
+        string(
+            name: 'ck_pytorch_branch',
+            defaultValue: 'develop',
+            description: 'Specify which branch of CK to test with Pytorch (default: develop)')
         booleanParam(
             name: "RUN_AITER_TESTS",
             defaultValue: false,
