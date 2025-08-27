@@ -118,6 +118,16 @@ set(GROUPED_CONV2D_FWD
   # NGCHW, GKCYX, NGKHW
   wmma/device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_16x16_instance.cpp
   wmma/device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_16x16_instance.cpp
+
+  # merged groups
+  # NHWGC, GKYXC, NHWGK
+  wmma/merged_groups/device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_nhwgc_gkyxc_nhwgk_bf16_instance.cpp
+  wmma/merged_groups/device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_nhwgc_gkyxc_nhwgk_f16_instance.cpp
+  wmma/merged_groups/device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_nhwgc_gkyxc_nhwgk_int8_instance.cpp
+  # NGCHW, GKCYX, NGKHW
+  wmma/merged_groups/device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_ngchw_gkcyx_ngkhw_bf16_instance.cpp
+  wmma/merged_groups/device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_ngchw_gkcyx_ngkhw_f16_instance.cpp
+
   # comp
   # NGCHW, GKCYX, NGKHW
   wmma/comp/device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_comp_instance.cpp

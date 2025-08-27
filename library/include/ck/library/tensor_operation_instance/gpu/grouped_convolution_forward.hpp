@@ -800,8 +800,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     op_ptrs);
                 // add_device_grouped_conv2d_fwd_wmma_cshufflev3_large_tensor_nhwgc_gkyxc_nhwgk_f16_instances(
                 //     op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_nhwgc_gkyxc_nhwgk_f16_instances(
-                //     op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_nhwgc_gkyxc_nhwgk_f16_instances(
+                    op_ptrs);
                 // add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_comp_instances(op_ptrs);
                 // add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_comp_2x_instances(op_ptrs);
                 // add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_comp_part2_instances(
@@ -825,8 +825,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     op_ptrs);
                 // add_device_grouped_conv2d_fwd_wmma_cshufflev3_large_tensor_nhwgc_gkyxc_nhwgk_bf16_instances(
                 //     op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_nhwgc_gkyxc_nhwgk_bf16_instances(
-                //     op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_nhwgc_gkyxc_nhwgk_bf16_instances(
+                    op_ptrs);
                 // add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_comp_instances(op_ptrs);
                 // add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_comp_2x_instances(op_ptrs);
                 // add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_comp_part2_instances(
@@ -846,8 +846,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     op_ptrs);
                 // add_device_grouped_conv2d_fwd_wmma_cshufflev3_large_tensor_nhwgc_gkyxc_nhwgk_int8_instances(
                 //     op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_nhwgc_gkyxc_nhwgk_int8_instances(
-                //     op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_nhwgc_gkyxc_nhwgk_int8_instances(
+                    op_ptrs);
                 // add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_comp_instances(op_ptrs);
                 // add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_intra_instances(
                 //     op_ptrs);
@@ -866,8 +866,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t> &&
                          is_same_v<BComputeType, half_t>)
             {
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_ngchw_gkcyx_ngkhw_f16_instances(
-                //     op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_ngchw_gkcyx_ngkhw_f16_instances(
+                    op_ptrs);
                 add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_instances(
                     op_ptrs);
                 add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_16x16_instances(
@@ -890,8 +890,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<AComputeType, ck::bhalf_t> &&
                          is_same_v<BComputeType, ck::bhalf_t>)
             {
-                //     add_device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_ngchw_gkcyx_ngkhw_bf16_instances(
-                //         op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_ngchw_gkcyx_ngkhw_bf16_instances(
+                    op_ptrs);
                 add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_instances(
                     op_ptrs);
                 add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_16x16_instances(
