@@ -62,9 +62,11 @@ namespace ck {
         constexpr auto idx_1d_1 = I2 * i_pair + I1;
         constexpr auto idx_md_0 = SpaceFillingCurve::GetIndex(idx_1d_0);
         constexpr auto idx_md_1 = SpaceFillingCurve::GetIndex(idx_1d_1);
+        constexpr auto idx_md_pair = SpaceFillingCurve::GetIndex(i_pair);
     
         constexpr index_t src_offset_0 = src_desc.CalculateOffset(src_slice_origin_idx + idx_md_0);
         constexpr index_t src_offset_1 = src_desc.CalculateOffset(src_slice_origin_idx + idx_md_1);
+        constexpr index_t pair_offset = src_desc.CalculateOffset(src_slice_origin_idx + idx_md_pair);
 
         if constexpr (src_offset_1 - src_offset_0 == 1)
         {
@@ -78,14 +80,13 @@ namespace ck {
         }
 
         // Store the packed bfloat2 value back to the src buffer
-        // Note: The value is stored to the space of the first float value.
         const ck::bhalf2_t packed_value= bf16x2_convert_rne<ck::bhalf2_t, float>(float2_buffer[0], float2_buffer[1]);
         union {
             ck::bhalf2_t bhalf2;
             float fp32;
         } converter;
         converter.bhalf2 = packed_value;
-        src_buf(Number<src_offset_0>{}) = converter.fp32;
+        src_buf(Number<pair_offset>{}) = converter.fp32;
       });
     };
   };

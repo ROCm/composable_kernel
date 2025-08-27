@@ -104,8 +104,6 @@ struct ThreadwiseTensorSliceTransfer_v1r3_pass_through
         // TODO: Use SpaceFillingCurve::ScalarsPerAccess instread of DstScalarPerVector?
         static_assert(DstScalarPerVector == SpaceFillingCurve::ScalarPerVector,
                     "wrong!DstScalarPerVector != SpaceFillingCurve::ScalarPerVector");
-        typename vector_type_maker<DstData, DstScalarPerVector>::type dst_vector;
-        using dst_vector_t = typename vector_type_maker<DstData, DstScalarPerVector>::type::type;
 
         constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
 
@@ -115,17 +113,15 @@ struct ThreadwiseTensorSliceTransfer_v1r3_pass_through
         static_assert(1 == SpaceFillingCurve::ScalarPerVector, "wrong!1 != SpaceFillingCurve::ScalarPerVector");
         static_assert(1 == DstScalarPerVector, "wrong!1 != DstScalarPerVector");
 
-        static_for<0, num_access, 1>{}([&](auto idx_1d) 
+        constexpr index_t num_pairs = num_access / 2;
+        constexpr bool has_odd_element = (num_access % 2 == 1);
+
+        // TODO: Enable also odd number of elements.
+        static_assert(!has_odd_element, "wrong!Slice should have even number of elements.");
+      
+        static_for<0, num_pairs, 1>{}([&](auto i_pair) 
         {
-            // We need map the odd indices to the even indices, since
-            // the even indices contain a packed bf16x2 value, where
-            // the first value contains the bf16 value for the corresponding even index
-            // and the second value contains the bf16 value for the odd index following the even index.
-            // The odd indices are not used, so we can just ignore them.
-            constexpr auto pair_index = idx_1d % I2;
-            constexpr auto idx_src_1d = idx_1d - pair_index;
-            
-            constexpr auto idx_md = SpaceFillingCurve::GetIndex(idx_src_1d);
+            constexpr auto idx_md = SpaceFillingCurve::GetIndex(i_pair);
             constexpr index_t src_offset = src_desc.CalculateOffset(src_slice_origin_idx + idx_md);
 
             union 
@@ -135,26 +131,51 @@ struct ThreadwiseTensorSliceTransfer_v1r3_pass_through
             } packed_value;
 
             packed_value.src_float = src_buf[Number<src_offset>{}];
-
-            DstData v;
-            element_op_(v, packed_value.src_bf16x2[pair_index.value]);
-            dst_vector.template AsType<DstData>()(I0) = v;
-
+            
             const bool is_dst_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
 
-            // copy data from dst_vector into dst_buf
-            dst_buf.template Update<DstInMemOp, dst_vector_t>(
-                dst_coord_.GetOffset(),
-                is_dst_valid,
-                dst_vector.template AsType<dst_vector_t>()[Number<0>{}]);
+            constexpr auto idx_1d_0 = I2 * i_pair;
+            constexpr auto idx_1d_1 = I2 * i_pair + I1;
+            
+            const auto dst_offset_0 = dst_coord_.GetOffset();
 
-            if constexpr(idx_1d.value != num_access - 1)
-            {
-                constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(idx_1d);
-
+            // Move to the next dst coordinate
+            constexpr auto forward_step_0 = SpaceFillingCurve::GetForwardStep(idx_1d_0);
                 move_tensor_coordinate(
-                    dst_desc, dst_coord_, make_tensor_coordinate_step(dst_desc, forward_step));
+                    dst_desc, dst_coord_, make_tensor_coordinate_step(dst_desc, forward_step_0));
+
+            const auto dst_offset_1 = dst_coord_.GetOffset();
+
+            if (dst_offset_1 - dst_offset_0 == 1)
+            {
+                // Store the packed value directly since we have consequtive locations is the dst buffer.
+                dst_buf.template Update<DstInMemOp, ck::bhalf2_t>(
+                    dst_coord_.GetOffset(),
+                    is_dst_valid,
+                    packed_value.src_bf16x2);    
+            }
+            else 
+            {
+                // Store the packed value into the dst buffer one by one.
+                dst_buf.template Update<DstInMemOp, ck::bhalf_t>(
+                    dst_offset_0,
+                    is_dst_valid,
+                    packed_value.src_bf16x2[0]);
+
+                dst_buf.template Update<DstInMemOp, ck::bhalf_t>(
+                    dst_offset_1,
+                    is_dst_valid,
+                    packed_value.src_bf16x2[1]);
+            }
+            
+            // Move to next dst coordinate, unless this was the last pair
+            if constexpr(i_pair.value != num_pairs - 1)
+            {
+                
+                constexpr auto forward_step_1 = SpaceFillingCurve::GetForwardStep(idx_1d_1);
+                move_tensor_coordinate(
+                    dst_desc, dst_coord_, make_tensor_coordinate_step(dst_desc, forward_step_1));
             }
         });
 
