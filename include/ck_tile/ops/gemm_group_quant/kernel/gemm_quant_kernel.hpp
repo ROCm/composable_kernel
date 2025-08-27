@@ -143,7 +143,7 @@ struct QuantGemmKernel
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
-        return concat('_', "gemm", gemm_prec_str<ADataType, BDataType>, GemmPipeline::GetName());
+        return concat('_', "gemm_quant", gemm_prec_str<ADataType, BDataType>, GemmPipeline::GetName());
         // clang-format on
     }
 
@@ -466,19 +466,33 @@ struct QuantGemmKernel
         };
 
         const auto& aq_tensor_view = [&]() {
-            static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
-            if constexpr(Preshuffle)
+            if constexpr(kQuantType == QuantType::AQuantGrouped && Preshuffle)
             {
+                static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
                 return make_preshuffled_aq_tensor_view();
             }
-            else
+            else if constexpr(kQuantType == QuantType::AQuantGrouped && !Preshuffle)
             {
+                static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
                 return make_naive_tensor_view<address_space_enum::global>(
                     aq_ptr,
                     make_tuple(kargs.M, kargs.QK_A),
                     make_tuple(kargs.stride_AQ, 1),
                     number<GemmPipeline::GetVectorSizeAQ()>{},
                     number<1>{});
+            }
+            else if constexpr(kQuantType == QuantType::RowColQuant)
+            {
+                return make_naive_tensor_view<address_space_enum::global>(
+                    scale_m,
+                    make_tuple(kargs.M, kargs.N),
+                    make_tuple(1, 0),  // broadcasting over n
+                    number<1>{},
+                    number<1>{});
+            }
+            else
+            {
+                static_assert(false, "invalid QuantType config");
             }
         }();
 
@@ -546,21 +560,19 @@ struct QuantGemmKernel
         }();
 
         const auto& bq_tensor_view = [&]() {
-            static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::RowMajor>,
-                          "Currently only RowMajor BQ layout supported");
-
-            // if constexpr(Preshuffle) {
-            //     // TODO: Implement preshuffled BQ tensor view similar to AQ
-            //     return make_preshuffled_bq_tensor_view();
-            // } else {
-            // BQ scales layout: [N, K/QK_B]
-            return make_naive_tensor_view<address_space_enum::global>(
-                bq_ptr,
-                make_tuple(kargs.N, kargs.K / kargs.QK_B),
-                make_tuple(kargs.stride_BQ, 1),
-                number<GemmPipeline::GetVectorSizeBQ()>{},
-                number<1>{});
-            // }
+            if constexpr(kQuantType == QuantType::RowColQuant)
+            {
+                return make_naive_tensor_view<address_space_enum::global>(
+                    scale_n,
+                    make_tuple(kargs.M, kargs.N),
+                    make_tuple(0, 1),  // broadcasting over m
+                    number<1>{},
+                    number<1>{});
+            }
+            else
+            {
+                return nullptr;  // TODO: use some other "empty" type for this
+            }
         }();
 
         // TODO: enable vector write for C in ColMajor
@@ -610,6 +622,7 @@ struct QuantGemmKernel
             }
         }();
 
+        // no padding
         const auto& aq_pad_view = [&]() { return views.at(I1); }();
 
         const auto& b_pad_view = [&]() {
@@ -630,6 +643,7 @@ struct QuantGemmKernel
             }
         }();
 
+        // no padding
         const auto& bq_pad_view = [&]() { return views.at(I3); }();
 
         // TODO vector write in for C in ColMajor
@@ -684,9 +698,9 @@ struct QuantGemmKernel
         }();
 
         const auto& aq_block_window = [&]() {
-            static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
-            if constexpr(Preshuffle)
+            if constexpr(kQuantType == QuantType::AQuantGrouped && Preshuffle)
             {
+                static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
                 constexpr auto tile_window_width = get_warp_size();
                 constexpr auto tile_window_height =
                     TilePartitioner::MPerBlock / TilePartitioner::BlockGemmShape::WarpTile::at(I0);
@@ -697,14 +711,27 @@ struct QuantGemmKernel
                     {block_m_idx * kargs.K / TilePartitioner::BlockGemmShape::BlockTile::at(I2),
                      0});
             }
-            else
+            else if constexpr(kQuantType == QuantType::AQuantGrouped && !Preshuffle)
             {
+                static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
                 return make_tile_window(
                     aq_pad_view,
                     make_tuple(
                         number<TilePartitioner::MPerBlock>{},
                         number<TilePartitioner::KPerBlock / GemmPipeline::QuantGroupSizeA>{}),
                     {i_m, 0});
+            }
+            else if constexpr(kQuantType == QuantType::RowColQuant)
+            {
+                return make_tile_window(
+                    aq_pad_view,
+                    make_tuple(number<TilePartitioner::MPerBlock>{},
+                               number<TilePartitioner::NPerBlock>{}),
+                    {i_m, i_n});
+            }
+            else
+            {
+                static_assert(false, "invalid QuantType config");
             }
         }();
 
@@ -726,13 +753,18 @@ struct QuantGemmKernel
         }();
 
         const auto& bq_block_window = [&]() {
-            static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::RowMajor>);
-
-            return make_tile_window(
-                bq_pad_view,
-                make_tuple(number<TilePartitioner::NPerBlock>{},
-                           number<TilePartitioner::KPerBlock / GemmPipeline::QuantGroupSizeB>{}),
-                {i_n, 0});
+            if constexpr(kQuantType == QuantType::RowColQuant)
+            {
+                return make_tile_window(
+                    bq_pad_view,
+                    make_tuple(number<TilePartitioner::MPerBlock>{},
+                               number<TilePartitioner::NPerBlock>{}),
+                    {i_m, i_n});
+            }
+            else
+            {
+                return nullptr;  // TODO: use some other "empty" type here
+            }
         }();
 
         auto c_block_window = make_tile_window(
@@ -744,39 +776,6 @@ struct QuantGemmKernel
             a_block_window, aq_block_window, b_block_window, bq_block_window, c_block_window);
     }
 
-    template <typename KernelArgsT>
-    CK_TILE_DEVICE static auto MakeRowColScaleViews(const KernelArgsT& kargs, const AccDataType* scale_m, const AccDataType* scale_n)
-    {
-        const auto scale_m_tensor_view = make_naive_tensor_view<address_space_enum::global>(
-            scale_m,
-            make_tuple(kargs.M, kargs.N),
-            make_tuple(1, 0),  // broadcasting over n
-            number<1>{},
-            number<1>{});
-        const auto scale_n_tensor_view = make_naive_tensor_view<address_space_enum::global>(
-            scale_n,
-            make_tuple(kargs.M, kargs.N),
-            make_tuple(0, 1),  // broadcasting over m
-            number<1>{},
-            number<1>{});
-        return make_tuple(scale_m_tensor_view, scale_n_tensor_view);
-    }
-
-    template <typename ScaleMView, typename ScaleNView>
-    CK_TILE_DEVICE static auto MakeRowColScaleWindows(const ScaleMView& scale_m_view, const ScaleNView& scale_n_view,
-                                                   const TilePartitioner& tile_partitioner,
-                                                   const index_t i_m, const index_t i_n)
-    {
-        const auto scale_m_window = make_tile_window(
-            scale_m_view,
-            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
-            {i_m, i_n});
-        const auto scale_n_window = make_tile_window(
-            scale_n_view,
-            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
-            {i_m, i_n});
-        return make_tuple(scale_m_window, scale_n_window);
-    }
 
     /**
      * @brief Runs single GEMM problem cooperatively by whole workgroup.
@@ -822,15 +821,34 @@ struct QuantGemmKernel
         const auto& b_block_window  = gemm_tile_windows.at(I2);
         const auto& bq_block_window = gemm_tile_windows.at(I3);
 
-        const auto& c_block_tile = GemmPipeline{}.template operator()(
-            a_block_window, b_block_window, aq_block_window, bq_block_window, num_loop, smem_ptr_0);
+        const auto& c_block_tile = [&]() {
+            if constexpr(kQuantType == QuantType::AQuantGrouped)
+            {
+                return GemmPipeline{}.template operator()(
+                    a_block_window, b_block_window, aq_block_window, num_loop, smem_ptr_0);
+            }
+            else if constexpr(kQuantType == QuantType::RowColQuant)
+            {
+                return GemmPipeline{}.template operator()(
+                    a_block_window, b_block_window, num_loop, smem_ptr_0);
+            }
+        }();
 
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I4);
 
-        EpiloguePipeline{}.template
-        operator()<decltype(c_block_window), decltype(c_block_tile), decltype(c_block_window)>(
-            c_block_window, c_block_tile, c_block_window, smem_ptr_0);
+        if constexpr(kQuantType == QuantType::AQuantGrouped)
+        {
+            EpiloguePipeline{}.template
+                operator()<decltype(c_block_window), decltype(c_block_tile), decltype(c_block_window)>(
+                    c_block_window, c_block_tile, c_block_window, smem_ptr_0);
+        }
+        else if constexpr(kQuantType == QuantType::RowColQuant)
+        {
+            EpiloguePipeline{}.template
+                operator()<decltype(c_block_window), decltype(c_block_tile), decltype(c_block_window)>(
+                    c_block_window, c_block_tile, c_block_window, smem_ptr_0, aq_block_window, bq_block_window);
+        }
     }
 
     CK_TILE_DEVICE void operator()(QuantGemmKernelArgs kargs) const
