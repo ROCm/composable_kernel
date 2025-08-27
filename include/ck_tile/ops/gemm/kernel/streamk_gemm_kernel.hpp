@@ -240,9 +240,57 @@ struct StreamKKernel
         kargs.workspace_ptr = workspace_ptr;
     }
 
-    // Temporary placeholder to support the Occupancy() static function.
-    // Since the Occupancy function uses kentry, this class must have an operator() function
-    CK_TILE_DEVICE void operator()(StreamKKernelArgs /*kargs*/) const {}
+    CK_TILE_DEVICE void operator()(StreamKKernelArgs kargs) const
+    {
+        // allocate LDS
+        __shared__ char smem_ptr_0[UniversalGemmKernel::GetSmemSize()];
+
+        uint32_t block_idx = ck_tile::get_block_1d_id();
+
+        uint32_t iter_start, iter_end;
+        kargs.tile_partitioner.GetBlockItr(block_idx, iter_start, iter_end);
+        uint32_t total_iter_length = iter_end - iter_start;
+
+        while(true)
+        {
+
+            uint32_t current_iter_length =
+                __builtin_amdgcn_readfirstlane(kargs.tile_partitioner.GetCurrentIterLength(
+                    iter_start, iter_end, total_iter_length));
+
+            uint32_t tile_idx, iter_offset;
+            kargs.tile_partitioner.GetTileIdxWithOffset(iter_end - 1, tile_idx, iter_offset);
+            iter_offset = __builtin_amdgcn_readfirstlane(iter_offset - current_iter_length + 1);
+            auto spatial_idx = kargs.tile_partitioner.GetOutputTileIndex(tile_idx);
+
+            index_t i_m    = static_cast<index_t>(spatial_idx[UniversalGemmKernel::I0]);
+            index_t i_n    = static_cast<index_t>(spatial_idx[UniversalGemmKernel::I1]);
+            index_t i_k    = static_cast<index_t>(iter_offset) * TilePartitioner::KPerBlock;
+            index_t k_size = static_cast<index_t>(current_iter_length * TilePartitioner::KPerBlock);
+
+            const ADataType* a_ptr = static_cast<const ADataType*>(kargs.as_ptr[0]) + i_k;
+
+            const BDataType* b_ptr = static_cast<const BDataType*>(kargs.bs_ptr[0]) + i_k;
+
+            CDataType* c_ptr = static_cast<CDataType*>(kargs.e_ptr);
+
+            RunGemm({a_ptr},
+                    {b_ptr},
+                    {/*ds_ptr*/},
+                    c_ptr,
+                    smem_ptr_0,
+                    kargs,
+                    current_iter_length,
+                    i_m,
+                    i_n,
+                    k_size);
+
+            iter_end -= current_iter_length;
+            if(iter_end <= iter_start)
+                break;
+            block_sync_lds();
+        }
+    }
 
     private:
     CK_TILE_HOST static int NumCU()
