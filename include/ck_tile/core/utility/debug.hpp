@@ -154,7 +154,7 @@ struct CK_PRINTF_WARP0 : public CK_PRINTF<ConvertTo, FMT, PREFIX, SUFFIX>
     }
 };
 
- /*
+/*
  * RAII struct which inserts start/end markers into the generated assembly.
  *
  * Usage:
