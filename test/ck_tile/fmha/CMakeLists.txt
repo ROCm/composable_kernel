@@ -1,3 +1,8 @@
+# Keep in sync with example/ck_tile/01_fmha/CMakeLists.txt
+if(NOT SUPPORTED_GPU_TARGETS MATCHES "gfx9")
+    return()
+endif()
+
 set(FMHA_BWD_INSTANCES "tile_fmha_bwd_instances")
 set(FMHA_FWD_INSTANCES "tile_fmha_fwd_instances")
 

@@ -1,7 +1,19 @@
+set(INST_TARGETS ${SUPPORTED_GPU_TARGETS})
+# Currently only gfx9 archs are supported by FMHA
+list(FILTER INST_TARGETS INCLUDE REGEX "gfx9")
+if(NOT INST_TARGETS)
+  message(WARNING "Skipping Tile Engine FMHA compilation: No supported GPU targets (gfx9) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
+  return()
+endif()
+
 # validate user-specified fmha_fwd API list
 set(FMHA_FWD_KNOWN_APIS "fwd;fwd_splitkv;fwd_appendkv;pagedkv_prefill")
-set(FMHA_FWD_ENABLE_APIS "all" CACHE STRING
+set(FMHA_FWD_ENABLE_APIS "fwd" CACHE STRING
   "semicolon-separated list of APIs to generate (${FMHA_FWD_KNOWN_APIS}) & link, or \"all\".")
+if(BUILD_TESTING)
+  # Build instances of all APIs for tests
+  set(FMHA_FWD_ENABLE_APIS "all")
+endif()
 if(FMHA_FWD_ENABLE_APIS STREQUAL "all")
   set(FMHA_FWD_ENABLE_APIS ${FMHA_FWD_KNOWN_APIS})
 endif()
@@ -81,14 +93,18 @@ set(FMHA_FWD_INSTANCES "tile_fmha_fwd_instances")
 set(FMHA_BWD_INSTANCES "tile_fmha_bwd_instances")
 
 message(DEBUG "adding instances ${FMHA_FWD_INSTANCES}")
-add_library(${FMHA_FWD_INSTANCES})
+add_library(${FMHA_FWD_INSTANCES} EXCLUDE_FROM_ALL)
 target_include_directories(${FMHA_FWD_INSTANCES} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${FMHA_FWD_INSTANCES} PRIVATE ${FMHA_FWD_GEN_BLOBS})
+set_source_files_properties(${FMHA_FWD_GEN_BLOBS} PROPERTIES LANGUAGE HIP)
+set_property(TARGET ${FMHA_FWD_INSTANCES} PROPERTY HIP_ARCHITECTURES ${INST_TARGETS})
 
 message(DEBUG "adding instances ${FMHA_BWD_INSTANCES}")
-add_library(${FMHA_BWD_INSTANCES})
+add_library(${FMHA_BWD_INSTANCES} EXCLUDE_FROM_ALL)
 target_include_directories(${FMHA_BWD_INSTANCES} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${FMHA_BWD_INSTANCES} PRIVATE ${FMHA_BWD_GEN_BLOBS})
+set_source_files_properties(${FMHA_BWD_GEN_BLOBS} PROPERTIES LANGUAGE HIP)
+set_property(TARGET ${FMHA_BWD_INSTANCES} PROPERTY HIP_ARCHITECTURES ${INST_TARGETS})
 
 set(FMHA_FWD_PRIVATE_COMPILE_OPTIONS)
 set(FMHA_BWD_PRIVATE_COMPILE_OPTIONS)
