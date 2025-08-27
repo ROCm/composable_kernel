@@ -77,7 +77,6 @@ struct Default2DEpilogue
     using Problem                     = remove_cvref_t<Problem_>;
     using AccDataType                 = remove_cvref_t<typename Problem::AccDataType>;
     using ODataType                   = remove_cvref_t<typename Problem::ODataType>;
-    using CDElementwise               = remove_cvref_t<typename Problem::CDElementwise>;
     static constexpr bool kPadM       = Problem::kPadM;
     static constexpr bool kPadN       = Problem::kPadN;
     static constexpr bool UseRawStore = Problem::UseRawStore;
