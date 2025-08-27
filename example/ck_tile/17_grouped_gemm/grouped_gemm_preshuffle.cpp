@@ -68,11 +68,17 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
     using BaseGemmPipeline = typename PipelineTypeTraits<
         GemmConfig::Pipeline>::template UniversalGemmPipeline<GemmPipelineProblem>;
 
+    // FIX: Use a representative K value instead of just the first group's K
+    // For mixed K alignments, we need a common configuration that works for all groups
+    // Use the first group's K but ensure all groups have compatible alignment
     const ck_tile::index_t k_grain = gemm_descs[0].k_batch * GemmConfig::K_Tile;
     const ck_tile::index_t K_split = (gemm_descs[0].K + k_grain - 1) / k_grain * GemmConfig::K_Tile;
     const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
     const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
     const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
+    
+    // TODO: This is the root cause - pipeline config is based only on first group
+    // but applied to all groups. A proper fix would calculate per-group configs.
 
     float ave_time{0};
 

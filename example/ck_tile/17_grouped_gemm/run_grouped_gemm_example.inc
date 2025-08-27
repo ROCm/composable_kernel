@@ -193,20 +193,26 @@ int run_grouped_gemm_example_with_layouts(int argc,
         std::cout << "Please check the input data. Default values will be used." << std::endl;
         for(int i = 0; i < group_count; i++)
         {
-            // Ms.push_back(256 + 256 * i);
-            // Ns.push_back(256 + 512 * i);
-            // Ks.push_back(512 + 128 * i);
+            Ms.push_back(256 + 256 * i);
+            Ns.push_back(256 + 512 * i);
+            
+            // Test mixed K%256 pattern: first 2 groups K%256=0, next 2 groups K%256=128
+            ck_tile::index_t K;
+            if(i > group_count / 2)
+            {
+                // First half: K%256 = 0
+                K = 768 + 256 * i;  // 768, 1024, ... (all K%256=0)
+            }
+            else
+            {
+                // Second half: K%256 = 128  
+                K = 640 + 256 * (i - group_count / 2);  // 640, 896, ... (all K%256=128)
+            }
+            Ks.push_back(K);
 
-            // stride_As.push_back(Ks[i]);
-            // stride_Bs.push_back(Ks[i]);
-            // stride_Cs.push_back(Ns[i]);
-            // all the values are 1024
-            Ms.push_back(512);
-            Ns.push_back(768);
-            Ks.push_back(640);
-            stride_As.push_back(640);
-            stride_Bs.push_back(640);
-            stride_Cs.push_back(768);
+            stride_As.push_back(Ks[i]);
+            stride_Bs.push_back(Ks[i]);
+            stride_Cs.push_back(Ns[i]);
         }
     }
 
