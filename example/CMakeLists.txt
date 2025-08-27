@@ -93,8 +93,8 @@ function(add_example_executable EXAMPLE_NAME FILE_NAME)
             message(DEBUG "removing bf8 example ${source} ")
             list(REMOVE_ITEM FILE_NAME "${source}")
         endif()
-        # Build fp8 gemm_multiply_multiply and moe only on gfx94/95
-        if(NOT EX_TARGETS MATCHES "gfx94" AND NOT EX_TARGETS MATCHES "gfx95")
+        # Build fp8 gemm_multiply_multiply and moe only on gfx94/95 and gfx12
+        if(NOT EX_TARGETS MATCHES "gfx94" AND NOT EX_TARGETS MATCHES "gfx95" AND NOT EX_TARGETS MATCHES "gfx12")
             if(source_name MATCHES "fp8" AND source_name MATCHES "(gemm_multiply_multiply|moe)")
                 message(DEBUG "Skipping ${source} example for current target")
                 list(REMOVE_ITEM FILE_NAME "${source}")
@@ -114,9 +114,9 @@ function(add_example_executable EXAMPLE_NAME FILE_NAME)
             list(REMOVE_ITEM EX_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx950)
         elseif(source_name_list MATCHES "_mx") #only build mx example for gfx950
             list(REMOVE_ITEM EX_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic)
-        elseif(source_name_list MATCHES "_pk_i4") #only build these examples for gfx942 and gfx950
+        elseif(source_name_list MATCHES "_pk_i4") #only build these examples for gfx942 gfx950 and rdna3/4
             message(DEBUG "trimming targets for ${FILE_NAME}")
-            list(REMOVE_ITEM EX_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic)
+            list(REMOVE_ITEM EX_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx1030 gfx10-3-generic)
         endif()
         set_source_files_properties(${FILE_NAME} PROPERTIES LANGUAGE HIP)
         add_executable(${EXAMPLE_NAME} ${FILE_NAME})
