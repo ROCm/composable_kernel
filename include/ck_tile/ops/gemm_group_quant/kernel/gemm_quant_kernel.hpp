@@ -111,7 +111,7 @@ struct QuantGemmKernelArgs
     index_t k_batch;
 };
 
-template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
+template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_, QuantType QuantType_>
 struct QuantGemmKernel
 {
     using TilePartitioner               = remove_cvref_t<TilePartitioner_>;
@@ -125,17 +125,20 @@ struct QuantGemmKernel
     static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
     static constexpr bool Preshuffle    = GemmPipeline::Preshuffle;
 
-    using ADataType  = remove_cvref_t<typename GemmPipeline::ADataType>;
-    using AQDataType = remove_cvref_t<typename GemmPipeline::AQDataType>;
-    using BDataType  = remove_cvref_t<typename GemmPipeline::BDataType>;
-    using BQDataType = remove_cvref_t<typename GemmPipeline::BQDataType>;
-    using CDataType  = remove_cvref_t<typename EpiloguePipeline::ODataType>;
+    using ADataType   = remove_cvref_t<typename GemmPipeline::ADataType>;
+    using AQDataType  = remove_cvref_t<typename GemmPipeline::AQDataType>;
+    using BDataType   = remove_cvref_t<typename GemmPipeline::BDataType>;
+    using BQDataType  = remove_cvref_t<typename GemmPipeline::BQDataType>;
+    using CDataType   = remove_cvref_t<typename EpiloguePipeline::ODataType>;
+    using AccDataType = remove_cvref_t<typename EpiloguePipeline::AccDataType>;
 
     static constexpr auto I0 = number<0>(); // A Tensor
     static constexpr auto I1 = number<1>(); // AQ Tensor
     static constexpr auto I2 = number<2>(); // B Tensor
     static constexpr auto I3 = number<3>(); // BQ Tensor
     static constexpr auto I4 = number<4>(); // C Tensor
+
+    static constexpr auto kQuantType = QuantType_;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
@@ -739,6 +742,40 @@ struct QuantGemmKernel
 
         return make_tuple(
             a_block_window, aq_block_window, b_block_window, bq_block_window, c_block_window);
+    }
+
+    template <typename KernelArgsT>
+    CK_TILE_DEVICE static auto MakeRowColScaleViews(const KernelArgsT& kargs, const AccDataType* scale_m, const AccDataType* scale_n)
+    {
+        const auto scale_m_tensor_view = make_naive_tensor_view<address_space_enum::global>(
+            scale_m,
+            make_tuple(kargs.M, kargs.N),
+            make_tuple(1, 0),  // broadcasting over n
+            number<1>{},
+            number<1>{});
+        const auto scale_n_tensor_view = make_naive_tensor_view<address_space_enum::global>(
+            scale_n,
+            make_tuple(kargs.M, kargs.N),
+            make_tuple(0, 1),  // broadcasting over m
+            number<1>{},
+            number<1>{});
+        return make_tuple(scale_m_tensor_view, scale_n_tensor_view);
+    }
+
+    template <typename ScaleMView, typename ScaleNView>
+    CK_TILE_DEVICE static auto MakeRowColScaleWindows(const ScaleMView& scale_m_view, const ScaleNView& scale_n_view,
+                                                   const TilePartitioner& tile_partitioner,
+                                                   const index_t i_m, const index_t i_n)
+    {
+        const auto scale_m_window = make_tile_window(
+            scale_m_view,
+            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
+            {i_m, i_n});
+        const auto scale_n_window = make_tile_window(
+            scale_n_view,
+            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
+            {i_m, i_n});
+        return make_tuple(scale_m_window, scale_n_window);
     }
 
     /**
