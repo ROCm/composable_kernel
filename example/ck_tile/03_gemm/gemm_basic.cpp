@@ -26,6 +26,15 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     constexpr ck_tile::index_t N_Tile = 256;
     constexpr ck_tile::index_t K_Tile = 64;
 
+#if CK_TILE_USE_WMMA
+    constexpr ck_tile::index_t M_Warp = 4;
+    constexpr ck_tile::index_t N_Warp = 2;
+    constexpr ck_tile::index_t K_Warp = 1;
+
+    constexpr ck_tile::index_t M_Warp_Tile = 16;
+    constexpr ck_tile::index_t N_Warp_Tile = 16;
+    constexpr ck_tile::index_t K_Warp_Tile = 16;
+#else
     constexpr ck_tile::index_t M_Warp = 2;
     constexpr ck_tile::index_t N_Warp = 2;
     constexpr ck_tile::index_t K_Warp = 1;
@@ -33,6 +42,7 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     constexpr ck_tile::index_t M_Warp_Tile = 32;
     constexpr ck_tile::index_t N_Warp_Tile = 32;
     constexpr ck_tile::index_t K_Warp_Tile = 16;
+#endif
 
     using CodegenGemmShape =
         ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
@@ -65,7 +75,6 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                                              ck_tile::tuple<>,
                                              CLayout,
                                              ck_tile::element_wise::PassThrough,
-                                             CodegenPipelineProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,
                                              M_Warp,
@@ -81,8 +90,8 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
         using Kernel = ck_tile::GemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
         auto kargs   = Kernel::MakeKernelArgs(args);
 
-        const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
-        constexpr dim3 blocks = Kernel::BlockSize();
+        const dim3 grids  = Kernel::GridSize(args.M, args.N, args.k_batch);
+        const dim3 blocks = Kernel::BlockSize();
 
         if(!Kernel::IsSupportedArgument(kargs))
         {
@@ -100,10 +109,8 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                       << std::endl;
         }
 
-        float ave_time =
-            ck_tile::launch_kernel(s,
-                                   ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(
-                                       Kernel{}, grids, blocks, 0, kargs));
+        float ave_time = ck_tile::launch_kernel(
+            s, ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 
         return ave_time;
     };

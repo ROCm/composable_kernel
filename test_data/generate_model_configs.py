@@ -10,8 +10,12 @@ import csv
 import itertools
 import argparse
 
-def generate_2d_configs():
-    """Generate all 2D model configuration combinations"""
+def generate_2d_configs(mode='full'):
+    """Generate all 2D model configuration combinations
+    
+    Args:
+        mode: 'small' for minimal set (~50 configs), 'half' for reduced set (~250 configs), 'full' for comprehensive set (~500 configs)
+    """
     
     # Define parameter ranges
     models_2d = [
@@ -24,15 +28,37 @@ def generate_2d_configs():
         'shufflenet_v2_x1_0'
     ]
     
-    batch_sizes = [1, 4, 8, 16, 32]
-    
-    # Input dimensions: (height, width)
-    input_dims = [
-        (64, 64), (128, 128), (224, 224), (256, 256), (512, 512),  # Square
-        (224, 320), (224, 448), (320, 224), (448, 224),            # Rectangular
-        (227, 227),  # AlexNet preferred
-        (299, 299)   # Inception preferred
-    ]
+    if mode == 'small':
+        # Minimal set for quick testing
+        batch_sizes = [1, 8]  # Just two batch sizes
+        # Very limited input dimensions - only 2 key sizes
+        input_dims = [
+            (224, 224),  # Standard (most common)
+            (256, 256),  # Medium
+        ]
+        # Use only first 3 models for minimal testing
+        models_2d = models_2d[:3]  # Only resnet18, resnet34, resnet50
+    elif mode == 'half':
+        # Reduced set for faster testing
+        batch_sizes = [1, 8, 32]  # Small, medium, large
+        # Reduced input dimensions - 5 key sizes
+        input_dims = [
+            (64, 64),    # Small
+            (224, 224),  # Standard (most common)
+            (512, 512),  # Large
+            (224, 320),  # Rectangular
+            (227, 227),  # AlexNet preferred
+        ]
+    else:  # full mode
+        # More comprehensive but still limited
+        batch_sizes = [1, 4, 8, 16, 32]
+        # More dimensions but skip some redundant ones
+        input_dims = [
+            (64, 64), (128, 128), (224, 224), (256, 256), (512, 512),  # Square
+            (224, 320), (320, 224),  # Rectangular (reduced from 4)
+            (227, 227),  # AlexNet preferred
+            (299, 299)   # Inception preferred
+        ]
     
     precisions = ['fp32'] #, 'fp16', 'bf16']
     channels = [3]  # Most models expect RGB
@@ -68,19 +94,44 @@ def generate_2d_configs():
     
     return configs
 
-def generate_3d_configs():
-    """Generate all 3D model configuration combinations"""
+def generate_3d_configs(mode='full'):
+    """Generate all 3D model configuration combinations
+    
+    Args:
+        mode: 'small' for minimal set (~10 configs), 'half' for reduced set (~50 configs), 'full' for comprehensive set (~100 configs)
+    """
     
     models_3d = ['r3d_18', 'mc3_18', 'r2plus1d_18']
     
-    batch_sizes = [1, 2, 4, 8]  # 3D models are more memory intensive
-    temporal_sizes = [8, 16, 32]
-    
-    # 3D input dimensions: (height, width) 
-    input_dims = [
-        (112, 112), (224, 224), (256, 256),  # Standard sizes
-        (224, 320), (320, 224)               # Rectangular
-    ]
+    if mode == 'small':
+        # Minimal set for quick testing
+        batch_sizes = [1, 4]  # Just two batch sizes
+        temporal_sizes = [8]  # Only smallest temporal size
+        # Very limited spatial dimensions
+        input_dims = [
+            (112, 112),  # Standard for 3D
+        ]
+        # Use only first model for minimal testing
+        models_3d = models_3d[:1]  # Only r3d_18
+    elif mode == 'half':
+        # Reduced set for faster testing
+        batch_sizes = [1, 4, 8]  # Skip batch_size=2
+        temporal_sizes = [8, 16]  # Skip 32 (most expensive)
+        # Reduced spatial dimensions
+        input_dims = [
+            (112, 112),  # Small (common for video)
+            (224, 224),  # Standard
+            (224, 320)   # Rectangular
+        ]
+    else:  # full mode
+        # More comprehensive but still reasonable
+        batch_sizes = [1, 2, 4, 8]  # 3D models are more memory intensive
+        temporal_sizes = [8, 16, 32]
+        # More dimensions
+        input_dims = [
+            (112, 112), (224, 224), (256, 256),  # Standard sizes
+            (224, 320), (320, 224)               # Rectangular
+        ]
     
     precisions = ['fp32'] #, 'fp16']  # Skip bf16 for 3D to reduce combinations
     channels = [3]
@@ -142,19 +193,23 @@ def main():
                        help='Output file for 2D configurations')
     parser.add_argument('--output-3d', type=str, default='model_configs_3d.csv', 
                        help='Output file for 3D configurations')
+    parser.add_argument('--mode', choices=['small', 'half', 'full'], default='full',
+                       help='Configuration mode: small (~60 total), half (~300 total) or full (~600 total) (default: half)')
     parser.add_argument('--limit', type=int, 
                        help='Limit number of configurations per type (for testing)')
     
     args = parser.parse_args()
     
+    print(f"Generating {args.mode} model configurations...")
+    
     print("Generating 2D model configurations...")
-    configs_2d = generate_2d_configs()
+    configs_2d = generate_2d_configs(mode=args.mode)
     if args.limit:
         configs_2d = configs_2d[:args.limit]
     save_configs_to_csv(configs_2d, args.output_2d, "2D")
     
     print("Generating 3D model configurations...")
-    configs_3d = generate_3d_configs()
+    configs_3d = generate_3d_configs(mode=args.mode)
     if args.limit:
         configs_3d = configs_3d[:args.limit]
     save_configs_to_csv(configs_3d, args.output_3d, "3D")

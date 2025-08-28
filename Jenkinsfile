@@ -400,8 +400,9 @@ def cmake_build(Map conf=[:]){
                     echo "Build packages"
                     sh 'ninja -j64 package'
                     archiveArtifacts artifacts: 'composablekernel-dev*.deb'
-                    sh 'mv composablekernel-dev_*.deb composablekernel-dev_all_targets_1.1.0_amd64.deb'
-                    stash includes: "composablekernel-dev_all_targets_1.1.0_amd64.deb", name: "packages"
+                    sh 'mv composablekernel-dev_*.deb composablekernel-dev_all_targets_1.2.0_amd64.deb'
+                    sh 'mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64.deb'
+                    stash includes: "composablekernel-**.deb", name: "packages"
                 }
             }
             else{
@@ -571,50 +572,66 @@ def Build_CK(Map conf=[:]){
                                   python3 -m pytest python/test/test_gen_instances.py
                             """
                     }
-                    dir("build"){
-                        if (params.RUN_FULL_QA && arch == 2 ){
-                            // build deb packages
-                            echo "Build packages"
-                            sh 'ninja package'
-                            archiveArtifacts artifacts: 'composablekernel*.deb'
-                            sh 'mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.1.0_amd64.deb'
-                            sh 'mv composablekernel-dev_*.deb composablekernel-dev_1.1.0_amd64.deb'
-                            sh 'mv composablekernel-examples_*.deb composablekernel-examples_1.1.0_amd64.deb'
-                            sh 'mv composablekernel-tests_*.deb composablekernel-tests_1.1.0_amd64.deb'
-                            stash includes: "composablekernel-**.deb", name: "packages"
-                        }
-                    }
                     // run performance tests, stash the logs, results will be processed on the master node
 					dir("script"){
                         if (params.RUN_PERFORMANCE_TESTS){
                         if (params.RUN_FULL_QA && arch == 1){
                             // run full tests on gfx90a
                             echo "Run full performance tests"
-                            sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
-                            archiveArtifacts "perf_gemm.log"
-                            archiveArtifacts "perf_resnet50_N256.log"
-                            archiveArtifacts "perf_resnet50_N4.log"
-                            archiveArtifacts "perf_batched_gemm.log"
-                            archiveArtifacts "perf_grouped_gemm.log"
-                            archiveArtifacts "perf_grouped_conv_fwd.log"
-                            archiveArtifacts "perf_grouped_conv_bwd_data.log"
-                            archiveArtifacts "perf_grouped_conv_bwd_weight.log"
-                            archiveArtifacts "perf_gemm_bilinear.log"
-                            archiveArtifacts "perf_reduction.log"
-                            archiveArtifacts "perf_splitK_gemm.log"
-                            archiveArtifacts "perf_onnx_gemm.log"
-                            archiveArtifacts "perf_mixed_gemm.log"
-                            stash includes: "perf_**.log", name: "perf_log"
+                            sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx90a"
+                            archiveArtifacts "perf_gemm_gfx90a.log"
+                            archiveArtifacts "perf_resnet50_N256_gfx90a.log"
+                            archiveArtifacts "perf_resnet50_N4_gfx90a.log"
+                            archiveArtifacts "perf_batched_gemm_gfx90a.log"
+                            archiveArtifacts "perf_grouped_gemm_gfx90a.log"
+                            archiveArtifacts "perf_grouped_conv_fwd_gfx90a.log"
+                            archiveArtifacts "perf_grouped_conv_bwd_data_gfx90a.log"
+                            archiveArtifacts "perf_grouped_conv_bwd_weight_gfx90a.log"
+                            archiveArtifacts "perf_gemm_bilinear_gfx90a.log"
+                            archiveArtifacts "perf_reduction_gfx90a.log"
+                            archiveArtifacts "perf_splitK_gemm_gfx90a.log"
+                            archiveArtifacts "perf_onnx_gemm_gfx90a.log"
+                            archiveArtifacts "perf_mixed_gemm_gfx90a.log"
+                            stash includes: "perf_**.log", name: "perf_log_gfx90a"
+                        }
+                        if (params.RUN_FULL_QA && arch == 2){
+                            // run full tests on gfx942
+                            echo "Run full performance tests"
+                            sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx942"
+                            archiveArtifacts "perf_gemm_gfx942.log"
+                            archiveArtifacts "perf_resnet50_N256_gfx942.log"
+                            archiveArtifacts "perf_resnet50_N4_gfx942.log"
+                            archiveArtifacts "perf_batched_gemm_gfx942.log"
+                            archiveArtifacts "perf_grouped_gemm_gfx942.log"
+                            archiveArtifacts "perf_grouped_conv_fwd_gfx942.log"
+                            archiveArtifacts "perf_grouped_conv_bwd_data_gfx942.log"
+                            archiveArtifacts "perf_grouped_conv_bwd_weight_gfx942.log"
+                            archiveArtifacts "perf_gemm_bilinear_gfx942.log"
+                            archiveArtifacts "perf_reduction_gfx942.log"
+                            archiveArtifacts "perf_splitK_gemm_gfx942.log"
+                            archiveArtifacts "perf_onnx_gemm_gfx942.log"
+                            archiveArtifacts "perf_mixed_gemm_gfx942.log"
+                            stash includes: "perf_**.log", name: "perf_log_gfx942"
                         }
                         else if ( arch == 1 ){
                             // run standard tests on gfx90a
                             echo "Run performance tests"
-                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
-                            archiveArtifacts "perf_gemm.log"
-                            archiveArtifacts "perf_onnx_gemm.log"
-                            archiveArtifacts "perf_resnet50_N256.log"
-                            archiveArtifacts "perf_resnet50_N4.log"
-                            stash includes: "perf_**.log", name: "perf_log"
+                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx90a"
+                            archiveArtifacts "perf_gemm_gfx90a.log"
+                            archiveArtifacts "perf_onnx_gemm_gfx90a.log"
+                            archiveArtifacts "perf_resnet50_N256_gfx90a.log"
+                            archiveArtifacts "perf_resnet50_N4_gfx90a.log"
+                            stash includes: "perf_**.log", name: "perf_log_gfx90a"
+                        }
+                        else if ( arch == 2 ){
+                            // run standard tests on gfx942
+                            echo "Run performance tests"
+                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx942"
+                            archiveArtifacts "perf_gemm_gfx942.log"
+                            archiveArtifacts "perf_onnx_gemm_gfx942.log"
+                            archiveArtifacts "perf_resnet50_N256_gfx942.log"
+                            archiveArtifacts "perf_resnet50_N4_gfx942.log"
+                            stash includes: "perf_**.log", name: "perf_log_gfx942"
                         }
                         // disable performance tests on gfx1030 for now.
                         //else if ( arch == 3){
@@ -732,29 +749,64 @@ def process_results(Map conf=[:]){
                     if (params.RUN_CK_TILE_FMHA_TESTS){
                         try{
                             unstash "perf_fmha_log_gfx942"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the FMHA performance logs for gfx942: ${err.getMessage()}."
+                        }
+                        try{
                             unstash "perf_fmha_log_gfx90a"
                         }
                         catch(Exception err){
-                            echo "could not locate the FMHA performance logs: ${err.getMessage()}."
+                            echo "could not locate the FMHA performance logs for gfx90a: ${err.getMessage()}."
                         }
                     }
-                    if (params.RUN_FULL_QA || params.BUILD_INSTANCES_ONLY){
+                    if (params.BUILD_INSTANCES_ONLY){
                         // unstash deb packages
                         unstash "packages"
                         sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no composablekernel-*.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
                     }
                     else{
                         // unstash perf files to master
-                        unstash "perf_log"
+                        try{
+                            unstash "perf_log_gfx90a"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the gfx90a performance logs: ${err.getMessage()}."
+                        }
+                        try{
+                            unstash "perf_log_gfx942"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the gfx942 performance logs: ${err.getMessage()}."
+                        }
+                        try{
+                            unstash "perf_log_gfx950"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the gfx950 performance logs: ${err.getMessage()}."
+                        }
+                        try{
+                            unstash "perf_log_gfx908"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the gfx908 performance logs: ${err.getMessage()}."
+                        }
                         try{
                             unstash "perf_log_gfx11"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the gfx11 performance logs: ${err.getMessage()}."
+                        }
+                        try{
+
                             unstash "perf_log_gfx12"
                         }
                         catch(Exception err){
-                            echo "could not locate the GEMM gfx11/gfx12 performance logs: ${err.getMessage()}."
+                            echo "could not locate the gfx12 performance logs: ${err.getMessage()}."
                         }
-                        sh "./process_perf_data.sh"
                     }
+                    // process the logs
+                    sh "./process_perf_data.sh"
                 }
             }
             catch(e){
@@ -1107,11 +1159,16 @@ pipeline {
                     agent{ label rocmnode("gfx90a")}
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_args = """ cd test_data && \
-                                           ./generate_test_dataset.sh && \
-                                           cd ../script && \
+                        execute_args = """ cd ../build && \
                                            ../script/cmake-ck-dev.sh  ../ gfx90a && \
                                            make -j64 test_grouped_convnd_fwd_dataset_xdl && \
+                                           cd ../test_data && \
+                                           # Dataset generation modes:
+                                           # - small: ~60 test cases (minimal, quick testing - 3 models, 2 batch sizes, 2 image sizes)
+                                           # - half: ~300 test cases (moderate coverage - 16 models, 3 batch sizes, 5 image sizes), ~ 17 hours testing time
+                                           # - full: ~600 test cases (comprehensive - 16 models, 5 batch sizes, 9 image sizes), ~ 40 hours testing time
+                                           ./generate_test_dataset.sh half && \
+                                           cd ../build && \
                                            ./bin/test_grouped_convnd_fwd_dataset_xdl"""
                     }
                     steps{
@@ -1306,6 +1363,7 @@ pipeline {
                         def docker_name = "${env.CK_DOCKERHUB_PRIVATE}:ck_rhel8_rocm6.3"
                         setup_args = """ -DGPU_TARGETS="gfx942" \
                                          -DCMAKE_CXX_FLAGS=" -O3 " \
+                                         -DCK_CXX_STANDARD="17" \
                                          -DCK_USE_ALTERNATIVE_PYTHON=/opt/Python-3.8.13/bin/python3.8 """
                         execute_args = " "
                     }
@@ -1440,7 +1498,7 @@ pipeline {
                                     -D CMAKE_BUILD_TYPE=Release \
                                     -D CMAKE_CXX_FLAGS=" -O3 " .. && ninja -j64 """
                             
-                            buildHipClangJobAndReboot(setup_cmd: "",  build_cmd: "", no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                            buildHipClangJobAndReboot(setup_cmd: "",  build_cmd: "", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, docker_name: "${env.CK_DOCKERHUB_PRIVATE}:ck_ub24.04_rocm7.0")
                         }
                         cleanWs()
                     }
@@ -1517,7 +1575,7 @@ pipeline {
                 stage("Process results"){
                     when {
                         beforeAgent true
-                        expression { params.RUN_PERFORMANCE_TESTS.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                        expression { (params.RUN_PERFORMANCE_TESTS.toBoolean() || params.BUILD_INSTANCES_ONLY.toBoolean() || params.RUN_CK_TILE_FMHA_TESTS.toBoolean()) && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     agent { label 'mici' }
                     steps{
