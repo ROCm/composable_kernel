@@ -15,20 +15,20 @@ if [ $# -ge 2 ]; then
             GPU_TARGETS=$2
             shift 2
             echo "GPU targets provided: $GPU_TARGETS"
-            REST_ARGS=$@
+            REST_ARGS=("$@")
             ;;
         *)
             echo "No GPU targets provided, using default targets: gfx908;gfx90a;gfx942"
             GPU_TARGETS="gfx908;gfx90a;gfx942"
             shift 1
-            REST_ARGS=$@
+            REST_ARGS=("$@")
             ;;
     esac
 else
     echo "No GPU targets provided, using default targets: gfx908;gfx90a;gfx942"
     GPU_TARGETS="gfx908;gfx90a;gfx942"
     shift 1
-    REST_ARGS=$@
+    REST_ARGS=("$@")
 fi
 
 cmake                                                                                             \
@@ -40,5 +40,5 @@ cmake                                                                           
 -D GPU_TARGETS=$GPU_TARGETS                                                                       \
 -D CMAKE_VERBOSE_MAKEFILE:BOOL=ON                                                                 \
 -D USE_BITINT_EXTENSION_INT4=OFF                                                                  \
-$REST_ARGS                                                                                        \
+"${REST_ARGS[@]}"                                                                                 \                                                                                     \
 ${MY_PROJECT_SOURCE}

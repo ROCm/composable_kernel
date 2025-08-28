@@ -84,7 +84,7 @@ cmake ...
 ```bash
 # Build for gfx942 with fp8 and fp16 datatypes, rcr layout
 mkdir build && cd build
-sh ../script/cmake-ck-dev.sh ../ gfx942 -DGEMM_DATATYPE="fp8;fp16" -DGEMM_LAYOUT="rcr"
+../script/cmake-ck-dev.sh ../ gfx942 -DGEMM_DATATYPE="fp8;fp16" -DGEMM_LAYOUT="rcr;ccr;rrr;crr"
 make benchmark_gemm_fp8_rcr -j
 make benchmark_gemm_fp16_rcr -j
 ```
@@ -93,7 +93,7 @@ make benchmark_gemm_fp16_rcr -j
 
 ```bash
 # Build a specific kernel configuration
-make benchmark_gemm_fp16_rcr_compv3_default_intrawave_False_False_False_False_False_256x128x32_4x1x1_32x32x16
+make benchmark_gemm_fp8_rcr_compv4_default_intrawave_False_False_False_False_False_256x256x32_1x4x1_32x32x32
 
 # Build all fp16 benchmarks in parallel
 make -j$(nproc) $(make help | grep benchmark_gemm_fp16 | awk '{print $2}')

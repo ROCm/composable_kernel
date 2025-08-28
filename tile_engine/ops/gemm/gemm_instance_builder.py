@@ -318,14 +318,32 @@ class GemmKernelBuilder:
         }
         return dtype_map.get(self.datatype, "float")
 
-    def _get_layout_string(self):
-        """Get C++ layout string"""
-        layout_map = {
-            "rcr": "ck_tile::tensor_layout::gemm::RowMajor",
-            "rrr": "ck_tile::tensor_layout::gemm::RowMajor",
-            "rcm": "ck_tile::tensor_layout::gemm::ColumnMajor",
-        }
-        return layout_map.get(self.layout, "ck_tile::tensor_layout::gemm::RowMajor")
+    _LAYOUT_MAP = {
+        "r": "ck_tile::tensor_layout::gemm::RowMajor",
+        "c": "ck_tile::tensor_layout::gemm::ColumnMajor",
+    }
+
+    def _get_abc_layouts(self, layout_code: str | None = None):
+        """
+        Return (ALayout, BLayout, CLayout) from a 3-letter code like 'rcr', 'ccr', 'crr', 'rrr'.
+        If layout_code is None, use self.layout.
+        """
+        if layout_code is None:
+            # fall back to the instance field
+            layout_code = getattr(self, "layout", "")
+
+        code = str(layout_code).strip().lower()
+
+        if len(code) != 3 or any(ch not in self._LAYOUT_MAP for ch in code):
+            raise ValueError(
+                f"Invalid layout '{layout_code}'. "
+                "Use a 3-letter code with 'r'/'c' (e.g., rcr, ccr, crr, rrr)."
+            )
+
+        a_layout = self._LAYOUT_MAP[code[0]]
+        b_layout = self._LAYOUT_MAP[code[1]]
+        c_layout = self._LAYOUT_MAP[code[2]]
+        return a_layout, b_layout, c_layout
 
     def _generate_kernel_instance(self, tile_config, trait_combo, is_header=True):
         """Generate a single kernel instance"""
@@ -379,14 +397,7 @@ class GemmKernelBuilder:
             c_type = "ck_tile::fp16_t"
 
         # Determine layouts based on self.layout
-        a_layout = "ck_tile::tensor_layout::gemm::RowMajor"
-        b_layout = "ck_tile::tensor_layout::gemm::ColumnMajor"
-        c_layout = "ck_tile::tensor_layout::gemm::RowMajor"
-
-        if self.layout == "rrr":
-            b_layout = "ck_tile::tensor_layout::gemm::RowMajor"
-        elif self.layout == "rcm":
-            c_layout = "ck_tile::tensor_layout::gemm::ColumnMajor"
+        a_layout, b_layout, c_layout = self._get_abc_layouts()
 
         # Map pipeline names to base pipeline for hot loop detection
         base_pipeline_map = {
@@ -813,7 +824,7 @@ def main():
         help="Data type",
     )
     parser.add_argument(
-        "--layout", required=True, choices=["rcr", "rrr", "rcm"], help="Matrix layout"
+        "--layout", required=True, choices=["rcr", "rrr", "ccr", "crr"], help="Matrix layout"
     )
     parser.add_argument("--config_json", help="Configuration JSON file")
     parser.add_argument(

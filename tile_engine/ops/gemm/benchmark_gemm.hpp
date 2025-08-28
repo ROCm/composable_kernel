@@ -13,12 +13,8 @@
 #include "ck_tile/host.hpp"
 #include "gemm_common.hpp"
 
-// Data types are defined by the generated kernel headers
+// Data types and Layouts are defined by the generated kernel headers
 // No hardcoded type definitions here to avoid conflicts
-
-using ALayout = ck_tile::tensor_layout::gemm::RowMajor;
-using BLayout = ck_tile::tensor_layout::gemm::ColumnMajor;
-using CLayout = ck_tile::tensor_layout::gemm::RowMajor;
 
 enum class Metric
 {
