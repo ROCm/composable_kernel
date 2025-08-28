@@ -121,6 +121,8 @@ CK_TILE_DEVICE fp16x4_t i4_to_half4_scale(int q, const fp16x2_t& scale)
  */
 CK_TILE_DEVICE bf16x4_t i4_to_bhalf4(int q)
 {
+#if 0
+    // This approach fails validation in GEMM tests.
     uint32_t i8s = (q & 0xf) | ((q & 0xf0) << 4) | ((q & 0xf00) << 8) | ((q & 0xf000) << 12);
 
     static constexpr uint32_t fp32_base = 0x4B000000;
@@ -146,6 +148,41 @@ CK_TILE_DEVICE bf16x4_t i4_to_bhalf4(int q)
         __byte_perm(fp32_intermediates_casted[3], fp32_intermediates_casted[2], 0x7632));
 
     return res;
+#elif 0
+    fp16x4_t src = i4_to_half4(q);
+
+    return bf16x4_t{
+        ck_tile::type_convert<bf16_t>(ck_tile::type_convert<float>(src[0])),
+        ck_tile::type_convert<bf16_t>(ck_tile::type_convert<float>(src[1])),
+        ck_tile::type_convert<bf16_t>(ck_tile::type_convert<float>(src[2])),
+        ck_tile::type_convert<bf16_t>(ck_tile::type_convert<float>(src[3])),
+    };
+#elif 1
+    // Lookup table for bf16_t values corresponding to int4 values -8 to 7
+    constexpr bf16_t bf16_lookup_table[16] = {
+        bf16_t(0xC100), // -8
+        bf16_t(0xC0E0), // -7
+        bf16_t(0xC0C0), // -6
+        bf16_t(0xC0A0), // -5
+        bf16_t(0xC080), // -4
+        bf16_t(0xC040), // -3
+        bf16_t(0xC000), // -2
+        bf16_t(0xBF80), // -1
+        bf16_t(0x0000), //  0
+        bf16_t(0x3F80), //  1
+        bf16_t(0x4000), //  2
+        bf16_t(0x4040), //  3
+        bf16_t(0x4080), //  4
+        bf16_t(0x40A0), //  5
+        bf16_t(0x40C0), //  6
+        bf16_t(0x40E0)  //  7
+    };
+
+    return bf16x4_t{bf16_lookup_table[(q >> 0) & 0xf],
+                    bf16_lookup_table[(q >> 16) & 0xf],
+                    bf16_lookup_table[(q >> 4) & 0xf],
+                    bf16_lookup_table[(q >> 20) & 0xf]};
+#endif
 }
 
 /**
@@ -278,7 +315,7 @@ struct PassThroughPack8
     CK_TILE_HOST_DEVICE constexpr void operator()(bf16x8_t& y, const pk_int4x4_t& x) const
     {
         y.lo = i4_to_bhalf4(bit_cast<int>(x));
-        y.hi = i4_to_bhalf4(bit_cast<int>(x) >> 16);
+        y.hi = i4_to_bhalf4(bit_cast<int>(x) >> 8);
     }
 
     CK_TILE_HOST_DEVICE constexpr void operator()(fp8x8_t& y, const pk_int4x4_t& x) const
