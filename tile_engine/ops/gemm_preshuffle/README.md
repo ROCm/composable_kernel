@@ -27,7 +27,7 @@ make benchmark_gemm_preshuffle_[Datatype2]_[Layout1] -j
 ```
 `benchmark_gemm_preshuffle_[Datatype1]_[Layout1]` will be located in the `./bin/` directory.
 
-`benchmark_gemm_preshuffle_[Datatype1]_[Layout1]` must be rebuilt everytime if configuration file is modified.
+`benchmark_gemm_preshuffle_[Datatype1]_[Layout1]` must be rebuilt whenever the configuration file is modified.
 
 ``` bash
 rm -rf tile_engine/ && make benchmark_gemm_preshuffle_[Datatype1]_[Layout1] -j  # rebuild
