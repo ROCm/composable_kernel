@@ -103,7 +103,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
         using CodegenGemmPipeline = std::conditional_t<
             QuantMode == ck_tile::QuantType::AQuantGrouped,
             ck_tile::AQuantGemmPipelineAgBgCrCompV3<CodegenPipelineProblem>,
-            ck_tile::RowColQuantGemmPipelineAgBgCrCompV3<CodegenPipelineProblem>
+            ck_tile::GemmPipelineAgBgCrCompV3<CodegenPipelineProblem>
         >;
 
         using GemmEpilogue        = ck_tile::CShuffleEpilogue<
@@ -176,7 +176,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
         if(a_layout == "R" && b_layout == "C")
         {
             return run_gemm_example_with_layouts<GemmConfig, TypeConfig, QuantGroupSize, QuantMode>(
-                argc, argv, Row{}, Row{}, Col{}, Col{});
+                argc, argv, Row{}, Row{}, Col{}, Col{}, Row{});
         }
         else
         {
@@ -202,7 +202,7 @@ int run_gemm_example(int argc, char* argv[])
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
     
-        std::string quant_mode = arg_parser.get_str("quant_mode", "aquant");  // Default to AQuantGrouped
+    std::string quant_mode = arg_parser.get_str("quant_mode");
 
     if(data_type == "fp8")
     {

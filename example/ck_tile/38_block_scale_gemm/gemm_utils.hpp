@@ -630,11 +630,12 @@ auto create_args(int argc, char* argv[])
         .insert("split_k", "1", "splitK value")
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
         .insert("persistent", "0", "0:non-persistent, 1:persistent")
-        .insert("as_br_cr", "false", "Choose between as_br_cr and as_bs_cr");
+        .insert("as_br_cr", "false", "Choose between as_br_cr and as_bs_cr")
+        .insert("quant_mode", "aquant", "Choose aquant (default) or rowcol");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
 
 // host API
-float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::stream_config& s);
+float gemm_calc_aquant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s);

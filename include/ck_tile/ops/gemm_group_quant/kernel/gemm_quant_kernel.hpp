@@ -12,8 +12,56 @@
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/host/concat.hpp"
+#include "ck_tile/ops/gemm_group_quant/pipeline/tile_gemm_quant_traits.hpp"
 
 namespace ck_tile {
+
+namespace detail {
+    // Helper templates for safe type extraction
+    template <typename T, typename Default>
+    struct get_aq_layout_or {
+        using type = Default;
+    };
+    
+    template <typename T, typename Default>
+    requires requires { typename T::AQLayout; }
+    struct get_aq_layout_or<T, Default> {
+        using type = typename T::AQLayout;
+    };
+
+    template <typename T, typename Default>
+    struct get_bq_layout_or {
+        using type = Default;
+    };
+    
+    template <typename T, typename Default>
+    requires requires { typename T::BQLayout; }
+    struct get_bq_layout_or<T, Default> {
+        using type = typename T::BQLayout;
+    };
+
+    template <typename T, typename Default>
+    struct get_aq_data_type_or {
+        using type = Default;
+    };
+    
+    template <typename T, typename Default>
+    requires requires { typename T::AQDataType; }
+    struct get_aq_data_type_or<T, Default> {
+        using type = typename T::AQDataType;
+    };
+
+    template <typename T, typename Default>
+    struct get_bq_data_type_or {
+        using type = Default;
+    };
+    
+    template <typename T, typename Default>
+    requires requires { typename T::BQDataType; }
+    struct get_bq_data_type_or<T, Default> {
+        using type = typename T::BQDataType;
+    };
+} // namespace detail
 
 struct QuantGemmProblem
 {
@@ -118,19 +166,22 @@ struct QuantGemmKernel
     using GemmPipeline                  = remove_cvref_t<GemmPipeline_>;
     using EpiloguePipeline              = remove_cvref_t<EpiloguePipeline_>;
     using ALayout                       = remove_cvref_t<typename GemmPipeline::ALayout>;
-    using AQLayout                      = remove_cvref_t<typename GemmPipeline::AQLayout>;
     using BLayout                       = remove_cvref_t<typename GemmPipeline::BLayout>;
-    using BQLayout                      = remove_cvref_t<typename GemmPipeline::BQLayout>;
     using CLayout                       = remove_cvref_t<typename GemmPipeline::CLayout>;
+
+    using AQLayout = remove_cvref_t<typename detail::get_aq_layout_or<GemmPipeline, typename GemmPipeline::ALayout>::type>;
+    using BQLayout = remove_cvref_t<typename detail::get_bq_layout_or<GemmPipeline, typename GemmPipeline::BLayout>::type>;
+
     static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
     static constexpr bool Preshuffle    = GemmPipeline::Preshuffle;
 
     using ADataType   = remove_cvref_t<typename GemmPipeline::ADataType>;
-    using AQDataType  = remove_cvref_t<typename GemmPipeline::AQDataType>;
     using BDataType   = remove_cvref_t<typename GemmPipeline::BDataType>;
-    using BQDataType  = remove_cvref_t<typename GemmPipeline::BQDataType>;
     using CDataType   = remove_cvref_t<typename EpiloguePipeline::ODataType>;
     using AccDataType = remove_cvref_t<typename EpiloguePipeline::AccDataType>;
+    
+    using AQDataType  = remove_cvref_t<typename detail::get_aq_data_type_or<GemmPipeline, AccDataType>::type>;
+    using BQDataType  = remove_cvref_t<typename detail::get_bq_data_type_or<GemmPipeline, AccDataType>::type>;
 
     static constexpr auto I0 = number<0>(); // A Tensor
     static constexpr auto I1 = number<1>(); // AQ Tensor
@@ -234,24 +285,28 @@ struct QuantGemmKernel
         }
 
         static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
-        if(kargs.QK_A % GemmPipeline::GetVectorSizeAQ() != 0)
+        if constexpr(kQuantType == QuantType::AQuantGrouped)
         {
-            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            if(kargs.QK_A % GemmPipeline::GetVectorSizeAQ() != 0)
             {
-                CK_TILE_ERROR("K_A is not a multiple of vector load size for A tensor!");
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("K_A is not a multiple of vector load size for A tensor!");
+                }
+                return false;
             }
-            return false;
         }
 
-        static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::RowMajor>);
-        if(kargs.QK_B % GemmPipeline::GetVectorSizeBQ() != 0)
-        {
-            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-            {
-                CK_TILE_ERROR("K_B is not a multiple of vector load size for B tensor!");
-            }
-            return false;
-        }
+        // NOTE: no kernel currently uses BQuant like this:
+        // static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
+        // if(kargs.QK_B % GemmPipeline::GetVectorSizeBQ() != 0)
+        // {
+        //     if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+        //     {
+        //         CK_TILE_ERROR("K_B is not a multiple of vector load size for B tensor!");
+        //     }
+        //     return false;
+        // }
 
         if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
         {
@@ -415,61 +470,58 @@ struct QuantGemmKernel
             return ck_tile::integer_least_multiple(length, alignment) - length;
         };
 
-        const auto& make_preshuffled_aq_tensor_view = [&]() {
-            const auto aq_x = kargs.M * GemmPipeline::KPerBlockAQ;
-            const auto aq_y = kargs.QK_A / GemmPipeline::KPerBlockAQ;
-
-            const auto aq_desc =
-                make_naive_tensor_descriptor(make_tuple(aq_y, aq_x),
-                                             make_tuple(aq_x, 1),
-                                             number<GemmPipeline::GetVectorSizeAQ()>{},
-                                             number<1>{});
-
-            const auto block_tile_size = GemmPipeline::MPerBlock * GemmPipeline::KPerBlockAQ;
-            const auto aq_pad0_desc    = transform_tensor_descriptor(
-                aq_desc,
-                make_tuple(make_pass_through_transform(aq_y),
-                           make_right_pad_transform(aq_x, get_padding_size(aq_x, block_tile_size))),
-                make_tuple(sequence<0>{}, sequence<1>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}));
-
-            const auto pad_aq_x = aq_pad0_desc.get_lengths()[I1];
-            const auto wave_tile_size =
-                TilePartitioner::BlockGemmShape::WarpTile::at(I0) * GemmPipeline::KPerBlockAQ;
-            const auto wave_tile_count_x = ck_tile::integer_divide_ceil(pad_aq_x, wave_tile_size);
-            const auto aq_unmerge_pad0_desc = transform_tensor_descriptor(
-                aq_pad0_desc,
-                make_tuple(make_pass_through_transform(aq_y),
-                           make_unmerge_transform(make_tuple(wave_tile_count_x, wave_tile_size))),
-                make_tuple(sequence<0>{}, sequence<1>{}),
-                make_tuple(sequence<0>{}, sequence<1, 2>{}));
-
-            const auto aq_pad1_desc = transform_tensor_descriptor(
-                aq_unmerge_pad0_desc,
-                make_tuple(make_pass_through_transform(aq_y),
-                           make_pass_through_transform(wave_tile_count_x),
-                           make_right_pad_transform(
-                               wave_tile_size, get_padding_size(wave_tile_size, get_warp_size()))),
-                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
-
-            const auto pad_wave_size =
-                ck_tile::integer_least_multiple(wave_tile_size, get_warp_size());
-            const auto aq_merge_pad1_desc = transform_tensor_descriptor(
-                aq_pad1_desc,
-                make_tuple(make_merge_transform(make_tuple(wave_tile_count_x, aq_y)),
-                           make_pass_through_transform(pad_wave_size)),
-                make_tuple(sequence<1, 0>{}, sequence<2>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}));
-
-            return make_tensor_view<address_space_enum::global>(aq_ptr, aq_merge_pad1_desc);
-        };
-
         const auto& aq_tensor_view = [&]() {
             if constexpr(kQuantType == QuantType::AQuantGrouped && Preshuffle)
             {
                 static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
-                return make_preshuffled_aq_tensor_view();
+                // Define the preshuffled tensor view inline when needed
+                const auto aq_x = kargs.M * GemmPipeline::KPerBlockAQ;
+                const auto aq_y = kargs.QK_A / GemmPipeline::KPerBlockAQ;
+
+                const auto aq_desc =
+                    make_naive_tensor_descriptor(make_tuple(aq_y, aq_x),
+                                                 make_tuple(aq_x, 1),
+                                                 number<GemmPipeline::GetVectorSizeAQ()>{},
+                                                 number<1>{});
+
+                const auto block_tile_size = GemmPipeline::MPerBlock * GemmPipeline::KPerBlockAQ;
+                const auto aq_pad0_desc    = transform_tensor_descriptor(
+                    aq_desc,
+                    make_tuple(make_pass_through_transform(aq_y),
+                               make_right_pad_transform(aq_x, get_padding_size(aq_x, block_tile_size))),
+                    make_tuple(sequence<0>{}, sequence<1>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+
+                const auto pad_aq_x = aq_pad0_desc.get_lengths()[I1];
+                const auto wave_tile_size =
+                    TilePartitioner::BlockGemmShape::WarpTile::at(I0) * GemmPipeline::KPerBlockAQ;
+                const auto wave_tile_count_x = ck_tile::integer_divide_ceil(pad_aq_x, wave_tile_size);
+                const auto aq_unmerge_pad0_desc = transform_tensor_descriptor(
+                    aq_pad0_desc,
+                    make_tuple(make_pass_through_transform(aq_y),
+                               make_unmerge_transform(make_tuple(wave_tile_count_x, wave_tile_size))),
+                    make_tuple(sequence<0>{}, sequence<1>{}),
+                    make_tuple(sequence<0>{}, sequence<1, 2>{}));
+
+                const auto aq_pad1_desc = transform_tensor_descriptor(
+                    aq_unmerge_pad0_desc,
+                    make_tuple(make_pass_through_transform(aq_y),
+                               make_pass_through_transform(wave_tile_count_x),
+                               make_right_pad_transform(
+                                   wave_tile_size, get_padding_size(wave_tile_size, get_warp_size()))),
+                    make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
+
+                const auto pad_wave_size =
+                    ck_tile::integer_least_multiple(wave_tile_size, get_warp_size());
+                const auto aq_merge_pad1_desc = transform_tensor_descriptor(
+                    aq_pad1_desc,
+                    make_tuple(make_merge_transform(make_tuple(wave_tile_count_x, aq_y)),
+                               make_pass_through_transform(pad_wave_size)),
+                    make_tuple(sequence<1, 0>{}, sequence<2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+
+                return make_tensor_view<address_space_enum::global>(aq_ptr, aq_merge_pad1_desc);
             }
             else if constexpr(kQuantType == QuantType::AQuantGrouped && !Preshuffle)
             {
@@ -484,7 +536,7 @@ struct QuantGemmKernel
             else if constexpr(kQuantType == QuantType::RowColQuant)
             {
                 return make_naive_tensor_view<address_space_enum::global>(
-                    scale_m,
+                    aq_ptr,
                     make_tuple(kargs.M, kargs.N),
                     make_tuple(1, 0),  // broadcasting over n
                     number<1>{},
@@ -563,7 +615,7 @@ struct QuantGemmKernel
             if constexpr(kQuantType == QuantType::RowColQuant)
             {
                 return make_naive_tensor_view<address_space_enum::global>(
-                    scale_n,
+                    bq_ptr,
                     make_tuple(kargs.M, kargs.N),
                     make_tuple(0, 1),  // broadcasting over m
                     number<1>{},
@@ -718,7 +770,7 @@ struct QuantGemmKernel
                     aq_pad_view,
                     make_tuple(
                         number<TilePartitioner::MPerBlock>{},
-                        number<TilePartitioner::KPerBlock / GemmPipeline::QuantGroupSizeA>{}),
+                        number<TilePartitioner::KPerBlock / GemmPipeline::QuantGroupSize>{}),
                     {i_m, 0});
             }
             else if constexpr(kQuantType == QuantType::RowColQuant)

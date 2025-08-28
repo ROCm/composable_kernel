@@ -139,7 +139,7 @@ using GemmRowColQuantPipelineProblem = GemmQuantPipelineProblemBase<ADataType_,
                                                                CDataType_,
                                                                BlockGemmShape_,
                                                                Traits_,
-                                                               0, // no group size applicable
+                                                               1, // no group size applicable
                                                                ComputeDataType_,
                                                                Scheduler_,
                                                                HasHotLoop_,
