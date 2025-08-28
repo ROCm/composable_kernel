@@ -12,13 +12,15 @@ namespace ck_tile {
 class PrintStaticEncodingPatternTest : public PrintTest
 {
     protected:
-    void TestY0Y1Y2(const std::string& output, auto Y0, auto Y1, auto Y2)
+    template <typename T0, typename T1, typename T2>
+    void TestY0Y1Y2(const std::string& output, T0 Y0, T1 Y1, T2 Y2)
     {
         std::stringstream expected;
         expected << "<Y0, Y1, Y2>: <" << Y0 << ", " << Y1 << ", " << Y2 << ">";
         EXPECT_TRUE(output.find(expected.str()) != std::string::npos);
     }
-    void TestX0X1(const std::string& output, auto X0, auto X1)
+    template <typename T0, typename T1>
+    void TestX0X1(const std::string& output, T0 X0, T1 X1)
     {
         std::stringstream expected;
         expected << "<X0, X1>: <" << X0 << ", " << X1 << ">";
