@@ -486,7 +486,7 @@ struct QuantGemmKernel
         };
 
         const auto& aq_tensor_view = [&]() {
-            if constexpr(kQuantType == QuantType::AQuantGrouped && Preshuffle)
+            if constexpr(kQuantType == QuantType::AQuantGrouped && PreshuffleQuant)
             {
                 static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
                 // Define the preshuffled tensor view inline when needed
@@ -542,7 +542,7 @@ struct QuantGemmKernel
 
                 return make_tensor_view<address_space_enum::global>(aq_ptr, aq_merge_pad1_desc);
             }
-            else if constexpr(kQuantType == QuantType::AQuantGrouped && !Preshuffle)
+            else if constexpr(kQuantType == QuantType::AQuantGrouped && !PreshuffleQuant)
             {
                 static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
                 return make_naive_tensor_view<address_space_enum::global>(
@@ -741,7 +741,6 @@ struct QuantGemmKernel
 
     template <typename PadView>
     CK_TILE_DEVICE static auto MakeGemmTileWindows(const PadView& views,
-                                                   const QuantGemmKernelArgs& kargs,
                                                    const index_t i_m,
                                                    const index_t i_n)
     {
@@ -769,11 +768,10 @@ struct QuantGemmKernel
         }();
 
         const auto& aq_block_window = [&]() {
-            if constexpr(kQuantType == QuantType::AQuantGrouped && Preshuffle)
+            if constexpr(kQuantType == QuantType::AQuantGrouped && PreshuffleQuant)
             {
                 static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
                 constexpr auto block_m = TilePartitioner::MPerBlock;
-                constexpr auto block_k = TilePartitioner::KPerBlock;
                 constexpr auto warp_m  = TilePartitioner::BlockGemmShape::WarpTile::at(I0);
                 constexpr auto aqk_per_block =
                     TilePartitioner::KPerBlock / GemmPipeline::QuantGroupSize;
@@ -786,9 +784,11 @@ struct QuantGemmKernel
                     make_tuple(number<tile_window_height>{}, number<tile_window_width>{}),
                     {block_m_idx * tile_window_height, 0});
             }
-            else if constexpr(kQuantType == QuantType::AQuantGrouped && !Preshuffle)
+            else if constexpr(kQuantType == QuantType::AQuantGrouped && !PreshuffleQuant)
             {
                 static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
+                constexpr auto block_m = TilePartitioner::MPerBlock;
+                constexpr auto block_k = TilePartitioner::KPerBlock;
                 return make_tile_window(
                     aq_pad_view,
                     make_tuple(number<block_m>{}, number<block_k / GemmPipeline::QuantGroupSize>{}),
