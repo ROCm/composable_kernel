@@ -175,6 +175,12 @@ struct GemmKernelMultiD
     CK_TILE_HOST static auto
     IsSupportedArgument(const typename UniversalGemmKernel::KernelArgs& kargs) -> bool
     {
+        // Currently MultiD kernel doesn't support k_batch > 1
+        if(kargs.k_batch > 1)
+        {
+            return false;
+        }
+
         return UniversalGemmKernel::IsSupportedArgument(kargs);
     }
 
