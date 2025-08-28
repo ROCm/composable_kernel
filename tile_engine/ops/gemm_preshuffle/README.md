@@ -51,7 +51,7 @@ make benchmark_gemm_preshuffle_fp16_rcr -j
                 -split_k    The split value for k dimension. Default is 1.
                   -verify    The type of validation. Set to 0 for no validation, 1 for validation on CPU, or 2 for validation on GPU. Default is 1, validation on CPU, as validation on GPU is not supported.
                     -log    Outputs kernel instance information when set to `true`.  Default is `false`.
-                 -warmup    The number of iterations before benchmark the kernel. Default is 50.
+                 -warmup    The number of iterations before benchmarking begins. Default is 50.
                  -repeat    The number of iterations to benchmark the kernel. Default is 100.
                   -timer    Whether if the timer is gpu timer or not. Possible values are false or true. Default is true.
                    -init    The method of tensor initialization. Set to 0 for random, to 1 for linear, or 2 for constant(1). Default is 0, random.
