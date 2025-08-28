@@ -69,6 +69,7 @@ struct DynamicBuffer
     __host__ __device__ constexpr T& operator()(IndexType i) { return p_data_[i]; }
 
     template <typename X,
+              bool DoTranspose               = false,
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
                                          typename scalar_type<remove_cvref_t<T>>::type>::value ||
                                      !is_native_type<X>(),
@@ -89,7 +90,8 @@ struct DynamicBuffer
         bool constexpr use_amd_buffer_addressing = false;
 #endif
 
-        if constexpr(GetAddressSpace() == AddressSpaceEnum::Global && use_amd_buffer_addressing)
+        if constexpr(GetAddressSpace() == AddressSpaceEnum::Global && use_amd_buffer_addressing &&
+                     !DoTranspose)
         {
             constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
@@ -111,6 +113,10 @@ struct DynamicBuffer
                     element_space_size_ / PackedSize,
                     invalid_element_value_);
             }
+        }
+        else if constexpr(GetAddressSpace() == AddressSpaceEnum::Global && DoTranspose)
+        {
+            return amd_global_load_transpose_to_vgpr(p_data_ + i);
         }
         else
         {

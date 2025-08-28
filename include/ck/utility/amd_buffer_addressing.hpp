@@ -49,6 +49,26 @@ __device__ int32x4_t make_wave_buffer_resource_with_default_range(T* p_wave)
     return wave_buffer_resource.content;
 }
 
+#if defined(__gfx12__)
+template <typename T>
+__device__ auto amd_global_load_transpose_to_vgpr(const T* in_ptr)
+{
+    using vector_t = typename vector_type<T, 8>::type;
+    if constexpr(std::is_same_v<remove_cvref_t<T>, ck::half_t>)
+    {
+        typedef __attribute__((__vector_size__(8 * sizeof(__fp16)))) __fp16 llvm_fp16x8_t;
+        __attribute__((address_space(1))) llvm_fp16x8_t* glb_ptr =
+            reinterpret_cast<__attribute__((address_space(1))) llvm_fp16x8_t*>(
+                reinterpret_cast<uintptr_t>(in_ptr));
+        return bit_cast<vector_t>(__builtin_amdgcn_global_load_tr_b128_v8f16(glb_ptr));
+    }
+    else
+    {
+        static_assert(false, "not implemented");
+    }
+}
+#endif
+
 // buffer load i8
 __device__ int8_t
 llvm_amdgcn_raw_buffer_load_i8(int32x4_t srsrc,
