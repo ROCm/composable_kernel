@@ -361,9 +361,12 @@ int run_gemm_example_with_layouts(int argc,
                                           QuantGroupSize,
                                           true>(a_m_k, aq_tensor, b_k_n, c_m_n_host_ref);
         } else {
-            // TODO. For RowColQuant, need to implement reference_gemm_rowcol_quant
-            std::cout << "CPU verification for RowColQuant mode not implemented yet." << std::endl;
-            return true;  
+            ck_tile::reference_gemm_rowcol_quant<ADataType,
+                                          AQDataType,
+                                          BDataType,
+                                          BQDataType,
+                                          AccDataType,
+                                          CDataType>(a_m_k, aq_tensor, b_k_n, *bq_tensor_ptr, c_m_n_host_ref);
         }
 
         const float max_accumulated_value =
