@@ -77,10 +77,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // we intentionally do not use pipeline for this example and let the kernel be composite of
     // Problem and Policy
 
-    constexpr ck_tile::index_t kBlockSize = Shape::BlockSize;
+    auto blockSize = Kernel::BlockSize();
 
     // Print configuration information
-    std::cout << "block size (number of threads per block) " << kBlockSize << std::endl;
+    std::cout << "block size (number of threads per block) " << blockSize << std::endl;
     std::cout << "wave size (number of threads per wave) " << ck_tile::get_warp_size() << std::endl;
     std::cout << "block waves (number of waves per block) " << BlockWaves::at(ck_tile::number<0>{})
               << " " << BlockWaves::at(ck_tile::number<1>{}) << std::endl;
@@ -103,7 +103,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         launch_kernel(ck_tile::stream_config{nullptr, true, warmup, repeat, 1},
                       ck_tile::make_kernel<1>(Kernel{},
                                               kGridSize,
-                                              kBlockSize,
+                                              blockSize,
                                               0,
                                               static_cast<XDataType*>(x_buf.GetDeviceBuffer()),
                                               static_cast<YDataType*>(y_buf.GetDeviceBuffer()),
