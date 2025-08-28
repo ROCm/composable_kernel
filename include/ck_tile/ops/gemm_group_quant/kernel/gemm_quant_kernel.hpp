@@ -69,6 +69,19 @@ struct get_bq_data_type_or<T, Default>
 {
     using type = typename T::BQDataType;
 };
+
+template <typename T, typename Default>
+struct get_preshuffle_or
+{
+    using type = Default;
+};
+
+template <typename T, typename Default>
+    requires requires { typename T::PreshuffleQuant; }
+struct get_preshuffle_or<T, Default>
+{
+    using type = typename T::PreshuffleQuant;
+};
 } // namespace detail
 
 struct QuantGemmProblem
@@ -186,7 +199,8 @@ struct QuantGemmKernel
         typename detail::get_bq_layout_or<GemmPipeline, typename GemmPipeline::BLayout>::type>;
 
     static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
-    static constexpr bool PreshuffleQuant    = GemmPipeline::PreshuffleQuant;
+    static constexpr bool PreshuffleQuant    = remove_cvref_t<
+        typename detail::get_preshuffle_or<GemmPipeline, std::false_type>::type>::value;
 
     using ADataType   = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType   = remove_cvref_t<typename GemmPipeline::BDataType>;

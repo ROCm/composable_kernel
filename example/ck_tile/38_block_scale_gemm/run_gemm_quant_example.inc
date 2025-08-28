@@ -302,7 +302,7 @@ int run_gemm_example_with_layouts(int argc,
             std::make_unique<ck_tile::DeviceMem>(bq_tensor_ptr->get_element_space_size_in_bytes());
     }
 
-    if constexpr(GemmConfig::Preshuffle && QuantMode == ck_tile::QuantType::AQuantGrouped)
+    if constexpr(GemmConfig::PreshuffleQuant && QuantMode == ck_tile::QuantType::AQuantGrouped)
     {
         ck_tile::HostTensor<AQDataType> aq_shuffle_host =
             shuffle_aq(aq_tensor, GemmConfig::K_Tile / QuantGroupSize);
@@ -336,7 +336,7 @@ int run_gemm_example_with_layouts(int argc,
                 CLayout,
                 QuantGroupSize,
                 QuantMode,
-                GemmConfig::Preshuffle>(
+                GemmConfig::PreshuffleQuant>(
         a_m_k_dev_buf,
         aq_dev_buf,
         b_k_n_dev_buf,
