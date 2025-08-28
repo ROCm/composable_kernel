@@ -100,6 +100,7 @@ struct numeric_traits<pk_int4_t>
 using fp32x2_t = float __attribute__((ext_vector_type(2)));
 using fp16x2_t = _Float16 __attribute__((ext_vector_type(2)));
 using bf16x2_t = bfloat16_t __attribute__((ext_vector_type(2)));
+using int8x2_t = int8_t __attribute__((ext_vector_type(2)));
 
 CK_TILE_HOST_DEVICE fp32x2_t pk_int4_t_to_fp32x2_t(const pk_int4_t& x)
 {
@@ -161,6 +162,26 @@ CK_TILE_HOST_DEVICE bf16x2_t pk_int4_t_to_bfloat16x2_t(const pk_int4_t& x)
     bf16x2_t res = {type_convert<bf16_t>(x_h), type_convert<bf16_t>(x_l)};
 #elif
     bf16x2_t res = {type_convert<bf16_t>(x_l), type_convert<bf16_t>(x_h)};
+#endif
+    return res;
+}
+
+CK_TILE_HOST_DEVICE int8x2_t pk_int4_t_to_int8x2_t(const pk_int4_t& x)
+{
+    uint8_t x_u8 = ck_tile::bit_cast<uint8_t>(x);
+
+    int8_t x_l = (x_u8 & 0x0F);
+    int8_t x_h = (x_u8 & 0xF0) >> 4;
+
+    if(x_l & 0x08)
+        x_l |= 0xF0;
+    if(x_h & 0x08)
+        x_h |= 0xF0;
+
+#ifdef CK_TILE_USE_PK4_LAYOUT_SHUFFLE
+    int8x2_t res = {x_h, x_l};
+#else
+    int8x2_t res = {x_l, x_h};
 #endif
     return res;
 }
