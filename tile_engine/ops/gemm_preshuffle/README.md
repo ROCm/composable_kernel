@@ -58,7 +58,7 @@ make benchmark_gemm_preshuffle_fp16_rcr -j
             -flush_cache    Flushes the cache when set to `true`. Default is `false`.
          -rotating_count    Number of iterations to rotate the cache. Default is 5.
                  -metric    Metric with which to measure kernel performance. Set to 0 for latency, 1 for tflops, or 2 for bandwidth. Default is 0, latency.
-           -csv_filename    The filename of benchmark result. Default is gemm_presshuffle
+           -csv_filename    Name of the file where benchmark results are written to. The default filename is `gemm_presshuffle`.
                -pipeline    The type of pipeline. Possible values are preshufflev1 or preshufflev2.
               -scheduler    The type of scheduler. Possible values are intrawave. Default is intrawave.
                -epilogue    The type of epilogue. Possible values are cshuffle or default. Default is cshuffle.
