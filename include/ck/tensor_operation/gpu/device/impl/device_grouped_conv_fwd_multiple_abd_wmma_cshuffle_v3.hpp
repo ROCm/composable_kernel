@@ -516,14 +516,18 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
             Number<NumDTensor>{});
     }
 
+    // Gridwise always expects tuple of datatypes.
+    using GemmADataType = std::conditional_t<!isMultiA, Tuple<ADataType>, ADataType>;
+    using GemmBDataType = std::conditional_t<!isMultiB, Tuple<BDataType>, BDataType>;
+
     // Use appropriate gridwise gemm
     using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3<
         tensor_layout::gemm::RowMajor,
         tensor_layout::gemm::ColumnMajor,
         DsLayout,
         tensor_layout::gemm::RowMajor,
-        Tuple<ADataType>,
-        Tuple<BDataType>,
+        GemmADataType,
+        GemmBDataType,
         AccDataType,
         CShuffleDataType,
         DsDataType,
@@ -580,8 +584,8 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
         DsLayout,
         tensor_layout::gemm::RowMajor,
 
-        Tuple<BDataType>,
-        Tuple<ADataType>,
+        GemmBDataType,
+        GemmADataType,
 
         AccDataType,
         CShuffleDataType,
@@ -642,6 +646,12 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
 
     using GridwiseGemmCTranspose =
         std::conditional_t<CTranspose, GridwiseGemmSwappedParams, GridwiseGemm>;
+
+    // If ADataTypes or BDataTypes is tuple, user has to pass std::array with pointers.
+    using APointers =
+        std::conditional_t<isMultiA, std::array<const void*, NumATensor>&, const void*>;
+    using BPointers =
+        std::conditional_t<isMultiB, std::array<const void*, NumBTensor>&, const void*>;
 
     // desc for problem definition
     constexpr static ConvToGemmFwdTransformer dummy_conv_to_gemm_transformer;
@@ -737,8 +747,8 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
     // Argument
     struct Argument : public BaseArgument
     {
-        Argument(const void* p_as,
-                 const void* p_bs,
+        Argument(APointers p_as,
+                 BPointers p_bs,
                  const std::array<const void*, NumDTensor>& p_ds,
                  void* p_e,
                  const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
@@ -758,8 +768,8 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                  const AElementwiseOperation& a_element_op,
                  const BElementwiseOperation& b_element_op,
                  const CDEElementwiseOperation& cde_element_op)
-            : p_a_grid_{},
-              p_b_grid_{},
+            : p_as_grid_{},
+              p_bs_grid_{},
               p_ds_grid_{p_ds},
               p_e_grid_{static_cast<EDataType*>(p_e)},
               a_g_n_c_wis_lengths_{a_g_n_c_wis_lengths},
@@ -820,9 +830,24 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
             compute_ptr_offset_of_n_.BatchStrideB_ =
                 CTranspose ? a_g_n_c_wis_strides_[1] * conv_N_per_block_ : 0;
 
-            // p_as and p_bs are pointers
-            p_a_grid_ = static_cast<const ADataType*>(p_as);
-            p_b_grid_ = static_cast<const BDataType*>(p_bs);
+            // Deal with the awkward APointers / BPointers types and convert to variable length
+            // array of const void pointers.
+            if constexpr(isMultiA)
+            {
+                p_as_grid_ = p_as;
+            }
+            else
+            {
+                p_as_grid_[0] = p_as;
+            }
+            if constexpr(isMultiB)
+            {
+                p_bs_grid_ = p_bs;
+            }
+            else
+            {
+                p_bs_grid_[0] = p_bs;
+            }
 
             // populate pointer, batch stride, desc for Ds
             static_for<0, NumDTensor, 1>{}([&](auto i) {
@@ -971,9 +996,8 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
         }
 
         //  private:
-        // pointers (tuple if multi AB, pointer if no)
-        const ADataType* p_a_grid_;
-        const BDataType* p_b_grid_;
+        std::array<const void*, NumATensor> p_as_grid_;
+        std::array<const void*, NumBTensor> p_bs_grid_;
         const std::array<const void*, NumDTensor> p_ds_grid_;
         EDataType* p_e_grid_;
 
@@ -1069,20 +1093,23 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
             const bool has_main_k_block_loop =
                 GridwiseGemmCTranspose::CalculateHasMainKBlockLoop(K_split);
 
-            // TODO: need arg.p_as_grid_?
-            const ADataType* p_a_grid = arg.p_a_grid_;
-            const BDataType* p_b_grid = arg.p_b_grid_;
-            EDataType* p_e_grid       = arg.p_e_grid_;
+            std::array<const void*, NumATensor> p_as_grid = arg.p_as_grid_;
+            std::array<const void*, NumBTensor> p_bs_grid = arg.p_bs_grid_;
+            EDataType* p_e_grid                           = arg.p_e_grid_;
 
-            // Transpose A and B, or just A.
+            // Transpose A and B, or just A. Not compatible with multi-AB.
             if constexpr(NeedTransposeKernel)
             {
+                static_assert(NumATensor == 1, "Num A Tensor should be 1\n");
+                static_assert(NumBTensor == 1, "Num B Tensor should be 1\n");
+
                 if constexpr(is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>() ||
                              is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>())
                 {
-                    p_a_grid = type_convert<const ADataType*>(arg.p_workspace_);
-                    p_b_grid = type_convert<const BDataType*>(arg.p_workspace_) +
-                               arg.GetWorkspaceATensorSizeBytes() / sizeof(BDataType);
+                    p_as_grid[0] = type_convert<const void*>(arg.p_workspace_);
+                    p_bs_grid[0] = type_convert<const void*>(
+                        type_convert<const BDataType*>(arg.p_workspace_) +
+                        arg.GetWorkspaceATensorSizeBytes() / sizeof(BDataType));
                     p_e_grid =
                         type_convert<EDataType*>(arg.p_workspace_) +
                         (arg.GetWorkspaceATensorSizeBytes() + arg.GetWorkspaceBTensorSizeBytes()) /
@@ -1091,8 +1118,8 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                 else if constexpr(is_NGCHW_GKYXC_NGKHW<ALayout, BLayout, ELayout>() ||
                                   is_NGCDHW_GKZYXC_NGKDHW<ALayout, BLayout, ELayout>())
                 {
-                    p_a_grid = type_convert<const ADataType*>(arg.p_workspace_);
-                    p_e_grid = type_convert<EDataType*>(arg.p_workspace_) +
+                    p_as_grid[0] = type_convert<const void*>(arg.p_workspace_);
+                    p_e_grid     = type_convert<EDataType*>(arg.p_workspace_) +
                                (arg.GetWorkspaceATensorSizeBytes() +
                                 arg.GetWorkspaceBTensorSizeBytes()) / // TODO: This offset might be
                                                                       // unnecessary if we are not
@@ -1100,10 +1127,6 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                                    sizeof(EDataType);
                 }
             }
-
-            // TODO: Pretty much ok, but need p_as_grid and p_bs_grid
-            static_assert(NumATensor == 1, "Num A Tensor should be 1\n");
-            static_assert(NumBTensor == 1, "Num B Tensor should be 1\n");
 
             const auto Run = [&](const auto& kernel) {
                 // TODO: To implement rotating mem wrapper for this device struct we need to use
@@ -1115,10 +1138,13 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
 
                 if constexpr(CTranspose)
                 {
+                    static_assert(NumATensor == 1, "Num A Tensor should be 1\n");
+                    static_assert(NumBTensor == 1, "Num B Tensor should be 1\n");
+
                     printf("Got Gemm MNK %d %d %d\n", GemmM, GemmN, GemmK);
                     typename GridwiseGemmCTranspose::Argument gemm_arg{
-                        std::array<const void*, NumBTensor>{p_b_grid}, // p_bs_grid
-                        std::array<const void*, NumATensor>{p_a_grid}, // p_as_grid
+                        p_bs_grid, // p_bs_grid
+                        p_as_grid, // p_as_grid
                         arg.p_ds_grid_,
                         p_e_grid,
 
@@ -1127,11 +1153,11 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
 
                         GemmK,
                         // No need to set strides, we pass descs to kernel
-                        {I0}, // StrideAs
-                        {I0}, // StrideBs
-                        {},   // StrideDs
-                        I0,   // StrideE
-                        I1,   // kbatch
+                        {}, // StrideBs
+                        {}, // StrideAs
+                        {}, // StrideDs
+                        I0, // StrideE
+                        I1, // kbatch
                         arg.b_element_op_,
                         arg.a_element_op_,
                         arg.cde_element_op_};
@@ -1155,19 +1181,19 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                 else
                 {
                     typename GridwiseGemm::Argument gemm_arg{
-                        std::array<const void*, NumATensor>{p_a_grid}, // p_as_grid
-                        std::array<const void*, NumBTensor>{p_b_grid}, // p_bs_grid
+                        p_as_grid, // p_as_grid
+                        p_bs_grid, // p_bs_grid
                         arg.p_ds_grid_,
                         p_e_grid,
                         GemmM,
                         GemmN,
                         GemmK,
                         // No need to set strides, we pass descs to kernel
-                        {I0}, // StrideAs
-                        {I0}, // StrideBs
-                        {},   // StrideDs
-                        I0,   // StrideE
-                        I1,   // kbatch
+                        {}, // StrideAs
+                        {}, // StrideBs
+                        {}, // StrideDs
+                        I0, // StrideE
+                        I1, // kbatch
                         arg.a_element_op_,
                         arg.b_element_op_,
                         arg.cde_element_op_};
@@ -1292,6 +1318,9 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                 // to GKYXC.
                 if constexpr(NeedTransposeKernel)
                 {
+                    static_assert(NumATensor == 1, "Num A Tensor should be 1\n");
+                    static_assert(NumBTensor == 1, "Num B Tensor should be 1\n");
+
                     printf("\033[32mPerforming transpose forward\033[0m\n");
                     const index_t a_grid_size =
                         arg.elementwise_block_2_ctile_map_transpose_a_.CalculateGridSize(
@@ -1323,24 +1352,24 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                                                 Block2TileMapElementwise,
                                                 element_wise::PassThrough>;
 
-                    avg_time +=
-                        launch_and_time_kernel(stream_config,
-                                               kernel_transpose,
-                                               dim3(a_grid_size + b_grid_size),
-                                               dim3(ElementwiseBlocksize),
-                                               0,
-                                               make_tuple(arg.a_in_transpose_desc_),
-                                               make_tuple(arg.b_in_transpose_desc_),
-                                               make_tuple(arg.a_out_transpose_desc_),
-                                               make_tuple(arg.b_out_transpose_desc_),
-                                               make_tuple(arg.p_a_grid_),
-                                               make_tuple(arg.p_b_grid_),
-                                               make_tuple(p_a_out_grid),
-                                               make_tuple(p_b_out_grid),
-                                               arg.elementwise_block_2_ctile_map_transpose_a_,
-                                               arg.elementwise_block_2_ctile_map_transpose_b_,
-                                               element_wise::PassThrough{},
-                                               a_grid_size);
+                    avg_time += launch_and_time_kernel(
+                        stream_config,
+                        kernel_transpose,
+                        dim3(a_grid_size + b_grid_size),
+                        dim3(ElementwiseBlocksize),
+                        0,
+                        make_tuple(arg.a_in_transpose_desc_),
+                        make_tuple(arg.b_in_transpose_desc_),
+                        make_tuple(arg.a_out_transpose_desc_),
+                        make_tuple(arg.b_out_transpose_desc_),
+                        make_tuple(type_convert<const ADataType*>(arg.p_as_grid_[0])),
+                        make_tuple(type_convert<const BDataType*>(arg.p_bs_grid_[0])),
+                        make_tuple(p_a_out_grid),
+                        make_tuple(p_b_out_grid),
+                        arg.elementwise_block_2_ctile_map_transpose_a_,
+                        arg.elementwise_block_2_ctile_map_transpose_b_,
+                        element_wise::PassThrough{},
+                        a_grid_size);
                 }
 
                 avg_time += RunGemm(arg, stream_config);
@@ -1850,8 +1879,8 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
     }
 
     static auto MakeArgument(
-        const void* p_as,
-        const void* p_bs,
+        APointers p_as,
+        BPointers p_bs,
         const std::array<const void*, NumDTensor>& p_ds,
         void* p_e,
         const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
@@ -1892,8 +1921,8 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
     }
 
     static auto
-    MakeArgument(const void* p_as,
-                 const void* p_bs,
+    MakeArgument(APointers p_as,
+                 BPointers p_bs,
                  const std::array<const void*, NumDTensor>& p_ds,
                  void* p_e,
                  const std::array<long_index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
@@ -1967,8 +1996,8 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
     static auto MakeInvoker() { return Invoker{}; }
 
     std::unique_ptr<BaseArgument> MakeArgumentPointer(
-        const void* p_a,
-        const void* p_b,
+        APointers p_as,
+        BPointers p_bs,
         const std::array<const void*, NumDTensor>& p_ds,
         void* p_e,
         const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
@@ -1987,8 +2016,8 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
         const BElementwiseOperation& b_element_op,
         const CDEElementwiseOperation& cde_element_op) override
     {
-        return std::make_unique<Argument>(p_a,
-                                          p_b,
+        return std::make_unique<Argument>(p_as,
+                                          p_bs,
                                           p_ds,
                                           p_e,
                                           a_g_n_c_wis_lengths,
@@ -2009,8 +2038,8 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
     }
 
     std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const void* p_a,
-                        const void* p_b,
+    MakeArgumentPointer(APointers p_as,
+                        BPointers p_bs,
                         const std::array<const void*, NumDTensor>& p_ds,
                         void* p_e,
                         const std::array<long_index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
@@ -2060,8 +2089,8 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
         array_convert(input_left_pads_i32, input_left_pads);
         array_convert(input_right_pads_i32, input_right_pads);
 
-        return std::make_unique<Argument>(p_a,
-                                          p_b,
+        return std::make_unique<Argument>(p_as,
+                                          p_bs,
                                           p_ds,
                                           p_e,
                                           a_g_n_c_wis_lengths_i32,
