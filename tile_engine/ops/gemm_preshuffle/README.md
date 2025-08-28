@@ -55,7 +55,7 @@ make benchmark_gemm_preshuffle_fp16_rcr -j
                  -repeat    The number of iterations to benchmark the kernel. Default is 100.
                   -timer    The GPU timer will not be used when set to `false`. Default is `true`.
                    -init    The method of tensor initialization. Set to 0 for random, to 1 for linear, or 2 for constant(1). Default is 0, random.
-            -flush_cache    To flush cache, possible values are true or false. Default is false.
+            -flush_cache    Flushes the cache when set to `true`. Default is `false`.
          -rotating_count    Number of iterations to rotate the cache. Default is 5.
                  -metric    Metric with which to measure kernel performance. Set to 0 for latency, 1 for tflops, or 2 for bandwidth. Default is 0, latency.
            -csv_filename    The filename of benchmark result. Default is gemm_presshuffle
