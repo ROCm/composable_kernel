@@ -10,7 +10,7 @@ For reference please see `./configs/user_provided_config.json`.
 # Default
 The Tile engine also has a default kernel configuration for providing a range of configuration parameter values, which helps users who lack kernel development experience to benchmark. For reference please see  `./configs/default_config.json`
 
-If user does not provide kernel configuration, the tile engine uses default kernel configuration to generate kernel instances and benchmark. 
+If the user doesn't provide kernel configuration, the tile engine uses the default kernel configuration to generate kernel instances and benchmarks. 
 
 ## Build Instructions
 ``` bash
