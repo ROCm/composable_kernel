@@ -103,7 +103,7 @@ struct BQuantGemmKernel
     using BLayout                            = remove_cvref_t<typename GemmPipeline::BLayout>;
     using BQLayout                           = remove_cvref_t<typename GemmPipeline::BQLayout>;
     using CLayout                            = remove_cvref_t<typename GemmPipeline::CLayout>;
-    static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
+    static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
 
     using ADataType  = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType  = remove_cvref_t<typename GemmPipeline::BDataType>;
@@ -127,7 +127,7 @@ struct BQuantGemmKernel
         return dim3(TilePartitioner::GridSize(M, N), 1, KBatch);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
+    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
 
     CK_TILE_HOST static constexpr BQuantGemmKernelArgs
     MakeKernelArgs(const BQuantGemmHostArgs& hostArgs)

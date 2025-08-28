@@ -12,25 +12,22 @@ static constexpr inline auto is_row_major(Layout layout_)
                                                  ck_tile::tensor_layout::gemm::RowMajor>>{};
 }
 
-template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
-auto calculate_rtol_atol(const ck_tile::index_t K,
-                         const ck_tile::index_t kbatch,
-                         const float max_accumulated_value)
+template <typename T>
+auto shuffle_bq(const ck_tile::HostTensor<T>& t, int block_bq_k)
 {
-    using ComputeType =
-        std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
-    // Calculate thresholds
-    const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType, AccDataType>(
-        ck_tile::integer_divide_ceil(K, kbatch));
-    const auto atol = ck_tile::get_absolute_threshold<ComputeType, CDataType, AccDataType>(
-        max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
-    // Calculate error due to split_k accumulation
-    const auto rtol_split_k =
-        ck_tile::get_relative_threshold<CDataType, CDataType, CDataType>(kbatch);
-    const auto atol_split_k = ck_tile::get_absolute_threshold<CDataType, CDataType, CDataType>(
-        max_accumulated_value, kbatch);
-    // Use higher threshold
-    return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
+    if(t.get_lengths().size() != 2)
+    {
+        throw std::runtime_error("Host tensor is not rank 2 tensor.");
+    }
+    int n_   = t.get_lengths()[0];
+    int bqk_ = t.get_lengths()[1];
+    if(bqk_ % block_bq_k != 0)
+    {
+        throw std::runtime_error("shuffle_aq needs a bqk of multiple times of block_bq_k.");
+    }
+    ck_tile::HostTensor<T> t_view({n_, bqk_ / block_bq_k, block_bq_k});
+    std::copy(t.begin(), t.end(), t_view.begin());
+    return ck_tile::reference_permute(t_view, {1, 0, 2});
 }
 
 template <typename GemmConfig,
@@ -82,16 +79,13 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                       ADataType,
                                       BDataType,
                                       BQDataType,
-                                      DsDataType,
                                       AccDataType,
                                       CDataType,
                                       ADataType, // computeDatatype
                                       ALayout,
                                       BLayout,
-                                      DsLayout,
                                       CLayout,
-                                      QuantGroupSize,
-                                      CDEElementWise>(
+                                      QuantGroupSize>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::size_t flop     = std::size_t(2) * M * N * K;

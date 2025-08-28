@@ -43,7 +43,7 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         constexpr index_t KPerBlockBQ = KPerBlock / Problem::kQuantGroupSize;
         constexpr index_t VecLoadSize = GetVectorSizeBQ<Problem>();
         using WarpTile                = typename Problem::BlockGemmShape::WarpTile;
-        using WarpGemm                = WarpGemmMfmaDispatcher<typename Problem::ComputeDataType,
+        using WarpGemm                = WarpGemmDispatcher<typename Problem::ComputeDataType,
                                                                typename Problem::ComputeDataType,
                                                                typename Problem::CDataType,
                                                                WarpTile::at(I0),
@@ -71,7 +71,7 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         static_assert(Problem::kQuantGroupSize % WarpTile::at(I2) == 0,
                       "KPerWarpGemm must be a multiple of kQuantGroupSize!");
 
-        using WarpGemm = WarpGemmMfmaDispatcher<typename Problem::ComputeDataType,
+        using WarpGemm = WarpGemmDispatcher<typename Problem::ComputeDataType,
                                                 typename Problem::ComputeDataType,
                                                 typename Problem::CDataType,
                                                 WarpTile::at(I0),

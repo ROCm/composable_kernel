@@ -27,8 +27,6 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
     constexpr bool kPadN = false;
     constexpr bool kPadK = false;
 
-    constexpr int kBlockPerCu = 1;
-
     static_assert(std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::RowMajor>);
 
     constexpr ck_tile::index_t M_Tile = GemmConfig::M_Tile;
@@ -138,7 +136,7 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
         }
 
         float ave_time = ck_tile::launch_kernel(
-            s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+            s, ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 
         return ave_time;
     };
@@ -206,7 +204,7 @@ int run_gemm_example(int argc, char* argv[])
                                                         ck_tile::fp8_t,
                                                         ck_tile::half_t,
                                                         ck_tile::fp8_t>{});
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, TypeConfig, 128>(
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
     else if(data_type == "i4bf8")
@@ -215,7 +213,7 @@ int run_gemm_example(int argc, char* argv[])
                                                         ck_tile::bf8_t,
                                                         ck_tile::half_t,
                                                         ck_tile::bf8_t>{});
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, TypeConfig, 128>(
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
     else
