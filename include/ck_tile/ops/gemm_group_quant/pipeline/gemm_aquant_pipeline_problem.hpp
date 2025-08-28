@@ -18,6 +18,7 @@ template <typename ADataType_,
           typename BlockGemmShape_,
           typename Traits_,
           uint32_t QuantGroupSize_,
+          bool TransposeC_,
           typename ComputeDataType_        = BDataType_,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
           bool HasHotLoop_                 = true,
@@ -50,7 +51,7 @@ struct GemmAQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_
     using typename Base::BLayout;
     using typename Base::CLayout;
 
-    static constexpr bool TransposeC = false;
+    static constexpr bool TransposeC = TransposeC_;
 
     using Base::kBlockSize;
 
@@ -102,6 +103,7 @@ template <typename ADataType_,
           typename BlockGemmShape_,
           typename Traits_,
           uint32_t QuantGroupSize_,
+          bool TransposeC_,
           typename ComputeDataType_        = BDataType_,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
           bool HasHotLoop_                 = true,
@@ -113,6 +115,7 @@ using GemmAQuantPipelineProblem = GemmAQuantPipelineProblemBase<ADataType_,
                                                                 BlockGemmShape_,
                                                                 Traits_,
                                                                 QuantGroupSize_,
+                                                                TransposeC_,
                                                                 ComputeDataType_,
                                                                 Scheduler_,
                                                                 HasHotLoop_,
