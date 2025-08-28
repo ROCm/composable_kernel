@@ -144,8 +144,8 @@ struct GroupedGemmKernel
         // clang-format on
     }
 
-    CK_TILE_HOST static auto
-    GetWorkSpaceSize(const std::vector<GroupedGemmHostArgs>& gemm_descs) -> std::size_t
+    CK_TILE_HOST static auto GetWorkSpaceSize(const std::vector<GroupedGemmHostArgs>& gemm_descs)
+        -> std::size_t
     {
         return gemm_descs.size() * sizeof(GemmTransKernelArg);
     }
@@ -195,8 +195,8 @@ struct GroupedGemmKernel
         return dim3(grid_size, 1, 1);
     }
 
-    CK_TILE_HOST static auto
-    MakeKargs(const std::vector<GroupedGemmHostArgs>& gemm_descs) -> std::vector<GemmTransKernelArg>
+    CK_TILE_HOST static auto MakeKargs(const std::vector<GroupedGemmHostArgs>& gemm_descs)
+        -> std::vector<GemmTransKernelArg>
     {
         std::vector<GemmTransKernelArg> gemm_kernel_args_;
         index_t group_count = ck_tile::type_convert<ck_tile::index_t>(gemm_descs.size());
@@ -282,14 +282,16 @@ struct GroupedGemmKernel
         // allocate LDS
         __shared__ char smem_ptr_0[GetSmemSize()];
 
+        // TO DO:
+        // Can we simplify this branching logic?
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
             if(get_block_id() == 0 && get_thread_id() == 0)
             {
-                printf("%s\n DoubleSmemBuffer", __func__);
+                printf("[ALL GOOD]: 11 %s\n DoubleSmemBuffer", __func__);
             }
             __shared__ char smem_ptr_1[GetSmemSize()];
-            if constexpr(UsePersistentKernel)
+            if constexpr(UsePersistentKernel && !GemmPipeline::Preshuffle)
             {
                 if(get_block_id() == 0 && get_thread_id() == 0)
                 {
@@ -305,12 +307,28 @@ struct GroupedGemmKernel
                                                  i_m,
                                                  i_n);
             }
-            else
+            else if constexpr(!UsePersistentKernel && GemmPipeline::Preshuffle)
             {
                 if(get_block_id() == 0 && get_thread_id() == 0)
                 {
-                    printf("%s\n RunGemm2LDS", __func__);
+                    printf("[ALL GOOD]: 12 %s\n RunGemm2LDS", __func__);
                 }
+                // TODO:
+                // Do we really need this function_Preshuffle, or can we use already existing one?
+                RunGemmWithPipelineSelection2LDS_Preshuffle(a_ptr,
+                                                 b_ptr,
+                                                 c_ptr,
+                                                 smem_ptr_0,
+                                                 smem_ptr_1,
+                                                 kargs,
+                                                 splitk_batch_offset,
+                                                 i_m,
+                                                 i_n);
+                return;
+            }
+            else
+            {
+
                 Base::RunGemm2LDS({a_ptr},
                                   {b_ptr},
                                   {/*ds_ptr*/},
@@ -479,6 +497,53 @@ struct GroupedGemmKernel
         operator()<decltype(c_block_window), decltype(c_block_tile), decltype(d_block_window)>(
             c_block_window, c_block_tile, d_block_window, smem_ptr_0);
     }
+    CK_TILE_DEVICE static void
+    RunGemmWithPipelineSelection2LDS_Preshuffle(const ADataType* a_ptr,
+                                     const BDataType* b_ptr,
+                                     CDataType* c_ptr,
+                                     void* __restrict__ smem_ptr_0,
+                                     void* __restrict__ smem_ptr_1,
+                                     const UniversalGemmKernelArgs<>& kargs,
+                                     const typename Base::SplitKBatchOffset& splitk_batch_offset,
+                                     const index_t block_idx_m,
+                                     const index_t block_idx_n)
+    {
+        // Create Gemm tensor views, pad views and tile windows
+        if(get_block_id() == 0 && get_thread_id() == 0)
+        {
+            printf("[ALL GOOD]: 13 %s\n RunGemmWithPipelineSelection2LDS_Preshuffle", __func__);
+        }
+        const auto& gemm_tensor_views_tuple =
+            Base::template MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
+                {a_ptr}, {b_ptr}, {/*ds_ptr*/}, c_ptr, kargs, splitk_batch_offset);
+
+        const auto& gemm_pad_views = Base::MakeGemmPadViews(gemm_tensor_views_tuple);
+        auto gemm_tile_windows =
+            Base::MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
+        const auto& a_block_window = gemm_tile_windows.at(Base::I0);
+        const auto& b_block_window = gemm_tile_windows.at(Base::I1);
+        const auto& d_block_window = gemm_tile_windows.at(Base::I2);
+
+        // Get hot-loop and tail configuration
+        const index_t num_loop = __builtin_amdgcn_readfirstlane(
+            TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
+        //const bool has_hot_loop   = GemmPipeline::BlockHasHotloop(num_loop);
+        const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
+
+        // Run GEMM pipeline
+        const auto& c_block_tile = GemmPipeline{}.template operator()(a_block_window[Base::I0],
+                                                                      b_block_window[Base::I0],
+                                                                      num_loop,
+                                                                      tail_num,
+                                                                      smem_ptr_0,
+                                                                      smem_ptr_1);
+        // Run Epilogue Pipeline
+        auto& c_block_window = gemm_tile_windows.at(Base::I3);
+        EpiloguePipeline{}.template
+        operator()<decltype(c_block_window), decltype(c_block_tile), decltype(d_block_window)>(
+            c_block_window, c_block_tile, d_block_window, smem_ptr_0);
+
+    }
 
     CK_TILE_DEVICE index_t FindGroupId(const GemmTransKernelArg* gemm_desc_ptr,
                                        index_t block_id,
@@ -513,15 +578,24 @@ struct GroupedGemmKernel
     {
         if(get_block_id() == 0 && get_thread_id() == 0)
         {
-            printf("[WATCHING]: %s\n Non persistent grouped gemm\n", __func__);
+            printf("[ALL GOOD]: 10 %s\n Non persistent grouped gemm\n", __func__);
         }
 
         const index_t block_id   = ck_tile::get_block_1d_id();
         const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg*>(
             cast_pointer_to_generic_address_space(gemm_descs_const));
 
-        const index_t group_id  = FindGroupId(gemm_desc_ptr, block_id, group_count);
-        const auto& kargs       = gemm_desc_ptr[group_id];
+        const index_t group_id = FindGroupId(gemm_desc_ptr, block_id, group_count);
+        const auto& kargs      = gemm_desc_ptr[group_id];
+
+        // Debug print for odd groups
+        // if(group_id % 2 == 1 && get_thread_id() == 0 && get_block_id() == 0)
+        // {
+        //     printf("[DEBUG_KERNEL] Odd group %d: block_id=%d, M=%d, N=%d, K=%d, stride_B=%d\n",
+        //            group_id, block_id, kargs.group_karg.M, kargs.group_karg.N,
+        //            kargs.group_karg.K, kargs.group_karg.stride_Bs[0]);
+        // }
+
         const auto grid_size_2d = TilePartitioner::GridSize(kargs.group_karg.M, kargs.group_karg.N);
         const auto block_idx_2d = OffsetTile1DPartitioner::GetOffsetedTileIndex(
             0,

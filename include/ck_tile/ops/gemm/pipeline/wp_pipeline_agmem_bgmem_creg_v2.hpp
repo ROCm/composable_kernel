@@ -24,7 +24,7 @@ struct BaseWeightPreshufflePipelineAGmemBGmemCRegV2
         return num_loop > PrefetchStages;
     }
 
-    CK_TILE_HOST static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
+    CK_TILE_HOST_DEVICE static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
     {
         return num_loop % 2 == 0 ? TailNumber::Even : TailNumber::Odd;
     }
@@ -35,11 +35,15 @@ struct BaseWeightPreshufflePipelineAGmemBGmemCRegV2
     {
         if(tail_number == TailNumber::Odd)
         {
-            run_func(bool_constant<true>{}, integral_constant<TailNumber, TailNumber::Odd>{});
+            return run_func(bool_constant<true>{}, integral_constant<TailNumber, TailNumber::Odd>{});
         }
         else if(tail_number == TailNumber::Even)
         {
-            run_func(bool_constant<true>{}, integral_constant<TailNumber, TailNumber::Even>{});
+            return run_func(bool_constant<true>{}, integral_constant<TailNumber, TailNumber::Even>{});
+        }
+        else 
+        {   // TO DO: This is a hack to make the code compile. We need to fix this.
+            return run_func(bool_constant<false>{}, integral_constant<TailNumber, TailNumber::Odd>{});
         }
     }
 };
@@ -563,7 +567,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
         }
     }
 
-    template <typename ADramBlockWindowTmp, typename BFlatBlockWindowTmp, typename AElementFunction>
+    template <TailNumber TailNum, typename ADramBlockWindowTmp, typename BFlatBlockWindowTmp, typename AElementFunction>
     CK_TILE_HOST_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                         const AElementFunction& a_element_func,
                                         const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
@@ -1060,6 +1064,8 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
         return c_block_tile;
     }
 
+    // TODO: 
+    // What is the feasability to no longer use this function and directly use the one below?
     template <typename ADramBlockWindowTmp, typename BFlatBlockWindowTmp>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
@@ -1067,13 +1073,40 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                                    void* p_smem_ping,
                                    void* p_smem_pong) const
     {
-        return operator()(
+        return operator()<TailNum>(
             a_dram_block_window_tmp,
             [](const ADataType & a) { return a; },
             b_flat_dram_block_window_tmp,
             num_loop,
             p_smem_ping,
             p_smem_pong);
+    }
+
+    template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const BDramBlockWindowTmp& b_flat_dram_block_window_tmp,
+                                   index_t num_loop,
+                                   TailNumber tail_number,
+                                   void* __restrict__ p_smem_0,
+                                   void* __restrict__ p_smem_1) const
+    {
+        if(get_block_id() == 0 && get_thread_id() == 0)
+        {
+            printf("[ALL GOOD]: 18 %s\n tail_number: %d\n", __func__, static_cast<int>(tail_number));
+        }
+        const auto RunPipeline = [&](auto bool_val, auto tail_num_) {
+            (void)bool_val; // Suppress unused parameter warning
+            constexpr auto tail_num    = tail_num_.value;
+            constexpr auto PassThrough = [](const auto& x) { return x; };
+            return operator()<tail_num>(
+                a_dram_block_window_tmp,
+                PassThrough,
+                b_flat_dram_block_window_tmp,
+                num_loop,
+                p_smem_0,
+                p_smem_1);
+        };
+        return Base::TailHandler(RunPipeline, true, tail_number);
     }
 };
 
