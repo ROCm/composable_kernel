@@ -161,15 +161,12 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::index_t N = arg_parser.get_int("n");
     ck_tile::index_t K = arg_parser.get_int("k");
 
-    // Conditional validation based on QuantMode
-    // TODO, manage for RowColQuant mode
     if constexpr (QuantMode == ck_tile::QuantType::AQuantGrouped) {
         if(K % QuantGroupSize != 0) {
             throw std::runtime_error("K must be aligned with QuantGroupSize for AQuantGrouped mode");
         }
     }
     
-    // TODO : Check
     ck_tile::index_t AQK, BQK;
     if constexpr (QuantMode == ck_tile::QuantType::AQuantGrouped) {
         AQK = K / QuantGroupSize;  // Group quantization: AQK = K / GroupSize
@@ -215,7 +212,6 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::HostTensor<CDataType> c_m_n_dev_result(
         ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
-    // TODO : Check
     // Create AQ tensor with appropriate shape
     ck_tile::HostTensor<AQDataType> aq_tensor = [&]() {
         if constexpr (QuantMode == ck_tile::QuantType::AQuantGrouped) {

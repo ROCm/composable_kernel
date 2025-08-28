@@ -232,7 +232,6 @@ CK_TILE_HOST void reference_gemm_rowcol_quant(const HostTensor<ADataType>& a_m_k
             v_acc += v_a * v_b;
         }
 
-        // TODO: Check
         v_acc = v_acc * a_scale * b_scale;
 
         c_m_n(m, n) = ck_tile::type_convert<CDataType>(acc_element_op(v_acc));
