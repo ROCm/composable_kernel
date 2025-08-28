@@ -62,7 +62,7 @@ make benchmark_gemm_preshuffle_fp16_rcr -j
                -pipeline    The type of pipeline. Possible values are preshufflev1 or preshufflev2.
               -scheduler    The type of scheduler. Possible values are intrawave. Default is intrawave.
                -epilogue    The type of epilogue. Possible values are cshuffle or default. Default is cshuffle.
-                  -pad_m    Whether pad or not in m direction. Possible values are true or false. Default is false.
+                  -pad_m    Pads the tensor in the m direction when set to `true`. Default is `false`.
                   -pad_n    Whether pad or not in n direction. Possible values are true or false. Default is false.
                   -pad_k    Whether pad or not in k direction. Possible values are true or false. Default is false.
 
