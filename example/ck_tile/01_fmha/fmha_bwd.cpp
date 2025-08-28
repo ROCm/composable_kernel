@@ -197,14 +197,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
         seed.reset();
     }
 
-    int stream_warmup  = arg_parser.get_int("warmup");
-    int stream_repeat  = arg_parser.get_int("repeat");
-    bool kname         = arg_parser.get_bool("kname");
+    int stream_warmup = arg_parser.get_int("warmup");
+    int stream_repeat = arg_parser.get_int("repeat");
+    int kname = ck_tile::max(arg_parser.get_int("kname"), arg_parser.get_bool("kname") ? 1 : 0);
     bool deterministic = arg_parser.get_bool("deterministic");
 
     ck_tile::stream_config stream_config{nullptr,
                                          true,
-                                         /* log_level = */ (kname ? 1 : 0),
+                                         /* log_level = */ kname,
                                          stream_warmup,
                                          stream_repeat,
                                          arg_parser.get_str("timer") == std::string("gpu")};

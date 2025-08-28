@@ -36,7 +36,7 @@ set(FMHA_BWD_CODE_GEN_COMMON_ARGS
   --api bwd
   --receipt 3
   --optdim 32,64,128,256
-  # --filter fmha_bwd_dot...@fmha_bwd_convert...@fmha_bwd...
+  # --filter fmha_bwd_...
 )
 
 # generate a list of kernels, but not actually emit files at config sta
@@ -74,7 +74,7 @@ add_custom_command(
   OUTPUT ${FMHA_BWD_GEN_BLOBS}
   COMMAND ${Python3_EXECUTABLE} ${FMHA_BWD_CODE_GEN_COMMON_ARGS}
   --output_dir ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS ${CODE_GEN_SCRIPTS}
+  DEPENDS ${CODE_GEN_SCRIPTS} ${CMAKE_CURRENT_LIST_DIR}/fmha_bwd_kernel_impl.cpp.in
 )
 
 set(EXAMPLE_FMHA_FWD "tile_example_fmha_fwd")

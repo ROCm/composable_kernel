@@ -3,13 +3,13 @@
 
 #pragma once
 
+#include "bias.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
-#include "ck_tile/ops/fmha.hpp"
 #include "ck_tile/ops/epilogue.hpp"
+#include "ck_tile/ops/fmha.hpp"
 #include "mask.hpp"
-#include "bias.hpp"
 
 #include <type_traits>
 #include <utility>
@@ -362,6 +362,8 @@ auto fmha_bwd_convert_dq_create_kargs_and_grids(fmha_bwd_args args)
 
 // this is used to pattern-match internl kernel implementation, not to instantiate kernel
 template <ck_tile::index_t HDim_,
+          ck_tile::index_t kM0_,
+          ck_tile::index_t kN0_,
           typename DataType_,
           bool kIsGroupMode_,
           typename FmhaMask_,
@@ -372,11 +374,31 @@ template <ck_tile::index_t HDim_,
           bool kPadDv_,
           bool kIsDeterministic_,
           bool kUseTrLoad_,
-          ck_tile::index_t MaxSeqLenQ_,
-          ck_tile::index_t kN0>
+          ck_tile::index_t MaxSeqLenQ_>
 struct fmha_bwd_dq_dk_dv_traits_
 {
+    static constexpr bool is_fmha_bwd_dq_dk_dv_traits_ = true;
+
+    static constexpr auto HDim             = HDim_;
+    static constexpr auto kM0              = kM0_;
+    static constexpr auto kN0              = kN0_;
+    using DataType                         = ck_tile::remove_cvref_t<DataType_>;
+    static constexpr auto kIsGroupMode     = kIsGroupMode_;
+    using FmhaMask                         = FmhaMask_;
+    using FmhaDropout                      = FmhaDropout_;
+    static constexpr auto BiasEnum         = BiasEnum_;
+    static constexpr auto kHasBiasGrad     = kHasBiasGrad_;
+    static constexpr auto kPadD            = kPadD_;
+    static constexpr auto kPadDv           = kPadDv_;
+    static constexpr auto kIsDeterministic = kIsDeterministic_;
+    static constexpr auto kUseTrLoad       = kUseTrLoad_;
+    static constexpr auto MaxSeqLenQ       = MaxSeqLenQ_;
 };
+template <typename T, typename = void>
+constexpr bool is_fmha_bwd_dq_dk_dv_traits_v = false;
+template <typename T>
+constexpr bool is_fmha_bwd_dq_dk_dv_traits_v<T, std::enable_if_t<T::is_fmha_bwd_dq_dk_dv_traits_>> =
+    true;
 
 template <typename Traits_>
 float fmha_bwd_dq_dk_dv_(const ck_tile::stream_config&, fmha_bwd_args);
@@ -392,12 +414,19 @@ int fmha_bwd_dq_dk_dv_maxq_();
 template <ck_tile::index_t HDim_, typename DataType_, bool kIsGroupMode_, bool kPadS_, bool kPadDv_>
 struct fmha_bwd_dot_do_o_traits_
 {
+    static constexpr bool is_fmha_bwd_dot_do_o_traits_ = true;
+
     static constexpr ck_tile::index_t HDim = HDim_;
     using DataType                         = ck_tile::remove_cvref_t<DataType_>;
     static constexpr bool kIsGroupMode     = kIsGroupMode_;
     static constexpr bool kPadS            = kPadS_;
     static constexpr bool kPadDv           = kPadDv_;
 };
+template <typename T, typename = void>
+constexpr bool is_fmha_bwd_dot_do_o_traits_v = false;
+template <typename T>
+constexpr bool is_fmha_bwd_dot_do_o_traits_v<T, std::enable_if_t<T::is_fmha_bwd_dot_do_o_traits_>> =
+    true;
 
 template <typename Traits_>
 float fmha_bwd_dot_do_o_(const ck_tile::stream_config&, fmha_bwd_args);
@@ -414,10 +443,24 @@ template <ck_tile::index_t HDim_,
           bool kPadS_,
           bool kPadD_,
           bool kIsDeterministic_,
-          ck_tile::index_t kN0>
+          ck_tile::index_t kN0_>
 struct fmha_bwd_convert_dq_traits_
 {
+    static constexpr bool is_fmha_bwd_convert_dq_traits_ = true;
+
+    static constexpr ck_tile::index_t HDim = HDim_;
+    using DataType                         = ck_tile::remove_cvref_t<DataType_>;
+    static constexpr bool kIsGroupMode     = kIsGroupMode_;
+    static constexpr bool kPadS            = kPadS_;
+    static constexpr bool kPadD            = kPadD_;
+    static constexpr bool kIsDeterministic = kIsDeterministic_;
+    static constexpr ck_tile::index_t kN0  = kN0_;
 };
+template <class T, class = void>
+constexpr bool is_fmha_bwd_convert_dq_traits_v = false;
+template <class T>
+constexpr bool
+    is_fmha_bwd_convert_dq_traits_v<T, std::enable_if_t<T::is_fmha_bwd_convert_dq_traits_>> = true;
 
 template <typename Traits_>
 float fmha_bwd_convert_dq_(const ck_tile::stream_config&, fmha_bwd_args);
@@ -445,3 +488,181 @@ struct fmha_bwd_traits
 };
 template <int Version = 2>
 float fmha_bwd(fmha_bwd_traits, fmha_bwd_args, const ck_tile::stream_config&);
+
+template <ck_tile::index_t hdim,
+          ck_tile::index_t kM0,
+          ck_tile::index_t kN0,
+          bool tr_load,
+          ck_tile::index_t MaxSeqLenQ>
+constexpr auto get_fmha_bwd_tile_size()
+{
+    static_assert(MaxSeqLenQ == 0 || MaxSeqLenQ == kM0);
+    constexpr auto kK4  = ck_tile::min(kN0, hdim <= 32 ? 64 : 32);
+    using block_warps02 = ck_tile::sequence<1, 4, 1>;
+    using block_warps13 = ck_tile::sequence<4, 1, 1>;
+    using block_warps4  = std::conditional_t<hdim <= 32, //
+                                             ck_tile::sequence<2, 2, 1>,
+                                             block_warps02>;
+    using warp_tile024  = ck_tile::sequence<16, 16, 32>;
+    if constexpr(tr_load)
+    {
+        using warp_tile13 = ck_tile::sequence<16, 16, ck_tile::min(32, kM0)>;
+        using tile        = ck_tile::sequence<kM0, kN0, hdim, kM0, hdim, kM0, kK4, hdim, hdim>;
+        using warp_tile4  = ck_tile::sequence<16, 16, ck_tile::min(32, kK4)>;
+        using block_1warp = ck_tile::sequence<1, 1, 1>;
+        if constexpr(MaxSeqLenQ > 0)
+            return ck_tile::TileFmhaBwdShape<tile,
+                                             block_1warp,
+                                             warp_tile024,
+                                             block_1warp,
+                                             warp_tile13,
+                                             block_1warp,
+                                             warp_tile024,
+                                             block_1warp,
+                                             warp_tile13,
+                                             block_1warp,
+                                             warp_tile4,
+                                             MaxSeqLenQ>{};
+        else
+            return ck_tile::TileFmhaBwdShape<tile,
+                                             block_warps02,
+                                             warp_tile024,
+                                             block_warps13,
+                                             warp_tile13,
+                                             block_warps02,
+                                             warp_tile024,
+                                             block_warps13,
+                                             warp_tile13,
+                                             block_warps4,
+                                             warp_tile024,
+                                             MaxSeqLenQ>{};
+    }
+    else
+    {
+        // M0 N0 K0 K1 K2 K3 K4 H Hv
+        using tile        = ck_tile::sequence<kM0, kN0, hdim, kM0, hdim, kM0, kK4, hdim, hdim>;
+        using warp_tile13 = ck_tile::sequence<16, 16, 16>;
+        return ck_tile::TileFmhaBwdShape<tile,
+                                         block_warps02,
+                                         warp_tile024,
+                                         block_warps13,
+                                         warp_tile13,
+                                         block_warps02,
+                                         warp_tile024,
+                                         block_warps13,
+                                         warp_tile13,
+                                         block_warps4,
+                                         warp_tile024,
+                                         MaxSeqLenQ>{};
+    }
+}
+
+template <typename Traits, typename enable = void>
+struct FmhaBwdKernelImpl
+{
+    static std::string GetName();
+    static void Run(const ck_tile::stream_config& s, fmha_bwd_args a);
+};
+
+enum class fmha_bwd_kernel_kind
+{
+    dot_do_o,
+    dq_dk_dv,
+    convert_dq,
+};
+
+template <ck_tile::index_t HDim_,
+          ck_tile::index_t kM0_,
+          ck_tile::index_t kN0_,
+          typename DataType_,
+          bool kIsGroupMode_,
+          typename FmhaMask_,
+          typename FmhaDropout_,
+          ck_tile::BlockAttentionBiasEnum BiasEnum_,
+          bool kHasBiasGrad_,
+          bool kPadS1D_,
+          bool kPadD_,
+          bool kPadDv_,
+          bool kIsDeterministic_,
+          bool kUseTrLoad_,
+          ck_tile::index_t MaxSeqLenQ_>
+class fmha_bwd_kernal_group_traits
+{
+    template <fmha_bwd_kernel_kind kid>
+    struct kernel_traits
+    {
+        using type = void;
+    };
+    template <>
+    struct kernel_traits<fmha_bwd_kernel_kind::dot_do_o>
+    {
+        using type = fmha_bwd_dot_do_o_traits_< //
+            HDim_,
+            DataType_,
+            kIsGroupMode_,
+            kPadS1D_,
+            kPadDv_>;
+    };
+    template <>
+    struct kernel_traits<fmha_bwd_kernel_kind::dq_dk_dv>
+    {
+        using type = fmha_bwd_dq_dk_dv_traits_< //
+            HDim_,
+            kM0_,
+            kN0_,
+            DataType_,
+            kIsGroupMode_,
+            FmhaMask_,
+            FmhaDropout_,
+            BiasEnum_,
+            kHasBiasGrad_,
+            kPadD_,
+            kPadDv_,
+            kIsDeterministic_,
+            kUseTrLoad_,
+            MaxSeqLenQ_>;
+    };
+    template <>
+    struct kernel_traits<fmha_bwd_kernel_kind::convert_dq>
+    {
+        using type = fmha_bwd_convert_dq_traits_< //
+            HDim_,
+            DataType_,
+            kIsGroupMode_,
+            kPadS1D_,
+            kPadD_,
+            kIsDeterministic_,
+            kIsDeterministic_ ? kN0_ : 0>;
+    };
+
+    public:
+    template <fmha_bwd_kernel_kind kid>
+    using kernel_traits_t = typename kernel_traits<kid>::type;
+};
+
+template </*fmha_bwd_kernal_group_traits_c*/ typename T, fmha_bwd_kernel_kind... kid>
+class FmhaBwdKernelGroup
+{
+    static constexpr size_t n_kernels = sizeof...(kid);
+    static constexpr auto kid_tuple   = std::make_tuple(kid...);
+
+    public:
+    static float run(const ck_tile::stream_config& s, fmha_bwd_args a)
+    {
+
+        if(s.log_level_ > 1)
+        {
+            std::string kernel_names = "";
+            ck_tile::static_for<0, n_kernels, 1>{}([&](auto i) {
+                constexpr auto kid_i = std::get<i()>(kid_tuple);
+                kernel_names +=
+                    (i() > 0 ? "@" : "|") +
+                    FmhaBwdKernelImpl<typename T::template kernel_traits_t<kid_i>>::GetName();
+            });
+            std::cout << kernel_names << std::flush;
+        }
+        return ck_tile::launch_kernel(s, [=](const ck_tile::stream_config& s_) {
+            (FmhaBwdKernelImpl<typename T::template kernel_traits_t<kid>>::Run(s_, a));
+        }...);
+    }
+};
