@@ -38,9 +38,7 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
         for(int i = 0; i < stream_config.cold_niters_; ++i)
         {
             kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
-            std::cout << "From CK 1:" << std::endl;
             hip_check_error(hipGetLastError());
-            std::cout << "From CK 2:" << std::endl;
         }
 
         const int nrepeat = stream_config.nrepeat_;
@@ -50,39 +48,28 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
         }
         hipEvent_t start, stop;
 
-        std::cout << "From CK 3:" << std::endl;
         hip_check_error(hipEventCreate(&start));
-        std::cout << "From CK 4:" << std::endl;
         hip_check_error(hipEventCreate(&stop));
-        std::cout << "From CK 5:" << std::endl;
 
         hip_check_error(hipDeviceSynchronize());
-        std::cout << "From CK 6:" << std::endl;
         hip_check_error(hipEventRecord(start, stream_config.stream_id_));
-        std::cout << "From CK 7:" << std::endl;
+
 
         for(int i = 0; i < nrepeat; ++i)
         {
             kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
-            std::cout << "From CK 8:" << std::endl;
             hip_check_error(hipGetLastError());
-            std::cout << "From CK 9:" << std::endl;
         }
 
-        std::cout << "From CK 10:" << std::endl;
         hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
-        std::cout << "From CK 11:" << std::endl;
         hip_check_error(hipEventSynchronize(stop));
-        std::cout << "From CK 12:" << std::endl;
+
         float total_time = 0;
 
         hip_check_error(hipEventElapsedTime(&total_time, start, stop));
-        std::cout << "From CK 13:" << std::endl;
 
         hip_check_error(hipEventDestroy(start));
-        std::cout << "From CK 14:" << std::endl;
         hip_check_error(hipEventDestroy(stop));
-        std::cout << "From CK 15:" << std::endl;
 
         return total_time / nrepeat;
     }
@@ -114,7 +101,6 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
                                              std::size_t lds_byte,
                                              Args... args)
 {
-    std::cout << "From CK 20:" << std::endl;
 #if CK_TIME_KERNEL
     if(stream_config.time_kernel_)
     {
@@ -188,6 +174,5 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
 
     return 0;
 #endif
-std::cout << "From CK 21:" << std::endl;
 }
 #endif
