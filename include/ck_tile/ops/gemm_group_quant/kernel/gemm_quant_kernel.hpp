@@ -17,50 +17,58 @@
 namespace ck_tile {
 
 namespace detail {
-    // Helper templates for safe type extraction
-    template <typename T, typename Default>
-    struct get_aq_layout_or {
-        using type = Default;
-    };
-    
-    template <typename T, typename Default>
+// Helper templates for safe type extraction
+template <typename T, typename Default>
+struct get_aq_layout_or
+{
+    using type = Default;
+};
+
+template <typename T, typename Default>
     requires requires { typename T::AQLayout; }
-    struct get_aq_layout_or<T, Default> {
-        using type = typename T::AQLayout;
-    };
+struct get_aq_layout_or<T, Default>
+{
+    using type = typename T::AQLayout;
+};
 
-    template <typename T, typename Default>
-    struct get_bq_layout_or {
-        using type = Default;
-    };
-    
-    template <typename T, typename Default>
+template <typename T, typename Default>
+struct get_bq_layout_or
+{
+    using type = Default;
+};
+
+template <typename T, typename Default>
     requires requires { typename T::BQLayout; }
-    struct get_bq_layout_or<T, Default> {
-        using type = typename T::BQLayout;
-    };
+struct get_bq_layout_or<T, Default>
+{
+    using type = typename T::BQLayout;
+};
 
-    template <typename T, typename Default>
-    struct get_aq_data_type_or {
-        using type = Default;
-    };
-    
-    template <typename T, typename Default>
+template <typename T, typename Default>
+struct get_aq_data_type_or
+{
+    using type = Default;
+};
+
+template <typename T, typename Default>
     requires requires { typename T::AQDataType; }
-    struct get_aq_data_type_or<T, Default> {
-        using type = typename T::AQDataType;
-    };
+struct get_aq_data_type_or<T, Default>
+{
+    using type = typename T::AQDataType;
+};
 
-    template <typename T, typename Default>
-    struct get_bq_data_type_or {
-        using type = Default;
-    };
-    
-    template <typename T, typename Default>
+template <typename T, typename Default>
+struct get_bq_data_type_or
+{
+    using type = Default;
+};
+
+template <typename T, typename Default>
     requires requires { typename T::BQDataType; }
-    struct get_bq_data_type_or<T, Default> {
-        using type = typename T::BQDataType;
-    };
+struct get_bq_data_type_or<T, Default>
+{
+    using type = typename T::BQDataType;
+};
 } // namespace detail
 
 struct QuantGemmProblem
@@ -159,18 +167,23 @@ struct QuantGemmKernelArgs
     index_t k_batch;
 };
 
-template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_, QuantType QuantType_>
+template <typename TilePartitioner_,
+          typename GemmPipeline_,
+          typename EpiloguePipeline_,
+          QuantType QuantType_>
 struct QuantGemmKernel
 {
-    using TilePartitioner               = remove_cvref_t<TilePartitioner_>;
-    using GemmPipeline                  = remove_cvref_t<GemmPipeline_>;
-    using EpiloguePipeline              = remove_cvref_t<EpiloguePipeline_>;
-    using ALayout                       = remove_cvref_t<typename GemmPipeline::ALayout>;
-    using BLayout                       = remove_cvref_t<typename GemmPipeline::BLayout>;
-    using CLayout                       = remove_cvref_t<typename GemmPipeline::CLayout>;
+    using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
+    using GemmPipeline     = remove_cvref_t<GemmPipeline_>;
+    using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
+    using ALayout          = remove_cvref_t<typename GemmPipeline::ALayout>;
+    using BLayout          = remove_cvref_t<typename GemmPipeline::BLayout>;
+    using CLayout          = remove_cvref_t<typename GemmPipeline::CLayout>;
 
-    using AQLayout = remove_cvref_t<typename detail::get_aq_layout_or<GemmPipeline, typename GemmPipeline::ALayout>::type>;
-    using BQLayout = remove_cvref_t<typename detail::get_bq_layout_or<GemmPipeline, typename GemmPipeline::BLayout>::type>;
+    using AQLayout = remove_cvref_t<
+        typename detail::get_aq_layout_or<GemmPipeline, typename GemmPipeline::ALayout>::type>;
+    using BQLayout = remove_cvref_t<
+        typename detail::get_bq_layout_or<GemmPipeline, typename GemmPipeline::BLayout>::type>;
 
     static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
     static constexpr bool Preshuffle    = GemmPipeline::Preshuffle;
@@ -179,9 +192,11 @@ struct QuantGemmKernel
     using BDataType   = remove_cvref_t<typename GemmPipeline::BDataType>;
     using CDataType   = remove_cvref_t<typename EpiloguePipeline::ODataType>;
     using AccDataType = remove_cvref_t<typename EpiloguePipeline::AccDataType>;
-    
-    using AQDataType  = remove_cvref_t<typename detail::get_aq_data_type_or<GemmPipeline, AccDataType>::type>;
-    using BQDataType  = remove_cvref_t<typename detail::get_bq_data_type_or<GemmPipeline, AccDataType>::type>;
+
+    using AQDataType =
+        remove_cvref_t<typename detail::get_aq_data_type_or<GemmPipeline, AccDataType>::type>;
+    using BQDataType =
+        remove_cvref_t<typename detail::get_bq_data_type_or<GemmPipeline, AccDataType>::type>;
 
     static constexpr auto I0 = number<0>(); // A Tensor
     static constexpr auto I1 = number<1>(); // AQ Tensor
@@ -284,9 +299,9 @@ struct QuantGemmKernel
             return false;
         }
 
-        static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
         if constexpr(kQuantType == QuantType::AQuantGrouped)
         {
+            static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
             if(kargs.QK_A % GemmPipeline::GetVectorSizeAQ() != 0)
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
@@ -487,28 +502,32 @@ struct QuantGemmKernel
                 const auto block_tile_size = GemmPipeline::MPerBlock * GemmPipeline::KPerBlockAQ;
                 const auto aq_pad0_desc    = transform_tensor_descriptor(
                     aq_desc,
-                    make_tuple(make_pass_through_transform(aq_y),
-                               make_right_pad_transform(aq_x, get_padding_size(aq_x, block_tile_size))),
+                    make_tuple(
+                        make_pass_through_transform(aq_y),
+                        make_right_pad_transform(aq_x, get_padding_size(aq_x, block_tile_size))),
                     make_tuple(sequence<0>{}, sequence<1>{}),
                     make_tuple(sequence<0>{}, sequence<1>{}));
 
                 const auto pad_aq_x = aq_pad0_desc.get_lengths()[I1];
                 const auto wave_tile_size =
                     TilePartitioner::BlockGemmShape::WarpTile::at(I0) * GemmPipeline::KPerBlockAQ;
-                const auto wave_tile_count_x = ck_tile::integer_divide_ceil(pad_aq_x, wave_tile_size);
+                const auto wave_tile_count_x =
+                    ck_tile::integer_divide_ceil(pad_aq_x, wave_tile_size);
                 const auto aq_unmerge_pad0_desc = transform_tensor_descriptor(
                     aq_pad0_desc,
-                    make_tuple(make_pass_through_transform(aq_y),
-                               make_unmerge_transform(make_tuple(wave_tile_count_x, wave_tile_size))),
+                    make_tuple(
+                        make_pass_through_transform(aq_y),
+                        make_unmerge_transform(make_tuple(wave_tile_count_x, wave_tile_size))),
                     make_tuple(sequence<0>{}, sequence<1>{}),
                     make_tuple(sequence<0>{}, sequence<1, 2>{}));
 
                 const auto aq_pad1_desc = transform_tensor_descriptor(
                     aq_unmerge_pad0_desc,
-                    make_tuple(make_pass_through_transform(aq_y),
-                               make_pass_through_transform(wave_tile_count_x),
-                               make_right_pad_transform(
-                                   wave_tile_size, get_padding_size(wave_tile_size, get_warp_size()))),
+                    make_tuple(
+                        make_pass_through_transform(aq_y),
+                        make_pass_through_transform(wave_tile_count_x),
+                        make_right_pad_transform(
+                            wave_tile_size, get_padding_size(wave_tile_size, get_warp_size()))),
                     make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
                     make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
 
@@ -538,7 +557,7 @@ struct QuantGemmKernel
                 return make_naive_tensor_view<address_space_enum::global>(
                     aq_ptr,
                     make_tuple(kargs.M, kargs.N),
-                    make_tuple(1, 0),  // broadcasting over n
+                    make_tuple(1, 0), // broadcasting over n
                     number<1>{},
                     number<1>{});
             }
@@ -617,13 +636,13 @@ struct QuantGemmKernel
                 return make_naive_tensor_view<address_space_enum::global>(
                     bq_ptr,
                     make_tuple(kargs.M, kargs.N),
-                    make_tuple(0, 1),  // broadcasting over m
+                    make_tuple(0, 1), // broadcasting over m
                     number<1>{},
                     number<1>{});
             }
             else
             {
-                return nullptr;  // TODO: use some other "empty" type for this
+                return nullptr; // TODO: use some other "empty" type for this
             }
         }();
 
@@ -768,19 +787,16 @@ struct QuantGemmKernel
                 static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
                 return make_tile_window(
                     aq_pad_view,
-                    make_tuple(
-                        number<TilePartitioner::MPerBlock>{},
-                        number<TilePartitioner::KPerBlock / GemmPipeline::QuantGroupSize>{}),
+                    make_tuple(number<TilePartitioner::MPerBlock>{},
+                               number<TilePartitioner::KPerBlock / GemmPipeline::QuantGroupSize>{}),
                     {i_m, 0});
             }
             else if constexpr(kQuantType == QuantType::RowColQuant)
             {
-                // TODO: verify that this is the correct window size and offset for the epilogue!
-                return make_tile_window(
-                    aq_pad_view,
-                    make_tuple(number<TilePartitioner::MPerBlock>{},
-                               number<TilePartitioner::NPerBlock>{}),
-                    {i_m, i_n});
+                return make_tile_window(aq_pad_view,
+                                        make_tuple(number<TilePartitioner::MPerBlock>{},
+                                                   number<TilePartitioner::NPerBlock>{}),
+                                        {i_m, i_n});
             }
             else
             {
@@ -808,16 +824,14 @@ struct QuantGemmKernel
         const auto& bq_block_window = [&]() {
             if constexpr(kQuantType == QuantType::RowColQuant)
             {
-                // TODO: verify that this is the correct window size and offset for the epilogue!
-                return make_tile_window(
-                    bq_pad_view,
-                    make_tuple(number<TilePartitioner::MPerBlock>{},
-                               number<TilePartitioner::NPerBlock>{}),
-                    {i_m, i_n});
+                return make_tile_window(bq_pad_view,
+                                        make_tuple(number<TilePartitioner::MPerBlock>{},
+                                                   number<TilePartitioner::NPerBlock>{}),
+                                        {i_m, i_n});
             }
             else
             {
-                return nullptr;  // TODO: use some other "empty" type here
+                return nullptr; // TODO: use some other "empty" type here
             }
         }();
 
@@ -829,7 +843,6 @@ struct QuantGemmKernel
         return make_tuple(
             a_block_window, aq_block_window, b_block_window, bq_block_window, c_block_window);
     }
-
 
     /**
      * @brief Runs single GEMM problem cooperatively by whole workgroup.
@@ -870,8 +883,8 @@ struct QuantGemmKernel
             TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
 
         // Run GEMM cooperatively by whole workgroup.
-        const auto& a_block_window  = gemm_tile_windows.at(I0);        
-        const auto& b_block_window  = gemm_tile_windows.at(I2);
+        const auto& a_block_window = gemm_tile_windows.at(I0);
+        const auto& b_block_window = gemm_tile_windows.at(I2);
 
         const auto& c_block_tile = [&]() {
             if constexpr(kQuantType == QuantType::AQuantGrouped)
@@ -892,17 +905,18 @@ struct QuantGemmKernel
 
         if constexpr(kQuantType == QuantType::AQuantGrouped)
         {
-            EpiloguePipeline{}.template
-                operator()<decltype(c_block_window), decltype(c_block_tile), decltype(c_block_window)>(
-                    c_block_window, c_block_tile, c_block_window, smem_ptr_0);
+            EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
         }
         else if constexpr(kQuantType == QuantType::RowColQuant)
         {
             const auto& aq_block_window = gemm_tile_windows.at(I1);
             const auto& bq_block_window = gemm_tile_windows.at(I3);
-            EpiloguePipeline{}.template
-                operator()<decltype(c_block_window), decltype(c_block_tile), decltype(c_block_window)>(
-                    c_block_window, c_block_tile, c_block_window, smem_ptr_0, aq_block_window, bq_block_window);
+            EpiloguePipeline{}(c_block_window,
+                               c_block_tile,
+                               c_block_window,
+                               smem_ptr_0,
+                               aq_block_window,
+                               bq_block_window);
         }
     }
 

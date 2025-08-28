@@ -19,80 +19,75 @@
 
 namespace ck_tile {
 
-    // CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
-    // {
-    //     constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
-    //         sequence<>,
-    //         tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
-    //         tuple<sequence<1, 2>>,
-    //         tuple<sequence<1, 1>>,
-    //         sequence<1, 2>,
-    //         sequence<0, 0>>{};
+// CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
+// {
+//     constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
+//         sequence<>,
+//         tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
+//         tuple<sequence<1, 2>>,
+//         tuple<sequence<1, 1>>,
+//         sequence<1, 2>,
+//         sequence<0, 0>>{};
 
-    //     constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-    //         c_block_outer_dstr_encoding, typename WarpGemm::CWarpDstrEncoding{});
-    //     constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
-    //     auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
+//     constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+//         c_block_outer_dstr_encoding, typename WarpGemm::CWarpDstrEncoding{});
+//     constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
+//     auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
 
-    //     return c_block_tensor;
-    // }
+//     return c_block_tensor;
+// }
 // Simple test kernel to invoke the CShuffleEpilogue
 template <typename Problem, index_t M, index_t N, bool UseScale>
-__global__ void
-test_cshuffle_epilogue_kernel(typename Problem::ODataType* __restrict__ output_data, float* m_scale, float* n_scale)
+__global__ void test_cshuffle_epilogue_kernel(typename Problem::ODataType* __restrict__ output_data,
+                                              float* m_scale,
+                                              float* n_scale)
 {
     using Epilogue = CShuffleEpilogue<Problem>;
-    
-    static_assert(Problem::kMPerBlock <= M && Problem::kNPerBlock <= N, 
+
+    static_assert(Problem::kMPerBlock <= M && Problem::kNPerBlock <= N,
                   "Block size must fit in tensor dimensions");
-    
+
     // Allocate shared memory for epilogue
     __shared__ char smem[Epilogue::GetSmemSize()];
-    
+
     // Create accumulator tile
-    constexpr auto lds_distribution_encode = make_static_tile_distribution(Epilogue::MakeLdsDistributionEncode());
-    auto acc_tile = make_static_distributed_tensor<typename Epilogue::AccDataType>(lds_distribution_encode);
+    constexpr auto lds_distribution_encode =
+        make_static_tile_distribution(Epilogue::MakeLdsDistributionEncode());
+    auto acc_tile =
+        make_static_distributed_tensor<typename Epilogue::AccDataType>(lds_distribution_encode);
 
     // Fill acc_tile with a simple pattern
     auto& acc_buffer = acc_tile.get_thread_buffer();
-    acc_buffer[0] = 2.0F;
-    
+    acc_buffer[0]    = 2.0F;
+
     // Create output tensor view
-    auto output_tensor_view = make_naive_tensor_view<address_space_enum::global>(
-        output_data,
-        make_tuple(M, N),
-        make_tuple(N, 1),
-        number<Epilogue::GetVectorSizeC()>{},
-        number<1>{});
-    
+    auto output_tensor_view =
+        make_naive_tensor_view<address_space_enum::global>(output_data,
+                                                           make_tuple(M, N),
+                                                           make_tuple(N, 1),
+                                                           number<Epilogue::GetVectorSizeC()>{},
+                                                           number<1>{});
+
     // Create output tile window
-    auto output_tile_window = make_tile_window(
-        output_tensor_view,
-        make_tuple(number<Problem::kMPerBlock>{}, number<Problem::kNPerBlock>{}),
-        {0, 0});
-    
+    auto output_tile_window =
+        make_tile_window(output_tensor_view,
+                         make_tuple(number<Problem::kMPerBlock>{}, number<Problem::kNPerBlock>{}),
+                         {0, 0});
+
     // Create empty D tensors tuple (we're ignoring ds_dram_windows for this test)
     auto empty_ds = make_tuple();
-    
+
     // Call the epilogue
     if constexpr(UseScale)
     {
         const auto m_scale_window = make_tile_window(
             make_naive_tensor_view<address_space_enum::global>(
-                m_scale,
-                make_tuple(M, N),
-                make_tuple(1, 0),
-                number<1>{},
-                number<1>{}),
+                m_scale, make_tuple(M, N), make_tuple(1, 0), number<1>{}, number<1>{}),
             make_tuple(number<Problem::kMPerBlock>{}, number<Problem::kNPerBlock>{}),
             {0, 0});
         const auto n_scale_window = make_tile_window(
             make_naive_tensor_view<address_space_enum::global>(
-                n_scale,
-                make_tuple(M, N),
-                make_tuple(0, 1),
-                number<1>{},
-                number<1>{}),
+                n_scale, make_tuple(M, N), make_tuple(0, 1), number<1>{}, number<1>{}),
             make_tuple(number<Problem::kMPerBlock>{}, number<Problem::kNPerBlock>{}),
             {0, 0});
         Epilogue{}(output_tile_window, acc_tile, empty_ds, smem, m_scale_window, n_scale_window);
@@ -115,27 +110,27 @@ template <typename ADataType,
           index_t MPerXdl,
           index_t NPerXdl,
           index_t KPerXdl>
-using SimpleCShuffleEpilogueProblem = CShuffleEpilogueProblem<
-    ADataType,
-    BDataType,
-    ck_tile::tuple<>, // Empty Ds datatype tuple
-    AccDataType,
-    ODataType,
-    ck_tile::tuple<>, // Empty Ds layout
-    tensor_layout::gemm::RowMajor, // ELayout
-    ck_tile::element_wise::PassThrough,     // CDElementwise
-    kM,
-    kN,
-    MWave,
-    NWave,
-    MPerXdl,
-    NPerXdl,
-    KPerXdl,
-    false, // isCTransposed,
-    memory_operation_enum::set>;
+using SimpleCShuffleEpilogueProblem =
+    CShuffleEpilogueProblem<ADataType,
+                            BDataType,
+                            ck_tile::tuple<>, // Empty Ds datatype tuple
+                            AccDataType,
+                            ODataType,
+                            ck_tile::tuple<>,                   // Empty Ds layout
+                            tensor_layout::gemm::RowMajor,      // ELayout
+                            ck_tile::element_wise::PassThrough, // CDElementwise
+                            kM,
+                            kN,
+                            MWave,
+                            NWave,
+                            MPerXdl,
+                            NPerXdl,
+                            KPerXdl,
+                            false, // isCTransposed,
+                            memory_operation_enum::set>;
 
 template <typename Problem, index_t M, index_t N>
-bool run_cshuffle_epilogue_test(bool use_scale=false)
+bool run_cshuffle_epilogue_test(bool use_scale = false)
 {
     using ODataType = typename Problem::ODataType;
 
@@ -143,8 +138,8 @@ bool run_cshuffle_epilogue_test(bool use_scale=false)
     constexpr index_t kNPerBlock = Problem::kNPerBlock;
     constexpr index_t kBlockSize = Problem::kBlockSize;
 
-    std::cout << "Running CShuffleEpilogue test with M=" << M << ", N=" << N 
-              << ", MPerBlock=" << kMPerBlock << ", NPerBlock=" << kNPerBlock 
+    std::cout << "Running CShuffleEpilogue test with M=" << M << ", N=" << N
+              << ", MPerBlock=" << kMPerBlock << ", NPerBlock=" << kNPerBlock
               << ", BlockSize=" << kBlockSize << std::endl;
 
     // Allocate host memory
@@ -157,30 +152,33 @@ bool run_cshuffle_epilogue_test(bool use_scale=false)
 
     HIP_CHECK_ERROR(hipMalloc(&device_output, output_size * sizeof(ODataType)));
 
-    HIP_CHECK_ERROR(hipMemcpy(device_output, host_output.data(), output_size * sizeof(ODataType), hipMemcpyHostToDevice));
+    HIP_CHECK_ERROR(hipMemcpy(
+        device_output, host_output.data(), output_size * sizeof(ODataType), hipMemcpyHostToDevice));
 
     // Launch kernel
     dim3 gridSize(1, 1, 1);
     dim3 blockSize(kBlockSize, 1, 1);
 
-    if (use_scale)
+    if(use_scale)
     {
         float* m_scale;
         float* n_scale;
         std::vector<float> h_m_scale(M, 1.0F);
         std::vector<float> h_n_scale(N, 1.0F);
-        h_n_scale[1] = 2.0F;  // multiply one col only with 2
+        h_n_scale[1] = 2.0F; // multiply one col only with 2
         HIP_CHECK_ERROR(hipMalloc(&m_scale, M * sizeof(float)));
         HIP_CHECK_ERROR(hipMalloc(&n_scale, N * sizeof(float)));
-        HIP_CHECK_ERROR(hipMemcpy(m_scale, h_m_scale.data(), M * sizeof(float), hipMemcpyHostToDevice));
-        HIP_CHECK_ERROR(hipMemcpy(n_scale, h_n_scale.data(), N * sizeof(float), hipMemcpyHostToDevice));
-        test_cshuffle_epilogue_kernel<Problem, M, N, true><<<gridSize, blockSize>>>(
-                device_output, m_scale, n_scale);
+        HIP_CHECK_ERROR(
+            hipMemcpy(m_scale, h_m_scale.data(), M * sizeof(float), hipMemcpyHostToDevice));
+        HIP_CHECK_ERROR(
+            hipMemcpy(n_scale, h_n_scale.data(), N * sizeof(float), hipMemcpyHostToDevice));
+        test_cshuffle_epilogue_kernel<Problem, M, N, true>
+            <<<gridSize, blockSize>>>(device_output, m_scale, n_scale);
     }
     else
     {
-        test_cshuffle_epilogue_kernel<Problem, M, N, false><<<gridSize, blockSize>>>(
-                device_output, nullptr, nullptr);
+        test_cshuffle_epilogue_kernel<Problem, M, N, false>
+            <<<gridSize, blockSize>>>(device_output, nullptr, nullptr);
     }
 
     // Check for kernel launch errors
@@ -188,19 +186,23 @@ bool run_cshuffle_epilogue_test(bool use_scale=false)
     HIP_CHECK_ERROR(hipDeviceSynchronize());
 
     // Copy results back
-    HIP_CHECK_ERROR(hipMemcpy(host_output.data(), device_output, output_size * sizeof(ODataType), hipMemcpyDeviceToHost));
+    HIP_CHECK_ERROR(hipMemcpy(
+        host_output.data(), device_output, output_size * sizeof(ODataType), hipMemcpyDeviceToHost));
 
     // Basic verification - just check that output has a 2, and 4 if using scaling
-    bool has_2 = type_convert<float>(host_output[0]) > 1.9F && type_convert<float>(host_output[0]) < 2.1F;
+    bool has_2 =
+        type_convert<float>(host_output[0]) > 1.9F && type_convert<float>(host_output[0]) < 2.1F;
     bool scale_has_4 = true;
-    if (use_scale)
+    if(use_scale)
     {
-        scale_has_4 = type_convert<float>(host_output[1]) > 3.9F && type_convert<float>(host_output[1]) < 4.1F;
+        scale_has_4 = type_convert<float>(host_output[1]) > 3.9F &&
+                      type_convert<float>(host_output[1]) < 4.1F;
     }
 
     // for (size_t i = 0; i < 512; ++i)
     // {
-    //     std::cout << "output[" << i << "] = " << type_convert<float>(host_output[i]) << std::endl;
+    //     std::cout << "output[" << i << "] = " << type_convert<float>(host_output[i]) <<
+    //     std::endl;
     // }
 
     // Cleanup

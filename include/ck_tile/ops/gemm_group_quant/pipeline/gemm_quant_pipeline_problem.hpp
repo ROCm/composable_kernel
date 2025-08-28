@@ -112,7 +112,7 @@ template <typename ADataType_,
 using GemmAQuantPipelineProblem = GemmQuantPipelineProblemBase<ADataType_,
                                                                AQDataType_,
                                                                BDataType_,
-                                                               void,  // no BQDataType for AQuant
+                                                               void, // no BQDataType for AQuant
                                                                CDataType_,
                                                                BlockGemmShape_,
                                                                Traits_,
@@ -133,16 +133,16 @@ template <typename ADataType_,
           bool HasHotLoop_                 = true,
           TailNumber TailNum_              = TailNumber::Full>
 using GemmRowColQuantPipelineProblem = GemmQuantPipelineProblemBase<ADataType_,
-                                                               AccDataType_,
-                                                               BDataType_,
-                                                               AccDataType_,
-                                                               CDataType_,
-                                                               BlockGemmShape_,
-                                                               Traits_,
-                                                               1, // no group size applicable
-                                                               ComputeDataType_,
-                                                               Scheduler_,
-                                                               HasHotLoop_,
-                                                               TailNum_>;
+                                                                    AccDataType_,
+                                                                    BDataType_,
+                                                                    AccDataType_,
+                                                                    CDataType_,
+                                                                    BlockGemmShape_,
+                                                                    Traits_,
+                                                                    1, // no group size applicable
+                                                                    ComputeDataType_,
+                                                                    Scheduler_,
+                                                                    HasHotLoop_,
+                                                                    TailNum_>;
 
 } // namespace ck_tile

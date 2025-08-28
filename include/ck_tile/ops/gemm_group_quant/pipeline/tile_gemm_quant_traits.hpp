@@ -11,7 +11,7 @@ namespace ck_tile {
 enum struct QuantType : std::uint16_t
 {
     AQuantGrouped = 0,
-    RowColQuant    = 1
+    RowColQuant   = 1
 };
 
 template <bool kPadM_,
