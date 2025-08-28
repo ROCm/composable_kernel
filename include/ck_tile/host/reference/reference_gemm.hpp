@@ -148,11 +148,10 @@ CK_TILE_HOST void reference_gemm_rowcol_quant(const HostTensor<ADataType>& a_m_k
         static_assert(std::is_same_v<CDataType, float> ||
                       std::is_same_v<CDataType, ck_tile::half_t>);
 
-
         // Get row scale for A and column scale for B
         float a_scale = 0.f;
         float b_scale = 0.f;
-        
+
         // Extract A row scale
         if constexpr(std::is_same_v<AQDataType, float>)
         {
@@ -171,7 +170,7 @@ CK_TILE_HOST void reference_gemm_rowcol_quant(const HostTensor<ADataType>& a_m_k
             static_assert(false, "Unexpected AQ datatype.");
         }
 
-        // Extract B column scale  
+        // Extract B column scale
         if constexpr(std::is_same_v<BQDataType, float>)
         {
             b_scale = bq_1_n(0, n);
@@ -194,7 +193,7 @@ CK_TILE_HOST void reference_gemm_rowcol_quant(const HostTensor<ADataType>& a_m_k
         {
             AccDataType v_a;
             AccDataType v_b;
-            
+
             // Process A data
             if constexpr(std::is_same_v<ADataType, pk_int4_t>)
             {
@@ -209,7 +208,7 @@ CK_TILE_HOST void reference_gemm_rowcol_quant(const HostTensor<ADataType>& a_m_k
             {
                 v_a = ck_tile::type_convert<AccDataType>(a_element_op(a_m_k(m, k)));
             }
-            
+
             // Process B data
             if constexpr(std::is_same_v<BDataType, pk_int4_t>)
             {
@@ -228,7 +227,7 @@ CK_TILE_HOST void reference_gemm_rowcol_quant(const HostTensor<ADataType>& a_m_k
             {
                 v_b = ck_tile::type_convert<AccDataType>(b_element_op(b_k_n(k, n)));
             }
-            
+
             v_acc += v_a * v_b;
         }
 

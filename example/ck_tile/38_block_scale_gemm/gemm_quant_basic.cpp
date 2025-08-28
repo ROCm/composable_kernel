@@ -53,8 +53,8 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
 
     using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenGemmShape>;
 
-    using CodegenGemmTraits =
-        ck_tile::TileGemmQuantTraits<kPadM, kPadN, kPadK, Preshuffle, ALayout, BLayout, CLayout, QuantMode>;
+    using CodegenGemmTraits = ck_tile::
+        TileGemmQuantTraits<kPadM, kPadN, kPadK, Preshuffle, ALayout, BLayout, CLayout, QuantMode>;
 
     using GemmPipelineProblem = ck_tile::GemmPipelineProblemBase<ADataType,
                                                                  BDataType,
@@ -91,39 +91,37 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
             ck_tile::GemmRowColQuantPipelineProblem<ADataType,
                                                     BDataType,
                                                     AccDataType,
-                                                    AccDataType,  
+                                                    AccDataType,
                                                     CodegenGemmShape,
                                                     CodegenGemmTraits,
                                                     ComputeDataType,
                                                     ck_tile::GemmPipelineScheduler::Intrawave,
                                                     has_hot_loop_v,
-                                                    tail_number_v>
-        >;
+                                                    tail_number_v>>;
 
-        using CodegenGemmPipeline = std::conditional_t<
-            QuantMode == ck_tile::QuantType::AQuantGrouped,
-            ck_tile::AQuantGemmPipelineAgBgCrCompV3<CodegenPipelineProblem>,
-            ck_tile::GemmPipelineAgBgCrCompV3<CodegenPipelineProblem>
-        >;
+        using CodegenGemmPipeline =
+            std::conditional_t<QuantMode == ck_tile::QuantType::AQuantGrouped,
+                               ck_tile::AQuantGemmPipelineAgBgCrCompV3<CodegenPipelineProblem>,
+                               ck_tile::GemmPipelineAgBgCrCompV3<CodegenPipelineProblem>>;
 
-        using GemmEpilogue        = ck_tile::CShuffleEpilogue<
-                   ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                    BDataType,
-                                                    ck_tile::tuple<>,
-                                                    AccDataType,
-                                                    CDataType,
-                                                    ck_tile::tuple<>,
-                                                    CLayout,
-                                                    ck_tile::element_wise::PassThrough,
-                                                    TilePartitioner::MPerBlock,
-                                                    TilePartitioner::NPerBlock,
-                                                    M_Warp,
-                                                    N_Warp,
-                                                    M_Warp_Tile,
-                                                    N_Warp_Tile,
-                                                    K_Warp_Tile,
-                                                    transposed_warp_gemm,
-                                                    ck_tile::memory_operation_enum::set>>;
+        using GemmEpilogue = ck_tile::CShuffleEpilogue<
+            ck_tile::CShuffleEpilogueProblem<ADataType,
+                                             BDataType,
+                                             ck_tile::tuple<>,
+                                             AccDataType,
+                                             CDataType,
+                                             ck_tile::tuple<>,
+                                             CLayout,
+                                             ck_tile::element_wise::PassThrough,
+                                             TilePartitioner::MPerBlock,
+                                             TilePartitioner::NPerBlock,
+                                             M_Warp,
+                                             N_Warp,
+                                             M_Warp_Tile,
+                                             N_Warp_Tile,
+                                             K_Warp_Tile,
+                                             transposed_warp_gemm,
+                                             ck_tile::memory_operation_enum::set>>;
         using Kernel =
             ck_tile::QuantGemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue, QuantMode>;
 
@@ -163,7 +161,10 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
 
 #include "run_gemm_quant_example.inc"
 
-template <typename GemmConfig, typename TypeConfig, uint32_t QuantGroupSize, ck_tile::QuantType QuantMode>
+template <typename GemmConfig,
+          typename TypeConfig,
+          uint32_t QuantGroupSize,
+          ck_tile::QuantType QuantMode>
 int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
 {
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
@@ -201,48 +202,58 @@ int run_gemm_example(int argc, char* argv[])
     std::string data_type = arg_parser.get_str("prec");
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
-    
+
     std::string quant_mode = arg_parser.get_str("quant_mode");
 
     if(data_type == "fp8")
     {
         using TypeConfig =
             decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>{});
-        
+
         // ✅ Add conditional call based on quantization mode
-        if(quant_mode == "aquant") {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>, 
-                                              TypeConfig, 
-                                              128, 
+        if(quant_mode == "aquant")
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
+                                              TypeConfig,
+                                              128,
                                               ck_tile::QuantType::AQuantGrouped>(
                 a_layout, b_layout, argc, argv);
-        } else if(quant_mode == "rowcol") {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>, 
-                                              TypeConfig, 
-                                              128, 
+        }
+        else if(quant_mode == "rowcol")
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
+                                              TypeConfig,
+                                              128,
                                               ck_tile::QuantType::RowColQuant>(
                 a_layout, b_layout, argc, argv);
-        } else {
+        }
+        else
+        {
             throw std::runtime_error("Unsupported quantization mode! Use 'aquant' or 'rowcol'");
         }
     }
     else if(data_type == "bf8")
     {
         using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, float>{});
-        
-        if(quant_mode == "aquant") {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>, 
-                                              TypeConfig, 
-                                              128, 
+
+        if(quant_mode == "aquant")
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
+                                              TypeConfig,
+                                              128,
                                               ck_tile::QuantType::AQuantGrouped>(
                 a_layout, b_layout, argc, argv);
-        } else if(quant_mode == "rowcol") {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>, 
-                                              TypeConfig, 
-                                              128, 
+        }
+        else if(quant_mode == "rowcol")
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
+                                              TypeConfig,
+                                              128,
                                               ck_tile::QuantType::RowColQuant>(
                 a_layout, b_layout, argc, argv);
-        } else {
+        }
+        else
+        {
             throw std::runtime_error("Unsupported quantization mode! Use 'aquant' or 'rowcol'");
         }
     }
@@ -252,20 +263,25 @@ int run_gemm_example(int argc, char* argv[])
                                                         ck_tile::fp8_t,
                                                         float,
                                                         ck_tile::fp8_t>{});
-        
-        if(quant_mode == "aquant") {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, 
-                                              TypeConfig, 
-                                              128, 
+
+        if(quant_mode == "aquant")
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>,
+                                              TypeConfig,
+                                              128,
                                               ck_tile::QuantType::AQuantGrouped>(
                 a_layout, b_layout, argc, argv);
-        } else if(quant_mode == "rowcol") {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, 
-                                              TypeConfig, 
-                                              128, 
+        }
+        else if(quant_mode == "rowcol")
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>,
+                                              TypeConfig,
+                                              128,
                                               ck_tile::QuantType::RowColQuant>(
                 a_layout, b_layout, argc, argv);
-        } else {
+        }
+        else
+        {
             throw std::runtime_error("Unsupported quantization mode! Use 'aquant' or 'rowcol'");
         }
     }
@@ -275,20 +291,25 @@ int run_gemm_example(int argc, char* argv[])
                                                         ck_tile::bf8_t,
                                                         float,
                                                         ck_tile::bf8_t>{});
-        
-        if(quant_mode == "aquant") {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, 
-                                              TypeConfig, 
-                                              128, 
+
+        if(quant_mode == "aquant")
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>,
+                                              TypeConfig,
+                                              128,
                                               ck_tile::QuantType::AQuantGrouped>(
                 a_layout, b_layout, argc, argv);
-        } else if(quant_mode == "rowcol") {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, 
-                                              TypeConfig, 
-                                              128, 
+        }
+        else if(quant_mode == "rowcol")
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>,
+                                              TypeConfig,
+                                              128,
                                               ck_tile::QuantType::RowColQuant>(
                 a_layout, b_layout, argc, argv);
-        } else {
+        }
+        else
+        {
             throw std::runtime_error("Unsupported quantization mode! Use 'aquant' or 'rowcol'");
         }
     }
@@ -296,20 +317,25 @@ int run_gemm_example(int argc, char* argv[])
     {
         using TypeConfig =
             decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::fp8_t, float, float>{});
-        
-        if(quant_mode == "aquant") {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, 
-                                              TypeConfig, 
-                                              128, 
+
+        if(quant_mode == "aquant")
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>,
+                                              TypeConfig,
+                                              128,
                                               ck_tile::QuantType::AQuantGrouped>(
                 a_layout, b_layout, argc, argv);
-        } else if(quant_mode == "rowcol") {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, 
-                                              TypeConfig, 
-                                              128, 
+        }
+        else if(quant_mode == "rowcol")
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>,
+                                              TypeConfig,
+                                              128,
                                               ck_tile::QuantType::RowColQuant>(
                 a_layout, b_layout, argc, argv);
-        } else {
+        }
+        else
+        {
             throw std::runtime_error("Unsupported quantization mode! Use 'aquant' or 'rowcol'");
         }
     }
@@ -317,20 +343,25 @@ int run_gemm_example(int argc, char* argv[])
     {
         using TypeConfig =
             decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::bf8_t, float, float>{});
-        
-        if(quant_mode == "aquant") {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, 
-                                              TypeConfig, 
-                                              128, 
+
+        if(quant_mode == "aquant")
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>,
+                                              TypeConfig,
+                                              128,
                                               ck_tile::QuantType::AQuantGrouped>(
                 a_layout, b_layout, argc, argv);
-        } else if(quant_mode == "rowcol") {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, 
-                                              TypeConfig, 
-                                              128, 
+        }
+        else if(quant_mode == "rowcol")
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>,
+                                              TypeConfig,
+                                              128,
                                               ck_tile::QuantType::RowColQuant>(
                 a_layout, b_layout, argc, argv);
-        } else {
+        }
+        else
+        {
             throw std::runtime_error("Unsupported quantization mode! Use 'aquant' or 'rowcol'");
         }
     }

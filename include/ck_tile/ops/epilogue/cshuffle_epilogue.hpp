@@ -213,8 +213,8 @@ struct CShuffleEpilogue
                                   KPerXdl,
                                   isCTransposed>;
 
-    using CWarpDstr   = typename WG::CWarpDstr;
-    using CWarpTensor = typename WG::CWarpTensor;
+    using CWarpDstr         = typename WG::CWarpDstr;
+    using CWarpTensor       = typename WG::CWarpTensor;
     using CWarpDstrEncoding = typename WG::CWarpDstrEncoding;
     using SFC               = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
                                                   sequence<0, 1>,
@@ -265,14 +265,16 @@ struct CShuffleEpilogue
     }
 
     template <auto iAccess, typename LdsTile, typename ScaleM, typename ScaleN>
-    CK_TILE_DEVICE void scale_tile(LdsTile& lds_tile, ScaleM& scale_m_window, ScaleN& scale_n_window)
+    CK_TILE_DEVICE void
+    scale_tile(LdsTile& lds_tile, ScaleM& scale_m_window, ScaleN& scale_n_window)
     {
         // Load tiles
         const auto scale_m_tile = load_tile(scale_m_window);
         const auto scale_n_tile = load_tile(scale_n_window);
 
         // Compute element-wise product in-place i.e. lds_tile = lds_tile * scale_m * scale_n
-        tile_elementwise_inout(element_wise::MultiDMultiply{}, lds_tile, lds_tile, scale_m_tile, scale_n_tile);
+        tile_elementwise_inout(
+            element_wise::MultiDMultiply{}, lds_tile, lds_tile, scale_m_tile, scale_n_tile);
 
         // Move scale windows
         constexpr index_t num_access = SFC::get_num_of_access();
@@ -333,7 +335,7 @@ struct CShuffleEpilogue
     }
 
     template <typename LdsTile, typename InLdsWindow>
-    CK_TILE_DEVICE void cast_lds_tile(LdsTile& lds_tile, InLdsWindow& in_lds_window) 
+    CK_TILE_DEVICE void cast_lds_tile(LdsTile& lds_tile, InLdsWindow& in_lds_window)
     {
         const auto c_warptile_in_tensor_casted = cast_tile<ODataType>(lds_tile);
 
@@ -349,13 +351,14 @@ struct CShuffleEpilogue
         const auto c_ds_tiles = concat_tuple_of_reference(
             tie(c_out_tensor, c_out_tensor),
             generate_tie([&](auto idx) -> const auto& { return ds_tensor[idx]; },
-                            number<NumDTensor>{}));
+                         number<NumDTensor>{}));
 
         tile_elementwise_inout_unpack(typename Problem::CDElementwise{}, c_ds_tiles);
     }
 
     template <typename OutDramWindow, typename COutTensor>
-    CK_TILE_DEVICE void store_to_dram(OutDramWindow& out_dram_window, const COutTensor& c_out_tensor)
+    CK_TILE_DEVICE void store_to_dram(OutDramWindow& out_dram_window,
+                                      const COutTensor& c_out_tensor)
     {
         if constexpr(MemoryOperation == memory_operation_enum::set)
         {
@@ -368,7 +371,8 @@ struct CShuffleEpilogue
     }
 
     template <auto iAccess, typename OutDramWindow, typename DDramWindows>
-    CK_TILE_DEVICE void move_windows(OutDramWindow& out_dram_window, const DDramWindows& d_dram_windows)
+    CK_TILE_DEVICE void move_windows(OutDramWindow& out_dram_window,
+                                     const DDramWindows& d_dram_windows)
     {
         constexpr index_t num_access = SFC::get_num_of_access();
         if constexpr(iAccess != num_access - 1)
@@ -378,15 +382,20 @@ struct CShuffleEpilogue
             move_tile_window(out_dram_window, {step.at(number<0>{}), step.at(number<1>{})});
 
             static_for<0, NumDTensor, 1>{}([&](auto idx) {
-                move_tile_window(d_dram_windows[idx],
-                                    {step.at(number<0>{}), step.at(number<1>{})});
+                move_tile_window(d_dram_windows[idx], {step.at(number<0>{}), step.at(number<1>{})});
             });
         }
     }
 
     // TODO: Check if there would be nicer ways to overload rather than with EmptyScale or nullptr_t
-    struct EmptyScale {};
-    template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename ScaleM=EmptyScale, typename ScaleN=EmptyScale>
+    struct EmptyScale
+    {
+    };
+    template <typename ODramWindow,
+              typename OAccTile,
+              typename DsDramWindows,
+              typename ScaleM = EmptyScale,
+              typename ScaleN = EmptyScale>
     CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window,
                                    const OAccTile& o_acc_tile,
                                    const DsDramWindows& ds_dram_windows,
@@ -432,9 +441,9 @@ struct CShuffleEpilogue
                 return make_tile_window(ds_dram_windows[idx], dram_tile_distribution);
             },
             number<NumDTensor>{});
-        
-        constexpr bool has_scales = !std::is_same<ScaleM, EmptyScale>::value &&
-                         !std::is_same<ScaleN, EmptyScale>::value;
+
+        constexpr bool has_scales =
+            !std::is_same<ScaleM, EmptyScale>::value && !std::is_same<ScaleN, EmptyScale>::value;
         auto scale_m_window = [&]() {
             if constexpr(has_scales)
             {
