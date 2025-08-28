@@ -192,12 +192,16 @@ def buildDocker(install_prefix){
         image_name = "rocm/composable_kernel:ck_aiter"
         dockerArgs = dockerArgs + " --no-cache -f Dockerfile.aiter --build-arg AITER_BRANCH='${params.aiter_branch}' --build-arg CK_AITER_BRANCH='${params.ck_aiter_branch}' . "
     }
-    else{
+     else if(params.RUN_PYTORCH_TESTS){
+        image_name = "rocm/composable_kernel:ck_pytorch"
+        dockerArgs = dockerArgs + " --no-cache -f Dockerfile.pytorch --build-arg CK_PYTORCH_BRANCH='${params.ck_pytorch_branch}' . "
+    }
+   else{
         dockerArgs = dockerArgs + " -f Dockerfile . "
     }
     echo "Build Args: ${dockerArgs}"
     try{
-        if(params.BUILD_DOCKER || params.RUN_AITER_TESTS){
+        if(params.BUILD_DOCKER || params.RUN_AITER_TESTS || params.RUN_PYTORCH_TESTS){
             //force building the new docker if that parameter is true
             echo "Building image: ${image_name}"
             retimage = docker.build("${image_name}", dockerArgs)
@@ -400,8 +404,8 @@ def cmake_build(Map conf=[:]){
                     echo "Build packages"
                     sh 'ninja -j64 package'
                     archiveArtifacts artifacts: 'composablekernel-dev*.deb'
-                    sh 'mv composablekernel-dev_*.deb composablekernel-dev_all_targets_1.1.0_amd64.deb'
-                    sh 'mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.1.0_amd64.deb'
+                    sh 'mv composablekernel-dev_*.deb composablekernel-dev_all_targets_1.2.0_amd64.deb'
+                    sh 'mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64.deb'
                     stash includes: "composablekernel-**.deb", name: "packages"
                 }
             }
@@ -578,31 +582,60 @@ def Build_CK(Map conf=[:]){
                         if (params.RUN_FULL_QA && arch == 1){
                             // run full tests on gfx90a
                             echo "Run full performance tests"
-                            sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
-                            archiveArtifacts "perf_gemm.log"
-                            archiveArtifacts "perf_resnet50_N256.log"
-                            archiveArtifacts "perf_resnet50_N4.log"
-                            archiveArtifacts "perf_batched_gemm.log"
-                            archiveArtifacts "perf_grouped_gemm.log"
-                            archiveArtifacts "perf_grouped_conv_fwd.log"
-                            archiveArtifacts "perf_grouped_conv_bwd_data.log"
-                            archiveArtifacts "perf_grouped_conv_bwd_weight.log"
-                            archiveArtifacts "perf_gemm_bilinear.log"
-                            archiveArtifacts "perf_reduction.log"
-                            archiveArtifacts "perf_splitK_gemm.log"
-                            archiveArtifacts "perf_onnx_gemm.log"
-                            archiveArtifacts "perf_mixed_gemm.log"
-                            stash includes: "perf_**.log", name: "perf_log"
+                            sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx90a"
+                            archiveArtifacts "perf_gemm_gfx90a.log"
+                            archiveArtifacts "perf_resnet50_N256_gfx90a.log"
+                            archiveArtifacts "perf_resnet50_N4_gfx90a.log"
+                            archiveArtifacts "perf_batched_gemm_gfx90a.log"
+                            archiveArtifacts "perf_grouped_gemm_gfx90a.log"
+                            archiveArtifacts "perf_grouped_conv_fwd_gfx90a.log"
+                            archiveArtifacts "perf_grouped_conv_bwd_data_gfx90a.log"
+                            archiveArtifacts "perf_grouped_conv_bwd_weight_gfx90a.log"
+                            archiveArtifacts "perf_gemm_bilinear_gfx90a.log"
+                            archiveArtifacts "perf_reduction_gfx90a.log"
+                            archiveArtifacts "perf_splitK_gemm_gfx90a.log"
+                            archiveArtifacts "perf_onnx_gemm_gfx90a.log"
+                            archiveArtifacts "perf_mixed_gemm_gfx90a.log"
+                            stash includes: "perf_**.log", name: "perf_log_gfx90a"
+                        }
+                        if (params.RUN_FULL_QA && arch == 2){
+                            // run full tests on gfx942
+                            echo "Run full performance tests"
+                            sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx942"
+                            archiveArtifacts "perf_gemm_gfx942.log"
+                            archiveArtifacts "perf_resnet50_N256_gfx942.log"
+                            archiveArtifacts "perf_resnet50_N4_gfx942.log"
+                            archiveArtifacts "perf_batched_gemm_gfx942.log"
+                            archiveArtifacts "perf_grouped_gemm_gfx942.log"
+                            archiveArtifacts "perf_grouped_conv_fwd_gfx942.log"
+                            archiveArtifacts "perf_grouped_conv_bwd_data_gfx942.log"
+                            archiveArtifacts "perf_grouped_conv_bwd_weight_gfx942.log"
+                            archiveArtifacts "perf_gemm_bilinear_gfx942.log"
+                            archiveArtifacts "perf_reduction_gfx942.log"
+                            archiveArtifacts "perf_splitK_gemm_gfx942.log"
+                            archiveArtifacts "perf_onnx_gemm_gfx942.log"
+                            archiveArtifacts "perf_mixed_gemm_gfx942.log"
+                            stash includes: "perf_**.log", name: "perf_log_gfx942"
                         }
                         else if ( arch == 1 ){
                             // run standard tests on gfx90a
                             echo "Run performance tests"
-                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
-                            archiveArtifacts "perf_gemm.log"
-                            archiveArtifacts "perf_onnx_gemm.log"
-                            archiveArtifacts "perf_resnet50_N256.log"
-                            archiveArtifacts "perf_resnet50_N4.log"
-                            stash includes: "perf_**.log", name: "perf_log"
+                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx90a"
+                            archiveArtifacts "perf_gemm_gfx90a.log"
+                            archiveArtifacts "perf_onnx_gemm_gfx90a.log"
+                            archiveArtifacts "perf_resnet50_N256_gfx90a.log"
+                            archiveArtifacts "perf_resnet50_N4_gfx90a.log"
+                            stash includes: "perf_**.log", name: "perf_log_gfx90a"
+                        }
+                        else if ( arch == 2 ){
+                            // run standard tests on gfx942
+                            echo "Run performance tests"
+                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx942"
+                            archiveArtifacts "perf_gemm_gfx942.log"
+                            archiveArtifacts "perf_onnx_gemm_gfx942.log"
+                            archiveArtifacts "perf_resnet50_N256_gfx942.log"
+                            archiveArtifacts "perf_resnet50_N4_gfx942.log"
+                            stash includes: "perf_**.log", name: "perf_log_gfx942"
                         }
                         // disable performance tests on gfx1030 for now.
                         //else if ( arch == 3){
@@ -720,10 +753,15 @@ def process_results(Map conf=[:]){
                     if (params.RUN_CK_TILE_FMHA_TESTS){
                         try{
                             unstash "perf_fmha_log_gfx942"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the FMHA performance logs for gfx942: ${err.getMessage()}."
+                        }
+                        try{
                             unstash "perf_fmha_log_gfx90a"
                         }
                         catch(Exception err){
-                            echo "could not locate the FMHA performance logs: ${err.getMessage()}."
+                            echo "could not locate the FMHA performance logs for gfx90a: ${err.getMessage()}."
                         }
                     }
                     if (params.BUILD_INSTANCES_ONLY){
@@ -733,16 +771,46 @@ def process_results(Map conf=[:]){
                     }
                     else{
                         // unstash perf files to master
-                        unstash "perf_log"
+                        try{
+                            unstash "perf_log_gfx90a"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the gfx90a performance logs: ${err.getMessage()}."
+                        }
+                        try{
+                            unstash "perf_log_gfx942"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the gfx942 performance logs: ${err.getMessage()}."
+                        }
+                        try{
+                            unstash "perf_log_gfx950"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the gfx950 performance logs: ${err.getMessage()}."
+                        }
+                        try{
+                            unstash "perf_log_gfx908"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the gfx908 performance logs: ${err.getMessage()}."
+                        }
                         try{
                             unstash "perf_log_gfx11"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the gfx11 performance logs: ${err.getMessage()}."
+                        }
+                        try{
+
                             unstash "perf_log_gfx12"
                         }
                         catch(Exception err){
-                            echo "could not locate the GEMM gfx11/gfx12 performance logs: ${err.getMessage()}."
+                            echo "could not locate the gfx12 performance logs: ${err.getMessage()}."
                         }
-                        sh "./process_perf_data.sh"
                     }
+                    // process the logs
+                    sh "./process_perf_data.sh"
                 }
             }
             catch(e){
@@ -807,13 +875,64 @@ def run_aiter_tests(Map conf=[:]){
     }
 }
 
+
+def run_pytorch_tests(Map conf=[:]){
+    show_node_info()
+    env.HSA_ENABLE_SDMA=0
+    checkout scm
+    //use the latest pytorch-nightly image
+    def image = "rocm/composable_kernel:ck_pytorch"
+    def dockerOpts="--network=host --device=/dev/kfd --device=/dev/dri --group-add video --group-add render --group-add irc --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --user=jenkins -v=/var/jenkins/:/var/jenkins"
+    def variant = env.STAGE_NAME
+    def retimage
+    def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3')
+    def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3')
+    dockerOpts = dockerOpts + " --group-add=${video_id} --group-add=${render_id} "
+    echo "Docker flags: ${dockerOpts}"
+
+    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
+        try
+        {
+            echo "Pulling image: ${image}"
+            retimage = docker.image("${image}")
+            withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
+                retimage.pull()
+            }
+        }
+        catch(Exception ex)
+        {
+            error "Unable to locate image: ${image}"
+        }
+    }
+
+    withDockerContainer(image: image, args: dockerOpts) {
+        timeout(time: 45, unit: 'MINUTES'){
+            try{
+                sh "rocminfo"
+                sh "python3 --version"
+                sh "python3 /tmp/pytorch/tools/amd_build/build_amd.py"
+                sh "USE_ROCM_CK_SDPA=1 PYTORCH_ROCM_ARCH=gfx942 python /tmp/pytorch/setup.py develop"
+            }
+            catch(e){
+                echo "Throwing error exception while building Pytorch"
+                echo 'Exception occurred: ' + e.toString()
+                throw e
+            }
+            finally{
+                echo "Finished building Pytorch"
+            }
+        }
+    }
+}
+
 //launch develop branch daily jobs
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_TILE_ENGINE_GEMM_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
                                               0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX908=true;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
-                                              0 13 * * * % RUN_AITER_TESTS=true;BUILD_LEGACY_OS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false''' : ""
+                                              0 13 * * * % RUN_AITER_TESTS=true;BUILD_LEGACY_OS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false
+                                              0 11 * * * % RUN_PYTORCH_TESTS=true;RUN_CODEGEN_TESTS=false;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;BUILD_GFX10=false;BUILD_GFX11=false;BUILD_GFX12=false;BUILD_GFX90A=false''' : ""
 
 pipeline {
     agent none
@@ -949,6 +1068,14 @@ pipeline {
             defaultValue: false,
             description: "Run all unit tests (default: OFF)")
         booleanParam(
+            name: "RUN_PYTORCH_TESTS",
+            defaultValue: false,
+            description: "Try building PYTORCH with latest CK develop branch (default: OFF)")
+        string(
+            name: 'ck_pytorch_branch',
+            defaultValue: 'develop',
+            description: 'Specify which branch of CK to test with Pytorch (default: develop)')
+        booleanParam(
             name: "RUN_AITER_TESTS",
             defaultValue: false,
             description: "Run AITER tests with latest CK develop branch (default: OFF)")
@@ -1040,6 +1167,24 @@ pipeline {
                 }
             }
         }
+         stage("Run Pytorch Tests")
+        {
+            parallel
+            {
+                stage("Run Pytorch Tests on gfx942")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_PYTORCH_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx942")}
+                    steps{
+                        run_pytorch_tests()
+                        cleanWs()
+                    }
+                }
+            }
+        }
         stage("Run AITER Tests")
         {
             parallel
@@ -1095,11 +1240,16 @@ pipeline {
                     agent{ label rocmnode("gfx90a")}
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_args = """ cd test_data && \
-                                           ./generate_test_dataset.sh && \
-                                           cd ../script && \
+                        execute_args = """ cd ../build && \
                                            ../script/cmake-ck-dev.sh  ../ gfx90a && \
                                            make -j64 test_grouped_convnd_fwd_dataset_xdl && \
+                                           cd ../test_data && \
+                                           # Dataset generation modes:
+                                           # - small: ~60 test cases (minimal, quick testing - 3 models, 2 batch sizes, 2 image sizes)
+                                           # - half: ~300 test cases (moderate coverage - 16 models, 3 batch sizes, 5 image sizes), ~ 17 hours testing time
+                                           # - full: ~600 test cases (comprehensive - 16 models, 5 batch sizes, 9 image sizes), ~ 40 hours testing time
+                                           ./generate_test_dataset.sh half && \
+                                           cd ../build && \
                                            ./bin/test_grouped_convnd_fwd_dataset_xdl"""
                     }
                     steps{
@@ -1294,6 +1444,7 @@ pipeline {
                         def docker_name = "${env.CK_DOCKERHUB_PRIVATE}:ck_rhel8_rocm6.3"
                         setup_args = """ -DGPU_TARGETS="gfx942" \
                                          -DCMAKE_CXX_FLAGS=" -O3 " \
+                                         -DCK_CXX_STANDARD="17" \
                                          -DCK_USE_ALTERNATIVE_PYTHON=/opt/Python-3.8.13/bin/python3.8 """
                         execute_args = " "
                     }
@@ -1505,7 +1656,7 @@ pipeline {
                 stage("Process results"){
                     when {
                         beforeAgent true
-                        expression { (params.RUN_PERFORMANCE_TESTS.toBoolean() || params.BUILD_INSTANCES_ONLY.toBoolean()) && !params.BUILD_LEGACY_OS.toBoolean() }
+                        expression { (params.RUN_PERFORMANCE_TESTS.toBoolean() || params.BUILD_INSTANCES_ONLY.toBoolean() || params.RUN_CK_TILE_FMHA_TESTS.toBoolean()) && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     agent { label 'mici' }
                     steps{

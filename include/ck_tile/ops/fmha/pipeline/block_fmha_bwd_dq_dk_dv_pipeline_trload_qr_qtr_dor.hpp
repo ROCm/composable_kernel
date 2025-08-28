@@ -93,6 +93,42 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
             return raw_lse;
     };
 
+    template <typename... Ts>
+    CK_TILE_DEVICE auto operator()(void* smem_ptr, Ts&&... args) const
+    {
+        // LDS allocation
+        const auto smem_ptr_ =
+            reinterpret_cast<char*>(smem_ptr); // cast to char* to do pointer arithmetic
+
+        const auto k_lds_ptr = reinterpret_cast<KDataType* __restrict__>(smem_ptr_);
+        const auto v_lds_ptr = reinterpret_cast<VDataType* __restrict__>(
+            smem_ptr_ + Policy::template GetSmemSizeK<Problem>());
+
+        const auto do_lds_ptr  = reinterpret_cast<OGradDataType*>(smem_ptr_);
+        const auto q_lds_ptr   = reinterpret_cast<QDataType*>( //
+            smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>());
+        const auto lse_lds_ptr = reinterpret_cast<LSEDataType*>( //
+            smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>() +
+            Policy::template GetSmemSizeQ<Problem>());
+        const auto d_lds_ptr   = reinterpret_cast<DDataType*>(
+            smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>() +
+            Policy::template GetSmemSizeQ<Problem>() + Policy::template GetSmemSizeLSE<Problem>());
+
+        const auto ds_lds_ptr =
+            reinterpret_cast<GemmDataType*>(smem_ptr_ + Policy::template GetSmemSizeK<Problem>() +
+                                            Policy::template GetSmemSizeV<Problem>());
+        const auto bias_lds_ptr = reinterpret_cast<BiasDataType*>(ds_lds_ptr);
+        return run(k_lds_ptr,
+                   v_lds_ptr,
+                   do_lds_ptr,
+                   q_lds_ptr,
+                   lse_lds_ptr,
+                   d_lds_ptr,
+                   ds_lds_ptr,
+                   bias_lds_ptr,
+                   std::forward<Ts>(args)...);
+    }
+
     template <typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
@@ -109,7 +145,15 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
               typename KGradEpilogue,
               typename VGradEpilogue,
               typename PositionEncoding>
-    CK_TILE_DEVICE auto operator()( //
+    CK_TILE_DEVICE auto run( //
+        KDataType* __restrict__ k_lds_ptr,
+        VDataType* __restrict__ v_lds_ptr,
+        OGradDataType* __restrict__ do_lds_ptr,
+        QDataType* __restrict__ q_lds_ptr,
+        LSEDataType* __restrict__ lse_lds_ptr,
+        DDataType* __restrict__ d_lds_ptr,
+        GemmDataType* __restrict__ ds_lds_ptr,
+        BiasDataType* __restrict__ bias_lds_ptr,
         const QDramBlockWindowTmp& q_dram_block_window_tmp,
         const KDramBlockWindowTmp& k_dram_block_window_tmp,
         const VDramBlockWindowTmp& v_dram_block_window_tmp,
@@ -131,7 +175,6 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
         float scale,
         float rp_undrop,
         float scale_rp_undrop,
-        void* smem_ptr,
         FmhaDropout& dropout) const
     {
         static_assert(
@@ -180,29 +223,6 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
                              k_dram_block_window_tmp.get_window_lengths(),
                              {seqlen_kv_start, 0},
                              Policy::template MakeKDramTileDistribution<Problem>());
-
-        // LDS allocation
-        const auto smem_ptr_ =
-            reinterpret_cast<char*>(smem_ptr); // cast to char* to do pointer arithmetic
-
-        const auto k_lds_ptr = reinterpret_cast<KDataType* __restrict__>(smem_ptr_);
-        const auto v_lds_ptr = reinterpret_cast<VDataType* __restrict__>(
-            smem_ptr_ + Policy::template GetSmemSizeK<Problem>());
-
-        const auto do_lds_ptr  = reinterpret_cast<OGradDataType*>(smem_ptr_);
-        const auto q_lds_ptr   = reinterpret_cast<QDataType*>( //
-            smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>());
-        const auto lse_lds_ptr = reinterpret_cast<LSEDataType*>( //
-            smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>() +
-            Policy::template GetSmemSizeQ<Problem>());
-        const auto d_lds_ptr   = reinterpret_cast<DDataType*>(
-            smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>() +
-            Policy::template GetSmemSizeQ<Problem>() + Policy::template GetSmemSizeLSE<Problem>());
-
-        const auto ds_lds_ptr =
-            reinterpret_cast<GemmDataType*>(smem_ptr_ + Policy::template GetSmemSizeK<Problem>() +
-                                            Policy::template GetSmemSizeV<Problem>());
-        const auto bias_lds_ptr = reinterpret_cast<BiasDataType*>(ds_lds_ptr);
 
         auto k_lds = make_tensor_view<address_space_enum::lds>(
             k_lds_ptr, Policy::template MakeKLdsWriteBlockDescriptor<Problem>());
@@ -738,6 +758,24 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
     }
 };
 
-template <class T>
-concept fmha_bwd_qr_qtr_dor_pipeline_c = T::is_qr_qtr_dor_pipeline;
+// We don't support C++20 concepts yet, so we use SFINAE check the existence and truthiness
+// of is_qr_qtr_dor_pipeline static member instead of using concepts directly.
+//
+// The template struct's value field is equivalent to the following commented concept definition.
+//
+// template <class T>
+// concept fmha_bwd_qr_qtr_dor_pipeline_c = T::is_qr_qtr_dor_pipeline;
+
+// SFINAE test for existence and truthiness of static member is_qr_qtr_dor_pipeline.
+template <typename, typename = void>
+struct fmha_bwd_qr_qtr_dor_pipeline : std::false_type
+{
+};
+
+template <typename T>
+struct fmha_bwd_qr_qtr_dor_pipeline<T, std::void_t<decltype(T::is_qr_qtr_dor_pipeline)>>
+    : std::bool_constant<T::is_qr_qtr_dor_pipeline>
+{
+};
+
 } // namespace ck_tile
