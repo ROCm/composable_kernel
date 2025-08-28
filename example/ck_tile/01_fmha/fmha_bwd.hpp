@@ -372,8 +372,7 @@ template <ck_tile::index_t HDim_,
           bool kPadDv_,
           bool kIsDeterministic_,
           bool kUseTrLoad_,
-          ck_tile::index_t MaxSeqLenQ_,
-          ck_tile::index_t kN0>
+          ck_tile::index_t MaxSeqLenQ_>
 struct fmha_bwd_dq_dk_dv_traits_
 {
 };
@@ -413,10 +412,15 @@ template <ck_tile::index_t HDim_,
           bool kIsGroupMode_,
           bool kPadS_,
           bool kPadD_,
-          bool kIsDeterministic_,
-          ck_tile::index_t kN0>
+          bool kIsDeterministic_>
 struct fmha_bwd_convert_dq_traits_
 {
+    static constexpr ck_tile::index_t HDim = HDim_;
+    using DataType                         = ck_tile::remove_cvref_t<DataType_>;
+    static constexpr bool kIsGroupMode     = kIsGroupMode_;
+    static constexpr bool kPadS            = kPadS_;
+    static constexpr bool kPadD            = kPadD_;
+    static constexpr bool kIsDeterministic = kIsDeterministic_;
 };
 
 template <typename Traits_>
