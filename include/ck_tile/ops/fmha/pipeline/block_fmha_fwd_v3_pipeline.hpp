@@ -166,6 +166,15 @@ CK_TILE_DEVICE float fma_impl_vsv(float a, float b, float c)
 #endif
 }
 
+CK_TILE_DEVICE float add_impl_vv(float lhs, float rhs)
+{
+    float result;
+    asm volatile("v_add_f32_e32 %[result], %[lhs], %[rhs]"
+                 : [result] "=v"(result)
+                 : [lhs] "v"(lhs), [rhs] "v"(rhs));
+    return result;
+}
+
 CK_TILE_DEVICE fp16x2_t cvt_pk_fp16_f32(float a, float b)
 {
     fp16x2_t result;
@@ -725,7 +734,7 @@ struct BlockFmhaFwdV3Pipeline
                 constexpr auto i_idx = make_tuple(idx0);
                 const auto tmp       = ck_tile::exp2(scale_s * (m_old[i_idx] - m[i_idx]));
 
-                l(i_idx) = tmp * l[i_idx] + rowsum_p[i_idx];
+                l(i_idx) = detail::add_impl_vv(tmp * l[i_idx], rowsum_p[i_idx]);
             });
 
             // update partial o_acc [2, fmha_alu_D_reg_cnt)
