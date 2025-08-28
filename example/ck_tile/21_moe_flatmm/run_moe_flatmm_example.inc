@@ -86,7 +86,7 @@ int run_moe_gemm_example_with_layouts(int argc,
     // TODO: replace the magic declaration
     const ck_tile::index_t MPerBlock = FlatmmConfig::M_Tile;
 
-    ck_tile::index_t sorted_tile_num = num_tokens * topk / MPerBlock;
+    ck_tile::index_t sorted_tile_num = (num_tokens + MPerBlock - 1) / MPerBlock * MPerBlock * topk;
     ck_tile::index_t valid_tile_num  = sorted_tile_num;
     ck_tile::index_t sorted_size     = sorted_tile_num * MPerBlock;
 
@@ -161,14 +161,10 @@ int run_moe_gemm_example_with_layouts(int argc,
     // for verification only, no need to satify weight normalization
     ck_tile::FillUniformDistribution<AccDataType>{0.0f, 1.0f}(expert_weight);
 
-    ck_tile::DeviceMem sorted_token_ids_dev{sizeof(ck_tile::index_t) *
-                                            sorted_token_ids.get_element_space_size_in_bytes()};
-    ck_tile::DeviceMem expert_ids_dev{sizeof(ck_tile::index_t) *
-                                      expert_ids.get_element_space_size_in_bytes()};
-    ck_tile::DeviceMem max_token_id_dev{sizeof(ck_tile::index_t) *
-                                        max_token_id.get_element_space_size_in_bytes()};
-    ck_tile::DeviceMem expert_weight_dev{sizeof(AccDataType) *
-                                         expert_weight.get_element_space_size_in_bytes()};
+    ck_tile::DeviceMem sorted_token_ids_dev{sorted_token_ids.get_element_space_size_in_bytes()};
+    ck_tile::DeviceMem expert_ids_dev{expert_ids.get_element_space_size_in_bytes()};
+    ck_tile::DeviceMem max_token_id_dev{max_token_id.get_element_space_size_in_bytes()};
+    ck_tile::DeviceMem expert_weight_dev{expert_weight.get_element_space_size_in_bytes()};
 
     ck_tile::DeviceMem per_token_scale_dev_buf(per_token_scale.get_element_space_size_in_bytes());
     ck_tile::DeviceMem per_channel_scale_dev_buf(

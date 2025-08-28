@@ -158,15 +158,18 @@ int run_a16w4_moe_gemm_example_with_layouts(int argc,
         ck_tile::HostTensorDescriptor({sorted_size}, {1}));
     ck_tile::HostTensor<ck_tile::index_t> max_token_id(
         ck_tile::HostTensorDescriptor({1 + sorted_tile_num}));
+    ck_tile::HostTensor<AccDataType> expert_bias(ck_tile::HostTensorDescriptor({experts * N}, {1}));
 
     if(init_method == 0)
     {
         // for verification only, no need to satify weight normalization
         ck_tile::FillUniformDistribution<AccDataType>{0.0f, 1.0f}(expert_weight);
+        ck_tile::FillUniformDistribution<AccDataType>{-1.0f, 1.0f}(expert_bias);
     }
     else
     {
         ck_tile::FillUniformDistribution<AccDataType>{1.0f, 1.0f}(expert_weight);
+        ck_tile::FillUniformDistribution<AccDataType>{0.0f, 0.0f}(expert_bias);
     }
 
     max_token_id.mData = {valid_tile_num * MPerBlock, 0, 1, 2, 3, 4, 6, 7, 8, 8};
@@ -206,19 +209,17 @@ int run_a16w4_moe_gemm_example_with_layouts(int argc,
     c_m_n_dev_buf.SetZero();
     c_m_n_tensor.SetZero();
 
-    ck_tile::DeviceMem sorted_token_ids_dev{sizeof(ck_tile::index_t) *
-                                            sorted_token_ids.get_element_space_size_in_bytes()};
-    ck_tile::DeviceMem expert_ids_dev{sizeof(ck_tile::index_t) *
-                                      expert_ids.get_element_space_size_in_bytes()};
-    ck_tile::DeviceMem max_token_id_dev{sizeof(ck_tile::index_t) *
-                                        max_token_id.get_element_space_size_in_bytes()};
-    ck_tile::DeviceMem expert_weight_dev{sizeof(AccDataType) *
-                                         expert_weight.get_element_space_size_in_bytes()};
+    ck_tile::DeviceMem sorted_token_ids_dev{sorted_token_ids.get_element_space_size_in_bytes()};
+    ck_tile::DeviceMem expert_ids_dev{expert_ids.get_element_space_size_in_bytes()};
+    ck_tile::DeviceMem max_token_id_dev{max_token_id.get_element_space_size_in_bytes()};
+    ck_tile::DeviceMem expert_weight_dev{expert_weight.get_element_space_size_in_bytes()};
+    ck_tile::DeviceMem expert_bias_dev{expert_bias.get_element_space_size_in_bytes()};
 
     sorted_token_ids_dev.ToDevice(sorted_token_ids.data());
     expert_ids_dev.ToDevice(expert_ids.data());
     max_token_id_dev.ToDevice(max_token_id.data());
     expert_weight_dev.ToDevice(expert_weight.data());
+    expert_bias_dev.ToDevice(expert_bias.data());
     scale_b_shuffle_dev_buf.ToDevice(scale_b_shuffle.data());
 
     const ck_tile::index_t* p_sorted_token_ids_dev =
@@ -229,13 +230,17 @@ int run_a16w4_moe_gemm_example_with_layouts(int argc,
         static_cast<ck_tile::index_t*>(max_token_id_dev.GetDeviceBuffer());
     const AccDataType* p_sorted_expert_weight_dev =
         static_cast<AccDataType*>(expert_weight_dev.GetDeviceBuffer());
+
     auto scale_b_shuffle_dev_ptr =
         ck_tile::FlatmmScalePointer<ScaleGranularityN, ScaleGranularityK>{
             static_cast<float*>(scale_b_shuffle_dev_buf.GetDeviceBuffer()), N / ScaleGranularityN};
+    auto exp_bias_dev_ptr = ck_tile::FlatmmScalePointer<1>{
+        static_cast<float*>(expert_bias_dev.GetDeviceBuffer()), experts * N};
 
     using MoeFlatmmArgs = ck_tile::MoeFlatmmHostArgs<
         ck_tile::FlatmmScalePointer<-1>,
-        ck_tile::FlatmmScalePointer<ScaleGranularityN, ScaleGranularityK>>;
+        ck_tile::FlatmmScalePointer<ScaleGranularityN, ScaleGranularityK>,
+        ck_tile::FlatmmScalePointer<1>>;
     MoeFlatmmArgs gemm_desc{p_sorted_token_ids_dev,
                             p_sorted_expert_weight_dev,
                             p_expert_ids_dev,
@@ -254,7 +259,8 @@ int run_a16w4_moe_gemm_example_with_layouts(int argc,
                             stride_B,
                             stride_C,
                             nullptr,
-                            scale_b_shuffle_dev_ptr};
+                            scale_b_shuffle_dev_ptr,
+                            exp_bias_dev_ptr};
 
     invoke_a16w4_moe_gemm<FlatmmConfig,
                           ADataType,
@@ -328,7 +334,8 @@ int run_a16w4_moe_gemm_example_with_layouts(int argc,
             1,
             ScaleGranularityK,
             static_cast<float*>(scale_A_dev_buf.GetDeviceBuffer()),
-            static_cast<float*>(scale_b_float_dev_buf.GetDeviceBuffer()));
+            static_cast<float*>(scale_b_float_dev_buf.GetDeviceBuffer()),
+            static_cast<float*>(expert_bias_dev.GetDeviceBuffer()));
 
         const float max_accumulated_value =
             *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
