@@ -14,7 +14,7 @@ If the user doesn't provide kernel configuration, the tile engine uses the defau
 
 ## Build Instructions
 ``` bash
-# in the root of composable kernel create build directory
+# create the `build` directory in the composable kernel root directory:
 mkdir build && cd build
 # build composable kernel
 # replace [Arch] with the appropriate architecture or leave blank and 
