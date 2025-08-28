@@ -10,51 +10,51 @@ namespace instance {
 
 #ifdef CK_ENABLE_BF16
 // grouped conv1d forward, GNWC/GKXC/GNWK
-// void add_device_grouped_conv1d_fwd_wmma_cshufflev3_gnwc_gkxc_gnwk_bf16_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<1,
-//                                                                 GNWC,
-//                                                                 GKXC,
-//                                                                 Empty_Tuple,
-//                                                                 GNWK,
-//                                                                 BF16,
-//                                                                 BF16,
-//                                                                 Empty_Tuple,
-//                                                                 BF16,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 PassThrough>>>& instances);
+void add_device_grouped_conv1d_fwd_wmma_cshufflev3_gnwc_gkxc_gnwk_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<1,
+                                                                GNWC,
+                                                                GKXC,
+                                                                Empty_Tuple,
+                                                                GNWK,
+                                                                BF16,
+                                                                BF16,
+                                                                Empty_Tuple,
+                                                                BF16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_FP16
-// void add_device_grouped_conv1d_fwd_wmma_cshufflev3_gnwc_gkxc_gnwk_f16_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<1,
-//                                                                 GNWC,
-//                                                                 GKXC,
-//                                                                 Empty_Tuple,
-//                                                                 GNWK,
-//                                                                 F16,
-//                                                                 F16,
-//                                                                 Empty_Tuple,
-//                                                                 F16,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 PassThrough>>>& instances);
+void add_device_grouped_conv1d_fwd_wmma_cshufflev3_gnwc_gkxc_gnwk_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<1,
+                                                                GNWC,
+                                                                GKXC,
+                                                                Empty_Tuple,
+                                                                GNWK,
+                                                                F16,
+                                                                F16,
+                                                                Empty_Tuple,
+                                                                F16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_INT8
-// void add_device_grouped_conv1d_fwd_wmma_cshufflev3_gnwc_gkxc_gnwk_int8_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<1,
-//                                                                 GNWC,
-//                                                                 GKXC,
-//                                                                 Empty_Tuple,
-//                                                                 GNWK,
-//                                                                 int8_t,
-//                                                                 int8_t,
-//                                                                 Empty_Tuple,
-//                                                                 int8_t,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 PassThrough>>>& instances);
+void add_device_grouped_conv1d_fwd_wmma_cshufflev3_gnwc_gkxc_gnwk_int8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<1,
+                                                                GNWC,
+                                                                GKXC,
+                                                                Empty_Tuple,
+                                                                GNWK,
+                                                                int8_t,
+                                                                int8_t,
+                                                                Empty_Tuple,
+                                                                int8_t,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_BF16
