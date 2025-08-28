@@ -299,9 +299,9 @@ struct QuantGemmKernel
             return false;
         }
 
-        static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
         if constexpr(kQuantType == QuantType::AQuantGrouped)
         {
+            static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
             if(kargs.QK_A % GemmPipeline::GetVectorSizeAQ() != 0)
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
@@ -793,7 +793,6 @@ struct QuantGemmKernel
             }
             else if constexpr(kQuantType == QuantType::RowColQuant)
             {
-                // TODO: verify that this is the correct window size and offset for the epilogue!
                 return make_tile_window(aq_pad_view,
                                         make_tuple(number<TilePartitioner::MPerBlock>{},
                                                    number<TilePartitioner::NPerBlock>{}),
@@ -825,7 +824,6 @@ struct QuantGemmKernel
         const auto& bq_block_window = [&]() {
             if constexpr(kQuantType == QuantType::RowColQuant)
             {
-                // TODO: verify that this is the correct window size and offset for the epilogue!
                 return make_tile_window(bq_pad_view,
                                         make_tuple(number<TilePartitioner::MPerBlock>{},
                                                    number<TilePartitioner::NPerBlock>{}),
@@ -907,22 +905,18 @@ struct QuantGemmKernel
 
         if constexpr(kQuantType == QuantType::AQuantGrouped)
         {
-            EpiloguePipeline{}.template
-            operator()<decltype(c_block_window), decltype(c_block_tile), decltype(c_block_window)>(
-                c_block_window, c_block_tile, c_block_window, smem_ptr_0);
+            EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
         }
         else if constexpr(kQuantType == QuantType::RowColQuant)
         {
             const auto& aq_block_window = gemm_tile_windows.at(I1);
             const auto& bq_block_window = gemm_tile_windows.at(I3);
-            EpiloguePipeline{}.template
-            operator()<decltype(c_block_window), decltype(c_block_tile), decltype(c_block_window)>(
-                c_block_window,
-                c_block_tile,
-                c_block_window,
-                smem_ptr_0,
-                aq_block_window,
-                bq_block_window);
+            EpiloguePipeline{}(c_block_window,
+                               c_block_tile,
+                               c_block_window,
+                               smem_ptr_0,
+                               aq_block_window,
+                               bq_block_window);
         }
     }
 

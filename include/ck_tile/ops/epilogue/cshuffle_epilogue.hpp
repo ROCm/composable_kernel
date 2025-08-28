@@ -285,34 +285,6 @@ struct CShuffleEpilogue
             move_tile_window(scale_m_window, {step.at(number<0>{}), step.at(number<1>{})});
             move_tile_window(scale_n_window, {step.at(number<0>{}), step.at(number<1>{})});
         }
-#if 0
-        // TODO: try to get rid off these here, and get them from elsewhere
-        constexpr auto idx_y_start = SFC::get_index(iAccess);
-
-        constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (MPerIterationShuffle)>{};
-        constexpr auto nIter = number<idx_y_start.at(number<1>{}) / (NPerIterationShuffle)>{};
-
-        constexpr int kM2 = 4;               // Val
-        constexpr int kM1 = (64 / NPerXdl); // Thr
-        constexpr int kM0 = MPerXdl / kM1;  // Val
-        const index_t iMWarp = get_warp_id() / NWave;
-        const index_t iNWarp = get_warp_id() - iMWarp * NWave;
-        const index_t iMLane = get_lane_id() / NPerXdl;
-        const index_t iNLane = get_lane_id() % NPerXdl;
-
-        // TODO: do this properly without so much direct indexing by wrapping scale_m/n
-        // via the cktile constructs (tensor view/window etc.) instead of using a raw pointer
-        // TODO: verify if this is correct layout to use
-        auto m1       = iMLane;
-        float scale_B = scale_n[nIter * NPerXdl * NWave + iNWarp * NPerXdl + iNLane];
-        static_for<0, kM0, 1>{}([&](auto m0) {
-            static_for<0, kM2, 1>{}([&](auto m2) {
-                float scale_A = scale_m[mIter * MPerXdl * MWave + iMWarp * MPerXdl +
-                                        m0 * kM1 * kM2 + m1 * kM2 + m2];
-                lds_tile.get_thread_buffer()[m0 * kM2 + m2] *= scale_A * scale_B;
-            });
-        });
-#endif
     }
 
     template <auto iAccess, typename OAccTile, typename LdsTile>
