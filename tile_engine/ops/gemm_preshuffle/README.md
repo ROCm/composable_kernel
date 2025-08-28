@@ -64,7 +64,7 @@ make benchmark_gemm_preshuffle_fp16_rcr -j
                -epilogue    The type of epilogue. Possible values are cshuffle or default. Default is cshuffle.
                   -pad_m    Pads the tensor in the m direction when set to `true`. Default is `false`.
                   -pad_n    Pads the tensor in the n direction when set to `true`. Default is `false`.
-                  -pad_k    Whether pad or not in k direction. Possible values are true or false. Default is false.
+                  -pad_k    Pads the tensor in the k direction when set to `true`. Default is `false`.
 
 Note: pipeline, scheduler, epilogue, pad_m, pad_n, pad_k should be one of the options specified in user_provided_config.json 
 ```
