@@ -803,7 +803,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     o_buf.ToDevice(o_host.data());
     lse_buf.ToDevice(lse_host.data());
-    dq_buf.SetZero();
     dbias_buf.SetZero();
     dq_acc_buf.SetZero();
 
