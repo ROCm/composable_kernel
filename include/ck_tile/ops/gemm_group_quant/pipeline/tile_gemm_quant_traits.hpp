@@ -17,7 +17,7 @@ enum struct QuantType : std::uint16_t
 template <bool kPadM_,
           bool kPadN_,
           bool kPadK_,
-          bool Preshuffle_,
+          bool PreshuffleQuant_,
           typename ALayout_,
           typename BLayout_,
           typename CLayout_,
@@ -42,7 +42,7 @@ struct TileGemmQuantTraits
 
     static constexpr bool UseStructuredSparsity = false;
     static constexpr index_t NumWaveGroups      = 1;
-    static constexpr bool Preshuffle            = Preshuffle_;
+    static constexpr bool PreshuffleQuant       = PreshuffleQuant_;
 };
 
 } // namespace ck_tile

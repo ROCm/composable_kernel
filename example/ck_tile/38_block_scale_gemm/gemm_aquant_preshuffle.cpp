@@ -8,11 +8,10 @@
 #include <string>
 #include <tuple>
 
-#include "ck_tile/core/config.hpp"
-#include "ck_tile/host.hpp"
 #include "gemm_utils.hpp"
 
-template <typename ADataType,
+template <typename GemmConfig,
+          typename ADataType,
           typename AQDataType,
           typename BDataType,
           typename AccDataType,
@@ -21,8 +20,7 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout,
-          uint32_t QuantGroupSize,
-          bool Preshuffle = false>
+          uint32_t QuantGroupSize>
 float gemm_calc_aquant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s)
 {
     constexpr bool kPadM = false;
@@ -33,17 +31,17 @@ float gemm_calc_aquant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::st
 
     static_assert(std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::RowMajor>);
 
-    constexpr ck_tile::index_t M_Tile = 16;
-    constexpr ck_tile::index_t N_Tile = 64;
-    constexpr ck_tile::index_t K_Tile = 256;
+    constexpr ck_tile::index_t M_Tile = GemmConfig::M_Tile;
+    constexpr ck_tile::index_t N_Tile = GemmConfig::N_Tile;
+    constexpr ck_tile::index_t K_Tile = GemmConfig::K_Tile;
 
-    constexpr ck_tile::index_t M_Warp = 1;
-    constexpr ck_tile::index_t N_Warp = 4;
-    constexpr ck_tile::index_t K_Warp = 1;
+    constexpr ck_tile::index_t M_Warp = GemmConfig::M_Warp;
+    constexpr ck_tile::index_t N_Warp = GemmConfig::N_Warp;
+    constexpr ck_tile::index_t K_Warp = GemmConfig::K_Warp;
 
-    constexpr ck_tile::index_t M_Warp_Tile = 16;
-    constexpr ck_tile::index_t N_Warp_Tile = 16;
-    constexpr ck_tile::index_t K_Warp_Tile = 32;
+    constexpr ck_tile::index_t M_Warp_Tile = GemmConfig::M_Warp_Tile;
+    constexpr ck_tile::index_t N_Warp_Tile = GemmConfig::N_Warp_Tile;
+    constexpr ck_tile::index_t K_Warp_Tile = GemmConfig::K_Warp_Tile;
 
     using CodegenGemmShape =
         ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
@@ -55,7 +53,7 @@ float gemm_calc_aquant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::st
     using CodegenGemmTraits = ck_tile::TileGemmQuantTraits<kPadM,
                                                            kPadN,
                                                            kPadK,
-                                                           Preshuffle,
+                                                           GemmConfig::PreshuffleQuant,
                                                            ALayout,
                                                            BLayout,
                                                            CLayout,
@@ -194,13 +192,14 @@ int run_gemm_example(int argc, char* argv[])
     if(data_type == "fp8")
     {
         using TypeConfig =
-            decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>{});
+            decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t, float>{});
         return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
     else if(data_type == "bf8")
     {
-        using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, float>{});
+        using TypeConfig =
+            decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t, float>{});
         return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
@@ -208,7 +207,7 @@ int run_gemm_example(int argc, char* argv[])
     {
         using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t,
                                                         ck_tile::fp8_t,
-                                                        float,
+                                                        ck_tile::half_t,
                                                         ck_tile::fp8_t>{});
         return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
@@ -217,22 +216,8 @@ int run_gemm_example(int argc, char* argv[])
     {
         using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t,
                                                         ck_tile::bf8_t,
-                                                        float,
+                                                        ck_tile::half_t,
                                                         ck_tile::bf8_t>{});
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, TypeConfig, 128>(
-            a_layout, b_layout, argc, argv);
-    }
-    else if(data_type == "i4f32fp8")
-    {
-        using TypeConfig =
-            decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::fp8_t, float, float>{});
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, TypeConfig, 128>(
-            a_layout, b_layout, argc, argv);
-    }
-    else if(data_type == "i4f32bf8")
-    {
-        using TypeConfig =
-            decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::bf8_t, float, float>{});
         return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
@@ -242,4 +227,7 @@ int run_gemm_example(int argc, char* argv[])
     }
 }
 
-int main(int argc, char* argv[]) { return !run_gemm_example<GemmConfigPreshufle_AQ>(argc, argv); }
+int main(int argc, char* argv[])
+{
+    return !run_gemm_example<GemmConfigPreshuffleQuant>(argc, argv);
+}
