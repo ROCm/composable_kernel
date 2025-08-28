@@ -211,7 +211,10 @@ bwd_result fmha_bwd_run(mode_enum mode,
         (mode == mode_enum::batch ? seqlen_qs[0] : seqstart_q_host.back());
     const ck_tile::index_t shape_seqlen_k =
         (mode == mode_enum::batch ? seqlen_ks[0] : seqstart_k_host.back());
-    const ck_tile::index_t kN0 = (hdim_q <= 128) ? 128 : 64;
+    // Keep it equal to or smaller than minimal bn0 of all tiles in fmha_bwd.py
+    // TODO: add API for requesting kN0/nsplits/workspace_size? It is not safe to rely on internal
+    // implementation details in client code.
+    const ck_tile::index_t kN0 = 16;
     const ck_tile::index_t nsplits =
         deterministic ? ck_tile::integer_divide_ceil(max_seqlen_k, kN0) : 1;
 
@@ -349,17 +352,17 @@ bwd_result fmha_bwd_run(mode_enum mode,
     };
     // clang-format on
 
-    const std::size_t workspace_size =
-        dq_acc_host.get_element_space_size_in_bytes() / (1024 * 1024);
+    const std::size_t workspace_size_in_megabytes =
+        ck_tile::integer_divide_ceil(dq_acc_host.get_element_space_size_in_bytes(), 1024 * 1024);
 
     std::cout << "[" << data_type << "|" << mode << "|" << io_layout(i_perm, o_perm)
               << "] b:" << batch << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_qs[0]
               << "/" << seqlen_ks[0] << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale
               << ", bias:" << bias << ", dbias:" << use_dbias << ", p_drop:" << p_drop
               << ", s_randval:" << s_randval << ", deterministic:" << deterministic
-              << (deterministic
-                      ? std::string(", workspace:") + std::to_string(workspace_size) + "MiB"
-                      : "")
+              << (deterministic ? std::string(", workspace:") +
+                                      std::to_string(workspace_size_in_megabytes) + "MiB"
+                                : "")
               << ", mask:" << mask << std::flush;
 
     auto fmha_traits = fmha_bwd_traits{hdim_q,
