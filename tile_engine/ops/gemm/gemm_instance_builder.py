@@ -232,7 +232,6 @@ class GemmKernelBuilder:
             schedulers = traits["schedulers"]
 
             padding = self.config["padding"]
-            structured_sparsity = self.config["structured_sparsity"]
             persistent = self.config["persistent"]
 
             all_combinations = list(
@@ -240,7 +239,6 @@ class GemmKernelBuilder:
                     pipelines,
                     epilogues,
                     schedulers,
-                    structured_sparsity,
                     padding["pad_m"],
                     padding["pad_n"],
                     padding["pad_k"],
@@ -273,15 +271,11 @@ class GemmKernelBuilder:
                 "values", [False]
             )
 
-            # For structured sparsity, use a default since it's not in the config
-            structured_sparsity = [False]
-
             all_combinations = list(
                 itertools.product(
                     pipelines,
                     epilogues,
                     schedulers,
-                    structured_sparsity,
                     pad_m_values,
                     pad_n_values,
                     pad_k_values,
@@ -301,9 +295,7 @@ class GemmKernelBuilder:
                     )
         else:
             # Fallback to minimal default
-            combinations = [
-                ("mem", "default", "intrawave", False, False, False, False, False)
-            ]
+            combinations = [("mem", "default", "intrawave", False, False, False, False)]
 
         return combinations
 
@@ -351,7 +343,6 @@ class GemmKernelBuilder:
             pipeline,
             epilogue,
             scheduler,
-            structured_sparsity,
             pad_m,
             pad_n,
             pad_k,
@@ -359,7 +350,7 @@ class GemmKernelBuilder:
         ) = trait_combo
 
         # Create kernel name
-        kernel_name = f"gemm_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{structured_sparsity}_{pad_m}_{pad_n}_{pad_k}_{persistent}"
+        kernel_name = f"gemm_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{pad_m}_{pad_n}_{pad_k}_{persistent}"
 
         # Create tile configuration string
         tile_str = (
@@ -454,7 +445,7 @@ struct SelectedKernel {{
     static constexpr bool TransposeC = false;
     static constexpr bool UsePersistentKernel = {"true" if persistent == "true" else "false"};
     static constexpr bool DoubleSmemBuffer = {"true" if pipeline == "compv4" else "false"};
-    static constexpr bool UseStructuredSparsity = {"true" if structured_sparsity == "true" else "false"};
+    static constexpr bool UseStructuredSparsity = false;
     static constexpr bool Preshuffle = false;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
 
@@ -728,7 +719,6 @@ struct SelectedKernel {{
                     pipeline,
                     epilogue,
                     scheduler,
-                    structured_sparsity,
                     pad_m,
                     pad_n,
                     pad_k,
@@ -736,7 +726,7 @@ struct SelectedKernel {{
                 ) = trait_combo
 
                 # Create kernel name
-                kernel_name = f"gemm_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{structured_sparsity}_{pad_m}_{pad_n}_{pad_k}_{persistent}"
+                kernel_name = f"gemm_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{pad_m}_{pad_n}_{pad_k}_{persistent}"
 
                 # Create tile configuration string
                 tile_str = f"{tile_config['tile_m']}x{tile_config['tile_n']}x{tile_config['tile_k']}_"
@@ -824,7 +814,10 @@ def main():
         help="Data type",
     )
     parser.add_argument(
-        "--layout", required=True, choices=["rcr", "rrr", "ccr", "crr"], help="Matrix layout"
+        "--layout",
+        required=True,
+        choices=["rcr", "rrr", "ccr", "crr"],
+        help="Matrix layout",
     )
     parser.add_argument("--config_json", help="Configuration JSON file")
     parser.add_argument(
@@ -890,11 +883,10 @@ def main():
             trait_parts[0],  # pipeline
             trait_parts[1],  # epilogue
             trait_parts[2],  # scheduler
-            trait_parts[3] == "True",  # structured_sparsity
-            trait_parts[4] == "True",  # pad_m
-            trait_parts[5] == "True",  # pad_n
-            trait_parts[6] == "True",  # pad_k
-            trait_parts[7] == "True",  # persistent
+            trait_parts[3] == "True",  # pad_m
+            trait_parts[4] == "True",  # pad_n
+            trait_parts[5] == "True",  # pad_k
+            trait_parts[6] == "True",  # persistent
         )
 
         # Generate the kernel

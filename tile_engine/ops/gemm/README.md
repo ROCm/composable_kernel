@@ -93,7 +93,7 @@ make benchmark_gemm_fp16_rcr -j
 
 ```bash
 # Build a specific kernel configuration
-make benchmark_gemm_fp8_rcr_compv4_default_intrawave_False_False_False_False_False_256x256x32_1x4x1_32x32x32
+make benchmark_gemm_fp8_rcr_compv4_default_intrawave_False_False_False_False_256x256x32_1x4x1_32x32x32
 
 # Build all fp16 benchmarks in parallel
 make -j$(nproc) $(make help | grep benchmark_gemm_fp16 | awk '{print $2}')
@@ -112,7 +112,7 @@ rm -rf tile_engine/ && make benchmark_gemm_[Datatype]_[Layout] -j
 
 ```bash
 cd /path/to/build/directory
-./bin/benchmark_gemm_fp16_rcr_compv3_default_intrawave_False_False_False_False_False_256x128x32_4x1x1_32x32x16 \
+./bin/benchmark_gemm_fp16_rcr_compv3_default_intrawave_False_False_False_False_256x128x32_4x1x1_32x32x16 \
     -m=512 -n=512 -k=512 -verify=1
 ```
 
@@ -336,12 +336,12 @@ All benchmark executables support the following options:
 The kernel naming convention encodes the configuration:
 
 ```
-benchmark_gemm_fp16_rcr_compv3_default_intrawave_False_False_False_False_False_256x128x32_4x1x1_32x32x16
-               ^^^^  ^^^ ^^^^^^ ^^^^^^^ ^^^^^^^^^ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ ^^^^^^^^^ ^^^^^^^ ^^^^^^^^^
-               |     |   |      |       |         |                             |         |       |
-               |     |   |      |       |         Padding & flags               |         |       Warp tile
-               |     |   |      |       Scheduler                               |         Thread tile
-               |     |   |      Epilogue                                        Block tile
+benchmark_gemm_fp16_rcr_compv3_default_intrawave_False_False_False_False_256x128x32_4x1x1_32x32x16
+               ^^^^  ^^^ ^^^^^^ ^^^^^^^ ^^^^^^^^^ ^^^^^^^^^^^^^^^^^^^^^^^ ^^^^^^^^^ ^^^^^^^ ^^^^^^^^^
+               |     |   |      |       |         |                       |         |       |
+               |     |   |      |       |         Padding & flags         |         |       Warp tile
+               |     |   |      |       Scheduler                         |         Thread tile
+               |     |   |      Epilogue                                  Block tile
                |     |   Pipeline
                |     Layout (Row-Column-Row)
                Data type
@@ -353,7 +353,7 @@ benchmark_gemm_fp16_rcr_compv3_default_intrawave_False_False_False_False_False_2
 - **Pipeline**: mem, compv3, compv4
 - **Epilogue**: default, cshuffle
 - **Scheduler**: intrawave, interwave
-- **Flags**: pad_m, pad_n, pad_k, persistent, structured_sparsity
+- **Flags**: pad_m, pad_n, pad_k, persistent (4 boolean flags)
 - **Tile sizes**: BlockTile x ThreadTile x WarpTile
 
 ## Troubleshooting

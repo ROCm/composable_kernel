@@ -106,13 +106,12 @@ class GemmBenchmark:
                 break
 
         # Assign boolean flags if we found them
-        # Order: structured_sparsity (skip - already in problem), pad_m, pad_n, pad_k, persistent
-        if len(bool_sequence) >= 5:
-            # Skip structured_sparsity (index 0) as it's already in the problem section
-            config["optimization_flags"]["pad_m"] = bool_sequence[1]
-            config["optimization_flags"]["pad_n"] = bool_sequence[2]
-            config["optimization_flags"]["pad_k"] = bool_sequence[3]
-            config["optimization_flags"]["persistent"] = bool_sequence[4]
+        # Order: pad_m, pad_n, pad_k, persistent (4 flags total)
+        if len(bool_sequence) >= 4:
+            config["optimization_flags"]["pad_m"] = bool_sequence[0]
+            config["optimization_flags"]["pad_n"] = bool_sequence[1]
+            config["optimization_flags"]["pad_k"] = bool_sequence[2]
+            config["optimization_flags"]["persistent"] = bool_sequence[3]
 
         # Look for tile size patterns (e.g., 256x256x32_2x2x1_4x64x16)
         # The pattern is: tile_sizes_warp_config_warp_tile
