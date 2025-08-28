@@ -18,7 +18,7 @@ If the user doesn't provide kernel configuration, the tile engine uses the defau
 mkdir build && cd build
 # build composable kernel
 # replace [Arch] with the appropriate architecture or leave blank and 
-# replace [Datatype1;Datatype2;...] in comma separated datatypes string (possible datatypes are [fp16,fp8,bf16.bf8])
+*  [Datatype1;Datatype2;...] is a comma separated list of datatypes. Accepted datatypes are `fp16`, `fp8`, `bf16`, `bf8`.
 # replace [Layout1;...] in comma separated datatypes string (possible layouts are [rcr] only)
 sh ../script/cmake-ck-dev.sh  ../ [Arch] -DGEMM_PRESHUFFLE_DATATYPE="[Datatype1;Datatype2]" -DGEMM_PRESHUFFLE_LAYOUT="[Layout1]" 
 # generate different executable for each passed datatype
