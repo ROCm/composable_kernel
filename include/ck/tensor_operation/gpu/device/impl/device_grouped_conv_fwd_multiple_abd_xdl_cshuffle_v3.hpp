@@ -1889,8 +1889,9 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         return std::make_unique<Invoker>(Invoker{});
     }
 
-    std::string GetTypeString() const override
-    {
+    static std::string TypeString() {
+        // Make this a static function on the class so we don't have to instantiate the
+        // object to get the classes type string.
         auto str = std::stringstream();
 
         std::map<BlockGemmPipelineScheduler, std::string> BlkGemmPipelineSchedulerToString{
@@ -1929,6 +1930,12 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         // clang-format on
 
         return str.str();
+    }
+
+    std::string GetTypeString() const override
+    {
+        // Make the static type string available through the base class.
+        return TypeString();
     }
 
     size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override

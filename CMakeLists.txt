@@ -667,6 +667,10 @@ if (NOT MIOPEN_REQ_LIBS_ONLY)
     add_subdirectory(profiler)
 endif()
 
+if (MIOPEN_REQ_LIBS_ONLY)
+  add_subdirectory(experimental/builder/test)
+endif()
+
 if(CK_USE_CODEGEN AND (SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR GPU_ARCHS))
   add_subdirectory(codegen)
 endif()
