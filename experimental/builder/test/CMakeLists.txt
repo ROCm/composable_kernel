@@ -1,13 +1,8 @@
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(gemm_example gemm_example.cpp)
-target_include_directories(gemm_example PRIVATE
-    "${PROJECT_SOURCE_DIR}/include"
-)
-
 include(gtest)
 
-add_executable(test_conv_builder builder.cpp)
+add_executable(test_conv_builder test_conv_builder.cpp)
 target_include_directories(test_conv_builder PRIVATE
     "${PROJECT_SOURCE_DIR}/experimental/builder/include"
     "${PROJECT_SOURCE_DIR}/include"
