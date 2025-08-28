@@ -91,7 +91,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
             ck_tile::GemmRowColQuantPipelineProblem<ADataType,
                                                     BDataType,
                                                     AccDataType,
-                                                    AQDataType,  
+                                                    AccDataType,  
                                                     CodegenGemmShape,
                                                     CodegenGemmTraits,
                                                     ComputeDataType,
