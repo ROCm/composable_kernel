@@ -32,61 +32,71 @@ class GemmKernelBuilder:
 
     def _get_default_config(self):
         """Return default configuration if no config file is provided"""
-        return {
-            "tile_configs": {
-                "fp16": {
-                    "rcr": [
-                        {
-                            "tile_m": 256,
-                            "tile_n": 256,
-                            "tile_k": 32,
-                            "warp_m": 2,
-                            "warp_n": 2,
-                            "warp_k": 1,
-                            "warp_tile_m": 32,
-                            "warp_tile_n": 32,
-                            "warp_tile_k": 32,
-                        },
-                        {
-                            "tile_m": 256,
-                            "tile_n": 128,
-                            "tile_k": 32,
-                            "warp_m": 2,
-                            "warp_n": 2,
-                            "warp_k": 1,
-                            "warp_tile_m": 32,
-                            "warp_tile_n": 32,
-                            "warp_tile_k": 16,
-                        },
-                    ]
-                },
-                "fp8": {
-                    "rcr": [
-                        {
-                            "tile_m": 256,
-                            "tile_n": 256,
-                            "tile_k": 32,
-                            "warp_m": 4,
-                            "warp_n": 1,
-                            "warp_k": 1,
-                            "warp_tile_m": 32,
-                            "warp_tile_n": 32,
-                            "warp_tile_k": 32,
-                        },
-                        {
-                            "tile_m": 256,
-                            "tile_n": 128,
-                            "tile_k": 32,
-                            "warp_m": 1,
-                            "warp_n": 4,
-                            "warp_k": 1,
-                            "warp_tile_m": 16,
-                            "warp_tile_n": 16,
-                            "warp_tile_k": 32,
-                        },
-                    ]
-                },
+        # Define base tile configurations that work for all layouts
+        base_fp16_configs = [
+            {
+                "tile_m": 256,
+                "tile_n": 256,
+                "tile_k": 32,
+                "warp_m": 2,
+                "warp_n": 2,
+                "warp_k": 1,
+                "warp_tile_m": 32,
+                "warp_tile_n": 32,
+                "warp_tile_k": 32,
             },
+            {
+                "tile_m": 256,
+                "tile_n": 128,
+                "tile_k": 32,
+                "warp_m": 2,
+                "warp_n": 2,
+                "warp_k": 1,
+                "warp_tile_m": 32,
+                "warp_tile_n": 32,
+                "warp_tile_k": 16,
+            },
+        ]
+
+        base_fp8_configs = [
+            {
+                "tile_m": 256,
+                "tile_n": 256,
+                "tile_k": 32,
+                "warp_m": 4,
+                "warp_n": 1,
+                "warp_k": 1,
+                "warp_tile_m": 32,
+                "warp_tile_n": 32,
+                "warp_tile_k": 32,
+            },
+            {
+                "tile_m": 256,
+                "tile_n": 128,
+                "tile_k": 32,
+                "warp_m": 1,
+                "warp_n": 4,
+                "warp_k": 1,
+                "warp_tile_m": 16,
+                "warp_tile_n": 16,
+                "warp_tile_k": 32,
+            },
+        ]
+
+        # Create configurations for all supported layouts
+        all_layouts = ["rcr", "rrr", "ccr", "crr"]
+        tile_configs = {}
+
+        for datatype, base_configs in [
+            ("fp16", base_fp16_configs),
+            ("fp8", base_fp8_configs),
+        ]:
+            tile_configs[datatype] = {}
+            for layout in all_layouts:
+                tile_configs[datatype][layout] = base_configs
+
+        return {
+            "tile_configs": tile_configs,
             "traits": {
                 "pipelines": ["mem", "compv3", "compv4"],
                 "epilogues": ["default", "cshuffle"],
@@ -349,8 +359,8 @@ class GemmKernelBuilder:
             persistent,
         ) = trait_combo
 
-        # Create kernel name
-        kernel_name = f"gemm_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{pad_m}_{pad_n}_{pad_k}_{persistent}"
+        # Create kernel name with proper boolean capitalization
+        kernel_name = f"gemm_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_{str(persistent).capitalize()}"
 
         # Create tile configuration string
         tile_str = (
@@ -725,8 +735,8 @@ struct SelectedKernel {{
                     persistent,
                 ) = trait_combo
 
-                # Create kernel name
-                kernel_name = f"gemm_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{pad_m}_{pad_n}_{pad_k}_{persistent}"
+                # Create kernel name with proper boolean capitalization
+                kernel_name = f"gemm_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_{str(persistent).capitalize()}"
 
                 # Create tile configuration string
                 tile_str = f"{tile_config['tile_m']}x{tile_config['tile_n']}x{tile_config['tile_k']}_"
