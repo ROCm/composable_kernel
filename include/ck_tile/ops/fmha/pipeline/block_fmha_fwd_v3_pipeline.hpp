@@ -53,15 +53,16 @@ struct CoreLoopScheduler<PipelineProblem, /*kIsMasking=*/true>
             {
                 static_for<0, 8, 1>{}([&](auto) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x002, 3, 0); // VALU
+                    __builtin_amdgcn_sched_group_barrier(0x200, 2, 0); // TRANS
+                    __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
                 });
             }
             else if constexpr(Phase == 1) {}
             else if constexpr(Phase == 2)
             {
-                /// FIXME: remove v_perm_b32 (fp32->bf16 conversion) and re-write following
-                /// sched_group_barrier() calls
+#if !CK_TILE_DISABLE_PACKED_FP32
                 __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
+#endif
                 static_for<0, 8, 1>{}([&](auto) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
                     __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
@@ -76,15 +77,16 @@ struct CoreLoopScheduler<PipelineProblem, /*kIsMasking=*/true>
             {
                 static_for<0, 8, 1>{}([&](auto) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x002, 3, 0); // VALU
+                    __builtin_amdgcn_sched_group_barrier(0x200, 2, 0); // TRANS
+                    __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
                 });
             }
             else if constexpr(Phase == 2) {}
             else if constexpr(Phase == 3)
             {
-                /// FIXME: remove v_perm_b32 (fp32->bf16 conversion) and re-write following
-                /// sched_group_barrier() calls
+#if !CK_TILE_DISABLE_PACKED_FP32
                 __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
+#endif
                 static_for<0, 8, 1>{}([&](auto) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
                     __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
