@@ -157,14 +157,14 @@ struct BlockDropout
 
         // Use Bwd WarpGemm to ensure that Fwd's random values ​​are consistent with Bwd.
         constexpr auto randval_block_inner_part_dstr_encoding =
-            typename WarpGemmMfmaDispatcher<typename WG::ADataType,
-                                            typename WG::BDataType,
-                                            typename WG::CDataType,
-                                            WG::kM,
-                                            WG::kN,
-                                            WG::kK,
-                                            false,
-                                            IsWG32>::CWarpDstrEncoding{};
+            typename WarpGemmDispatcher<typename WG::ADataType,
+                                        typename WG::BDataType,
+                                        typename WG::CDataType,
+                                        WG::kM,
+                                        WG::kN,
+                                        WG::kK,
+                                        false,
+                                        IsWG32>::CWarpDstrEncoding{};
 
         constexpr auto randval_block_part_dstr_encode =
             detail::make_embed_tile_distribution_encoding(randval_block_outer_part_dstr_encoding,
@@ -475,14 +475,14 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
             sequence<1, 0>>{};
 
         constexpr auto randval_block_inner_part_dstr_encoding =
-            typename WarpGemmMfmaDispatcher<typename WG::ADataType,
-                                            typename WG::BDataType,
-                                            typename WG::CDataType,
-                                            WG::kM,
-                                            WG::kN,
-                                            WG::kK,
-                                            false,
-                                            IsWG32>::CWarpDstrEncoding{};
+            typename WarpGemmDispatcher<typename WG::ADataType,
+                                        typename WG::BDataType,
+                                        typename WG::CDataType,
+                                        WG::kM,
+                                        WG::kN,
+                                        WG::kK,
+                                        false,
+                                        IsWG32>::CWarpDstrEncoding{};
         static_assert(
             std::is_same_v<remove_cvref_t<decltype(randval_block_inner_part_dstr_encoding)>,
                            typename WG::CWarpDstrEncoding>);

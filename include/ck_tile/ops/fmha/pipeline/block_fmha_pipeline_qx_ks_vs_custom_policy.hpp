@@ -80,14 +80,13 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
             {
                 static_assert(WarpGemmM == 16);
 
-                return WarpGemmMfmaDispatcher<
-                    typename Problem::QDataType,
-                    typename Problem::KDataType,
-                    typename Problem::SaccDataType,
-                    Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
-                    Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
-                    Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
-                    true>{};
+                return WarpGemmDispatcher<typename Problem::QDataType,
+                                          typename Problem::KDataType,
+                                          typename Problem::SaccDataType,
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
+                                          true>{};
             }
             else if constexpr(std::is_same_v<typename Problem::QDataType, half_t> &&
                               std::is_same_v<typename Problem::KDataType, half_t> &&
@@ -255,14 +254,13 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
             {
                 static_assert(WarpGemmM == 16);
 
-                return WarpGemmMfmaDispatcher<
-                    typename Problem::QDataType,
-                    typename Problem::KDataType,
-                    typename Problem::SaccDataType,
-                    Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
-                    Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
-                    Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
-                    true>{};
+                return WarpGemmDispatcher<typename Problem::QDataType,
+                                          typename Problem::KDataType,
+                                          typename Problem::SaccDataType,
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
+                                          true>{};
             }
             else if constexpr(std::is_same_v<typename Problem::QDataType, half_t> &&
                               std::is_same_v<typename Problem::KDataType, half_t> &&
