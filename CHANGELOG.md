@@ -2,6 +2,12 @@
 
 Documentation for Composable Kernel available at [https://rocm.docs.amd.com/projects/composable_kernel/en/latest/](https://rocm.docs.amd.com/projects/composable_kernel/en/latest/).
 
+## Composable Kernel 1.3.0 for ROCm 7.2.0
+
+### Added
+
+* Added support for B Tensor Preshuffle in CK TILE Grouped GEMM.
+
 ## Composable Kernel 1.1.0 for ROCm 7.0.0
 
 ### Added
