@@ -68,22 +68,13 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
     using BaseGemmPipeline = typename PipelineTypeTraits<
         GemmConfig::Pipeline>::template UniversalGemmPipeline<GemmPipelineProblem>;
 
-    // FIX: Use a representative K value instead of just the first group's K
-    // For mixed K alignments, we need a common configuration that works for all groups
-    // Use the first group's K but ensure all groups have compatible alignment
-    const ck_tile::index_t k_grain =
-        gemm_descs[0].k_batch * GemmConfig::K_Tile; // number of block tile per group
-    const ck_tile::index_t K_split =
-        (gemm_descs[0].K + k_grain - 1) / k_grain * GemmConfig::K_Tile; // total padded K
+    const ck_tile::index_t k_grain = gemm_descs[0].k_batch * GemmConfig::K_Tile;
+    const ck_tile::index_t K_split = (gemm_descs[0].K + k_grain - 1) / k_grain * GemmConfig::K_Tile;
     const ck_tile::index_t num_loop =
-        TilePartitioner::GetLoopNum(K_split); // number of loop iterations over K dimension
-    const bool has_hot_loop =
-        BaseGemmPipeline::BlockHasHotloop(num_loop); // check if there is a hot loop
-    const ck_tile::TailNumber tail_num =
-        BaseGemmPipeline::GetBlockLoopTailNum(num_loop); // get the tail number of the loop
-
-    // TODO: This is the root cause - pipeline config is based only on first group
-    // but applied to all groups. A proper fix would calculate per-group configs.
+        // if preshuffle == true then num_loop is recalculated for each group in the kernel code
+        TilePartitioner::GetLoopNum(K_split);
+    const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
+    const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
 
     float ave_time{0};
 
@@ -106,7 +97,8 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
 
         using GemmPipeline = typename PipelineTypeTraits<
             GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
-        std::cout << __func__ << "GemmPipeline" << GemmPipeline::GetName() << std::endl;
+        std::cout << "[ALL GOOD]: 8 " << __func__ << "GemmPipeline" << GemmPipeline::GetName()
+                  << std::endl;
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
                                              BDataType,
@@ -126,7 +118,7 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                                              UniversalGemmProblem::TransposeC,
                                              memory_operation>>;
         using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-        std::cout << "[ALL GOOD]: 9 " << __func__ << " Kernel" << Kernel::GetName() << std::endl;
+        std::cout << "[ALL GOOD]: 8 " << __func__ << " Kernel" << Kernel::GetName() << std::endl;
         auto kargs = Kernel::MakeKargs(gemm_descs);
         if(!Kernel::IsSupportedArgument(kargs))
         {
@@ -165,7 +157,7 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
     const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
         if(gemm_descs[0].k_batch == 1)
         {
-            std::cout << "[ALL GOOD]: 8 " << __func__ << " RunSplitk" << std::endl;
+            std::cout << "[ALL GOOD]: 7 " << __func__ << " RunSplitk" << std::endl;
             Run(has_hot_loop_,
                 tail_number_,
                 ck_tile::integral_constant<ck_tile::memory_operation_enum,
@@ -189,6 +181,6 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
 
 int main(int argc, char* argv[])
 {
-    std::cout << "[ALL GOOD]: 1 " << __func__ << " GemmConfigPreshuffleDecode" << std::endl;
+    std::cout << "[ALL GOOD]: 1 " << __func__ << "GemmConfigPreshuffleDecode" << std::endl;
     return !run_grouped_gemm_example<GemmConfigPreshuffleDecode>(argc, argv);
 }

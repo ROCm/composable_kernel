@@ -55,8 +55,6 @@ float invoke_gemm(int n_warmup,
     if constexpr(!GemmConfig::Persistent)
     {
         std::cout << "[ALL GOOD]: 5 " << __func__ << " Non Persistent grouped gemm" << std::endl;
-        // std::cout << "[WATCHING]: " << __func__ << " Preshuffling: " << GemmConfig::Preshuffle <<
-        // std::endl; Regular version of grouped gemm
         ave_time = grouped_gemm<GemmConfig,
                                 ADataType,
                                 BDataType,
@@ -153,13 +151,8 @@ int run_grouped_gemm_example_with_layouts(int argc,
                                           const BLayout b_layout                  = BLayout{},
                                           [[maybe_unused]] const CLayout c_layout = CLayout{})
 {
-    // print the GemmConfig::Preshuffle
-    // std::cout << "[WATCHING]: " << __func__ << " GemmConfig::Preshuffle: " <<
-    // GemmConfig::Preshuffle
-    //           << std::endl;
-    std::cout << "[ALL GOOD]: 4 " << __func__ << " GemmConfig::Preshuffle: " <<
-    GemmConfig::Preshuffle
-              << std::endl;
+
+    std::cout << "[ALL GOOD]: 4 " << __func__ << std::endl;
     auto [result, arg_parser] = create_args(argc, argv);
 
     if(!result)
@@ -193,26 +186,16 @@ int run_grouped_gemm_example_with_layouts(int argc,
 
     if(!valid_input_data(group_count, Ms, Ns, Ks, stride_As, stride_Bs, stride_Cs))
     {
-        std::cout << "Please check the input data. Default values will be used." << std::endl;
+        std::cout << "[ALL GOOD]: 4 " << __func__
+                  << " Please check the input data. Default values will be used." << std::endl;
+        std::cout << "Default values: Ms (256, 512, 768, 1024..), Ns (256, 768, 1280..), Ks (512, "
+                     "896, 1280..)"
+                  << std::endl;
         for(int i = 0; i < group_count; i++)
         {
             Ms.push_back(256 + 256 * i);
             Ns.push_back(256 + 512 * i);
             Ks.push_back(512 + 384 * i);
-            
-            // Test mixed K%256 pattern: first 2 groups K%256=0, next 2 groups K%256=128
-            // ck_tile::index_t K;
-            // if(i > group_count / 2)
-            // {
-            //     // First half: K%256 = 0
-            //     K = 768 + 256 * i;  // 768, 1024, ... (all K%256=0)
-            // }
-            // else
-            // {
-            //     // Second half: K%256 = 128  
-            //     K = 640 + 256 * (i - group_count / 2);  // 640, 896, ... (all K%256=128)
-            // }
-            //Ks.push_back(K);
 
             stride_As.push_back(Ks[i]);
             stride_Bs.push_back(Ks[i]);
@@ -241,9 +224,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
 
     for(int i = 0; i < group_count; ++i)
     {
-        // std::cout << "[WATCHING]: " << __func__ << " GemmConfig::Preshuffle: " <<
-        // GemmConfig::Preshuffle
-        //           << std::endl;
+
         const ck_tile::index_t M = Ms[i];
         const ck_tile::index_t N = Ns[i];
         const ck_tile::index_t K = Ks[i];
@@ -271,14 +252,11 @@ int run_grouped_gemm_example_with_layouts(int argc,
         // Perform preshuffle for B tensor
         if constexpr(GemmConfig::Preshuffle)
         {
-            std::cout << "[DEBUG] Group[" << i << "] K=" << K << " K%256=" << (K % 256) << std::endl;
             ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<GemmConfig>(b_k_n_tensors[i]);
             b_k_n_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(b_shuffle_host));
         }
         else
         {
-            // std::cout << "[WATCHING]: " << __func__ << " Not Preshuffling B tensor [" << i << "]"
-            //           << std::endl;
             b_k_n_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(b_k_n_tensors[i]));
         }
 

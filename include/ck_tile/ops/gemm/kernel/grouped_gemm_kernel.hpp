@@ -144,8 +144,8 @@ struct GroupedGemmKernel
         // clang-format on
     }
 
-    CK_TILE_HOST static auto GetWorkSpaceSize(const std::vector<GroupedGemmHostArgs>& gemm_descs)
-        -> std::size_t
+    CK_TILE_HOST static auto
+    GetWorkSpaceSize(const std::vector<GroupedGemmHostArgs>& gemm_descs) -> std::size_t
     {
         return gemm_descs.size() * sizeof(GemmTransKernelArg);
     }
@@ -195,8 +195,8 @@ struct GroupedGemmKernel
         return dim3(grid_size, 1, 1);
     }
 
-    CK_TILE_HOST static auto MakeKargs(const std::vector<GroupedGemmHostArgs>& gemm_descs)
-        -> std::vector<GemmTransKernelArg>
+    CK_TILE_HOST static auto
+    MakeKargs(const std::vector<GroupedGemmHostArgs>& gemm_descs) -> std::vector<GemmTransKernelArg>
     {
         std::vector<GemmTransKernelArg> gemm_kernel_args_;
         index_t group_count = ck_tile::type_convert<ck_tile::index_t>(gemm_descs.size());
@@ -266,6 +266,14 @@ struct GroupedGemmKernel
                             const tuple<index_t, index_t>& block_idx_2d,
                             const index_t block_idx_z) const
     {
+        // Prevent compilation for unsupported configuration
+        static_assert(!(!GemmPipeline::DoubleSmemBuffer && GemmPipeline::Preshuffle),
+                      "SingleSmemBuffer and Preshuffle cannot both be enabled simultaneously!");
+
+        if(get_block_id() == 0 && get_thread_id() == 0)
+        {
+            printf("[ALL GOOD]: 10 %s\n", __func__);
+        }
         const auto [iM, iN] = block_idx_2d;
 
         const index_t i_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
@@ -288,14 +296,14 @@ struct GroupedGemmKernel
         {
             if(get_block_id() == 0 && get_thread_id() == 0)
             {
-                printf("[ALL GOOD]: 11 %s\n DoubleSmemBuffer", __func__);
+                printf("[ALL GOOD]: 11 %s DoubleSmemBuffer\n", __func__);
             }
             __shared__ char smem_ptr_1[GetSmemSize()];
             if constexpr(UsePersistentKernel && !GemmPipeline::Preshuffle)
             {
                 if(get_block_id() == 0 && get_thread_id() == 0)
                 {
-                    printf("%s\n RunGemmWithPipelineSelection2LDS", __func__);
+                    printf("[ALL GOOD]: 12 %s RunGemmWithPipelineSelection2LDS\n", __func__);
                 }
                 RunGemmWithPipelineSelection2LDS(a_ptr,
                                                  b_ptr,
@@ -341,12 +349,8 @@ struct GroupedGemmKernel
                                   i_n);
             }
         }
-        else
+        else // SingleSmemBuffer
         {
-            if(get_block_id() == 0 && get_thread_id() == 0)
-            {
-                printf("%s\n SingleSmemBuffer", __func__);
-            }
             if constexpr(UsePersistentKernel)
             {
                 if(get_block_id() == 0 && get_thread_id() == 0)
@@ -356,12 +360,8 @@ struct GroupedGemmKernel
                 RunGemmWithPipelineSelection(
                     a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
             }
-            else
+            else // Non-persistent kernel
             {
-                if(get_block_id() == 0 && get_thread_id() == 0)
-                {
-                    printf("%s\n RunGemm\n", __func__);
-                }
                 Base::RunGemm({a_ptr},
                               {b_ptr},
                               {/*ds_ptr*/},
@@ -578,7 +578,7 @@ struct GroupedGemmKernel
     {
         if(get_block_id() == 0 && get_thread_id() == 0)
         {
-            printf("[ALL GOOD]: 10 %s\n Non persistent grouped gemm\n", __func__);
+            printf("[ALL GOOD]: 9 %s Non persistent grouped gemm\n", __func__);
         }
 
         const index_t block_id   = ck_tile::get_block_1d_id();
@@ -588,33 +588,12 @@ struct GroupedGemmKernel
         const index_t group_id = FindGroupId(gemm_desc_ptr, block_id, group_count);
         const auto& kargs      = gemm_desc_ptr[group_id];
 
-        // Debug print for odd groups
-        // if(group_id % 2 == 1 && get_thread_id() == 0 && get_block_id() == 0)
-        // {
-        //     printf("[DEBUG_KERNEL] Odd group %d: block_id=%d, M=%d, N=%d, K=%d, stride_B=%d\n",
-        //            group_id, block_id, kargs.group_karg.M, kargs.group_karg.N,
-        //            kargs.group_karg.K, kargs.group_karg.stride_Bs[0]);
-        // }
-
         const auto grid_size_2d = TilePartitioner::GridSize(kargs.group_karg.M, kargs.group_karg.N);
         const auto block_idx_2d = OffsetTile1DPartitioner::GetOffsetedTileIndex(
             0,
             kargs.group_karg.M,
             kargs.group_karg.N,
             (block_id - kargs.block_start) % grid_size_2d);
-        // if group id is odd, do nothing
-        // if(group_id % 2 != 0)
-        // {
-        //     return;
-        // }
-        // if(group_id % 2 == 1 && get_thread_id() == 0)
-        // {
-        //     printf("[WATCHING]: %s\n Odd group %d: block_id=%d, group_id=%d\n",
-        //            __func__,
-        //            group_id,
-        //            block_id,
-        //            group_id);
-        // }
         Run(kargs.group_karg, block_idx_2d, (block_id - kargs.block_start) / grid_size_2d);
     }
 
@@ -627,7 +606,7 @@ struct GroupedGemmKernel
     {
         if(get_block_id() == 0 && get_thread_id() == 0)
         {
-            printf("%s\n Persistent grouped gemm\n", __func__);
+            printf("[ALL GOOD]: 9 %s\n Persistent grouped gemm\n", __func__);
         }
         const index_t grid_size  = ck_tile::get_grid_size();
         const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg*>(

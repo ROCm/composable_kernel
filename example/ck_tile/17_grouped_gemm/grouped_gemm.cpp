@@ -276,6 +276,6 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
 
 int main(int argc, char* argv[])
 {
-    std::cout << __func__ << "Config::ComputeV4" << std::endl;
-    return !run_grouped_gemm_example<GemmConfigComputeV4>(argc, argv);
+    std::cout << __func__ << "Config::GemmPreshuffleDecode" << std::endl;
+    return !run_grouped_gemm_example<GemmConfigPreshuffleDecode>(argc, argv);
 }
