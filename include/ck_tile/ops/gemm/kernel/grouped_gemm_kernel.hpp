@@ -299,31 +299,13 @@ struct GroupedGemmKernel
                 printf("[ALL GOOD]: 11 %s DoubleSmemBuffer\n", __func__);
             }
             __shared__ char smem_ptr_1[GetSmemSize()];
-            if constexpr(UsePersistentKernel && !GemmPipeline::Preshuffle)
+            if constexpr(UsePersistentKernel || GemmPipeline::Preshuffle)
             {
                 if(get_block_id() == 0 && get_thread_id() == 0)
                 {
                     printf("[ALL GOOD]: 12 %s RunGemmWithPipelineSelection2LDS\n", __func__);
                 }
                 RunGemmWithPipelineSelection2LDS(a_ptr,
-                                                 b_ptr,
-                                                 c_ptr,
-                                                 smem_ptr_0,
-                                                 smem_ptr_1,
-                                                 kargs,
-                                                 splitk_batch_offset,
-                                                 i_m,
-                                                 i_n);
-            }
-            else if constexpr(!UsePersistentKernel && GemmPipeline::Preshuffle)
-            {
-                if(get_block_id() == 0 && get_thread_id() == 0)
-                {
-                    printf("[ALL GOOD]: 12 %s\n RunGemm2LDS", __func__);
-                }
-                // TODO:
-                // Do we really need this function_Preshuffle, or can we use already existing one?
-                RunGemmWithPipelineSelection2LDS_Preshuffle(a_ptr,
                                                  b_ptr,
                                                  c_ptr,
                                                  smem_ptr_0,
@@ -480,69 +462,39 @@ struct GroupedGemmKernel
         // Get hot-loop and tail configuration
         const index_t num_loop = __builtin_amdgcn_readfirstlane(
             TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
-        const bool has_hot_loop   = GemmPipeline::BlockHasHotloop(num_loop);
         const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
 
-        // Run GEMM pipeline
-        const auto& c_block_tile = GemmPipeline{}.template operator()(a_block_window[Base::I0],
-                                                                      b_block_window[Base::I0],
-                                                                      num_loop,
-                                                                      has_hot_loop,
-                                                                      tail_num,
-                                                                      smem_ptr_0,
-                                                                      smem_ptr_1);
+        // Run GEMM pipeline with compile-time branching
+        const auto& c_block_tile = [&]() {
+            if constexpr(GemmPipeline::Preshuffle)
+            {
+                // Preshuffle version - without has_hot_loop parameter
+                return GemmPipeline{}.template operator()(a_block_window[Base::I0],
+                                                          b_block_window[Base::I0],
+                                                          num_loop,
+                                                          tail_num,
+                                                          smem_ptr_0,
+                                                          smem_ptr_1);
+            }
+            else
+            {
+                // Regular version - with has_hot_loop parameter
+                const bool has_hot_loop = GemmPipeline::BlockHasHotloop(num_loop);
+                return GemmPipeline{}.template operator()(a_block_window[Base::I0],
+                                                          b_block_window[Base::I0],
+                                                          num_loop,
+                                                          has_hot_loop,
+                                                          tail_num,
+                                                          smem_ptr_0,
+                                                          smem_ptr_1);
+            }
+        }();
+
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(Base::I3);
         EpiloguePipeline{}.template
         operator()<decltype(c_block_window), decltype(c_block_tile), decltype(d_block_window)>(
             c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-    }
-    CK_TILE_DEVICE static void
-    RunGemmWithPipelineSelection2LDS_Preshuffle(const ADataType* a_ptr,
-                                     const BDataType* b_ptr,
-                                     CDataType* c_ptr,
-                                     void* __restrict__ smem_ptr_0,
-                                     void* __restrict__ smem_ptr_1,
-                                     const UniversalGemmKernelArgs<>& kargs,
-                                     const typename Base::SplitKBatchOffset& splitk_batch_offset,
-                                     const index_t block_idx_m,
-                                     const index_t block_idx_n)
-    {
-        // Create Gemm tensor views, pad views and tile windows
-        if(get_block_id() == 0 && get_thread_id() == 0)
-        {
-            printf("[ALL GOOD]: 13 %s\n RunGemmWithPipelineSelection2LDS_Preshuffle", __func__);
-        }
-        const auto& gemm_tensor_views_tuple =
-            Base::template MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-                {a_ptr}, {b_ptr}, {/*ds_ptr*/}, c_ptr, kargs, splitk_batch_offset);
-
-        const auto& gemm_pad_views = Base::MakeGemmPadViews(gemm_tensor_views_tuple);
-        auto gemm_tile_windows =
-            Base::MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
-        const auto& a_block_window = gemm_tile_windows.at(Base::I0);
-        const auto& b_block_window = gemm_tile_windows.at(Base::I1);
-        const auto& d_block_window = gemm_tile_windows.at(Base::I2);
-
-        // Get hot-loop and tail configuration
-        const index_t num_loop = __builtin_amdgcn_readfirstlane(
-            TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
-        //const bool has_hot_loop   = GemmPipeline::BlockHasHotloop(num_loop);
-        const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
-
-        // Run GEMM pipeline
-        const auto& c_block_tile = GemmPipeline{}.template operator()(a_block_window[Base::I0],
-                                                                      b_block_window[Base::I0],
-                                                                      num_loop,
-                                                                      tail_num,
-                                                                      smem_ptr_0,
-                                                                      smem_ptr_1);
-        // Run Epilogue Pipeline
-        auto& c_block_window = gemm_tile_windows.at(Base::I3);
-        EpiloguePipeline{}.template
-        operator()<decltype(c_block_window), decltype(c_block_tile), decltype(d_block_window)>(
-            c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-
     }
 
     CK_TILE_DEVICE index_t FindGroupId(const GemmTransKernelArg* gemm_desc_ptr,

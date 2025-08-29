@@ -13,8 +13,7 @@
 #define CK_TILE_PIPELINE_COMPUTE_V3 1
 #define CK_TILE_PIPELINE_MEMORY 2
 #define CK_TILE_PIPELINE_COMPUTE_V4 3
-#define CK_TILE_PIPELINE_PRESHUFFLE_V1 5
-#define CK_TILE_PIPELINE_PRESHUFFLE_V2 6
+#define CK_TILE_PIPELINE_PRESHUFFLE_V2 4
 
 #ifndef CK_TILE_PIPELINE_DEFAULT
 #define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE_V3
@@ -79,7 +78,7 @@ struct GemmConfigBase
 {
     static constexpr bool kPadM = false;
     static constexpr bool kPadN = false;
-    static constexpr bool kPadK = false;
+    static constexpr bool kPadK = true;
 
     static constexpr bool PermuteA = false;
     static constexpr bool PermuteB = false;
@@ -157,11 +156,13 @@ struct GemmConfigPreshuffleDecode : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile_flatmm<PrecType, M_Warp_Tile>();
 
+    static constexpr bool kPadK = true;
+
     static constexpr int kBlockPerCu           = 1;
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V1;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V2;
     static constexpr bool Preshuffle           = true;
-    static constexpr bool DoubleSmemBuffer     = false;
+    static constexpr bool DoubleSmemBuffer     = true;
 };
 
 template <typename PrecType>
@@ -217,16 +218,6 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V4>
 };
 
 template <>
-struct PipelineTypeTraits<CK_TILE_PIPELINE_PRESHUFFLE_V1>
-{
-    template <typename PipelineProblem>
-    using GemmPipeline = ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV1<PipelineProblem>;
-    template <typename PipelineProblem>
-    using UniversalGemmPipeline =
-        ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV1<PipelineProblem>;
-};
-
-template <>
 struct PipelineTypeTraits<CK_TILE_PIPELINE_PRESHUFFLE_V2>
 {
     template <typename PipelineProblem>
@@ -254,7 +245,7 @@ std::pair<bool, ck_tile::ArgParser> create_args(int argc, char* argv[])
         .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
         .insert("warmup", "0", "number of iterations before benchmark the kernel.")
         .insert("repeat", "1", "number of iterations to benchmark the kernel.")
-        .insert("group_count", "2", "group count.")
+        .insert("group_count", "8", "group count.")
         .insert("kbatch", "1", "kbatch for SplitK");
 
     bool result = arg_parser.parse(argc, argv);

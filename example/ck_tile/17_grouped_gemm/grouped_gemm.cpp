@@ -274,6 +274,58 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
 
 #include "run_grouped_gemm_example.inc"
 
+template <typename GemmConfig, typename PrecType>
+int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
+{
+    using Row   = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col   = ck_tile::tensor_layout::gemm::ColumnMajor;
+    using Types = GemmTypeConfig<PrecType>;
+    // Specific type aliases for easy access
+    using ADataType   = typename Types::ADataType;
+    using BDataType   = typename Types::BDataType;
+    using AccDataType = typename Types::AccDataType;
+    using CDataType   = typename Types::CDataType;
+
+    if(a_layout == "R" && b_layout == "C")
+    {
+        return run_grouped_gemm_example_with_layouts<GemmConfig,
+                                                     ADataType,
+                                                     BDataType,
+                                                     CDataType,
+                                                     AccDataType>(argc, argv, Row{}, Col{}, Row{});
+    }
+    else if(a_layout == "R" && b_layout == "R")
+    {
+        std::cout << __func__ << "R R" << std::endl;
+        return run_grouped_gemm_example_with_layouts<GemmConfig,
+                                                     ADataType,
+                                                     BDataType,
+                                                     CDataType,
+                                                     AccDataType>(argc, argv, Row{}, Row{}, Row{});
+    }
+    else if(a_layout == "C" && b_layout == "R")
+    {
+        std::cout << __func__ << "C R" << std::endl;
+        return run_grouped_gemm_example_with_layouts<GemmConfig,
+                                                     ADataType,
+                                                     BDataType,
+                                                     CDataType,
+                                                     AccDataType>(argc, argv, Col{}, Row{}, Row{});
+    }
+    else if(a_layout == "C" && b_layout == "C")
+    {
+        std::cout << __func__ << "C C" << std::endl;
+        return run_grouped_gemm_example_with_layouts<GemmConfig,
+                                                     ADataType,
+                                                     BDataType,
+                                                     CDataType,
+                                                     AccDataType>(argc, argv, Col{}, Col{}, Row{});
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data layout configuration for A and B tensors!");
+    }
+}
 int main(int argc, char* argv[])
 {
     std::cout << __func__ << "Config::GemmPreshuffleDecode" << std::endl;
