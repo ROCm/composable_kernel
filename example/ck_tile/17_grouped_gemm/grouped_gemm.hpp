@@ -78,7 +78,7 @@ struct GemmConfigBase
 {
     static constexpr bool kPadM = false;
     static constexpr bool kPadN = false;
-    static constexpr bool kPadK = true;
+    static constexpr bool kPadK = false;
 
     static constexpr bool PermuteA = false;
     static constexpr bool PermuteB = false;
@@ -185,6 +185,7 @@ struct GemmConfigPreshufflePrefill : public GemmConfigBase
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V2;
     static constexpr bool Preshuffle           = true;
     static constexpr bool DoubleSmemBuffer     = true;
+    static constexpr bool kPadK                = true;
 };
 
 template <ck_tile::index_t PipelineId>
@@ -245,7 +246,7 @@ std::pair<bool, ck_tile::ArgParser> create_args(int argc, char* argv[])
         .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
         .insert("warmup", "10", "number of iterations before benchmark the kernel.")
         .insert("repeat", "100", "number of iterations to benchmark the kernel.")
-        .insert("group_count", "8", "group count.")
+        .insert("group_count", "16", "group count.")
         .insert("kbatch", "1", "kbatch for SplitK");
 
     bool result = arg_parser.parse(argc, argv);

@@ -185,8 +185,6 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     using AccDataType = typename Types::AccDataType;
     using CDataType   = typename Types::CDataType;
 
-    bool preshuffle = GemmConfig::Preshuffle;
-
     // Preshuffle is supported only for A(Row major), B(column major) input matrices!
     if(a_layout == "R" && b_layout == "C")
     {

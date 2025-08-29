@@ -159,7 +159,6 @@ int run_grouped_gemm_example_with_layouts(int argc,
     const int kbatch      = arg_parser.get_int("kbatch");
     bool validate         = arg_parser.get_bool("validate");
 
-    // TODO: Ask Thomas, why are we disabling validation when kbatch > 1 and warmup + repeat > 1?
     if(kbatch > 1 && validate && warmup + repeat > 1)
     {
         std::cout << "WARNING: Data validation enabled with SplitK and more than"

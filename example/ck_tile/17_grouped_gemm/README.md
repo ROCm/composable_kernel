@@ -140,7 +140,7 @@ args:
  -validate    0. No validation, 1. Validation on CPU. (Default: 1).
  -warmup      Number of iterations before benchmark the kernel. (Default: 10).
  -repeat      Number of iterations to benchmark the kernel. (Default: 100).
- -group_count Group count. (Default: 8).
+ -group_count Group count. (Default: 16).
  -kbatch      kbatch for SplitK (Default: 1).
 ```
 
