@@ -27,6 +27,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added int8 support for CK_TILE GEMM.
 * Added support for elementwise kernel.
 * Added benchmarking support for tile engine GEMM Multi D.
+* Added block scaling support in CK_TILE GEMM, allowing flexible use of quantization matrices from either A or B operands.
 
 ### Optimized
 
