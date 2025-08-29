@@ -250,9 +250,8 @@ class FmhaFwdApiTrait:
             else :                return f'a.seqlen_q % {self.bm0} == 0'
         else: assert False
     
-    @property
-    def seqtune(self) -> str:
-        if self.bm0 == 128: return 'true/*fall back to largest tile*/'                  # group mode only generate spad/skpad == true
+    def seqtune(self, max_bm0 : int) -> str:
+        if self.bm0 == max_bm0: return 'true/*fall back to largest tile*/'
         else: 
             return f'a.seqlen_q <= {self.bm0}'
 
@@ -387,6 +386,7 @@ class FmhaFwdApiPool:
                 per_hdim_case=str()
                 for j, (hdim, hdim_v) in enumerate(self.pool[dtype].keys()):
                     traits=[t for t in self.pool[dtype][(hdim, hdim_v)] if tr_load == t.tr_load]
+                    max_bm0 = max((t.bm0 for t in traits), default=0)
                     inners=str()
                     for k, trait in enumerate(traits):
                         if_k = 'if' if k == 0 else 'else if'
@@ -394,7 +394,7 @@ class FmhaFwdApiPool:
                                        F_pipeline_enum=PIPELINE_ENUM_MAP[trait.pipeline_tag], F_logits=BOOL_MAP[trait.logits], F_mask=get_mask_map(self.mask_impl)[trait.mask],
                                        F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask], F_bias_check=BIAS_CHECK_MAP[trait.bias], F_bias=BIAS_MAP[trait.bias],
                                        F_lse=BOOL_MAP[trait.lse], F_dropout=BOOL_MAP[trait.dropout], F_skip=BOOL_MAP[trait.skip], F_trload=BOOL_MAP[trait.tr_load],
-                                       F_squant=BOOL_MAP[trait.squant], F_scheck=trait.scheck, F_seqtune=trait.seqtune, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck,
+                                       F_squant=BOOL_MAP[trait.squant], F_scheck=trait.scheck, F_seqtune=trait.seqtune(max_bm0), F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck,
                                        F_constraint=trait.constraint,
                                        F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
                                        F_bm0=trait.bm0, F_bn0=trait.bn0, F_bk0=trait.bk0, F_bn1=trait.bn1, F_bk1=trait.bk1, F_bk0max=trait.bk0max,
@@ -641,6 +641,8 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
             continue
         #for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
         for ((hdim, hdim_v), tiles), mode in itertools.product(d.items(), MODE_MAP.keys()):
+            for tile, next_tile in zip(tiles, tiles[1:]):
+                assert next_tile.F_bm0 >= tile.F_bm0, 'Tiles must be ordered by increasing bm0'
             for tile, pipeline in itertools.product(tiles, factory.get_pipelines(dtype, hdim, hdim_v, receipt, mask_impl)):
                 if mode == "group":
                     if pipeline.F_spad != 't' or pipeline.F_skpad != 't':
