@@ -1702,6 +1702,82 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
             return false;
         }
 
+        // Check vector access of Ds
+        bool valid = 1;
+
+        static_for<0, NumDTensor, 1>{}([&](auto i) {
+            using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
+
+            // FIXME: layout
+            if constexpr(is_same_v<DLayout, ctc::G_NW_K> || is_same_v<DLayout, ctc::G_NHW_K> ||
+                         is_same_v<DLayout, ctc::G_NDHW_K> || is_same_v<DLayout, ctc::GNWK> ||
+                         is_same_v<DLayout, ctc::GNHWK> || is_same_v<DLayout, ctc::GNDHWK> ||
+                         is_same_v<DLayout, ctc::NWGK> || is_same_v<DLayout, ctc::NHWGK> ||
+                         is_same_v<DLayout, ctc::NDHWGK> || is_same_v<DLayout, ctc::G_K>)
+            {
+                if(!(K % CDEBlockTransferScalarPerVector_NPerBlock == 0))
+                {
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout << "[D Layout] D tensor number " << i
+                                  << " has a K size which is not a multiple of "
+                                     "CDEBlockTransferScalarPerVector_NPerBlock!"
+                                  << " In " << __FILE__ << ":" << __LINE__
+                                  << ", in function: " << __func__ << std::endl;
+                    }
+                    valid = 0;
+                }
+
+                if constexpr(is_same_v<DLayout, ctc::G_K>)
+                {
+                    // G and K must be the same
+                    if(arg.ds_g_n_k_wos_lengths_[i][0] != arg.e_g_n_k_wos_lengths_[0] ||
+                       arg.ds_g_n_k_wos_lengths_[i][2] != arg.e_g_n_k_wos_lengths_[2])
+                    {
+                        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                        {
+                            std::cout << "[D Layout] D tensor number " << i
+                                      << " shape does not match E shape! (GK case)" << " In "
+                                      << __FILE__ << ":" << __LINE__
+                                      << ", in function: " << __func__ << std::endl;
+                        }
+                        valid = 0;
+                    }
+                }
+                else
+                {
+                    // E and D must have the same shape
+                    for(index_t d = 0; d < NDimSpatial + 3; d++)
+                    {
+                        if(arg.ds_g_n_k_wos_lengths_[i][d] != arg.e_g_n_k_wos_lengths_[d])
+                        {
+                            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                            {
+                                std::cout << "[D Layout] D tensor number " << i
+                                          << " shape does not match E shape! (generic case)"
+                                          << " In " << __FILE__ << ":" << __LINE__
+                                          << ", in function: " << __func__ << std::endl;
+                            }
+                            valid = 0;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "[D Layout] D tensor number " << i << " has an unknown layout!"
+                              << " In " << __FILE__ << ":" << __LINE__
+                              << ", in function: " << __func__ << std::endl;
+                }
+                valid = 0;
+            }
+        });
+
+        if(!valid)
+            return false;
+
         if constexpr(NeedTransposeKernel)
         {
             if((G * C) % CDEBlockTransferScalarPerVector_NPerBlock != 0)
