@@ -29,7 +29,6 @@ float gemm_calc_bquant(const ck_tile::BQuantGemmHostArgs& args, const ck_tile::s
     constexpr bool kPadN = false;
     constexpr bool kPadK = false;
 
-
     static_assert(std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::RowMajor>);
 
     constexpr ck_tile::index_t M_Tile = GemmConfig::M_Tile;
@@ -59,7 +58,7 @@ float gemm_calc_bquant(const ck_tile::BQuantGemmHostArgs& args, const ck_tile::s
                                                             BLayout,
                                                             CLayout>;
 
-   using GemmPipelineProblem = ck_tile::GemmPipelineProblemBase<ADataType,
+    using GemmPipelineProblem = ck_tile::GemmPipelineProblemBase<ADataType,
                                                                  BDataType,
                                                                  AccDataType,
                                                                  CodegenGemmShape,
@@ -74,7 +73,6 @@ float gemm_calc_bquant(const ck_tile::BQuantGemmHostArgs& args, const ck_tile::s
     const ck_tile::TailNumber tail_num  = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
     constexpr bool transposed_warp_gemm = false;
 
-    
     const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
         constexpr bool has_hot_loop_v = has_hot_loop_.value;
         constexpr auto tail_number_v  = tail_number_.value;
@@ -144,7 +142,8 @@ float gemm_calc_bquant(const ck_tile::BQuantGemmHostArgs& args, const ck_tile::s
 
         return ave_time;
     };
-    return BaseGemmPipeline::TailHandler(Run, has_hot_loop, tail_num);;
+    return BaseGemmPipeline::TailHandler(Run, has_hot_loop, tail_num);
+    ;
 }
 
 #include "run_gemm_bquant_example.inc"
