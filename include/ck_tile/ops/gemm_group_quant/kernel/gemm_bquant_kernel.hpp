@@ -96,13 +96,13 @@ struct BQuantGemmKernelArgs
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
 struct BQuantGemmKernel
 {
-    using TilePartitioner                    = remove_cvref_t<TilePartitioner_>;
-    using GemmPipeline                       = remove_cvref_t<GemmPipeline_>;
-    using EpiloguePipeline                   = remove_cvref_t<EpiloguePipeline_>;
-    using ALayout                            = remove_cvref_t<typename GemmPipeline::ALayout>;
-    using BLayout                            = remove_cvref_t<typename GemmPipeline::BLayout>;
-    using BQLayout                           = remove_cvref_t<typename GemmPipeline::BQLayout>;
-    using CLayout                            = remove_cvref_t<typename GemmPipeline::CLayout>;
+    using TilePartitioner               = remove_cvref_t<TilePartitioner_>;
+    using GemmPipeline                  = remove_cvref_t<GemmPipeline_>;
+    using EpiloguePipeline              = remove_cvref_t<EpiloguePipeline_>;
+    using ALayout                       = remove_cvref_t<typename GemmPipeline::ALayout>;
+    using BLayout                       = remove_cvref_t<typename GemmPipeline::BLayout>;
+    using BQLayout                      = remove_cvref_t<typename GemmPipeline::BQLayout>;
+    using CLayout                       = remove_cvref_t<typename GemmPipeline::CLayout>;
     static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
 
     using ADataType  = remove_cvref_t<typename GemmPipeline::ADataType>;
