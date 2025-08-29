@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -50,9 +50,9 @@ struct BlockDropout
                                      float rp_undrop_,
                                      uint8_t p_undrop_in_uint8_t_,
                                      bool is_store_randval_)
-        : ph_seed(__builtin_amdgcn_readfirstlane(seed)),
+        : ph_seed(warp_uniform(seed)),
           // 64 is max warp size
-          ph_head_offset(__builtin_amdgcn_readfirstlane(offset + (i_batch * nheads + i_head) * 64)),
+          ph_head_offset(warp_uniform(offset + (i_batch * nheads + i_head) * 64)),
           rp_undrop(rp_undrop_),
           p_undrop_in_uint8_t(p_undrop_in_uint8_t_),
           is_store_randval(is_store_randval_)
@@ -406,9 +406,9 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
                                         unsigned long long offset,
                                         float rp_undrop_,
                                         uint8_t p_undrop_in_uint8_t_)
-        : ph_seed(__builtin_amdgcn_readfirstlane(seed)),
+        : ph_seed(warp_uniform(seed)),
           // 64 is max warp size
-          ph_head_offset(__builtin_amdgcn_readfirstlane(offset + (i_batch * nheads + i_head) * 64)),
+          ph_head_offset(warp_uniform(offset + (i_batch * nheads + i_head) * 64)),
           rp_undrop(rp_undrop_),
           p_undrop_in_uint8_t(p_undrop_in_uint8_t_)
     {

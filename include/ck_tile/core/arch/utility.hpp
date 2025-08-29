@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -115,6 +115,45 @@ CK_TILE_DEVICE T warp_shuffle(const T& v_local, uint32_t src_lane)
         return bit_cast<T>(vs_remote);
     }
 #endif
+}
+
+/// Make \p v_local uniform for all lanes in the warp and store it in scalar registers (SGPR).
+/// The value of \p v_local is read from the first active lane using v_readfirstlane_b32.
+/// No-op if the value is already stored in scalar registers.
+/// The type \tparam T must be trivially copyable.
+template <typename T>
+CK_TILE_DEVICE T warp_uniform(const T& v_local)
+{
+    if constexpr(sizeof(int32_t) > sizeof(T))
+    {
+        union packet
+        {
+            int32_t x;
+            T v;
+        };
+        packet p;
+        p.v = v_local;
+        packet p_remote;
+        p_remote.x = __builtin_amdgcn_readfirstlane(bit_cast<int32_t>(p));
+
+        return p_remote.v;
+    }
+    else if constexpr(sizeof(int32_t) == sizeof(T))
+    {
+        return bit_cast<T>(__builtin_amdgcn_readfirstlane(bit_cast<int32_t>(v_local)));
+    }
+    else
+    {
+        static_assert(sizeof(T) % sizeof(int32_t) == 0);
+        constexpr index_t elm = sizeof(T) / sizeof(int32_t);
+        using vector_type     = thread_buffer<int32_t, elm>;
+        auto vs               = bit_cast<vector_type>(v_local);
+        auto vs_remote        = vector_type{};
+        static_for<0, elm, 1>{}([&](auto i_e) {
+            vs_remote(i_e) = __builtin_amdgcn_readfirstlane(bit_cast<int32_t>(vs[i_e]));
+        });
+        return bit_cast<T>(vs_remote);
+    }
 }
 
 template <typename T>
