@@ -108,6 +108,8 @@ set_property(TARGET ${FMHA_BWD_INSTANCES} PROPERTY HIP_ARCHITECTURES ${INST_TARG
 
 set(FMHA_FWD_PRIVATE_COMPILE_OPTIONS)
 set(FMHA_BWD_PRIVATE_COMPILE_OPTIONS)
+set(FMHA_FWD_INTERFACE_COMPILE_OPTIONS)
+set(FMHA_BWD_INTERFACE_COMPILE_OPTIONS)
 
 # NOTE: we turn off undefined-func-template to let source compile without explicit declare function specializations
 #       ... because they are auto-generated
@@ -131,40 +133,39 @@ else()
 endif()
 list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -fgpu-flush-denormals-to-zero)
 
-target_compile_options(${FMHA_FWD_INSTANCES} PRIVATE ${FMHA_FWD_PRIVATE_COMPILE_OPTIONS})
-target_compile_options(${FMHA_BWD_INSTANCES} PRIVATE ${FMHA_BWD_PRIVATE_COMPILE_OPTIONS})
-
-set(FMHA_FWD_PUBLIC_COMPILE_OPTIONS)
-set(FMHA_BWD_PUBLIC_COMPILE_OPTIONS)
-
-# conditionally enable call to the fwd_splitkv API in fmha_fwd example
+# conditionally enable call to the fwd_splitkv API in fmha_fwd example and tests
 if("fwd_splitkv" IN_LIST FMHA_FWD_ENABLE_APIS)
-  list(APPEND FMHA_FWD_PUBLIC_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_SPLITKV_API=1)
+  list(APPEND FMHA_FWD_INTERFACE_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_SPLITKV_API=1)
 else()
-  list(APPEND FMHA_FWD_PUBLIC_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_SPLITKV_API=0)
+  list(APPEND FMHA_FWD_INTERFACE_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_SPLITKV_API=0)
 endif()
 
-# conditionally enable call to the fwd_appendkv API in fmha_fwd example
+# conditionally enable call to the fwd_appendkv API in fmha_fwd example and tests
 if("fwd_appendkv" IN_LIST FMHA_FWD_ENABLE_APIS)
-  list(APPEND FMHA_FWD_PUBLIC_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_APPENDKV_API=1)
+  list(APPEND FMHA_FWD_INTERFACE_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_APPENDKV_API=1)
 else()
-  list(APPEND FMHA_FWD_PUBLIC_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_APPENDKV_API=0)
+  list(APPEND FMHA_FWD_INTERFACE_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_APPENDKV_API=0)
 endif()
 
-# conditionally enable call to the pagedkv_prefill API in fmha_fwd example
+# conditionally enable call to the pagedkv_prefill API in fmha_fwd example and tests
 if("pagedkv_prefill" IN_LIST FMHA_FWD_ENABLE_APIS)
-  list(APPEND FMHA_FWD_PUBLIC_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_PAGEDKV_API=1)
+  list(APPEND FMHA_FWD_INTERFACE_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_PAGEDKV_API=1)
 else()
-  list(APPEND FMHA_FWD_PUBLIC_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_PAGEDKV_API=0)
+  list(APPEND FMHA_FWD_INTERFACE_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_PAGEDKV_API=0)
 endif()
 
 # conditionally specify the use of OCP_FP8
 if(CK_USE_OCP_FP8)
-  list(APPEND FMHA_FWD_PUBLIC_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)
+  list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)
+  list(APPEND FMHA_FWD_INTERFACE_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)
 endif()
 
-target_compile_options(${FMHA_FWD_INSTANCES} PUBLIC ${FMHA_FWD_PUBLIC_COMPILE_OPTIONS})
-target_compile_options(${FMHA_BWD_INSTANCES} PUBLIC ${FMHA_BWD_PUBLIC_COMPILE_OPTIONS})
+target_compile_options(${FMHA_FWD_INSTANCES}
+  PRIVATE ${FMHA_FWD_PRIVATE_COMPILE_OPTIONS}
+  INTERFACE ${FMHA_FWD_INTERFACE_COMPILE_OPTIONS})
+target_compile_options(${FMHA_BWD_INSTANCES} 
+  PRIVATE ${FMHA_BWD_PRIVATE_COMPILE_OPTIONS}
+  INTERFACE ${FMHA_BWD_INTERFACE_COMPILE_OPTIONS})
 
 set(EXAMPLE_FMHA_FWD "tile_example_fmha_fwd")
 set(EXAMPLE_FMHA_BWD "tile_example_fmha_bwd")
