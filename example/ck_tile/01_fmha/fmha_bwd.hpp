@@ -22,8 +22,32 @@ struct FmhaBwdBf16
 {
 };
 
+struct FmhaBwdFp32
+{
+};
+
 template <typename DataType>
 struct FmhaBwdTypeConfig;
+
+template <>
+struct FmhaBwdTypeConfig<FmhaBwdFp32>
+{
+    using QDataType             = float;
+    using KDataType             = float;
+    using VDataType             = float;
+    using GemmDataType          = float;
+    using BiasDataType          = float;
+    using LSEDataType           = float;
+    using AccDataType           = float; // data type for gemm accumulation
+    using DDataType             = float;
+    using RandValOutputDataType = uint8_t;
+    using ODataType             = float;
+    using OGradDataType         = float;
+    using QGradDataType         = float;
+    using KGradDataType         = float;
+    using VGradDataType         = float;
+    using BiasGradDataType      = float;
+};
 
 template <>
 struct FmhaBwdTypeConfig<FmhaBwdFp16>
@@ -214,7 +238,8 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                       args.bias_ptr,
                                                       args.lse_ptr,
                                                       args.do_ptr,
-                                                      args.d_ptr,
+                                                      //args.d_ptr,
+                                                      args.o_ptr,
                                                       args.rand_val_ptr,
                                                       args.dk_ptr,
                                                       args.dv_ptr,

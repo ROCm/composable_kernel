@@ -827,6 +827,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     dv_buf.FromDevice(dv_host.data());
     dbias_buf.FromDevice(dbias_host.data());
 
+    //Then continue to compute the reference golden with the four of reference_batched_gemm().
     for(ck_tile::index_t wb = 0; wb < batch; ++wb)
     {
         const ck_tile::index_t real_seqlen_q = seqstart_q_host[wb + 1] - seqstart_q_host[wb];
@@ -1005,6 +1006,10 @@ int main(int argc, char* argv[])
     else if(data_type == "bf16")
     {
         return run<FmhaBwdBf16>(arg_parser) ? 0 : -2;
+    }
+    else if(data_type == "fp32")
+    {
+        return run<FmhaBwdFp32>(arg_parser) ? 0 : -2;
     }
 
     return -3;
