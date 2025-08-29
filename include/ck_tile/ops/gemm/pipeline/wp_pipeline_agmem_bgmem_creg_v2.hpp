@@ -75,7 +75,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
 
-    // bogus variables to compile grouped gemm
+    // bogus variables to compile grouped gemm (to be removed)
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
@@ -1093,11 +1093,6 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                                    void* __restrict__ p_smem_0,
                                    void* __restrict__ p_smem_1) const
     {
-        if(get_block_id() == 0 && get_thread_id() == 0)
-        {
-            printf(
-                "[ALL GOOD]: 13 %s\n tail_number: %d\n", __func__, static_cast<int>(tail_number));
-        }
         const auto RunPipeline = [&](auto bool_val, auto tail_num_) {
             (void)bool_val; // Suppress unused parameter warning
             constexpr auto tail_num    = tail_num_.value;

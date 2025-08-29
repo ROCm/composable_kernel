@@ -89,7 +89,6 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
 
         using GemmPipeline = typename PipelineTypeTraits<
             GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
-        std::cout << __func__ << "GemmPipeline" << GemmPipeline::GetName() << std::endl;
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
                                              BDataType,
@@ -109,8 +108,7 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                                              UniversalGemmProblem::TransposeC,
                                              memory_operation>>;
         using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-        std::cout << __func__ << "Kernel" << Kernel::GetName() << std::endl;
-        auto kargs = Kernel::MakeKargs(gemm_descs);
+        auto kargs   = Kernel::MakeKargs(gemm_descs);
         if(!Kernel::IsSupportedArgument(kargs))
         {
             throw std::runtime_error("Kernel arguments not supported!");
@@ -296,7 +294,6 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     }
     else if(a_layout == "R" && b_layout == "R")
     {
-        std::cout << __func__ << "R R" << std::endl;
         return run_grouped_gemm_example_with_layouts<GemmConfig,
                                                      ADataType,
                                                      BDataType,
@@ -305,7 +302,6 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     }
     else if(a_layout == "C" && b_layout == "R")
     {
-        std::cout << __func__ << "C R" << std::endl;
         return run_grouped_gemm_example_with_layouts<GemmConfig,
                                                      ADataType,
                                                      BDataType,
@@ -314,7 +310,6 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     }
     else if(a_layout == "C" && b_layout == "C")
     {
-        std::cout << __func__ << "C C" << std::endl;
         return run_grouped_gemm_example_with_layouts<GemmConfig,
                                                      ADataType,
                                                      BDataType,
@@ -328,6 +323,5 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
 }
 int main(int argc, char* argv[])
 {
-    std::cout << __func__ << "Config::GemmPreshuffleDecode" << std::endl;
-    return !run_grouped_gemm_example<GemmConfigPreshuffleDecode>(argc, argv);
+    return !run_grouped_gemm_example<GemmConfigComputeV4>(argc, argv);
 }

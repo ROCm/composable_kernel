@@ -56,10 +56,6 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t MPerBlock = BlockGemmShape::kM;
-    static constexpr index_t NPerBlock = BlockGemmShape::kN;
-    static constexpr index_t KPerBlock = BlockGemmShape::kK;
-
     static constexpr index_t flatKPerWarp = BlockGemmShape::flatKPerWarp;
     static constexpr index_t flatNPerWarp = BlockGemmShape::flatNPerWarp;
 
@@ -73,9 +69,6 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
     {
         return PipelinePolicy::template GetVectorSizeB<Problem, IsWave32Host>();
     }
-
-    // bogus function to compile grouped gemm
-    static constexpr index_t GetVectorSizeC() { return -5; }
 
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;

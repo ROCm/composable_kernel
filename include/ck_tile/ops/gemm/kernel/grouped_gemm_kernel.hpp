@@ -266,14 +266,10 @@ struct GroupedGemmKernel
                             const tuple<index_t, index_t>& block_idx_2d,
                             const index_t block_idx_z) const
     {
-        // Prevent compilation for unsupported configuration
+
         static_assert(!(!GemmPipeline::DoubleSmemBuffer && GemmPipeline::Preshuffle),
                       "SingleSmemBuffer and Preshuffle cannot both be enabled simultaneously!");
 
-        if(get_block_id() == 0 && get_thread_id() == 0)
-        {
-            printf("[ALL GOOD]: 10 %s\n", __func__);
-        }
         const auto [iM, iN] = block_idx_2d;
 
         const index_t i_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
@@ -294,17 +290,11 @@ struct GroupedGemmKernel
         // Can we simplify this branching logic?
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
-            if(get_block_id() == 0 && get_thread_id() == 0)
-            {
-                printf("[ALL GOOD]: 11 %s DoubleSmemBuffer\n", __func__);
-            }
+
             __shared__ char smem_ptr_1[GetSmemSize()];
             if constexpr(UsePersistentKernel || GemmPipeline::Preshuffle)
             {
-                if(get_block_id() == 0 && get_thread_id() == 0)
-                {
-                    printf("[ALL GOOD]: 12 %s RunGemmWithPipelineSelection2LDS\n", __func__);
-                }
+
                 RunGemmWithPipelineSelection2LDS(a_ptr,
                                                  b_ptr,
                                                  c_ptr,
@@ -335,10 +325,6 @@ struct GroupedGemmKernel
         {
             if constexpr(UsePersistentKernel)
             {
-                if(get_block_id() == 0 && get_thread_id() == 0)
-                {
-                    printf("%s\n RunGemmWithPipelineSelection\n", __func__);
-                }
                 RunGemmWithPipelineSelection(
                     a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
             }
@@ -528,11 +514,6 @@ struct GroupedGemmKernel
     CK_TILE_DEVICE void operator()(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
                                    index_t group_count) const
     {
-        if(get_block_id() == 0 && get_thread_id() == 0)
-        {
-            printf("[ALL GOOD]: 9 %s Non persistent grouped gemm\n", __func__);
-        }
-
         const index_t block_id   = ck_tile::get_block_1d_id();
         const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg*>(
             cast_pointer_to_generic_address_space(gemm_descs_const));
@@ -556,10 +537,6 @@ struct GroupedGemmKernel
     CK_TILE_DEVICE void operator()(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
                                    const index_t group_count) const
     {
-        if(get_block_id() == 0 && get_thread_id() == 0)
-        {
-            printf("[ALL GOOD]: 9 %s\n Persistent grouped gemm\n", __func__);
-        }
         const index_t grid_size  = ck_tile::get_grid_size();
         const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg*>(
             cast_pointer_to_generic_address_space(gemm_descs_const));

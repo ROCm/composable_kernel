@@ -31,8 +31,6 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                    const ck_tile::stream_config& s,
                    void* kargs_ptr)
 {
-    std::cout << "[ALL GOOD]: 6 " << __func__ << "Preshuffling: " << GemmConfig::Preshuffle
-              << std::endl;
     using GemmShape = ck_tile::TileGemmShape<
         ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
         ck_tile::sequence<GemmConfig::M_Warp, GemmConfig::N_Warp, GemmConfig::K_Warp>,
@@ -97,8 +95,6 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
 
         using GemmPipeline = typename PipelineTypeTraits<
             GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
-        std::cout << "[ALL GOOD]: 8 " << __func__ << "GemmPipeline" << GemmPipeline::GetName()
-                  << std::endl;
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
                                              BDataType,
@@ -118,8 +114,7 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                                              UniversalGemmProblem::TransposeC,
                                              memory_operation>>;
         using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-        std::cout << "[ALL GOOD]: 8 " << __func__ << " Kernel" << Kernel::GetName() << std::endl;
-        auto kargs = Kernel::MakeKargs(gemm_descs);
+        auto kargs   = Kernel::MakeKargs(gemm_descs);
         if(!Kernel::IsSupportedArgument(kargs))
         {
             throw std::runtime_error("Kernel arguments not supported!");
@@ -157,7 +152,6 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
     const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
         if(gemm_descs[0].k_batch == 1)
         {
-            std::cout << "[ALL GOOD]: 7 " << __func__ << " RunSplitk" << std::endl;
             Run(has_hot_loop_,
                 tail_number_,
                 ck_tile::integral_constant<ck_tile::memory_operation_enum,
@@ -196,8 +190,6 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     // Preshuffle is supported only for A(Row major), B(column major) input matrices!
     if(a_layout == "R" && b_layout == "C")
     {
-        std::cout << "[ALL GOOD]: 3 " << __func__ << " Layout: R C, Preshuffle: " << preshuffle
-                  << " and kPadK: " << GemmConfig::kPadK << std::endl;
         return run_grouped_gemm_example_with_layouts<GemmConfig,
                                                      ADataType,
                                                      BDataType,
@@ -225,13 +217,11 @@ int run_grouped_gemm_example(int argc, char* argv[])
 
     if(data_type == "fp16")
     {
-        std::cout << "[ALL GOOD]: 2 " << __func__ << " fp16 " << std::endl;
         return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::half_t>(
             a_layout, b_layout, argc, argv);
     }
     else if(data_type == "fp8")
     {
-        std::cout << "[ALL GOOD]: 2 " << __func__ << " fp8" << std::endl;
         return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>, ck_tile::fp8_t>(
             a_layout, b_layout, argc, argv);
     }
@@ -242,6 +232,5 @@ int run_grouped_gemm_example(int argc, char* argv[])
 }
 int main(int argc, char* argv[])
 {
-    std::cout << "[ALL GOOD]: 1 " << __func__ << "GemmConfigPreshuffleDecode" << std::endl;
     return !run_grouped_gemm_example<GemmConfigPreshuffleDecode>(argc, argv);
 }

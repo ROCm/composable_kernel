@@ -54,7 +54,6 @@ float invoke_gemm(int n_warmup,
     float ave_time = 0;
     if constexpr(!GemmConfig::Persistent)
     {
-        std::cout << "[ALL GOOD]: 5 " << __func__ << " Non Persistent grouped gemm" << std::endl;
         ave_time = grouped_gemm<GemmConfig,
                                 ADataType,
                                 BDataType,
@@ -78,7 +77,6 @@ float invoke_gemm(int n_warmup,
             throw std::runtime_error(
                 "Persistent grouped gemm with preshuffle is not supported yet");
         }
-        std::cout << "[ALL GOOD]: 5 " << __func__ << " Persistent grouped gemm" << std::endl;
         std::vector<ck_tile::GemmTransKernelArg> kargs;
         void* kargs_ptr   = gemm_workspace.GetDeviceBuffer();
         const bool splitk = args[0].k_batch > 1;
@@ -149,7 +147,6 @@ int run_grouped_gemm_example_with_layouts(int argc,
                                           [[maybe_unused]] const CLayout c_layout = CLayout{})
 {
 
-    std::cout << "[ALL GOOD]: 4 " << __func__ << std::endl;
     auto [result, arg_parser] = create_args(argc, argv);
 
     auto valid_input_data = [&](int group_count, const auto&... args) {
@@ -179,8 +176,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
 
     if(!valid_input_data(group_count, Ms, Ns, Ks, stride_As, stride_Bs, stride_Cs))
     {
-        std::cout << "[ALL GOOD]: 4 " << __func__
-                  << " Please check the input data. Default values will be used." << std::endl;
+        std::cout << "Please check the input data. Default values will be used." << std::endl;
         std::cout << "Default values: Ms (256, 512, 768, 1024..), Ns (256, 768, 1280..), Ks (512, "
                      "896, 1280..)"
                   << std::endl;
