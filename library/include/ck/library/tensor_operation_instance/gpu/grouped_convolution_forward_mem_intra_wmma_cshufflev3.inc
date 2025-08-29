@@ -10,7 +10,7 @@ namespace instance {
 
 // grouped conv2d forward, NHWGC/GKYXC/NHWGK
 #ifdef CK_ENABLE_BF16
-void add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_comp_instances(
+void add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_mem_intra_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NHWGC,
                                                                 GKYXC,
@@ -26,7 +26,7 @@ void add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_comp_i
 #endif
 
 #ifdef CK_ENABLE_FP16
-void add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_comp_instances(
+void add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_mem_intra_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NHWGC,
                                                                 GKYXC,
@@ -42,7 +42,7 @@ void add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_comp_in
 #endif
 
 #ifdef CK_ENABLE_INT8
-void add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_comp_instances(
+void add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_intra_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NHWGC,
                                                                 GKYXC,
@@ -59,7 +59,7 @@ void add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_comp_i
 
 // grouped conv2d forward, NGCHW/GKCYX/NGKHW
 #ifdef CK_ENABLE_FP16
-void add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_comp_instances(
+void add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_mem_intra_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NGCHW,
                                                                 GKCYX,
@@ -72,10 +72,10 @@ void add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_comp_in
                                                                 PassThrough,
                                                                 PassThrough,
                                                                 PassThrough>>>& instances);
-#endif // CK_ENABLE_FP16
+#endif
 
 #ifdef CK_ENABLE_BF16
-void add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_comp_instances(
+void add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_mem_intra_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NGCHW,
                                                                 GKCYX,
@@ -92,7 +92,7 @@ void add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_comp_i
 
 #ifdef CK_ENABLE_BF16
 // grouped conv3d forward, NDHWGC/GKZYXC/NDHWGK
-// void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_comp_instances(
+// void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_mem_intra_instances(
 //     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
 //                                                                 NDHWGC,
 //                                                                 GKZYXC,
@@ -108,7 +108,7 @@ void add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_comp_i
 #endif
 
 #ifdef CK_ENABLE_FP16
-// void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f16_comp_instances(
+// void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f16_mem_intra_instances(
 //     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
 //                                                                 NDHWGC,
 //                                                                 GKZYXC,
@@ -125,7 +125,7 @@ void add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_comp_i
 
 // grouped conv3d forward, NGCDHW/GKCZYX/NGKDHW
 #ifdef CK_ENABLE_FP16
-// void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_f16_comp_instances(
+// void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_f16_mem_intra_instances(
 //     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
 //                                                                 NGCDHW,
 //                                                                 GKCZYX,
@@ -141,7 +141,7 @@ void add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_comp_i
 #endif
 
 #ifdef CK_ENABLE_BF16
-// void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_bf16_comp_instances(
+// void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_bf16_mem_intra_instances(
 //     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
 //                                                                 NGCDHW,
 //                                                                 GKCZYX,

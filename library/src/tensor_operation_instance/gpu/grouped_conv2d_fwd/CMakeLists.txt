@@ -128,7 +128,24 @@ set(GROUPED_CONV2D_FWD
   wmma/merged_groups/device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_ngchw_gkcyx_ngkhw_bf16_instance.cpp
   wmma/merged_groups/device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_ngchw_gkcyx_ngkhw_f16_instance.cpp
 
-  # comp
+  #mem
+  # NHWGC, GKYXC, NHWGK intra
+  wmma/mem/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_mem_intra_instance.cpp
+  wmma/mem/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_mem_intra_instance.cpp
+  # NHWGC, GKYXC, NHWGK inter
+  wmma/mem/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_mem_inter_instance.cpp
+  wmma/mem/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_mem_inter_instance.cpp
+  # NGCHW, GKCYX, NGKHW intra
+  wmma/mem/device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_mem_intra_instance.cpp
+  wmma/mem/device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_mem_intra_instance.cpp
+  # NGCHW, GKCYX, NGKHW inter
+  wmma/mem/device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_mem_inter_instance.cpp
+  wmma/mem/device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_mem_inter_instance.cpp
+  #comp
+  # NHWGC, GKYXC, NHWGK
+  wmma/comp/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_comp_instance.cpp
+  wmma/comp/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_comp_instance.cpp
+  wmma/comp/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_comp_instance.cpp
   # NGCHW, GKCYX, NGKHW
   wmma/comp/device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_comp_instance.cpp
 )
@@ -177,6 +194,14 @@ generate_sharded_instantiations(
 )
 set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
+  INSTANCES_NAME device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_comp_instances
+  TEMPLATE_FILE wmma/comp/device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_comp_instance.in
+  NUM_SHARDS 1
+  SRC_LIST GROUPED_CONV2D_FWD
+  OUTPUT_DIR ${GENERATED_DIR}/wmma/comp
+)
+set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_int8_mem_inter_instances
   TEMPLATE_FILE xdl/mem/device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_int8_mem_inter_instance.in
   NUM_SHARDS 21
@@ -185,10 +210,26 @@ generate_sharded_instantiations(
 )
 set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
+  INSTANCES_NAME device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_inter_instances
+  TEMPLATE_FILE wmma/mem/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_inter_instance.in
+  NUM_SHARDS 1
+  SRC_LIST GROUPED_CONV2D_FWD
+  OUTPUT_DIR ${GENERATED_DIR}/wmma/mem
+)
+set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_int8_mem_intra_instances
   TEMPLATE_FILE xdl/mem/device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_int8_mem_intra_instance.in
   NUM_SHARDS 21
   SRC_LIST GROUPED_CONV2D_FWD
   OUTPUT_DIR ${GENERATED_DIR}/xdl/mem
+)
+set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+generate_sharded_instantiations(
+  INSTANCES_NAME device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_intra_instances
+  TEMPLATE_FILE wmma/mem/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_intra_instance.in
+  NUM_SHARDS 1
+  SRC_LIST GROUPED_CONV2D_FWD
+  OUTPUT_DIR ${GENERATED_DIR}/wmma/mem
 )
 add_instance_library(device_grouped_conv2d_fwd_instance ${GROUPED_CONV2D_FWD})

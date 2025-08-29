@@ -30,6 +30,8 @@
 #include "grouped_convolution_forward_wmma_cshufflev3.inc"
 #include "grouped_convolution_forward_wmma_cshufflev3_merged_groups.inc"
 #include "grouped_convolution_forward_comp_wmma_cshufflev3.inc"
+#include "grouped_convolution_forward_mem_inter_wmma_cshufflev3.inc"
+#include "grouped_convolution_forward_mem_intra_wmma_cshufflev3.inc"
 #endif
 
 namespace ck {
@@ -804,14 +806,12 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                 //     op_ptrs);
                 add_device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_nhwgc_gkyxc_nhwgk_f16_instances(
                     op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_comp_instances(op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_comp_2x_instances(op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_comp_part2_instances(
-                //     op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_mem_intra_instances(
-                //     op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_mem_inter_instances(
-                //     op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_comp_instances(
+                    op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_mem_intra_instances(
+                    op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_mem_inter_instances(
+                    op_ptrs);
             }
 #endif
 #ifdef CK_ENABLE_BF16
@@ -829,14 +829,12 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                 //     op_ptrs);
                 add_device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_nhwgc_gkyxc_nhwgk_bf16_instances(
                     op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_comp_instances(op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_comp_2x_instances(op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_comp_part2_instances(
-                //     op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_mem_intra_instances(
-                //     op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_mem_inter_instances(
-                //     op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_comp_instances(
+                    op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_mem_intra_instances(
+                    op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_mem_inter_instances(
+                    op_ptrs);
             }
 #endif
 #ifdef CK_ENABLE_INT8
@@ -850,11 +848,12 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                 //     op_ptrs);
                 add_device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_nhwgc_gkyxc_nhwgk_int8_instances(
                     op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_comp_instances(op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_intra_instances(
-                //     op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_inter_instances(
-                //     op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_comp_instances(
+                    op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_intra_instances(
+                    op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_inter_instances(
+                    op_ptrs);
             }
 #endif
         }
@@ -876,13 +875,10 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     op_ptrs);
                 add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_comp_instances(
                     op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_comp_2x_instances(op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_comp_part2_instances(
-                //     op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_mem_intra_instances(
-                //     op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_mem_inter_instances(
-                //     op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_mem_intra_instances(
+                    op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_mem_inter_instances(
+                    op_ptrs);
             }
 #endif
 #ifdef CK_ENABLE_BF16
@@ -898,14 +894,12 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     op_ptrs);
                 add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_16x16_instances(
                     op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_comp_instances(op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_comp_2x_instances(op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_comp_part2_instances(
-                //     op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_mem_intra_instances(
-                //     op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_mem_inter_instances(
-                //     op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_comp_instances(
+                    op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_mem_intra_instances(
+                    op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_mem_inter_instances(
+                    op_ptrs);
             }
 #endif
         }
