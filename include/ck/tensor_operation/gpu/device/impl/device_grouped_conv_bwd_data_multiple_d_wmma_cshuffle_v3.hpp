@@ -4,7 +4,7 @@
 #pragma once
 
 #include <iostream>
-#include <numeric>
+
 #include <sstream>
 
 #include "ck/library/utility/numeric.hpp"
@@ -25,6 +25,8 @@
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/flush_cache.hpp"
 #include "ck/host_utility/io.hpp"
+
+#include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -101,7 +103,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     ignore = compute_ptr_offset_of_batch;
     ignore = compute_ptr_offset_of_n;
     ignore = num_k_per_block;
-#endif
+#endif // End of if (!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
 }
 
 } // namespace
@@ -382,6 +384,13 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         std::conditional_t<CTranspose,
                            GridwiseGemm_wmma_cshuffle_v3<GridwiseGemmCTransposeTemplateParameters>,
                            GridwiseGemm>;
+    template <typename EGridDesc_M_N>
+    static auto
+    MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(const EGridDesc_M_N e_grid_desc_m_n)
+    {
+        return GridwiseGemmCTranspose::MakeDEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+            e_grid_desc_m_n);
+    }
 
     template <typename Desc_K0_M_K1>
     static auto transform_k0_m_k1_to_m_k(const Desc_K0_M_K1& desc_k0_m_k1)
@@ -550,14 +559,17 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
               k_batch_{split_k}
         {
             std::array<index_t, NDimSpatial + 3> a_g_n_k_wos_strides_transposed =
-                conv_ngchw_to_nhwgc_transformer.TransposeInOutStrides(a_g_n_k_wos_lengths,
-                                                                      a_g_n_k_wos_strides);
+                NeedTransposeKernel ? conv_ngchw_to_nhwgc_transformer.TransposeInOutStrides(
+                                          a_g_n_k_wos_lengths, a_g_n_k_wos_strides)
+                                    : a_g_n_k_wos_strides;
             std::array<index_t, NDimSpatial + 3> b_g_k_c_xs_strides_transposed =
-                conv_ngchw_to_nhwgc_transformer.TransposeWeiStrides(b_g_k_c_xs_lengths,
-                                                                    b_g_k_c_xs_strides);
+                NeedTransposeKernel ? conv_ngchw_to_nhwgc_transformer.TransposeWeiStrides(
+                                          b_g_k_c_xs_lengths, b_g_k_c_xs_strides)
+                                    : b_g_k_c_xs_strides;
             std::array<index_t, NDimSpatial + 3> e_g_n_c_wis_strides_transposed =
-                conv_ngchw_to_nhwgc_transformer.TransposeInOutStrides(e_g_n_c_wis_lengths,
-                                                                      e_g_n_c_wis_strides);
+                NeedTransposeKernel ? conv_ngchw_to_nhwgc_transformer.TransposeInOutStrides(
+                                          e_g_n_c_wis_lengths, e_g_n_c_wis_strides)
+                                    : e_g_n_c_wis_strides;
 
             // populate Ds pointer
             static_for<0, NumDTensor, 1>{}([&](auto i) {
@@ -967,24 +979,25 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             const ADataType* p_a_grid = arg.p_a_grid_;
             const BDataType* p_b_grid = arg.p_b_grid_;
             EDataType* p_e_grid       = arg.p_e_grid_;
-
-            if constexpr(is_NGCHW_NGKHW<ELayout, BLayout, ALayout>() ||
-                         is_NGCDHW_NGKDHW<ELayout, BLayout, ALayout>())
+            if constexpr(NeedTransposeKernel)
             {
-                p_a_grid = type_convert<const ADataType*>(arg.p_workspace_);
-                p_e_grid =
-                    type_convert<EDataType*>(arg.p_workspace_) +
-                    (arg.GetWorkspaceATensorSizeBytes() + arg.GetWorkspaceBTensorSizeBytes()) /
-                        sizeof(EDataType);
-            }
+                if constexpr(is_NGCHW_NGKHW<ELayout, BLayout, ALayout>() ||
+                             is_NGCDHW_NGKDHW<ELayout, BLayout, ALayout>())
+                {
+                    p_a_grid = type_convert<const ADataType*>(arg.p_workspace_);
+                    p_e_grid =
+                        type_convert<EDataType*>(arg.p_workspace_) +
+                        (arg.GetWorkspaceATensorSizeBytes() + arg.GetWorkspaceBTensorSizeBytes()) /
+                            sizeof(EDataType);
+                }
 
-            if constexpr(is_NGCHW_GKCYX_NGKHW<ELayout, BLayout, ALayout>() ||
-                         is_NGCDHW_GKCZYX_NGKDHW<ELayout, BLayout, ALayout>())
-            {
-                p_b_grid = type_convert<const BDataType*>(arg.p_workspace_) +
-                           arg.GetWorkspaceATensorSizeBytes() / sizeof(BDataType);
+                if constexpr(is_NGCHW_GKCYX_NGKHW<ELayout, BLayout, ALayout>() ||
+                             is_NGCDHW_GKCZYX_NGKDHW<ELayout, BLayout, ALayout>())
+                {
+                    p_b_grid = type_convert<const BDataType*>(arg.p_workspace_) +
+                               arg.GetWorkspaceATensorSizeBytes() / sizeof(BDataType);
+                }
             }
-
             // Create dummy Ds strides because they are not used in convolution
             // since we pass the grid descriptor to gridwise gemm
             std::array<index_t, NumDTensor> StrideDs_dummy;
@@ -1212,8 +1225,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             }
 
             // Transpose from NHWGC to NGCHW
-            if constexpr(is_NGCHW_NGKHW<ELayout, BLayout, ALayout>() ||
-                         is_NGCDHW_NGKDHW<ELayout, BLayout, ALayout>())
+            if constexpr(NeedTransposeKernel)
             {
                 const index_t grid_size =
                     arg.elementwise_block_2_ctile_map_transpose_e_.CalculateGridSize(
@@ -1373,10 +1385,20 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                          is_same_v<DLayout, tensor_layout::convolution::GC> ||
                          is_same_v<DLayout, tensor_layout::convolution::G_C>)
             {
-                // vector load D matrix from global memory
-                if(!(ConvC % CShuffleBlockTransferScalarPerVector_NPerBlock == 0))
+                if(CTranspose == false)
                 {
-                    ds_valid = false;
+                    // vector load D matrix from global memory
+                    if(!(ConvC % CShuffleBlockTransferScalarPerVector_NPerBlock == 0))
+                    {
+                        ds_valid = false;
+                    }
+                }
+                else
+                {
+                    if(input_spatial_acum % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
+                    {
+                        ds_valid = false;
+                    }
                 }
             }
             else
@@ -1398,38 +1420,37 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                      is_same_v<ELayout, tensor_layout::convolution::NGCHW> ||
                      is_same_v<ELayout, tensor_layout::convolution::NGCDHW>)
         {
-            // vector store C matrix into global memory
             if(CTranspose == false)
             {
-                // vector load D matrix from global memory
+                // vector store C matrix into global memory
                 if(!(ConvC % CShuffleBlockTransferScalarPerVector_NPerBlock == 0))
                 {
-                    ds_valid = false;
+                    return false;
                 }
             }
             else
             {
                 if(input_spatial_acum % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
                 {
-                    ds_valid = false;
-                }
-            }
-
-            if constexpr(NeedTransposeKernel)
-            {
-
-                if((ConvG * ConvC) % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
-                {
                     return false;
                 }
             }
+        }
+        else
+        {
+            return false;
+        }
 
-            if constexpr(NeedTransposeKernel)
+        if constexpr(NeedTransposeKernel)
+        {
+            if((ConvG * ConvC) % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
             {
-                if((ConvG * ConvK) % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
-                {
-                    return false;
-                }
+                return false;
+            }
+
+            if((ConvG * ConvK) % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
+            {
+                return false;
             }
 
             const index_t a_spatial_acum = ck::accumulate_n<index_t>(
