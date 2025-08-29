@@ -44,12 +44,12 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         constexpr index_t VecLoadSize = GetVectorSizeBQ<Problem>();
         using WarpTile                = typename Problem::BlockGemmShape::WarpTile;
         using WarpGemm                = WarpGemmDispatcher<typename Problem::ComputeDataType,
-                                                               typename Problem::ComputeDataType,
-                                                               typename Problem::CDataType,
-                                                               WarpTile::at(I0),
-                                                               WarpTile::at(I1),
-                                                               WarpTile::at(I2),
-                                                               Problem::TransposeC>;
+                                                           typename Problem::ComputeDataType,
+                                                           typename Problem::CDataType,
+                                                           WarpTile::at(I0),
+                                                           WarpTile::at(I1),
+                                                           WarpTile::at(I2),
+                                                           Problem::TransposeC>;
 
         static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
         using TileEncodingPattern = TileDistributionEncodingPatternBQ<BlockGemmShape,
@@ -72,12 +72,12 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                       "KPerWarpGemm must be a multiple of kQuantGroupSize!");
 
         using WarpGemm = WarpGemmDispatcher<typename Problem::ComputeDataType,
-                                                typename Problem::ComputeDataType,
-                                                typename Problem::CDataType,
-                                                WarpTile::at(I0),
-                                                WarpTile::at(I1),
-                                                WarpTile::at(I2),
-                                                Problem::TransposeC>;
+                                            typename Problem::ComputeDataType,
+                                            typename Problem::CDataType,
+                                            WarpTile::at(I0),
+                                            WarpTile::at(I1),
+                                            WarpTile::at(I2),
+                                            Problem::TransposeC>;
         static_assert(std::is_same_v<typename Problem::ComputeDataType, fp8_t> ||
                       std::is_same_v<typename Problem::ComputeDataType, bf8_t>);
         static_assert(std::is_same_v<typename Problem::CDataType, float>);
