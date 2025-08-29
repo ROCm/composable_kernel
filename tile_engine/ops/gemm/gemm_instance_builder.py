@@ -572,7 +572,7 @@ struct SelectedKernel {{
             
             // Get grid and block sizes
             const dim3 grids = {"GemmKernel::MaxOccupancyGridSize(stream)" if persistent == "true" else "GemmKernel::GridSize(args.M, args.N, args.k_batch)"};
-            constexpr dim3 blocks = GemmKernel::BlockSize();
+            const dim3 blocks = GemmKernel::BlockSize();
             
             if(stream.log_level_ > 0) {{
                 std::cout << "Launching kernel with args: " << GemmKernel::GetName() << '\\n'
@@ -585,7 +585,7 @@ struct SelectedKernel {{
             constexpr int kBlockPerCu = 1;
             ave_time = ck_tile::launch_kernel(
                 stream,
-                ck_tile::make_kernel<blocks.x, kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
+                ck_tile::make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
             
             return ave_time;
         }};
