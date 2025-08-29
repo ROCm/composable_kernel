@@ -32,7 +32,7 @@ struct TileGemmAQuantTraits
     static constexpr bool UseStructuredSparsity = false;
     static constexpr index_t NumWaveGroups      = 1;
 
-    static constexpr bool PreshuffleQuant       = PreshuffleQuant_;
+    static constexpr bool PreshuffleQuant = PreshuffleQuant_;
 };
 
 template <bool kPadM_,
