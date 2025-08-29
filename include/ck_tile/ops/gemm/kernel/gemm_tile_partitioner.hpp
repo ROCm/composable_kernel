@@ -394,7 +394,7 @@ struct StreamKTilePartitioner
                                                uint32_t K,
                                                uint32_t num_cu,
                                                uint32_t occupancy,
-                                               uint32_t sk_blocks = -1) noexcept
+                                               uint32_t sk_blocks = 0xffffffff) noexcept
         : M_(M), N_(N), K_(K)
     {
         num_tile_m_ = integer_divide_ceil(M, MPerBlock);
@@ -492,7 +492,7 @@ struct StreamKTilePartitioner
             }
 
             // give a chance to control num of sk blocks
-            sk_num_blocks = sk_blocks != -1 ? sk_blocks : sk_num_blocks;
+            sk_num_blocks = sk_blocks != 0xffffffff ? sk_blocks : sk_num_blocks;
 
             if(sk_num_blocks == 0)
             {

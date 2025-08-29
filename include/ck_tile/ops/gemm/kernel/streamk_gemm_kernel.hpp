@@ -28,7 +28,7 @@ struct StreamKHostArgs : public ck_tile::UniversalGemmHostArgs<>
                                           index_t stride_B_,
                                           index_t stride_C_,
                                           StreamKReductionStrategy reduction_strategy_,
-                                          uint32_t num_sk_blocks_ = -1)
+                                          uint32_t num_sk_blocks_ = 0xffffffff)
         : UniversalGemmHostArgs<>({a_ptr_},
                                   {b_ptr_},
                                   {/*ds_ptr*/},
