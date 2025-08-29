@@ -1,11 +1,9 @@
-
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 #include <bit>
 #include <random>
-#include <stdexcept>
 
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
@@ -15,72 +13,75 @@ static constexpr inline auto is_row_major(Layout layout_)
 }
 
 template <typename T>
-auto shuffle_aq(const ck_tile::HostTensor<T>& t, int block_aq_k)
+auto shuffle_bq(const ck_tile::HostTensor<T>& t, int block_bq_k)
 {
     if(t.get_lengths().size() != 2)
     {
         throw std::runtime_error("Host tensor is not rank 2 tensor.");
     }
-    int m_   = t.get_lengths()[0];
-    int aqk_ = t.get_lengths()[1];
-    if(aqk_ % block_aq_k != 0)
+    int n_   = t.get_lengths()[0];
+    int bqk_ = t.get_lengths()[1];
+    if(bqk_ % block_bq_k != 0)
     {
-        throw std::runtime_error("shuffle_aq needs a aqk of multiple times of block_aq_k.");
+        throw std::runtime_error("shuffle_aq needs a bqk of multiple times of block_bq_k.");
     }
-    ck_tile::HostTensor<T> t_view({m_, aqk_ / block_aq_k, block_aq_k});
+    ck_tile::HostTensor<T> t_view({n_, bqk_ / block_bq_k, block_bq_k});
     std::copy(t.begin(), t.end(), t_view.begin());
     return ck_tile::reference_permute(t_view, {1, 0, 2});
 }
 
 template <typename GemmConfig,
           typename ADataType,
-          typename AQDataType,
           typename BDataType,
+          typename BQDataType,
+          typename DsDataType,
           typename AccDataType,
           typename CDataType,
           typename ALayout,
-          typename AQLayout,
           typename BLayout,
+          typename BQLayout,
+          typename DsLayout,
           typename CLayout,
-          uint32_t QuantGroupSize>
+          uint32_t QuantGroupSize,
+          typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
-                  ck_tile::DeviceMem& aq_m_aqk_dev_buf,
                   ck_tile::DeviceMem& b_k_n_dev_buf,
+                  ck_tile::DeviceMem& bq_bqk_n_dev_buf,
                   ck_tile::DeviceMem& c_m_n_dev_buf,
                   ck_tile::index_t M,
                   ck_tile::index_t N,
                   ck_tile::index_t K,
-                  ck_tile::index_t AQK,
+                  ck_tile::index_t BQK,
                   ck_tile::index_t stride_A,
-                  ck_tile::index_t stride_AQ,
                   ck_tile::index_t stride_B,
+                  ck_tile::index_t stride_BQ,
                   ck_tile::index_t stride_C,
                   ck_tile::index_t kbatch,
                   int n_warmup,
                   int n_repeat)
 {
-    ck_tile::AQuantGemmHostArgs args;
+    ck_tile::BQuantGemmHostArgs args;
     args.a_ptr     = a_m_k_dev_buf.GetDeviceBuffer();
-    args.aq_ptr    = aq_m_aqk_dev_buf.GetDeviceBuffer();
     args.b_ptr     = b_k_n_dev_buf.GetDeviceBuffer();
+    args.bq_ptr    = bq_bqk_n_dev_buf.GetDeviceBuffer();
     args.c_ptr     = c_m_n_dev_buf.GetDeviceBuffer();
     args.k_batch   = kbatch;
     args.M         = M;
     args.N         = N;
     args.K         = K;
-    args.QK        = AQK;
+    args.QK        = BQK;
     args.stride_A  = stride_A;
     args.stride_B  = stride_B;
     args.stride_C  = stride_C;
-    args.stride_AQ = stride_AQ;
+    args.stride_BQ = stride_BQ;
 
-    float ave_time = gemm_calc_aquant<GemmConfig,
+    float ave_time = gemm_calc_bquant<GemmConfig,
                                       ADataType,
-                                      AQDataType,
                                       BDataType,
+                                      BQDataType,
                                       AccDataType,
                                       CDataType,
-                                      BDataType,
+                                      ADataType, // computeDatatype
                                       ALayout,
                                       BLayout,
                                       CLayout,
@@ -88,18 +89,18 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::size_t flop     = std::size_t(2) * M * N * K;
-    std::size_t num_byte = sizeof(ADataType) * M * K + sizeof(AQDataType) * M * AQK +
-                           sizeof(BDataType) * N * K + sizeof(CDataType) * M * N;
+    std::size_t num_byte = sizeof(ADataType) * M * K + sizeof(BDataType) * N * K +
+                           sizeof(BQDataType) * BQK * N + sizeof(CDataType) * M * N;
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_byte / 1.E6 / ave_time;
 
     std::cout << "Run Gemm kernel with M =" << M << " N =" << N << " K =" << K
-              << " StrideA =" << stride_A << " StrideAQ =" << stride_AQ << " StrideB =" << stride_B
+              << " StrideA =" << stride_A << " StrideB =" << stride_B << " StrideBQ =" << stride_BQ
               << " StrideC =" << stride_C << " A_Layout =" << ALayout::name
               << " B_Layout =" << BLayout::name << " C_Layout =" << CLayout::name
               << " A_Type = " << DataTypeTraits<ADataType>::name
-              << " AQ_Type = " << DataTypeTraits<AQDataType>::name
               << " B_Type = " << DataTypeTraits<BDataType>::name
+              << " BQ_Type = " << DataTypeTraits<BQDataType>::name
               << " Acc_Type = " << DataTypeTraits<AccDataType>::name
               << " C_Type = " << DataTypeTraits<CDataType>::name << " : " << ave_time << " ms, "
               << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
@@ -111,14 +112,14 @@ template <typename GemmConfig,
           typename TypeConfig,
           uint32_t QuantGroupSize,
           typename ALayout,
-          typename AQLayout,
           typename BLayout,
+          typename BQLayout,
           typename CLayout>
 int run_gemm_example_with_layouts(int argc,
                                   char* argv[],
                                   const ALayout a_layout                  = ALayout{},
-                                  const AQLayout aq_layout                = AQLayout{},
                                   const BLayout b_layout                  = BLayout{},
+                                  const BQLayout bq_layout                = BQLayout{},
                                   [[maybe_unused]] const CLayout c_layout = CLayout{})
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -126,8 +127,8 @@ int run_gemm_example_with_layouts(int argc,
         return -1;
 
     using ADataType   = typename TypeConfig::ADataType;
-    using AQDataType  = typename TypeConfig::QDataType;
     using BDataType   = typename TypeConfig::BDataType;
+    using BQDataType  = typename TypeConfig::QDataType;
     using AccDataType = typename TypeConfig::AccDataType;
     using CDataType   = typename TypeConfig::CDataType;
 
@@ -140,11 +141,11 @@ int run_gemm_example_with_layouts(int argc,
         throw std::runtime_error("K must be aligned with QuantGroupSize");
     }
 
-    ck_tile::index_t AQK = K / QuantGroupSize;
+    ck_tile::index_t BQK = K / QuantGroupSize;
 
     ck_tile::index_t stride_A  = arg_parser.get_int("stride_a");
-    ck_tile::index_t stride_AQ = arg_parser.get_int("stride_q");
     ck_tile::index_t stride_B  = arg_parser.get_int("stride_b");
+    ck_tile::index_t stride_BQ = arg_parser.get_int("stride_q");
     ck_tile::index_t stride_C  = arg_parser.get_int("stride_c");
 
     ck_tile::index_t kbatch      = arg_parser.get_int("split_k");
@@ -153,16 +154,16 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::index_t init_method = arg_parser.get_int("init");
 
     stride_A  = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
-    stride_AQ = ck_tile::get_default_stride(M, AQK, stride_AQ, is_row_major(aq_layout));
     stride_B  = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
+    stride_BQ = ck_tile::get_default_stride(BQK, N, stride_BQ, is_row_major(bq_layout));
     stride_C  = ck_tile::get_default_stride(M, N, stride_C, is_row_major(CLayout{}));
 
     ck_tile::HostTensor<ADataType> a_m_k(
         ck_tile::host_tensor_descriptor(M, K, stride_A, is_row_major(a_layout)));
-    ck_tile::HostTensor<AQDataType> aq_m_aqk(
-        ck_tile::host_tensor_descriptor(M, AQK, stride_AQ, is_row_major(aq_layout)));
     ck_tile::HostTensor<BDataType> b_k_n(
         ck_tile::host_tensor_descriptor(K, N, stride_B, is_row_major(b_layout)));
+    ck_tile::HostTensor<BQDataType> bq_bqk_n(
+        ck_tile::host_tensor_descriptor(BQK, N, stride_BQ, is_row_major(bq_layout)));
     ck_tile::HostTensor<CDataType> c_m_n_dev_result(
         ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
@@ -172,17 +173,17 @@ int run_gemm_example_with_layouts(int argc,
 
     if(init_method == 0)
     {
-        if constexpr(std::is_same_v<ADataType, ck_tile::pk_int4_t>)
+        if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
         {
             ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{-5.0f, 5.0f, fill_seed(gen)}(
-                a_m_k);
+                b_k_n);
         }
         else
         {
-            ck_tile::FillUniformDistribution<ADataType>{-2.0f, 3.0f, fill_seed(gen)}(a_m_k);
+            ck_tile::FillUniformDistribution<BDataType>{-2.0f, 3.0f, fill_seed(gen)}(b_k_n);
         }
-        ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f, fill_seed(gen)}(aq_m_aqk);
-        ck_tile::FillUniformDistribution<BDataType>{-5.0f, 5.0f, fill_seed(gen)}(b_k_n);
+        ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f, fill_seed(gen)}(bq_bqk_n);
+        ck_tile::FillUniformDistribution<ADataType>{-5.0f, 5.0f, fill_seed(gen)}(a_m_k);
     }
     else if(init_method == 1)
     {
@@ -191,59 +192,51 @@ int run_gemm_example_with_layouts(int argc,
     }
     else if(init_method == 2)
     {
-        ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x22)}(a_m_k);
-        ck_tile::FillConstant<AQDataType>{static_cast<AQDataType>(0.5f)}(aq_m_aqk);
-        ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x38)}(b_k_n);
+        ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x38)}(a_m_k);
+        ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x22)}(b_k_n);
+        ck_tile::FillConstant<BQDataType>{static_cast<BQDataType>(0.5f)}(bq_bqk_n);
     }
     else
     {
         a_m_k.SetZero();
-        aq_m_aqk.SetZero();
         b_k_n.SetZero();
+        bq_bqk_n.SetZero();
     }
 
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem aq_m_aqk_dev_buf(aq_m_aqk.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem bq_bqk_n_dev_buf(bq_bqk_n.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
-
-    if constexpr(GemmConfig::PreshuffleQuant)
-    {
-        ck_tile::HostTensor<AQDataType> aq_shuffle_host =
-            shuffle_aq(aq_m_aqk, GemmConfig::K_Tile / QuantGroupSize);
-        aq_m_aqk_dev_buf.ToDevice(aq_shuffle_host.data());
-    }
-    else
-    {
-        aq_m_aqk_dev_buf.ToDevice(aq_m_aqk.data());
-    }
 
     a_m_k_dev_buf.ToDevice(a_m_k.data());
     b_k_n_dev_buf.ToDevice(b_k_n.data());
+    bq_bqk_n_dev_buf.ToDevice(bq_bqk_n.data());
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
     invoke_gemm<GemmConfig,
                 ADataType,
-                AQDataType,
                 BDataType,
+                BQDataType,
+                ck_tile::tuple<>,
                 AccDataType,
                 CDataType,
                 ALayout,
-                AQLayout,
                 BLayout,
+                BQLayout,
+                ck_tile::tuple<>,
                 CLayout,
                 QuantGroupSize>(a_m_k_dev_buf,
-                                aq_m_aqk_dev_buf,
                                 b_k_n_dev_buf,
+                                bq_bqk_n_dev_buf,
                                 c_m_n_dev_buf,
                                 M,
                                 N,
                                 K,
-                                AQK,
+                                BQK,
                                 stride_A,
-                                stride_AQ,
                                 stride_B,
+                                stride_BQ,
                                 stride_C,
                                 kbatch,
                                 n_warmup,
@@ -259,12 +252,12 @@ int run_gemm_example_with_layouts(int argc,
         c_m_n_host_ref.SetZero();
 
         ck_tile::reference_gemm_quant<ADataType,
-                                      AQDataType,
+                                      BQDataType,
                                       BDataType,
                                       AccDataType,
                                       CDataType,
                                       QuantGroupSize,
-                                      true>(a_m_k, aq_m_aqk, b_k_n, c_m_n_host_ref);
+                                      false>(a_m_k, bq_bqk_n, b_k_n, c_m_n_host_ref);
         const float max_accumulated_value =
             *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
         const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(

@@ -250,8 +250,7 @@ CK_TILE_HOST_DEVICE constexpr pk_fp4_t fp16x2_to_pk_fp4(const fp16x2_t& x, float
 #if CK_TILE_FP4_CVT_DEVICE
     return impl::_to_f4(x, scale);
 #else
-    return pk_fp4_t::pack(float_to_e2m1(type_convert<float>(x[0]), scale),
-                          float_to_e2m1(type_convert<float>(x[1]), scale));
+    return pk_fp4_t::pack(float_to_e2m1(x[0], scale), float_to_e2m1(x[1], scale));
 #endif
 }
 CK_TILE_HOST_DEVICE constexpr pk_fp4_t bf16x2_to_pk_fp4(const bf16x2_t& x, float scale)
@@ -259,8 +258,7 @@ CK_TILE_HOST_DEVICE constexpr pk_fp4_t bf16x2_to_pk_fp4(const bf16x2_t& x, float
 #if CK_TILE_FP4_CVT_DEVICE
     return impl::_to_f4(x, scale);
 #else
-    return pk_fp4_t::pack(float_to_e2m1(type_convert<float>(x[0]), scale),
-                          float_to_e2m1(type_convert<float>(x[1]), scale));
+    return pk_fp4_t::pack(float_to_e2m1(x[0], scale), float_to_e2m1(x[1], scale));
 #endif
 }
 CK_TILE_HOST_DEVICE constexpr pk_fp4_t fp32x2_to_pk_fp4(const fp32x2_t& x, float scale)

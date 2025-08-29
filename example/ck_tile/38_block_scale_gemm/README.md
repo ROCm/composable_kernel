@@ -10,6 +10,7 @@ mkdir build && cd build
 ../script/cmake-ck-dev.sh  ../ <arch>
 # The aquant pipeline method on the gemm calculation
 make tile_example_gemm_aquant_basic -j
+make tile_example_gemm_bquant_basic -j
 ```
 This will result in an executable `build/bin/tile_example_gemm_aquant_basic`
 

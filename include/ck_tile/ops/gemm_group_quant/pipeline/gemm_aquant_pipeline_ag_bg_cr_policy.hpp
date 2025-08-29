@@ -28,7 +28,7 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         constexpr index_t KPerBlockAQ = KPerBlock / Problem::kQuantGroupSize;
 
         static_assert(std::is_same_v<AQLayout, ck_tile::tensor_layout::gemm::RowMajor>);
-        return GetAQGlobalVectorLoadSize<Problem, AQDataType, MPerBlock, KPerBlockAQ>();
+        return GetABQGlobalVectorLoadSize<Problem, AQDataType, MPerBlock, KPerBlockAQ>();
     }
 
     template <typename Problem>
