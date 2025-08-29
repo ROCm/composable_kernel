@@ -769,6 +769,13 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl, opt
                     cond &= pipeline.F_squant == 'f'
                     if not cond:
                         continue
+
+                # fp32 only
+                if receipt == 800 or receipt == 801:
+                    cond = dtype == 'fp32'
+                    if not cond:
+                        continue
+
                 api_pool.register_traits(k.api_trait())
                 gen.append(k)
 
@@ -836,14 +843,10 @@ def get_fwd_splitkv_combine_blobs(kernel_filter : Optional[str], receipt, optdim
                     if not cond:
                         continue
 
-                # fp32 only, all variations
-                if receipt == 800:
+                # fp32 only
+                if receipt == 800 or receipt == 801:
                     cond = dtype == 'fp32'
                     if not cond:
-                        continue
-                else:
-                    # Don't build fp32 by default
-                    if dtype == 'fp32':
                         continue
 
                 gen.append(k)
