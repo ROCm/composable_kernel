@@ -390,7 +390,7 @@ class GemmKernelBuilder:
         # Determine accumulator type based on datatype
         acc_type = "float"
         if self.datatype in ["int8", "int4"]:
-            acc_type = "int32_t"
+            acc_type = "ck_tile::int32_t"
 
         # Determine output type
         c_type = self._get_dtype_string()
@@ -527,17 +527,16 @@ struct SelectedKernel {{
                 ck_tile::tuple<>,  // DsLayout
                 CLayout,
                 ck_tile::element_wise::PassThrough,
-                UniversalGemmProblem::kBlockSize,
-                TilePartitioner::MPerBlock,
-                TilePartitioner::NPerBlock,
-                WarpPerBlock_M,
-                WarpPerBlock_N,
-                WarpTileM,
-                WarpTileN,
-                WarpTileK,
-                TransposeC,
-                memory_operation,
-                NumWaveGroups>;
+                TilePartitioner::MPerBlock,  // kM_
+                TilePartitioner::NPerBlock,  // kN_
+                WarpPerBlock_M,              // MWave_
+                WarpPerBlock_N,              // NWave_
+                WarpTileM,                   // MPerXdl_
+                WarpTileN,                   // NPerXdl_
+                WarpTileK,                   // KPerXdl_
+                TransposeC,                  // isCTransposed_
+                memory_operation,            // MemoryOperation_
+                NumWaveGroups>;              // kNumWaveGroups_
             
             using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;
 """

@@ -6,6 +6,8 @@
 #include <string>
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
+#include "ck_tile/core/numeric/integer.hpp"
+#include "ck_tile/core/numeric/pk_int4.hpp"
 
 // DataTypeTraits for all supported types
 template <typename T>
