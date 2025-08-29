@@ -539,10 +539,10 @@ class KernelComponentFactory:
             return {
                 #                             bm0, bn0, bk0, bn1, bk1,
                 ( 32,  32) : [FmhaFwdTileSize( 64,  64,  16,  32,  32,   32,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
-                ( 48,  48) : [FmhaFwdTileSize( 32, 128,  16,  48,  16,   48,  2, 1, 1,  2, 1, 1,  16, 16, 16,  16, 16, 16,  -1, CppConstraint('a.max_seqlen_q < 128')),
+                ( 48,  48) : [FmhaFwdTileSize( 32, 128,  16,  48,  16,   48,  2, 1, 1,  2, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
                               FmhaFwdTileSize(128,  64,  16,  48,  32,   48,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
                 ( 64,  64) : [FmhaFwdTileSize( 64,  64,  32,  64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
-                (128, 128) : [FmhaFwdTileSize( 32, 128,  32, 128,  16,  128,  2, 1, 1,  2, 1, 1,  16, 16, 16,  16, 16, 16,  -1, CppConstraint('a.max_seqlen_q < 128')),
+                (128, 128) : [FmhaFwdTileSize( 32, 128,  32, 128,  16,  128,  2, 1, 1,  2, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
                               FmhaFwdTileSize(128,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
                 (256, 256) : [FmhaFwdTileSize( 64,  64,  32, 256,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
             }
@@ -652,12 +652,13 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
                     # NOTE: this is used to speedup deepseek prefill case, we don't gen training
                     if pipeline.F_bias != 'no' or pipeline.F_dropout == 't':
                         continue
-                if pipeline.tag != 'qr_async_trload' and (((hdim, hdim_v) == (128, 128) and tile.F_bn0 != 128) or ((hdim, hdim_v) != (128, 128) and tile.F_bm0 != 128)):
-                    # non qr_async_trload only support km0=128 tile size when hdim is not 128
-                    # non qr_async only support kn0=128 tile size when hdim is 128
-                    continue
-                if pipeline.tag == 'qr_async_trload' and (((hdim, hdim_v) == (128, 128) and tile.F_bn0 == 128) or ((hdim, hdim_v) not in [(64, 64), (128, 128)])):
-                    continue
+                if dtype != 'fp32':
+                    if pipeline.tag != 'qr_async_trload' and (((hdim, hdim_v) == (128, 128) and tile.F_bn0 != 128) or ((hdim, hdim_v) != (128, 128) and tile.F_bm0 != 128)):
+                        # non qr_async_trload only support km0=128 tile size when hdim is not 128
+                        # non qr_async only support kn0=128 tile size when hdim is 128
+                        continue
+                    if pipeline.tag == 'qr_async_trload' and (((hdim, hdim_v) == (128, 128) and tile.F_bn0 == 128) or ((hdim, hdim_v) not in [(64, 64), (128, 128)])):
+                        continue
                 # logits_soft_cap is only allowed if no bias
                 if not ((pipeline.F_logits == 't' and pipeline.F_bias == 'no') or pipeline.F_logits == 'f'):
                     continue
