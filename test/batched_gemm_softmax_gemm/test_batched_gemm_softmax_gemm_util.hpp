@@ -133,11 +133,11 @@ struct DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128
             8,           // AK1
             8,           // BK1
             2,           // B1K1
-            32,          // MPerXDL
-            32,          // NPerXDL
-            1,           // MXdlPerWave
-            4,           // NXdlPerWave
-            4,           // Gemm1NXdlPerWave
+            16,          // MPerXDL
+            16,          // NPerXDL
+            2,           // MXdlPerWave
+            8,           // NXdlPerWave
+            8,           // Gemm1NXdlPerWave
             S<4, 64, 1>, // ABlockTransfer
             S<1, 0, 2>,
             S<1, 0, 2>,

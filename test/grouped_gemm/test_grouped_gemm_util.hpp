@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -210,10 +210,10 @@ struct DeviceGroupedGemmSplitkInstanceWrapper
             KPerBlock,
             K1,
             K1,
-            32,
-            32,
+            16,
+            16,
+            8,
             4,
-            2,
             S<1, 4, 16, 1>,
             ABlockTransferThreadClusterArrageOrder,
             ABlockTransferSrcAccessOrder,

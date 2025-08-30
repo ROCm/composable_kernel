@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <stdexcept>
 #include <vector>
@@ -39,7 +39,7 @@ class TestGGemmSplitKInterface_MKNKMN : public ::testing::Test
                                                          BBlockTransferSrcScalarPerVector,
                                                          CDEBlockTransferScalarPerVector_NPerBlock>;
 
-    using DefaultGGemmInstance = GGemmInstance<GemmDefault, 32, 8, 4, 8, 8>;
+    using DefaultGGemmInstance = GGemmInstance<GemmDefault, 64, 16, 4, 8, 4>;
 };
 
 TEST_F(TestGGemmSplitKInterface_MKNKMN, TileSize)
@@ -67,7 +67,7 @@ TEST_F(TestGGemmSplitKInterface_MKNKMN, VectorLoadWidth)
 {
     static constexpr auto GemmMNKPadding =
         ck::tensor_operation::device::GemmSpecialization::MNKPadding;
-    using PaddedGGemmInstance = GGemmInstance<GemmMNKPadding, 32, 8, 4, 8, 8>;
+    using PaddedGGemmInstance = GGemmInstance<GemmMNKPadding, 64, 16, 4, 8, 4>;
 
     std::vector<int> Ms{128, 256, 256, 512};
     constexpr int N = 256;
@@ -111,7 +111,7 @@ TEST_F(TestGGemmSplitKInterface_MKNKMN, KLoops)
     EXPECT_FALSE(
         DefaultGGemmInstance{}.IsSupported(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, kbatch));
 
-    Ks = std::vector<int>{256, 512, 384, 768};
+    Ks = std::vector<int>{256, 512, 768, 1536};
     EXPECT_TRUE(
         DefaultGGemmInstance{}.IsSupported(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, kbatch));
 
@@ -150,7 +150,7 @@ class TestGGemmSplitKInterface_KMKNNM : public ::testing::Test
                                                          BBlockTransferSrcScalarPerVector,
                                                          CDEBlockTransferScalarPerVector_NPerBlock>;
 
-    using DefaultGGemmInstance = GGemmInstance<GemmDefault, 32, 8, 4, 8, 4>;
+    using DefaultGGemmInstance = GGemmInstance<GemmDefault, 64, 16, 4, 8, 4>;
 };
 
 TEST_F(TestGGemmSplitKInterface_KMKNNM, TileSize)
@@ -178,7 +178,7 @@ TEST_F(TestGGemmSplitKInterface_KMKNNM, VectorLoadWidth)
 {
     static constexpr auto GemmMNKPadding =
         ck::tensor_operation::device::GemmSpecialization::MNKPadding;
-    using PaddedGGemmInstance = GGemmInstance<GemmMNKPadding, 32, 8, 2, 8, 4>;
+    using PaddedGGemmInstance = GGemmInstance<GemmMNKPadding, 64, 16, 2, 8, 4>;
 
     std::vector<int> Ms{128, 256, 256, 512};
     constexpr int N = 256;
