@@ -7,9 +7,9 @@
 #include <sstream>
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/core/numeric/math.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
-#include "ck_tile/ops/gemm_group_quant/pipeline/gemm_aquant_pipeline_ag_bg_cr_base.hpp"
+#include "ck_tile/ops/gemm_group_quant/pipeline/gemm_bquant_pipeline_ag_bg_cr_base.hpp"
 #include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
@@ -21,7 +21,7 @@ namespace ck_tile {
 // LocalSharedMemoryBuffer: 1
 
 template <typename Problem>
-struct BaseAQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
+struct BaseBQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 {
     template <typename RunFunction>
     CK_TILE_HOST_DEVICE static auto
@@ -80,15 +80,15 @@ struct BaseAQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<
     }
 };
 
-template <typename Problem, typename Policy = GemmAQuantPipelineAgBgCrDefaultPolicy>
-struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV3<Problem>
+template <typename Problem, typename Policy = GemmBQuantPipelineAgBgCrDefaultPolicy>
+struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV3<Problem>
 {
     using Base             = BaseGemmPipelineAgBgCrCompV3<Problem>;
-    using PipelineImplBase = GemmAQuantPipelineAgBgCrImplBase<Problem, Policy>;
+    using PipelineImplBase = GemmBQuantPipelineAgBgCrImplBase<Problem, Policy>;
 
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using AQDataType     = remove_cvref_t<typename Problem::AQDataType>;
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
+    using BQDataType     = remove_cvref_t<typename Problem::BQDataType>;
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
@@ -101,11 +101,11 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
     static constexpr index_t BPackedSize =
         ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
 
-    static constexpr index_t AQPackedSize =
-        ck_tile::numeric_traits<remove_cvref_t<AQDataType>>::PackedSize;
+    static constexpr index_t BQPackedSize =
+        ck_tile::numeric_traits<remove_cvref_t<BQDataType>>::PackedSize;
 
     using ALayout  = remove_cvref_t<typename Problem::ALayout>;
-    using AQLayout = remove_cvref_t<typename Problem::AQLayout>;
+    using BQLayout = remove_cvref_t<typename Problem::BQLayout>;
     using BLayout  = remove_cvref_t<typename Problem::BLayout>;
     using CLayout  = remove_cvref_t<typename Problem::CLayout>;
 
@@ -116,14 +116,14 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
     static constexpr index_t NPerBlock      = BlockGemmShape::kN;
     static constexpr index_t KPerBlock      = BlockGemmShape::kK;
     static constexpr index_t QuantGroupSize = Problem::kQuantGroupSize;
-    static constexpr index_t KPerBlockAQ    = BlockGemmShape::kK / QuantGroupSize;
+    static constexpr index_t KPerBlockBQ    = BlockGemmShape::kK / QuantGroupSize;
 
     static constexpr index_t GetVectorSizeA() { return Policy::template GetVectorSizeA<Problem>(); }
     static constexpr index_t GetVectorSizeB() { return Policy::template GetVectorSizeB<Problem>(); }
     static constexpr index_t GetVectorSizeC() { return Policy::template GetVectorSizeC<Problem>(); }
-    static constexpr index_t GetVectorSizeAQ()
+    static constexpr index_t GetVectorSizeBQ()
     {
-        return Policy::template GetVectorSizeAQ<Problem>();
+        return Policy::template GetVectorSizeBQ<Problem>();
     }
 
     static constexpr index_t GetSmemPackA() { return Policy::template GetSmemPackA<Problem>(); }
@@ -134,7 +134,6 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
     static constexpr bool kPadK = Problem::kPadK;
 
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
-    static constexpr bool PreshuffleQuant  = Problem::Traits::PreshuffleQuant;
 
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
     static constexpr auto TailNum    = Problem::TailNum;
@@ -147,7 +146,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
         // clang-format off
         constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(I0{});
         constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
-        return concat('_', "aquant_pipeline_AgBgCrCompV3", 
+        return concat('_', "bquant_pipeline_AgBgCrCompV3",
                       concat('x', MPerBlock, NPerBlock, KPerBlock),
                       BlockSize,
                       concat('x', WaveNumM, WaveNumN),
@@ -181,8 +180,8 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             MPerBlock * KPerBlock / (BlockSize * GetVectorSizeA());
         constexpr index_t B_Buffer_Load_Inst_Num =
             NPerBlock * KPerBlock / (BlockSize * GetVectorSizeB());
-        constexpr index_t AQ_Buffer_Load_Inst_Num =
-            MPerBlock * KPerBlockAQ / (BlockSize * GetVectorSizeAQ());
+        constexpr index_t BQ_Buffer_Load_Inst_Num =
+            NPerBlock * KPerBlockBQ / (BlockSize * GetVectorSizeBQ());
 
         constexpr index_t A_LDS_Write_Inst_Num =
             MPerBlock * KPerBlock / (BlockSize * A_LDS_Write_Width);
@@ -200,10 +199,10 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
         auto str = std::stringstream{};
 
         str << "A/B vector size: " << GetVectorSizeA() << ", " << GetVectorSizeB() << ", "
-            << "AQ vector size: " << GetVectorSizeAQ() << "\n"
+            << "BQ vector size: " << GetVectorSizeBQ() << "\n"
             << "A/B LDS read/write width: " << A_LDS_Read_Width << ", " << B_LDS_Read_Width << "\n"
             << "A/B buffer load inst: " << A_Buffer_Load_Inst_Num << ", " << B_Buffer_Load_Inst_Num
-            << ", " << "AQ buffer load inst: " << AQ_Buffer_Load_Inst_Num << "\n"
+            << ", " << "BQ buffer load inst: " << BQ_Buffer_Load_Inst_Num << "\n"
             << "A/B LDS write inst: " << A_LDS_Write_Inst_Num << ", " << B_LDS_Write_Inst_Num
             << "\n"
             << "A/B LDS read inst: " << A_LDS_Read_Inst_Num << ", " << B_LDS_Read_Inst_Num << "\n"
@@ -228,15 +227,14 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
                   TailNumber TailNum,
                   typename ADramBlockWindowTmp,
                   typename BDramBlockWindowTmp,
-                  typename AQDramBlockWindowTmp,
+                  typename BQDramBlockWindowTmp,
                   typename AElementFunction,
                   typename BElementFunction>
         CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                        const AElementFunction& a_element_func,
                                        const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                        const BElementFunction& b_element_func,
-                                       const AQDramBlockWindowTmp& aq_dram_block_window_tmp,
-                                       index_t m,
+                                       const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
                                        index_t num_loop,
                                        void* p_smem) const
         {
@@ -244,18 +242,21 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
                     std::is_same_v<BDataType,
                                    remove_cvref_t<typename BDramBlockWindowTmp::DataType>> &&
-                    std::is_same_v<AQDataType,
-                                   remove_cvref_t<typename AQDramBlockWindowTmp::DataType>>,
-                "A/B/AQ Dram block window should have the same data type as appropriate "
-                "([A|B|AQ]DataType) defined in Problem definition!");
+                    std::is_same_v<BQDataType,
+                                   remove_cvref_t<typename BQDramBlockWindowTmp::DataType>>,
+                "A/B/BQ Dram block window should have the same data type as appropriate "
+                "([A|B|BQ]DataType) defined in Problem definition!");
 
             constexpr bool is_a_col_major =
                 std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
-            constexpr bool is_aq_col_major =
-                std::is_same_v<AQLayout, tensor_layout::gemm::ColumnMajor>;
+            constexpr bool is_bq_col_major =
+                std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>;
             constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
 
-            static_assert(!is_aq_col_major, "Aq must be row major (col major not supported yet)");
+            static_assert(is_bq_col_major, "Bq must be col major (row major not supported yet)");
+            static_assert(NPerBlock == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                              KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}],
+                          "Bq block window has incorrect lengths for defined BqLayout!");
 
             static_assert(is_a_col_major
                               ? (KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
@@ -272,7 +273,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
 
             using ADramTileWindowStep  = typename ADramBlockWindowTmp::BottomTensorIndex;
             using BDramTileWindowStep  = typename BDramBlockWindowTmp::BottomTensorIndex;
-            using AQDramTileWindowStep = typename AQDramBlockWindowTmp::BottomTensorIndex;
+            using BQDramTileWindowStep = typename BQDramBlockWindowTmp::BottomTensorIndex;
 
             auto&& [a_lds_block, b_lds_block] = Base::GetABLdsTensorViews(p_smem);
 
@@ -285,24 +286,24 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
                 Base::GetAWindows(a_dram_block_window_tmp, a_lds_block, a_lds_load_tile_distr);
             auto&& [b_copy_dram_window, b_copy_lds_window, b_lds_gemm_window] =
                 Base::GetBWindows(b_dram_block_window_tmp, b_lds_block, b_lds_load_tile_distr);
-            auto aq_copy_dram_window = Base::GetAQDramLoadWindow(aq_dram_block_window_tmp);
+            auto bq_copy_dram_window = Base::GetBQDramLoadWindow(bq_dram_block_window_tmp);
 
             using ABlockTileDistr  = decltype(a_copy_dram_window.get_tile_distribution());
             using BBlockTileDistr  = decltype(b_copy_dram_window.get_tile_distribution());
-            using AQBlockTileDistr = decltype(aq_copy_dram_window.get_tile_distribution());
+            using BQBlockTileDistr = decltype(bq_copy_dram_window.get_tile_distribution());
 
             using ABlockTile =
                 decltype(make_static_distributed_tensor<ADataType>(ABlockTileDistr{}));
             using BBlockTile =
                 decltype(make_static_distributed_tensor<BDataType>(BBlockTileDistr{}));
-            using AQBlockTile =
-                decltype(make_static_distributed_tensor<AQDataType>(AQBlockTileDistr{}));
+            using BQBlockTile =
+                decltype(make_static_distributed_tensor<BQDataType>(BQBlockTileDistr{}));
 
             auto block_gemm = BlockGemm();
 
             ABlockTile a_block_tile;
             BBlockTile b_block_tile;
-            AQBlockTile aq_block_tile[2];
+            BQBlockTile bq_block_tile[2];
             int currIdx = 0;
 
             auto c_block_tile = block_gemm.MakeCBlockTile();
@@ -311,19 +312,14 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
                 is_a_col_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
             constexpr BDramTileWindowStep b_dram_tile_window_step =
                 is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
-
-            // only row_major for AQ
-            const AQDramTileWindowStep aq_dram_tile_window_step =
-                PreshuffleQuant ? make_array(ck_tile::integer_least_multiple(m, MPerBlock) /
-                                                 BlockGemm::WarpGemm::kM,
-                                             0)
-                                : make_array(0, KPerBlockAQ);
+            constexpr BQDramTileWindowStep bq_dram_tile_window_step =
+                is_bq_col_major ? make_array(0, KPerBlockBQ) : make_array(KPerBlockBQ, 0);
 
             // DRAM prefetch (global read 0)
             Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
             Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
             Base::GlobalPrefetch(
-                aq_block_tile[currIdx], aq_copy_dram_window, aq_dram_tile_window_step);
+                bq_block_tile[currIdx], bq_copy_dram_window, bq_dram_tile_window_step);
 
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
@@ -392,12 +388,12 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
 
                     Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
                     Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
-                    Base::GlobalPrefetch(aq_block_tile[(currIdx + 1) % 2],
-                                         aq_copy_dram_window,
-                                         aq_dram_tile_window_step);
+                    Base::GlobalPrefetch(bq_block_tile[(currIdx + 1) % 2],
+                                         bq_copy_dram_window,
+                                         bq_dram_tile_window_step);
 
                     block_gemm(
-                        c_block_tile, aq_block_tile[currIdx], a_lds_gemm_window, b_lds_gemm_window);
+                        c_block_tile, bq_block_tile[currIdx], a_lds_gemm_window, b_lds_gemm_window);
 
                     currIdx = (currIdx + 1) % 2;
 
@@ -413,15 +409,15 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             if constexpr((TailNum == TailNumber::Full) || (TailNum == TailNumber::Odd))
             {
                 block_gemm(
-                    c_block_tile, aq_block_tile[currIdx], a_lds_gemm_window, b_lds_gemm_window);
+                    c_block_tile, bq_block_tile[currIdx], a_lds_gemm_window, b_lds_gemm_window);
             }
             else
             {
-                Base::GlobalPrefetch(aq_block_tile[(currIdx + 1) % 2],
-                                     aq_copy_dram_window,
-                                     aq_dram_tile_window_step);
+                Base::GlobalPrefetch(bq_block_tile[(currIdx + 1) % 2],
+                                     bq_copy_dram_window,
+                                     bq_dram_tile_window_step);
                 block_gemm(
-                    c_block_tile, aq_block_tile[currIdx], a_lds_gemm_window, b_lds_gemm_window);
+                    c_block_tile, bq_block_tile[currIdx], a_lds_gemm_window, b_lds_gemm_window);
                 block_sync_lds();
 
                 currIdx = (currIdx + 1) % 2;
@@ -451,18 +447,17 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
                 block_sync_lds();
                 block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
                 block_gemm(
-                    c_block_tile, aq_block_tile[currIdx], a_lds_gemm_window, b_lds_gemm_window);
+                    c_block_tile, bq_block_tile[currIdx], a_lds_gemm_window, b_lds_gemm_window);
             }
             return c_block_tile;
         }
     };
     template <typename ADramBlockWindowTmp,
               typename BDramBlockWindowTmp,
-              typename AQDramBlockWindowTmp>
+              typename BQDramBlockWindowTmp>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
-                                   const AQDramBlockWindowTmp& aq_dram_block_window_tmp,
-                                   index_t m,
+                                   const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
                                    index_t num_loop,
                                    void* p_smem) const
     {
@@ -471,8 +466,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             [](const ADataType& a) { return a; },
             b_dram_block_window_tmp,
             [](const BDataType& b) { return b; },
-            aq_dram_block_window_tmp,
-            m,
+            bq_dram_block_window_tmp,
             num_loop,
             p_smem);
     }

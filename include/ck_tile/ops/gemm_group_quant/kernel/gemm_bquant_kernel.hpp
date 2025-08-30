@@ -3,29 +3,26 @@
 
 #pragma once
 
+#include <iostream>
 #include <string>
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/core/algorithm/coordinate_transform.hpp"
-#include "ck_tile/core/arch/arch.hpp"
-#include "ck_tile/core/container/tuple.hpp"
-#include "ck_tile/core/numeric/integer.hpp"
-#include "ck_tile/core/numeric/math.hpp"
+#include "ck_tile/ops/common.hpp"
 #include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
 
-struct AQuantGemmProblem
+struct BQuantGemmProblem
 {
-    CK_TILE_HOST AQuantGemmProblem() = default;
-    CK_TILE_HOST AQuantGemmProblem(index_t M_,
+    CK_TILE_HOST BQuantGemmProblem() = default;
+    CK_TILE_HOST BQuantGemmProblem(index_t M_,
                                    index_t N_,
                                    index_t K_,
                                    index_t QK_,
                                    index_t stride_A_,
                                    index_t stride_B_,
                                    index_t stride_C_,
-                                   index_t stride_AQ_)
+                                   index_t stride_BQ_)
         : M(M_),
           N(N_),
           K(K_),
@@ -33,7 +30,7 @@ struct AQuantGemmProblem
           stride_A(stride_A_),
           stride_B(stride_B_),
           stride_C(stride_C_),
-          stride_AQ(stride_AQ_)
+          stride_BQ(stride_BQ_)
     {
     }
 
@@ -44,16 +41,16 @@ struct AQuantGemmProblem
     index_t stride_A;
     index_t stride_B;
     index_t stride_C;
-    index_t stride_AQ;
+    index_t stride_BQ;
 };
 
-struct AQuantGemmHostArgs : public AQuantGemmProblem
+struct BQuantGemmHostArgs : public BQuantGemmProblem
 {
-    CK_TILE_HOST AQuantGemmHostArgs() = default;
-    CK_TILE_HOST AQuantGemmHostArgs(const void* a_ptr_,
+    CK_TILE_HOST BQuantGemmHostArgs() = default;
+    CK_TILE_HOST BQuantGemmHostArgs(const void* a_ptr_,
                                     const void* b_ptr_,
                                     void* c_ptr_,
-                                    const void* aq_ptr_,
+                                    const void* bq_ptr_,
                                     index_t k_batch_,
                                     index_t M_,
                                     index_t N_,
@@ -62,11 +59,11 @@ struct AQuantGemmHostArgs : public AQuantGemmProblem
                                     index_t stride_A_,
                                     index_t stride_B_,
                                     index_t stride_C_,
-                                    index_t stride_AQ_)
-        : AQuantGemmProblem(M_, N_, K_, QK_, stride_A_, stride_B_, stride_C_, stride_AQ_),
+                                    index_t stride_BQ_)
+        : BQuantGemmProblem(M_, N_, K_, QK_, stride_A_, stride_B_, stride_C_, stride_BQ_),
           a_ptr(a_ptr_),
           b_ptr(b_ptr_),
-          aq_ptr(aq_ptr_),
+          bq_ptr(bq_ptr_),
           c_ptr(c_ptr_),
           k_batch(k_batch_)
     {
@@ -74,16 +71,16 @@ struct AQuantGemmHostArgs : public AQuantGemmProblem
 
     const void* a_ptr;
     const void* b_ptr;
-    const void* aq_ptr;
+    const void* bq_ptr;
     void* c_ptr;
     index_t k_batch;
 };
 
-struct AQuantGemmKernelArgs
+struct BQuantGemmKernelArgs
 {
     const void* a_ptr;
     const void* b_ptr;
-    const void* aq_ptr;
+    const void* bq_ptr;
     void* c_ptr;
     index_t M;
     index_t N;
@@ -92,26 +89,25 @@ struct AQuantGemmKernelArgs
     index_t stride_A;
     index_t stride_B;
     index_t stride_C;
-    index_t stride_AQ;
+    index_t stride_BQ;
     index_t k_batch;
 };
 
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
-struct AQuantGemmKernel
+struct BQuantGemmKernel
 {
-    using TilePartitioner                 = remove_cvref_t<TilePartitioner_>;
-    using GemmPipeline                    = remove_cvref_t<GemmPipeline_>;
-    using EpiloguePipeline                = remove_cvref_t<EpiloguePipeline_>;
-    using ALayout                         = remove_cvref_t<typename GemmPipeline::ALayout>;
-    using AQLayout                        = remove_cvref_t<typename GemmPipeline::AQLayout>;
-    using BLayout                         = remove_cvref_t<typename GemmPipeline::BLayout>;
-    using CLayout                         = remove_cvref_t<typename GemmPipeline::CLayout>;
-    static constexpr index_t kBlockSize   = GemmPipeline::BlockSize;
-    static constexpr bool PreshuffleQuant = GemmPipeline::PreshuffleQuant;
+    using TilePartitioner               = remove_cvref_t<TilePartitioner_>;
+    using GemmPipeline                  = remove_cvref_t<GemmPipeline_>;
+    using EpiloguePipeline              = remove_cvref_t<EpiloguePipeline_>;
+    using ALayout                       = remove_cvref_t<typename GemmPipeline::ALayout>;
+    using BLayout                       = remove_cvref_t<typename GemmPipeline::BLayout>;
+    using BQLayout                      = remove_cvref_t<typename GemmPipeline::BQLayout>;
+    using CLayout                       = remove_cvref_t<typename GemmPipeline::CLayout>;
+    static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
 
     using ADataType  = remove_cvref_t<typename GemmPipeline::ADataType>;
-    using AQDataType = remove_cvref_t<typename GemmPipeline::AQDataType>;
     using BDataType  = remove_cvref_t<typename GemmPipeline::BDataType>;
+    using BQDataType = remove_cvref_t<typename GemmPipeline::BQDataType>;
     using CDataType  = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
     static constexpr auto I0 = number<0>();
@@ -133,12 +129,12 @@ struct AQuantGemmKernel
 
     CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
 
-    CK_TILE_HOST static constexpr AQuantGemmKernelArgs
-    MakeKernelArgs(const AQuantGemmHostArgs& hostArgs)
+    CK_TILE_HOST static constexpr BQuantGemmKernelArgs
+    MakeKernelArgs(const BQuantGemmHostArgs& hostArgs)
     {
-        return AQuantGemmKernelArgs{hostArgs.a_ptr,
+        return BQuantGemmKernelArgs{hostArgs.a_ptr,
                                     hostArgs.b_ptr,
-                                    hostArgs.aq_ptr,
+                                    hostArgs.bq_ptr,
                                     hostArgs.c_ptr,
                                     hostArgs.M,
                                     hostArgs.N,
@@ -147,7 +143,7 @@ struct AQuantGemmKernel
                                     hostArgs.stride_A,
                                     hostArgs.stride_B,
                                     hostArgs.stride_C,
-                                    hostArgs.stride_AQ,
+                                    hostArgs.stride_BQ,
                                     hostArgs.k_batch};
     }
 
@@ -158,10 +154,10 @@ struct AQuantGemmKernel
 
     struct SplitKBatchOffset
     {
-        __device__ SplitKBatchOffset(const AQuantGemmKernelArgs& kargs,
+        __device__ SplitKBatchOffset(const BQuantGemmKernelArgs& kargs,
                                      const std::size_t k_id = blockIdx.z)
         {
-            constexpr auto K1   = TilePartitioner::BlockGemmShape::WarpTile::at(I2);
+            constexpr auto K1   = TilePartitioner::BlockGemmShape::WarpTile::at(number<2>{});
             const index_t K_t   = __builtin_amdgcn_readfirstlane(kargs.k_batch * K1);
             const index_t KRead = __builtin_amdgcn_readfirstlane((kargs.K + K_t - 1) / K_t * K1);
 
@@ -198,7 +194,7 @@ struct AQuantGemmKernel
         index_t splitted_k;
     };
 
-    CK_TILE_HOST static bool IsSupportedArgument(const AQuantGemmKernelArgs& kargs)
+    CK_TILE_HOST static bool IsSupportedArgument(const BQuantGemmKernelArgs& kargs)
     {
         if(kargs.k_batch != 1)
         {
@@ -209,8 +205,8 @@ struct AQuantGemmKernel
             return false;
         }
 
-        static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
-        if(kargs.QK % GemmPipeline::GetVectorSizeAQ() != 0)
+        static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
+        if(kargs.QK % GemmPipeline::GetVectorSizeBQ() != 0)
         {
             if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
             {
@@ -349,9 +345,9 @@ struct AQuantGemmKernel
     template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
     CK_TILE_DEVICE static auto MakeGemmTensorViews(const ADataType* a_ptr,
                                                    const BDataType* b_ptr,
-                                                   const AQDataType* aq_ptr,
+                                                   const BQDataType* bq_ptr,
                                                    CDataType* c_ptr,
-                                                   const AQuantGemmKernelArgs& kargs,
+                                                   const BQuantGemmKernelArgs& kargs,
                                                    const SplitKBatchOffset& splitk_batch_offset)
     {
         static_assert(!TilePartitioner::BlockGemmShape::PermuteA, "Not implemented!");
@@ -376,75 +372,14 @@ struct AQuantGemmKernel
             }
         }();
 
-        const auto get_padding_size = [](index_t length, index_t alignment) {
-            return ck_tile::integer_least_multiple(length, alignment) - length;
-        };
-
-        const auto& make_preshuffled_aq_tensor_view = [&]() {
-            const auto aq_x = kargs.M * GemmPipeline::KPerBlockAQ;
-            const auto aq_y = kargs.QK / GemmPipeline::KPerBlockAQ;
-
-            const auto aq_desc =
-                make_naive_tensor_descriptor(make_tuple(aq_y, aq_x),
-                                             make_tuple(aq_x, 1),
-                                             number<GemmPipeline::GetVectorSizeAQ()>{},
-                                             number<1>{});
-
-            const auto block_tile_size = GemmPipeline::MPerBlock * GemmPipeline::KPerBlockAQ;
-            const auto aq_pad0_desc    = transform_tensor_descriptor(
-                aq_desc,
-                make_tuple(make_pass_through_transform(aq_y),
-                           make_right_pad_transform(aq_x, get_padding_size(aq_x, block_tile_size))),
-                make_tuple(sequence<0>{}, sequence<1>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}));
-
-            const auto pad_aq_x = aq_pad0_desc.get_lengths()[I1];
-            const auto wave_tile_size =
-                TilePartitioner::BlockGemmShape::WarpTile::at(I0) * GemmPipeline::KPerBlockAQ;
-            const auto wave_tile_count_x = ck_tile::integer_divide_ceil(pad_aq_x, wave_tile_size);
-            const auto aq_unmerge_pad0_desc = transform_tensor_descriptor(
-                aq_pad0_desc,
-                make_tuple(make_pass_through_transform(aq_y),
-                           make_unmerge_transform(make_tuple(wave_tile_count_x, wave_tile_size))),
-                make_tuple(sequence<0>{}, sequence<1>{}),
-                make_tuple(sequence<0>{}, sequence<1, 2>{}));
-
-            const auto aq_pad1_desc = transform_tensor_descriptor(
-                aq_unmerge_pad0_desc,
-                make_tuple(make_pass_through_transform(aq_y),
-                           make_pass_through_transform(wave_tile_count_x),
-                           make_right_pad_transform(
-                               wave_tile_size, get_padding_size(wave_tile_size, get_warp_size()))),
-                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
-
-            const auto pad_wave_size =
-                ck_tile::integer_least_multiple(wave_tile_size, get_warp_size());
-            const auto aq_merge_pad1_desc = transform_tensor_descriptor(
-                aq_pad1_desc,
-                make_tuple(make_merge_transform(make_tuple(aq_y, wave_tile_count_x)),
-                           make_pass_through_transform(pad_wave_size)),
-                make_tuple(sequence<0, 1>{}, sequence<2>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}));
-
-            return make_tensor_view<address_space_enum::global>(aq_ptr, aq_merge_pad1_desc);
-        };
-
-        const auto& aq_tensor_view = [&]() {
-            static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
-            if constexpr(PreshuffleQuant)
-            {
-                return make_preshuffled_aq_tensor_view();
-            }
-            else
-            {
-                return make_naive_tensor_view<address_space_enum::global>(
-                    aq_ptr,
-                    make_tuple(kargs.M, kargs.QK),
-                    make_tuple(kargs.stride_AQ, 1),
-                    number<GemmPipeline::GetVectorSizeAQ()>{},
-                    number<1>{});
-            }
+        const auto& bq_tensor_view = [&]() {
+            static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
+            return make_naive_tensor_view<address_space_enum::global>(
+                bq_ptr,
+                make_tuple(kargs.N, kargs.QK),
+                make_tuple(kargs.stride_BQ, 1),
+                number<GemmPipeline::GetVectorSizeBQ()>{},
+                number<1>{});
         }();
 
         const auto& b_tensor_view = [&]() {
@@ -532,7 +467,7 @@ struct AQuantGemmKernel
             }
         }();
 
-        return make_tuple(a_tensor_view, aq_tensor_view, b_tensor_view, c_tensor_view);
+        return make_tuple(a_tensor_view, bq_tensor_view, b_tensor_view, c_tensor_view);
     }
 
     template <typename TensorView>
@@ -556,7 +491,16 @@ struct AQuantGemmKernel
             }
         }();
 
-        const auto& aq_pad_view = [&]() { return views.at(I1); }();
+        const auto& bq_pad_view = [&]() {
+            const auto& bq_tensor_view = views.at(I1);
+            static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
+            return pad_tensor_view(
+                bq_tensor_view,
+                make_tuple(number<TilePartitioner::NPerBlock>{},
+                           number<TilePartitioner::KPerBlock / GemmPipeline::QuantGroupSize>{}),
+                // TODO: Add support for padding.
+                sequence<false, false>{});
+        }();
 
         const auto& b_pad_view = [&]() {
             const auto& b_tensor_view = views.at(I2);
@@ -595,7 +539,7 @@ struct AQuantGemmKernel
             }
         }();
 
-        return make_tuple(a_pad_view, aq_pad_view, b_pad_view, c_pad_view);
+        return make_tuple(a_pad_view, bq_pad_view, b_pad_view, c_pad_view);
     }
 
     template <typename PadView>
@@ -603,7 +547,7 @@ struct AQuantGemmKernel
     MakeGemmTileWindows(const PadView& views, const index_t i_m, const index_t i_n)
     {
         const auto& a_pad_view  = views.at(I0);
-        const auto& aq_pad_view = views.at(I1);
+        const auto& bq_pad_view = views.at(I1);
         const auto& b_pad_view  = views.at(I2);
         const auto& c_pad_view  = views.at(I3);
 
@@ -624,31 +568,13 @@ struct AQuantGemmKernel
             }
         }();
 
-        const auto& aq_block_window = [&]() {
-            static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
-            constexpr auto block_m = TilePartitioner::MPerBlock;
-            constexpr auto block_k = TilePartitioner::KPerBlock;
-            constexpr auto warp_m  = TilePartitioner::BlockGemmShape::WarpTile::at(I0);
-            constexpr auto aqk_per_block =
-                TilePartitioner::KPerBlock / GemmPipeline::QuantGroupSize;
-            if constexpr(PreshuffleQuant)
-            {
-                constexpr auto tile_window_width =
-                    ck_tile::integer_least_multiple(warp_m * aqk_per_block, get_warp_size());
-                constexpr auto tile_window_height = block_m / warp_m;
-                auto block_m_idx                  = i_m / block_m;
-                return make_tile_window(
-                    aq_pad_view,
-                    make_tuple(number<tile_window_height>{}, number<tile_window_width>{}),
-                    {block_m_idx * tile_window_height, 0});
-            }
-            else
-            {
-                return make_tile_window(
-                    aq_pad_view,
-                    make_tuple(number<block_m>{}, number<block_k / GemmPipeline::QuantGroupSize>{}),
-                    {i_m, 0});
-            }
+        const auto& bq_block_window = [&]() {
+            static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
+            return make_tile_window(
+                bq_pad_view,
+                make_tuple(number<TilePartitioner::NPerBlock>{},
+                           number<TilePartitioner::KPerBlock / GemmPipeline::QuantGroupSize>{}),
+                {i_n, 0});
         }();
 
         const auto& b_block_window = [&]() {
@@ -673,7 +599,7 @@ struct AQuantGemmKernel
             make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
             {i_m, i_n});
 
-        return make_tuple(a_block_window, aq_block_window, b_block_window, c_block_window);
+        return make_tuple(a_block_window, bq_block_window, b_block_window, c_block_window);
     }
 
     /**
@@ -681,7 +607,7 @@ struct AQuantGemmKernel
      *
      * @param a_ptr input A pointer
      * @param b_ptr input B pointer
-     * @param aq_ptr input AQ pointer
+     * @param bq_ptr input BQ pointer
      * @param c_ptr output C pointer
      * @param smem_ptr_0 The start memory pointer of the shared memory block.
      * @param kargs GEMM kernel arguments
@@ -694,17 +620,17 @@ struct AQuantGemmKernel
     template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
     CK_TILE_DEVICE static void RunGemm(const ADataType* a_ptr,
                                        const BDataType* b_ptr,
-                                       const AQDataType* aq_ptr,
+                                       const BQDataType* bq_ptr,
                                        CDataType* c_ptr,
                                        void* smem_ptr_0,
-                                       const AQuantGemmKernelArgs& kargs,
+                                       const BQuantGemmKernelArgs& kargs,
                                        const SplitKBatchOffset& splitk_batch_offset,
                                        const index_t block_idx_m,
                                        const index_t block_idx_n)
     {
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple = MakeGemmTensorViews<DstInMemOp>(
-            a_ptr, b_ptr, aq_ptr, c_ptr, kargs, splitk_batch_offset);
+            a_ptr, b_ptr, bq_ptr, c_ptr, kargs, splitk_batch_offset);
 
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
@@ -714,11 +640,11 @@ struct AQuantGemmKernel
 
         // Run GEMM cooperatively by whole workgroup.
         const auto& a_block_window  = gemm_tile_windows.at(I0);
-        const auto& aq_block_window = gemm_tile_windows.at(I1);
+        const auto& bq_block_window = gemm_tile_windows.at(I1);
         const auto& b_block_window  = gemm_tile_windows.at(I2);
 
         const auto& c_block_tile = GemmPipeline{}.template operator()(
-            a_block_window, b_block_window, aq_block_window, kargs.M, num_loop, smem_ptr_0);
+            a_block_window, b_block_window, bq_block_window, num_loop, smem_ptr_0);
 
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I3);
@@ -728,7 +654,7 @@ struct AQuantGemmKernel
             c_block_window, c_block_tile, c_block_window, smem_ptr_0);
     }
 
-    CK_TILE_DEVICE void operator()(AQuantGemmKernelArgs kargs) const
+    CK_TILE_DEVICE void operator()(BQuantGemmKernelArgs kargs) const
     {
         const auto blockId  = __builtin_amdgcn_readfirstlane(blockIdx.x);
         const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockId);
@@ -739,14 +665,14 @@ struct AQuantGemmKernel
         // options
         const ADataType* a_ptr   = static_cast<const ADataType*>(kargs.a_ptr);
         const BDataType* b_ptr   = static_cast<const BDataType*>(kargs.b_ptr);
-        const AQDataType* aq_ptr = static_cast<const AQDataType*>(kargs.aq_ptr);
+        const BQDataType* bq_ptr = static_cast<const BQDataType*>(kargs.bq_ptr);
         CDataType* c_ptr         = static_cast<CDataType*>(kargs.c_ptr);
 
         // allocate LDS
         __shared__ char smem_ptr_0[GetSmemSize()];
 
         assert(kargs.k_batch == 1);
-        RunGemm(a_ptr, b_ptr, aq_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
+        RunGemm(a_ptr, b_ptr, bq_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
     }
 };
 
