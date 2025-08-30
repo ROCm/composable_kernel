@@ -1489,7 +1489,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             return false;
         }
         // gfx11 doesn't support float atomic
-        if(ck::is_gfx11_supported())
+        if(ck::is_gfx11_supported() && arg.k_batch_ > 1)
         {
             return false;
         }

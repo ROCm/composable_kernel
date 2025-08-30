@@ -1042,7 +1042,46 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                          c_block_size * sizeof(CShuffleDataType));
     }
 
-    IS_VALID_COMPILATION_PARAMETER_IMPL(CDataType)
+    template <
+        InMemoryDataOperationEnum CGlobalMemoryDataOperation_ = InMemoryDataOperationEnum::Set>
+    __device__ static bool constexpr IsValidCompilationParameter()
+    {
+        constexpr bool valid = ck::tensor_operation::device::IsValidGemmCompilationParameter<
+            BlockSize,
+            MPerBlock,
+            NPerBlock,
+            MPerXdl,
+            NPerXdl,
+            MXdlPerWave,
+            NXdlPerWave,
+            CDataType,
+            CGlobalMemoryDataOperation_>();
+        if constexpr(!valid)
+        {
+            return false;
+        }
+
+        using MfmaInst = MfmaSelector<ComputeTypeA,
+                                      MPerXdl,
+                                      NPerXdl,
+                                      ComputeTypeB,
+                                      is_single_rate_mfma,
+                                      is_scale_mfma>;
+
+        constexpr index_t KPerThread =
+            KPerBlock / (MfmaInst::GetKPerXdlops() / MfmaInst::GetK1PerXdlops());
+        if constexpr(KPerThread % KPack != 0)
+        {
+            static_assert(0);
+            return false;
+        }
+
+        if constexpr(NXdlPerWave % CShuffleNXdlPerWavePerShuffle != 0)
+        {
+            return false;
+        }
+        return true;
+    }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     __host__ static constexpr bool CheckValidity(const Argument& karg)
@@ -1050,6 +1089,11 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
+
+        if constexpr(NXdlPerWave % CShuffleNXdlPerWavePerShuffle != 0)
+        {
+            return false;
+        }
 
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||

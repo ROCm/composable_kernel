@@ -209,7 +209,34 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         return math::max(gemm0_bytes_end, gemm1_bytes_end, softmax_bytes_end, c_block_bytes_end);
     }
 
-    IS_VALID_COMPILATION_PARAMETER_IMPL(FloatC)
+    template <
+        InMemoryDataOperationEnum CGlobalMemoryDataOperation_ = InMemoryDataOperationEnum::Set>
+    __device__ static bool constexpr IsValidCompilationParameter()
+    {
+        constexpr bool valid = ck::tensor_operation::device::IsValidGemmCompilationParameter<
+            BlockSize,
+            MPerBlock,
+            NPerBlock,
+            MPerXdl,
+            NPerXdl,
+            MXdlPerWave,
+            NXdlPerWave,
+            FloatC,
+            CGlobalMemoryDataOperation>();
+        if(!valid)
+        {
+            return false;
+        }
+        constexpr index_t Gemm1AMmaKStride =
+            MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.group_size;
+        constexpr index_t Gemm1KPack =
+            MfmaSelector<FloatAB, MPerXdl, NPerXdl, FloatAB, true>::selected_mfma.k_per_blk;
+        if constexpr(Gemm1AMmaKStride < Gemm1KPack)
+        {
+            return false;
+        }
+        return true;
+    }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename Block2CTileMap>

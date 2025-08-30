@@ -215,17 +215,18 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
     using GroupedGemmBlock2ETileMap  = OffsettedBlockToCTileMap<Block2ETileMapKSplit>;
     using KernelArgument             = typename GridwiseGemm64::Argument;
     using PassThrough                = ck::tensor_operation::element_wise::PassThrough;
-    struct GemmTransKernelArg
+    template <typename KernelArgument_>
+    struct GemmTransKernelArgBase
     {
-        KernelArgument karg_;
+        KernelArgument_ karg_;
         GroupedGemmBlock2ETileMap block_2_ctile_map_;
         index_t block_start_, block_end_;
 
-        GemmTransKernelArg() = default;
-        GemmTransKernelArg(KernelArgument&& karg,
-                           GroupedGemmBlock2ETileMap&& b2c_map,
-                           index_t block_start,
-                           index_t block_end)
+        GemmTransKernelArgBase() = default;
+        GemmTransKernelArgBase(KernelArgument_&& karg,
+                               GroupedGemmBlock2ETileMap&& b2c_map,
+                               index_t block_start,
+                               index_t block_end)
             : karg_{karg},
               block_2_ctile_map_{b2c_map},
               block_start_{block_start},
@@ -233,6 +234,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         {
         }
     };
+    using GemmTransKernelArg = GemmTransKernelArgBase<KernelArgument>;
 
     static constexpr index_t DefaultKBatch = 1;
 
@@ -389,6 +391,11 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                      hipStream_t cpy_stream            = nullptr,
                      hipEvent_t cpy_event              = nullptr)
         {
+            using GemmTransKernelArg_ = GemmTransKernelArgBase<typename GridwiseGemm::Argument>;
+            static_assert(sizeof(GemmTransKernelArg_) == sizeof(GemmTransKernelArg));
+            static_assert(sizeof(typename GridwiseGemm::Argument) ==
+                          sizeof(typename GridwiseGemm64::Argument));
+
             index_t K0                       = arg.gemm_kernel_args_[0].karg_.K0Padded;
             bool all_have_kbatch_gt_one      = arg.gemm_kernel_args_[0].karg_.k_batch > 1;
             bool all_have_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
@@ -451,7 +458,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 }
                 hip_check_error(hipMemcpyAsync(arg.p_workspace_,
                                                arg.gemm_kernel_host_args_,
-                                               arg.group_count_ * sizeof(GemmTransKernelArg),
+                                               arg.group_count_ * sizeof(GemmTransKernelArg_),
                                                hipMemcpyHostToDevice,
                                                cpy_stream));
                 hip_check_error(hipEventRecord(cpy_event, cpy_stream));
@@ -463,7 +470,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 hip_check_error(
                     hipMemcpyAsync(arg.p_workspace_,
                                    arg.gemm_kernel_args_.data(),
-                                   arg.gemm_kernel_args_.size() * sizeof(GemmTransKernelArg),
+                                   arg.gemm_kernel_args_.size() * sizeof(GemmTransKernelArg_),
                                    hipMemcpyHostToDevice,
                                    stream_config.stream_id_));
             }
@@ -502,7 +509,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 {
                     const auto kernel =
                         kernel_grouped_gemm_xdl_splitk<GridwiseGemm,
-                                                       GemmTransKernelArg,
+                                                       GemmTransKernelArg_,
                                                        true,
                                                        InMemoryDataOperationEnum::AtomicAdd>;
 
@@ -512,7 +519,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 {
                     const auto kernel =
                         kernel_grouped_gemm_xdl_splitk<GridwiseGemm,
-                                                       GemmTransKernelArg,
+                                                       GemmTransKernelArg_,
                                                        true,
                                                        InMemoryDataOperationEnum::Set>;
 
@@ -525,7 +532,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 {
                     const auto kernel =
                         kernel_grouped_gemm_xdl_splitk<GridwiseGemm,
-                                                       GemmTransKernelArg,
+                                                       GemmTransKernelArg_,
                                                        false,
                                                        InMemoryDataOperationEnum::AtomicAdd>;
 
@@ -535,7 +542,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 {
                     const auto kernel =
                         kernel_grouped_gemm_xdl_splitk<GridwiseGemm,
-                                                       GemmTransKernelArg,
+                                                       GemmTransKernelArg_,
                                                        false,
                                                        InMemoryDataOperationEnum::Set>;
 
