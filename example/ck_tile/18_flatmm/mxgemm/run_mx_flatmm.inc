@@ -239,58 +239,25 @@ int run_mx_flatmm_with_layouts(int argc,
     bool pass = true;
     if(arg_parser.get_int("v") == 1)
     {
-        ck_tile::DeviceMem b_origin_dev_buf(b_origin_host.get_element_space_size_in_bytes());
-        b_origin_dev_buf.ToDevice(b_origin_host.data());
-
-        ck_tile::HostTensor<CDataType> c_gpu_ref_host(
+        ck_tile::HostTensor<CDataType> c_m_n_host_ref(
             ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
-        ck_tile::DeviceMem c_gpu_ref_dev_buf(c_gpu_ref_host.get_element_space_size_in_bytes());
+        c_m_n_host_ref.SetZero();
 
-        ck_tile::HostTensor<AccDataType> scale_A(
-            ck_tile::HostTensorDescriptor({1, K / DequantGranularityK}, {1, 1}));
+        ck_tile::reference_mx_gemm<ADataType, BDataType, ScaleDataType, AccDataType, CDataType>(
+            a_host.data(),
+            b_origin_host.data(),
+            c_m_n_host_ref.data(),
+            scale_a.data(),
+            scale_b.data());
 
-        // scaleA = 1 has no effect on the result
-        ck_tile::FillUniformDistribution<AccDataType>{1.f, 1.f}(scale_A);
-        ck_tile::DeviceMem scale_A_dev_buf(scale_A.get_element_space_size_in_bytes());
-        scale_A_dev_buf.ToDevice(scale_A.data());
-
-        // convert scale_b from e8m0 to float
-        ck_tile::HostTensor<AccDataType> scale_b_float(ck_tile::HostTensorDescriptor(
-            {K / DequantGranularityK, N / DequantGranularityN}, {N / DequantGranularityN, 1}));
-        std::copy(scale_b.begin(), scale_b.end(), scale_b_float.begin());
-        ck_tile::DeviceMem scale_b_float_dev_buf(scale_b_float.get_element_space_size_in_bytes());
-        scale_b_float_dev_buf.ToDevice(scale_b_float.data());
-
-        c_gpu_ref_dev_buf.SetZero();
-        ck_tile::reference_blockwise_gemm_gpu<ADataType,
-                                              BDataType,
-                                              AccDataType,
-                                              CDataType,
-                                              ALayout,
-                                              BLayout,
-                                              CLayout>(
-            static_cast<ADataType*>(a_dev_buf.GetDeviceBuffer()),
-            static_cast<BDataType*>(b_origin_dev_buf.GetDeviceBuffer()),
-            static_cast<CDataType*>(c_gpu_ref_dev_buf.GetDeviceBuffer()),
-            M,
-            N,
-            K,
-            stride_A,
-            stride_B,
-            stride_C,
-            M,
-            DequantGranularityN,
-            DequantGranularityK,
-            static_cast<float*>(scale_A_dev_buf.GetDeviceBuffer()),
-            static_cast<float*>(scale_b_float_dev_buf.GetDeviceBuffer()));
-
-        c_gpu_ref_dev_buf.FromDevice(c_gpu_ref_host.data());
+        const float max_accumulated_value =
+            *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
 
         const float rtol = std::is_same_v<ADataType, ck_tile::half_t> ? 1e-3 : 1e-2;
         const float atol = std::is_same_v<ADataType, ck_tile::half_t> ? 1e-3 : 1e-2;
 
         pass = ck_tile::check_err(
-            c_rslt_host, c_gpu_ref_host, "Error: Incorrect results!", rtol, atol);
+            c_rslt_host, c_m_n_host_ref, "Error: Incorrect results!", rtol, atol);
 
         std::cout << "Relative error threshold: " << rtol << " Absolute error threshold: " << atol
                   << std::endl;
