@@ -510,11 +510,18 @@ struct BlockFmhaPipelineQRKSVSAsync
             block_tile_reduce_sync(m_local, f_max, bool_constant<false>{});
 
             const auto m_old = m; // m{j-1}
-            tile_elementwise_inout(
-                [](auto& e0, auto e1, auto e2) { e0 = max(e1, e2); }, m, m_old, m_local); // m{j}
+            // tile_elementwise_inout(
+            //     [](auto& e0, auto e1, auto e2) { e0 = max(e1, e2); }, m, m_old, m_local); // m{j}
 
             auto p_compute = make_static_distributed_tensor<SMPLComputeDataType>(
                 s.get_tile_distribution()); // Pcompute{j}
+            
+            constexpr auto p_spans = decltype(p_compute)::get_distributed_spans();
+            sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
+                constexpr auto i_idx = make_tuple(idx0);
+                m(i_idx) = m[i_idx] == -numeric<SMPLComputeDataType>::infinity() ? m_local[i_idx] : m[i_idx];
+            });
+            (void) m_old;
 
             __builtin_amdgcn_sched_barrier(0x7F);
             // store & prefetch next v, after the max reduction
@@ -556,20 +563,20 @@ struct BlockFmhaPipelineQRKSVSAsync
             static const auto get_validated_m = [](SMPLComputeDataType raw_m) {
                 /// NOTICE: bias might be materialized mask including -inf values, need
                 /// consideration. alibi does not have this problem
-                if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                             FmhaMask::IsMasking)
-                {
+                //if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                //             FmhaMask::IsMasking)
+                //{
                     return raw_m == -numeric<SMPLComputeDataType>::infinity()
                                ? type_convert<SMPLComputeDataType>(0.f)
                                : raw_m;
-                }
-                else
-                {
-                    return raw_m;
-                }
+                //}
+                //else
+                //{
+                //    return raw_m;
+                //}
             };
 
-            constexpr auto p_spans = decltype(p_compute)::get_distributed_spans();
+            // constexpr auto p_spans = decltype(p_compute)::get_distributed_spans();
             sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
 #if CK_TILE_FMHA_FWD_FAST_EXP2
@@ -628,16 +635,19 @@ struct BlockFmhaPipelineQRKSVSAsync
                         }
                     }
                 }();
+                (void)tmp;
 #else
                 const auto tmp = exp(m_old[i_idx] - get_validated_m(m[i_idx]));
 #endif
-                l(i_idx) = tmp * l[i_idx] + rowsum_p[i_idx];
+                // l(i_idx) = tmp * l[i_idx] + rowsum_p[i_idx];
+                l(i_idx) = l[i_idx] + rowsum_p[i_idx];
                 sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
                     // FIXME: this use different equation from FA v2 paper,
                     // but produce correc result.
                     // Is the equation wrong?
-                    o_acc(i_j_idx) *= tmp;
+                    // o_acc(i_j_idx) *= tmp;
+                    (void)i_j_idx;
                 });
             });
 
