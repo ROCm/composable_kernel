@@ -179,7 +179,7 @@ function(add_gtest_executable TEST_NAME)
     endforeach()
 
     foreach(source IN LISTS ARGN)
-        if(NOT TEST_TARGETS MATCHES "gfx9" AND source MATCHES "xdl")
+        if(NOT TEST_TARGETS MATCHES "gfx9" AND NOT TEST_TARGETS MATCHES "gfx1[12]" AND source MATCHES "xdl")
             message(DEBUG "removing xdl test ${source} ")
             list(REMOVE_ITEM ARGN "${source}")
         endif()
