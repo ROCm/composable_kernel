@@ -544,15 +544,20 @@ struct SelectedKernel {{
             instance_code += """            using EpilogueProblem = ck_tile::DefaultGemm2DEpilogueProblem<
                 ADataType,
                 BDataType,
+                ck_tile::tuple<>,  // DsDataType
                 AccDataType,
                 CDataType,
+                ck_tile::tuple<>,  // DsLayout
                 CLayout,
+                ck_tile::element_wise::PassThrough,
+                TilePartitioner::MPerBlock,  // kM_
+                TilePartitioner::NPerBlock,  // kN_
                 kPadM,
                 kPadN,
-                WarpTileM,
-                WarpTileN,
-                WarpTileK,
-                TransposeC>;
+                WarpTileM,  // kMPerXdl_
+                WarpTileN,  // kNPerXdl_
+                WarpTileK,  // kKPerXdl_
+                TransposeC>;  // isCTransposed_
             
             using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<EpilogueProblem>;
 """
