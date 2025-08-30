@@ -352,6 +352,7 @@ class GemmBenchmark:
             if result:
                 # Create new structured result format
                 structured_result = {
+                    "name": kernel_info["name"],  # Add name field for compatibility
                     "config_id": kernel_info["config_id"],
                     "problem": result.get("problem", {}),
                     "perf_result": result.get("perf_result", {}),
