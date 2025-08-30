@@ -519,6 +519,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             constexpr auto p_spans = decltype(p_compute)::get_distributed_spans();
             sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
+                // will only record the max value from first tile block, neve update
                 m(i_idx) = m[i_idx] == -numeric<SMPLComputeDataType>::infinity() ? m_local[i_idx] : m[i_idx];
             });
             (void) m_old;
