@@ -115,6 +115,9 @@ __device__ inline f8x8_t i4_to_fp8x8(int q)
     f32_3       = amd_assemble_cvt_f32_i4(q >> 24);
     fp8x4_1     = __builtin_amdgcn_cvt_pk_fp8_f32(f32_2, f32_3, fp8x4_1, 1);
     return bit_cast<f8x8_t>(((static_cast<uint64_t>(fp8x4_1) << 32) | fp8x4_0));
+#elif defined(__gfx11__)
+    ignore = q;
+    return f8x8_t{};
 #else
     return amd_assembly_i4_to_fp8x8(q);
 #endif

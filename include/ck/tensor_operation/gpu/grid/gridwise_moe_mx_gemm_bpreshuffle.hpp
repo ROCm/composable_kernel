@@ -270,11 +270,11 @@ struct GridwiseMoeGemmMX_BPreshuffle
         return math::integer_least_multiple(N, NPerBlock);
     }
 
-    __host__ static auto CalculateBN0Shuffled(index_t N)
+    __host__ __device__ static auto CalculateBN0Shuffled(index_t N)
     {
         return math::integer_divide_ceil(N, NLane);
     }
-    __host__ static auto CalculateBK0Shuffled(index_t K)
+    __host__ __device__ static auto CalculateBK0Shuffled(index_t K)
     {
         return math::integer_divide_ceil(K, KLane * KPack);
     }
@@ -867,7 +867,6 @@ struct GridwiseMoeGemmMX_BPreshuffle
     __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
         constexpr index_t MWave    = MPerBlock / (MXdlPerWave * MPerXdl);
-        constexpr index_t NWave    = NPerBlock / (NXdlPerWave * NPerXdl);
         constexpr index_t WaveSize = BlockSize / (MWave * NWave);
 
         // A matrix in LDS memory, dst of blockwise copy
