@@ -695,9 +695,10 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
                         continue
                 # aiter::mha_fwd C++ api integration
                 elif receipt == 600:
-                    cond = dtype in ['fp16', 'bf16']
+                    cond = dtype in ['fp16', 'bf16', 'fp8bf16']
                     cond &= pipeline.F_vlayout == 'row'
-                    cond &= pipeline.F_squant == 'f'
+                    if dtype == 'fp8bf16':
+                        cond &= hdim == 128
                     if not cond:
                         continue
                 elif receipt == 888:
