@@ -56,7 +56,7 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         if constexpr(PreshuffleQuant)
         {
             using TileEncodingPattern =
-                TileDistributionEncodingPatternAQ<BlockGemmShape,
+                tile_distribution_encoding_pattern_aq<BlockGemmShape,
                                                   WarpGemm,
                                                   BlockSize,
                                                   MPerBlock / WarpGemm::kM,
@@ -66,24 +66,24 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                                                   VecLoadSize,
                                                   PreshuffleQuant>;
 
-            return TileEncodingPattern::Make2DStaticTileDistribution();
+            return TileEncodingPattern::make_2d_static_tile_distribution();
         }
         else
         {
             if constexpr(Problem::TransposeC)
             {
                 using TileEncodingPatternTransposeC =
-                    TileDistributionEncodingPatternAQTransposedC<BlockGemmShape,
+                    tile_distribution_encoding_pattern_aq_transposed_c<BlockGemmShape,
                                                                  WarpGemm,
                                                                  BlockSize,
                                                                  MPerBlock,
                                                                  KPerBlockAQ,
                                                                  VecLoadSize>;
-                return TileEncodingPatternTransposeC::Make2DStaticTileDistribution();
+                return TileEncodingPatternTransposeC::make_2d_static_tile_distribution();
             }
             else
             {
-                using TileEncodingPattern = TileDistributionEncodingPatternAQ<BlockGemmShape,
+                using TileEncodingPattern = tile_distribution_encoding_pattern_aq<BlockGemmShape,
                                                                               WarpGemm,
                                                                               BlockSize,
                                                                               MPerBlock,
@@ -92,7 +92,7 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                                                                               VecLoadSize,
                                                                               PreshuffleQuant>;
 
-                return TileEncodingPattern::Make2DStaticTileDistribution();
+                return TileEncodingPattern::make_2d_static_tile_distribution();
             }
         }
     }
