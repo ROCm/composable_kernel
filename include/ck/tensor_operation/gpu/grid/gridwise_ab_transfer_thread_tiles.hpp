@@ -362,6 +362,9 @@ struct ABTransferThreadTiles
     template <index_t MNRepeat, index_t MNWaves>
     __host__ __device__ static constexpr auto MakeWmmaTileDescriptor()
     {
+        // This is a block descriptor used to read LDS memory into register
+        // It's defined in a way consistent with the existing implementation to
+        // avoid changes in the pipelines
         using BlockDesc = decltype(GetBlockDescriptor());
         // ABK0_MN_ABK1 -> ABK0_MNRepeat_MNWaves_KRow_MNPerWmma_ABK1
         constexpr auto ABK0 = BlockDesc{}.GetLength(I0);
@@ -383,12 +386,15 @@ struct ABTransferThreadTiles
 
     __device__ static constexpr auto GetBlockStep()
     {
+        // Grid descriptor step (MoveSrcSliceWindow)
         return make_multi_index(KPerBlock / ABK1Number, 0, 0);
     }
 
     template <typename GridDescriptor>
     __device__ static constexpr index_t GetKDimension(const GridDescriptor& grid_desc)
     {
+        // K dimension size. This should always be called with the A matrix grid descriptor
+        // because it doesn't work for B matrix when packed int4 is used
         return grid_desc.GetLength(I0) * grid_desc.GetLength(I2);
     }
 };
