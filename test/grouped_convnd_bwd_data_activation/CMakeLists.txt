@@ -1,0 +1,4 @@
+if(GPU_TARGETS MATCHES "gfx9")
+    add_gtest_executable(test_grouped_convnd_bwd_data_clamp test_grouped_convnd_bwd_data_clamp.cpp)
+    target_link_libraries(test_grouped_convnd_bwd_data_clamp PRIVATE utility device_grouped_conv2d_bwd_data_clamp_instance device_grouped_conv3d_bwd_data_clamp_instance)
+endif()
