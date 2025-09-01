@@ -225,19 +225,15 @@ uint16_t float_to_bf16_rta_asm(float f)
 CK_TILE_HOST_DEVICE
 constexpr uint16_t float_to_bf16_truc_nan_raw(float f)
 {
-    union
-    {
-        float fp32;
-        uint32_t int32;
-    } u = {f};
-    return uint16_t(u.int32 >> 16) | (!(~u.int32 & 0x7f800000) && (u.int32 & 0xffff));
+    uint32_t bits = bit_cast<uint32_t>(f);
+    return static_cast<uint16_t>(bits >> 16) | (!(~bits & 0x7f800000) && (bits & 0xffff));
 }
 
 // Fast truncate instead of rounding, RTZ
 CK_TILE_HOST_DEVICE
 constexpr uint16_t float_to_bf16_truc_raw(float f)
 {
-    uint32_t bits = ck_tile::bit_cast<uint32_t>(f);
+    uint32_t bits = bit_cast<uint32_t>(f);
     return static_cast<uint16_t>(bits >> 16);
 }
 
