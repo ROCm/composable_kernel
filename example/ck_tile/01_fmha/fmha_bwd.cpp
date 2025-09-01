@@ -816,9 +816,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
         dbias_buf.SetZero();
         dq_acc_buf.SetZero();
 
-    ck_tile::stream_config stream_config_v{
-        nullptr, true, 0, 0, 1, arg_parser.get_str("timer") == std::string("gpu")};
-    fmha_bwd(fmha_traits, fmha_args, stream_config_v);
+        ck_tile::stream_config stream_config_v{
+            nullptr, true, 0, 0, 1, arg_parser.get_str("timer") == std::string("gpu")};
+        fmha_bwd(fmha_traits, fmha_args, stream_config_v);
 
         dq_buf.FromDevice(dq_host.data());
         dk_buf.FromDevice(dk_host.data());
