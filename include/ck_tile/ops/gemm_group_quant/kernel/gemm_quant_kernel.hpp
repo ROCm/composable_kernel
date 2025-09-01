@@ -198,8 +198,8 @@ struct QuantGemmKernel
     using BQLayout = remove_cvref_t<
         typename detail::get_bq_layout_or<GemmPipeline, typename GemmPipeline::BLayout>::type>;
 
-    static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
-    static constexpr bool PreshuffleQuant    = remove_cvref_t<
+    static constexpr index_t kBlockSize   = GemmPipeline::BlockSize;
+    static constexpr bool PreshuffleQuant = remove_cvref_t<
         typename detail::get_preshuffle_or<GemmPipeline, std::false_type>::type>::value;
 
     using ADataType   = remove_cvref_t<typename GemmPipeline::ADataType>;
@@ -515,15 +515,17 @@ struct QuantGemmKernel
                 const auto block_tile_size = GemmPipeline::MPerBlock * GemmPipeline::KPerBlockAQ;
                 const auto aq_pad0_desc    = transform_tensor_descriptor(
                     aq_desc,
-                    make_tuple(make_pass_through_transform(aq_y),
-                            make_right_pad_transform(aq_x, get_padding_size(aq_x, block_tile_size))),
+                    make_tuple(
+                        make_pass_through_transform(aq_y),
+                        make_right_pad_transform(aq_x, get_padding_size(aq_x, block_tile_size))),
                     make_tuple(sequence<0>{}, sequence<1>{}),
                     make_tuple(sequence<0>{}, sequence<1>{}));
 
                 const auto pad_aq_x = aq_pad0_desc.get_lengths()[I1];
                 const auto wave_tile_size =
                     TilePartitioner::BlockGemmShape::WarpTile::at(I0) * GemmPipeline::KPerBlockAQ;
-                const auto wave_tile_count_x = ck_tile::integer_divide_ceil(pad_aq_x, wave_tile_size);
+                const auto wave_tile_count_x =
+                    ck_tile::integer_divide_ceil(pad_aq_x, wave_tile_size);
                 const auto aq_unmerge_pad0_desc = transform_tensor_descriptor(
                     aq_pad0_desc,
                     make_tuple(
@@ -546,9 +548,8 @@ struct QuantGemmKernel
                     ck_tile::integer_least_multiple(wave_tile_size, get_warp_size());
                 const auto aq_merge_pad1_desc = transform_tensor_descriptor(
                     aq_pad1_desc,
-                    make_tuple(
-                        make_merge_transform(make_tuple(aq_y, wave_tile_count_x)),
-                        make_pass_through_transform(pad_wave_size)),
+                    make_tuple(make_merge_transform(make_tuple(aq_y, wave_tile_count_x)),
+                               make_pass_through_transform(pad_wave_size)),
                     make_tuple(sequence<0, 1>{}, sequence<2>{}),
                     make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -752,9 +753,8 @@ struct QuantGemmKernel
     }
 
     template <typename PadView>
-    CK_TILE_DEVICE static auto MakeGemmTileWindows(const PadView& views,
-                                                   const index_t i_m,
-                                                   const index_t i_n)
+    CK_TILE_DEVICE static auto
+    MakeGemmTileWindows(const PadView& views, const index_t i_m, const index_t i_n)
     {
         const auto& a_pad_view  = views.at(I0);
         const auto& aq_pad_view = views.at(I1);
