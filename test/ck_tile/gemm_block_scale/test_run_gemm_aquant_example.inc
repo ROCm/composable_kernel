@@ -58,7 +58,7 @@ float gemm_calc_aquant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::st
     using CodegenGemmTraits = ck_tile::TileGemmQuantTraits<kPadM,
                                                            kPadN,
                                                            kPadK,
-                                                           true,  // preshuffle
+                                                           false,  // preshuffle
                                                            ALayout,
                                                            BLayout,
                                                            CLayout,
