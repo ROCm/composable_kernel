@@ -13,6 +13,7 @@ mkdir build && cd build
 ../script/cmake-ck-dev.sh  ../ <arch>
 # Compile the quant kernels
 make tile_example_gemm_quant_basic -j
+make tile_example_gemm_bquant_basic -j
 ```
 This will result in an executable `build/bin/tile_example_gemm_quant_basic`
 

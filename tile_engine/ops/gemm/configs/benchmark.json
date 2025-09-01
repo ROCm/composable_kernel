@@ -5,20 +5,17 @@
         "tile_m": {
             "max": 256,
             "min": 64,
-            "step": 64,
-            "exclude": [192]
+            "step": 64
         },
         "tile_n": {
             "max": 256,
             "min": 64,
-            "step": 64,
-            "exclude": [192]
+            "step": 64
         },
         "tile_k": {
             "max": 256,
             "min": 64,
-            "step": 64,
-            "exclude": [192]
+            "step": 64
         },
         "warp_m": {
             "values": [
@@ -79,7 +76,8 @@
         },
         "epilogue": {
             "values": [
-                "cshuffle"
+                "cshuffle",
+                "default"
             ]
         },
         "pad_m": {

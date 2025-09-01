@@ -28,7 +28,7 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         constexpr index_t KPerBlockAQ = KPerBlock / Problem::kQuantGroupSize;
 
         static_assert(std::is_same_v<AQLayout, ck_tile::tensor_layout::gemm::RowMajor>);
-        return GetAQGlobalVectorLoadSize<Problem, AQDataType, MPerBlock, KPerBlockAQ>();
+        return GetABQGlobalVectorLoadSize<Problem, AQDataType, MPerBlock, KPerBlockAQ>();
     }
 
     template <typename Problem>
@@ -50,7 +50,7 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                                                             WarpTile::at(I0),
                                                             WarpTile::at(I1),
                                                             WarpTile::at(I2),
-                                                            false>;
+                                                            Problem::TransposeC>;
 
         static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
         if constexpr(PreshuffleQuant)
@@ -70,16 +70,30 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         }
         else
         {
-            using TileEncodingPattern = TileDistributionEncodingPatternAQ<BlockGemmShape,
-                                                                          WarpGemm,
-                                                                          BlockSize,
-                                                                          MPerBlock,
-                                                                          KPerBlockAQ,
-                                                                          KPerBlockAQ,
-                                                                          VecLoadSize,
-                                                                          PreshuffleQuant>;
+            if constexpr(Problem::TransposeC)
+            {
+                using TileEncodingPatternTransposeC =
+                    TileDistributionEncodingPatternAQTransposedC<BlockGemmShape,
+                                                                 WarpGemm,
+                                                                 BlockSize,
+                                                                 MPerBlock,
+                                                                 KPerBlockAQ,
+                                                                 VecLoadSize>;
+                return TileEncodingPatternTransposeC::Make2DStaticTileDistribution();
+            }
+            else
+            {
+                using TileEncodingPattern = TileDistributionEncodingPatternAQ<BlockGemmShape,
+                                                                              WarpGemm,
+                                                                              BlockSize,
+                                                                              MPerBlock,
+                                                                              KPerBlockAQ,
+                                                                              KPerBlockAQ,
+                                                                              VecLoadSize,
+                                                                              PreshuffleQuant>;
 
-            return TileEncodingPattern::Make2DStaticTileDistribution();
+                return TileEncodingPattern::Make2DStaticTileDistribution();
+            }
         }
     }
 
@@ -98,7 +112,7 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                                             WarpTile::at(I0),
                                             WarpTile::at(I1),
                                             WarpTile::at(I2),
-                                            false>;
+                                            Problem::TransposeC>;
         static_assert(std::is_same_v<typename Problem::ComputeDataType, fp8_t> ||
                       std::is_same_v<typename Problem::ComputeDataType, bf8_t>);
         static_assert(std::is_same_v<typename Problem::CDataType, float>);
