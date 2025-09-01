@@ -112,7 +112,10 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                                              GemmConfig::K_Warp_Tile,
                                              UniversalGemmProblem::TransposeC,
                                              memory_operation,
-                                             GemmConfig::NumWaveGroups>>;
+                                             GemmConfig::NumWaveGroups,
+                                             false,
+                                             1,
+                                             GemmConfig::TiledMMAPermuteN>>;
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
         auto kargs   = Kernel::MakeKernelArgs(args);
 
@@ -277,7 +280,7 @@ int main(int argc, char* argv[])
 
     try
     {
-        return !run_gemm_example<GemmConfigPreshuffleDecode>(arg_parser);
+        return !run_gemm_example<GemmConfigPreshufflePrefill>(arg_parser);
     }
     catch(const std::runtime_error& e)
     {
