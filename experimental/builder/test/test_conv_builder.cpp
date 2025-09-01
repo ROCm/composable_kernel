@@ -13,28 +13,18 @@ struct FwdConvSignature
     static constexpr auto LAYOUT     = ckb::GroupConvLayout::NHWGC_GKYXC_NHWGK;
     static constexpr auto DATA_TYPE  = ckb::DataType::FP16;
 };
-
-TEST(ConvBuilderTest, TestSignature)
-{
-    static_assert(ckb::ConvSignature<FwdConvSignature>);
-    SUCCEED();
-}
+static_assert(ckb::ConvSignature<FwdConvSignature>);
 
 struct FwdConvAlgorithm
 {
     // TODO: Add algorithm info.
 };
-
-TEST(ConvBuilderTest, TestAlgorithm)
-{
-    static_assert(ckb::ConvAlgorithm<FwdConvAlgorithm>);
-    SUCCEED();
-}
+static_assert(ckb::ConvAlgorithm<FwdConvAlgorithm>);
 
 static constexpr char API_VERSION[] = "0.1.0";
 using FwdConvBuilder = ckb::ConvBuilder<FwdConvSignature, FwdConvAlgorithm, API_VERSION>;
 
-TEST(ConvBuilderTest, TestInstance)
+TEST(ConvBuilderTest, TestDefaultInstance)
 {
     EXPECT_EQ(
         FwdConvBuilder::Instance::TypeString(),
@@ -50,7 +40,7 @@ struct ConvFwdXdlBf16CompInstances2xAlgorithm0
     };
 };
 
-TEST(ConvBuilderTest, TestInstance0)
+TEST(ConvBuilderTest, TestConvFwdXdlBf16CompInstances2xInstance0)
 {
     using Builder =
         ckb::ConvBuilder<FwdConvSignature, ConvFwdXdlBf16CompInstances2xAlgorithm0, API_VERSION>;
