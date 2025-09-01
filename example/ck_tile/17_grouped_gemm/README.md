@@ -148,7 +148,7 @@ All the necessary parameters are set, the tiling is computed, the GEMM pipeline 
 # in the root of ck_tile
 mkdir build && cd build
 # you can replace <arch> with the appropriate architecture (for example gfx90a or gfx942) or leave it blank
-sh ../script/cmake-ck-dev.sh  ../ <arch>
+../script/cmake-ck-dev.sh  ../ <arch>
 # The basic pipeline method on the gemm calculation
 make tile_example_grouped_gemm -j
 ```
