@@ -503,7 +503,6 @@ struct QuantGemmKernel
             if constexpr(kQuantType == QuantType::AQuantGrouped && PreshuffleQuant)
             {
                 static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
-                // Define the preshuffled tensor view inline when needed
                 const auto aq_x = kargs.M * GemmPipeline::KPerBlockAQ;
                 const auto aq_y = kargs.QK_A / GemmPipeline::KPerBlockAQ;
 
@@ -516,17 +515,15 @@ struct QuantGemmKernel
                 const auto block_tile_size = GemmPipeline::MPerBlock * GemmPipeline::KPerBlockAQ;
                 const auto aq_pad0_desc    = transform_tensor_descriptor(
                     aq_desc,
-                    make_tuple(
-                        make_pass_through_transform(aq_y),
-                        make_right_pad_transform(aq_x, get_padding_size(aq_x, block_tile_size))),
+                    make_tuple(make_pass_through_transform(aq_y),
+                            make_right_pad_transform(aq_x, get_padding_size(aq_x, block_tile_size))),
                     make_tuple(sequence<0>{}, sequence<1>{}),
                     make_tuple(sequence<0>{}, sequence<1>{}));
 
                 const auto pad_aq_x = aq_pad0_desc.get_lengths()[I1];
                 const auto wave_tile_size =
                     TilePartitioner::BlockGemmShape::WarpTile::at(I0) * GemmPipeline::KPerBlockAQ;
-                const auto wave_tile_count_x =
-                    ck_tile::integer_divide_ceil(pad_aq_x, wave_tile_size);
+                const auto wave_tile_count_x = ck_tile::integer_divide_ceil(pad_aq_x, wave_tile_size);
                 const auto aq_unmerge_pad0_desc = transform_tensor_descriptor(
                     aq_pad0_desc,
                     make_tuple(
@@ -549,9 +546,10 @@ struct QuantGemmKernel
                     ck_tile::integer_least_multiple(wave_tile_size, get_warp_size());
                 const auto aq_merge_pad1_desc = transform_tensor_descriptor(
                     aq_pad1_desc,
-                    make_tuple(make_merge_transform(make_tuple(wave_tile_count_x, aq_y)),
-                               make_pass_through_transform(pad_wave_size)),
-                    make_tuple(sequence<1, 0>{}, sequence<2>{}),
+                    make_tuple(
+                        make_merge_transform(make_tuple(aq_y, wave_tile_count_x)),
+                        make_pass_through_transform(pad_wave_size)),
+                    make_tuple(sequence<0, 1>{}, sequence<2>{}),
                     make_tuple(sequence<0>{}, sequence<1>{}));
 
                 return make_tensor_view<address_space_enum::global>(aq_ptr, aq_merge_pad1_desc);

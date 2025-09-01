@@ -74,6 +74,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
     const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
         constexpr bool has_hot_loop_v = has_hot_loop_.value;
         constexpr auto tail_number_v  = tail_number_.value;
+        constexpr bool transpose_c    = false;
 
         using CodegenPipelineProblem = std::conditional_t<
             QuantMode == ck_tile::QuantType::AQuantGrouped,
@@ -84,6 +85,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                                CodegenGemmShape,
                                                CodegenGemmTraits,
                                                QuantGroupSize,
+                                               transpose_c,
                                                ComputeDataType,
                                                ck_tile::GemmPipelineScheduler::Intrawave,
                                                has_hot_loop_v,
@@ -94,6 +96,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                                     AccDataType,
                                                     CodegenGemmShape,
                                                     CodegenGemmTraits,
+                                                    transpose_c,
                                                     ComputeDataType,
                                                     ck_tile::GemmPipelineScheduler::Intrawave,
                                                     has_hot_loop_v,
