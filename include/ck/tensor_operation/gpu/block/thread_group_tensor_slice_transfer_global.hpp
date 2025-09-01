@@ -328,10 +328,6 @@ struct ThreadGroupTransferGlobal
                 return container_reorder_given_old2new(ordered_idx, src_dim_access_order);
             }();
 
-            // constexpr auto src_data_idx_seq = generate_sequence_v2(
-            //     [&](auto i) { return Number<src_data_idx[i]>{}; },
-            //     Number<src_data_idx.Size()>{});
-
             // make sequence to access vgpr data. Add zero as last element of src_data_idx_seq
             constexpr auto vgpr_data_idx_seq = generate_sequence_v2(
                 [&](auto i) {
