@@ -70,20 +70,21 @@ template <typename Tuple>
 class TestCkTileGemmMultiD : public ::testing::Test
 {
     protected:
-    using ALayout         = std::tuple_element_t<0, Tuple>;
-    using BLayout         = std::tuple_element_t<1, Tuple>;
-    using D0Layout        = std::tuple_element_t<2, Tuple>;
-    using D1Layout        = std::tuple_element_t<3, Tuple>;
-    using ELayout         = std::tuple_element_t<4, Tuple>;
-    using ADataType       = std::tuple_element_t<5, Tuple>;
-    using BDataType       = std::tuple_element_t<6, Tuple>;
-    using D0DataType      = std::tuple_element_t<7, Tuple>;
-    using D1DataType      = std::tuple_element_t<8, Tuple>;
-    using AccDataType     = std::tuple_element_t<9, Tuple>;
-    using EDataType       = std::tuple_element_t<10, Tuple>;
-    using CDElementWiseFn = std::tuple_element_t<11, Tuple>;
-    using DsLayout        = ck_tile::tuple<D0Layout, D1Layout>;
-    using DsDataType      = ck_tile::tuple<D0DataType, D1DataType>;
+    using ALayout           = std::tuple_element_t<0, Tuple>;
+    using BLayout           = std::tuple_element_t<1, Tuple>;
+    using D0Layout          = std::tuple_element_t<2, Tuple>;
+    using D1Layout          = std::tuple_element_t<3, Tuple>;
+    using ELayout           = std::tuple_element_t<4, Tuple>;
+    using ADataType         = std::tuple_element_t<5, Tuple>;
+    using BDataType         = std::tuple_element_t<6, Tuple>;
+    using D0DataType        = std::tuple_element_t<7, Tuple>;
+    using D1DataType        = std::tuple_element_t<8, Tuple>;
+    using AccDataType       = std::tuple_element_t<9, Tuple>;
+    using EDataType         = std::tuple_element_t<10, Tuple>;
+    using CDElementWiseFn   = std::tuple_element_t<11, Tuple>;
+    using UseCshuffleEpilog = std::tuple_element_t<12, Tuple>;
+    using DsLayout          = ck_tile::tuple<D0Layout, D1Layout>;
+    using DsDataType        = ck_tile::tuple<D0DataType, D1DataType>;
 
     template <typename ADataType,
               typename BDataType,
@@ -169,7 +170,28 @@ class TestCkTileGemmMultiD : public ::testing::Test
                                                                                tail_number_v>;
 
             using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>;
-            using GemmEpilogue = ck_tile::CShuffleEpilogue<
+
+            using DefaultGemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
+                ck_tile::DefaultGemm2DEpilogueProblem<ADataType,
+                                                      BDataType,
+                                                      DsDataType,
+                                                      AccDataType,
+                                                      EDataType,
+                                                      DsLayout,
+                                                      ELayout,
+                                                      CDEElementWise,
+                                                      TilePartitioner::MPerBlock,
+                                                      TilePartitioner::NPerBlock,
+                                                      kPadM,
+                                                      kPadN,
+                                                      M_Warp_Tile,
+                                                      N_Warp_Tile,
+                                                      K_Warp_Tile,
+                                                      UniversalGemmProblem::TransposeC,
+                                                      true,
+                                                      memory_operation>>;
+
+            using CShuffleGemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
                                                  BDataType,
                                                  DsDataType,
@@ -178,7 +200,6 @@ class TestCkTileGemmMultiD : public ::testing::Test
                                                  DsLayout,
                                                  ELayout,
                                                  CDEElementWise,
-                                                 GemmPipelineProblem::kBlockSize,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,
                                                  M_Warp,
@@ -189,11 +210,14 @@ class TestCkTileGemmMultiD : public ::testing::Test
                                                  UniversalGemmProblem::TransposeC,
                                                  memory_operation>>;
 
+            using GemmEpilogue = std::
+                conditional_t<UseCshuffleEpilog::value, CShuffleGemmEpilogue, DefaultGemmEpilogue>;
+
             using Kernel = ck_tile::GemmKernelMultiD<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
 
-            const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
-            constexpr dim3 blocks = Kernel::BlockSize();
+            const dim3 grids  = Kernel::GridSize(args.M, args.N, args.k_batch);
+            const dim3 blocks = Kernel::BlockSize();
 
             if(!Kernel::IsSupportedArgument(kargs))
             {
@@ -212,13 +236,14 @@ class TestCkTileGemmMultiD : public ::testing::Test
             }
 
             ave_time = ck_tile::launch_kernel(
-                s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+                s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
             return ave_time;
         };
 
         const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
             if(args.k_batch == 1)
             {
+                std::cout << "Run without SplitK" << std::endl;
                 Run(has_hot_loop_,
                     tail_number_,
                     ck_tile::integral_constant<ck_tile::memory_operation_enum,
@@ -226,42 +251,19 @@ class TestCkTileGemmMultiD : public ::testing::Test
             }
             else
             {
+                std::cout << "Run using SplitK" << std::endl;
                 Run(has_hot_loop_,
                     tail_number_,
                     ck_tile::integral_constant<ck_tile::memory_operation_enum,
                                                ck_tile::memory_operation_enum::atomic_add>{});
             }
         };
-        if(has_hot_loop)
-        {
-            if(tail_num == ck_tile::TailNumber::Full)
-            {
-                RunSplitk(
-                    ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-            }
-            else
-            {
-                std::ostringstream err;
-                err << "For compute pipeline tail number should always be Full, but have \""
-                    << tail_num << "\" which is not supported! PrefetchStages: "
-                    << BaseGemmPipeline::PrefetchStages << "\n File: " << __FILE__ << ":"
-                    << __LINE__ << ", in function: " << __func__;
-                throw std::runtime_error(err.str());
-            }
-        }
-        else
-        {
-            std::ostringstream err;
-            err << "Num K loop must be larger than number of prefetech stages."
-                << "\n PrefetchStages: " << BaseGemmPipeline::PrefetchStages
-                << "\n File: " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
-            throw std::runtime_error(err.str());
-        }
+
+        BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
     }
 
     public:
-    void Run(const int M,
+    bool Run(const int M,
              const int N,
              const int K,
              const int k_batch,
@@ -402,6 +404,6 @@ class TestCkTileGemmMultiD : public ::testing::Test
                   << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
                   << std::endl;
 
-        EXPECT_TRUE(pass);
+        return pass;
     }
 };

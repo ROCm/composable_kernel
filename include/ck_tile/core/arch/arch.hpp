@@ -60,11 +60,28 @@ enum struct memory_operation_enum : std::uint16_t
 
 CK_TILE_HOST_DEVICE constexpr index_t get_warp_size()
 {
-#if defined(__GFX9__) || (!defined(__HIP_DEVICE_COMPILE__) && !defined(CK_TILE_WAVE32_ENABLED))
+#if defined(__GFX9__) || !defined(__HIP_DEVICE_COMPILE__)
     return 64;
 #else
     return 32;
 #endif
+}
+
+CK_TILE_HOST bool is_wave32()
+{
+    hipDeviceProp_t props{};
+    int device;
+    auto status = hipGetDevice(&device);
+    if(status != hipSuccess)
+    {
+        return false;
+    }
+    status = hipGetDeviceProperties(&props, device);
+    if(status != hipSuccess)
+    {
+        return false;
+    }
+    return props.major > 9;
 }
 
 CK_TILE_DEVICE index_t get_grid_size() { return gridDim.x; }
@@ -81,13 +98,18 @@ CK_TILE_DEVICE index_t get_block_1d_id() { return blockIdx.x; }
 // Use these instead
 CK_TILE_DEVICE index_t get_lane_id() { return __lane_id(); }
 
-template <bool save_warp_id_in_sgpr = true>
-CK_TILE_DEVICE index_t get_warp_id(bool_constant<save_warp_id_in_sgpr> = {})
+template <bool ReturnSgpr = true>
+CK_TILE_DEVICE index_t get_warp_id(bool_constant<ReturnSgpr> = {})
 {
-    if constexpr(save_warp_id_in_sgpr)
-        return __builtin_amdgcn_readfirstlane(threadIdx.x / get_warp_size());
+    const index_t warp_id = threadIdx.x / get_warp_size();
+    if constexpr(ReturnSgpr)
+    {
+        return __builtin_amdgcn_readfirstlane(warp_id);
+    }
     else
-        return threadIdx.x / get_warp_size();
+    {
+        return warp_id;
+    }
 }
 
 CK_TILE_DEVICE index_t get_thread_id() { return threadIdx.x; }
