@@ -41,4 +41,23 @@ TEST(ConvBuilderTest, TestInstance)
         "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 256, 256, 32, Default, 32, 32, 4, 4, "
         "8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v4>");
 }
+
+struct ConvFwdXdlBf16CompInstances2xAlgorithm0
+{
+    static constexpr ckb::ThreadBlock THREAD_BLOCK{
+        .block_size = 256,
+        .sub_matrix = {.m = 256, .n = 256, .k = 32},
+    };
+};
+
+TEST(ConvBuilderTest, TestInstance0)
+{
+    using Builder =
+        ckb::ConvBuilder<FwdConvSignature, ConvFwdXdlBf16CompInstances2xAlgorithm0, API_VERSION>;
+    EXPECT_EQ(
+        Builder::Instance::TypeString(),
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 256, 256, 32, Default, 32, 32, 4, 4, "
+        "8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v4>");
+}
+
 } // namespace
