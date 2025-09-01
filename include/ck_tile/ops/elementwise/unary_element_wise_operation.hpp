@@ -10,6 +10,19 @@
 namespace ck_tile {
 namespace element_wise {
 
+// Generalized constexpr lookup table generator
+template <typename T, std::size_t N, typename F, std::size_t... Is>
+constexpr std::array<T, N> make_lookup_table_impl(F&& func, std::index_sequence<Is...>)
+{
+    return {func(Is)...};
+}
+
+template <typename T, std::size_t N, typename F>
+constexpr std::array<T, N> make_lookup_table(F&& func)
+{
+    return make_lookup_table_impl<T, N>(std::forward<F>(func), std::make_index_sequence<N>{});
+}
+
 /**
  * @brief Fast int4x4 to fp16x8_t data type conversion based on paper
  * "Who Says Elephants Can't Run: Bringing Large Scale MoE Models into Cloud Scale Production"
@@ -148,35 +161,10 @@ CK_TILE_DEVICE bf16x4_t i4_to_bhalf4(int q)
         __byte_perm(fp32_intermediates_casted[3], fp32_intermediates_casted[2], 0x7632));
 
     return res;
-#elif 0
-    fp16x4_t src = i4_to_half4(q);
-
-    return bf16x4_t{
-        ck_tile::type_convert<bf16_t>(ck_tile::type_convert<float>(src[0])),
-        ck_tile::type_convert<bf16_t>(ck_tile::type_convert<float>(src[1])),
-        ck_tile::type_convert<bf16_t>(ck_tile::type_convert<float>(src[2])),
-        ck_tile::type_convert<bf16_t>(ck_tile::type_convert<float>(src[3])),
-    };
 #elif 1
     // Lookup table for bf16_t values corresponding to int4 values -8 to 7
-    constexpr bf16_t bf16_lookup_table[16] = {
-        bf16_t(0xC100), // -8
-        bf16_t(0xC0E0), // -7
-        bf16_t(0xC0C0), // -6
-        bf16_t(0xC0A0), // -5
-        bf16_t(0xC080), // -4
-        bf16_t(0xC040), // -3
-        bf16_t(0xC000), // -2
-        bf16_t(0xBF80), // -1
-        bf16_t(0x0000), //  0
-        bf16_t(0x3F80), //  1
-        bf16_t(0x4000), //  2
-        bf16_t(0x4040), //  3
-        bf16_t(0x4080), //  4
-        bf16_t(0x40A0), //  5
-        bf16_t(0x40C0), //  6
-        bf16_t(0x40E0)  //  7
-    };
+    constexpr auto bf16_lookup_table =
+        make_lookup_table<bf16_t, 16>([](int i) { return float_to_bf16(i - 8); });
 
     return bf16x4_t{bf16_lookup_table[(q >> 0) & 0xf],
                     bf16_lookup_table[(q >> 16) & 0xf],
