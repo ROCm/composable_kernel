@@ -60,10 +60,14 @@ enum struct memory_operation_enum : std::uint16_t
 
 CK_TILE_HOST_DEVICE constexpr index_t get_warp_size()
 {
+#ifndef KL_MODEL
 #if defined(__GFX9__) || !defined(__HIP_DEVICE_COMPILE__)
     return 64;
 #else
     return 32;
+#endif
+#else
+    return CM9_WARP_SIZE;
 #endif
 }
 
@@ -84,6 +88,7 @@ CK_TILE_HOST bool is_wave32()
     return props.major > 9;
 }
 
+#ifndef KL_MODEL
 CK_TILE_DEVICE index_t get_grid_size() { return gridDim.x; }
 
 CK_TILE_DEVICE index_t get_block_size() { return blockDim.x; }
@@ -206,6 +211,7 @@ CK_TILE_DEVICE void s_nop(index_t cnt = 0)
     __builtin_amdgcn_sched_barrier(cnt);
 #endif
 }
+#endif
 
 #define CK_CONSTANT_ADDRESS_SPACE \
     __attribute__((address_space( \

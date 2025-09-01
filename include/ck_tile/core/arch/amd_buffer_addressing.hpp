@@ -28,6 +28,7 @@ using as3_uint32_ptr = uint32_t __attribute__((address_space(3)))*;
 
 namespace ck_tile {
 
+#ifndef KL_MODEL
 // 128 bit SGPRs to supply buffer resource in buffer instructions
 // https://rocm-documentation.readthedocs.io/en/latest/GCN_ISA_Manuals/testdocbook.html#vector-memory-buffer-instructions
 struct __attribute__((packed)) buffer_resource
@@ -2829,6 +2830,15 @@ __device__ auto amd_transpose_load_to_vgpr(const T* __restrict__ in_ptr)
 }
 #endif
 
+#else
+enum struct amd_buffer_coherence_enum
+{
+    coherence_default = 0, // default value
+    glc               = 1,
+    slc               = 2,
+    glc_slc           = 3,
+};
+#endif // KL_MODEL
 } // namespace ck_tile
 
 #endif // !CK_TILE_USE_BUFFER_ADDRESSING_BUILTIN

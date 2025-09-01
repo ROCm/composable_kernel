@@ -11,6 +11,7 @@
 
 namespace ck_tile {
 
+#ifndef KL_MODEL
 struct gpu_timer
 {
     CK_TILE_HOST gpu_timer()
@@ -76,4 +77,5 @@ struct cpu_timer
     std::chrono::time_point<std::chrono::high_resolution_clock> stop_tick;
 };
 
+#endif
 } // namespace ck_tile

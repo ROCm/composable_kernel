@@ -6,10 +6,12 @@
 #include "ck_tile/core/numeric/type_convert.hpp"
 #include "ck_tile/core/container/thread_buffer.hpp"
 
+#ifndef KL_MODEL
 #define HAS_GLOBAL_ATOMIC_PK_ADD_BUILTIN                        \
     __has_builtin(__builtin_amdgcn_global_atomic_fadd_v2f16) && \
         __has_builtin(__builtin_amdgcn_global_atomic_fadd_v2bf16)
 
+#endif
 namespace ck_tile {
 
 template <typename T, typename ComputeType>
@@ -92,6 +94,7 @@ CK_TILE_HOST_DEVICE bf8x8_t add_bf8x8_t(const bf8x8_t& a, const bf8x8_t& b)
     return rtn;
 }
 
+#ifndef KL_MODEL
 // Caution: DO NOT REMOVE
 // intentionally have only declaration but no definition to cause compilation failure when trying to
 // instantiate this template. The purpose is to make the implementation of atomic_add explicit for
@@ -522,4 +525,5 @@ CK_TILE_DEVICE void atomic_max_g(T* p_dst, const thread_buffer<T, N>& x)
     }
 }
 
+#endif
 } // namespace ck_tile

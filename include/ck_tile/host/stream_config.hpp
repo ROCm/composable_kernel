@@ -6,6 +6,7 @@
 #include <hip/hip_runtime.h>
 
 namespace ck_tile {
+#ifndef KL_MODEL
 /*
  * construct this structure with behavior as:
  *
@@ -37,4 +38,5 @@ struct stream_config
     bool flush_cache_      = false;
     int rotating_count_    = 1;
 };
+#endif
 } // namespace ck_tile

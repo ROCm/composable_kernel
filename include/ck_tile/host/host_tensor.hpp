@@ -414,7 +414,7 @@ struct HostTensor
         if constexpr(std::is_same_v<T, e8m0_t>)
             std::fill(mData.begin(), mData.end(), e8m0_t{1.f});
         else
-            std::fill(mData.begin(), mData.end(), 0);
+            std::fill(mData.begin(), mData.end(), type_convert<T>(0));
     }
 
     template <typename F>
@@ -776,16 +776,27 @@ struct HostTensor
         {
             for(auto& itm : mData)
             {
-                if(dtype == "float")
-                    file << type_convert<float>(itm) << std::endl;
-                else if(dtype == "int")
-                    file << type_convert<int>(itm) << std::endl;
-                else if(dtype == "int8_t")
-                    file << static_cast<int>(type_convert<ck_tile::int8_t>(itm)) << std::endl;
+                if constexpr(std::is_same_v<T, pk_fp4_t> ||
+                             std::is_same_v<T, e8m0_bexp_t>)
+                {
+                    if(dtype == "hex")
+                    {
+                        char tmp[32] = {0};
+                        sprintf(tmp, "%x", itm.get());
+                        file << tmp << std::endl;
+                    }
+                }
                 else
-                    // TODO: we didn't implement operator<< for all custom
-                    // data types, here fall back to float in case compile error
-                    file << type_convert<float>(itm) << std::endl;
+                {
+                    if(dtype == "float")
+                        file << type_convert<float>(itm) << std::endl;
+                    else if(dtype == "int")
+                        file << type_convert<int>(itm) << std::endl;
+                    else
+                        // TODO: we didn't implement operator<< for all custom
+                        // data types, here fall back to float in case compile error
+                        file << type_convert<float>(itm) << std::endl;
+                }
             }
             file.close();
         }
@@ -795,6 +806,98 @@ struct HostTensor
             // stream if the file cannot be opened.
             throw std::runtime_error(std::string("unable to open file:") + file_name);
         }
+    }
+
+    void savetxtFormat(std::string file_name, std::string dtype = "float", int disp_num_per_line = 16)
+    {
+        FILE *file = fopen(file_name.c_str(), "w");
+
+        const auto& lengths = mDesc.get_lengths();
+        std::size_t num_dims = mDesc.get_num_of_dimension();
+
+        fprintf(file, "Tensor Dimension = [");
+        for (std::size_t i = 0; i < num_dims-1; ++i)
+        {
+            fprintf(file, "%zu, ",lengths[i]);
+        }
+        fprintf(file, "%zu]\n",lengths[num_dims-1]);
+        fprintf(file, "Element Count = %zu\n", mDesc.get_element_size());
+
+        std::function<void(std::vector<std::size_t>&, std::size_t)> printRecursive;
+        printRecursive = [&](std::vector<std::size_t>& indices, std::size_t current_dim)
+        {
+            auto printLastDimData = [&](std::size_t print_len)
+            {
+                for(int i = 0; i < print_len; i++) 
+                {
+                    if(i % disp_num_per_line == 0)
+                    {
+                        if(i != 0)
+                        {
+                            fprintf(file, "\n");
+                        }
+                        fprintf(file, "[%d ~ %d]: ", i, i + disp_num_per_line - 1);
+                    }
+
+                    if(num_dims > 1) indices[current_dim + 1] = i;
+                    auto itm = mData[GetOffsetFromMultiIndex(indices)];
+
+                    if constexpr(std::is_same_v<T, pk_fp4_t> || std::is_same_v<T, e8m0_bexp_t>)
+                    {
+                        //if(dtype == "hex")
+                        {
+                            fprintf(file, "0x%02X, ", itm.get());
+                        }
+                    }
+                    else
+                    {
+                        if(dtype == "float")
+                        {
+                            fprintf(file, "%.1f, ", type_convert<float>(itm));
+                        }
+                        else if(dtype == "int")
+                        {
+                            fprintf(file, "%d, ", type_convert<int>(itm));
+                        }
+                        else if(dtype == "hex")
+                        {
+                            fprintf(file, "0x%02X, ", type_convert<int>(itm));
+                        }
+                    }
+                }
+                fprintf(file, "\n");
+            };
+
+            if(num_dims == 1)
+            {
+                printLastDimData(lengths[current_dim]);
+                return;
+            }
+            for (std::size_t curr_len = 0; curr_len < lengths[current_dim]; ++curr_len)
+            {
+                indices[current_dim] = curr_len;
+
+                if (current_dim == num_dims - 2)
+                {
+                    fprintf(file, "\n=============== dim: [");
+                    for(int d = 0; d < num_dims - 2; d++)
+                        fprintf(file, "%d, ", indices[d]);
+                    fprintf(file, "%d] / [", indices[num_dims - 2]);
+                    for(int d = 0; d < num_dims - 2; d++)
+                        fprintf(file, "%d, ", lengths[d] - 1);
+                    fprintf(file, "%d] ===============\n", lengths[num_dims - 2] - 1);
+
+                    printLastDimData(lengths[current_dim + 1]);
+                } 
+                else
+                {
+                    printRecursive(indices, current_dim + 1);
+                }
+            }
+        };
+        
+        std::vector<std::size_t> indices(num_dims, 0);
+        printRecursive(indices, 0);
     }
 
     Descriptor mDesc;
@@ -826,14 +929,15 @@ auto host_tensor_descriptor(std::size_t row,
                             bool_constant<is_row_major>)
 {
     using namespace ck_tile::literals;
+	size_t stride0 = 1;
 
     if constexpr(is_row_major)
     {
-        return HostTensorDescriptor({row, col}, {stride, 1_uz});
+        return HostTensorDescriptor({row, col}, {stride, stride0});
     }
     else
     {
-        return HostTensorDescriptor({row, col}, {1_uz, stride});
+        return HostTensorDescriptor({row, col}, {stride0, stride});
     }
 }
 

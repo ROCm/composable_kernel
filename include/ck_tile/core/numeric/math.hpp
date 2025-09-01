@@ -169,6 +169,7 @@ CK_TILE_HOST constexpr T max(T x, T y)
     return x > y ? x : y;
 }
 
+#ifndef KL_MODEL
 template <typename T>
 CK_TILE_DEVICE constexpr T max(T x, T y)
 {
@@ -186,6 +187,7 @@ CK_TILE_DEVICE constexpr double max(double x, double y)
 {
     return __builtin_fmax(x, y); // maybe still v_max3_f32
 }
+#endif
 
 template <index_t X>
 CK_TILE_HOST_DEVICE constexpr index_t max(number<X>, index_t y)
@@ -218,6 +220,7 @@ CK_TILE_HOST constexpr T min(T x, T y)
     return x < y ? x : y;
 }
 
+#ifndef KL_MODEL
 template <typename T>
 CK_TILE_DEVICE constexpr T min(T x, T y)
 {
@@ -235,6 +238,7 @@ CK_TILE_DEVICE constexpr double min(double x, double y)
 {
     return __builtin_fmin(x, y);
 }
+#endif
 
 template <index_t X>
 CK_TILE_HOST_DEVICE constexpr index_t min(number<X>, index_t y)
@@ -261,8 +265,10 @@ CK_TILE_HOST_DEVICE constexpr T clamp(const T& x, const T& lowerbound, const T& 
     return min(max(x, lowerbound), upperbound);
 }
 
-CK_TILE_HOST int clz(uint32_t x) { return __builtin_clz(x); }
+CK_TILE_HOST constexpr int clz(uint32_t x) { return __builtin_clz(x); }
+#ifndef KL_MODEL
 CK_TILE_DEVICE int clz(uint32_t x) { return __clz(x); }
+#endif
 
 // greatest common divisor, aka highest common factor
 CK_TILE_HOST_DEVICE constexpr index_t gcd(index_t x, index_t y)
@@ -490,12 +496,15 @@ constexpr T log2e_v = log2e<T>::value;
 template <typename T = double>
 constexpr T log2e_rcp_v = 1. / log2e<T>::value;
 
+#ifndef KL_MODEL
 CK_TILE_DEVICE
 float exp2(float x) { return exp2f(x); };
+#endif
 
 CK_TILE_HOST
 float exp2(float x) { return std::exp2f(x); };
 
+#ifndef KL_MODEL
 CK_TILE_DEVICE uint16_t sad_u16(uint16_t x, uint16_t y, uint16_t acc)
 {
     return __builtin_amdgcn_sad_u16(x, y, acc);
@@ -508,6 +517,7 @@ CK_TILE_DEVICE uint32_t sad_u32(uint32_t x, uint32_t y, uint32_t acc)
     asm volatile("v_sad_u32 %0, %1, %2, %3" : "=v"(res) : "v"(x), "v"(y), "v"(acc));
     return res;
 }
+#endif
 
 CK_TILE_HOST uint32_t sad_u32(uint32_t x, uint32_t y, uint32_t acc)
 {
@@ -613,13 +623,13 @@ CK_TILE_HOST double sqrt(double x) { return std::sqrt(x); };
 template <typename T>
 CK_TILE_HOST T tanh(T x)
 {
-    return type_convert<T>(std::tanhf(type_convert<float>(x)));
+    return type_convert<T>(tanhf(type_convert<float>(x)));
 };
 
 template <>
 CK_TILE_HOST float tanh<float>(float x)
 {
-    return std::tanhf(x);
+    return tanhf(x);
 };
 
 template <>
@@ -631,13 +641,13 @@ CK_TILE_HOST double tanh<double>(double x)
 template <typename T>
 CK_TILE_HOST T acos(T x)
 {
-    return type_convert<T>(std::acosf(type_convert<float>(x)));
+    return type_convert<T>(acosf(type_convert<float>(x)));
 };
 
 template <>
 CK_TILE_HOST float acos<float>(float x)
 {
-    return std::acosf(x);
+    return acosf(x);
 };
 
 template <>
@@ -679,13 +689,13 @@ CK_TILE_HOST int8_t neg<int8_t>(int8_t x)
 template <typename T>
 CK_TILE_HOST T atan(T x)
 {
-    return type_convert<T>(std::atanf(type_convert<float>(x)));
+    return type_convert<T>(atanf(type_convert<float>(x)));
 };
 
 template <>
 CK_TILE_HOST float atan<float>(float x)
 {
-    return std::atanf(x);
+    return atanf(x);
 };
 
 template <>
@@ -697,13 +707,13 @@ CK_TILE_HOST double atan<double>(double x)
 template <typename T>
 CK_TILE_HOST T sin(T x)
 {
-    return type_convert<T>(std::sinf(type_convert<float>(x)));
+    return type_convert<T>(sinf(type_convert<float>(x)));
 };
 
 template <>
 CK_TILE_HOST float sin<float>(float x)
 {
-    return std::sinf(x);
+    return sinf(x);
 };
 
 template <>
@@ -715,13 +725,13 @@ CK_TILE_HOST double sin<double>(double x)
 template <typename T>
 CK_TILE_HOST T asin(T x)
 {
-    return type_convert<T>(std::asinf(type_convert<float>(x)));
+    return type_convert<T>(asinf(type_convert<float>(x)));
 };
 
 template <>
 CK_TILE_HOST float asin<float>(float x)
 {
-    return std::asinf(x);
+    return asinf(x);
 };
 
 template <>
@@ -733,13 +743,13 @@ CK_TILE_HOST double asin<double>(double x)
 template <typename T>
 CK_TILE_HOST T asinh(T x)
 {
-    return type_convert<T>(std::asinhf(type_convert<float>(x)));
+    return type_convert<T>(asinhf(type_convert<float>(x)));
 };
 
 template <>
 CK_TILE_HOST float asinh<float>(float x)
 {
-    return std::asinhf(x);
+    return asinhf(x);
 };
 
 template <>
@@ -751,13 +761,13 @@ CK_TILE_HOST double asinh<double>(double x)
 template <typename T>
 CK_TILE_HOST T cos(T x)
 {
-    return type_convert<T>(std::cosf(type_convert<float>(x)));
+    return type_convert<T>(cosf(type_convert<float>(x)));
 };
 
 template <>
 CK_TILE_HOST float cos<float>(float x)
 {
-    return std::cosf(x);
+    return cosf(x);
 };
 
 template <>
@@ -769,13 +779,13 @@ CK_TILE_HOST double cos<double>(double x)
 template <typename T>
 CK_TILE_HOST T acosh(T x)
 {
-    return type_convert<T>(std::acoshf(type_convert<float>(x)));
+    return type_convert<T>(acoshf(type_convert<float>(x)));
 };
 
 template <>
 CK_TILE_HOST float acosh<float>(float x)
 {
-    return std::acoshf(x);
+    return acoshf(x);
 };
 
 template <>
@@ -787,13 +797,13 @@ CK_TILE_HOST double acosh<double>(double x)
 template <typename T>
 CK_TILE_HOST T tan(T x)
 {
-    return type_convert<T>(std::tanf(type_convert<float>(x)));
+    return type_convert<T>(tanf(type_convert<float>(x)));
 };
 
 template <>
 CK_TILE_HOST float tan<float>(float x)
 {
-    return std::tanf(x);
+    return tanf(x);
 };
 
 template <>
@@ -805,13 +815,13 @@ CK_TILE_HOST double tan<double>(double x)
 template <typename T>
 CK_TILE_HOST T atanh(T x)
 {
-    return type_convert<T>(std::atanhf(type_convert<float>(x)));
+    return type_convert<T>(atanhf(type_convert<float>(x)));
 };
 
 template <>
 CK_TILE_HOST float atanh<float>(float x)
 {
-    return std::atanhf(x);
+    return atanhf(x);
 };
 
 template <>
@@ -823,13 +833,13 @@ CK_TILE_HOST double atanh<double>(double x)
 template <typename T>
 CK_TILE_HOST T sinh(T x)
 {
-    return type_convert<T>(std::sinhf(type_convert<float>(x)));
+    return type_convert<T>(sinhf(type_convert<float>(x)));
 };
 
 template <>
 CK_TILE_HOST float sinh<float>(float x)
 {
-    return std::sinhf(x);
+    return sinhf(x);
 };
 
 template <>
@@ -841,13 +851,13 @@ CK_TILE_HOST double sinh<double>(double x)
 template <typename T>
 CK_TILE_HOST T ceil(T x)
 {
-    return type_convert<T>(std::ceilf(type_convert<float>(x)));
+    return type_convert<T>(ceilf(type_convert<float>(x)));
 };
 
 template <>
 CK_TILE_HOST float ceil<float>(float x)
 {
-    return std::ceilf(x);
+    return ceilf(x);
 };
 
 template <>
@@ -859,13 +869,13 @@ CK_TILE_HOST double ceil<double>(double x)
 template <typename T>
 CK_TILE_HOST T cosh(T x)
 {
-    return type_convert<T>(std::coshf(type_convert<float>(x)));
+    return type_convert<T>(coshf(type_convert<float>(x)));
 };
 
 template <>
 CK_TILE_HOST float cosh<float>(float x)
 {
-    return std::coshf(x);
+    return coshf(x);
 };
 
 template <>
@@ -877,13 +887,13 @@ CK_TILE_HOST double cosh<double>(double x)
 template <typename T>
 CK_TILE_HOST T floor(T x)
 {
-    return type_convert<T>(std::floorf(type_convert<float>(x)));
+    return type_convert<T>(floorf(type_convert<float>(x)));
 };
 
 template <>
 CK_TILE_HOST float floor<float>(float x)
 {
-    return std::floorf(x);
+    return floorf(x);
 };
 
 template <>
@@ -901,13 +911,13 @@ CK_TILE_HOST T rcp(T x)
 template <typename T>
 CK_TILE_HOST T exp(T x)
 {
-    return type_convert<T>(std::expf(type_convert<float>(x)));
+    return type_convert<T>(expf(type_convert<float>(x)));
 }
 
 template <>
 CK_TILE_HOST float exp<float>(float x)
 {
-    return std::expf(x);
+    return expf(x);
 }
 
 template <>
@@ -919,13 +929,13 @@ CK_TILE_HOST double exp<double>(double x)
 template <typename T>
 CK_TILE_HOST T log(T x)
 {
-    return type_convert<T>(std::logf(type_convert<float>(x)));
+    return type_convert<T>(logf(type_convert<float>(x)));
 }
 
 template <>
 CK_TILE_HOST float log<float>(float x)
 {
-    return std::logf(x);
+    return logf(x);
 }
 
 template <>
@@ -937,13 +947,13 @@ CK_TILE_HOST double log<double>(double x)
 template <typename T>
 CK_TILE_HOST T pow(T x, T gamma)
 {
-    return type_convert<T>(std::powf(type_convert<float>(x), type_convert<float>(gamma)));
+    return type_convert<T>(powf(type_convert<float>(x), type_convert<float>(gamma)));
 }
 
 template <>
 CK_TILE_HOST float pow<float>(float x, float gamma)
 {
-    return std::powf(x, gamma);
+    return powf(x, gamma);
 }
 
 template <>
@@ -972,6 +982,7 @@ CK_TILE_HOST double expm1<double>(double x)
 
 // math functions for the HIP kernel,  some are implemented by calling hip builtin functions
 
+#ifndef KL_MODEL
 CK_TILE_DEVICE float abs(float x)
 {
     union
@@ -1480,5 +1491,6 @@ CK_TILE_DEVICE double expm1<double>(double x)
 {
     return expm1(x);
 };
+#endif
 
 } // namespace ck_tile

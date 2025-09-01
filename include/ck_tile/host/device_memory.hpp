@@ -10,6 +10,7 @@
 #include "ck_tile/host/host_tensor.hpp"
 
 namespace ck_tile {
+#ifndef KL_MODEL
 template <typename T>
 __global__ void set_buffer_value(T* p, T x, uint64_t buffer_element_size)
 {
@@ -48,10 +49,9 @@ __global__ void set_buffer_value(T* p, T x, uint64_t buffer_element_size)
  * ```
  */
 struct DeviceMem
-
 {
-    DeviceMem() : mpDeviceBuf(nullptr), mMemSize(0) {}
-    DeviceMem(std::size_t mem_size) : mMemSize(mem_size)
+    DeviceMem(void * kl) : mpDeviceBuf(nullptr), mMemSize(0) {}
+    DeviceMem(void * kl, std::size_t mem_size) : mMemSize(mem_size)
     {
         if(mMemSize != 0)
         {
@@ -63,7 +63,7 @@ struct DeviceMem
         }
     }
     template <typename T>
-    DeviceMem(const HostTensor<T>& t) : mMemSize(t.get_element_space_size_in_bytes())
+    DeviceMem(void * kl, const HostTensor<T>& t) : mMemSize(t.get_element_space_size_in_bytes())
     {
         if(mMemSize != 0)
         {
@@ -192,4 +192,151 @@ struct DeviceMem
     std::size_t mMemSize; ///< size of device buffer in bytes
 };
 
+#else
+
+#include "cm9_kernel_launch.hpp"
+//using namespace MI_KERNEL;
+
+struct DeviceMem
+{
+    DeviceMem(std::shared_ptr<MI_KERNEL::Kernel_Launcher> _kl) 
+        : kl(_kl)
+        , mKbuff(0)
+        , mMemSize(0) 
+    {}
+    DeviceMem(std::shared_ptr<MI_KERNEL::Kernel_Launcher> _kl, std::size_t mem_size) 
+        : kl(_kl)
+        , mMemSize(mem_size)
+    {
+        if(mMemSize != 0)
+        {
+            mKbuff = kl->create_buffer(MI_KERNEL::TYPE_READ_WRITE, mMemSize);
+        }
+    }
+    template <typename T>
+    DeviceMem(std::shared_ptr<MI_KERNEL::Kernel_Launcher> _kl, const HostTensor<T>& t) 
+        : kl(_kl)
+        , mMemSize(t.get_element_space_size_in_bytes())
+    {
+        if(mMemSize != 0)
+        {
+            mKbuff = kl->create_buffer(MI_KERNEL::TYPE_READ_WRITE, mMemSize);
+        }
+        ToDevice(t.data());
+    }
+    void Realloc(std::size_t mem_size)
+    {
+        if(mKbuff)
+        {
+            kl->release_buffer(mKbuff);
+            mKbuff = 0;
+        }
+        mMemSize = mem_size;
+        if(mMemSize != 0)
+        {
+            kl->create_buffer(MI_KERNEL::TYPE_READ_WRITE, mMemSize);
+        }
+    }
+    void* GetDeviceBuffer() const { return (void *)(&mKbuff); }
+    std::size_t GetBufferSize() const { return mMemSize; }
+    void ToDevice(const void* p) const
+    {
+        if(mKbuff)
+        {
+            printf("mKbuff, 0x%ld\n", mKbuff);
+            KL_CHECK_ERROR(kl->write_buffer(mKbuff,	mMemSize, (void*)p));
+        }
+    }
+    void ToDevice(const void* p, const std::size_t cpySize) const
+    {
+        if(mKbuff)
+        {
+            KL_CHECK_ERROR(kl->write_buffer(mKbuff,	cpySize, (void*)p));
+        }
+    }
+    void FromDevice(void* p) const
+    {
+        if(mKbuff)
+        {
+			KL_CHECK_ERROR(kl->read_buffer(mKbuff, mMemSize, (void*)p));
+        }
+    }
+    void FromDevice(void* p, const std::size_t cpySize) const
+    {
+        if(mKbuff)
+        {
+			KL_CHECK_ERROR(kl->read_buffer(mKbuff, cpySize, (void*)p));
+        }
+    }
+
+    // construct a host tensor with type T
+    template <typename T>
+    HostTensor<T> ToHost(std::size_t cpySize)
+    {
+        // TODO: host tensor could be slightly larger than the device tensor
+        // we just copy all data from GPU buffer
+        std::size_t host_elements = (cpySize + sizeof(T) - 1) / sizeof(T);
+        HostTensor<T> h_({host_elements});
+        if(mKbuff)
+        {
+			KL_CHECK_ERROR(kl->read_buffer(mKbuff, cpySize, (void*)(h_.data())));
+        }
+        return h_;
+    }
+    template <typename T>
+    HostTensor<T> ToHost()
+    {
+        return ToHost<T>(mMemSize);
+    }
+
+    void SetZero() const
+    {
+        if(mKbuff)
+        {
+            void * tmp = malloc(mMemSize);
+            memset(tmp, 0, mMemSize);
+            KL_CHECK_ERROR(kl->write_buffer(mKbuff,	mMemSize, (void*)tmp));
+            free(tmp);
+        }
+    }
+    template <typename T>
+    void SetValue(T x) const
+    {
+        if(mKbuff)
+        {
+            if(mMemSize % sizeof(T) != 0)
+            {
+                throw std::runtime_error("wrong! not entire DeviceMem will be set");
+            }
+
+            void * tmp = malloc(mMemSize);
+            T * tmpT = (T*)tmp;
+            for (int i = 0; i < mMemSize % sizeof(T); i++)
+                tmpT[i] = x;
+
+            KL_CHECK_ERROR(kl->write_buffer(mKbuff,	mMemSize, (void*)tmp));
+            free(tmp);
+        }
+    }
+    ~DeviceMem()
+    {
+        if(mKbuff)
+        {
+            try
+            {
+                kl->release_buffer(mKbuff);
+                mKbuff = 0;
+            }
+            catch(std::runtime_error& re)
+            {
+                std::cerr << re.what() << std::endl;
+            }
+        }
+    }
+
+    std::size_t mMemSize;
+    std::shared_ptr<MI_KERNEL::Kernel_Launcher> kl;
+    MI_KERNEL::K_Buffer mKbuff = 0; // PM4_Buf *
+};
+#endif  // KL_MODEL
 } // namespace ck_tile

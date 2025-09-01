@@ -15,6 +15,7 @@
 
 namespace ck_tile {
 
+#ifndef KL_MODEL
 template <int MinBlockPerCu, typename Kernel, typename... Args>
 #if CK_TILE_USE_LAUNCH_BOUNDS
 __launch_bounds__(Kernel::kBlockSize, MinBlockPerCu)
@@ -183,4 +184,56 @@ launch_kernel_time_mask(const stream_config& s, PreprocessFunc preprocess, Calla
         return timing_loop_impl(cpu_timer{}, s, callables_func, preprocess);
     }
 }
+
+#else // KL_MODEL
+
+#include "cm9_kernel_launch.hpp"
+#include "rocm_elf.hpp"
+
+void process_args_recursive(std::shared_ptr<MI_KERNEL::Kernel_Launcher> kl, int& argidx) { };
+void process_args_recursive(std::shared_ptr<MI_KERNEL::Kernel_Launcher> kl, int& argidx, const auto& first, const auto&... rest) {
+    using MemberType = std::decay_t<decltype(first)>;
+    if constexpr (std::is_same_v<MemberType, void*>) {
+        printf("[KARGS](%02d @ 0x%04X) buf: 0x%p\n", argidx, argidx * 0x10, first);
+        kl->set_arg(MI_KERNEL::MEM, argidx++, sizeof(MI_KERNEL::K_Buffer), (void *)(first)); // first is K_Buffer pointer aka void*
+    } else {
+        printf("[KARGS](%02d @ 0x%04X) = %d\n", argidx, argidx * 0x10, first);
+        kl->set_arg(MI_KERNEL::NONE_MEM, argidx++, sizeof(MemberType), (void *)(&first));
+    }
+    process_args_recursive(kl , argidx, rest...);
+};
+template <typename kargsT>
+void make_kernel(std::shared_ptr<MI_KERNEL::Kernel_Launcher> kl, std::string kernel_name, size_t lds_byte, kargsT kargs)
+{    
+    //kl->compile_kernel(); // must do before create ANY buffer
+	kl->set_lds_size(lds_byte);
+    std::apply(
+        [&](const auto&... members) {
+            int argidx = 0;
+            process_args_recursive(kl, argidx, members...);
+        }, 
+        kargs.remove_pad());
+
+	printf("sizeof karg = %zu\n", sizeof(kargs));
+    kl->hw_setup();
+}
+void launch_kernel(std::shared_ptr<MI_KERNEL::Kernel_Launcher> kl, dim3 grid_dim, dim3 block_dim)
+{
+    kl->run_kernel(block_dim.x, block_dim.y, block_dim.z, grid_dim.x, grid_dim.y, grid_dim.z);
+    kl->finish_kernel();
+
+    /*{
+        if(type == FP8)
+            kl->f8_setup(fp8_bias);
+        if(PerfCNT)
+            kl->start_perf_cnt();
+        launch_kernel();
+        kl->finish_kernel();
+        if(PerfCNT) 
+            kl->stop_perf_cnt();
+        kl->finish_kernel();
+    }*/
+}
+
+#endif // KL_MODEL
 } // namespace ck_tile

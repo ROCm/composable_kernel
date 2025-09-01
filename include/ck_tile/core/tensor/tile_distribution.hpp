@@ -18,11 +18,13 @@
 namespace ck_tile {
 
 namespace detail {
+#ifndef KL_MODEL
 template <typename Distribution>
 CK_TILE_HOST_DEVICE auto get_partition_index(Distribution)
 {
     return Distribution::_get_partition_index();
 }
+#endif
 } // namespace detail
 
 // distributed span
@@ -91,6 +93,7 @@ struct tile_distribution
     CK_TILE_HOST_DEVICE static constexpr index_t get_num_of_dimension_p() { return NDimP; }
     CK_TILE_HOST_DEVICE static constexpr index_t get_num_of_dimension_r() { return NDimR; }
 
+#ifndef KL_MODEL
     CK_TILE_HOST_DEVICE static auto _get_partition_index()
     {
         // only support warp-tile and block-tile
@@ -105,6 +108,7 @@ struct tile_distribution
             return array<index_t, 2>{get_warp_id(), get_lane_id()};
         }
     }
+#endif  
 
     CK_TILE_HOST_DEVICE static constexpr auto get_lengths()
     {
@@ -172,6 +176,7 @@ struct tile_distribution
     }
 #endif
 
+#ifndef KL_MODEL
     template <typename PartitionIndex = decltype(_get_partition_index())>
     CK_TILE_HOST_DEVICE auto
     calculate_index(const PartitionIndex& ps_idx = _get_partition_index()) const
@@ -181,6 +186,7 @@ struct tile_distribution
             make_tensor_adaptor_coordinate(ps_ys_to_xs_, ps_ys_idx);
         return window_adaptor_thread_coord_tmp.get_bottom_index();
     }
+#endif
 
     CK_TILE_HOST_DEVICE static constexpr auto get_distributed_spans()
     {

@@ -35,9 +35,24 @@ template <typename Seq>
 CK_TILE_HOST_DEVICE constexpr auto sequence_pop_back(Seq);
 
 namespace impl {
+#if defined(__clang__) && defined(__HIP__)
 // static_assert(__has_builtin(__type_pack_element), "can't find __type_pack_element");
 template <index_t I, typename... Ts>
 using at_index_t = __type_pack_element<I, Ts...>;
+#else
+template <size_t I, typename... Ts>
+struct type_pack_element {
+    static_assert(I < sizeof...(Ts), "Index out of bounds");
+    using type = decltype([]<size_t... Is>(std::index_sequence<Is...>) {
+        return std::type_identity<
+            std::tuple_element_t<I, std::tuple<Ts...>>
+        >{};
+    }(std::index_sequence_for<Ts...>{}));
+};
+template <size_t I, typename... Ts>
+using at_index_t = typename type_pack_element<I, Ts...>::type;
+//using at_index_t = typename type_pack_element<I, Ts...>::type::value{};
+#endif
 } // namespace impl
 
 // we could implement as below, similiar to std. But let's reduce the symbol name...
@@ -57,7 +72,13 @@ struct sequence
     CK_TILE_HOST_DEVICE static constexpr auto get()
     {
         static_assert(I < size(), "wrong! I too large");
+#if defined(__clang__) && defined(__HIP__)
         return number<impl::at_index_t<I, constant<Is>...>{}>{};
+#else
+        //return number<impl::at_index_t<I, constant<Is>...>{}>{};
+        using elem_type = impl::at_index_t<I, constant<Is>...>;
+        return number<elem_type::type::value>{};
+#endif
     }
 
     template <index_t I>
@@ -223,12 +244,28 @@ struct __integer_sequence<index_t, Ints...>
 {
     using seq_type = sequence<Ints...>;
 };
+#if !(defined(__clang__) && defined(__HIP__))
+    template <index_t N, index_t... Ints>
+    struct __index_sequence_generator 
+        : __index_sequence_generator<N-1, N-1, Ints...> {};
+    
+    template <index_t... Ints>
+    struct __index_sequence_generator<0, Ints...> {
+        using type = impl::__integer_sequence<index_t, Ints...>;
+    };
+#endif
 } // namespace impl
 
 // similiar
+#if defined(__clang__) && defined(__HIP__)
 template <index_t N>
 using make_index_sequence =
     typename __make_integer_seq<impl::__integer_sequence, index_t, N>::seq_type;
+#else
+template <index_t N>
+using make_index_sequence = 
+    typename impl::__index_sequence_generator<N>::type::seq_type;
+#endif
 
 // merge sequence
 template <typename Seq, typename... Seqs>
@@ -392,9 +429,15 @@ struct seq_reverse;
 template <index_t... Ids, index_t... Ns>
 struct seq_reverse<sequence<Ids...>, Ns...>
 {
+#if defined(__clang__) && defined(__HIP__)
     template <index_t I>
     using element = impl::at_index_t<I, constant<Ns>...>;
     using type    = sequence<element<(sizeof...(Ns) - 1 - Ids)>::value...>;
+#else
+    template <index_t I>
+    static constexpr index_t element = impl::at_index_t<I, constant<Ns>...>::type::value;    
+    using type = sequence<element<(sizeof...(Ns) - 1 - Ids)>...>;
+#endif
 };
 } // namespace impl
 

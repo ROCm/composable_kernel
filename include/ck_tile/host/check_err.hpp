@@ -353,8 +353,14 @@ check_err(const Range& out,
             err_count++;
             if(err_count < ERROR_DETAIL_LIMIT)
             {
-                std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
-                          << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+                //std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                //          << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+                printf("%s, out[%zu] != ref[%zu]: %.3f != %.3f\n",
+                       msg.c_str(),
+                       i,
+                       i,
+                       static_cast<float>(o),
+                       static_cast<float>(r));
             }
             res = false;
         }

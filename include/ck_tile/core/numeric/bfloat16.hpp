@@ -160,6 +160,7 @@ constexpr uint16_t float_to_bf16_rtn_raw(float f)
 CK_TILE_HOST
 constexpr uint16_t float_to_bf16_rtn_asm(float f) { return float_to_bf16_rtn_raw(f); }
 
+#ifndef KL_MODEL
 CK_TILE_DEVICE
 uint16_t float_to_bf16_rtn_asm(float f)
 {
@@ -187,11 +188,13 @@ uint16_t float_to_bf16_rtn_asm(float f)
 
     return uint16_t(u.int32);
 }
+#endif
 
 // TODO: do we need this on host?
 CK_TILE_HOST
 uint16_t float_to_bf16_rta_asm(float f) { return float_to_bf16_rtn_raw(f); }
 
+#ifndef KL_MODEL
 CK_TILE_DEVICE
 uint16_t float_to_bf16_rta_asm(float f)
 {
@@ -220,6 +223,7 @@ uint16_t float_to_bf16_rta_asm(float f)
     // Note: in above code snipet, we use hi 16 bit
     return u.hi;
 }
+#endif
 
 // Truncate instead of rounding, preserving SNaN
 CK_TILE_HOST_DEVICE
@@ -305,7 +309,7 @@ CK_TILE_HOST_DEVICE
 constexpr float bf16_to_float(bfloat16_t x) { return bf16_to_float_raw(bit_cast<uint16_t>(x)); }
 
 CK_TILE_HOST_DEVICE
-constexpr double bf16_to_double(bfloat16_t x) { return static_cast<double>(bf16_to_float_raw(x)); }
+constexpr double bf16_to_double(bfloat16_t x) { return static_cast<double>(bf16_to_float_raw(bit_cast<uint16_t>(x))); }
 
 template <bf16_rounding_mode rounding =
               static_cast<bf16_rounding_mode>(CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT)>
@@ -314,8 +318,13 @@ CK_TILE_HOST_DEVICE bfloat16_t constexpr fp16_to_bf16(half_t f, constant<roundin
     return bit_cast<bfloat16_t>(float_to_bf16_raw(static_cast<float>(f), constant<rounding>{}));
 }
 
+#if !(defined(__clang__) && defined(__HIP__))
+CK_TILE_HOST_DEVICE
+half_t bf16_to_fp16(bfloat16_t x) { return static_cast<fp16_t>(static_cast<float>(x)); }
+#else
 CK_TILE_HOST_DEVICE
 constexpr half_t bf16_to_fp16(bfloat16_t x) { return static_cast<fp16_t>(static_cast<float>(x)); }
+#endif
 
 template <class T>
 struct numeric;
@@ -413,6 +422,7 @@ bool isnan(const bfloat16_t& x)
     return (xx & 0x7FFF) > 0x7C00;
 }
 
+#ifndef KL_MODEL
 CK_TILE_DEVICE
 bfloat16_t sqrt(bfloat16_t x)
 {
@@ -431,4 +441,5 @@ bfloat16_t exp2(bfloat16_t x) { return static_cast<bfloat16_t>(exp2f(static_cast
 CK_TILE_DEVICE
 bfloat16_t log(bfloat16_t x) { return static_cast<bfloat16_t>(__logf(static_cast<float>(x))); };
 
+#endif
 } // namespace ck_tile

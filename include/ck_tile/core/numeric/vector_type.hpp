@@ -32,6 +32,7 @@ struct native_t
 // have compiler error
 namespace impl {
 
+#if defined(__clang__) && defined(__HIP__)
 template <typename T_, index_t N_, typename = void>
 struct ext_vector;
 
@@ -77,11 +78,53 @@ struct ext_vector<V_ __attribute__((ext_vector_type(Vs_))),
     using type = value_type __attribute__((ext_vector_type(N))); // this is danguous
 };
 
+#else // defined(__clang__) && defined(__HIP__)
+
+template <typename T, index_t N>
+struct ext_vector_type {
+    std::array<T, N> data;
+};
+
+template <typename T_, index_t N_, typename = void>
+struct ext_vector;
+
+template <typename T_, index_t N_>
+struct ext_vector<T_, N_, std::enable_if_t<!std::is_class_v<typename native_t<T_>::type>>>
+{
+    static constexpr index_t N = N_;
+    using value_type = typename native_t<T_>::type;
+    static_assert(!std::is_class_v<value_type>, "struct type is not supported for ext_vector");
+    
+    using type = ext_vector_type<value_type, N>;
+};
+
+template <typename T_, index_t N_>
+struct ext_vector<T_, N_, std::enable_if_t<std::is_class_v<typename native_t<T_>::type>>>
+{
+    static constexpr index_t N = N_;
+    using value_type = typename native_t<T_>::type::type;
+    static_assert(!std::is_class_v<value_type>, "struct type is not supported for ext_vector");
+    
+    using type = ext_vector_type<value_type, N>;
+};
+
+template <typename V_, index_t Vs_, index_t N_>
+struct ext_vector<ext_vector_type<V_, Vs_>, N_, void>
+{
+    static constexpr index_t N = Vs_ * N_;
+    using value_type = V_;
+    static_assert(!std::is_class_v<value_type>, "struct type is not supported for ext_vector");
+    
+    using type = ext_vector_type<value_type, N>;
+};
+#endif // defined(__clang__) && defined(__HIP__)
+
 } // namespace impl
 
 template <typename T, index_t N>
 using ext_vector_t = typename impl::ext_vector<T, N>::type;
 
+#if defined(__clang__) && defined(__HIP__)
 // by default, any type will result in a vector_size=1 with scalar_type=T traits.
 // ... unless we have other vector_traits specialization
 template <typename T, typename = void>
@@ -100,10 +143,54 @@ struct vector_traits<T __attribute__((ext_vector_type(N))), void>
     static constexpr index_t vector_size = N;
 };
 
+#else // defined(__clang__) && defined(__HIP__)
+
+namespace impl {
+template <typename T>
+struct is_vector_wrapper : std::false_type {};
+
+template <typename T, index_t N>
+struct is_vector_wrapper<impl::ext_vector_type<T, N>> : std::true_type {
+    using scalar_type = T;
+    static constexpr index_t size = N;
+};
+template <typename T>
+inline constexpr bool is_vector_wrapper_v = is_vector_wrapper<T>::value;
+} // namespace impl
+
+template <typename T, typename = void>
+struct vector_traits
+{
+    using scalar_type =
+        std::conditional_t<std::is_same_v<typename remove_cvref_t<T>::type, pk_int4_t>, 
+                          int8_t, 
+                          typename remove_cvref_t<T>::type>;
+    static constexpr index_t vector_size = 1;
+};
+
+template <typename T>
+struct vector_traits<T, std::enable_if_t<impl::is_vector_wrapper_v<T>>>
+{
+    using scalar_type = std::conditional_t<
+        std::is_same_v<typename impl::is_vector_wrapper<T>::scalar_type, pk_int4_t>, 
+        int8_t, 
+        typename impl::is_vector_wrapper<T>::scalar_type>;
+    static constexpr index_t vector_size = impl::is_vector_wrapper<T>::size;
+};
+
+#endif // defined(__clang__) && defined(__HIP__)
+
+#if defined(__clang__) && defined(__HIP__)
 template <typename X, typename Y>
 using has_same_scalar_type = std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                           typename vector_traits<remove_cvref_t<Y>>::scalar_type>;
+#else
+template <typename X, typename Y>
+using has_same_scalar_type = std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                          typename vector_traits<remove_cvref_t<Y>>::scalar_type>;
+#endif
 
+#if defined(__clang__) && defined(__HIP__)
 // below are some pre-defines of ext_vector_type
 // attention! 2 vector type could be just the same type
 // fp64
@@ -237,4 +324,5 @@ using pk_int4x4_t  = int8_t __attribute__((ext_vector_type(4)));
 using pk_int4x8_t  = int8_t __attribute__((ext_vector_type(8)));
 using pk_int4x16_t = int8_t __attribute__((ext_vector_type(16)));
 using pk_int4x32_t = int8_t __attribute__((ext_vector_type(32)));
+#endif
 } // namespace ck_tile

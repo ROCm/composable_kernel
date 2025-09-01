@@ -8,6 +8,7 @@
 
 namespace ck_tile {
 
+#ifndef KL_MODEL
 struct workgroup_barrier
 {
     CK_TILE_DEVICE workgroup_barrier(uint32_t* ptr) : base_ptr(ptr) {}
@@ -62,4 +63,5 @@ struct workgroup_barrier
     uint32_t* base_ptr;
 };
 
+#endif
 } // namespace ck_tile

@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
+#pragma once
+
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
 #include "ck_tile/core/numeric/numeric.hpp"
 #include "ck_tile/core/utility/random.hpp"
 #include "ck_tile/core/numeric/half.hpp"
+#if defined(__clang__) && defined(__HIP__)
 #include "ck_tile/core/numeric/math.hpp"
+#endif
 #include "ck_tile/core/numeric/integral_constant.hpp"
 #include "ck_tile/core/numeric/numeric.hpp"
 #include <stdint.h>
 #include <type_traits>
 
-#pragma once
 
 #if(defined(__gfx94__) || defined(__gfx12__)) && __HIP_DEVICE_COMPILE__
 #define CK_TILE_FP8_CVT_DEVICE 1
@@ -93,28 +96,28 @@ struct alignas(1) float8_e4m3_t
 
     // construct from float
     CK_TILE_HOST_DEVICE
-    explicit constexpr float8_e4m3_t(const float& x) : data(float_to_fp8_raw(x)) {}
+    explicit float8_e4m3_t(const float& x) : data(float_to_fp8_raw(x)) {}
 
     // construct from int
     CK_TILE_HOST_DEVICE
-    explicit constexpr float8_e4m3_t(const int& x) : data(float_to_fp8_raw(static_cast<float>(x)))
+    explicit float8_e4m3_t(const int& x) : data(float_to_fp8_raw(static_cast<float>(x)))
     {
     }
 
     // construct from unsigned int
     CK_TILE_HOST_DEVICE
-    explicit constexpr float8_e4m3_t(const unsigned int& x)
+    explicit float8_e4m3_t(const unsigned int& x)
         : data(float_to_fp8_raw(static_cast<float>(x)))
     {
     }
 
     // cast to float
     CK_TILE_HOST_DEVICE
-    explicit constexpr operator float() const { return fp8_to_float_raw(data); }
+    explicit operator float() const { return fp8_to_float_raw(data); }
 
     // cast to int
     CK_TILE_HOST_DEVICE
-    explicit constexpr operator int() const { return static_cast<int>(fp8_to_float_raw(data)); }
+    explicit operator int() const { return static_cast<int>(fp8_to_float_raw(data)); }
 
     // internal access
     CK_TILE_HOST_DEVICE
@@ -151,28 +154,28 @@ struct alignas(1) float8_e5m2_t
 
     // construct from float
     CK_TILE_HOST_DEVICE
-    explicit constexpr float8_e5m2_t(const float& x) : data(float_to_bf8_raw(x)) {}
+    explicit float8_e5m2_t(const float& x) : data(float_to_bf8_raw(x)) {}
 
     // construct from int
     CK_TILE_HOST_DEVICE
-    explicit constexpr float8_e5m2_t(const int& x) : data(float_to_bf8_raw(static_cast<float>(x)))
+    explicit float8_e5m2_t(const int& x) : data(float_to_bf8_raw(static_cast<float>(x)))
     {
     }
 
     // construct from unsigned int
     CK_TILE_HOST_DEVICE
-    explicit constexpr float8_e5m2_t(const unsigned int& x)
+    explicit float8_e5m2_t(const unsigned int& x)
         : data(float_to_bf8_raw(static_cast<float>(x)))
     {
     }
 
     // cast to float
     CK_TILE_HOST_DEVICE
-    explicit constexpr operator float() const { return bf8_to_float_raw(data); }
+    explicit operator float() const { return bf8_to_float_raw(data); }
 
     // cast to int
     CK_TILE_HOST_DEVICE
-    explicit constexpr operator int() const { return static_cast<int>(bf8_to_float_raw(data)); }
+    explicit operator int() const { return static_cast<int>(bf8_to_float_raw(data)); }
 
     // internal access
     CK_TILE_HOST_DEVICE
@@ -187,6 +190,7 @@ using bf8_raw_t = typename bf8_t::raw_type;
 template <typename>
 struct native_t;
 
+#if defined(__clang__) && defined(__HIP__)
 template <>
 struct native_t<fp8_t>
 {
@@ -199,13 +203,34 @@ struct native_t<bf8_t>
     using type = unsigned _BitInt(8);
 };
 
-#else
+#else // defined(__clang__) && defined(__HIP__)
+template <>
+struct native_t<fp8_t>
+{
+    using type = fp8_raw_t;
+};
 
+template <>
+struct native_t<bf8_t>
+{
+    using type = bf8_raw_t;
+};
+#endif // defined(__clang__) && defined(__HIP__)
+
+#else // CK_TILE_USE_CUSTOM_DATA_TYPE
+
+#if defined(__clang__) && defined(__HIP__)
 using fp8_t     = _BitInt(8);
 using fp8_raw_t = uint8_t;
 using bf8_t     = unsigned _BitInt(8);
 using bf8_raw_t = uint8_t;
-#endif
+#else
+using fp8_t     = struct BitInt32Fp8 { uint32_t value : 8; };
+using fp8_raw_t = uint8_t;
+using bf8_t     = struct BitInt32Bf8 { uint32_t value : 8; };
+using bf8_raw_t = uint8_t;
+#endif // defined(__clang__) && defined(__HIP__)
+#endif // CK_TILE_USE_CUSTOM_DATA_TYPE
 
 template <>
 struct numeric_traits<fp8_t>
@@ -247,7 +272,7 @@ struct numeric_traits<bf8_t>
 namespace impl {
 
 template <typename SrcT, typename DstT, bool clip = true, bool stoch = false>
-CK_TILE_HOST_DEVICE DstT run_cast_to_f8(SrcT src, unsigned int rng = 0)
+CK_TILE_HOST_DEVICE uint8_t run_cast_to_f8_raw(SrcT src, unsigned int rng = 0)
 {
     static_assert(std::is_same<DstT, fp8_t>::value || std::is_same<DstT, bf8_t>::value,
                   "DstT type must be fp8 or bf8.");
@@ -343,12 +368,12 @@ CK_TILE_HOST_DEVICE DstT run_cast_to_f8(SrcT src, unsigned int rng = 0)
     // Deal with inf and NaNs
     if((src_bitwise & fInf) == fInf)
     {
-        return mantissa != 0 ? nan : signed_inf;
+        return mantissa != 0 ? static_cast<uint8_t>(nan) : static_cast<uint8_t>(signed_inf);
     }
 
     if((src_bitwise & abs_mask) > ifmax)
     {
-        return signed_inf;
+        return static_cast<uint8_t>(signed_inf);
     }
 
     // First need to check if it is normal or denorm as there is a difference of
@@ -403,7 +428,7 @@ CK_TILE_HOST_DEVICE DstT run_cast_to_f8(SrcT src, unsigned int rng = 0)
     // an undefined behavior of bit shifts >= type width).
     if(exponent_diff > DstT_mant + 1)
     {
-        return is_fnuz ? 0 : (sign << (DstT_exp + DstT_mant));
+        return is_fnuz ? static_cast<uint8_t>(0) : static_cast<uint8_t>(sign << (DstT_exp + DstT_mant));
     }
     bool midpoint = (mantissa & ((1u << (SrcT_mant - DstT_mant + exponent_diff)) - 1)) ==
                     (1u << (SrcT_mant - DstT_mant + exponent_diff - 1));
@@ -462,14 +487,20 @@ CK_TILE_HOST_DEVICE DstT run_cast_to_f8(SrcT src, unsigned int rng = 0)
         }
         else
         {
-            return signed_inf;
+            return static_cast<uint8_t>(signed_inf);
         }
     }
 
     if(f8_exponent == 0 && mantissa == 0)
-        return is_fnuz ? 0 : (sign << (DstT_exp + DstT_mant));
+        return is_fnuz ? static_cast<uint8_t>(0) : static_cast<uint8_t>(sign << (DstT_exp + DstT_mant));
     mantissa &= (1 << DstT_mant) - 1;
-    return (sign << (DstT_exp + DstT_mant)) | (f8_exponent << DstT_mant) | mantissa;
+    return static_cast<uint8_t>((sign << (DstT_exp + DstT_mant)) | (f8_exponent << DstT_mant) | mantissa);
+}
+
+template <typename SrcT, typename DstT, bool clip = true, bool stoch = false>
+CK_TILE_HOST_DEVICE DstT run_cast_to_f8(SrcT src, unsigned int rng = 0)
+{
+    return bit_cast<DstT>(run_cast_to_f8_raw<SrcT, DstT, clip, stoch>(src, rng));
 }
 
 template <typename SrcT, typename DstT, bool clip = true>
@@ -492,10 +523,10 @@ CK_TILE_HOST_DEVICE DstT run_cast_from_f8(SrcT x)
     constexpr int DstT_exp  = numeric_traits<DstT>::exp;  // exponent width of the destination type
     constexpr int DstT_mant = numeric_traits<DstT>::mant; // mantissa width of the destination type
 
-    constexpr DstT fInf    = bit_cast<DstT>(numeric_traits<DstT>::Inf);
-    constexpr DstT fNegInf = bit_cast<DstT>(numeric_traits<DstT>::NegInf);
-    constexpr DstT fNaN    = bit_cast<DstT>(numeric_traits<DstT>::NaN);
-    constexpr DstT fNeg0   = bit_cast<DstT>(numeric_traits<DstT>::Neg0);
+    DstT fInf    = bit_cast<DstT>(numeric_traits<DstT>::Inf);
+    DstT fNegInf = bit_cast<DstT>(numeric_traits<DstT>::NegInf);
+    DstT fNaN    = bit_cast<DstT>(numeric_traits<DstT>::NaN);
+    DstT fNeg0   = bit_cast<DstT>(numeric_traits<DstT>::Neg0);
 
     DstT fmax{0}, fmin{0};
     // Max number in e5m2 57344
@@ -510,6 +541,7 @@ CK_TILE_HOST_DEVICE DstT run_cast_from_f8(SrcT x)
         fmin = bit_cast<DstT>(static_cast<typename numeric_traits<DstT>::bitwise_type>(0xC7600000));
     }
 
+#if !CK_TILE_USE_CUSTOM_DATA_TYPE
     if(x == 0)
     {
         return 0;
@@ -551,6 +583,49 @@ CK_TILE_HOST_DEVICE DstT run_cast_from_f8(SrcT x)
             return fNaN;
         }
     }
+#else
+    if(x.data == 0)
+    {
+        return 0;
+    }
+
+    unsigned long long sign     = x.data >> 7;
+    unsigned long long mantissa = x.data & ((1 << SrcT_mant) - 1);
+    int exponent                = (x.data & 0x7F) >> SrcT_mant;
+    if constexpr(is_fnuz)
+    {
+        if((x.data & 0xff) == 0x80)
+        {
+            return fNaN;
+        }
+    }
+    else
+    {
+        if(x.data == SrcT{0x80}.data)
+        {
+            return fNeg0;
+        }
+        if constexpr(SrcT_exp == 4)
+        { // e4m3
+            if((x.data & 0x7F) == 0x7F)
+            {
+                return fNaN;
+            }
+        }
+        else if((x.data & 0x7C) == 0x7C)
+        { // e5m2
+            if((x.data & 0x3) == 0)
+            {
+                if constexpr(clip)
+                {
+                    return sign ? fmin : fmax;
+                }
+                return sign ? fNegInf : fInf;
+            }
+            return fNaN;
+        }
+    }
+#endif
 
     typename numeric_traits<DstT>::bitwise_type retval;
 
@@ -566,7 +641,7 @@ CK_TILE_HOST_DEVICE DstT run_cast_from_f8(SrcT x)
     // subnormal input
     if(exponent == 0)
     {
-        int sh = 1 + clz(mantissa) - (32 - SrcT_mant);
+        int sh = 1 + __builtin_clz(mantissa) - (32 - SrcT_mant);
         mantissa <<= sh;
         exponent += 1 - sh;
         mantissa &= ((1ull << SrcT_mant) - 1);
@@ -685,8 +760,8 @@ CK_TILE_HOST_DEVICE typename numeric_traits<DstT>::bitwise_type float_to_fp8_sr_
 #if CK_TILE_FP8_CVT_DEVICE
     return impl::cast_to_f8_from_f32<numeric_traits<DstT>::f8_interpret, clip, true>(x, rng);
 #else
-    return bit_cast<typename numeric_traits<DstT>::bitwise_type>(
-        impl::cast_to_f8<SrcT, DstT, clip, true>(x, rng));
+    return static_cast<numeric_traits<DstT>::bitwise_type>(
+        impl::run_cast_to_f8_raw<SrcT, DstT, clip, true>(x, rng));
 #endif
 }
 
@@ -709,8 +784,8 @@ CK_TILE_HOST_DEVICE typename numeric_traits<DstT>::bitwise_type float_to_fp8_rtn
 #if CK_TILE_FP8_CVT_DEVICE
     return impl::cast_to_f8_from_f32<numeric_traits<DstT>::f8_interpret, clip, false>(x, 0);
 #else
-    return bit_cast<typename numeric_traits<DstT>::bitwise_type>(
-        impl::cast_to_f8<SrcT, DstT, clip, false>(x, 0));
+    return static_cast<numeric_traits<DstT>::bitwise_type>(
+        impl::run_cast_to_f8_raw<SrcT, DstT, clip, false>(x, 0));
 #endif
 }
 
@@ -1078,6 +1153,7 @@ bool isnan(const fp8_t& x)
 #endif
 }
 #if CK_TILE_USE_CUSTOM_DATA_TYPE
+#ifndef KL_MODEL
 CK_TILE_DEVICE
 fp8_t sqrt(fp8_t x) { return static_cast<fp8_t>(__builtin_amdgcn_sqrtf(static_cast<float>(x))); };
 
@@ -1089,7 +1165,8 @@ fp8_t exp2(fp8_t x) { return static_cast<fp8_t>(exp2f(static_cast<float>(x))); }
 
 CK_TILE_DEVICE
 fp8_t log(fp8_t x) { return static_cast<fp8_t>(__logf(static_cast<float>(x))); };
-#endif
+#endif // KL_MODEL
+#endif // CK_TILE_USE_CUSTOM_DATA_TYPE
 
 CK_TILE_HOST_DEVICE
 bool isnan(const bf8_t& x)
@@ -1104,6 +1181,7 @@ bool isnan(const bf8_t& x)
 }
 
 #if CK_TILE_USE_CUSTOM_DATA_TYPE
+#ifndef KL_MODEL
 CK_TILE_DEVICE
 bf8_t sqrt(bf8_t x) { return static_cast<bf8_t>(__builtin_amdgcn_sqrtf(static_cast<float>(x))); };
 
@@ -1115,6 +1193,7 @@ bf8_t exp2(bf8_t x) { return static_cast<bf8_t>(exp2f(static_cast<float>(x))); }
 
 CK_TILE_DEVICE
 bf8_t log(bf8_t x) { return static_cast<bf8_t>(__logf(static_cast<float>(x))); };
-#endif
+#endif // KL_MODEL
+#endif // CK_TILE_USE_CUSTOM_DATA_TYPE
 
 } // namespace ck_tile

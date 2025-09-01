@@ -4,7 +4,9 @@
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/half.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
+#if defined(__clang__) && defined(__HIP__)
 #include "ck_tile/core/numeric/math.hpp"
+#endif
 #include "ck_tile/core/numeric/numeric.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
 #include "ck_tile/core/utility/random.hpp"

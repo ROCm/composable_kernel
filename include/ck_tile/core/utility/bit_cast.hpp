@@ -10,10 +10,16 @@ namespace ck_tile {
 template <typename Y, typename X>
 CK_TILE_HOST_DEVICE constexpr Y bit_cast(const X& x)
 {
+#if defined(__clang__) && defined(__HIP__)
     static_assert(__has_builtin(__builtin_bit_cast), "");
     static_assert(sizeof(X) == sizeof(Y), "Do not support cast between different size of type");
 
     return __builtin_bit_cast(Y, x);
+#else
+    Y y;
+    memcpy(&y, &x, sizeof(Y));
+    return y;
+#endif
 }
 
 } // namespace ck_tile

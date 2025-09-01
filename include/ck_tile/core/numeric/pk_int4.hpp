@@ -97,6 +97,7 @@ struct numeric_traits<pk_int4_t>
     static constexpr int PackedSize = 2;
 };
 
+#if defined(__clang__) && defined(__HIP__)
 using fp32x2_t = float __attribute__((ext_vector_type(2)));
 using fp16x2_t = _Float16 __attribute__((ext_vector_type(2)));
 using bf16x2_t = bfloat16_t __attribute__((ext_vector_type(2)));
@@ -186,4 +187,5 @@ CK_TILE_HOST_DEVICE int8x2_t pk_int4_t_to_int8x2_t(const pk_int4_t& x)
     return res;
 }
 
+#endif
 } // namespace ck_tile

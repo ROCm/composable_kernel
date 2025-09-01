@@ -71,9 +71,24 @@ struct applier
     }
 };
 
+#if defined(__clang__) && defined(__HIP__)
 template <int32_t Size> // == sizeof...(Is)
 using make_applier = __make_integer_seq<applier, index_t, Size>;
 
+#else
+namespace impl {
+    template <int32_t N, index_t... Is>
+    struct applier_generator : applier_generator<N-1, N-1, Is...> {};
+    
+    template <index_t... Is>
+    struct applier_generator<0, Is...> {
+        using type = applier<index_t, Is...>;
+    };
+} // namespace impl
+
+template <int32_t Size>
+using make_applier = typename impl::applier_generator<Size>::type;
+#endif
 } // namespace detail
 
 template <index_t N>

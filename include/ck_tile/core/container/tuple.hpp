@@ -255,10 +255,12 @@ struct tuple : impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>
     {
         bool flag = true;
 
+#if defined(__clang__) && defined(__HIP__)
         static_for<0, sizeof...(T), 1>{}([&flag](auto i) {
             flag &= is_static_v<remove_cvref_t<__type_pack_element<i.value, T...>>>;
         });
-
+        
+#endif
         return flag;
     }
 
@@ -324,7 +326,20 @@ struct vector_traits;
 template <typename... T>
 struct vector_traits<tuple<T...>, void>
 {
+#if defined(__clang__) && defined(__HIP__)
     using scalar_type                    = __type_pack_element<0, T...>;
+#else
+    template <size_t I, typename... Ts>
+    struct TypePackElement {
+        static_assert(I < sizeof...(Ts), "Index out of bounds");
+        using type = decltype([]<size_t... Is>(std::index_sequence<Is...>) {
+            return std::type_identity<
+                std::tuple_element_t<I, std::tuple<Ts...>>
+            >{};
+        }(std::index_sequence_for<Ts...>{}));
+    };
+    using scalar_type = typename TypePackElement<0, T...>::type;
+#endif
     static constexpr index_t vector_size = sizeof...(T);
 };
 

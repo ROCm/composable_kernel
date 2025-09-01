@@ -15,6 +15,7 @@
 
 namespace ck_tile {
 
+#ifndef KL_MODEL
 // TODO: we have "memory" clobber here because this inline asm is used for async copy
 CK_TILE_DEVICE void m0_set_with_memory(index_t v)
 {
@@ -141,4 +142,5 @@ CK_TILE_DEVICE auto cmp_lt_to_exec(const X& x, const Y& y)
     return exec_flag;
 }
 
+#endif
 } // namespace ck_tile

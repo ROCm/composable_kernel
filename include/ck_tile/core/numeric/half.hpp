@@ -10,9 +10,26 @@
 
 namespace ck_tile {
 
+#if defined(__clang__) && defined(__HIP__)
 using fp16_hip_t = _Float16; // most of hip internal function use this type
+#else
+using fp16_hip_t = __half; // defined in hip_fp16_gcc.h
+#endif
 using fp16_raw_t = uint16_t;
 
+#if !(defined(__clang__) && defined(__HIP__))
+CK_TILE_HOST_DEVICE
+float fp16_to_float_hip(const fp16_hip_t& x);
+
+CK_TILE_HOST_DEVICE
+double fp16_to_double_hip(const fp16_hip_t& x);
+
+CK_TILE_HOST_DEVICE
+fp16_hip_t float_to_fp16_hip(const float& x);
+
+CK_TILE_HOST_DEVICE
+fp16_hip_t double_to_fp16_hip(const double& x);
+#else
 CK_TILE_HOST_DEVICE
 constexpr float fp16_to_float_hip(const fp16_hip_t& x);
 
@@ -24,6 +41,7 @@ constexpr fp16_hip_t float_to_fp16_hip(const float& x);
 
 CK_TILE_HOST_DEVICE
 constexpr fp16_hip_t double_to_fp16_hip(const double& x);
+#endif
 
 #if CK_TILE_USE_CUSTOM_DATA_TYPE
 // HIP use fp16_hip_t as interchangable data type for float16
@@ -48,16 +66,17 @@ struct alignas(2) half_t
 
     // construct from HIP half
     CK_TILE_HOST_DEVICE
-    explicit constexpr half_t(const fp16_hip_t& x) : data(ck_tile::bit_cast<raw_type>(x)) {}
+    explicit half_t(const fp16_hip_t& x) : data(ck_tile::bit_cast<raw_type>(x)) {}
 
     // construct from float
     CK_TILE_HOST_DEVICE
-    explicit constexpr half_t(const float& x) : half_t(float_to_fp16_hip(x)) {}
+    explicit half_t(const float& x) : half_t(float_to_fp16_hip(x)) {}
 
     // construct from double
     CK_TILE_HOST_DEVICE
-    explicit constexpr half_t(const double& x) : half_t(double_to_fp16_hip(x)) {}
+    explicit half_t(const double& x) : half_t(double_to_fp16_hip(x)) {}
 
+#if defined(__clang__) && defined(__HIP__) 
     // construct from int
     CK_TILE_HOST_DEVICE
     explicit constexpr half_t(const int& x) : half_t(static_cast<fp16_hip_t>(__int2half_rn(x))) {}
@@ -68,18 +87,27 @@ struct alignas(2) half_t
         : half_t(static_cast<fp16_hip_t>(__uint2half_rn(x)))
     {
     }
+#else 
+    // __int2half_rn() not implementd in hip_fp16_gcc.h
+    CK_TILE_HOST_DEVICE
+    explicit half_t(const int& x) 
+        : half_t(static_cast<fp16_hip_t>(__float2half_rn(static_cast<float>(x)))) {}
 
+    CK_TILE_HOST_DEVICE
+    explicit half_t(const unsigned int& x)
+        : half_t(static_cast<fp16_hip_t>(__float2half_rn(static_cast<float>(x)))) {}
+#endif
     // cast to float
     CK_TILE_HOST_DEVICE
-    explicit constexpr operator float() const { return fp16_to_float_hip(to_fp16()); }
+    explicit operator float() const { return fp16_to_float_hip(to_fp16()); }
 
     // cast to double
     CK_TILE_HOST_DEVICE
-    explicit constexpr operator double() const { return fp16_to_double_hip(to_fp16()); }
+    explicit operator double() const { return fp16_to_double_hip(to_fp16()); }
 
     // cast to int
     CK_TILE_HOST_DEVICE
-    explicit constexpr operator int() const
+    explicit operator int() const
     {
         return static_cast<int>(fp16_to_float_hip(to_fp16()));
     }
@@ -98,21 +126,56 @@ struct alignas(2) half_t
 template <typename>
 struct native_t;
 
+#if defined(__clang__) && defined(__HIP__)
 template <>
 struct native_t<half_t>
 {
     using type = _Float16;
 };
+#else
+template <>
+struct native_t<half_t>
+{
+    using type = typename half_t::raw_type;
+};
+#endif
 
 using fp16_t     = half_t;
 using fp16_raw_t = typename half_t::raw_type;
 #else
+#if defined(__clang__) && defined(__HIP__)
 using fp16_t     = _Float16;
 using half_t     = _Float16;
+#else
+using fp16_t     = __half;
+using half_t     = __half;
+#endif
 using fp16_raw_t = ushort;
 #endif
 
-// conversions
+// conversions implemented in rocm headers, and used by our half_t
+#if !(defined(__clang__) && defined(__HIP__))
+CK_TILE_HOST_DEVICE
+float fp16_to_float_hip(const fp16_hip_t& x)
+{
+    return static_cast<float>(x); // __half.float() -> __half2float() in hip_fp16_gcc.h
+}
+CK_TILE_HOST_DEVICE
+double fp16_to_double_hip(const fp16_hip_t& x)
+{
+    return static_cast<double>(fp16_to_float_hip(x));
+}
+CK_TILE_HOST_DEVICE
+fp16_hip_t float_to_fp16_hip(const float& x)
+{    
+    return static_cast<fp16_hip_t>(x); // __half(float) -> __float2half(x) in hip_fp16_gcc.h
+}
+CK_TILE_HOST_DEVICE
+fp16_hip_t double_to_fp16_hip(const double& x)
+{
+    return static_cast<fp16_hip_t>(x);
+}
+#else
 CK_TILE_HOST_DEVICE
 constexpr float fp16_to_float_hip(const fp16_hip_t& x)
 {
@@ -139,7 +202,21 @@ constexpr fp16_hip_t double_to_fp16_hip(const double& x)
     // return __float2half(x);
     return static_cast<fp16_hip_t>(x);
 }
+#endif
 
+// conversions implemented in half_t, and used by customers
+#if !(defined(__clang__) && defined(__HIP__))
+float fp16_to_float(const half_t& x) { return static_cast<float>(x); }
+
+CK_TILE_HOST_DEVICE
+float fp16_to_double(const half_t& x) { return static_cast<float>(x); }
+
+CK_TILE_HOST_DEVICE
+half_t float_to_fp16(const float& x) { return static_cast<half_t>(x); }
+
+CK_TILE_HOST_DEVICE
+half_t double_to_fp16(const double& x) { return static_cast<half_t>(x); }
+#else
 CK_TILE_HOST_DEVICE
 constexpr float fp16_to_float(const half_t& x) { return static_cast<float>(x); }
 
@@ -151,6 +228,7 @@ constexpr half_t float_to_fp16(const float& x) { return static_cast<half_t>(x); 
 
 CK_TILE_HOST_DEVICE
 constexpr half_t double_to_fp16(const double& x) { return static_cast<half_t>(x); }
+#endif
 
 // limits
 template <class T>
@@ -244,6 +322,7 @@ struct numeric_traits<half_t>
 
 #if CK_TILE_USE_CUSTOM_DATA_TYPE
 // arithmetic
+#ifndef KL_MODEL
 CK_TILE_DEVICE bool operator==(const half_t& x, const half_t& y)
 {
     return __heq(x.to_fp16(), y.to_fp16());
@@ -350,6 +429,7 @@ half_t operator--(half_t& x, int)
     return y;
 }
 #endif
+#endif
 
 #if CK_TILE_USE_CUSTOM_DATA_TYPE
 CK_TILE_ARITHMETIC_USING_FLOAT(CK_TILE_HOST, half_t)
@@ -366,6 +446,7 @@ bool isnan(const half_t& x)
     return (xx & 0x7FFF) > 0x7C00;
 }
 
+#ifndef KL_MODEL
 CK_TILE_DEVICE
 half_t sqrt(half_t x)
 {
@@ -381,7 +462,9 @@ half_t exp2(half_t x) { return static_cast<half_t>(exp2f(static_cast<float>(x)))
 CK_TILE_DEVICE
 half_t log(half_t x) { return static_cast<half_t>(__logf(static_cast<float>(x))); };
 #endif
+#endif
 
+#if defined(__clang__) && defined(__HIP__)
 using fp16x2_t = _Float16 __attribute__((ext_vector_type(2)));
 
 CK_TILE_HOST fp16x2_t pk_add_f16(const fp16x2_t& x, const fp16x2_t& y)
@@ -400,5 +483,6 @@ CK_TILE_DEVICE fp16x2_t pk_add_f16(const fp16x2_t& x, const fp16x2_t& y)
     asm volatile("v_pk_add_f16 %0, %1, %2" : "=v"(c) : "v"(x), "v"(y));
     return c;
 }
+#endif
 
 } // namespace ck_tile

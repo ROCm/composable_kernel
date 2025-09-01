@@ -55,6 +55,7 @@ struct magic_division32_bit_range
         return make_tuple(constant<multiplier>{}, constant<shift>{});
     }
 
+#ifndef KL_MODEL
     // magic division for uint32_t
     CK_TILE_DEVICE static constexpr uint32_t
     do_magic_division(uint32_t dividend, uint32_t multiplier, uint32_t shift)
@@ -70,6 +71,7 @@ struct magic_division32_bit_range
             return (tmp + dividend) >> shift;
         }
     }
+#endif
 
     CK_TILE_HOST static constexpr uint32_t
     do_magic_division(uint32_t dividend, uint32_t multiplier, uint32_t shift)
@@ -78,6 +80,7 @@ struct magic_division32_bit_range
         return (tmp + dividend) >> shift;
     }
 
+#ifndef KL_MODEL
     // magic division for int32_t
     // HACK: use dividend_i32 as if it's uint32_t, dividend_i32 need to be
     // non-negative for result to be correct
@@ -98,6 +101,7 @@ struct magic_division32_bit_range
             return (tmp + dividend_u32) >> shift;
         }
     }
+#endif
 
     CK_TILE_HOST static constexpr int32_t
     do_magic_division(int32_t dividend_i32, uint32_t multiplier, uint32_t shift)
@@ -143,6 +147,7 @@ struct magic_division16_bit_range
         return make_tuple(constant<multiplier>{}, constant<shift>{});
     }
 
+#ifndef KL_MODEL
     // magic division for uint32_t
     CK_TILE_DEVICE static constexpr uint32_t
     do_magic_division(uint32_t dividend, uint32_t multiplier, uint32_t shift)
@@ -150,6 +155,7 @@ struct magic_division16_bit_range
         uint32_t tmp = (dividend * multiplier) >> 16;
         return (tmp + dividend) >> shift;
     }
+#endif
 
     CK_TILE_HOST static constexpr uint32_t
     do_magic_division(uint32_t dividend, uint32_t multiplier, uint32_t shift)
@@ -158,6 +164,7 @@ struct magic_division16_bit_range
         return (tmp + dividend) >> shift;
     }
 
+#ifndef KL_MODEL
     // magic division for int32_t
     // HACK: use dividend_i32 as if it's uint32_t, dividend_i32 need to be
     // non-negative for result to be correct
@@ -169,6 +176,7 @@ struct magic_division16_bit_range
         uint32_t tmp          = (dividend_u32 * multiplier) >> 16;
         return (tmp + dividend_u32) >> shift;
     }
+#endif
 
     CK_TILE_HOST static constexpr int32_t
     do_magic_division(int32_t dividend_i32, uint32_t multiplier, uint32_t shift)
