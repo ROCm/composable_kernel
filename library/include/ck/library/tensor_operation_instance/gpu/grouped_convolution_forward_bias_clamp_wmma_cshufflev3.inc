@@ -10,34 +10,33 @@ namespace instance {
 
 #ifdef CK_ENABLE_BF16
 
-// void add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-//                                                                 NHWGC,
-//                                                                 GKYXC,
-//                                                                 Tuple<NHWGK>,
-//                                                                 NHWGK,
-//                                                                 BF16,
-//                                                                 BF16,
-//                                                                 Tuple<BF16>,
-//                                                                 BF16,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 AddClamp>>>& instances);
+void add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                Tuple<NHWGK>,
+                                                                NHWGK,
+                                                                BF16,
+                                                                BF16,
+                                                                Tuple<BF16>,
+                                                                BF16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                AddClamp>>>& instances);
 
-// void
-// add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_16x16_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-//                                                                 NHWGC,
-//                                                                 GKYXC,
-//                                                                 Tuple<NHWGK>,
-//                                                                 NHWGK,
-//                                                                 BF16,
-//                                                                 BF16,
-//                                                                 Tuple<BF16>,
-//                                                                 BF16,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 AddClamp>>>& instances);
+void add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_16x16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                Tuple<NHWGK>,
+                                                                NHWGK,
+                                                                BF16,
+                                                                BF16,
+                                                                Tuple<BF16>,
+                                                                BF16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                AddClamp>>>& instances);
 
 // void
 // add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_large_tensor_nhwgc_gkyxc_nhwgk_bf16_instances(
@@ -54,95 +53,61 @@ namespace instance {
 //                                                                 PassThrough,
 //                                                                 AddClamp>>>& instances);
 
-// void
-// add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_merged_groups_nhwgc_gkyxc_nhwgk_bf16_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-//                                                                 NHWGC,
-//                                                                 GKYXC,
-//                                                                 Tuple<NHWGK>,
-//                                                                 NHWGK,
-//                                                                 BF16,
-//                                                                 BF16,
-//                                                                 Tuple<BF16>,
-//                                                                 BF16,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 AddClamp>>>& instances);
+void add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_merged_groups_nhwgc_gkyxc_nhwgk_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                Tuple<NHWGK>,
+                                                                NHWGK,
+                                                                BF16,
+                                                                BF16,
+                                                                Tuple<BF16>,
+                                                                BF16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                AddClamp>>>& instances);
 
-// void
-// add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_comp_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-//                                                                 NHWGC,
-//                                                                 GKYXC,
-//                                                                 Tuple<NHWGK>,
-//                                                                 NHWGK,
-//                                                                 BF16,
-//                                                                 BF16,
-//                                                                 Tuple<BF16>,
-//                                                                 BF16,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 AddClamp>>>& instances);
+void add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_comp_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                Tuple<NHWGK>,
+                                                                NHWGK,
+                                                                BF16,
+                                                                BF16,
+                                                                Tuple<BF16>,
+                                                                BF16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                AddClamp>>>& instances);
 
-// void
-// add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_comp_2x_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-//                                                                 NHWGC,
-//                                                                 GKYXC,
-//                                                                 Tuple<NHWGK>,
-//                                                                 NHWGK,
-//                                                                 BF16,
-//                                                                 BF16,
-//                                                                 Tuple<BF16>,
-//                                                                 BF16,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 AddClamp>>>& instances);
+void add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_mem_intra_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                Tuple<NHWGK>,
+                                                                NHWGK,
+                                                                BF16,
+                                                                BF16,
+                                                                Tuple<BF16>,
+                                                                BF16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                AddClamp>>>& instances);
 
-// void
-// add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_comp_part2_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-//                                                                 NHWGC,
-//                                                                 GKYXC,
-//                                                                 Tuple<NHWGK>,
-//                                                                 NHWGK,
-//                                                                 BF16,
-//                                                                 BF16,
-//                                                                 Tuple<BF16>,
-//                                                                 BF16,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 AddClamp>>>& instances);
-
-// void
-// add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_mem_intra_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-//                                                                 NHWGC,
-//                                                                 GKYXC,
-//                                                                 Tuple<NHWGK>,
-//                                                                 NHWGK,
-//                                                                 BF16,
-//                                                                 BF16,
-//                                                                 Tuple<BF16>,
-//                                                                 BF16,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 AddClamp>>>& instances);
-
-// void
-// add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_mem_inter_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-//                                                                 NHWGC,
-//                                                                 GKYXC,
-//                                                                 Tuple<NHWGK>,
-//                                                                 NHWGK,
-//                                                                 BF16,
-//                                                                 BF16,
-//                                                                 Tuple<BF16>,
-//                                                                 BF16,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 AddClamp>>>& instances);
+void add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_mem_inter_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                Tuple<NHWGK>,
+                                                                NHWGK,
+                                                                BF16,
+                                                                BF16,
+                                                                Tuple<BF16>,
+                                                                BF16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                AddClamp>>>& instances);
 
 // void
 // add_device_grouped_conv3d_fwd_bias_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
@@ -253,34 +218,33 @@ namespace instance {
 
 #ifdef CK_ENABLE_FP16
 
-// void add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-//                                                                 NHWGC,
-//                                                                 GKYXC,
-//                                                                 Tuple<NHWGK>,
-//                                                                 NHWGK,
-//                                                                 F16,
-//                                                                 F16,
-//                                                                 Tuple<F16>,
-//                                                                 F16,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 AddClamp>>>& instances);
+void add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                Tuple<NHWGK>,
+                                                                NHWGK,
+                                                                F16,
+                                                                F16,
+                                                                Tuple<F16>,
+                                                                F16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                AddClamp>>>& instances);
 
-// void
-// add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_16x16_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-//                                                                 NHWGC,
-//                                                                 GKYXC,
-//                                                                 Tuple<NHWGK>,
-//                                                                 NHWGK,
-//                                                                 F16,
-//                                                                 F16,
-//                                                                 Tuple<F16>,
-//                                                                 F16,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 AddClamp>>>& instances);
+void add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_16x16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                Tuple<NHWGK>,
+                                                                NHWGK,
+                                                                F16,
+                                                                F16,
+                                                                Tuple<F16>,
+                                                                F16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                AddClamp>>>& instances);
 
 // void
 // add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_large_tensor_nhwgc_gkyxc_nhwgk_f16_instances(
@@ -297,20 +261,19 @@ namespace instance {
 //                                                                 PassThrough,
 //                                                                 AddClamp>>>& instances);
 
-// void
-// add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_merged_groups_nhwgc_gkyxc_nhwgk_f16_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-//                                                                 NHWGC,
-//                                                                 GKYXC,
-//                                                                 Tuple<NHWGK>,
-//                                                                 NHWGK,
-//                                                                 F16,
-//                                                                 F16,
-//                                                                 Tuple<F16>,
-//                                                                 F16,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 AddClamp>>>& instances);
+void add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_merged_groups_nhwgc_gkyxc_nhwgk_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                Tuple<NHWGK>,
+                                                                NHWGK,
+                                                                F16,
+                                                                F16,
+                                                                Tuple<F16>,
+                                                                F16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                AddClamp>>>& instances);
 
 void add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_comp_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
@@ -326,65 +289,33 @@ void add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_
                                                                 PassThrough,
                                                                 AddClamp>>>& instances);
 
-// void
-// add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_comp_2x_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-//                                                                 NHWGC,
-//                                                                 GKYXC,
-//                                                                 Tuple<NHWGK>,
-//                                                                 NHWGK,
-//                                                                 F16,
-//                                                                 F16,
-//                                                                 Tuple<F16>,
-//                                                                 F16,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 AddClamp>>>& instances);
+void add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_mem_intra_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                Tuple<NHWGK>,
+                                                                NHWGK,
+                                                                F16,
+                                                                F16,
+                                                                Tuple<F16>,
+                                                                F16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                AddClamp>>>& instances);
 
-// void
-// add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_comp_part2_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-//                                                                 NHWGC,
-//                                                                 GKYXC,
-//                                                                 Tuple<NHWGK>,
-//                                                                 NHWGK,
-//                                                                 F16,
-//                                                                 F16,
-//                                                                 Tuple<F16>,
-//                                                                 F16,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 AddClamp>>>& instances);
-
-// void
-// add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_mem_intra_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-//                                                                 NHWGC,
-//                                                                 GKYXC,
-//                                                                 Tuple<NHWGK>,
-//                                                                 NHWGK,
-//                                                                 F16,
-//                                                                 F16,
-//                                                                 Tuple<F16>,
-//                                                                 F16,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 AddClamp>>>& instances);
-
-// void
-// add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_mem_inter_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-//                                                                 NHWGC,
-//                                                                 GKYXC,
-//                                                                 Tuple<NHWGK>,
-//                                                                 NHWGK,
-//                                                                 F16,
-//                                                                 F16,
-//                                                                 Tuple<F16>,
-//                                                                 F16,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 AddClamp>>>& instances);
+void add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_mem_inter_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                Tuple<NHWGK>,
+                                                                NHWGK,
+                                                                F16,
+                                                                F16,
+                                                                Tuple<F16>,
+                                                                F16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                AddClamp>>>& instances);
 
 // void add_device_grouped_conv3d_fwd_bias_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f16_instances(
 //     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
