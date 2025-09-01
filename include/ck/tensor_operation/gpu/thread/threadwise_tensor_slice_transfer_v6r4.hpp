@@ -1,0 +1,258 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_description/tensor_space_filling_curve.hpp"
+
+namespace ck {
+
+// Do following things to avoid "alloca" in LLVM-IR, which would cause scratch memory
+// and sometimes useless instructions:
+//   1. Don't save a reference to tensor descriptor in class, pass in tensor descriptor as argument
+//   instead
+//   2. Don't construct a new tensor coordinate everytime when using it, update and reuse the same
+//   tensor coordinate instead
+//   3. Don't use a pointer to VGPR buffer, use vector instead
+
+// Assume:
+//   1. src0_desc and dst_desc are not known at compile-time
+//   2. SrcBuffer and DstBuffer are DynamicBuffer
+//   3. src_slice_origin and dst_slice_origin are not known at compile-time,
+template <typename Src0Data,
+          typename Src1Data,
+          typename Src2Data,
+          typename DstData,
+          typename Src0Desc,
+          typename Src1Desc,
+          typename Src2Desc,
+          typename DstDesc,
+          typename ElementwiseOperation,
+          typename SliceLengths,
+          typename DimAccessOrder,
+          index_t VectorDim,
+          index_t ScalarPerVector,
+          InMemoryDataOperationEnum DstInMemOp,
+          bool Src0ResetCoordinateAfterRun,
+          bool DstResetCoordinateAfterRun>
+struct ThreadwiseTensorSliceTransfer_v6r4
+{
+    static constexpr index_t nDim = SliceLengths::Size();
+
+    using Index = MultiIndex<nDim>;
+
+    using Src0Coord = decltype(make_tensor_coordinate(Src0Desc{}, Index{}));
+    using DstCoord  = decltype(make_tensor_coordinate(DstDesc{}, Index{}));
+
+    static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
+    static constexpr auto I2 = Number<2>{};
+    static constexpr auto I3 = Number<3>{};
+    static constexpr auto I4 = Number<4>{};
+
+    __device__ constexpr ThreadwiseTensorSliceTransfer_v6r4(const Src0Desc& src0_desc,
+                                                            const Index& src0_slice_origin,
+                                                            const DstDesc& dst_desc,
+                                                            const Index& dst_slice_origin,
+                                                            const ElementwiseOperation& element_op)
+        : src0_coord_(make_tensor_coordinate(src0_desc, src0_slice_origin)),
+          dst_coord_(make_tensor_coordinate(dst_desc, dst_slice_origin)),
+          element_op_(element_op)
+    {
+        static_assert(Src1Desc::IsKnownAtCompileTime(),
+                      "wrong! Src1Desc need to known at compile-time");
+        static_assert(Src2Desc::IsKnownAtCompileTime(),
+                      "wrong! Src2Desc need to known at compile-time");
+        static_assert(SliceLengths::At(Number<VectorDim>{}) % ScalarPerVector == 0,
+                      "wrong! cannot evenly divide");
+    }
+
+    __device__ void SetSrc0SliceOrigin(const Src0Desc& src0_desc,
+                                       const Index& src0_slice_origin_idx)
+    {
+        src0_coord_ = make_tensor_coordinate(src0_desc, src0_slice_origin_idx);
+    }
+
+    __device__ void SetDstSliceOrigin(const DstDesc& dst_desc, const Index& dst_slice_origin_idx)
+    {
+        dst_coord_ = make_tensor_coordinate(dst_desc, dst_slice_origin_idx);
+    }
+
+    template <typename Src0Buffer, typename Src1Buffer, typename Src2Buffer, 
+    typename Src1SliceOriginIdx, typename Src2SliceOriginIdx, typename DstBuffer>
+    __device__ void Run(const Src0Desc& src0_desc,
+                        const Src0Buffer& src0_buf,
+                        const Src1Desc&,
+                        const Src1SliceOriginIdx&,
+                        const Src1Buffer& src1_buf,
+                        const Src2Desc&,
+                        const Src2SliceOriginIdx&,
+                        const Src2Buffer& src2_buf,
+                        const DstDesc& dst_desc,
+                        DstBuffer& dst_buf)
+    {
+        
+        static_assert(is_known_at_compile_time<remove_cvref_t<Src1SliceOriginIdx>>::value,
+                      "wrong! Src1SliceOriginIdx need to known at compile-time");
+
+        static_assert(is_known_at_compile_time<remove_cvref_t<Src2SliceOriginIdx>>::value,
+                      "wrong! Src2SliceOriginIdx need to known at compile-time");
+
+        // scalar per access on each dim
+        // TODO: don't use lambda_scalar_per_access
+        constexpr auto scalar_per_access = generate_sequence(
+            detail::lambda_scalar_per_access<VectorDim, ScalarPerVector>{}, Number<nDim>{});
+
+        using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
+                                                    DimAccessOrder,
+                                                    remove_cv_t<decltype(scalar_per_access)>>;
+
+        constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
+        //static_assert(num_access==2);
+        // loop over space-filling curve
+        static_for<0, num_access, 1>{}([&](auto idx_1d) {
+            using src0_vector_type = vector_type_maker_t<Src0Data, ScalarPerVector>;
+            using src0_vector_t    = typename src0_vector_type::type;
+
+            using dst_vector_type = vector_type_maker_t<DstData, ScalarPerVector>;
+            using dst_vector_t    = typename dst_vector_type::type;
+
+            const bool is_src0_valid =
+                coordinate_has_valid_offset_assuming_visible_index_is_valid(src0_desc, src0_coord_);
+
+            // Src1Desc and Src1SliceOriginIdx are known at compile-time
+            constexpr auto src1_desc             = remove_cvref_t<Src1Desc>{};
+            constexpr auto src1_slice_origin_idx = Src1SliceOriginIdx{};
+
+            // Src2Desc and Src2SliceOriginIdx are known at compile-time
+            constexpr auto src2_desc             = remove_cvref_t<Src2Desc>{};
+            constexpr auto src2_slice_origin_idx = Src2SliceOriginIdx{};
+
+            // copy data from src0_buf into src0_vector_container
+            auto src0_vector_container = src0_vector_type{
+                src0_buf.template Get<src0_vector_t>(src0_coord_.GetOffset(), is_src0_valid)};
+               // printf("T%d: src0_coord_.GetOffset()=%d \n", threadIdx.x, src0_coord_.GetOffset());
+            constexpr auto idx_md = SpaceFillingCurve::GetIndex(idx_1d);
+            constexpr index_t src1_offset =
+                    src1_desc.CalculateOffset(to_multi_index(src1_slice_origin_idx));
+            constexpr index_t src2_offset =
+                    src2_desc.CalculateOffset(to_multi_index(src2_slice_origin_idx));
+            #if 0
+            if (blockIdx.x == 0 && blockIdx.y == 0)
+            printf("T%03u: %d\n", threadIdx.x, src2_offset);
+            #endif
+
+            auto dst_vector_container = dst_vector_type{};
+
+            // apply pointwise operation
+            static_for<0, ScalarPerVector, 1>{}([&](auto i) {
+                    element_op_(dst_vector_container.template AsType<DstData>()(i),
+                        src0_vector_container.template AsType<Src0Data>()[i],    
+                        #if 1
+                        src1_buf[Number<i>{}],
+                        #else
+                        type_convert<Src1Data>(src0_coord_.GetOffset()+i),
+                        #endif
+                        src2_buf[Number<src2_offset>{}]);
+                });
+
+            const bool is_dst_valid =
+                coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
+
+            dst_buf.template Update<DstInMemOp, dst_vector_t>(
+                dst_coord_.GetOffset(),
+                is_dst_valid,
+                dst_vector_container.template AsType<dst_vector_t>()[I0]);
+
+            // move coordinate
+            if constexpr(idx_1d.value != num_access - 1)
+            {
+                constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(idx_1d);
+                move_tensor_coordinate(
+                    src0_desc, src0_coord_, make_tensor_coordinate_step(src0_desc, forward_step));
+                move_tensor_coordinate(
+                    dst_desc, dst_coord_, make_tensor_coordinate_step(dst_desc, forward_step));
+            }
+        });
+
+        // move coordinate back to slice origin (or not)
+        if constexpr(Src0ResetCoordinateAfterRun)
+        {
+            const auto src0_reset_step =
+                make_tensor_coordinate_step(src0_desc, GetCoordinateResetStep());
+
+            move_tensor_coordinate(src0_desc, src0_coord_, src0_reset_step);
+        }
+
+        if constexpr(DstResetCoordinateAfterRun)
+        {
+            const auto dst_reset_step =
+                make_tensor_coordinate_step(dst_desc, GetCoordinateResetStep());
+
+            move_tensor_coordinate(dst_desc, dst_coord_, dst_reset_step);
+        }
+    }
+
+    __device__ static constexpr auto GetCoordinateResetStep()
+    {
+        constexpr auto scalar_per_access = generate_sequence(
+            detail::lambda_scalar_per_access<VectorDim, ScalarPerVector>{}, Number<nDim>{});
+
+        using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
+                                                    DimAccessOrder,
+                                                    remove_cv_t<decltype(scalar_per_access)>>;
+
+        constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
+        if constexpr(num_access == 0)
+        {
+            return typename SpaceFillingCurve::Index{};
+        }
+        else
+        {
+            constexpr auto reset_step =
+                SpaceFillingCurve::GetStepBetween(Number<num_access - 1>{}, Number<0>{});
+
+            return reset_step;
+        }
+    }
+
+    // src_slice_origin_step_idx need to be known at compile-time, for performance reason
+    __device__ void MoveSrc0SliceWindow(const Src0Desc& src0_desc,
+                                        const Index& src0_slice_origin_step_idx)
+    {
+        // if src coord was not reset by RunRead(), then need to adjust the step here
+        const auto adjusted_step_idx = Src0ResetCoordinateAfterRun
+                                           ? src0_slice_origin_step_idx
+                                           : src0_slice_origin_step_idx + GetCoordinateResetStep();
+
+        // is it OK to construct a new step every time?
+        const auto adjusted_step = make_tensor_coordinate_step(src0_desc, adjusted_step_idx);
+
+        move_tensor_coordinate(src0_desc, src0_coord_, adjusted_step);
+    }
+
+    // dst_slice_origin_step_idx need to be known at compile-time, for performance reason
+    __device__ void MoveDstSliceWindow(const DstDesc& dst_desc,
+                                       const Index& dst_slice_origin_step_idx)
+    {
+        // if dst coord was not reset by Run(), then need to adjust the step here
+        const auto adjusted_step_idx = DstResetCoordinateAfterRun
+                                           ? dst_slice_origin_step_idx
+                                           : dst_slice_origin_step_idx + GetCoordinateResetStep();
+
+        // is it OK to construct a new step every time?
+        const auto adjusted_step = make_tensor_coordinate_step(dst_desc, adjusted_step_idx);
+
+        move_tensor_coordinate(dst_desc, dst_coord_, adjusted_step);
+    }
+
+    private:
+    Src0Coord src0_coord_;
+    DstCoord dst_coord_;
+    const ElementwiseOperation element_op_;
+};
+
+} // namespace ck

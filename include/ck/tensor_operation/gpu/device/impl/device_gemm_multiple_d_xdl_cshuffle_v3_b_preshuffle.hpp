@@ -299,6 +299,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2 ||
                                   BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
+                    #if 0
                     if(arg.KBatch > 1)
                     {
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
@@ -325,7 +326,9 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                         }
                     }
                     else
+                    #endif
                     {
+                        #if 0
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                         {
                             const auto kernel =
@@ -338,6 +341,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                             Run(kernel);
                         }
                         else
+                        #endif
                         {
                             const auto kernel =
                                 kernel_gemm_xdl_cshuffle_v3_multi_d_b_preshuffle_2lds<

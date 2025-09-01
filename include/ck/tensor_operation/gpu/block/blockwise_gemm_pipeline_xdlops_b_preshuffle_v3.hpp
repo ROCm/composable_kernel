@@ -193,6 +193,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
 
     __device__ static constexpr auto HotLoopScheduler()
     {
+        #if 0
         constexpr auto num_ds_read_inst_a =
             HotLoopInstList::A_LDS_Read_Width * sizeof(ADataType) == 16
                 ? HotLoopInstList::A_LDS_Read_Inst_Num
@@ -317,10 +318,74 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                 }
             });
         });
+    #else
+    __builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_VMEM, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_VMEM, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_VMEM, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_READ, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_READ, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_VMEM, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_READ, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_READ, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_WRITE, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_VMEM, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_WRITE, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_VMEM, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_WRITE, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_READ, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_VMEM, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_READ, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_WRITE, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_READ, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_VMEM, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_READ, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_READ, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_READ, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_READ, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_READ, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_READ, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_READ, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_READ, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
+	__builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_READ, 1, 0);
+    #endif
     }
 
+#define V2 1
     template <bool HasMainLoop,
               TailNumber TailNum,
+              bool PreLoadDs,
               typename AGridDesc,
               typename ABlockDesc,
               typename ABlockTransfer,
@@ -332,7 +397,22 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
               typename BGridBuffer,
               typename BBlockBuffer,
               typename BBlockTransferStep,
-              typename CThreadBuffer>
+              typename CThreadBuffer
+#if V2
+             ,
+              typename D0GridDesc,
+              typename D0GridBuffer,
+              typename D0BlockTransfer,
+              typename D0BufferDesc,
+              typename D0ThreadBuffer,
+
+              typename D1GridDesc,
+              typename D1GridBuffer,
+              typename D1BlockTransfer,
+              typename D1BufferDesc,
+              typename D1ThreadBuffer
+#endif
+>
     __device__ void Run(const AGridDesc& a_grid_desc,
                         const ABlockDesc& a_block_desc,
                         ABlockTransfer& a_blockwise_copy,
@@ -345,9 +425,41 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                         BBlockBuffer& b_block_buf,
                         const BBlockTransferStep& b_block_copy_step,
                         CThreadBuffer& c_thread_buf,
-                        index_t num_loop) const
+                        index_t num_loop
+                    #if V2
+                        ,
+                        const D0GridDesc&   d0_grid_desc,
+                        const D0GridBuffer& d0_grid_buf,
+                        D0BlockTransfer&    d0_blockwise_copy,
+                        const D0BufferDesc& d0_buf_desc,
+                        D0ThreadBuffer&     d0_thread_buf,
+
+                        const D1GridDesc&   d1_grid_desc,
+                        const D1GridBuffer& d1_grid_buf,
+                        D1BlockTransfer&    d1_blockwise_copy,
+                        const D1BufferDesc& d1_buf_desc,
+                        D1ThreadBuffer&     d1_thread_buf
+                    #endif
+                    ) const
     {
         ignore = b_block_buf;
+        #if V2
+        if constexpr(PreLoadDs == false)
+        {
+               ignore =   d0_grid_desc;
+               ignore= d0_grid_buf;
+                ignore=   d0_blockwise_copy;
+                 ignore= d0_buf_desc;
+                ignore=     d0_thread_buf;
+
+              ignore=   d1_grid_desc;
+              ignore= d1_grid_buf;
+              ignore=   d1_blockwise_copy;
+               ignore= d1_buf_desc;
+               ignore=     d1_thread_buf;
+        }
+        #endif
+   
         __builtin_amdgcn_sched_barrier(0);
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeDataType>(
             a_thread_desc_.GetElementSpaceSize());
@@ -355,6 +467,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
             b_thread_desc_.GetElementSpaceSize());
 
         StaticallyIndexedArray<decltype(b_thread_buf), Number<2>{}> b_thread_bufs;
+       // StaticallyIndexedArray<decltype(a_thread_buf), Number<2>{}> a_thread_bufs;
         constexpr auto b_block_origin_idx = make_tuple(I0, I0, I0, I0);
 
         // Global prefetch A1 B1
@@ -375,6 +488,8 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
         // Global prefetch A2
         a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+
+        static_assert(KGroup == 1);
 
         // Local prefetch A1
         block_sync_lds();
@@ -403,6 +518,8 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
             do
             {
                 auto LoopFunc = [&](auto mfma_reg_buf, auto local_read_buf) {
+        __builtin_amdgcn_sched_barrier(0);
+
                     b_blockwise_copy.Run(b_grid_desc,
                                          b_grid_buf,
                                          b_block_desc_n0_n1_k0_k1,
@@ -413,7 +530,11 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                     a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(local_read_buf));
                     a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
                     a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+                  //  static_assert(MRepeat == 4);
+                 //   static_assert(KRepeat == 4);
+                  //  static_assert(NRepeat == 1);
 
+                    static_assert(KPack == 16);
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
                         static_for<0, KRepeat, 1>{}([&](auto k0) {
                             static_for<0, NRepeat, 1>{}([&](auto n0) {
@@ -453,7 +574,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                         if constexpr(m0.value == (MRepeat - 2))
                         {
                             block_sync_lds();
-
+                            static_assert(KGroup == 1);
                             static_for<0, KRepeat, 1>{}([&](auto k0) {
                                 static_for<0, KGroup, 1>{}([&](auto kg0) {
                                     a_thread_copy_.Run(
@@ -543,11 +664,40 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
         // tail
         if constexpr(TailNum == TailNumber::Even)
         {
+        // __builtin_amdgcn_sched_barrier(0);
+
             b_blockwise_copy.Run(b_grid_desc,
                                  b_grid_buf,
                                  b_block_desc_n0_n1_k0_k1,
                                  b_block_origin_idx,
                                  b_thread_bufs(I1));
+            #if V2
+            if constexpr(PreLoadDs)
+            {
+                d0_blockwise_copy.Run( d0_grid_desc, 
+                                        d0_grid_buf, 
+                                        d0_buf_desc,  
+                                        make_tuple(I0, I0, I0, I0),
+                                        d0_thread_buf);
+                #if 1
+                d0_blockwise_copy.MoveSrcSliceWindow(d0_grid_desc,  make_tuple(0, 32, 0, 0));
+                d0_blockwise_copy.Run(d0_grid_desc, d0_grid_buf,
+                                    d0_buf_desc, make_tuple(I0, I1, I0, I0), d0_thread_buf);
+                #endif
+                
+                d1_blockwise_copy.Run(d1_grid_desc, 
+                                        d1_grid_buf, 
+                                        d1_buf_desc,  
+                                        make_tuple(I0, I0, I0, I0),
+                                        d1_thread_buf);
+                #if 1
+                d1_blockwise_copy.MoveSrcSliceWindow(d1_grid_desc,  make_tuple(0, 32, 0, 0));
+                d1_blockwise_copy.Run(d1_grid_desc, d1_grid_buf,
+                                    d1_buf_desc, make_tuple(I0, I1, I0, Number<0>{}), d1_thread_buf);
+                #endif
+            }
+            
+            #endif
             a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(I1));
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
@@ -580,7 +730,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                 if constexpr(m0.value == (MRepeat - 2))
                 {
                     block_sync_lds();
-
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
                         static_for<0, KGroup, 1>{}([&](auto kg0) {
                             a_thread_copy_.Run(
