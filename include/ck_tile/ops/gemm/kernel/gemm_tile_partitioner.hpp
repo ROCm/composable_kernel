@@ -450,23 +450,23 @@ struct StreamKTilePartitioner
         uint32_t dp_num_blocks  = 0;
 
         {
-            uint32_t min_sk_tiles = (sk_tiles >= num_cu) ? num_cu : (sk_tiles + 1);
-            uint32_t max_sk_tiles = (sk_tiles >= num_cu)
-                                        ? num_cu * sk_occupancy
-                                        : min(num_cu, sk_total_iters / min_k_iters_per_sk_block);
+            const uint32_t min_sk_tiles = (sk_tiles >= num_cu) ? num_cu : (sk_tiles + 1);
+            const uint32_t max_sk_tiles =
+                (sk_tiles >= num_cu) ? num_cu * sk_occupancy
+                                     : min(num_cu, sk_total_iters / min_k_iters_per_sk_block);
 
             // if use dp for sk-block, how many iters do we need
-            uint32_t dp_for_sk_iters = k_iters_per_tile.get();
+            const uint32_t dp_for_sk_iters = k_iters_per_tile.get();
 
             uint32_t best_sk_score =
                 std::numeric_limits<int>::max(); // we need to find the smallest sk iters
             for(uint32_t tentative_sk_blocks = min_sk_tiles; tentative_sk_blocks < max_sk_tiles;
                 tentative_sk_blocks++)
             {
-                uint32_t tentative_sk_iters_per_block =
+                const uint32_t tentative_sk_iters_per_block =
                     (sk_total_iters + tentative_sk_blocks - 1) / tentative_sk_blocks;
-                uint32_t tentative_sk_iters = tentative_sk_iters_per_block;
-                uint32_t sk_blocks_per_tile = (tentative_sk_blocks + sk_tiles - 1) / sk_tiles;
+                const uint32_t tentative_sk_iters = tentative_sk_iters_per_block;
+                const uint32_t sk_blocks_per_tile = (tentative_sk_blocks + sk_tiles - 1) / sk_tiles;
 
                 //       the more sk_blocks_per_tile, the worse the overhead
                 uint32_t cross_sk_blocks_overhead = sk_blocks_per_tile;
@@ -477,7 +477,7 @@ struct StreamKTilePartitioner
                         sk_blocks_per_tile * tentative_sk_iters_per_block / 50;
                 }
 
-                uint32_t tentative_sk_score = tentative_sk_iters + cross_sk_blocks_overhead;
+                const uint32_t tentative_sk_score = tentative_sk_iters + cross_sk_blocks_overhead;
 
                 if(tentative_sk_score < best_sk_score)
                 {
@@ -516,7 +516,7 @@ struct StreamKTilePartitioner
                 //      => sk_blocks * m + b = sk_total_iters
                 //      => b = sk_total_iters - m * sk_blocks
                 //      NOTE: big could be zero
-                uint32_t k_iters_per_sk_block = sk_total_iters / sk_num_blocks;
+                const uint32_t k_iters_per_sk_block = sk_total_iters / sk_num_blocks;
                 sk_num_big_blocks     = sk_total_iters - k_iters_per_sk_block * sk_num_blocks;
                 k_iters_per_big_block = k_iters_per_sk_block + 1;
 
@@ -529,10 +529,10 @@ struct StreamKTilePartitioner
 
         if constexpr(ReductionStrategy == ck_tile::StreamKReductionStrategy::Reduction)
         {
-            uint32_t upper_big    = lcm(k_iters_per_big_block, k_iters_per_tile.get());
-            uint32_t upper_little = lcm(k_iters_per_big_block - 1, k_iters_per_tile.get());
-            equiv_tiles_big       = mdiv(upper_big / k_iters_per_tile.get());
-            equiv_tiles_little    = mdiv(upper_little / k_iters_per_tile.get());
+            const uint32_t upper_big    = lcm(k_iters_per_big_block, k_iters_per_tile.get());
+            const uint32_t upper_little = lcm(k_iters_per_big_block - 1, k_iters_per_tile.get());
+            equiv_tiles_big             = mdiv(upper_big / k_iters_per_tile.get());
+            equiv_tiles_little          = mdiv(upper_little / k_iters_per_tile.get());
         }
     }
 
