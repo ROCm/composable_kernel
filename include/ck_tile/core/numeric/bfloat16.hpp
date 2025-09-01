@@ -237,12 +237,8 @@ constexpr uint16_t float_to_bf16_truc_nan_raw(float f)
 CK_TILE_HOST_DEVICE
 constexpr uint16_t float_to_bf16_truc_raw(float f)
 {
-    union
-    {
-        float fp32;
-        uint32_t int32;
-    } u = {f};
-    return uint16_t(u.int32 >> 16);
+    uint32_t bits = ck_tile::bit_cast<uint32_t>(f);
+    return static_cast<uint16_t>(bits >> 16);
 }
 
 template <bf16_rounding_mode rounding>
