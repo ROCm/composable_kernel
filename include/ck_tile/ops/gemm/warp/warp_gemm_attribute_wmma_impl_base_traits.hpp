@@ -22,6 +22,9 @@ struct WmmaTraitsBase<gfx11_t, ADType, BDType, CDType>
     static constexpr index_t kN = 16;
     static constexpr index_t kK = 16;
 
+    static constexpr index_t kAMBlock = 1;
+    static constexpr index_t kBNBlock = 1;
+
     static constexpr index_t kRepeat      = 2;
     static constexpr index_t kAMLane      = 16;
     static constexpr index_t kBNLane      = 16;
@@ -60,6 +63,9 @@ struct WmmaTraitsBase<gfx12_t, ADType, BDType, CDType>
     static constexpr index_t kM = 16;
     static constexpr index_t kN = 16;
     static constexpr index_t kK = 16;
+
+    static constexpr index_t kAMBlock = 1;
+    static constexpr index_t kBNBlock = 1;
 
     static constexpr index_t kRepeat      = 1;
     static constexpr index_t kAMLane      = 16;
