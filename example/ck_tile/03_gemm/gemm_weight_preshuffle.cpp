@@ -103,7 +103,6 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                                              DsLayout,
                                              ELayout,
                                              CDEElementWise,
-                                             UniversalGemmProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,
                                              GemmConfig::M_Warp,
@@ -126,7 +125,7 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
         {
             grids = Kernel::GridSize(args.M, args.N, args.k_batch);
         }
-        constexpr dim3 blocks = Kernel::BlockSize();
+        dim3 blocks = Kernel::BlockSize();
 
         if(!Kernel::IsSupportedArgument(kargs))
         {
@@ -141,23 +140,19 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                       << "pipeline: " << GemmPipeline::GetName() << '\n'
                       << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
                       << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
-                      << std::endl;
+                      << ", kBlockPerCu: {" << GemmConfig::kBlockPerCu << "}" << std::endl;
         }
         if(s.flush_cache_)
         {
             std::cout << "Flushing cache..." << std::endl;
-            static constexpr ck_tile::index_t APackedSize =
-                std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
-            static constexpr ck_tile::index_t BPackedSize =
-                std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
 
             ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
                 args.M, args.K, args.stride_A, is_row_major(ALayout{})));
             ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
                 args.K, args.N, args.stride_B, is_row_major(BLayout{})));
 
-            auto size_a_buffer = a_m.get_element_space_size_in_bytes() / APackedSize;
-            auto size_b_buffer = b_n.get_element_space_size_in_bytes() / BPackedSize;
+            auto size_a_buffer = a_m.get_element_space_size_in_bytes();
+            auto size_b_buffer = b_n.get_element_space_size_in_bytes();
 
             ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
                 kargs.as_ptr[0], kargs.bs_ptr[0], s.rotating_count_, size_a_buffer, size_b_buffer);
@@ -173,18 +168,16 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                     hipGetErrorString(hipMemsetAsync(
                         args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
             };
-            ave_time = ck_tile::launch_kernel_preprocess(
+            ave_time = ck_tile::launch_kernel_time_mask(
                 s,
                 run_flush_cache,
-                ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(
-                    Kernel{}, grids, blocks, 0, kargs));
+                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         }
         else
         {
-            ave_time =
-                ck_tile::launch_kernel(s,
-                                       ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(
-                                           Kernel{}, grids, blocks, 0, kargs));
+            ave_time = ck_tile::launch_kernel(
+                s,
+                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         }
         return ave_time;
     };
@@ -214,12 +207,13 @@ template <typename GemmConfig,
           typename APrecType,
           typename BPrecType = APrecType,
           typename CPrecType = APrecType>
-int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
+int run_gemm_example_prec_type(std::string a_layout,
+                               std::string b_layout,
+                               ck_tile::ArgParser& arg_parser)
 {
-    using Row                 = ck_tile::tensor_layout::gemm::RowMajor;
-    using Col                 = ck_tile::tensor_layout::gemm::ColumnMajor;
-    auto [result, arg_parser] = create_args(argc, argv);
-    bool preshuffle           = GemmConfig::Preshuffle;
+    using Row       = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col       = ck_tile::tensor_layout::gemm::ColumnMajor;
+    bool preshuffle = GemmConfig::Preshuffle;
 
     if(preshuffle && (a_layout != "R" || b_layout != "C"))
     {
@@ -230,7 +224,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     if(a_layout == "R" && b_layout == "C")
     {
         return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-            argc, argv, Row{}, Col{}, Row{});
+            arg_parser, Row{}, Col{}, Row{});
     }
     else
     {
@@ -239,12 +233,8 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
 }
 
 template <template <typename PreType> typename GemmConfig>
-int run_gemm_example(int argc, char* argv[])
+int run_gemm_example(ck_tile::ArgParser& arg_parser)
 {
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
-        return -1;
-
     std::string data_type = arg_parser.get_str("prec");
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
@@ -252,26 +242,26 @@ int run_gemm_example(int argc, char* argv[])
     if(data_type == "fp16")
     {
         return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::half_t>(
-            a_layout, b_layout, argc, argv);
+            a_layout, b_layout, arg_parser);
     }
     else if(data_type == "bf16")
     {
         return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::bf16_t>(
-            a_layout, b_layout, argc, argv);
+            a_layout, b_layout, arg_parser);
     }
     else if(data_type == "fp8")
     {
         return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
                                           ck_tile::fp8_t,
                                           ck_tile::fp8_t,
-                                          ck_tile::half_t>(a_layout, b_layout, argc, argv);
+                                          ck_tile::half_t>(a_layout, b_layout, arg_parser);
     }
     else if(data_type == "bf8")
     {
         return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
                                           ck_tile::bf8_t,
                                           ck_tile::bf8_t,
-                                          ck_tile::half_t>(a_layout, b_layout, argc, argv);
+                                          ck_tile::half_t>(a_layout, b_layout, arg_parser);
     }
     else
     {
@@ -281,15 +271,17 @@ int run_gemm_example(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
+    auto [result, arg_parser] = create_args(argc, argv);
+    if(!result)
+        return -1;
+
     try
     {
-        return !run_gemm_example<GemmConfigPreshufle_1>(argc, argv);
+        return !run_gemm_example<GemmConfigPreshuffleDecode>(arg_parser);
     }
     catch(const std::runtime_error& e)
     {
         std::cerr << "Caught runtime error: " << e.what() << '\n';
-        // Return a non-zero code to indicate failure
         return EXIT_FAILURE;
     }
-    return EXIT_SUCCESS;
 }

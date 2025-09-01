@@ -43,7 +43,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm0BlockWarps,
                                            typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
 
-        using WarpGemm = WarpGemmMfmaDispatcher<
+        using WarpGemm = WarpGemmDispatcher<
             typename Problem::QDataType,
             typename Problem::KDataType,
             typename Problem::AccDataType,
@@ -64,7 +64,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetPTOGradTBlockGemm()
+    CK_TILE_DEVICE static constexpr auto GetPTOGradTBlockGemm()
     {
         using GemmProblem =
             BlockGemmProblem<typename Problem::GemmDataType,
@@ -78,13 +78,18 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
 
         using WarpGemm =
-            WarpGemmMfmaDispatcher<typename Problem::GemmDataType,
-                                   typename Problem::OGradDataType,
-                                   typename Problem::AccDataType,
-                                   Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
-                                   Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
-                                   Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
-                                   true>;
+            WarpGemmDispatcher<typename Problem::GemmDataType,
+                               typename Problem::OGradDataType,
+                               typename Problem::AccDataType,
+                               Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
+                               Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
+                               Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
+                               true,
+                               false, // SwizzleAccess
+                               false, // UseStructuredSparsity
+                               (Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}) == 32)
+                                   ? WGAttrNumAccessEnum ::Double
+                                   : WGAttrNumAccessEnum ::Single>;
 
         using BlockGemmPolicy =
             BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::GemmDataType,
@@ -110,7 +115,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm2BlockWarps,
                                            typename Problem::BlockFmhaShape::Gemm2WarpTile>>;
 
-        using WarpGemm = WarpGemmMfmaDispatcher<
+        using WarpGemm = WarpGemmDispatcher<
             typename Problem::OGradDataType,
             typename Problem::VDataType,
             typename Problem::AccDataType,
@@ -145,13 +150,18 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm3WarpTile>>;
 
         using WarpGemm =
-            WarpGemmMfmaDispatcher<typename Problem::GemmDataType,
-                                   typename Problem::QDataType,
-                                   typename Problem::AccDataType,
-                                   Problem::BlockFmhaShape::Gemm3WarpTile::at(number<0>{}),
-                                   Problem::BlockFmhaShape::Gemm3WarpTile::at(number<1>{}),
-                                   Problem::BlockFmhaShape::Gemm3WarpTile::at(number<2>{}),
-                                   true>;
+            WarpGemmDispatcher<typename Problem::GemmDataType,
+                               typename Problem::QDataType,
+                               typename Problem::AccDataType,
+                               Problem::BlockFmhaShape::Gemm3WarpTile::at(number<0>{}),
+                               Problem::BlockFmhaShape::Gemm3WarpTile::at(number<1>{}),
+                               Problem::BlockFmhaShape::Gemm3WarpTile::at(number<2>{}),
+                               true,
+                               false, // SwizzleAccess
+                               false, // UseStructuredSparsity
+                               (Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}) == 32)
+                                   ? WGAttrNumAccessEnum ::Double
+                                   : WGAttrNumAccessEnum ::Single>;
 
         using BlockGemmPolicy =
             BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::GemmDataType,
@@ -177,14 +187,13 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm4BlockWarps,
                                            typename Problem::BlockFmhaShape::Gemm4WarpTile>>;
 
-        using WarpGemm =
-            WarpGemmMfmaDispatcher<typename Problem::GemmDataType,
-                                   typename Problem::KDataType,
-                                   typename Problem::AccDataType,
-                                   Problem::BlockFmhaShape::Gemm4WarpTile::at(number<0>{}),
-                                   Problem::BlockFmhaShape::Gemm4WarpTile::at(number<1>{}),
-                                   Problem::BlockFmhaShape::Gemm4WarpTile::at(number<2>{}),
-                                   false>;
+        using WarpGemm = WarpGemmDispatcher<typename Problem::GemmDataType,
+                                            typename Problem::KDataType,
+                                            typename Problem::AccDataType,
+                                            Problem::BlockFmhaShape::Gemm4WarpTile::at(number<0>{}),
+                                            Problem::BlockFmhaShape::Gemm4WarpTile::at(number<1>{}),
+                                            Problem::BlockFmhaShape::Gemm4WarpTile::at(number<2>{}),
+                                            false>;
 
         using BlockGemmPolicy =
             BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::GemmDataType,

@@ -86,6 +86,7 @@ struct GemmKernelMultiD
     /// functions.
     using UniversalGemmKernel =
         UniversalGemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
+    static constexpr index_t kBlockSize = UniversalGemmKernel::kBlockSize;
 
     using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
     using GemmPipeline     = remove_cvref_t<GemmPipeline_>;
@@ -174,6 +175,12 @@ struct GemmKernelMultiD
     CK_TILE_HOST static auto
     IsSupportedArgument(const typename UniversalGemmKernel::KernelArgs& kargs) -> bool
     {
+        // Currently MultiD kernel doesn't support k_batch > 1
+        if(kargs.k_batch > 1)
+        {
+            return false;
+        }
+
         return UniversalGemmKernel::IsSupportedArgument(kargs);
     }
 
