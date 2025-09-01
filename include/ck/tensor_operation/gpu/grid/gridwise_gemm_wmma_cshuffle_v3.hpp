@@ -785,6 +785,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
               typename ComputePtrOffsetOfN,
               bool HasMainKBlockLoop,
               InMemoryDataOperationEnum EGlobalMemoryDataOperation,
+              bool CTranspose,
               TailNumber TailNum>
     __device__ static void Run(void* p_shared,
                                const AGridDesc_AK0_M_K1 a_grid_desc_ak0_m_ak1,
@@ -805,16 +806,20 @@ struct GridwiseGemm_wmma_cshuffle_v3
 
         // offset base pointer for each work-group
         const long_index_t a_batch_offset =
-            amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
+            CTranspose ? amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx))
+                       : amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
         const long_index_t b_batch_offset =
-            amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx));
+            CTranspose ? amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx))
+                       : amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx));
         const long_index_t e_batch_offset =
             amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx));
 
         const auto ds_batch_offset = compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
 
         const long_index_t a_n_offset =
-            amd_wave_read_first_lane(compute_ptr_offset_of_n.GetAPtrOffset(n_idx));
+            CTranspose ? 0 : amd_wave_read_first_lane(compute_ptr_offset_of_n.GetAPtrOffset(n_idx));
+        const long_index_t b_n_offset =
+            CTranspose ? amd_wave_read_first_lane(compute_ptr_offset_of_n.GetAPtrOffset(n_idx)) : 0;
         const long_index_t e_n_offset =
             amd_wave_read_first_lane(compute_ptr_offset_of_n.GetEPtrOffset(n_idx));
 
@@ -828,7 +833,8 @@ struct GridwiseGemm_wmma_cshuffle_v3
         BsGridPointer p_bs_grid_;
         static_for<0, NumBTensor, 1>{}([&](auto i) {
             using BDataType_ = remove_cvref_t<tuple_element_t<i.value, BsDataType>>;
-            p_bs_grid_(i)    = static_cast<const BDataType_*>(karg.p_bs_grid[i]) + b_batch_offset;
+            p_bs_grid_(i) =
+                static_cast<const BDataType_*>(karg.p_bs_grid[i]) + b_batch_offset + b_n_offset;
         });
 
         DsGridPointer p_ds_grid_grp;

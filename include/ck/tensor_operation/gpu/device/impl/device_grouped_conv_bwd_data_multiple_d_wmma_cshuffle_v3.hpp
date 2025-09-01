@@ -81,6 +81,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                                    ComputePtrOffsetOfN,
                                    HasMainKBlockLoop,
                                    EGlobalMemoryDataOperation,
+                                   CTranspose,
                                    TailNum>(p_shared,
                                             a_grid_desc_ak0_m_ak1,
                                             b_grid_desc_bk0_n_bk1,
@@ -558,6 +559,34 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
               input_right_pads_{input_right_pads},
               k_batch_{split_k}
         {
+            bool image_covered_dilation = true;
+            bool image_covered_strides  = true;
+            for(index_t d = 0; d < NDimSpatial; d++)
+            {
+                // If dilation and stride is not equal to  the we will have some empty places
+                image_covered_dilation &=
+                    conv_filter_dilations[d] == 1 || conv_filter_strides[d] == 1;
+                // If stride is larger than windows size then we will have some empty places
+                image_covered_strides &= conv_filter_strides[d] <= b_g_k_c_xs_lengths[d + I3];
+            }
+            bool if_d_is_output_mem  = false;
+            const void* out_mem_void = static_cast<const void*>(p_e);
+            static_for<0, NumDTensor, 1>{}([&](auto i) {
+                if(p_ds[i] == out_mem_void)
+                {
+                    if_d_is_output_mem = true;
+                }
+            });
+
+            bwd_needs_zero_out = k_batch_ > 1 || !image_covered_dilation || !image_covered_strides;
+
+            // Temporary workaround untill prove/fix above conditions.
+            bwd_needs_zero_out = !if_d_is_output_mem;
+            e_space_size_bytes =
+                ck::accumulate_n<long_index_t>(
+                    e_g_n_c_wis_lengths_.begin(), NDimSpatial + I3, 1, std::multiplies<>()) *
+                sizeof(EDataType);
+
             std::array<index_t, NDimSpatial + 3> a_g_n_k_wos_strides_transposed =
                 NeedTransposeKernel ? conv_ngchw_to_nhwgc_transformer.TransposeInOutStrides(
                                           a_g_n_k_wos_lengths, a_g_n_k_wos_strides)
@@ -964,6 +993,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
 
         const index_t k_batch_;
         index_t num_workgroups_per_Conv_N_;
+        bool bwd_needs_zero_out;
+        long_index_t e_space_size_bytes;
     };
 
     // Invoker
@@ -1014,8 +1045,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                                       arg.a_grid_desc_ak0_m_ak1_container_[i].GetLength(I2);
 
                 typename GridwiseGemmCTranspose::Argument gemm_arg{
-                    std::array<const void*, 1>{p_b_grid},
-                    std::array<const void*, 1>{p_a_grid},
+                    CTranspose ? std::array<const void*, 1>{p_b_grid}
+                               : std::array<const void*, 1>{p_a_grid},
+                    CTranspose ? std::array<const void*, 1>{p_a_grid}
+                               : std::array<const void*, 1>{p_b_grid},
                     p_ds,
                     p_e_grid,
                     GemmM,
@@ -1041,6 +1074,14 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                     arg.num_group_,
                     gemm_arg.KBatch * arg.num_workgroups_per_Conv_N_);
 
+                const auto clear_workspace = [&]() {
+                    if(arg.bwd_needs_zero_out && i == 0)
+                    {
+                        hip_check_error(hipMemsetAsync(
+                            p_e_grid, 0, arg.e_space_size_bytes, stream_config.stream_id_));
+                    }
+                };
+
                 index_t k_grain = gemm_arg.KBatch * KPerBlock;
                 index_t K_split = (gemm_arg.K + k_grain - 1) / k_grain * KPerBlock;
                 const bool has_main_k_block_loop =
@@ -1051,65 +1092,33 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
 
                 auto launch_kernel = [&](auto has_main_k_block_loop_) {
                     constexpr bool has_main_loop = has_main_k_block_loop_.value;
-                    // constexpr bool no_main_loop  = no_main_k_block_loop.value;
-                    if constexpr(CTranspose)
-                    {
-                        const auto kernel = kernel_grouped_conv_bwd_data_wmma_cshuffle_v3<
-                            GridwiseGemmCTranspose,
-                            DeviceOp::AGridDesc_AK0_M_AK1,
-                            DeviceOp::BGridDesc_BK0_N_BK1,
-                            DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                            DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                            ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
-                            ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                            has_main_loop,
-                            ElementOp,
-                            CTranspose>;
+                    const auto kernel            = kernel_grouped_conv_bwd_data_wmma_cshuffle_v3<
+                                   GridwiseGemmCTranspose,
+                                   DeviceOp::AGridDesc_AK0_M_AK1,
+                                   DeviceOp::BGridDesc_BK0_N_BK1,
+                                   DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                                   DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                                   ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
+                                   ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
+                                   has_main_loop,
+                                   ElementOp,
+                                   CTranspose>;
 
-                        return launch_and_time_kernel(
-                            stream_config,
-                            kernel,
-                            dim3(gdx, gdy, gdz),
-                            dim3(BlockSize),
-                            0,
-                            gemm_arg,
-                            arg.a_grid_desc_ak0_m_ak1_container_[i],
-                            arg.b_grid_desc_bk0_n_bk1_container_[i],
-                            arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_container_[i],
-                            arg.e_grid_desc_mblock_mperblock_nblock_nperblock_container_[i],
-                            arg.compute_ptr_offset_of_batch_,
-                            arg.compute_ptr_offset_of_n_,
-                            num_k_per_block);
-                    }
-                    else
-                    {
-                        const auto kernel = kernel_grouped_conv_bwd_data_wmma_cshuffle_v3<
-                            GridwiseGemm,
-                            DeviceOp::AGridDesc_AK0_M_AK1,
-                            DeviceOp::BGridDesc_BK0_N_BK1,
-                            DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                            DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                            ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
-                            ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                            has_main_loop,
-                            ElementOp,
-                            CTranspose>;
-
-                        return launch_and_time_kernel(
-                            stream_config,
-                            kernel,
-                            dim3(gdx, gdy, gdz),
-                            dim3(BlockSize),
-                            0,
-                            gemm_arg,
-                            arg.a_grid_desc_ak0_m_ak1_container_[i],
-                            arg.b_grid_desc_bk0_n_bk1_container_[i],
-                            arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_container_[i],
-                            arg.e_grid_desc_mblock_mperblock_nblock_nperblock_container_[i],
-                            arg.compute_ptr_offset_of_batch_,
-                            arg.compute_ptr_offset_of_n_,
-                            num_k_per_block);
-                    }
+                    return launch_and_time_kernel_with_preprocess(
+                        stream_config,
+                        clear_workspace,
+                        kernel,
+                        dim3(gdx, gdy, gdz),
+                        dim3(BlockSize),
+                        0,
+                        gemm_arg,
+                        arg.a_grid_desc_ak0_m_ak1_container_[i],
+                        arg.b_grid_desc_bk0_n_bk1_container_[i],
+                        arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_container_[i],
+                        arg.e_grid_desc_mblock_mperblock_nblock_nperblock_container_[i],
+                        arg.compute_ptr_offset_of_batch_,
+                        arg.compute_ptr_offset_of_n_,
+                        num_k_per_block);
                 };
 
                 if(has_main_k_block_loop)
@@ -1134,8 +1143,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                 arg.Print();
             }
             // Transpose from NGKHW to NHWGK
-            if constexpr(is_NGCHW_NGKHW<ELayout, BLayout, ALayout>() ||
-                         is_NGCDHW_NGKDHW<ELayout, BLayout, ALayout>())
+            if constexpr(NeedTransposeKernel)
             {
                 EDataType* p_e_in_grid =
                     type_convert<EDataType*>(arg.p_workspace_) +
