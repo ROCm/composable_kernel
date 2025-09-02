@@ -9,7 +9,7 @@
 #include "ck_tile/host/stream_utils.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_comp_v3.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
-#include "ck_tile/ops/gemm/kernel/gemm_kernel.hpp"
+#include "ck_tile/ops/gemm_group_quant/kernel/gemm_quant_kernel.hpp"
 #include "ck_tile/host.hpp"
 
 #include <hip/hip_runtime.h>
@@ -26,26 +26,27 @@ namespace ck_tile {
 struct QuantGroupedGemmHostArgs
 {
     CK_TILE_HOST QuantGroupedGemmHostArgs(const void* a_ptr_,
-                                     const void* b_ptr_,
-                                     void* e_ptr_,
-                                     const void* aq_ptr_,
-                                     const void* bq_ptr_,
-                                     index_t k_batch_,
-                                     index_t M_,
-                                     index_t N_,
-                                     index_t K_,
-                                     index_t QK_A_,
-                                     index_t QK_B_,
-                                     index_t stride_A_,
-                                     index_t stride_B_,
-                                     index_t stride_E_,
-                                     index_t stride_AQ_,
-                                     index_t stride_BQ_)
+                                          const void* b_ptr_,
+                                          void* e_ptr_,
+                                          const void* aq_ptr_,
+                                          const void* bq_ptr_,
+                                          index_t k_batch_,
+                                          index_t M_,
+                                          index_t N_,
+                                          index_t K_,
+                                          index_t QK_A_,
+                                          index_t QK_B_,
+                                          index_t stride_A_,
+                                          index_t stride_B_,
+                                          index_t stride_E_,
+                                          index_t stride_AQ_,
+                                          index_t stride_BQ_)
         : a_ptr(a_ptr_),
           b_ptr(b_ptr_),
           e_ptr(e_ptr_),
           aq_ptr(aq_ptr_),
           bq_ptr(bq_ptr_),
+          k_batch(k_batch_),
           M(M_),
           N(N_),
           K(K_),
@@ -55,8 +56,7 @@ struct QuantGroupedGemmHostArgs
           stride_B(stride_B_),
           stride_E(stride_E_),
           stride_AQ(stride_AQ_),
-          stride_BQ(stride_BQ_),
-          k_batch(k_batch_)
+          stride_BQ(stride_BQ_)          
     {
     }
 
@@ -89,74 +89,40 @@ struct QuantGroupedGemmHostArgs
     index_t k_batch;
 };
 
-/// @brief The Quant GEMM kernel device arguments.
-template <index_t NumATensor = 1, index_t NumBTensor = 1, index_t NumDTensor = 0>
-struct QuantGroupedGemmKernelArgs
-{
-    /// @brief The As input tensor's pointer to device memory.
-    const std::array<const void*, NumATensor> as_ptr;
-    const std::array<const void*, NumATensor> aq_ptr;
-    /// @brief The Bs input tensor's pointer to device memory.
-    const std::array<const void*, NumBTensor> bs_ptr;
-    const std::array<const void*, NumBTensor> bq_ptr;
-    /// @brief The Ds input tensor's pointer to device memory.
-    const std::array<const void*, NumDTensor> ds_ptr;
-    /// @brief The E output tensor's pointer to device memory.
-    void* e_ptr;
-    /// @brief GEMM's M dimension size.
-    index_t M;
-    /// @brief GEMM's N dimension size.
-    index_t N;
-    /// @brief GEMM's K dimension size.
-    index_t K;
-    index_t QK_A;
-    index_t QK_B;
-    /// @brief The distance between consecutive elements of non-contiguous dimension
-    ///        (in memory) of As tensor.
-    std::array<index_t, NumATensor> stride_As;
-    std::array<index_t, NumATensor> stride_AQ;
-    /// @brief The distance between consecutive elements of non-contiguous dimension
-    ///        (in memory) of Bs tensor.
-    std::array<index_t, NumBTensor> stride_Bs;
-    std::array<index_t, NumBTensor> stride_Bq;
-    /// @brief The distance between consecutive elements of non-contiguous dimension
-    ///        (in memory) of Ds tensor.
-    std::array<index_t, NumDTensor> stride_Ds;
+using QuantGroupedGemmKernelArgs = QuantGemmKernelArgs
 
-    /// @brief The distance between consecutive elements of non-contiguous dimension
-    ///        (in memory) of E tensor.
-    index_t stride_E;
-    index_t k_batch;
-};
-
-struct GemmTransKernelArg
+struct QuantGemmTransKernelArg
 {
-    QuantGroupedGemmKernelArgs<> group_karg;
+    QuantGroupedGemmKernelArgs group_karg;
     ck_tile::index_t block_start;
     ck_tile::index_t block_end;
 
-    GemmTransKernelArg() = delete;
-    GemmTransKernelArg(QuantGroupedGemmKernelArgs<>&& karg, index_t bl_start, index_t bl_end)
+    QuantGemmTransKernelArg() = delete;
+    QuantGemmTransKernelArg(QuantGroupedGemmKernelArgs&& karg, index_t bl_start, index_t bl_end)
         : group_karg{karg}, block_start{bl_start}, block_end{bl_end}
     {
     }
 
-    GemmTransKernelArg(QuantGroupedGemmKernelArgs<>&& karg)
+    QuantGemmTransKernelArg(QuantGroupedGemmKernelArgs&& karg)
         : group_karg{karg}, block_start{0}, block_end{0}
     {
     }
 };
 
-template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
-struct GroupedGemmKernel
+template <typename TilePartitioner_,
+          typename GemmPipeline_,
+          typename EpiloguePipeline_,
+          QuantType QuantType_>
+struct QuantGroupedGemmKernel
 {
     /// @brief Inject the UniversalGemmKernel base class to support execution of all necessary
     /// functions.
-    using Base = UniversalGemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
+    using Base = QuantGemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_, QuantType_>;
 
     using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
     using GemmPipeline     = remove_cvref_t<GemmPipeline_>;
     using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
+    using QuantType = remove_cvref_t<QuantType_>;
 
     //// @brief Specify the layout configurations for A, B, C/E
     using ALayout = remove_cvref_t<typename GemmPipeline::ALayout>;
@@ -167,6 +133,14 @@ struct GroupedGemmKernel
     using ADataType = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
     using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
+    using AccDataType = remove_cvref_t<typename EpiloguePipeline::AccDataType>;
+
+    using AQDataType =
+        remove_cvref_t<typename detail::get_aq_data_type_or<GemmPipeline, AccDataType>::type>;
+    using BQDataType =
+        remove_cvref_t<typename detail::get_bq_data_type_or<GemmPipeline, AccDataType>::type>;
+
+    static constexpr auto kQuantType = QuantType_;
 
     /// @brief ALayout and ADataType are expected to be scalars, not a tuple.
     static_assert(
@@ -184,7 +158,7 @@ struct GroupedGemmKernel
                   "C/ELayout and C/EDataType must be scalars.");
 
     using OffsetTile1DPartitioner = OffsettedTile1DPartitioner<TilePartitioner>;
-    using Kernel = GroupedGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline>;
+    using Kernel = GroupedGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline, QuantType>;
 
     static_assert(UsePersistentKernel == true, "UsePersistentKernel must be true");
 
@@ -207,12 +181,12 @@ struct GroupedGemmKernel
     CK_TILE_HOST static auto
     GetWorkSpaceSize(const std::vector<QuantGroupedGemmHostArgs>& gemm_descs) -> std::size_t
     {
-        return gemm_descs.size() * sizeof(GemmTransKernelArg);
+        return gemm_descs.size() * sizeof(QuantGemmTransKernelArg);
     }
 
     CK_TILE_HOST static auto GetWorkSpaceSize(index_t group_count) -> std::size_t
     {
-        return group_count * sizeof(GemmTransKernelArg);
+        return group_count * sizeof(QuantGemmTransKernelArg);
     }
 
     CK_TILE_HOST static auto BlockSize() -> dim3
@@ -256,9 +230,9 @@ struct GroupedGemmKernel
     }
 
     CK_TILE_HOST static auto
-    MakeKargs(const std::vector<QuantGroupedGemmHostArgs>& gemm_descs) -> std::vector<GemmTransKernelArg>
+    MakeKargs(const std::vector<QuantGroupedGemmHostArgs>& gemm_descs) -> std::vector<QuantGemmTransKernelArg>
     {
-        std::vector<GemmTransKernelArg> gemm_kernel_args_;
+        std::vector<QuantGemmTransKernelArg> gemm_kernel_args_;
         index_t group_count = ck_tile::type_convert<ck_tile::index_t>(gemm_descs.size());
         index_t grid_size   = 0;
         gemm_kernel_args_.reserve(group_count);
@@ -276,7 +250,7 @@ struct GroupedGemmKernel
 
             const index_t stride_a = gemm_descs[i].stride_A;
             const index_t stride_b = gemm_descs[i].stride_B;
-            const index_t stride_e = gemm_descs[i].stride_E;
+            const index_t stride_e = gemm_descs[i].stride_C;
 
             const index_t grid_size_grp = TilePartitioner::GridSize(M, N) * gemm_descs[i].k_batch;
 
@@ -286,18 +260,24 @@ struct GroupedGemmKernel
             grid_size += grid_size_grp;
 
             auto karg =
-                QuantGroupedGemmKernelArgs<>{{type_convert<const ADataType*>(gemm_descs[i].a_ptr)},
-                                          {type_convert<const BDataType*>(gemm_descs[i].b_ptr)},
-                                          {/*ds_ptr*/},
+                QuantGroupedGemmKernelArgs{
+                    type_convert<const ADataType*>(gemm_descs[i].a_ptr),
+                                          type_convert<const BDataType*>(gemm_descs[i].b_ptr),
                                           type_convert<CDataType*>(gemm_descs[i].e_ptr),
+                                          type_convert<const AQDataType*>(gemm_descs[i].aq_ptr),
+                                          type_convert<const BQDataType*>(gemm_descs[i].bq_ptr),
+                                          gemm_descs[i].k_batch,
                                           M,
                                           N,
                                           K,
-                                          {stride_a},
-                                          {stride_b},
-                                          {/*stride_ds*/},
+                                          gemm_descs[i].QK_A,
+                                          gemm_descs[i].QK_B,
+                                          stride_a,
+                                          stride_b,
                                           stride_e,
-                                          gemm_descs[i].k_batch};
+                                          gemm_descs[i].stride_AQ,
+                                          gemm_descs[i].stride_BQ
+                                          };
 
             gemm_kernel_args_.emplace_back(std::move(karg), block_start, block_end);
         }
@@ -305,7 +285,7 @@ struct GroupedGemmKernel
         return gemm_kernel_args_;
     }
 
-    CK_TILE_HOST static bool IsSupportedArgument(const std::vector<GemmTransKernelArg>& kargs)
+    CK_TILE_HOST static bool IsSupportedArgument(const std::vector<QuantGemmTransKernelArg>& kargs)
     {
         for(const auto& karg : kargs)
         {
@@ -322,7 +302,7 @@ struct GroupedGemmKernel
         return max(GemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
     }
 
-    CK_TILE_DEVICE void Run(const QuantGroupedGemmKernelArgs<>& kargs,
+    CK_TILE_DEVICE void Run(const QuantGroupedGemmKernelArgs& kargs,
                             const tuple<index_t, index_t>& block_idx_2d,
                             const index_t block_idx_z) const
     {
@@ -333,36 +313,21 @@ struct GroupedGemmKernel
 
         const typename Base::SplitKBatchOffset splitk_batch_offset(kargs, block_idx_z);
 
-        const ADataType* a_ptr = static_cast<const ADataType*>(kargs.as_ptr[0]) +
-                                 splitk_batch_offset.as_k_split_offset[0];
-        const BDataType* b_ptr = static_cast<const BDataType*>(kargs.bs_ptr[0]) +
-                                 splitk_batch_offset.bs_k_split_offset[0];
+        // options
+        const ADataType* a_ptr   = static_cast<const ADataType*>(kargs.a_ptr);
+        const BDataType* b_ptr   = static_cast<const BDataType*>(kargs.b_ptr);
+        const AQDataType* aq_ptr = static_cast<const AQDataType*>(kargs.aq_ptr);
+        const BQDataType* bq_ptr = static_cast<const BQDataType*>(kargs.bq_ptr);
         CDataType* c_ptr = static_cast<CDataType*>(kargs.e_ptr);
 
+        static_assert(kargs.k_batch == 1, "k_batch needs to be 1");
+        static_assert(GemmPipeline::DoubleSmemBuffer == false, "DoubleSmemBuffer needs to be false");
         // allocate LDS
-        __shared__ char smem_ptr_0[GetSmemSize()];
-
-        if constexpr(GemmPipeline::DoubleSmemBuffer == true)
-        {
-            __shared__ char smem_ptr_1[GetSmemSize()];
-            
-            RunGemmWithPipelineSelection2LDS(a_ptr,
-                                                b_ptr,
-                                                c_ptr,
-                                                smem_ptr_0,
-                                                smem_ptr_1,
-                                                kargs,
-                                                splitk_batch_offset,
-                                                i_m,
-                                                i_n);
-            
-            
-        }
-        else
-        {
-            RunGemmWithPipelineSelection(
-                a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
-        }
+        __shared__ char smem_ptr_0[GetSmemSize()];        
+        
+        RunGemmWithPipelineSelection(
+            a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
+        
     }
 
     /**
@@ -386,9 +351,11 @@ struct GroupedGemmKernel
     CK_TILE_DEVICE static void
     RunGemmWithPipelineSelection(const ADataType* a_ptr,
                                  const BDataType* b_ptr,
+                                 const AQDataType* aq_ptr,
+                                const BQDataType* bq_ptr,
                                  CDataType* c_ptr,
                                  void* smem_ptr_0,
-                                 const QuantGroupedGemmKernelArgs<>& kargs,
+                                 const QuantGroupedGemmKernelArgs& kargs,
                                  const typename Base::SplitKBatchOffset& splitk_batch_offset,
                                  const index_t block_idx_m,
                                  const index_t block_idx_n)
@@ -396,14 +363,13 @@ struct GroupedGemmKernel
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
             Base::template MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-                {a_ptr}, {b_ptr}, {/*ds_ptr*/}, c_ptr, kargs, splitk_batch_offset);
+                a_ptr, b_ptr, aq_ptr, bq_ptr, c_ptr, kargs, splitk_batch_offset);
 
         const auto& gemm_pad_views = Base::MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows =
             Base::MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
         const auto& a_block_window = gemm_tile_windows.at(Base::I0);
-        const auto& b_block_window = gemm_tile_windows.at(Base::I1);
-        const auto& d_block_window = gemm_tile_windows.at(Base::I2);
+        const auto& b_block_window = gemm_tile_windows.at(Base::I2);
 
         // Get hot-loop and tail configuration
         const index_t num_loop = __builtin_amdgcn_readfirstlane(
@@ -419,119 +385,21 @@ struct GroupedGemmKernel
                                                                       tail_num,
                                                                       smem_ptr_0);
         // Run Epilogue Pipeline
-        auto& c_block_window = gemm_tile_windows.at(Base::I3);
-        EpiloguePipeline{}.template
-        operator()<decltype(c_block_window), decltype(c_block_tile), decltype(d_block_window)>(
-            c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-    }
-
-    /**
-     * @brief Runs single GEMM problem cooperatively by whole workgroup.
-     *
-     * @note The GEMM pipeline is selected in-kernel based on the number of K-loops
-     *       and the tail-number. This is needed for the persistent tile-loop when
-     *       we didn't have access to the K dimension on the host.
-     *
-     * @param a_ptr input A pointer
-     * @param b_ptr input B pointer
-     * @param c_ptr output C pointer
-     * @param smem_ptr_0 The start memory pointer of the shared memory block.
-     * @param smem_ptr_1 The second start memory pointer of the shared memory block.
-     * @param kargs GEMM kernel arguments
-     * @param splitk_batch_offset splitk_batch_offset Utility structure used to calculate k
-     * batch.
-     * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
-     * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
-     *
-     */
-    CK_TILE_DEVICE static void
-    RunGemmWithPipelineSelection2LDS(const ADataType* a_ptr,
-                                     const BDataType* b_ptr,
-                                     CDataType* c_ptr,
-                                     void* __restrict__ smem_ptr_0,
-                                     void* __restrict__ smem_ptr_1,
-                                     const QuantGroupedGemmKernelArgs<>& kargs,
-                                     const typename Base::SplitKBatchOffset& splitk_batch_offset,
-                                     const index_t block_idx_m,
-                                     const index_t block_idx_n)
-    {
-        // Create Gemm tensor views, pad views and tile windows
-        const auto& gemm_tensor_views_tuple =
-            Base::template MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-                {a_ptr}, {b_ptr}, {/*ds_ptr*/}, c_ptr, kargs, splitk_batch_offset);
-
-        const auto& gemm_pad_views = Base::MakeGemmPadViews(gemm_tensor_views_tuple);
-        auto gemm_tile_windows =
-            Base::MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
-        const auto& a_block_window = gemm_tile_windows.at(Base::I0);
-        const auto& b_block_window = gemm_tile_windows.at(Base::I1);
-        const auto& d_block_window = gemm_tile_windows.at(Base::I2);
-
-        // Get hot-loop and tail configuration
-        const index_t num_loop = __builtin_amdgcn_readfirstlane(
-            TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
-        const bool has_hot_loop   = GemmPipeline::BlockHasHotloop(num_loop);
-        const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
-
-        // Run GEMM pipeline
-        const auto& c_block_tile = GemmPipeline{}.template operator()(a_block_window[Base::I0],
-                                                                      b_block_window[Base::I0],
-                                                                      num_loop,
-                                                                      has_hot_loop,
-                                                                      tail_num,
-                                                                      smem_ptr_0,
-                                                                      smem_ptr_1);
-        // Run Epilogue Pipeline
-        auto& c_block_window = gemm_tile_windows.at(Base::I3);
-        EpiloguePipeline{}.template
-        operator()<decltype(c_block_window), decltype(c_block_tile), decltype(d_block_window)>(
-            c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-    }
-
-    CK_TILE_DEVICE index_t FindGroupId(const GemmTransKernelArg* gemm_desc_ptr,
-                                       index_t block_id,
-                                       index_t group_count) const
-    {
-        index_t left     = 0;
-        index_t right    = group_count;
-        index_t group_id = index_t((left + right) >> 1);
-
-        while((!(block_id >= gemm_desc_ptr[group_id].block_start &&
-                 block_id < gemm_desc_ptr[group_id].block_end)) &&
-              left <= right)
+        auto& c_block_window = gemm_tile_windows.at(Base::I4);
+        if constexpr(kQuantType == QuantType::RowColQuant)
         {
-            if(block_id < gemm_desc_ptr[group_id].block_start)
-            {
-                right = group_id;
-            }
-            else
-            {
-                left = group_id;
-            }
-            group_id = index_t((left + right) >> 1);
+            const auto& aq_block_window = gemm_tile_windows.at(Base::I1);
+            const auto& bq_block_window = gemm_tile_windows.at(Base::I3);
+            EpiloguePipeline{}.template
+            operator()<decltype(c_block_window), decltype(c_block_tile), decltype(c_block_window)>(
+                c_block_window,
+                c_block_tile,
+                c_block_window,
+                smem_ptr_0,
+                aq_block_window,
+                bq_block_window);
         }
-
-        return group_id;
-    }
-
-    // For non-persistent kernels
-    template <bool U = UsePersistentKernel, typename = std::enable_if_t<!U>>
-    CK_TILE_DEVICE void operator()(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
-                                   index_t group_count) const
-    {
-        const index_t block_id   = ck_tile::get_block_1d_id();
-        const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg*>(
-            cast_pointer_to_generic_address_space(gemm_descs_const));
-
-        const index_t group_id  = FindGroupId(gemm_desc_ptr, block_id, group_count);
-        const auto& kargs       = gemm_desc_ptr[group_id];
-        const auto grid_size_2d = TilePartitioner::GridSize(kargs.group_karg.M, kargs.group_karg.N);
-        const auto block_idx_2d = OffsetTile1DPartitioner::GetOffsetedTileIndex(
-            0,
-            kargs.group_karg.M,
-            kargs.group_karg.N,
-            (block_id - kargs.block_start) % grid_size_2d);
-        Run(kargs.group_karg, block_idx_2d, (block_id - kargs.block_start) / grid_size_2d);
+       
     }
 
     // For persistent kernels
@@ -542,7 +410,7 @@ struct GroupedGemmKernel
                                    const index_t group_count) const
     {
         const index_t grid_size  = ck_tile::get_grid_size();
-        const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg*>(
+        const auto gemm_desc_ptr = reinterpret_cast<const QuantGemmTransKernelArg*>(
             cast_pointer_to_generic_address_space(gemm_descs_const));
         index_t block_id      = ck_tile::get_block_1d_id(); // initial block_id
         index_t cum_grid_size = 0;
