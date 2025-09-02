@@ -86,6 +86,7 @@ float gemm_calc_aquant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::st
                                                CodegenGemmShape,
                                                CodegenGemmTraits,
                                                QuantGroupSize,
+                                               transposed_warp_gemm,
                                                ComputeDataType,
                                                ck_tile::GemmPipelineScheduler::Intrawave,
                                                has_hot_loop_v,
