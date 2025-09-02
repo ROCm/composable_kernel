@@ -320,6 +320,7 @@ struct QuantGroupedGemmKernel
         const BQDataType* bq_ptr = static_cast<const BQDataType*>(kargs.bq_ptr);
         CDataType* c_ptr = static_cast<CDataType*>(kargs.e_ptr);
 
+        
         static_assert(kargs.k_batch == 1, "k_batch needs to be 1");
         static_assert(GemmPipeline::DoubleSmemBuffer == false, "DoubleSmemBuffer needs to be false");
         // allocate LDS
