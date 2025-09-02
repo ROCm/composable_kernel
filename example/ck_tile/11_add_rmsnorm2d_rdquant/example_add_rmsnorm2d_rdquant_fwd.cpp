@@ -136,12 +136,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
     auto kargs = Kernel::MakeKargs(args);
 
     const dim3 grids                       = Kernel::GridSize(args);
-    constexpr dim3 blocks                  = Kernel::BlockSize();
+    const dim3 blocks                      = Kernel::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = 1;
     auto s = ck_tile::stream_config{nullptr, true, 0, warmup, repeat};
 
-    ck_tile::launch_kernel(
-        s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+    ck_tile::launch_kernel(s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 
     bool pass = true;
 
@@ -186,7 +185,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         // Rmsnorm2d
         {
             ck_tile::HostTensor<InvRmsDataType> invRms_host_ref({m});
-
+            ck_tile::HostTensor<ck_tile::null_type> unquant_y_host_ref({m, n});
             // CAUSION: kernel use ComputeDataType version of x, but we use XDataType here for
             // simplicity
             ck_tile::reference_rmsnorm2d_fwd<XDataType,
@@ -194,7 +193,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                              ComputeDataType,
                                              YDataType,
                                              InvRmsDataType>(
-                x_host_ref, gamma_host, y_host, invRms_host_ref, epsilon);
+                x_host_ref, gamma_host, y_host, invRms_host_ref, unquant_y_host_ref, epsilon);
         }
 
         // yscale
@@ -256,8 +255,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             }
         }
 
-        std::cout << "[" << data_type << "]"
-                  << " m:" << m << ", n:" << n << ", stride:" << stride
+        std::cout << "[" << data_type << "]" << " m:" << m << ", n:" << n << ", stride:" << stride
                   << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
     }
 

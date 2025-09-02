@@ -7,7 +7,7 @@ This folder contains example for fmha(fused multi-head attention) using ck_tile 
 # in the root of ck_tile
 mkdir build && cd build
 # you can replace <arch> with the appropriate architecture (for example gfx90a or gfx942) or leave it blank
-sh ../script/cmake-ck-dev.sh  ../ <arch>
+../script/cmake-ck-dev.sh  ../ <arch>
 make tile_example_fmha_fwd -j
 ```
 This will result in an executable `build/bin/tile_example_fmha_fwd`
@@ -71,6 +71,7 @@ args:
   -drop_seed    seed for random number generator (default:1)
 -drop_offset    offset for random number generator (default:0)
  -drop_prefs    seed and offset values are present on GPU; 0 - host, 1 - device/GPU (default:0)
+ -num_splits    number of splits for key/value. 0 to determine actual number by heuristic (default:1)
      -warmup    number of iterations before benchmark the kernel (default:5)
      -repeat    number of iterations to benchmark the kernel (default:20)
 ```

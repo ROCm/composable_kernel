@@ -152,22 +152,21 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_xdlops_bwd_weight(const FloatA* __restrict__ p_a_grid,
-                                      const FloatB* __restrict__ p_b_grid,
-                                      FloatC* __restrict__ p_c_grid,
-                                      const AGridDesc_B_K0_M_K1 a_b_k0_m_k1_grid_desc,
-                                      const BGridDesc_B_K0_N_K1 b_b_k0_n_k1_grid_desc,
-                                      const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-                                          c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                      const AElementwiseOperation a_element_op,
-                                      const BElementwiseOperation b_element_op,
-                                      const CElementwiseOperation c_element_op,
-                                      const CBlockClusterAdaptor c_block_cluster_adaptor)
+    kernel_gemm_xdlops_bwd_weight(const FloatA* __restrict__ p_a_grid,
+                                  const FloatB* __restrict__ p_b_grid,
+                                  FloatC* __restrict__ p_c_grid,
+                                  const AGridDesc_B_K0_M_K1 a_b_k0_m_k1_grid_desc,
+                                  const BGridDesc_B_K0_N_K1 b_b_k0_n_k1_grid_desc,
+                                  const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+                                      c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                  const AElementwiseOperation a_element_op,
+                                  const BElementwiseOperation b_element_op,
+                                  const CElementwiseOperation c_element_op,
+                                  const CBlockClusterAdaptor c_block_cluster_adaptor)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
+#if(defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
@@ -182,16 +181,16 @@ __global__ void
                                                   c_element_op,
                                                   c_block_cluster_adaptor);
 #else
-    ignore               = p_a_grid;
-    ignore               = p_b_grid;
-    ignore               = p_c_grid;
-    ignore               = a_b_k0_m_k1_grid_desc;
-    ignore               = b_b_k0_n_k1_grid_desc;
-    ignore               = c_grid_desc_mblock_mperblock_nblock_nperblock;
-    ignore               = a_element_op;
-    ignore               = b_element_op;
-    ignore               = c_element_op;
-    ignore               = c_block_cluster_adaptor;
+    ignore = p_a_grid;
+    ignore = p_b_grid;
+    ignore = p_c_grid;
+    ignore = a_b_k0_m_k1_grid_desc;
+    ignore = b_b_k0_n_k1_grid_desc;
+    ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
+    ignore = a_element_op;
+    ignore = b_element_op;
+    ignore = c_element_op;
+    ignore = c_block_cluster_adaptor;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
@@ -752,11 +751,11 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
         constexpr auto is_scale_mfma = false;
         constexpr index_t KPack      = math::max(K1,
                                             MfmaSelector<FloatAAdjusted,
-                                                         MPerXDL,
-                                                         NPerXDL,
-                                                         FloatBAdjusted,
-                                                         is_single_rate_mfma,
-                                                         is_scale_mfma>::selected_mfma.k_per_blk);
+                                                              MPerXDL,
+                                                              NPerXDL,
+                                                              FloatBAdjusted,
+                                                              is_single_rate_mfma,
+                                                              is_scale_mfma>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,

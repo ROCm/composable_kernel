@@ -163,6 +163,18 @@ struct GeneratorTensor_1<ck::pk_i4_t>
     }
 };
 
+template <>
+struct GeneratorTensor_1<ck::e8m0_bexp_t>
+{
+    float value = 1;
+
+    template <typename... Is>
+    ck::e8m0_bexp_t operator()(Is...)
+    {
+        return ck::type_convert<ck::e8m0_bexp_t>(value);
+    }
+};
+
 template <typename T>
 struct GeneratorTensor_2
 {

@@ -11,6 +11,7 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/gemm/kernel/batched_gemm_kernel.hpp"
+#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
 template <typename Tuple>
 class TestCkTileBatchedGemm : public ::testing::Test
@@ -23,6 +24,8 @@ class TestCkTileBatchedGemm : public ::testing::Test
     using BDataType   = std::tuple_element_t<4, Tuple>;
     using AccDataType = std::tuple_element_t<5, Tuple>;
     using CDataType   = std::tuple_element_t<6, Tuple>;
+    using DsLayout    = ck_tile::tuple<>;
+    using DsDataType  = ck_tile::tuple<>;
 
     template <typename ALayout, typename BLayout, typename CLayout>
     void invoke_batched_gemm(const ck_tile::BatchedGemmHostArgs& args,
@@ -102,10 +105,12 @@ class TestCkTileBatchedGemm : public ::testing::Test
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
                                                  BDataType,
+                                                 DsDataType,
                                                  AccDataType,
                                                  CDataType,
+                                                 DsLayout,
                                                  CLayout,
-                                                 GemmPipelineProblem::kBlockSize,
+                                                 ck_tile::element_wise::PassThrough,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,
                                                  M_Warp,
@@ -118,8 +123,8 @@ class TestCkTileBatchedGemm : public ::testing::Test
             using Kernel = ck_tile::BatchedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
 
-            const dim3 grids = Kernel::GridSize(args.M, args.N, args.k_batch, args.batch_count);
-            constexpr dim3 blocks = Kernel::BlockSize();
+            const dim3 grids  = Kernel::GridSize(args.M, args.N, args.k_batch, args.batch_count);
+            const dim3 blocks = Kernel::BlockSize();
 
             if(!Kernel::IsSupportedArgument(kargs))
             {
@@ -138,7 +143,7 @@ class TestCkTileBatchedGemm : public ::testing::Test
             }
 
             ave_time = ck_tile::launch_kernel(
-                s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+                s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
             return ave_time;
         };
 
@@ -159,32 +164,7 @@ class TestCkTileBatchedGemm : public ::testing::Test
             }
         };
 
-        if(has_hot_loop)
-        {
-            if(tail_num == ck_tile::TailNumber::Full)
-            {
-                RunSplitk(
-                    ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-            }
-            else
-            {
-                std::ostringstream err;
-                err << "For compute pipeline tail number should always be Full, but have \""
-                    << tail_num << "\" which is not supported! PrefetchStages: "
-                    << BaseGemmPipeline::PrefetchStages << "\n File: " << __FILE__ << ":"
-                    << __LINE__ << ", in function: " << __func__;
-                throw std::runtime_error(err.str());
-            }
-        }
-        else
-        {
-            std::ostringstream err;
-            err << "Num K loop must be larger than number of prefetech stages."
-                << "\n PrefetchStages: " << BaseGemmPipeline::PrefetchStages
-                << "\n File: " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
-            throw std::runtime_error(err.str());
-        }
+        BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
     }
 
     public:
@@ -261,21 +241,20 @@ class TestCkTileBatchedGemm : public ::testing::Test
         c_m_n_dev_buf.SetZero();
         c_m_n_dev_result.SetZero();
 
-        ck_tile::BatchedGemmHostArgs args;
-        args.a_ptr          = a_m_k_dev_buf.GetDeviceBuffer();
-        args.b_ptr          = b_k_n_dev_buf.GetDeviceBuffer();
-        args.c_ptr          = c_m_n_dev_buf.GetDeviceBuffer();
-        args.k_batch        = 1;
-        args.M              = M;
-        args.N              = N;
-        args.K              = K;
-        args.stride_A       = StrideA;
-        args.stride_B       = StrideB;
-        args.stride_C       = StrideC;
-        args.batch_stride_A = BatchStrideA;
-        args.batch_stride_B = BatchStrideB;
-        args.batch_stride_C = BatchStrideC;
-        args.batch_count    = BatchCount;
+        ck_tile::BatchedGemmHostArgs args{a_m_k_dev_buf.GetDeviceBuffer(),
+                                          b_k_n_dev_buf.GetDeviceBuffer(),
+                                          c_m_n_dev_buf.GetDeviceBuffer(),
+                                          1,
+                                          M,
+                                          N,
+                                          K,
+                                          StrideA,
+                                          StrideB,
+                                          StrideC,
+                                          BatchStrideA,
+                                          BatchStrideB,
+                                          BatchStrideC,
+                                          BatchCount};
 
         invoke_batched_gemm<ALayout, BLayout, CLayout>(args,
                                                        ck_tile::stream_config{nullptr, false});

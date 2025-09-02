@@ -16,12 +16,21 @@ else()
             "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel.")
 endif()
 
+# Allow user to specify the C++ standard.
+# We must support C++17 builds until downstream users are migrated to C++20, but we default to C++20.
+set(CK_CXX_STANDARD "20" CACHE STRING "C++ standard to use (e.g. 17 or 20)")
+set(valid_cxx_standards 17 20)
+set_property(CACHE CK_CXX_STANDARD PROPERTY STRINGS ${valid_cxx_standards})
+if(NOT CK_CXX_STANDARD IN_LIST valid_cxx_standards)
+    message(FATAL_ERROR "CK_CXX_STANDARD must be one of ${valid_cxx_standards}")
+endif()
+
 # Default installation path
 if(NOT WIN32)
     set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
 endif()
 
-set(version 1.1.0)
+set(version 1.2.0)
 # Check support for CUDA/HIP in Cmake
 project(composable_kernel VERSION ${version} LANGUAGES CXX HIP)
 include(CTest)
@@ -36,11 +45,11 @@ option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
 if(NOT CK_USE_ALTERNATIVE_PYTHON)
    find_package(Python3 3.8 COMPONENTS Interpreter REQUIRED)
 else()
-   message("Using alternative python version")
+   message(STATUS "Using alternative python version")
    set(EXTRA_PYTHON_PATH)
    # this is overly restrictive, we may need to be more flexible on the following
    string(REPLACE "/bin/python3.8" "" EXTRA_PYTHON_PATH "${CK_USE_ALTERNATIVE_PYTHON}")
-   message("alternative python path is: ${EXTRA_PYTHON_PATH}")
+   message(STATUS "alternative python path is: ${EXTRA_PYTHON_PATH}")
    find_package(Python3 3.6 COMPONENTS Interpreter REQUIRED)
    add_definitions(-DPython3_EXECUTABLE="${CK_USE_ALTERNATIVE_PYTHON}")
    set(Python3_EXECUTABLE "${CK_USE_ALTERNATIVE_PYTHON}")
@@ -80,7 +89,7 @@ if (DTYPES)
         add_definitions(-DCK_ENABLE_BF16)
         set(CK_ENABLE_BF16 "ON")
     endif()
-    message("DTYPES macro set to ${DTYPES}")
+    message(STATUS "DTYPES macro set to ${DTYPES}")
 else()
     add_definitions(-DCK_ENABLE_INT8 -DCK_ENABLE_FP16 -DCK_ENABLE_FP32 -DCK_ENABLE_FP64 -DCK_ENABLE_BF16 -DCK_ENABLE_FP8 -DCK_ENABLE_BF8)
     set(CK_ENABLE_INT8 "ON")
@@ -97,6 +106,12 @@ add_compile_options(-Wno-bit-int-extension)
 add_compile_options(-Wno-pass-failed)
 add_compile_options(-Wno-switch-default)
 add_compile_options(-Wno-unique-object-duplication)
+
+# add -Og -gdwarf64 for debug builds
+add_compile_options(
+    "$<$<CONFIG:Debug>:-Og>"
+    "$<$<CONFIG:Debug>:-gdwarf64>"
+)
 
 # Recent change in compiler makes this warning ON by default, which led to compile errors.
 add_compile_options(-Wno-nrvo)
@@ -146,8 +161,8 @@ rocm_setup_version(VERSION ${version})
 
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip "$ENV{ROCM_PATH}" "$ENV{HIP_PATH}")
 
-message("GPU_TARGETS= ${GPU_TARGETS}")
-message("GPU_ARCHS= ${GPU_ARCHS}")
+message(STATUS "GPU_TARGETS= ${GPU_TARGETS}")
+message(STATUS "GPU_ARCHS= ${GPU_ARCHS}")
 if(GPU_ARCHS)
     #disable GPU_TARGETS to avoid conflicts, this needs to happen before we call hip package
     unset(GPU_TARGETS CACHE)
@@ -162,9 +177,9 @@ find_package(hip REQUIRED)
 # No assumption that HIP kernels are launched with uniform block size for backward compatibility
 # SWDEV-413293 and https://reviews.llvm.org/D155213
 math(EXPR hip_VERSION_FLAT "(${hip_VERSION_MAJOR} * 1000 + ${hip_VERSION_MINOR}) * 100000 + ${hip_VERSION_PATCH}")
-message("hip_version_flat=${hip_VERSION_FLAT}")
+message(STATUS "hip_version_flat=${hip_VERSION_FLAT}")
 
-message("checking which targets are supported")
+message(STATUS "checking which targets are supported")
 #In order to build just the CK library (without tests and examples) for all supported GPU targets
 #use -D GPU_ARCHS="gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201"
 #the GPU_TARGETS flag will be reset in this case in order to avoid conflicts.
@@ -203,25 +218,34 @@ endif()
 rocm_check_target_ids(SUPPORTED_GPU_TARGETS
         TARGETS ${CK_GPU_TARGETS})
 
-message("Building CK for the following targets: ${SUPPORTED_GPU_TARGETS}")
+message(STATUS "Building CK for the following targets: ${SUPPORTED_GPU_TARGETS}")
 
 if (SUPPORTED_GPU_TARGETS MATCHES "gfx9")
-    message("Enabling XDL instances")
+    message(STATUS "Enabling XDL instances")
     add_definitions(-DCK_USE_XDL)
     set(CK_USE_XDL "ON")
 endif()
 if (SUPPORTED_GPU_TARGETS MATCHES "gfx94" OR SUPPORTED_GPU_TARGETS MATCHES "gfx95")
-    message("Enabling XDL FP8 gemms on native architectures")
+    message(STATUS "Enabling XDL FP8 gemms on native architectures")
     add_definitions(-DCK_USE_GFX94)
     set(CK_USE_GFX94 "ON")
 endif()
+
+# new macro CK_TILE_USE_WMMA in order to separately compile examples for MFMA/WMMA
+set(CK_TILE_USE_WMMA 0)
+
 if (SUPPORTED_GPU_TARGETS MATCHES "gfx11" OR SUPPORTED_GPU_TARGETS MATCHES "gfx12")
-    message("Enabling WMMA instances")
+    message(STATUS "Enabling WMMA instances")
     add_definitions(-DCK_USE_WMMA)
     set(CK_USE_WMMA "ON")
+    set(CK_TILE_USE_WMMA 1)
 endif()
+
+# define the macro with the current value (0 or 1)
+add_definitions(-DCK_TILE_USE_WMMA=${CK_TILE_USE_WMMA})
+
 if (SUPPORTED_GPU_TARGETS MATCHES "gfx12")
-    message("Enabling WMMA FP8 gemms on native architectures")
+    message(STATUS "Enabling WMMA FP8 gemms on native architectures")
     add_definitions(-DCK_USE_WMMA_FP8)
     set(CK_USE_WMMA_FP8 "ON")
 endif()
@@ -236,6 +260,8 @@ endif()
 if (SUPPORTED_GPU_TARGETS MATCHES "gfx950")
     add_definitions(-DCK_USE_NATIVE_MX_SUPPORT)
     set(CK_USE_NATIVE_MX_SUPPORT "ON")
+    add_definitions(-DCK_GFX950_SUPPORT)
+    set(CK_GFX950_SUPPORT "ON")
 endif()
 
 option(CK_USE_FP8_ON_UNSUPPORTED_ARCH "Enable FP8 GEMM instances on older architectures" OFF)
@@ -250,32 +276,32 @@ configure_file(include/ck/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/ck/con
 if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 500723302)
   check_cxx_compiler_flag("-fno-offload-uniform-block" HAS_NO_OFFLOAD_UNIFORM_BLOCK)
   if(HAS_NO_OFFLOAD_UNIFORM_BLOCK)
-    message("Adding the fno-offload-uniform-block compiler flag")
+    message(STATUS "Adding the fno-offload-uniform-block compiler flag")
     add_compile_options(-fno-offload-uniform-block)
   endif()
 endif()
 if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 500500000)
   check_cxx_compiler_flag("-mllvm --lsr-drop-solution=1" HAS_LSR_DROP_SOLUTION)
   if(HAS_LSR_DROP_SOLUTION)
-    message("Adding the lsr-drop-solution=1 compiler flag")
+    message(STATUS "Adding the lsr-drop-solution=1 compiler flag")
     add_compile_options("SHELL: -mllvm --lsr-drop-solution=1")
   endif()
 endif()
 if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600140090)
   check_cxx_compiler_flag("-mllvm -enable-post-misched=0" HAS_ENABLE_POST_MISCHED)
   if(HAS_ENABLE_POST_MISCHED)
-    message("Adding the enable-post-misched=0 compiler flag")
+    message(STATUS "Adding the enable-post-misched=0 compiler flag")
     add_compile_options("SHELL: -mllvm -enable-post-misched=0")
   endif()
 endif()
 set(check-coerce)
 check_cxx_compiler_flag(" -mllvm -amdgpu-coerce-illegal-types=1" check-coerce)
 if(NOT WIN32 AND check-coerce AND ${hip_VERSION_FLAT} GREATER 600241132)
-   message("Adding the amdgpu-coerce-illegal-types=1")
+   message(STATUS "Adding the amdgpu-coerce-illegal-types=1")
    add_compile_options("SHELL: -mllvm -amdgpu-coerce-illegal-types=1")
 endif()
 if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
-   message("Adding -amdgpu-early-inline-all=true and -amdgpu-function-calls=false")
+   message(STATUS "Adding -amdgpu-early-inline-all=true and -amdgpu-function-calls=false")
    add_compile_options("SHELL: -mllvm -amdgpu-early-inline-all=true")
    add_compile_options("SHELL: -mllvm -amdgpu-function-calls=false")
 endif()
@@ -308,17 +334,18 @@ endif()
 
 option(USE_BITINT_EXTENSION_INT4 "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
 option(USE_OPT_GFX11 "Whether to enable LDS cumode and Wavefront32 mode for GFX11 silicons." OFF)
+option(ENABLE_ASM_DUMP "Whether to enable assembly dump for kernels." OFF)
 
 if(USE_BITINT_EXTENSION_INT4)
     add_compile_definitions(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
     add_compile_options(-Wno-bit-int-extension)
-    message("CK compiled with USE_BITINT_EXTENSION_INT4 set to ${USE_BITINT_EXTENSION_INT4}")
+    message(STATUS "CK compiled with USE_BITINT_EXTENSION_INT4 set to ${USE_BITINT_EXTENSION_INT4}")
 endif()
 
-if(USE_OPT_GFX11)
-    add_compile_options(-mcumode)
-    add_compile_options(-mno-wavefrontsize64)
-    message("CK compiled with USE_OPT_GFX11 set to ${USE_OPT_GFX11}")
+if(ENABLE_ASM_DUMP)
+    add_compile_options(--save-temps) 
+    add_compile_options(-Wno-gnu-line-marker)
+    message("CK compiled with ENABLE_ASM_DUMP set to ${ENABLE_ASM_DUMP}")
 endif()
 
 ## Threads
@@ -327,10 +354,10 @@ find_package(Threads REQUIRED)
 link_libraries(Threads::Threads)
 
 ## C++
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD ${CK_CXX_STANDARD})
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-message("CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
+message(STATUS "CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
 
 # https://gcc.gnu.org/onlinedocs/libstdc++/manual/using_macros.html
 # _GLIBCXX_ASSERTIONS
@@ -346,7 +373,7 @@ endif()
 set(CMAKE_HIP_PLATFORM amd)
 set(CMAKE_HIP_COMPILER ${CMAKE_CXX_COMPILER})
 set(CMAKE_HIP_EXTENSIONS ON)
-message("CMAKE_HIP_COMPILER: ${CMAKE_HIP_COMPILER}")
+message(STATUS "CMAKE_HIP_COMPILER: ${CMAKE_HIP_COMPILER}")
 
 ## OpenMP
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -361,10 +388,10 @@ else()
 	find_package(OpenMP REQUIRED)
 endif()
 
-message("OpenMP_CXX_LIB_NAMES: ${OpenMP_CXX_LIB_NAMES}")
-message("OpenMP_gomp_LIBRARY: ${OpenMP_gomp_LIBRARY}")
-message("OpenMP_pthread_LIBRARY: ${OpenMP_pthread_LIBRARY}")
-message("OpenMP_CXX_FLAGS: ${OpenMP_CXX_FLAGS}")
+message(STATUS "OpenMP_CXX_LIB_NAMES: ${OpenMP_CXX_LIB_NAMES}")
+message(STATUS "OpenMP_gomp_LIBRARY: ${OpenMP_gomp_LIBRARY}")
+message(STATUS "OpenMP_pthread_LIBRARY: ${OpenMP_pthread_LIBRARY}")
+message(STATUS "OpenMP_CXX_FLAGS: ${OpenMP_CXX_FLAGS}")
 
 link_libraries(${OpenMP_gomp_LIBRARY})
 link_libraries(${OpenMP_pthread_LIBRARY})
@@ -560,7 +587,7 @@ if(BUILD_DEV)
     add_compile_options(-Werror)
     add_compile_options(-Weverything)
 endif()
-message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
+message(STATUS "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 
 if("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
     add_compile_options(-fcolor-diagnostics)
@@ -627,7 +654,7 @@ option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
 
 add_subdirectory(library)
 
-if(NOT GPU_ARCHS AND USER_GPU_TARGETS)
+if(NOT GPU_ARCHS AND USER_GPU_TARGETS AND NOT MIOPEN_REQ_LIBS_ONLY)
    rocm_package_setup_component(tests
         LIBRARY_NAME composablekernel
         PACKAGE_NAME tests # Prevent -static suffix on package name

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -96,7 +96,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
           dst_element_op_(dst_element_op),
           gather_offsets_(gather_offsets)
     {
-        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
+        if constexpr((packed_size_v<SrcData>) > 1)
         {
             static_assert(is_same_v<remove_cvref_t<SrcData>, remove_cvref_t<DstData>>,
                           "SrcData != DstData");
@@ -105,7 +105,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                 SrcScalarPerVector_ % PackedSize == 0 && DstScalarPerVector_ % PackedSize == 0,
                 "SrcScalarPerVector_ and DstScalarPerVector_ cannot be 1 for packed data type");
 
-            static_assert(SrcVectorDim == DstVectorDim, "pk_i4_t does not support transpose");
+            static_assert(SrcVectorDim == DstVectorDim,
+                          "Packed data type does not support transpose");
         }
     }
 
@@ -222,7 +223,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
             auto gather_offset =
                 gather_offsets_(ordered_src_access_idx[Number<ordered_gather_dim>{}]);
 
-            const IndexType ld_offset = src_coord_.GetOffset() + gather_offset;
+            const IndexType ld_offset = src_coord_.GetOffset() / PackedSize + gather_offset;
             src_oob_thread_scratch_tuple_(thread_scratch_id)
                 .template SetAsType<bool>(src_data_idx_seq, true);
 
@@ -276,8 +277,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                 .template SetAsType<dst_vector_t>(src_data_idx_seq,
                                                   op_r_v.template AsType<dst_vector_t>()[I0]);
 
-            auto move_on_dim = [&]() constexpr
-            {
+            auto move_on_dim = [&]() constexpr {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
 
                 static_for<0, nDim, 1>{}([&](auto i) {
@@ -291,8 +291,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                 });
 
                 return move_on_dim_;
-            }
-            ();
+            }();
             // move src coord
             static_for<0, nDim, 1>{}([&](auto i) {
                 if(move_on_dim[i])
@@ -602,8 +601,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                 is_dst_valid,
                 dst_vector_container.template AsType<dst_vector_t>()[I0]);
 
-            constexpr auto move_on_dim = [&]() constexpr
-            {
+            constexpr auto move_on_dim = [&]() constexpr {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
 
                 static_for<0, nDim, 1>{}([&](auto i) {
@@ -616,8 +614,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                 });
 
                 return move_on_dim_;
-            }
-            ();
+            }();
 
             // move dst coord
             static_for<0, nDim, 1>{}([&](auto i) {

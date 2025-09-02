@@ -50,10 +50,11 @@
 #endif
 
 // define general macros for various architectures
-#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__)
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx942__) || \
+    defined(__gfx950__) || defined(__gfx9_4_generic__)
 #define __gfx9__
 #endif
-#if defined(__gfx942__) || defined(__gfx950__)
+#if defined(__gfx942__) || defined(__gfx950__) || defined(__gfx9_4_generic__)
 #define __gfx94__
 #endif
 #if defined(__gfx1010__) || defined(__gfx1011__) || defined(__gfx1012__)
@@ -222,9 +223,6 @@
 // TODO: separate index calculation into "compile-time", "global", "block", "wave", "thread"
 #define CK_HACK_MERGE_CALCULATE_IDX_DIFF_LOW_CONST_USE_AMD_GCN_READ_FIRST_LANE 0
 
-// workaround: conv crash when K, C is even
-#define CK_WORKAROUND_DISABLE_FILTER1x1STRIDE1PAD0_WHEN_K_C_IS_EVEN 1
-
 // workaround: compiler crash when compiling recursive lambda
 #define CK_WORKAROUND_SWDEV_275126 1
 
@@ -243,12 +241,6 @@
 
 // workaround: compiler issue on gfx908
 #define CK_WORKAROUND_SWDEV_388832 1
-
-// workaround: compiler issue on gfx950
-#define CK_WORKAROUND_FP32_TO_FP4_SR_CONVERSION 1
-
-// workaround: compiler issue on gfx950
-#define CK_TEMP_DISABLE_FP4_TESTS 1
 
 // workaround: compiler issue on gfx950
 #define CK_WORKAROUND_FP16_TO_FP8_CONVERSION 1
@@ -273,6 +265,12 @@
 #define CK_BUILD_DEPRECATED 1
 
 namespace ck {
+
+#if defined(__GFX9__) || !defined(__HIP_DEVICE_COMPILE__)
+__device__ static constexpr int WarpSize = 64;
+#else
+__device__ static constexpr int WarpSize = 32;
+#endif
 
 enum struct InMemoryDataOperationEnum
 {

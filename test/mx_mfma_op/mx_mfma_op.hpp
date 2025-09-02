@@ -74,7 +74,11 @@ struct mfma_scale_type_selector<16, 16>
                                AccumFragT& fragAcc)
     {
         auto op = mfma_type<MfmaInstr::mfma_scale_f32_16x16x128f8f6f4>{};
-        op.template run<16, 16>(fragA, scale_a[Number<0>{}], fragB, scale_b[Number<0>{}], fragAcc);
+        op.template run<16, 16, 0, 0>(fragA,
+                                      ck::utils::get_exponent_value(scale_a[Number<0>{}]),
+                                      fragB,
+                                      ck::utils::get_exponent_value(scale_b[Number<0>{}]),
+                                      fragAcc);
     }
 };
 
@@ -93,7 +97,11 @@ struct mfma_scale_type_selector<32, 32>
                                AccumFragT& fragAcc)
     {
         auto op = mfma_type<MfmaInstr::mfma_scale_f32_32x32x64f8f6f4>{};
-        op.template run<32, 32>(fragA, scale_a[Number<0>{}], fragB, scale_b[Number<0>{}], fragAcc);
+        op.template run<32, 32, 0, 0>(fragA,
+                                      ck::utils::get_exponent_value(scale_a[Number<0>{}]),
+                                      fragB,
+                                      ck::utils::get_exponent_value(scale_b[Number<0>{}]),
+                                      fragAcc);
     }
 };
 
@@ -179,11 +187,11 @@ __device__ AFragT load_A_col_major(AType const* input_ptr)
     auto kMinorOffset = col_major(minorStepCoord2D, BLOCK_M);
     auto kMajorOffset = col_major(majorStepCoord2D, BLOCK_M);
 
-    using ARawT = typename scalar_type<AFragT>::type;
-    using AScalarFragT =
-        vector_type<ARawT,
-                    BLOCK_M * BLOCK_K / WAVE_SIZE /
-                        (ck::is_same_v<ck::remove_cvref_t<AType>, ck::f4x2_pk_t> ? 2 : 1)>::type;
+    using ARawT        = typename scalar_type<AFragT>::type;
+    using AScalarFragT = typename vector_type<
+        ARawT,
+        BLOCK_M * BLOCK_K / WAVE_SIZE /
+            (ck::is_same_v<ck::remove_cvref_t<AType>, ck::f4x2_pk_t> ? 2 : 1)>::type;
 
     AScalarFragT fragA{};
 
@@ -311,8 +319,9 @@ __device__ AFragT load_A_row_major(AType const* input_ptr)
     // Flatten to 1D row_major offsets.
     auto row_major = [](auto const& coord, auto ld) { return coord.first * ld + coord.second; };
 
-    using ARawT         = typename scalar_type<AFragT>::type;
-    using AScalarChunkT = vector_type<ARawT, scalar_type<AFragT>::vector_size / num_chunks>::type;
+    using ARawT = typename scalar_type<AFragT>::type;
+    using AScalarChunkT =
+        typename vector_type<ARawT, scalar_type<AFragT>::vector_size / num_chunks>::type;
 
     union
     {
@@ -536,8 +545,9 @@ __device__ BFragT load_B_col_major(BType const* input_ptr)
 
     auto majorStepCoord2D = std::make_pair(chunk_offset, 0); // read a chunk from a col
 
-    using BRawT         = typename scalar_type<BFragT>::type;
-    using BScalarChunkT = vector_type<BRawT, scalar_type<BFragT>::vector_size / num_chunks>::type;
+    using BRawT = typename scalar_type<BFragT>::type;
+    using BScalarChunkT =
+        typename vector_type<BRawT, scalar_type<BFragT>::vector_size / num_chunks>::type;
 
     union
     {
@@ -772,7 +782,7 @@ struct store_C_col_major<CType, CFragT, 32, 32>
 
         // we can vector store 4 contiguous elements at a time.
         using CRawT        = typename scalar_type<CFragT>::type;
-        using CScalarFragT = vector_type<CRawT, VW>::type;
+        using CScalarFragT = typename vector_type<CRawT, VW>::type;
         union
         {
             CFragT frag;
@@ -921,25 +931,25 @@ template <typename AType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-__global__ void matmul(const typename packed_type<AType>::type* a,
-                       const typename packed_type<BType>::type* b,
-                       CType* c)
+__global__ void matmul(const packed_type_t<AType>* a, const packed_type_t<BType>* b, CType* c)
 {
-    using PackedAType            = typename packed_type<AType>::type;
-    constexpr auto packed_size_a = packed_type<AType>::packed_size;
-    using PackedBType            = typename packed_type<BType>::type;
-    constexpr auto packed_size_b = packed_type<BType>::packed_size;
+    using PackedAType            = packed_type_t<AType>;
+    constexpr auto packed_size_a = packed_size_v<PackedAType>;
+    using PackedBType            = packed_type_t<BType>;
+    constexpr auto packed_size_b = packed_size_v<PackedBType>;
 
     constexpr int WAVE_SIZE = 64;
     assert(threadIdx.x < WAVE_SIZE);
     assert(blockDim.x == 1 && blockDim.y == 1 && blockDim.z == 1);
 
-    using AFragT = vector_type<PackedAType, BLOCK_M * BLOCK_K / WAVE_SIZE / packed_size_a>::type;
-    using BFragT = vector_type<PackedBType, BLOCK_K * BLOCK_N / WAVE_SIZE / packed_size_b>::type;
+    using AFragT =
+        typename vector_type<PackedAType, BLOCK_M * BLOCK_K / WAVE_SIZE / packed_size_a>::type;
+    using BFragT =
+        typename vector_type<PackedBType, BLOCK_K * BLOCK_N / WAVE_SIZE / packed_size_b>::type;
 
-    using CFragT        = vector_type<CType, BLOCK_M * BLOCK_N / WAVE_SIZE>::type;
+    using CFragT        = typename vector_type<CType, BLOCK_M * BLOCK_N / WAVE_SIZE>::type;
     using AccumFragT    = vector_type<AccType, BLOCK_M * BLOCK_N / WAVE_SIZE>;
-    using RawAccumFragT = vector_type<AccType, BLOCK_M * BLOCK_N / WAVE_SIZE>::type;
+    using RawAccumFragT = typename vector_type<AccType, BLOCK_M * BLOCK_N / WAVE_SIZE>::type;
 
     // Create frags
     auto fragA   = AFragT{};
@@ -1005,22 +1015,24 @@ __global__ void matmul(const packed_type_t<AType>* a,
                        CType* c)
 {
     using PackedAType            = packed_type_t<AType>;
-    constexpr auto packed_size_a = packed_size_v<AType>;
+    constexpr auto packed_size_a = packed_size_v<PackedAType>;
     using PackedBType            = packed_type_t<BType>;
-    constexpr auto packed_size_b = packed_size_v<BType>;
+    constexpr auto packed_size_b = packed_size_v<PackedBType>;
 
     constexpr int WAVE_SIZE = 64;
     assert(threadIdx.x < WAVE_SIZE);
     assert(blockDim.x == 1 && blockDim.y == 1 && blockDim.z == 1);
 
-    using AFragT = vector_type<PackedAType, BLOCK_M * BLOCK_K / WAVE_SIZE / packed_size_a>::type;
-    using BFragT = vector_type<PackedBType, BLOCK_K * BLOCK_N / WAVE_SIZE / packed_size_b>::type;
+    using AFragT =
+        typename vector_type<PackedAType, BLOCK_M * BLOCK_K / WAVE_SIZE / packed_size_a>::type;
+    using BFragT =
+        typename vector_type<PackedBType, BLOCK_K * BLOCK_N / WAVE_SIZE / packed_size_b>::type;
 
-    using CFragT        = vector_type<CType, BLOCK_M * BLOCK_N / WAVE_SIZE>::type;
+    using CFragT        = typename vector_type<CType, BLOCK_M * BLOCK_N / WAVE_SIZE>::type;
     using AccumFragT    = vector_type<AccType, BLOCK_M * BLOCK_N / WAVE_SIZE>;
-    using RawAccumFragT = vector_type<AccType, BLOCK_M * BLOCK_N / WAVE_SIZE>::type;
-    using AScaleFragT   = vector_type<ScaleType, 1>::type;
-    using BScaleFragT   = vector_type<ScaleType, 1>::type;
+    using RawAccumFragT = typename vector_type<AccType, BLOCK_M * BLOCK_N / WAVE_SIZE>::type;
+    using AScaleFragT   = typename vector_type<ScaleType, 1>::type;
+    using BScaleFragT   = typename vector_type<ScaleType, 1>::type;
 
     // Create frags
     auto fragA   = AFragT{};
@@ -1181,10 +1193,10 @@ template <typename DeviceMFMA,
           index_t BLOCK_X>
 struct TestMXMFMA
 {
-    using PackedAType                   = typename packed_type<ADataType>::type;
-    static constexpr auto packed_size_a = packed_type<ADataType>::packed_size;
-    using PackedBType                   = typename packed_type<BDataType>::type;
-    static constexpr auto packed_size_b = packed_type<BDataType>::packed_size;
+    using PackedAType                   = packed_type_t<ADataType>;
+    static constexpr auto packed_size_a = packed_size_v<PackedAType>;
+    using PackedBType                   = packed_type_t<BDataType>;
+    static constexpr auto packed_size_b = packed_size_v<PackedBType>;
 
     auto PrepareGemmTensors(const GemmParams& params, index_t init)
     {
@@ -1219,18 +1231,18 @@ struct TestMXMFMA
         {
         case 0:
             a_m_k.GenerateTensorValue(GeneratorTensor_1<PackedAType>{1.0f});
-            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{0.5f}});
+            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{0.5f});
             // NOTE: not all numbers are representable in FP8, BF8, etc.
             // 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 16 18 20 20 20 22 24 24 24 26 28 28 28 30 32
             b_n_k.GenerateTensorValue(GeneratorTensor_Sequential<PackedBType, 1>{});
-            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
+            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{1.0f});
             break;
         case 1:
             // results in C = {K}
             a_m_k.GenerateTensorValue(GeneratorTensor_1<PackedAType>{1.0f});
-            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{512.0f}});
+            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{512.0f});
             b_n_k.GenerateTensorValue(GeneratorTensor_1<PackedBType>{1.0f});
-            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f / 512}});
+            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{1.0f / 512});
             break;
         case 2:
             // expect small round off errors
@@ -1384,11 +1396,10 @@ template <typename DeviceMFMA,
           index_t BLOCK_K>
 struct TestMFMA
 {
-
-    using PackedAType                   = typename packed_type<ADataType>::type;
-    static constexpr auto packed_size_a = packed_type<ADataType>::packed_size;
-    using PackedBType                   = typename packed_type<BDataType>::type;
-    static constexpr auto packed_size_b = packed_type<BDataType>::packed_size;
+    using PackedAType                   = packed_type_t<ADataType>;
+    static constexpr auto packed_size_a = packed_size_v<PackedAType>;
+    using PackedBType                   = packed_type_t<BDataType>;
+    static constexpr auto packed_size_b = packed_size_v<PackedBType>;
 
     auto PrepareGemmTensors(const GemmParams& params, index_t init)
     {

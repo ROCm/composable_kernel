@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
+#include "ck/library/utility/validation_common.hpp"
 
 template <typename ProblemType>
 bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
@@ -52,6 +53,17 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     StrideA = f_get_default_stride(M, K, StrideA, ALayout{});
     StrideB = f_get_default_stride(K, N, StrideB, BLayout{});
     StrideC = f_get_default_stride(M, N, StrideC, CLayout{});
+
+    try
+    {
+        ck::utils::validate_gemm_strides_abc<ALayout, BLayout, CLayout>(
+            M, N, K, StrideA, StrideB, StrideC);
+    }
+    catch(const std::runtime_error& e)
+    {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return false;
+    }
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
