@@ -94,12 +94,38 @@ constexpr ConvBlock SetThreadBlockInfo()
 struct ConvTuning
 {
     int ak1            = 0;
-    int ak2            = 0;
+    int bk1            = 0;
     int m_per_xdl      = 0;
     int n_per_dxl      = 0;
     int m_xdl_per_wave = 0;
     int n_xdl_per_wave = 0;
 };
+
+template <ConvAlgorithm Algo>
+constexpr ConvTuning SetConvTuningInfo()
+{
+    if constexpr(HasConvTuningInfo<Algo>)
+    {
+        constexpr auto TI = Algo::TUNING_PARAMS;
+        return ConvTuning{
+            .ak1            = TI.ak1,
+            .bk1            = TI.bk1,
+            .m_per_xdl      = 32,
+            .n_per_dxl      = 32,
+            .m_xdl_per_wave = TI.m_xdl_per_wave,
+            .n_xdl_per_wave = TI.n_xdl_per_wave,
+        };
+    }
+    // Default values.
+    return ConvTuning{
+        .ak1            = 8,
+        .bk1            = 8,
+        .m_per_xdl      = 32,
+        .n_per_dxl      = 32,
+        .m_xdl_per_wave = 4,
+        .n_xdl_per_wave = 4,
+    };
+}
 
 // Block tranfser paramters for A or B tensor.
 struct BlockTransfer
@@ -135,15 +161,8 @@ struct GroupedConvForwardXldCShuffleFactoryV3
         .conv_spec = ck::tensor_operation::device::ConvolutionForwardSpecialization::Default,
         .gemm_spec = ck::tensor_operation::device::GemmSpecialization::MNKPadding,
     };
-    static constexpr ConvBlock BLOCK = SetThreadBlockInfo<Algorithm>();
-    static constexpr ConvTuning TUNING{
-        .ak1            = 8,
-        .ak2            = 8,
-        .m_per_xdl      = 32,
-        .n_per_dxl      = 32,
-        .m_xdl_per_wave = 4,
-        .n_xdl_per_wave = 4,
-    };
+    static constexpr ConvBlock BLOCK   = SetThreadBlockInfo<Algorithm>();
+    static constexpr ConvTuning TUNING = SetConvTuningInfo<Algorithm>();
     static constexpr BlockTransfer A_BLOCK_TRANSFER{
         .thread_cluster_lengths    = {4, 64, 1},
         .thread_cluster_order      = {1, 0, 2},
@@ -194,7 +213,7 @@ struct GroupedConvForwardXldCShuffleFactoryV3
             BLOCK.per_block.n,
             BLOCK.per_block.k,
             TUNING.ak1,
-            TUNING.ak2,
+            TUNING.bk1,
             TUNING.m_per_xdl,
             TUNING.n_per_dxl,
             TUNING.m_xdl_per_wave,
