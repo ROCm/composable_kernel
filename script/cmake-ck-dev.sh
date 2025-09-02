@@ -28,16 +28,10 @@ if [ $# -ge 1 ]; then
             REST_ARGS=("$@")
             ;;
         *)
-            echo "No GPU targets provided, using default targets: gfx908;gfx90a;gfx942"
-            GPU_TARGETS="gfx908;gfx90a;gfx942"
-            shift 1
             REST_ARGS=("$@")
             ;;
     esac
 else
-    echo "No GPU targets provided, using default targets: gfx908;gfx90a;gfx942"
-    GPU_TARGETS="gfx908;gfx90a;gfx942"
-    shift 1
     REST_ARGS=("$@")
 fi
 
