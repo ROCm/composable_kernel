@@ -129,7 +129,7 @@ constexpr ConvTuning SetConvTuningInfo()
     };
 }
 
-// Block tranfser paramters for A or B tensor.
+// Block transfer paramters for A or B tensor.
 struct BlockTransfer
 {
     ck::Array<int, 3> thread_cluster_lengths = {0, 0, 0}; // k0, m, k1
@@ -144,11 +144,78 @@ struct BlockTransfer
 // Block transfer parameters for C tensor.
 struct CBlockTransfer
 {
-    int m_xdl_per_wave_per_shuffle    = 0;
-    int n_xdl_per_wave_per_shuffle    = 0;
-    ck::Array<int, 4> cluster_lengths = {0, 0, 0, 0};
-    int scaler_per_vector             = 8;
+    int m_xdl_per_wave_per_shuffle           = 0;
+    int n_xdl_per_wave_per_shuffle           = 0;
+    ck::Array<int, 4> thread_cluster_lengths = {0, 0, 0, 0};
+    int scaler_per_vector                    = 8;
 };
+
+template <ConvAlgorithm auto ALGORITHM>
+constexpr BlockTransfer SetABlockTransfer()
+{
+    BlockTransfer block_transfer{
+        .thread_cluster_lengths    = {4, 64, 1},
+        .thread_cluster_order      = {1, 0, 2},
+        .src_access_order          = {1, 0, 2},
+        .src_vector_dim            = 2,
+        .src_scaler_per_vector     = 8,
+        .dest_scaler_per_vector_k1 = 8,
+        .add_extra                 = 0,
+    };
+    using AlgorithmType = decltype(ALGORITHM);
+    if constexpr(HasABlockTransferInfo<AlgorithmType>)
+    {
+        constexpr auto& TCL                   = ALGORITHM.block_transfer.thread_cluster_lengths_a;
+        block_transfer.thread_cluster_lengths = {TCL.k0, TCL.m, TCL.k1};
+    }
+    // Default.
+    return block_transfer;
+}
+
+template <ConvAlgorithm auto ALGORITHM>
+constexpr BlockTransfer SetBBlockTransfer()
+{
+    BlockTransfer block_transfer{
+        .thread_cluster_lengths    = {4, 64, 1},
+        .thread_cluster_order      = {1, 0, 2},
+        .src_access_order          = {1, 0, 2},
+        .src_vector_dim            = 2,
+        .src_scaler_per_vector     = 8,
+        .dest_scaler_per_vector_k1 = 8,
+        .add_extra                 = 0,
+    };
+    using AlgorithmType = decltype(ALGORITHM);
+    if constexpr(HasBBlockTransferInfo<AlgorithmType>)
+    {
+        constexpr auto& TCL                   = ALGORITHM.block_transfer.thread_cluster_lengths_b;
+        block_transfer.thread_cluster_lengths = {TCL.k0, TCL.n, TCL.k1};
+    }
+    // Default.
+    return block_transfer;
+}
+
+template <ConvAlgorithm auto ALGORITHM>
+constexpr CBlockTransfer SetCBlockTransfer()
+{
+    CBlockTransfer block_transfer{
+        .m_xdl_per_wave_per_shuffle = 1,
+        .n_xdl_per_wave_per_shuffle = 1,
+        .thread_cluster_lengths     = {1, 32, 1, 8},
+        .scaler_per_vector          = 8,
+    };
+    using AlgorithmType = decltype(ALGORITHM);
+    if constexpr(HasCBlockTransferInfo<AlgorithmType>)
+    {
+        constexpr auto& TCL                   = ALGORITHM.block_transfer.thread_cluster_lengths_c;
+        block_transfer.thread_cluster_lengths = {
+            TCL.m_block,
+            TCL.m_wave_per_xdl,
+            TCL.n_block,
+            TCL.n_wave_per_xdl,
+        };
+    }
+    return block_transfer;
+}
 
 // Factory builds an instance of a grouped convolution kernel.
 template <ConvSignature Signature, ConvAlgorithm auto ALGORITHM, auto Version>
@@ -163,34 +230,13 @@ struct GroupedConvForwardXldCShuffleFactoryV3
         .conv_spec = ck::tensor_operation::device::ConvolutionForwardSpecialization::Default,
         .gemm_spec = ck::tensor_operation::device::GemmSpecialization::MNKPadding,
     };
-    static constexpr ConvBlock BLOCK   = SetThreadBlockInfo<ALGORITHM>();
-    static constexpr ConvTuning TUNING = SetConvTuningInfo<ALGORITHM>();
-    static constexpr BlockTransfer A_BLOCK_TRANSFER{
-        .thread_cluster_lengths    = {4, 64, 1},
-        .thread_cluster_order      = {1, 0, 2},
-        .src_access_order          = {1, 0, 2},
-        .src_vector_dim            = 2,
-        .src_scaler_per_vector     = 8,
-        .dest_scaler_per_vector_k1 = 8,
-        .add_extra                 = 0,
-    };
-    static constexpr BlockTransfer B_BLOCK_TRANSFER{
-        .thread_cluster_lengths    = {4, 64, 1},
-        .thread_cluster_order      = {1, 0, 2},
-        .src_access_order          = {1, 0, 2},
-        .src_vector_dim            = 2,
-        .src_scaler_per_vector     = 8,
-        .dest_scaler_per_vector_k1 = 8,
-        .add_extra                 = 0,
-    };
-    static constexpr CBlockTransfer C_BLOCK_TRANSFER{
-        .m_xdl_per_wave_per_shuffle = 1,
-        .n_xdl_per_wave_per_shuffle = 1,
-        .cluster_lengths            = {1, 32, 1, 8},
-        .scaler_per_vector          = 8,
-    };
-    static constexpr auto PIPELINE_SCHEDULER = ck::BlockGemmPipelineScheduler::Intrawave;
-    static constexpr auto PIPELINE_VERSION   = ck::BlockGemmPipelineVersion::v4;
+    static constexpr ConvBlock BLOCK                 = SetThreadBlockInfo<ALGORITHM>();
+    static constexpr ConvTuning TUNING               = SetConvTuningInfo<ALGORITHM>();
+    static constexpr BlockTransfer A_BLOCK_TRANSFER  = SetABlockTransfer<ALGORITHM>();
+    static constexpr BlockTransfer B_BLOCK_TRANSFER  = SetBBlockTransfer<ALGORITHM>();
+    static constexpr CBlockTransfer C_BLOCK_TRANSFER = SetCBlockTransfer<ALGORITHM>();
+    static constexpr auto PIPELINE_SCHEDULER         = ck::BlockGemmPipelineScheduler::Intrawave;
+    static constexpr auto PIPELINE_VERSION           = ck::BlockGemmPipelineVersion::v4;
     // The convlution kernel class instance.
     using Instance =
         ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3< //
@@ -236,7 +282,7 @@ struct GroupedConvForwardXldCShuffleFactoryV3
             B_BLOCK_TRANSFER.add_extra,
             C_BLOCK_TRANSFER.m_xdl_per_wave_per_shuffle,
             C_BLOCK_TRANSFER.n_xdl_per_wave_per_shuffle,
-            ToSequence<C_BLOCK_TRANSFER.cluster_lengths>,
+            ToSequence<C_BLOCK_TRANSFER.thread_cluster_lengths>,
             C_BLOCK_TRANSFER.scaler_per_vector,
             PIPELINE_SCHEDULER,
             PIPELINE_VERSION>;

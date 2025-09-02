@@ -2,6 +2,7 @@
 
 #include <type_traits>
 #include <concepts>
+#include <array>
 
 namespace ck_tile::builder {
 
@@ -31,7 +32,6 @@ struct ThreadBlock
     // Size of the submatrix problem in a thread block.
     MNK<int> sub_matrix;
 };
-
 static_assert(ThreadBlockInfo<ThreadBlock>);
 
 // Concept to check if struct provides thread block info.
@@ -58,13 +58,83 @@ struct ConvTuningParams
     int m_xdl_per_wave = 0;
     int n_xdl_per_wave = 0;
 };
-
 static_assert(ConvTuningInfo<ConvTuningParams>);
 
 // Concept to check if a struct provides convolution tuning info.
 template <typename T>
 concept HasConvTuningInfo = requires {
     { T::tuning_params } -> ConvTuningInfo;
+};
+
+// Concept for A block transfer thread cluster lengths.
+template <typename T>
+concept BlockATransferLengths = requires(T t) {
+    { t.k0 } -> std::convertible_to<int>;
+    { t.m } -> std::convertible_to<int>;
+    { t.k1 } -> std::convertible_to<int>;
+};
+
+// Describe A block transfer thread cluster lengths.
+struct BlockATransferLengthsInfo
+{
+    int k0;
+    int m;
+    int k1;
+};
+static_assert(BlockATransferLengths<BlockATransferLengthsInfo>);
+
+// Concept for B block transfer thread cluster lengths.
+template <typename T>
+concept BlockBTransferLengths = requires(T t) {
+    { t.k0 } -> std::convertible_to<int>;
+    { t.n } -> std::convertible_to<int>;
+    { t.k1 } -> std::convertible_to<int>;
+};
+
+// Describe B block transfer thread cluster lengths.
+struct BlockBTransferLengthsInfo
+{
+    int k0;
+    int n;
+    int k1;
+};
+static_assert(BlockBTransferLengths<BlockBTransferLengthsInfo>);
+
+// Concept for C block transfer thread cluster lengths.
+template <typename T>
+concept BlockCTransferLengths = requires(T t) {
+    { t.m_block } -> std::convertible_to<int>;
+    { t.m_wave_per_xdl } -> std::convertible_to<int>;
+    { t.n_block } -> std::convertible_to<int>;
+    { t.n_wave_per_xdl } -> std::convertible_to<int>;
+};
+
+// Describe C block transfer thread cluster lengths.
+struct BlockCTransferLengthsInfo
+{
+    int m_block;
+    int m_wave_per_xdl;
+    int n_block;
+    int n_wave_per_xdl;
+};
+static_assert(BlockBTransferLengths<BlockBTransferLengthsInfo>);
+
+// Concept to check if a struct provides A Block tranfer info.
+template <typename T>
+concept HasABlockTransferInfo = requires(T t) {
+    { T::block_transfer.thread_cluster_lengths_a } -> BlockATransferLengths;
+};
+
+// Concept to check if a struct provides B Block tranfer info.
+template <typename T>
+concept HasBBlockTransferInfo = requires(T t) {
+    { T::block_transfer.thread_cluster_lengths_b } -> BlockBTransferLengths;
+};
+
+// Concept to check if a struct provides C Block tranfer info.
+template <typename T>
+concept HasCBlockTransferInfo = requires(T t) {
+    { T::block_transfer.thread_cluster_lengths_c } -> BlockCTransferLengths;
 };
 
 // No requirements yet for a ConvAlogorithm concept.
