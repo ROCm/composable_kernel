@@ -194,12 +194,6 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
-    // temp disable on gfx11 & gfx12
-    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
-    {
-        return 0;
-    }
-
     std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, G1, M, K};
     std::vector<ck::index_t> a_gs_ms_ks_strides{
         M * G1 * K, K, G1 * K, 1}; // A layout [G0, M, G1, K]

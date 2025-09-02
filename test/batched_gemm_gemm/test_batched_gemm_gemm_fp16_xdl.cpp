@@ -265,14 +265,3 @@ TEST(TestBatchedGemmGemmInterface, GemmSpecializationSizeMismatch)
     EXPECT_FALSE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MNKOPadding>{}.IsSupported(128, 128, 128, 129));
     // clang-format on
 }
-
-int main(int argc, char** argv)
-{
-    // temp disable on gfx11
-    if(ck::is_gfx11_supported())
-    {
-        return 0;
-    }
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}
