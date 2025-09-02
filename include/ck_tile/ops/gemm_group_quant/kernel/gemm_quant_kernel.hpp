@@ -152,12 +152,12 @@ struct QuantGemmHostArgs : public QuantGemmProblem
     {
     }
 
-    const void* a_ptr;
-    const void* b_ptr;
-    const void* aq_ptr;
-    const void* bq_ptr;
-    void* c_ptr;
-    index_t k_batch;
+    const void* a_ptr  = nullptr;
+    const void* b_ptr  = nullptr;
+    const void* aq_ptr = nullptr;
+    const void* bq_ptr = nullptr;
+    void* c_ptr        = nullptr;
+    index_t k_batch    = 0;
 };
 
 struct QuantGemmKernelArgs
@@ -327,15 +327,18 @@ struct QuantGemmKernel
         }
 
         // NOTE: no kernel currently uses BQuant like this:
-        // static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
-        // if(kargs.QK_B % GemmPipeline::GetVectorSizeBQ() != 0)
-        // {
-        //     if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-        //     {
-        //         CK_TILE_ERROR("K_B is not a multiple of vector load size for B tensor!");
-        //     }
-        //     return false;
-        // }
+        if constexpr(kQuantType == QuantType::BQuantGrouped)
+        {
+            static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
+            if(kargs.QK_B % GemmPipeline::GetVectorSizeBQ() != 0)
+            {
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("K_B is not a multiple of vector load size for B tensor!");
+                }
+                return false;
+            }
+        }
 
         if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
         {
@@ -576,7 +579,7 @@ struct QuantGemmKernel
             }
             else
             {
-                static_assert(false, "invalid QuantType config");
+                return nullptr; // TODO: use some other "empty" type for this
             }
         }();
 
@@ -651,6 +654,16 @@ struct QuantGemmKernel
                     make_tuple(kargs.M, kargs.N),
                     make_tuple(0, 1), // broadcasting over m
                     number<1>{},
+                    number<1>{});
+            }
+            else if constexpr(kQuantType == QuantType::BQuantGrouped)
+            {
+                static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
+                return make_naive_tensor_view<address_space_enum::global>(
+                    bq_ptr,
+                    make_tuple(kargs.N, kargs.QK_B),
+                    make_tuple(kargs.stride_BQ, 1),
+                    number<GemmPipeline::GetVectorSizeBQ()>{},
                     number<1>{});
             }
             else
@@ -815,7 +828,7 @@ struct QuantGemmKernel
             }
             else
             {
-                static_assert(false, "invalid QuantType config");
+                return nullptr; // TODO: use some other "empty" type?
             }
         }();
 
@@ -843,6 +856,15 @@ struct QuantGemmKernel
                                         make_tuple(number<TilePartitioner::MPerBlock>{},
                                                    number<TilePartitioner::NPerBlock>{}),
                                         {i_m, i_n});
+            }
+            else if constexpr(kQuantType == QuantType::BQuantGrouped)
+            {
+                static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
+                return make_tile_window(
+                    bq_pad_view,
+                    make_tuple(number<TilePartitioner::NPerBlock>{},
+                            number<TilePartitioner::KPerBlock / GemmPipeline::QuantGroupSize>{}),
+                    {i_n, 0});
             }
             else
             {
@@ -907,6 +929,12 @@ struct QuantGemmKernel
                 return GemmPipeline{}.template operator()(
                     a_block_window, b_block_window, aq_block_window, kargs.M, num_loop, smem_ptr_0);
             }
+            else if constexpr(kQuantType == QuantType::BQuantGrouped)
+            {
+                const auto& bq_block_window = gemm_tile_windows.at(I3);
+                return GemmPipeline{}.template operator()(
+                    a_block_window, b_block_window, bq_block_window, num_loop, smem_ptr_0);
+            }
             else if constexpr(kQuantType == QuantType::RowColQuant)
             {
                 return GemmPipeline{}.template operator()(
@@ -917,7 +945,7 @@ struct QuantGemmKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I4);
 
-        if constexpr(kQuantType == QuantType::AQuantGrouped)
+        if constexpr(kQuantType == QuantType::AQuantGrouped || kQuantType == QuantType::BQuantGrouped)
         {
             EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
         }
