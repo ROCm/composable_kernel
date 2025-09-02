@@ -113,7 +113,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // ElementWiseShape bundles these tiling parameters.
     // It calculates derived properties like threads per wavefront, repeats, vectorization and total
     // block size.
-    using Shape = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, ComputeDataType>;
+    using Shape = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, XDataType>;
 
     // ElementWisePipelineProblem encapsulates all necessary information for the elementwise kernel:
     // - Data types (input, compute, output).
@@ -167,17 +167,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     // 4. Run the kernel
-    float ave_time = launch_kernel(ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
-                                   ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
-                                       Kernel{},
-                                       kGridSize,
-                                       kBlockSize,
-                                       0,
-                                       input_size,
-                                       ck_tile::make_tuple(N, 1), // Input Stride
-                                       ck_tile::make_tuple(N, 1), // Output Stride
-                                       input_tensors,
-                                       static_cast<YDataType*>(y_buf.GetDeviceBuffer())));
+    float ave_time = launch_kernel(
+        ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
+        ck_tile::make_kernel<kBlockPerCu>(Kernel{},
+                                          kGridSize,
+                                          kBlockSize,
+                                          0,
+                                          input_size,
+                                          ck_tile::make_tuple(N, 1), // Input Stride
+                                          ck_tile::make_tuple(N, 1), // Output Stride
+                                          input_tensors,
+                                          static_cast<YDataType*>(y_buf.GetDeviceBuffer())));
 
     std::cout << "Average time: " << ave_time << " ms" << std::endl;
 

@@ -25,7 +25,7 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
 
         constexpr auto SwizzleA = false;
-        using WarpGemm          = WarpGemmMfmaDispatcher< //
+        using WarpGemm          = WarpGemmDispatcher< //
             typename Problem::QDataType,
             typename Problem::KDataType,
             typename Problem::AccDataType,
@@ -65,7 +65,8 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm2BlockWarps,
                                            typename Problem::BlockFmhaShape::Gemm2WarpTile>>;
 
-        using WarpGemm = WarpGemmMfmaDispatcher<
+        constexpr auto SwizzleA = false;
+        using WarpGemm          = WarpGemmDispatcher< //
             typename Problem::OGradDataType,
             typename Problem::VDataType,
             typename Problem::AccDataType,
@@ -73,7 +74,7 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
             Problem::BlockFmhaShape::Gemm2WarpTile::at(number<1>{}),
             Problem::BlockFmhaShape::Gemm2WarpTile::at(number<2>{}),
             false,
-            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}) == 16 ? false : true>;
+            SwizzleA>;
 
         using BlockGemmPolicy =
             BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::OGradDataType,
@@ -105,16 +106,19 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
                    typename BlockFmhaShape::Gemm4BlockWarps,
                    typename BlockFmhaShape::Gemm4WarpTile>>;
 
-        using WarpGemm = WarpGemmMfmaDispatcher<typename Problem::GemmDataType,
-                                                typename Problem::KDataType,
-                                                typename Problem::AccDataType,
-                                                BlockFmhaShape::Gemm4WarpTile::at(number<0>{}),
-                                                BlockFmhaShape::Gemm4WarpTile::at(number<1>{}),
-                                                BlockFmhaShape::Gemm4WarpTile::at(number<2>{}),
-                                                false,
-                                                false,
-                                                false,
-                                                WGAttrNumAccessEnum::Double>;
+        using WarpGemm = WarpGemmDispatcher< //
+            typename Problem::GemmDataType,
+            typename Problem::KDataType,
+            typename Problem::AccDataType,
+            BlockFmhaShape::Gemm4WarpTile::at(number<0>{}),
+            BlockFmhaShape::Gemm4WarpTile::at(number<1>{}),
+            BlockFmhaShape::Gemm4WarpTile::at(number<2>{}),
+            false,
+            false,
+            false,
+            (Problem::BlockFmhaShape::Gemm4WarpTile::at(number<2>{}) == 32)
+                ? WGAttrNumAccessEnum ::Double
+                : WGAttrNumAccessEnum ::Single>;
 
         using BlockGemmPolicy =
             BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::GemmDataType,
@@ -293,26 +297,29 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kWarps     = kBlockSize / get_warp_size();
 
-        constexpr index_t K2 = GetAlignmentK<Problem>();
-        constexpr index_t K1 = WarpAlignmentBytes / sizeof(T) / K2;
-        constexpr index_t K0 = ColsPerBlock / K1 / K2;
-        static_assert((K0 * K1 * K2 == ColsPerBlock) && K1 * K2 * sizeof(T) == WarpAlignmentBytes,
+        constexpr index_t K3       = GetAlignmentK<Problem>();            // 8
+        constexpr index_t K2       = WarpAlignmentBytes / sizeof(T) / K3; // 8
+        constexpr index_t K_remain = ColsPerBlock / K2 / K3;
+        constexpr index_t K1       = min(kWarps, K_remain);
+        constexpr index_t K0       = K_remain / K1;
+        static_assert((K0 * K1 * K2 * K3 == ColsPerBlock) &&
+                          K2 * K3 * sizeof(T) == WarpAlignmentBytes,
                       "ColsPerBlock notdivisible");
 
-        constexpr index_t N2 = get_warp_size() / K1;
-        constexpr index_t N1 = kWarps / K0;
+        constexpr index_t N2 = get_warp_size() / K2; // 8
+        constexpr index_t N1 = max(1, kWarps / K1);
         constexpr index_t N0 = RowsPerBlock / N1 / N2;
-        static_assert((N0 * N1 * N2 == RowsPerBlock) && (K0 * N1 == kWarps) &&
-                          (K1 * N2 == get_warp_size()),
+        static_assert((N0 * N1 * N2 == RowsPerBlock) && (K1 * N1 == kWarps) &&
+                          (K2 * N2 == get_warp_size()),
                       "RowsPerBlock not divisible");
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<N0, N1, N2>, sequence<K0, K1, K2>>,
-                                       tuple<sequence<2, 1>, sequence<1, 2>>, // K0 N1, N2 K1
-                                       tuple<sequence<0, 1>, sequence<2, 1>>,
-                                       sequence<1, 2>, // N0 K2
-                                       sequence<0, 2>>{});
+                                       tuple<sequence<N0, N1, N2>, sequence<K0, K1, K2, K3>>,
+                                       tuple<sequence<2, 1>, sequence<1, 2>>, // K1 N1, N2 K2
+                                       tuple<sequence<1, 1>, sequence<2, 2>>,
+                                       sequence<1, 2, 2>, // N0 K0 K3
+                                       sequence<0, 0, 3>>{});
     }
 
     template <typename Problem>
@@ -544,11 +551,9 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
                                             Problem::BlockFmhaShape::kQKHeaddim>();
     }
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeBiasLdsWriteBlockDescriptor()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeBiasLdsBlockDescriptor()
     {
-        return MakeXLdsWriteBlockDescriptor<typename Problem::BiasDataType,
-                                            Problem::BlockFmhaShape::kM0,
-                                            Problem::BlockFmhaShape::kN0>();
+        return BlockFmhaBwdPipelineDefaultPolicy::MakeBiasLdsBlockDescriptor<Problem>();
     }
 
     template <typename Problem, bool Transposed = false>
@@ -676,13 +681,6 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
         return MakeXLdsReadBlockDescriptor<typename Problem::OGradDataType,
                                            Problem::BlockFmhaShape::kM0,
                                            Problem::BlockFmhaShape::kQKHeaddim>();
-    }
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeBiasLdsReadBlockDescriptor()
-    {
-        return MakeXLdsReadBlockDescriptor<typename Problem::BiasDataType,
-                                           Problem::BlockFmhaShape::kM0,
-                                           Problem::BlockFmhaShape::kN0>();
     }
 
     template <typename Problem>
@@ -959,23 +957,7 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledBiasTileDistribution()
     {
-        constexpr index_t kBlockSize = Problem::kBlockSize;
-
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-
-        constexpr index_t N1 = GetAlignmentBias<Problem>();
-        constexpr index_t N0 = kNPerBlock / N1;
-        constexpr index_t M2 = GetTransposedAlignmentBias<Problem>();
-        constexpr index_t M1 = get_warp_size() / N0;
-        constexpr index_t M0 = kBlockSize / get_warp_size();
-
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<M0, M1, M2>, sequence<N0, N1>>,
-                                       tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<0>, sequence<1, 0>>,
-                                       sequence<2, 1>,
-                                       sequence<1, 2>>{});
+        return BlockFmhaBwdPipelineDefaultPolicy::MakeShuffledBiasTileDistribution<Problem>();
     }
 
     template <typename BlockGemm>
@@ -1039,7 +1021,7 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
     {
         if constexpr(Problem::BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             return sizeof(typename Problem::BiasDataType) *
-                   MakeBiasLdsWriteBlockDescriptor<Problem>().get_element_space_size();
+                   MakeBiasLdsBlockDescriptor<Problem>().get_element_space_size();
         else
             return 0;
     }

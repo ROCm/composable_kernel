@@ -793,6 +793,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
     }
 
+    // set to bad values to check if the kernel writes to these buffers
+    ck_tile::FillConstant<QGradDataType>{ck_tile::numeric<QGradDataType>::infinity()}(dq_host);
+    ck_tile::FillConstant<KGradDataType>{ck_tile::numeric<KGradDataType>::infinity()}(dk_host);
+    ck_tile::FillConstant<VGradDataType>{ck_tile::numeric<VGradDataType>::infinity()}(dv_host);
+    dq_buf.ToDevice(dq_host.data());
+    dk_buf.ToDevice(dk_host.data());
+    dv_buf.ToDevice(dv_host.data());
+
     o_buf.ToDevice(o_host.data());
     lse_buf.ToDevice(lse_host.data());
     dq_buf.SetZero();

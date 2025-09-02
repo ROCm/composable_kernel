@@ -3,10 +3,11 @@
 
 #pragma once
 
-#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__)
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__) || \
+    defined(__gfx9_4_generic__)
 #define __gfx9__
 #endif
-#if defined(__gfx942__) || defined(__gfx950__)
+#if defined(__gfx942__) || defined(__gfx950__) || defined(__gfx9_4_generic__)
 #define __gfx94__
 #endif
 #if defined(__gfx1030__) || defined(__gfx1031__) || defined(__gfx1032__) || \
@@ -152,7 +153,7 @@
 // buffer atomic add: floating point
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
-#elif defined(__gfx9__) // for GPU code
+#elif defined(__gfx9__) || defined(__gfx12__) // for GPU code
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
 #else // for GPU code
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 0
@@ -188,6 +189,16 @@
 #define CK_TILE_WORKAROUND_ROCM_6_2_SCRATCH_MEMORY_ISSUE 1
 #else
 #define CK_TILE_WORKAROUND_ROCM_6_2_SCRATCH_MEMORY_ISSUE 0
+#endif
+#endif
+
+// use llvm builtin bf16 data type after ROCm 6.5
+#ifndef CK_TILE_USE_LLVM_BUILTIN_BF16
+#if(HIP_VERSION_MAJOR == 6 && HIP_VERSION_MINOR == 5 && HIP_VERSION_PATCH >= 50421) || \
+    (HIP_VERSION_MAJOR >= 7)
+#define CK_TILE_USE_LLVM_BUILTIN_BF16 1
+#else
+#define CK_TILE_USE_LLVM_BUILTIN_BF16 0
 #endif
 #endif
 

@@ -34,6 +34,7 @@ constexpr ck_tile::index_t get_k_warp_tile()
         return 32;
 #endif
 }
+
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile_flatmm()
 {
@@ -171,6 +172,29 @@ struct GemmConfigComputeV3_2 : public GemmConfigBase
     static constexpr int kBlockPerCu = 2;
 };
 
+#if CK_TILE_USE_WMMA
+template <typename PrecType>
+struct GemmConfigComputeV3_WMMA : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 64 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 4;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+
+    static constexpr bool DoubleSmemBuffer     = false;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
+
+    static constexpr int kBlockPerCu = 2;
+};
+#endif
+
 template <typename PrecType>
 struct GemmConfigComputeV4 : public GemmConfigBase
 {
@@ -232,11 +256,11 @@ struct GemmConfigComputeV5 : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigPreshuffle_1 : public GemmConfigBase
+struct GemmConfigPreshuffleDecode : public GemmConfigBase
 {
-    static constexpr ck_tile::index_t M_Tile = 128;
-    static constexpr ck_tile::index_t N_Tile = 128;
-    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
+    static constexpr ck_tile::index_t M_Tile = 16;
+    static constexpr ck_tile::index_t N_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 256 / sizeof(PrecType);
 
     static constexpr ck_tile::index_t M_Warp = 1;
     static constexpr ck_tile::index_t N_Warp = 4;
@@ -246,15 +270,15 @@ struct GemmConfigPreshuffle_1 : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile_flatmm<PrecType, M_Warp_Tile>();
 
-    static constexpr int kBlockPerCu           = 2;
+    static constexpr int kBlockPerCu           = 1;
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V1;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V2;
     static constexpr bool Preshuffle           = true;
-    static constexpr bool DoubleSmemBuffer     = false;
+    static constexpr bool DoubleSmemBuffer     = true;
 };
 
 template <typename PrecType>
-struct GemmConfigPreshuffle_2 : public GemmConfigBase
+struct GemmConfigPreshufflePrefill : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 128;
@@ -462,7 +486,7 @@ auto create_args(int argc, char* argv[])
         .insert("stride_b", "0", "Tensor B stride")
         .insert("stride_c", "0", "Tensor C stride")
         .insert("v", "2", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
-        .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
+        .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8/pk_int4_t")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
@@ -470,11 +494,17 @@ auto create_args(int argc, char* argv[])
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
         .insert("persistent", "0", "0:non-persistent, 1:persistent")
         .insert("flush_cache", "true", "flush cache before running the kernel, defaults to true")
-        .insert("rotating_count", "1", "rotating count, defaults to 1");
+        .insert("rotating_count", "1000", "rotating count, defaults to 1000");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
+
+// Type aliases for memory operation integral constants
+using MemoryOpSet =
+    std::integral_constant<ck_tile::memory_operation_enum, ck_tile::memory_operation_enum::set>;
+using MemoryOpAtomicAdd = std::integral_constant<ck_tile::memory_operation_enum,
+                                                 ck_tile::memory_operation_enum::atomic_add>;
 
 // host API
 template <typename ADataType,

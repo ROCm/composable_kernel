@@ -103,7 +103,6 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                                              DsLayout,
                                              ELayout,
                                              CDEElementWise,
-                                             UniversalGemmProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,
                                              GemmConfig::M_Warp,
@@ -126,7 +125,7 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
         {
             grids = Kernel::GridSize(args.M, args.N, args.k_batch);
         }
-        constexpr dim3 blocks = Kernel::BlockSize();
+        dim3 blocks = Kernel::BlockSize();
 
         if(!Kernel::IsSupportedArgument(kargs))
         {
@@ -141,7 +140,7 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                       << "pipeline: " << GemmPipeline::GetName() << '\n'
                       << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
                       << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
-                      << std::endl;
+                      << ", kBlockPerCu: {" << GemmConfig::kBlockPerCu << "}" << std::endl;
         }
         if(s.flush_cache_)
         {
@@ -172,15 +171,13 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
             ave_time = ck_tile::launch_kernel_time_mask(
                 s,
                 run_flush_cache,
-                ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(
-                    Kernel{}, grids, blocks, 0, kargs));
+                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         }
         else
         {
-            ave_time =
-                ck_tile::launch_kernel(s,
-                                       ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(
-                                           Kernel{}, grids, blocks, 0, kargs));
+            ave_time = ck_tile::launch_kernel(
+                s,
+                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         }
         return ave_time;
     };
@@ -210,12 +207,13 @@ template <typename GemmConfig,
           typename APrecType,
           typename BPrecType = APrecType,
           typename CPrecType = APrecType>
-int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
+int run_gemm_example_prec_type(std::string a_layout,
+                               std::string b_layout,
+                               ck_tile::ArgParser& arg_parser)
 {
-    using Row                 = ck_tile::tensor_layout::gemm::RowMajor;
-    using Col                 = ck_tile::tensor_layout::gemm::ColumnMajor;
-    auto [result, arg_parser] = create_args(argc, argv);
-    bool preshuffle           = GemmConfig::Preshuffle;
+    using Row       = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col       = ck_tile::tensor_layout::gemm::ColumnMajor;
+    bool preshuffle = GemmConfig::Preshuffle;
 
     if(preshuffle && (a_layout != "R" || b_layout != "C"))
     {
@@ -226,7 +224,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     if(a_layout == "R" && b_layout == "C")
     {
         return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-            argc, argv, Row{}, Col{}, Row{});
+            arg_parser, Row{}, Col{}, Row{});
     }
     else
     {
@@ -235,12 +233,8 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
 }
 
 template <template <typename PreType> typename GemmConfig>
-int run_gemm_example(int argc, char* argv[])
+int run_gemm_example(ck_tile::ArgParser& arg_parser)
 {
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
-        return -1;
-
     std::string data_type = arg_parser.get_str("prec");
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
@@ -248,26 +242,26 @@ int run_gemm_example(int argc, char* argv[])
     if(data_type == "fp16")
     {
         return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::half_t>(
-            a_layout, b_layout, argc, argv);
+            a_layout, b_layout, arg_parser);
     }
     else if(data_type == "bf16")
     {
         return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::bf16_t>(
-            a_layout, b_layout, argc, argv);
+            a_layout, b_layout, arg_parser);
     }
     else if(data_type == "fp8")
     {
         return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
                                           ck_tile::fp8_t,
                                           ck_tile::fp8_t,
-                                          ck_tile::half_t>(a_layout, b_layout, argc, argv);
+                                          ck_tile::half_t>(a_layout, b_layout, arg_parser);
     }
     else if(data_type == "bf8")
     {
         return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
                                           ck_tile::bf8_t,
                                           ck_tile::bf8_t,
-                                          ck_tile::half_t>(a_layout, b_layout, argc, argv);
+                                          ck_tile::half_t>(a_layout, b_layout, arg_parser);
     }
     else
     {
@@ -277,9 +271,13 @@ int run_gemm_example(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
+    auto [result, arg_parser] = create_args(argc, argv);
+    if(!result)
+        return -1;
+
     try
     {
-        return !run_gemm_example<GemmConfigPreshuffle_2>(argc, argv);
+        return !run_gemm_example<GemmConfigPreshuffleDecode>(arg_parser);
     }
     catch(const std::runtime_error& e)
     {

@@ -7,7 +7,7 @@
 #include <sstream>
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
+#include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm_group_quant/pipeline/gemm_aquant_pipeline_ag_bg_cr_base.hpp"
 #include "ck_tile/host/concat.hpp"
@@ -134,6 +134,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
     static constexpr bool kPadK = Problem::kPadK;
 
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
+    static constexpr bool PreshuffleQuant  = Problem::Traits::PreshuffleQuant;
 
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
     static constexpr auto TailNum    = Problem::TailNum;
@@ -235,6 +236,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
                                        const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                        const BElementFunction& b_element_func,
                                        const AQDramBlockWindowTmp& aq_dram_block_window_tmp,
+                                       index_t m,
                                        index_t num_loop,
                                        void* p_smem) const
         {
@@ -254,9 +256,6 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
 
             static_assert(!is_aq_col_major, "Aq must be row major (col major not supported yet)");
-            static_assert(MPerBlock == AQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
-                              KPerBlockAQ == AQDramBlockWindowTmp{}.get_window_lengths()[I1{}],
-                          "Aq block window has incorrect lengths for defined AqLayout!");
 
             static_assert(is_a_col_major
                               ? (KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
@@ -312,8 +311,13 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
                 is_a_col_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
             constexpr BDramTileWindowStep b_dram_tile_window_step =
                 is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
-            constexpr AQDramTileWindowStep aq_dram_tile_window_step =
-                is_aq_col_major ? make_array(KPerBlockAQ, 0) : make_array(0, KPerBlockAQ);
+
+            // only row_major for AQ
+            const AQDramTileWindowStep aq_dram_tile_window_step =
+                PreshuffleQuant ? make_array(ck_tile::integer_least_multiple(m, MPerBlock) /
+                                                 BlockGemm::WarpGemm::kM,
+                                             0)
+                                : make_array(0, KPerBlockAQ);
 
             // DRAM prefetch (global read 0)
             Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
@@ -458,6 +462,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                    const AQDramBlockWindowTmp& aq_dram_block_window_tmp,
+                                   index_t m,
                                    index_t num_loop,
                                    void* p_smem) const
     {
@@ -467,6 +472,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             b_dram_block_window_tmp,
             [](const BDataType& b) { return b; },
             aq_dram_block_window_tmp,
+            m,
             num_loop,
             p_smem);
     }

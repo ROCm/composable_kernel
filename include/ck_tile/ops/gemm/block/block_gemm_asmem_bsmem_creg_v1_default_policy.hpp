@@ -54,16 +54,16 @@ struct BlockGemmASmemBSmemCRegV1DefaultPolicy
                 return make_tuple(WarpGemmMfmaF16F16F32M32N32K16<>{}, 2, 2);
             }
 #else
-            using WG = WarpGemmMfmaDispatcher<ck_tile::half_t,
-                                              ck_tile::half_t,
-                                              float,
-                                              32,
-                                              32,
-                                              16,
-                                              true,
-                                              false,
-                                              false,
-                                              wg_attr_num_access>;
+            using WG = WarpGemmDispatcher<ck_tile::half_t,
+                                          ck_tile::half_t,
+                                          float,
+                                          32,
+                                          32,
+                                          16,
+                                          true,
+                                          false,
+                                          false,
+                                          wg_attr_num_access>;
             return make_tuple(WG{}, 4, 1);
 #endif
         }
@@ -71,16 +71,16 @@ struct BlockGemmASmemBSmemCRegV1DefaultPolicy
                           std::is_same_v<typename Problem::BDataType, bf16_t> &&
                           std::is_same_v<typename Problem::CDataType, float>)
         {
-            using WG = WarpGemmMfmaDispatcher<ck_tile::bf16_t,
-                                              ck_tile::bf16_t,
-                                              float,
-                                              32,
-                                              32,
-                                              16,
-                                              true,
-                                              false,
-                                              false,
-                                              wg_attr_num_access>;
+            using WG = WarpGemmDispatcher<ck_tile::bf16_t,
+                                          ck_tile::bf16_t,
+                                          float,
+                                          32,
+                                          32,
+                                          16,
+                                          true,
+                                          false,
+                                          false,
+                                          wg_attr_num_access>;
             return make_tuple(WG{}, 4, 1);
         }
         else
