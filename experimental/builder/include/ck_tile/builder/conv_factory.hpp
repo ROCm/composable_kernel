@@ -73,12 +73,13 @@ struct ConvBlock
     MNK<int> per_block;
 };
 
-template <ConvAlgorithm Algo>
+template <ConvAlgorithm auto ALGORITHM>
 constexpr ConvBlock SetThreadBlockInfo()
 {
-    if constexpr(HasThreadBlockInfo<Algo>)
+    using AlgorithmType = decltype(ALGORITHM);
+    if constexpr(HasThreadBlockInfo<AlgorithmType>)
     {
-        constexpr auto& TB = Algo::THREAD_BLOCK;
+        constexpr auto& TB = ALGORITHM.thread_block;
         return ConvBlock{
             .block_size = TB.block_size,
             .per_block  = {.m = TB.sub_matrix.m, .n = TB.sub_matrix.n, .k = TB.sub_matrix.k}};
@@ -101,19 +102,20 @@ struct ConvTuning
     int n_xdl_per_wave = 0;
 };
 
-template <ConvAlgorithm Algo>
+template <ConvAlgorithm auto ALGORITHM>
 constexpr ConvTuning SetConvTuningInfo()
 {
-    if constexpr(HasConvTuningInfo<Algo>)
+    using AlgorithmType = decltype(ALGORITHM);
+    if constexpr(HasConvTuningInfo<AlgorithmType>)
     {
-        constexpr auto TI = Algo::TUNING_PARAMS;
+        constexpr auto& TP = ALGORITHM.tuning_params;
         return ConvTuning{
-            .ak1            = TI.ak1,
-            .bk1            = TI.bk1,
+            .ak1            = TP.ak1,
+            .bk1            = TP.bk1,
             .m_per_xdl      = 32,
             .n_per_dxl      = 32,
-            .m_xdl_per_wave = TI.m_xdl_per_wave,
-            .n_xdl_per_wave = TI.n_xdl_per_wave,
+            .m_xdl_per_wave = TP.m_xdl_per_wave,
+            .n_xdl_per_wave = TP.n_xdl_per_wave,
         };
     }
     // Default values.
@@ -149,7 +151,7 @@ struct CBlockTransfer
 };
 
 // Factory builds an instance of a grouped convolution kernel.
-template <ConvSignature Signature, ConvAlgorithm Algorithm, auto Version>
+template <ConvSignature Signature, ConvAlgorithm auto ALGORITHM, auto Version>
     requires SupportedVersion<Version>
 struct GroupedConvForwardXldCShuffleFactoryV3
 {
@@ -161,8 +163,8 @@ struct GroupedConvForwardXldCShuffleFactoryV3
         .conv_spec = ck::tensor_operation::device::ConvolutionForwardSpecialization::Default,
         .gemm_spec = ck::tensor_operation::device::GemmSpecialization::MNKPadding,
     };
-    static constexpr ConvBlock BLOCK   = SetThreadBlockInfo<Algorithm>();
-    static constexpr ConvTuning TUNING = SetConvTuningInfo<Algorithm>();
+    static constexpr ConvBlock BLOCK   = SetThreadBlockInfo<ALGORITHM>();
+    static constexpr ConvTuning TUNING = SetConvTuningInfo<ALGORITHM>();
     static constexpr BlockTransfer A_BLOCK_TRANSFER{
         .thread_cluster_lengths    = {4, 64, 1},
         .thread_cluster_order      = {1, 0, 2},

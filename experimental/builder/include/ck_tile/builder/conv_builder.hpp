@@ -11,18 +11,25 @@
 
 namespace ck_tile::builder {
 
-template <ConvSignature TSignature, ConvAlgorithm TAlgorithm, auto Version>
+/**
+ * @brief Top-level builder for creating convolution kernel instances.
+ *
+ * This struct serves as the main entry point for generating a convolution kernel.
+ * It uses a factory pattern based on the provided signature, algorithm, and version
+ * to construct the appropriate kernel instance.
+ *
+ * @tparam TSignature The convolution signature, which describes the mathematical functionality of
+ * the algorithm (e.g., data types, layouts, direction).
+ * @tparam ALGORITHM The specific convolution algorithm to be used for the implementation.
+ * @tparam Version The version of the builder implementation.
+ */
+template <ConvSignature TSignature, ConvAlgorithm auto ALGORITHM, auto Version>
     requires SupportedVersion<Version>
 struct ConvBuilder
 {
-    // Input: Signature describes the mathematical funcationality of the algorithm.
-    using Signature = TSignature;
-    // Input: Algorithm describes the implementation of the algorithm.
-    using Algorithm = TAlgorithm;
-    // Input: Version of the builder, exposed for testing.
+    using Signature                = TSignature;
     static constexpr auto kVersion = Version;
-    // Implmentation: The factory handles the builder logic.
-    using builder = GroupedConvForwardXldCShuffleFactoryV3<Signature, Algorithm, Version>;
+    using builder = GroupedConvForwardXldCShuffleFactoryV3<Signature, ALGORITHM, Version>;
     // Output: The kernel class.
     using Instance = builder::Instance;
 };
