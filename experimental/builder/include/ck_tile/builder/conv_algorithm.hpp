@@ -5,14 +5,14 @@
 
 namespace ck_tile::builder {
 
-// Convenience struct for a tuple of m, n, and k values.    
+// Convenience struct for a tuple of m, n, and k values.
 template <typename T>
-struct MNK {
+struct MNK
+{
     T m{};
     T n{};
     T k{};
 };
-
 
 // Concept for thread block info for a GEMM problem.
 template <typename T>
@@ -23,9 +23,9 @@ concept ThreadBlockInfo = requires(T t) {
     { t.sub_matrix.k } -> std::convertible_to<int>;
 };
 
-
 // Describe a thread block for a GEMM.
-struct ThreadBlock {
+struct ThreadBlock
+{
     // Thread block size.
     int block_size;
     // Size of the submatrix problem in a thread block.
@@ -40,6 +40,32 @@ concept HasThreadBlockInfo = requires {
     { T::THREAD_BLOCK } -> ThreadBlockInfo;
 };
 
+// Concept for tuning parameters for a convolution problem.
+template <typename T>
+concept ConvTuningInfo = requires(T t) {
+    { t.ak1 } -> std::convertible_to<int>;
+    { t.bk1 } -> std::convertible_to<int>;
+    { t.m_xdl_per_wave } -> std::convertible_to<int>;
+    { t.n_xdl_per_wave } -> std::convertible_to<int>;
+};
+
+// Describe some convolution tuning parameters.
+struct ConvTuningParams
+{
+    // NOTE: ak1 and bk1 are difficult to verify in the kernel instantiation!!!
+    int ak1            = 0;
+    int bk1            = 0;
+    int m_xdl_per_wave = 0;
+    int n_xdl_per_wave = 0;
+};
+
+static_assert(ConvTuningInfo<ConvTuningParams>);
+
+// Concept to check if a struct provides convolution tuning info.
+template <typename T>
+concept HasConvTuningInfo = requires {
+    { T::TUNING_PARAMS } -> ConvTuningInfo;
+};
 
 // No requirements yet for a ConvAlogorithm concept.
 template <typename T>
