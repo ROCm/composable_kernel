@@ -192,11 +192,11 @@ int run_grouped_gemm_example_with_layouts(int argc,
             Ns.push_back(256 + 512 * i);
             Ks.push_back(512 + 128 * i);
 
-            stride_As.push_back(Ks[i]);
-            stride_Bs.push_back(Ks[i]);
-            stride_Cs.push_back(Ns[i]);
-            stride_AQs.push_back(1);
-            stride_BQs.push_back(1);
+            stride_As.push_back(0);
+            stride_Bs.push_back(0);
+            stride_Cs.push_back(0);
+            stride_AQs.push_back(0);
+            stride_BQs.push_back(0);
         }
     }
 
@@ -389,7 +389,39 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
                                                      CDataType,
                                                      AccDataType>(argc, argv, Row{}, Row{}, Col{}, Col{}, Row{});
     }
-   
+    else if(a_layout == "R" && b_layout == "R")
+    {
+        return run_grouped_gemm_example_with_layouts<Persistent,
+                                                     GemmConfig,
+                                                     ADataType,
+                                                     AQDataType,
+                                                     BDataType,
+                                                     BQDataType,
+                                                     CDataType,
+                                                     AccDataType>(argc, argv, Row{}, Row{}, Row{}, Row{}, Row{});
+    }
+    else if(a_layout == "C" && b_layout == "R")
+    {
+        return run_grouped_gemm_example_with_layouts<Persistent,
+                                                     GemmConfig,
+                                                     ADataType,
+                                                     AQDataType,
+                                                     BDataType,
+                                                     BQDataType,
+                                                     CDataType,
+                                                     AccDataType>(argc, argv, Row{}, Row{}, Col{}, Col{}, Row{});
+    }
+    else if(a_layout == "C" && b_layout == "C")
+    {
+        return run_grouped_gemm_example_with_layouts<Persistent,
+                                                     GemmConfig,
+                                                     ADataType,
+                                                     AQDataType,
+                                                     BDataType,
+                                                     BQDataType,
+                                                     CDataType,
+                                                     AccDataType>(argc, argv, Col{}, Col{}, Col{}, Col{}, Row{});
+    }
     else
     {
         throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");

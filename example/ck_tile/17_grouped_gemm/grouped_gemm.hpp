@@ -29,16 +29,10 @@ constexpr ck_tile::index_t get_k_warp_tile()
     else
         return is_8bit_float ? 128 : 32;
 #else
-    constexpr bool is_8bit_float =
-        std::is_same_v<PrecType, ck_tile::fp8_t> || std::is_same_v<PrecType, ck_tile::bf8_t>;
     if constexpr(M_Warp_Tile == 32)
-        return is_8bit_float ? 32 : 16;
+        return 16;
     else
-        return is_8bit_float ? 64 : 32;
-    // if constexpr(M_Warp_Tile == 32)
-    //     return 16;
-    // else
-    //     return 32;
+        return 32;
 #endif
 }
 
@@ -158,7 +152,7 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V4>
     using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV4<PipelineProblem>;
 };
 
-using grouped_gemm_kargs = ck_tile::GroupedGemmHostArgs;
+using grouped_gemm_kargs = ck_tile::QuantGroupedGemmHostArgs;
 
 auto create_args(int argc, char* argv[])
 {
@@ -185,7 +179,7 @@ auto create_args(int argc, char* argv[])
 
 inline std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gemm_descs)
 {
-    return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg);
+    return gemm_descs.size() * sizeof(ck_tile::QuantGemmTransKernelArg);
 }
 
 template <typename ADataType,
