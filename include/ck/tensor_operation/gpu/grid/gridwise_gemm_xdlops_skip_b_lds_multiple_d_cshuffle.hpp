@@ -277,7 +277,7 @@ struct GridwiseGemm_xdlops_skip_b_lds_multiple_d_cshuffle
             c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
 
         return math::max((a_block_space_size_aligned) * sizeof(ABDataType),
-                         c_block_size * sizeof(EDataType));
+                         c_block_size * sizeof(CShuffleDataType));
     }
 
     template <bool HasMainK0BlockLoop,
