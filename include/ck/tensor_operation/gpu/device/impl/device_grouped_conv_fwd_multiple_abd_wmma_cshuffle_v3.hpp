@@ -35,17 +35,15 @@ namespace device {
 
 namespace {
 
-// TODO: Update this description.
 /*
- * \brief Wrapper function of GridwiseGemm::Run to realize BatchedGEMM.
+ * \brief Wrapper function of GridwiseGemm Wmma Cshuffle V3 to realize grouped forward convolution.
  *
- * \tparam ComputePtrOffsetOfBatch Class that computes the base pointer offsets of A, B, C matrix
- * given the batch. For example, ComputePtrOffsetOfStridedBatch() computes the offsets of evenly
- * strided batched, but we can easily extend to other layouts. The returned offset can be either \p
- * index_t or \p long_index_t. If it returns \p long_index_t, we are not subject to the 2GB
- * limitations.
+ * \tparam ComputePtrOffsetOfBatch Class that computes the base pointer offsets of A, B, D and E
+ * matrices for groups or splitN. Currently it works for identical strides, but this can be extended
+ * to other layouts. The returned offset can be either \p index_t or \p long_index_t. If it returns
+ * \p long_index_t, we are not subject to the 2GB limitations.
  *
- * \tparam Block2ETileMap Block2ETileMap::CalculateBottomIndex() takes in id of a workgroup and
+ * \tparam Block2ETileMap Block2ETileMap::CalculateBottomIndex() takes in the id of a workgroup and
  * returns the 2D index of the tile that it computes. \see
  * GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3::Run().
  *
@@ -55,10 +53,6 @@ namespace {
  * impl/device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk.hpp kernel_gemm_xdlops_v2r3_for_conv3d \endlink for
  * \link DeviceConv3d \endlink uses the same concept, but currently does NOT encapsulate the
  * computing of pointer offset into \p ComputePtrOffsetOfStridedBatch.
- *
- * \note \p Block2ETileMap allows customized mapping between a workgroup and the C-tile it computes.
- * Together with \p ComputePtrOffsetOfBatch, we can reuse GridwiseGemm (and GridwiseGemm fusion ) to
- * realize BatchedGemm and GroupedGemm (and the corresponding GEMM fusion).
  *
  */
 template <typename GridwiseGemm,
@@ -96,37 +90,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                     std::is_same_v<e_data_type, ck::bhalf_t>)))
     {
 #endif
-        // offset base pointer for each work-group
-        // const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
-        // const index_t n_idx = __builtin_amdgcn_readfirstlane(blockIdx.z);
-
-        // const auto& ds_group_offset = compute_ptr_offset_of_groups.GetDsPtrOffset(g_idx);
-        // const auto& ds_n_offset     = compute_ptr_offset_of_n.GetDsPtrOffset(n_idx);
-
-        // static constexpr index_t NumDTensor = GridwiseGemm::NumDTensor;
-        // using DsGridPointer                 = typename GridwiseGemm::DsGridPointer;
-        // DsGridPointer p_ds_grid_grp{};
-
-        // static_for<0, NumDTensor, 1>{}([&](auto i) {
-        //     p_ds_grid_grp(i) = karg.p_ds_grid[i] + ds_n_offset[i] + ds_group_offset[i];
-        // });
-
-        // const long_index_t a_group_offset =
-        //     amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetAPtrOffset(g_idx));
-        // const long_index_t b_group_offset =
-        //     amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetBPtrOffset(g_idx));
-        // const long_index_t e_group_offset =
-        //     amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetEPtrOffset(g_idx));
-
-        // const long_index_t a_n_offset =
-        //     amd_wave_read_first_lane(compute_ptr_offset_of_n.GetAPtrOffset(n_idx));
-        // const long_index_t e_n_offset =
-        //     amd_wave_read_first_lane(compute_ptr_offset_of_n.GetEPtrOffset(n_idx));
-
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-
-        // using Block2CTileMap         = typename GridwiseGemm::Block2CTileMapDefault;
-        // const auto block_2_ctile_map = Block2CTileMap{karg.M, karg.N, 4};
 
         GridwiseGemm::template Run<AGridDesc_AK0_M_AK1,
                                    BGridDesc_BK0_N_BK1,
@@ -160,92 +124,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif // End of if (!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
 }
 
-// TODO: Implement 2lds later?
-// template <typename GridwiseGemm,
-//           typename ComputePtrOffset,
-//           typename AGridDesc_AK0_M_K1,
-//           typename BGridDesc_BK0_N_K1,
-//           typename DsGridDesc_M_N,
-//           typename EGridDesc_M_N,
-//           bool HasMainKBlockLoop,
-//           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-//           index_t MinimumOccupancy = 1,
-//           TailNumber TailNum       = TailNumber::Full>
-// __global__ void
-// #if CK_USE_LAUNCH_BOUNDS
-// __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
-// #endif
-//     kernel_grouped_conv_fwd_xdl_cshuffle_v3_2lds(
-//         typename GridwiseGemm::Argument karg,
-//         const AGridDesc_AK0_M_K1 a_grid_desc_ak0_m_ak1,
-//         const BGridDesc_BK0_N_K1 b_grid_desc_bk0_n_bk1,
-//         const DsGridDesc_M_N ds_grid_desc_m_n,
-//         const EGridDesc_M_N c_grid_desc_m_n,
-//         const ComputePtrOffset compute_ptr_offset_of_groups,
-//         const ComputePtrOffset compute_ptr_offset_of_n)
-// {
-// #if defined(__gfx9__)
-//     // offset base pointer for each work-group
-//     const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
-//     const index_t n_idx = __builtin_amdgcn_readfirstlane(blockIdx.z);
-
-//     const auto& ds_group_offset = compute_ptr_offset_of_groups.GetDsPtrOffset(g_idx);
-//     const auto& ds_n_offset     = compute_ptr_offset_of_n.GetDsPtrOffset(n_idx);
-
-//     static constexpr index_t NumDTensor = GridwiseGemm::NumDTensor;
-//     using DsGridPointer                 = typename GridwiseGemm::DsGridPointer;
-//     DsGridPointer p_ds_grid_grp{};
-
-//     static_for<0, NumDTensor, 1>{}([&](auto i) {
-//         p_ds_grid_grp(i) = karg.p_ds_grid[i] + ds_n_offset[i] + ds_group_offset[i];
-//     });
-
-//     const long_index_t a_group_offset =
-//         amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetAPtrOffset(g_idx));
-//     const long_index_t b_group_offset =
-//         amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetBPtrOffset(g_idx));
-//     const long_index_t e_group_offset =
-//         amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetEPtrOffset(g_idx));
-
-//     const long_index_t a_n_offset =
-//         amd_wave_read_first_lane(compute_ptr_offset_of_n.GetAPtrOffset(n_idx));
-//     const long_index_t e_n_offset =
-//         amd_wave_read_first_lane(compute_ptr_offset_of_n.GetEPtrOffset(n_idx));
-
-//     // Pass two lds pointer is the key to tell compiler that ds_read/write
-//     // operate on different lds chunk at same time without order dependecy
-//     __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-//     __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-
-//     using Block2CTileMap         = typename GridwiseGemm::Block2CTileMapDefault;
-//     const auto block_2_ctile_map = Block2CTileMap{karg.M, karg.N, 4};
-
-//     GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-//         karg.p_a_grid + a_group_offset + a_n_offset,
-//         karg.p_b_grid + b_group_offset,
-//         p_ds_grid_grp,
-//         karg.p_c_grid + e_group_offset + e_n_offset,
-//         p_shared_0,
-//         p_shared_1,
-//         karg,
-//         karg.a_element_op,
-//         karg.b_element_op,
-//         karg.c_element_op,
-//         block_2_ctile_map,
-//         a_grid_desc_ak0_m_ak1,
-//         b_grid_desc_bk0_n_bk1,
-//         ds_grid_desc_m_n,
-//         c_grid_desc_m_n);
-// #else
-//     ignore = karg;
-//     ignore = a_grid_desc_ak0_m_ak1;
-//     ignore = b_grid_desc_bk0_n_bk1;
-//     ignore = ds_grid_desc_m_n;
-//     ignore = c_grid_desc_m_n;
-//     ignore = compute_ptr_offset_of_groups;
-//     ignore = compute_ptr_offset_of_n;
-// #endif // end of if (defined(__gfx9__))
-// }
+// TODO: Implement 2lds kernel?
 
 } // namespace
 
@@ -638,8 +517,9 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
         BlkGemmPipeSched,
         BlkGemmPipelineVer,
 
-        AComputeDataType, // TODO: swap these?
         BComputeDataType,
+        AComputeDataType, // TODO: Swapped these but will probably never get verified because the
+                          // only mixed precision instances are not NCHW.
 
         false,  // PermuteA
         false>; // PermuteB
@@ -1062,7 +942,10 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                 arg.Print();
             }
 
-            printf("\033[035mCTranspose %d\033[0m\n", CTranspose);
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                printf("\033[035mCTranspose %d\033[0m\n", CTranspose);
+            }
 
             float ave_time = 0;
 
@@ -1078,17 +961,14 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                 arg.a_g_n_c_wis_lengths_[I1] / arg.conv_N_per_block_;
 
             index_t gdx, gdy, gdz;
-            // TODO: Do we want to support kbatch ??
             std::tie(gdx, gdy, gdz) =
                 CTranspose
                     ? GridwiseGemmCTranspose::CalculateGridSize(GemmN, GemmM, I1 /*arg.KBatch*/)
                     : GridwiseGemmCTranspose::CalculateGridSize(GemmM, GemmN, I1 /*arg.KBatch*/);
 
-            // TODO: Suspicious use of grid dims. Check run function.
             gdy = arg.num_group_ / NumGroupsToMerge;
             gdz = num_workgroups_per_Conv_N;
 
-            // TODO: does this need to be updated for splitK?
             index_t K_split = (GemmK + KPerBlock - 1) / KPerBlock * KPerBlock;
             const bool has_main_k_block_loop =
                 GridwiseGemmCTranspose::CalculateHasMainKBlockLoop(K_split);
@@ -1141,7 +1021,6 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                     static_assert(NumATensor == 1, "Num A Tensor should be 1\n");
                     static_assert(NumBTensor == 1, "Num B Tensor should be 1\n");
 
-                    printf("Got Gemm MNK %d %d %d\n", GemmM, GemmN, GemmK);
                     typename GridwiseGemmCTranspose::Argument gemm_arg{
                         p_bs_grid, // p_bs_grid
                         p_as_grid, // p_as_grid
@@ -1218,7 +1097,10 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
 
             if(has_main_k_block_loop)
             {
-                printf("\033[33mMAIN K BLOCK LOOP\033[0m\n");
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    printf("\033[33mMAIN K BLOCK LOOP\033[0m\n");
+                }
                 // Tail number always full
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ||
                              BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
@@ -1256,14 +1138,19 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                 }
                 else
                 {
-                    // TODO: check this in arg checker?
-                    printf("Unsupported pipeline version!\n");
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        printf("Unsupported pipeline version!\n");
+                    }
                 }
             }
             // has_main_k_block_loop
             else
             {
-                printf("\033[33mNO MAINLOOP\033[0m\n");
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    printf("\033[33mNO MAINLOOP\033[0m\n");
+                }
                 // Tail number always 1
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
@@ -1300,9 +1187,11 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                 }
                 else
                 {
-                    // TODO: Check in check args?
-                    // TODO: We should be able to make this compatible with V3 pipeline.
-                    printf("Unsupported pipeline version for no k main loop!\n");
+                    // TODO: We should be able to make this compatible with the V3 pipeline.
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        printf("Unsupported pipeline version for no k main loop!\n");
+                    }
                 }
             }
 
@@ -1321,7 +1210,10 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                     static_assert(NumATensor == 1, "Num A Tensor should be 1\n");
                     static_assert(NumBTensor == 1, "Num B Tensor should be 1\n");
 
-                    printf("\033[32mPerforming transpose forward\033[0m\n");
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        printf("\033[32mPerforming transpose forward\033[0m\n");
+                    }
                     const index_t a_grid_size =
                         arg.elementwise_block_2_ctile_map_transpose_a_.CalculateGridSize(
                             arg.a_in_transpose_desc_);
@@ -1377,7 +1269,10 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                 // Transpose result back to NGCHW
                 if constexpr(NeedTransposeKernel)
                 {
-                    printf("\033[32mPerforming transpose back\033[0m\n");
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        printf("\033[32mPerforming transpose back\033[0m\n");
+                    }
                     const index_t grid_size =
                         arg.elementwise_block_2_ctile_map_transpose_e_.CalculateGridSize(
                             arg.e_in_transpose_desc_);
@@ -1425,15 +1320,6 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
     {
         namespace ctc = tensor_layout::convolution;
 
-        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-        {
-            // printf("\033[36mCK LOGGING ON\n\033[0m");
-        }
-        else
-        {
-            printf("\033[31mCK LOGGING OFF\n\033[0m");
-        }
-
         const index_t G = arg.b_g_k_c_xs_lengths_[I0];
         const index_t K = arg.b_g_k_c_xs_lengths_[I1];
         const index_t C = arg.b_g_k_c_xs_lengths_[I2];
@@ -1452,37 +1338,29 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                 std::cout << "The MultiABD is not supported!" << " In " << __FILE__ << ":"
                           << __LINE__ << ", in function: " << __func__ << std::endl;
             }
-            return false; // TODO: This return and print order was wrong. Check XDL version.
+            return false;
         }
 
-        // check device
-        if(get_device_name() == "gfx908")
+        // TODO: Pipeline V3 should work but this hasn't been tested yet.
+        if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1)
         {
-            // FIXME: re-enable fp64 when SWDEV-335738 is fixed
-            if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout
-                        << "On gfx908 the accumulation data type must be one of fp32 or int32!"
-                        << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
-                        << std::endl;
-                }
-                return false;
+                std::cout << "Unsupported pipeline version!" << " In " << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
             }
         }
 
-        // TODO: Wmma check?
-        // if(!ck::is_xdl_supported())
-        // {
-        //     if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-        //     {
-        //         std::cout << "Current device does not support xdl instructions!" << " In "
-        //                   << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
-        //                   << std::endl;
-        //     }
-        //     return false;
-        // }
+        if(!(ck::is_gfx11_supported() || ck::is_gfx12_supported()))
+        {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Current device does not support wmma instructions!" << " In "
+                          << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                          << std::endl;
+            }
+            return false;
+        }
 
         // check ConvolutionForwardSpecialization
         if constexpr(ConvForwardSpecialization ==
@@ -1564,7 +1442,6 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
         {
             if(!(C == 1))
             {
-                // TODO: Why this restriction?
                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "When using mergegroups C must be 1!" << " In " << __FILE__ << ":"
@@ -1695,7 +1572,7 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
         else
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-            { // TODO: Probable copy-paste error in original xdl implementation (Uses A).
+            {
                 std::cout << "Unsupported B Layout!" << " In " << __FILE__ << ":" << __LINE__
                           << ", in function: " << __func__ << std::endl;
             }
