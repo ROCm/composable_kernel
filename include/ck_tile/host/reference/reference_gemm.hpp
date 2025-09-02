@@ -140,10 +140,10 @@ CK_TILE_HOST void reference_gemm_rowcol_quant(const HostTensor<ADataType>& a_m_k
     auto f_mn = [&](auto m, auto n) {
         AccDataType v_acc = 0;
 
-        static_assert(std::is_same_v<ADataType, pk_int4_t> || std::is_same_v<ADataType, fp8_t> ||
-                      std::is_same_v<ADataType, bf8_t>);
-        static_assert(std::is_same_v<BDataType, fp8_t> || std::is_same_v<BDataType, bf8_t> ||
-                      std::is_same_v<BDataType, pk_int4_t>);
+        // static_assert(std::is_same_v<ADataType, pk_int4_t> || std::is_same_v<ADataType, fp8_t> ||
+        //               std::is_same_v<ADataType, bf8_t>);
+        // static_assert(std::is_same_v<BDataType, fp8_t> || std::is_same_v<BDataType, bf8_t> ||
+        //               std::is_same_v<BDataType, pk_int4_t>);
         static_assert(std::is_same_v<AccDataType, float>);
         static_assert(std::is_same_v<CDataType, float> ||
                       std::is_same_v<CDataType, ck_tile::half_t>);

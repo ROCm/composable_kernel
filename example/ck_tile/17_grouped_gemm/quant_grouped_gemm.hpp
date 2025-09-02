@@ -29,10 +29,12 @@ constexpr ck_tile::index_t get_k_warp_tile()
     else
         return is_8bit_float ? 128 : 32;
 #else
+    constexpr bool is_8bit_float =
+        std::is_same_v<PrecType, ck_tile::fp8_t> || std::is_same_v<PrecType, ck_tile::bf8_t>;
     if constexpr(M_Warp_Tile == 32)
-        return 16;
+        return is_8bit_float ? 32 : 16;
     else
-        return 32;
+        return is_8bit_float ? 64 : 32;
 #endif
 }
 
@@ -97,29 +99,6 @@ struct GemmConfigComputeV3_2 : public GemmConfigBase
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
 
     static constexpr int kBlockPerCu = 1;
-};
-
-template <typename PrecType>
-struct GemmConfigComputeV4 : public GemmConfigBase
-{
-    // Compute V4 only support Intrawave scheduler
-    // Using the ping pong reader in the lds level
-    static constexpr ck_tile::index_t M_Tile = 128;
-    static constexpr ck_tile::index_t N_Tile = 128;
-    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
-
-    static constexpr ck_tile::index_t M_Warp = 2;
-    static constexpr ck_tile::index_t N_Warp = 2;
-    static constexpr ck_tile::index_t K_Warp = 1;
-
-    static constexpr ck_tile::index_t M_Warp_Tile = 32;
-    static constexpr ck_tile::index_t N_Warp_Tile = 32;
-    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
-
-    static constexpr bool DoubleSmemBuffer     = true;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V4;
-
-    static constexpr int kBlockPerCu = 2;
 };
 
 template <ck_tile::index_t PipelineId>

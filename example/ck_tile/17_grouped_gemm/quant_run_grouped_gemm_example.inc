@@ -335,8 +335,15 @@ int run_grouped_gemm_example_with_layouts(int argc,
             ck_tile::HostTensor<CDataType> c_m_n_host_ref(ck_tile::host_tensor_descriptor(
                 Ms[i], Ns[i], stride_Cs[i], is_row_major(CLayout{})));
             c_m_n_host_ref.SetZero();
-            ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
-                a_m_k_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
+            ck_tile::reference_gemm_rowcol_quant<ADataType,
+                                                AQDataType,
+                                                BDataType,
+                                                BQDataType,
+                                                AccDataType,
+                                                CDataType>(
+            a_m_k_tensors[i], aq_tensors[i], b_k_n_tensors[i], bq_tensors[i], c_m_n_host_ref);
+            // ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
+            //     a_m_k_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
             const float max_accumulated_value =
                 *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
             const auto rtol_atol =
