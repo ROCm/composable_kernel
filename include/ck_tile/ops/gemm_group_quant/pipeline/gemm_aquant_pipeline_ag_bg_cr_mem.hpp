@@ -10,11 +10,12 @@
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm_group_quant/pipeline/gemm_aquant_pipeline_ag_bg_cr_base.hpp"
 #include "ck_tile/host/concat.hpp"
+#include "ck_tile/ops/gemm_group_quant/pipeline/gemm_aquant_pipeline_ag_bg_cr_policy.hpp"
 
 namespace ck_tile {
 
 template <typename Problem>
-struct BaseAQuantGemmPipelineAgBgCrCompMem : public BaseGemmPipelineAgBgCrCompV3<Problem>
+struct BaseAQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrCompV3<Problem>
 {
     template <typename RunFunction>
     CK_TILE_HOST_DEVICE static auto
@@ -74,7 +75,7 @@ struct BaseAQuantGemmPipelineAgBgCrCompMem : public BaseGemmPipelineAgBgCrCompV3
 };
 
 template <typename Problem, typename Policy = GemmAQuantPipelineAgBgCrDefaultPolicy>
-struct AQuantGemmPipelineAgBgCrCompMem : public BaseAQuantGemmPipelineAgBgCrCompMem<Problem>
+struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrMem<Problem>
 {
     using Base             = BaseGemmPipelineAgBgCrCompV3<Problem>;
     using PipelineImplBase = GemmAQuantPipelineAgBgCrImplBase<Problem, Policy>;
@@ -143,7 +144,7 @@ struct AQuantGemmPipelineAgBgCrCompMem : public BaseAQuantGemmPipelineAgBgCrComp
         // clang-format off
         constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(I0{});
         constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
-        return concat('_', "aquant_pipeline_AgBgCrCompMem", 
+        return concat('_', "aquant_pipeline_AgBgCrCompMem_interwave", 
                       concat('x', MPerBlock, NPerBlock, KPerBlock),
                       BlockSize,
                       concat('x', WaveNumM, WaveNumN),

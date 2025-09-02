@@ -16,6 +16,7 @@
 #define CK_TILE_PIPELINE_COMPUTE_V4 3
 #define CK_TILE_PIPELINE_COMPUTE_V5 4
 #define CK_TILE_PIPELINE_PRESHUFFLE 5
+#define CK_TILE_PIPELINE_AQUANT_MEMORY 6
 #define CK_TILE_LOGGING_ENABLED 0
 
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
@@ -171,6 +172,26 @@ struct GemmConfigMemory : public GemmConfigBase
 
     static constexpr bool DoubleSmemBuffer     = false;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
+};
+
+template <typename PrecType>
+struct GemmConfigAQuantMemory : public GemmConfigBase
+{
+    // Memory bound pipeline only support Interwave scheduler
+    static constexpr ck_tile::index_t M_Tile = 16;
+    static constexpr ck_tile::index_t N_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 256;
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 32;
+
+    static constexpr bool DoubleSmemBuffer     = false;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_AQUANT_MEMORY;
 };
 
 template <typename PrecType>
@@ -590,6 +611,15 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_MEMORY>
     using GemmPipeline = ck_tile::GemmPipelineAgBgCrMem<PipelineProblem>;
     template <typename PipelineProblem>
     using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrMem<PipelineProblem>;
+};
+
+template <>
+struct PipelineTypeTraits<CK_TILE_PIPELINE_AQUANT_MEMORY>
+{
+    template <typename PipelineProblem>
+    using AQuantGemmPipeline = ck_tile::AQuantGemmPipelineAgBgCrMem<PipelineProblem>;
+    template <typename PipelineProblem>
+    using BaseAQuantGemmPipeline = ck_tile::BaseAQuantGemmPipelineAgBgCrMem<PipelineProblem>;
 };
 
 template <>

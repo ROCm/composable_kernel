@@ -32,7 +32,8 @@ auto shuffle_aq(const ck_tile::HostTensor<T>& t, int block_aq_k)
     return ck_tile::reference_permute(t_view, {1, 0, 2});
 }
 
-template <typename ADataType,
+template <typename GemmConfig,
+          typename ADataType,
           typename AQDataType,
           typename BDataType,
           typename AccDataType,
@@ -74,7 +75,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     args.stride_C  = stride_C;
     args.stride_AQ = stride_AQ;
 
-    float ave_time = gemm_calc_aquant<ADataType,
+    float ave_time = gemm_calc_aquant<GemmConfig,
+                                      ADataType,
                                       AQDataType,
                                       BDataType,
                                       AccDataType,
@@ -223,7 +225,8 @@ int run_gemm_example_with_layouts(int argc,
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
-    invoke_gemm<ADataType,
+    invoke_gemm<GemmConfig,
+                ADataType,
                 AQDataType,
                 BDataType,
                 AccDataType,
