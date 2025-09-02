@@ -59,7 +59,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                      const index_t batch_count,
                                      const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch)
 {
-#if defined(__gfx9__) || defined(__gfx12__)
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
     {
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -611,11 +611,6 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
         }
 
         if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
-        {
-            return false;
-        }
-        // temp disable on gfx11
-        if(ck::is_gfx11_supported())
         {
             return false;
         }
