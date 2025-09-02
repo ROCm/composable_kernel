@@ -115,11 +115,18 @@ float fmha_fwd_v3_kernel_launch(const fmha_fwd_v3_args& args, const stream_confi
 {
     /// NOTICE: This was borrowed from Aiter. Make sure the selected remap_opt setting truly
     /// maximizes the kernel's performance.
-    int remap_opt = 5;
+    int remap_opt = 2;
     if(args.mask_type != static_cast<int>(mask_enum::no_mask) &&
-       ((args.nhead_q % 8 != 0) || (args.seqlen_q > 16384)))
+       ((args.nhead_q % 8 != 0) || (16384 < args.seqlen_q)))
     {
-        remap_opt -= 2;
+        if(65536 <= args.seqlen_q)
+        {
+            remap_opt = 0;
+        }
+        else
+        {
+            remap_opt = 1;
+        }
     }
 
     auto kargs = Kernel::MakeKargs(args.q_ptr,
