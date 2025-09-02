@@ -249,7 +249,7 @@ float rmsnorm2d_fwd_(const S& s, A a)
     using Kernel = ck_tile::Rmsnorm2dFwd<Pipeline, Epilogue>;
 
     const dim3 grids                       = Kernel::GridSize(a);
-    constexpr dim3 blocks                  = Kernel::BlockSize();
+    const dim3 blocks                      = Kernel::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = 1;
 
     auto kargs = Kernel::MakeKargs(a);
@@ -257,7 +257,7 @@ float rmsnorm2d_fwd_(const S& s, A a)
         std::cout << ", " << Kernel::GetName() << std::flush;
 
     return ck_tile::launch_kernel(
-        s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{{}}, grids, blocks, 0, kargs));
+        s, ck_tile::make_kernel<kBlockPerCu>(Kernel{{}}, grids, blocks, 0, kargs));
 }}
 
 """

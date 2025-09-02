@@ -40,9 +40,11 @@ template <typename FlatmmConfig, typename T>
 auto shuffle_b(const ck_tile::HostTensor<T>& t)
 {
     assert(t.get_lengths().size() == 2);
-    int n_                = t.get_lengths()[1];
-    int k_                = t.get_lengths()[0];
-    constexpr int divisor = FlatmmConfig::N_Warp_Tile == 32 ? 2 : 4;
+    int n_ = t.get_lengths()[1];
+    int k_ = t.get_lengths()[0];
+
+    int divisor = ck_tile::is_wave32() ? (FlatmmConfig::N_Warp_Tile == 32 ? 1 : 2)
+                                       : (FlatmmConfig::N_Warp_Tile == 32 ? 2 : 4);
     ck_tile::HostTensor<T> t_view({n_ / FlatmmConfig::N_Warp_Tile,
                                    FlatmmConfig::N_Warp_Tile,
                                    k_ / FlatmmConfig::K_Warp_Tile,
@@ -212,6 +214,16 @@ int run_flatmm_example_with_layouts(int argc,
     {
         ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_host);
         ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_origin_host);
+    }
+    else if(init_method == 3)
+    {
+        ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_host);
+        ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_origin_host);
+    }
+    else if(init_method == 4)
+    {
+        ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_host);
+        ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_origin_host);
     }
     else
     {
