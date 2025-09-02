@@ -50,8 +50,8 @@
 #endif
 
 // define general macros for various architectures
-#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx942__) || \
-    defined(__gfx950__) || defined(__gfx9_4_generic__)
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__) || \
+    defined(__gfx9_4_generic__)
 #define __gfx9__
 #endif
 #if defined(__gfx942__) || defined(__gfx950__) || defined(__gfx9_4_generic__)
