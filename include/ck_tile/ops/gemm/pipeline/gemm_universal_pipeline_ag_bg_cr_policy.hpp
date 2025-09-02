@@ -169,10 +169,10 @@ struct UniversalGemmBasePolicy
             constexpr index_t BlockSize   = Problem::kBlockSize;
             constexpr index_t VecLoadSize = GetVectorSizeB<Problem>();
             using TileEncodingPattern     = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                              KPerBlock,
-                                                                              NPerBlock,
-                                                                              VecLoadSize,
-                                                                              BTileAccessPattern>;
+                                                                                  KPerBlock,
+                                                                                  NPerBlock,
+                                                                                  VecLoadSize,
+                                                                                  BTileAccessPattern>;
 
             constexpr auto BK0 = number<TileEncodingPattern::X1>{};
             constexpr auto BK1 = number<TileEncodingPattern::Y0>{};
@@ -495,22 +495,22 @@ struct UniversalGemmBasePolicy
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
             using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                          MPerBlock,
-                                                                          KPerBlock,
-                                                                          VecLoadSize,
-                                                                          ATileAccessPattern,
-                                                                          NumWaveGroups>;
+                                                                              MPerBlock,
+                                                                              KPerBlock,
+                                                                              VecLoadSize,
+                                                                              ATileAccessPattern,
+                                                                              NumWaveGroups>;
             return TileEncodingPattern::make_2d_static_tile_distribution();
         }
         // Tile: KPerBlock X MPerBlock
         else
         {
             using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                          KPerBlock,
-                                                                          MPerBlock,
-                                                                          VecLoadSize,
-                                                                          ATileAccessPattern,
-                                                                          NumWaveGroups>;
+                                                                              KPerBlock,
+                                                                              MPerBlock,
+                                                                              VecLoadSize,
+                                                                              ATileAccessPattern,
+                                                                              NumWaveGroups>;
             return TileEncodingPattern::make_2d_static_tile_distribution();
         }
     }
@@ -531,22 +531,22 @@ struct UniversalGemmBasePolicy
         if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
             using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                          KPerBlock,
-                                                                          NPerBlock,
-                                                                          VecLoadSize,
-                                                                          BTileAccessPattern,
-                                                                          NumWaveGroups>;
+                                                                              KPerBlock,
+                                                                              NPerBlock,
+                                                                              VecLoadSize,
+                                                                              BTileAccessPattern,
+                                                                              NumWaveGroups>;
             return TileEncodingPattern::make_2d_static_tile_distribution();
         }
         // Tile: NPerBlock X KPerBlock
         else
         {
             using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                          NPerBlock,
-                                                                          KPerBlock,
-                                                                          VecLoadSize,
-                                                                          BTileAccessPattern,
-                                                                          NumWaveGroups>;
+                                                                              NPerBlock,
+                                                                              KPerBlock,
+                                                                              VecLoadSize,
+                                                                              BTileAccessPattern,
+                                                                              NumWaveGroups>;
             return TileEncodingPattern::make_2d_static_tile_distribution();
         }
     }
@@ -563,11 +563,11 @@ struct UniversalGemmBasePolicy
         constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
 
         using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                      KPerBlock,
-                                                                      MPerBlock,
-                                                                      VecLoadSize,
-                                                                      ATileAccessPattern,
-                                                                      NumWaveGroups>;
+                                                                          KPerBlock,
+                                                                          MPerBlock,
+                                                                          VecLoadSize,
+                                                                          ATileAccessPattern,
+                                                                          NumWaveGroups>;
         return TileEncodingPattern::make_shuffled_2d_static_tile_distribution();
     }
 
@@ -583,11 +583,11 @@ struct UniversalGemmBasePolicy
         constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
 
         using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                      KPerBlock,
-                                                                      NPerBlock,
-                                                                      VecLoadSize,
-                                                                      BTileAccessPattern,
-                                                                      NumWaveGroups>;
+                                                                          KPerBlock,
+                                                                          NPerBlock,
+                                                                          VecLoadSize,
+                                                                          BTileAccessPattern,
+                                                                          NumWaveGroups>;
         return TileEncodingPattern::make_shuffled_2d_static_tile_distribution();
     }
 

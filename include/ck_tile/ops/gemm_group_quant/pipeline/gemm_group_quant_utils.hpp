@@ -119,7 +119,8 @@ template <typename BlockGemmShape,
           index_t YPerTile,
           index_t XPerTile,
           index_t VecSize>
-struct tile_distribution_encoding_pattern_aq_transposed_c : public tile_distribution_encoding_pattern
+struct tile_distribution_encoding_pattern_aq_transposed_c
+    : public tile_distribution_encoding_pattern
 {
     // TODO: make pattern where below condition does not need to hold - GGemmMultiDSplitk!
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");

@@ -137,11 +137,12 @@ template <index_t BlockSize,
           index_t VecSize,
           index_t NumWaveGroups>
 struct tile_distribution_encoding_pattern_2d<BlockSize,
-                                         YPerTile,
-                                         XPerTile,
-                                         VecSize,
-                                         tile_distribution_pattern::thread_raked,
-                                         NumWaveGroups> : public tile_distribution_encoding_pattern
+                                             YPerTile,
+                                             XPerTile,
+                                             VecSize,
+                                             tile_distribution_pattern::thread_raked,
+                                             NumWaveGroups>
+    : public tile_distribution_encoding_pattern
 {
 
     // TODO: make pattern where below condition does not need to hold - GGemmMultiDSplitk!
@@ -221,11 +222,12 @@ template <index_t BlockSize,
           index_t VecSize,
           index_t NumWaveGroups>
 struct tile_distribution_encoding_pattern_2d<BlockSize,
-                                         YPerTile,
-                                         XPerTile,
-                                         VecSize,
-                                         tile_distribution_pattern::warp_raked,
-                                         NumWaveGroups> : public tile_distribution_encoding_pattern
+                                             YPerTile,
+                                             XPerTile,
+                                             VecSize,
+                                             tile_distribution_pattern::warp_raked,
+                                             NumWaveGroups>
+    : public tile_distribution_encoding_pattern
 {
 
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
@@ -274,11 +276,12 @@ template <index_t BlockSize,
           index_t VecSize,
           index_t NumWaveGroups>
 struct tile_distribution_encoding_pattern_2d<BlockSize,
-                                         YPerTile,
-                                         XPerTile,
-                                         VecSize,
-                                         tile_distribution_pattern::block_raked,
-                                         NumWaveGroups> : public tile_distribution_encoding_pattern
+                                             YPerTile,
+                                             XPerTile,
+                                             VecSize,
+                                             tile_distribution_pattern::block_raked,
+                                             NumWaveGroups>
+    : public tile_distribution_encoding_pattern
 {
 
     // TODO: make pattern where below condition does not need to hold - GGemmMultiDSplitk!
@@ -337,18 +340,18 @@ template <index_t BlockSize,
           tile_distribution_pattern DistributionPattern,
           index_t NumWaveGroups>
 CK_TILE_HOST_DEVICE void print(const tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                       YPerTile,
-                                                                       XPerTile,
-                                                                       VecSize,
-                                                                       DistributionPattern,
-                                                                       NumWaveGroups>&)
+                                                                           YPerTile,
+                                                                           XPerTile,
+                                                                           VecSize,
+                                                                           DistributionPattern,
+                                                                           NumWaveGroups>&)
 {
     using PatternType = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                          YPerTile,
-                                                          XPerTile,
-                                                          VecSize,
-                                                          DistributionPattern,
-                                                          NumWaveGroups>;
+                                                              YPerTile,
+                                                              XPerTile,
+                                                              VecSize,
+                                                              DistributionPattern,
+                                                              NumWaveGroups>;
 
     printf("tile_distribution_encoding_pattern_2d<BlockSize:%d, YPerTile:%d, XPerTile:%d, "
            "VecSize:%d, %s>: ",
