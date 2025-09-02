@@ -572,8 +572,7 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
                                const CDE1ElementwiseOperation& cde1_element_op,
                                const A0GridDesc_AK0_M_AK1& a0_grid_desc_ak0_m_ak1,
                                const B0GridDesc_BK0_N_BK1& b0_grid_desc_bk0_n_bk1,
-                               const D0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5&
-                                   d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                               const D0sGridDesc_M_N& d0s_griddesc_m_n,
                                const B1GridDesc_BK0_N_BK1& b1_grid_desc_bk0_n_bk1,
                                const D1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
                                    d1s_grid_desc_mblock_mperblock_nblock_nperblock,
@@ -581,6 +580,8 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
                                    e1_grid_desc_mblock_mperblock_nblock_nperblock,
                                const Block2E1TileMap& block_2_e1tile_map)
     {
+        const auto d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
+            MakeD0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(d0s_griddesc_m_n);
         const auto a0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a0_grid, a0_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(

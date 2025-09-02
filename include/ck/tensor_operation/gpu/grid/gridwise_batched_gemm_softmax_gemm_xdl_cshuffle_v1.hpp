@@ -213,7 +213,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         InMemoryDataOperationEnum CGlobalMemoryDataOperation_ = InMemoryDataOperationEnum::Set>
     __device__ static bool constexpr IsValidCompilationParameter()
     {
-        constexpr bool valid = ck::tensor_operation::device::IsValidGemmCompilationParameter<
+        return ck::tensor_operation::device::IsValidGemmCompilationParameter<
             BlockSize,
             MPerBlock,
             NPerBlock,
@@ -223,19 +223,6 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             NXdlPerWave,
             FloatC,
             CGlobalMemoryDataOperation>();
-        if(!valid)
-        {
-            return false;
-        }
-        constexpr index_t Gemm1AMmaKStride =
-            MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.group_size;
-        constexpr index_t Gemm1KPack =
-            MfmaSelector<FloatAB, MPerXdl, NPerXdl, FloatAB, true>::selected_mfma.k_per_blk;
-        if constexpr(Gemm1AMmaKStride < Gemm1KPack)
-        {
-            return false;
-        }
-        return true;
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
