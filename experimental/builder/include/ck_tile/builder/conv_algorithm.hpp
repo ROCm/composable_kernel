@@ -37,7 +37,7 @@ static_assert(ThreadBlockInfo<ThreadBlock>);
 // Concept to check if struct provides thread block info.
 template <typename T>
 concept HasThreadBlockInfo = requires {
-    { T::THREAD_BLOCK } -> ThreadBlockInfo;
+    { T::thread_block } -> ThreadBlockInfo;
 };
 
 // Concept for tuning parameters for a convolution problem.
@@ -64,7 +64,7 @@ static_assert(ConvTuningInfo<ConvTuningParams>);
 // Concept to check if a struct provides convolution tuning info.
 template <typename T>
 concept HasConvTuningInfo = requires {
-    { T::TUNING_PARAMS } -> ConvTuningInfo;
+    { T::tuning_params } -> ConvTuningInfo;
 };
 
 // No requirements yet for a ConvAlogorithm concept.
