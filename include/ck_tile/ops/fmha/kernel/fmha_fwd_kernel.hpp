@@ -65,9 +65,9 @@ struct FmhaFwdKernel
 
     static constexpr bool kUseTrLoad = FmhaPipeline::Problem::kUseTrLoad;
 #if defined(__gfx950__)
-    static constexpr bool kIsAvialable = true;
+    static constexpr bool kIsAvailable = true;
 #else
-    static constexpr bool kIsAvialable = !kUseTrLoad;
+    static constexpr bool kIsAvailable = !kUseTrLoad;
 #endif
     static constexpr std::string_view kPipelineName = FmhaPipeline::name;
 
@@ -1046,7 +1046,7 @@ struct FmhaFwdKernel
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
-        if constexpr(kIsAvialable)
+        if constexpr(kIsAvailable)
             run_(std::move(kargs));
     }
 
