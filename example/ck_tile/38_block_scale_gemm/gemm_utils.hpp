@@ -154,9 +154,9 @@ struct GemmConfigComputeV3 : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigMemoryV3 : public GemmConfigBase
+struct GemmConfigMemory : public GemmConfigBase
 {
-    // Memory V3 only support Interwave scheduler
+    // Memory bound pipeline only support Interwave scheduler
     static constexpr ck_tile::index_t M_Tile = 16;
     static constexpr ck_tile::index_t N_Tile = 64;
     static constexpr ck_tile::index_t K_Tile = 256;
