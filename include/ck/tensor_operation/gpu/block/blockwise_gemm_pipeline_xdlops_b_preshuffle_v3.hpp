@@ -679,7 +679,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                                         d0_buf_desc,  
                                         make_tuple(I0, I0, I0, I0),
                                         d0_thread_buf);
-                #if 1
+                #if 0
                 d0_blockwise_copy.MoveSrcSliceWindow(d0_grid_desc,  make_tuple(0, 32, 0, 0));
                 d0_blockwise_copy.Run(d0_grid_desc, d0_grid_buf,
                                     d0_buf_desc, make_tuple(I0, I1, I0, I0), d0_thread_buf);
