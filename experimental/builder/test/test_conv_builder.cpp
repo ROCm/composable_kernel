@@ -51,6 +51,8 @@ TEST(ConvBuilderTest, TestConvFwdXdlBf16CompInstances2xInstance0)
         Builder::Instance::TypeString(),
         "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 256, 128, 64, Default, 32, 32, 2, 2, "
         "8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v4>");
+    EXPECT_EQ(Builder::factory::TUNING.ak1, 16);
+    EXPECT_EQ(Builder::factory::TUNING.bk1, 16);
 }
 TEST(ConvBuilderTest, GroupedConvFwdXdlBf16CompInstance0)
 {
@@ -62,6 +64,8 @@ TEST(ConvBuilderTest, GroupedConvFwdXdlBf16CompInstance0)
         Builder::Instance::TypeString(),
         "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 256, 256, 32, Default, 32, 32, 4, 4, "
         "8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v4>");
+    EXPECT_EQ(Builder::factory::TUNING.ak1, 8);
+    EXPECT_EQ(Builder::factory::TUNING.bk1, 8);
 };
 
 } // namespace

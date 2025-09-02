@@ -29,9 +29,9 @@ struct ConvBuilder
 {
     using Signature                = TSignature;
     static constexpr auto kVersion = Version;
-    using builder = GroupedConvForwardXldCShuffleFactoryV3<Signature, ALGORITHM, Version>;
+    using factory = GroupedConvForwardXldCShuffleFactoryV3<Signature, ALGORITHM, Version>;
     // Output: The kernel class.
-    using Instance = builder::Instance;
+    using Instance = factory::Instance;
 };
 
 } // namespace ck_tile::builder
