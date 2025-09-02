@@ -83,7 +83,7 @@ float invoke_gemm(int n_warmup,
                                                                arg.stride_B,
                                                                arg.stride_E,
                                                                arg.stride_AQ,
-                                                               args.stride_BQ,
+                                                               arg.stride_BQ,
                                                                arg.k_batch});
     }
     const auto stream = ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat};
@@ -241,8 +241,8 @@ int run_grouped_gemm_example_with_layouts(int argc,
         stride_As[i] = ck_tile::get_default_stride(M, N, stride_As[i], is_row_major(a_layout));
         stride_Bs[i] = ck_tile::get_default_stride(K, N, stride_Bs[i], is_row_major(b_layout));
         stride_Cs[i] = ck_tile::get_default_stride(M, N, stride_Cs[i], is_row_major(CLayout{}));
-        stride_AQs[i] = ck_tile::get_default_stride(M, AQK, stride_AQ, is_row_major(aq_layout));
-        stride_BQs[i] = ck_tile::get_default_stride(1, N, stride_BQ, is_row_major(bq_layout));
+        stride_AQs[i] = ck_tile::get_default_stride(M, AQK, stride_AQs[i], is_row_major(aq_layout));
+        stride_BQs[i] = ck_tile::get_default_stride(1, N, stride_BQs[i], is_row_major(bq_layout));
         a_m_k_tensors.push_back(ck_tile::HostTensor<ADataType>(
             ck_tile::host_tensor_descriptor(M, K, stride_As[i], is_row_major(a_layout))));
         b_k_n_tensors.push_back(ck_tile::HostTensor<BDataType>(
@@ -310,13 +310,15 @@ int run_grouped_gemm_example_with_layouts(int argc,
 
     invoke_gemm<GemmConfig,
                 ADataType,
+                AQDataType,
                 BDataType,
-                ck_tile::tuple<>,
+                BQDataType,
                 AccDataType,
                 CDataType,
                 ALayout,
+                AQLayout,
                 BLayout,
-                ck_tile::tuple<>,
+                BQLayout,
                 CLayout,
                 Persistent>(warmup, repeat, group_count, gemm_descs);
 

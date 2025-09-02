@@ -14,7 +14,7 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/host.hpp"
-#include "grouped_gemm.hpp"
+#include "quant_grouped_gemm.hpp"
 
 template <typename GemmConfig,
           typename ALayout,
@@ -58,7 +58,7 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
     const auto Run = [&](const auto memory_operation_) {
         constexpr auto scheduler        = GemmConfig::Scheduler;
         constexpr auto memory_operation = memory_operation_.value;
-        constexpr bool transpose_c    = false;
+        // constexpr bool transpose_c    = false;
         // We create the GEMM pipeline without specifying hotloop or tailnumber.
         // These are automatically run inside the kernel based on the given input data.
         using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
@@ -131,5 +131,5 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
 constexpr bool Persistent = true;
 int main(int argc, char* argv[])
 {
-    return !run_grouped_gemm_example<Persistent, GemmConfigComputeV4>(argc, argv);
+    return !run_grouped_gemm_example<Persistent, GemmConfigComputeV3_2>(argc, argv);
 }

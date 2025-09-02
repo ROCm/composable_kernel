@@ -43,10 +43,9 @@ struct QuantGroupedGemmHostArgs
                                           index_t stride_BQ_)
         : a_ptr(a_ptr_),
           b_ptr(b_ptr_),
-          e_ptr(e_ptr_),
           aq_ptr(aq_ptr_),
           bq_ptr(bq_ptr_),
-          k_batch(k_batch_),
+          e_ptr(e_ptr_),
           M(M_),
           N(N_),
           K(K_),
@@ -54,9 +53,10 @@ struct QuantGroupedGemmHostArgs
           QK_B(QK_B_),
           stride_A(stride_A_),
           stride_B(stride_B_),
-          stride_E(stride_E_),
           stride_AQ(stride_AQ_),
-          stride_BQ(stride_BQ_)          
+          stride_BQ(stride_BQ_),
+          stride_E(stride_E_),
+          k_batch(k_batch_)
     {
     }
 
@@ -89,7 +89,7 @@ struct QuantGroupedGemmHostArgs
     index_t k_batch;
 };
 
-using QuantGroupedGemmKernelArgs = QuantGemmKernelArgs
+using QuantGroupedGemmKernelArgs = QuantGemmKernelArgs;
 
 struct QuantGemmTransKernelArg
 {
@@ -122,7 +122,7 @@ struct QuantGroupedGemmKernel
     using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
     using GemmPipeline     = remove_cvref_t<GemmPipeline_>;
     using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
-    using QuantType = remove_cvref_t<QuantType_>;
+
 
     //// @brief Specify the layout configurations for A, B, C/E
     using ALayout = remove_cvref_t<typename GemmPipeline::ALayout>;
@@ -158,12 +158,11 @@ struct QuantGroupedGemmKernel
                   "C/ELayout and C/EDataType must be scalars.");
 
     using OffsetTile1DPartitioner = OffsettedTile1DPartitioner<TilePartitioner>;
-    using Kernel = GroupedGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline, QuantType>;
-
-    static_assert(UsePersistentKernel == true, "UsePersistentKernel must be true");
+    using Kernel = QuantGroupedGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline, kQuantType>;
 
     static constexpr index_t kBlockSize       = GemmPipeline::BlockSize;
     static constexpr bool UsePersistentKernel = GemmPipeline::UsePersistentKernel;
+    static_assert(UsePersistentKernel == true, "UsePersistentKernel must be true");
     
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
@@ -210,10 +209,10 @@ struct QuantGroupedGemmKernel
     CK_TILE_HOST static auto MaxOccupancyGridSize(const stream_config& s) -> dim3
     {
         using ConstantPointer = const void CK_CONSTANT_ADDRESS_SPACE*;
-        const auto kernel     = kentry<1, Kernel, ConstantPointer, index_t>;
+        const auto kernel_func = kentry<1, Kernel, ConstantPointer, index_t>;
         int occupancy;
         HIP_CHECK_ERROR(
-            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, kBlockSize, 0));
+            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel_func, kBlockSize, 0));
         const int grid_size = get_available_compute_units(s) * occupancy;
         return dim3(grid_size, 1, 1);
     }
@@ -318,15 +317,14 @@ struct QuantGroupedGemmKernel
         const BDataType* b_ptr   = static_cast<const BDataType*>(kargs.b_ptr);
         const AQDataType* aq_ptr = static_cast<const AQDataType*>(kargs.aq_ptr);
         const BQDataType* bq_ptr = static_cast<const BQDataType*>(kargs.bq_ptr);
-        CDataType* c_ptr = static_cast<CDataType*>(kargs.e_ptr);
+        CDataType* c_ptr = static_cast<CDataType*>(kargs.c_ptr);
 
-        static_assert(kargs.k_batch == 1, "k_batch needs to be 1");
         static_assert(GemmPipeline::DoubleSmemBuffer == false, "DoubleSmemBuffer needs to be false");
         // allocate LDS
         __shared__ char smem_ptr_0[GetSmemSize()];        
         
         RunGemmWithPipelineSelection(
-            a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
+            a_ptr, b_ptr, aq_ptr, bq_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
         
     }
 
@@ -339,6 +337,8 @@ struct QuantGroupedGemmKernel
      *
      * @param a_ptr input A pointer
      * @param b_ptr input B pointer
+     * @param aq_ptr input AQ pointer
+     * @param bq_ptr input BQ pointer
      * @param c_ptr output C pointer
      * @param smem_ptr_0 The start memory pointer of the shared memory block.
      * @param kargs GEMM kernel arguments
@@ -352,7 +352,7 @@ struct QuantGroupedGemmKernel
     RunGemmWithPipelineSelection(const ADataType* a_ptr,
                                  const BDataType* b_ptr,
                                  const AQDataType* aq_ptr,
-                                const BQDataType* bq_ptr,
+                                 const BQDataType* bq_ptr,
                                  CDataType* c_ptr,
                                  void* smem_ptr_0,
                                  const QuantGroupedGemmKernelArgs& kargs,
@@ -378,8 +378,8 @@ struct QuantGroupedGemmKernel
         const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
 
         // Run GEMM pipeline
-        const auto& c_block_tile = GemmPipeline{}.template operator()(a_block_window[Base::I0],
-                                                                      b_block_window[Base::I0],
+        const auto& c_block_tile = GemmPipeline{}.template operator()(a_block_window,
+                                                                      b_block_window,
                                                                       num_loop,
                                                                       has_hot_loop,
                                                                       tail_num,
