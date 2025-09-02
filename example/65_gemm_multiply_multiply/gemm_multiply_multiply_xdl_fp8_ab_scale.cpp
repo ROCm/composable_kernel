@@ -116,7 +116,9 @@ int main(int argc, char* argv[])
         flush_cache = std::stoi(argv[7]);
 
         if(argc == 9)
+        {
             KBatch = std::stoi(argv[8]);
+        }
 
         StrideA = K;
         StrideB = K;
