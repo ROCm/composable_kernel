@@ -2003,7 +2003,7 @@ struct XdlopsGemm
     {
         const auto laneId = GetLaneId();
 #if defined(__gfx11__)
-        const auto blk_idx = GetGfx11InputBlkIdx<true>();
+        const auto blk_idx = GetGfx11InputBlkIdx<!TransposeC>();
 #else
         const auto blk_idx = GetBlkIdx();
 #endif
@@ -2025,7 +2025,7 @@ struct XdlopsGemm
     {
         const auto laneId = GetLaneId();
 #if defined(__gfx11__)
-        const auto blk_idx = GetGfx11InputBlkIdx<false>();
+        const auto blk_idx = GetGfx11InputBlkIdx<TransposeC>();
 #else
         const auto blk_idx = GetBlkIdx();
 #endif
