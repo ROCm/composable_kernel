@@ -144,18 +144,18 @@ template <typename ADataType_,
           bool HasHotLoop_                 = true,
           TailNumber TailNum_              = TailNumber::Full>
 using GemmBQuantPipelineProblem = GemmQuantPipelineProblemBase<ADataType_,
-                                                                void, // no AQDataType for BQuant
-                                                                BDataType_,
-                                                                BQDataType_,
-                                                                CDataType_,
-                                                                BlockGemmShape_,
-                                                                Traits_,
-                                                                QuantGroupSize_,
-                                                                false, // no TransposeC
-                                                                ComputeDataType_,
-                                                                Scheduler_,
-                                                                HasHotLoop_,
-                                                                TailNum_>;
+                                                               void, // no AQDataType for BQuant
+                                                               BDataType_,
+                                                               BQDataType_,
+                                                               CDataType_,
+                                                               BlockGemmShape_,
+                                                               Traits_,
+                                                               QuantGroupSize_,
+                                                               false, // no TransposeC
+                                                               ComputeDataType_,
+                                                               Scheduler_,
+                                                               HasHotLoop_,
+                                                               TailNum_>;
 
 template <typename ADataType_,
           typename BDataType_,

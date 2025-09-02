@@ -109,8 +109,10 @@ float gemm_calc_bquant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::st
                                                     K_Warp_Tile,
                                                     transposed_warp_gemm,
                                                     ck_tile::memory_operation_enum::set>>;
-        using Kernel =
-            ck_tile::QuantGemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue, ck_tile::QuantType::BQuantGrouped>;
+        using Kernel = ck_tile::QuantGemmKernel<TilePartitioner,
+                                                CodegenGemmPipeline,
+                                                GemmEpilogue,
+                                                ck_tile::QuantType::BQuantGrouped>;
 
         auto kargs = Kernel::MakeKernelArgs(args);
 

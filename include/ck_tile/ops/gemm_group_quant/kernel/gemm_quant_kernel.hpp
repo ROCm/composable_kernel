@@ -863,7 +863,7 @@ struct QuantGemmKernel
                 return make_tile_window(
                     bq_pad_view,
                     make_tuple(number<TilePartitioner::NPerBlock>{},
-                            number<TilePartitioner::KPerBlock / GemmPipeline::QuantGroupSize>{}),
+                               number<TilePartitioner::KPerBlock / GemmPipeline::QuantGroupSize>{}),
                     {i_n, 0});
             }
             else
@@ -945,7 +945,8 @@ struct QuantGemmKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I4);
 
-        if constexpr(kQuantType == QuantType::AQuantGrouped || kQuantType == QuantType::BQuantGrouped)
+        if constexpr(kQuantType == QuantType::AQuantGrouped ||
+                     kQuantType == QuantType::BQuantGrouped)
         {
             EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
         }
