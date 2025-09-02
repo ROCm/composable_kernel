@@ -374,12 +374,12 @@ struct GemmSpatiallyLocalTilePartitioner
  * improving load balancing especially for cases where the K dimension is large.
  *
  *  @tparam BlockGemmShapeType  A class providing basic GEMM parameters.
- *  @tparam StreamKReductionStrategy  A class that defines the reduction strategy for the results in
- * the C Tensor.
+ *  @tparam ReductionStrategy  A class that defines the reduction strategy for the results in
+ *  the C Tensor.
  *  @tparam TileSwizzleSubM  A value that defines the size of the swizzle group along the m
- * dimension, where the swizzle group denotes consecutive tiles down a column. For instance a
- * swizzle group of 8 denotes tiles 0, 1, ..., 7, map to tiles [0,0], [1,0], ..., [7,0] in the C
- * tensor.
+ *  dimension, where the swizzle group denotes consecutive tiles down a column. For instance a
+ *  swizzle group of 8 denotes tiles 0, 1, ..., 7, map to tiles [0,0], [1,0], ..., [7,0] in the C
+ *  tensor.
  */
 template <typename BlockGemmShapeType,
           StreamKReductionStrategy ReductionStrategy = ck_tile::StreamKReductionStrategy::Atomic,
