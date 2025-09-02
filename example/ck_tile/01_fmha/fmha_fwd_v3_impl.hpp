@@ -18,6 +18,7 @@
 #include "ck_tile/ops/fmha/pipeline/tile_fmha_traits.hpp"
 
 #include "fmha_fwd_v3.hpp"
+#include "mask.hpp"
 
 #define INST_FMHA_FWD_V3_DISPATCH(kernel_traits)                                               \
     template <>                                                                                \
@@ -112,6 +113,15 @@ struct fmha_fwd_v3_kernel_traits
 template <typename Kernel>
 float fmha_fwd_v3_kernel_launch(const fmha_fwd_v3_args& args, const stream_config& config)
 {
+    /// NOTICE: This was borrowed from Aiter. Make sure the selected remap_opt setting truly
+    /// maximizes the kernel's performance.
+    int remap_opt = 5;
+    if(args.mask_type != static_cast<int>(mask_enum::no_mask) &&
+       ((args.nhead_q % 8 != 0) || (args.seqlen_q > 16384)))
+    {
+        remap_opt -= 2;
+    }
+
     auto kargs = Kernel::MakeKargs(args.q_ptr,
                                    args.k_ptr,
                                    args.v_ptr,
@@ -140,7 +150,8 @@ float fmha_fwd_v3_kernel_launch(const fmha_fwd_v3_args& args, const stream_confi
                                    args.batch_stride_o,
                                    args.window_size_left,
                                    args.window_size_right,
-                                   args.mask_type);
+                                   args.mask_type,
+                                   remap_opt);
 
     dim3 grids            = Kernel::GridSize(args.batch, args.nhead_q, args.seqlen_q, args.hdim_v);
     constexpr dim3 blocks = Kernel::BlockSize();

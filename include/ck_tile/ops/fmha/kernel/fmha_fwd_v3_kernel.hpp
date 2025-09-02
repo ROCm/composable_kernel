@@ -81,6 +81,7 @@ struct FmhaFwdV3Kernel
         // ck_tile::index_t window_size_left, window_size_right;
         ck_tile::index_t window_size_left, window_size_right;
         ck_tile::GenericAttentionMaskEnum mask_type;
+        ck_tile::index_t remap_opt;
     };
 
     struct FmhaFwdCommonLSEKargs
@@ -143,7 +144,8 @@ struct FmhaFwdV3Kernel
               ck_tile::index_t batch_stride_o,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
-              ck_tile::index_t mask_type)
+              ck_tile::index_t mask_type,
+              ck_tile::index_t remap_opt)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -176,6 +178,7 @@ struct FmhaFwdV3Kernel
             kargs.window_size_left  = window_size_left;
             kargs.window_size_right = window_size_right;
             kargs.mask_type         = static_cast<ck_tile::GenericAttentionMaskEnum>(mask_type);
+            kargs.remap_opt         = remap_opt;
         }
         if constexpr(kStoreLSE)
         {
@@ -213,7 +216,8 @@ struct FmhaFwdV3Kernel
               ck_tile::index_t nhead_stride_o,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
-              ck_tile::index_t mask_type)
+              ck_tile::index_t mask_type,
+              ck_tile::index_t remap_opt)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -245,6 +249,7 @@ struct FmhaFwdV3Kernel
             kargs.window_size_left  = window_size_left;
             kargs.window_size_right = window_size_right;
             kargs.mask_type         = static_cast<ck_tile::GenericAttentionMaskEnum>(mask_type);
+            kargs.remap_opt         = remap_opt;
         }
         if constexpr(kStoreLSE)
         {
@@ -265,6 +270,43 @@ struct FmhaFwdV3Kernel
                         ck_tile::integer_divide_ceil(hdim_v_, FmhaPipeline::kN1),
                     nhead_,
                     batch_size_);
+    }
+
+    CK_TILE_DEVICE static constexpr auto
+    RemapTileIndices(int32_t tg_idx, int32_t tg_idy, int32_t origin_remap_opt)
+    {
+        int32_t remap_option = (origin_remap_opt >> 1) & 3;
+        if(remap_option < 1)
+        {
+            return make_tuple(tg_idx, tg_idy);
+        }
+
+        int32_t remapped_tg_idx = tg_idx;
+        int32_t remapped_tg_idy = tg_idy;
+
+        if(remap_option == 2)
+        { // special remapping
+            int32_t tmp0 = (remapped_tg_idy & 0x7) * gridDim.x + remapped_tg_idx;
+            int32_t tmp1 = tmp0 & 0x7;
+
+            remapped_tg_idx = tmp0 >> 3;
+            remapped_tg_idy = (remapped_tg_idy & 0xfffffff8) + tmp1;
+        }
+        else
+        { // normal remapping
+            int32_t cus_per_xdim_per_xcc = gridDim.x >> 3;
+            int32_t tgs_cu_id            = remapped_tg_idx >> 8;
+
+            if(tgs_cu_id < cus_per_xdim_per_xcc)
+            {
+                int32_t tgs_xcc_id = remapped_tg_idx & 0x7;
+                int32_t new_tg_idx = tgs_xcc_id * cus_per_xdim_per_xcc + tgs_cu_id;
+
+                remapped_tg_idx = new_tg_idx;
+            }
+        }
+
+        return make_tuple(remapped_tg_idx, remapped_tg_idy);
     }
 
     CK_TILE_DEVICE static constexpr auto GetTileIndex(const Kargs& kargs)
@@ -288,8 +330,10 @@ struct FmhaFwdV3Kernel
 
         if constexpr(kHasMask)
         {
+            const auto [new_i_block, new_i_nhead] =
+                RemapTileIndices(i_block, i_nhead, kargs.remap_opt);
             // assume that num_tile_n1 is always 1
-            return ck_tile::make_tuple(gridDim.x - 1 - i_tile_m, i_tile_n, i_nhead, i_batch);
+            return ck_tile::make_tuple(new_i_block, 0, new_i_nhead, i_batch);
         }
         else
         {
