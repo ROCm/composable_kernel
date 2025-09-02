@@ -236,4 +236,4 @@ int run_gemm_example(int argc, char* argv[])
     }
 }
 
-int main(int argc, char* argv[]) { return !run_gemm_example<GemmConfigMemoryV3>(argc, argv); }
+int main(int argc, char* argv[]) { return !run_gemm_example<GemmConfigMemory>(argc, argv); }
