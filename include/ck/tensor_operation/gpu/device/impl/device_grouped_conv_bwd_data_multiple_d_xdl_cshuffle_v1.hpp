@@ -999,9 +999,19 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                                                      e_grid_desc_m_n.GetLength(I1)),
                                                       BlockStart);
 
-                        const auto GemmK = a_grid_desc_m_k.GetLength(I1);
-                        const bool HasMainKBlockLoop =
-                            GridwiseGemmCTranspose::CalculateHasMainKBlockLoop(GemmK, k_batch_);
+                        const auto GemmK       = a_grid_desc_m_k.GetLength(I1);
+                        const auto GemmK0      = a_grid_desc_ak0_m_ak1.GetLength(I0);
+                        bool HasMainKBlockLoop = true;
+                        if constexpr(SkipBLds)
+                        {
+                            HasMainKBlockLoop =
+                                GridwiseGemmCTranspose::CalculateHasMainK0BlockLoop(GemmK0);
+                        }
+                        else
+                        {
+                            HasMainKBlockLoop =
+                                GridwiseGemmCTranspose::CalculateHasMainKBlockLoop(GemmK, k_batch_);
+                        }
 
                         gemm_kernel_args_[gemms_count_ /
                                           MaxGroupedGemmGroupsNum][gemms_count_ %
@@ -1870,9 +1880,14 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     {
         auto str = std::stringstream();
 
+        str << "DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1";
+        if constexpr(SkipBLds)
+        {
+            str << "_SkipBLds";
+        }
+
         // clang-format off
-        str << "DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1"
-            << "<"
+        str << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "

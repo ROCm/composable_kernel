@@ -110,6 +110,14 @@ struct GridwiseGemm_xdlops_skip_b_lds_multiple_d_cshuffle
         return a_block_desc_k0_m_k1;
     }
 
+    template <typename EGridDesc_M_N>
+    __host__ __device__ static constexpr auto
+    MakeDefaultBlock2ETileMap(const EGridDesc_M_N& e_grid_desc_m_n)
+    {
+        return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, EGridDesc_M_N>(
+            e_grid_desc_m_n);
+    }
+
     template <typename AGridDesc_K0_M_K1,
               typename BGridDesc_K0_N_K1,
               typename DsGridDesc_M_N,
@@ -181,6 +189,38 @@ struct GridwiseGemm_xdlops_skip_b_lds_multiple_d_cshuffle
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
             make_tuple(Sequence<0, 1, 2>{}, Sequence<3, 4, 5, 6>{}, Sequence<7>{}));
         return b_griddesc_k0_nblockid_nrepeat_waves_nperxdlops_k1;
+    }
+
+    template <typename EGridDesc_M_N>
+    __host__ __device__ static constexpr auto
+    MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(const EGridDesc_M_N& e_grid_desc_m_n)
+    {
+        const auto M = e_grid_desc_m_n.GetLength(I0);
+        const auto N = e_grid_desc_m_n.GetLength(I1);
+
+        const auto MBlock = M / MPerBlock;
+        const auto NBlock = N / NPerBlock;
+
+        const auto e_grid_desc_mblock_mperblock_nblock_nperblock = transform_tensor_descriptor(
+            e_grid_desc_m_n,
+            make_tuple(make_unmerge_transform(make_tuple(MBlock, Number<MPerBlock>{})),
+                       make_unmerge_transform(make_tuple(NBlock, Number<NPerBlock>{}))),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0, 1>{}, Sequence<2, 3>{}));
+
+        return e_grid_desc_mblock_mperblock_nblock_nperblock;
+    }
+
+    // Ds desc for source in blockwise copy
+    template <typename DsGridDesc_M_N>
+    __host__ __device__ static constexpr auto
+    MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(const DsGridDesc_M_N& ds_grid_desc_m_n)
+    {
+        return generate_tuple(
+            [&](auto i) {
+                return MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(ds_grid_desc_m_n[i]);
+            },
+            Number<DsGridDesc_M_N::Size()>{});
     }
 
     __device__ static auto GetWaveIdx()
@@ -593,36 +633,37 @@ struct GridwiseGemm_xdlops_skip_b_lds_multiple_d_cshuffle
             };
 
             // shuffle: threadwise copy C from VGPR to LDS
-            auto c_thread_copy_vgpr_to_lds =
-                ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
-                                                   CShuffleDataType,
-                                                   decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                   decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                   ck::tensor_operation::element_wise::PassThrough,
-                                                   Sequence<CShuffleMXdlPerWavePerShuffle,
-                                                            CShuffleNXdlPerWavePerShuffle,
-                                                            I1,
-                                                            I1,
-                                                            M2,
-                                                            I1,
-                                                            M4,
-                                                            I1>,
-                                                   Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
-                                                   7,
-                                                   1,
-                                                   InMemoryDataOperationEnum::Set,
-                                                   1,
-                                                   true>{
-                    c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                    make_multi_index(0,
-                                     0,
-                                     m_thread_data_on_block_idx[I1],
-                                     n_thread_data_on_block_idx[I1],
-                                     m_thread_data_on_block_idx[I2],
-                                     m_thread_data_on_block_idx[I3],
-                                     m_thread_data_on_block_idx[I4],
-                                     n_thread_data_on_block_idx[I2]),
-                    ck::tensor_operation::element_wise::PassThrough{}};
+            auto c_thread_copy_vgpr_to_lds = ThreadwiseTensorSliceTransfer_v1r3<
+                AccDataType,
+                CShuffleDataType,
+                decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                conditional_t<DoElementwiseBeforeCShuffle,
+                              CDEElementwiseOperation,
+                              tensor_operation::element_wise::PassThrough>,
+                Sequence<CShuffleMXdlPerWavePerShuffle,
+                         CShuffleNXdlPerWavePerShuffle,
+                         I1,
+                         I1,
+                         M2,
+                         I1,
+                         M4,
+                         I1>,
+                Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                7,
+                1,
+                InMemoryDataOperationEnum::Set,
+                1,
+                true>{c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                      make_multi_index(0,
+                                       0,
+                                       m_thread_data_on_block_idx[I1],
+                                       n_thread_data_on_block_idx[I1],
+                                       m_thread_data_on_block_idx[I2],
+                                       m_thread_data_on_block_idx[I3],
+                                       m_thread_data_on_block_idx[I4],
+                                       n_thread_data_on_block_idx[I2]),
+                      vpgr_to_lds_element_op()};
 
             // tuple of reference to C/Ds tensor descriptors
             const auto c_ds_desc_refs = concat_tuple_of_reference(

@@ -36,4 +36,61 @@ if((DTYPES MATCHES "fp8" AND DTYPES MATCHES "bf8" AND DTYPES MATCHES "fp16") OR 
       xdl/device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_input_f16_comp_bf8_f8_instance.cpp)
 endif()
 
+include(ShardInstantiation)
+   
+set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+generate_sharded_instantiations(
+  INSTANCES_NAME device_grouped_conv3d_bwd_data_skip_b_lds_xdl_ndhwgk_gkzyxc_ndhwgc_f16_instances
+  TEMPLATE_FILE xdl/skip_b_lds/device_grouped_conv3d_bwd_data_skip_b_lds_xdl_ndhwgc_gkzyxc_ndhwgk_f16_instance.in
+  NUM_SHARDS 17
+  SRC_LIST GROUPED_CONV3D_BWD_DATA
+  OUTPUT_DIR ${GENERATED_DIR}/xdl
+)
+
+set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+generate_sharded_instantiations(
+  INSTANCES_NAME device_grouped_conv3d_bwd_data_skip_b_lds_xdl_ndhwgk_gkzyxc_ndhwgc_f16_16_16_instances
+  TEMPLATE_FILE xdl/skip_b_lds/device_grouped_conv3d_bwd_data_skip_b_lds_xdl_ndhwgc_gkzyxc_ndhwgk_f16_16_16_instance.in
+  NUM_SHARDS 6
+  SRC_LIST GROUPED_CONV3D_BWD_DATA
+  OUTPUT_DIR ${GENERATED_DIR}/xdl
+)
+
+set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+generate_sharded_instantiations(
+  INSTANCES_NAME device_grouped_conv3d_bwd_data_skip_b_lds_xdl_ndhwgk_gkzyxc_ndhwgc_bf16_instances
+  TEMPLATE_FILE xdl/skip_b_lds/device_grouped_conv3d_bwd_data_skip_b_lds_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_instance.in
+  NUM_SHARDS 17
+  SRC_LIST GROUPED_CONV3D_BWD_DATA
+  OUTPUT_DIR ${GENERATED_DIR}/xdl
+)
+
+set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+generate_sharded_instantiations(
+  INSTANCES_NAME device_grouped_conv3d_bwd_data_skip_b_lds_xdl_ndhwgk_gkzyxc_ndhwgc_bf16_16_16_instances
+  TEMPLATE_FILE xdl/skip_b_lds/device_grouped_conv3d_bwd_data_skip_b_lds_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_16_16_instance.in
+  NUM_SHARDS 6
+  SRC_LIST GROUPED_CONV3D_BWD_DATA
+  OUTPUT_DIR ${GENERATED_DIR}/xdl
+)
+   
+set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+generate_sharded_instantiations(
+  INSTANCES_NAME device_grouped_conv3d_bwd_data_skip_b_lds_xdl_ndhwgk_gkzyxc_ndhwgc_f32_instances
+  TEMPLATE_FILE xdl/skip_b_lds/device_grouped_conv3d_bwd_data_skip_b_lds_xdl_ndhwgc_gkzyxc_ndhwgk_f32_instance.in
+  NUM_SHARDS 17
+  SRC_LIST GROUPED_CONV3D_BWD_DATA
+  OUTPUT_DIR ${GENERATED_DIR}/xdl
+)
+
+set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+generate_sharded_instantiations(
+  INSTANCES_NAME device_grouped_conv3d_bwd_data_skip_b_lds_xdl_ndhwgk_gkzyxc_ndhwgc_f32_16_16_instances
+  TEMPLATE_FILE xdl/skip_b_lds/device_grouped_conv3d_bwd_data_skip_b_lds_xdl_ndhwgc_gkzyxc_ndhwgk_f32_16_16_instance.in
+  NUM_SHARDS 6
+  SRC_LIST GROUPED_CONV3D_BWD_DATA
+  OUTPUT_DIR ${GENERATED_DIR}/xdl
+)
+
+
 add_instance_library(device_grouped_conv3d_bwd_data_instance ${GROUPED_CONV3D_BWD_DATA})
