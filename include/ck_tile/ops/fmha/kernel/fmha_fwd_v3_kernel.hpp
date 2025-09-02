@@ -273,12 +273,11 @@ struct FmhaFwdV3Kernel
     }
 
     CK_TILE_DEVICE static constexpr auto
-    RemapTileIndices(int32_t tg_idx, int32_t tg_idy, int32_t origin_remap_opt)
+    RemapTileIndices(int32_t tg_idx, int32_t tg_idy, int32_t remap_option)
     {
-        int32_t remap_option = (origin_remap_opt >> 1) & 3;
         if(remap_option < 1)
         {
-            return make_tuple(tg_idx, tg_idy);
+            return make_tuple(static_cast<int32_t>(gridDim.x - tg_idx - 1), tg_idy);
         }
 
         int32_t remapped_tg_idx = tg_idx;
