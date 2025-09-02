@@ -1143,7 +1143,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                              make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
                              {i_m0, i_n1});
 
-        EpiloguePipeline{}(o_dram_window, o_acc_tile);
+        EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr);
     }
 };
 
