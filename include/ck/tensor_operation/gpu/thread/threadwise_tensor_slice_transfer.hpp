@@ -279,10 +279,10 @@ struct ThreadwiseTensorSliceTransfer_v1r3_packed_cast
 
     // Currently these must match, either true or false for both.
     // Otherwise we increase the register usage and end-up using the scratch memory.
-    // The linear pattern seems to be better tahn serpentine.
+    // The linear pattern seems to be better than serpentine.
     // Howeverm for LDS writes, serpentine pattern could be better.
-    static constexpr bool SerpentineAccessPatternDst = true;
-    static constexpr bool SerpentineAccessPatternSrc = true;
+    static constexpr bool SerpentineAccessPatternDst = false;
+    static constexpr bool SerpentineAccessPatternSrc = false;
 
     static constexpr index_t nDim = SliceLengths::Size();
 
