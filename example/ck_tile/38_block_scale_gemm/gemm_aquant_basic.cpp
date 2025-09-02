@@ -12,7 +12,8 @@
 #include "ck_tile/host.hpp"
 #include "gemm_utils.hpp"
 
-template <typename ADataType,
+template <typename GemmConfig,
+          typename ADataType,
           typename AQDataType,
           typename BDataType,
           typename AccDataType,
@@ -62,7 +63,8 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
                                                                  CodegenGemmTraits,
                                                                  ComputeDataType>;
 
-    using BaseGemmPipeline = ck_tile::BaseAQuantGemmPipelineAgBgCrCompMem<GemmPipelineProblem>;
+    using BaseGemmPipeline = typename PipelineTypeTraits<
+        GemmConfig::Pipeline>::template BaseAQuantGemmPipeline<GemmPipelineProblem>;
 
     const ck_tile::index_t K_split      = (args.K + K_Tile - 1) / K_Tile * K_Tile;
     const ck_tile::index_t num_loop     = TilePartitioner::GetLoopNum(K_split);
@@ -86,8 +88,8 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
                                                ck_tile::GemmPipelineScheduler::Interwave,
                                                has_hot_loop_v,
                                                tail_number_v>;
-        using CodegenGemmPipeline =
-            ck_tile::AQuantGemmPipelineAgBgCrCompMem<CodegenPipelineProblem>;
+        using CodegenGemmPipeline = typename PipelineTypeTraits<
+            GemmConfig::Pipeline>::template AQuantGemmPipeline<CodegenPipelineProblem>;
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
@@ -236,4 +238,4 @@ int run_gemm_example(int argc, char* argv[])
     }
 }
 
-int main(int argc, char* argv[]) { return !run_gemm_example<GemmConfigMemory>(argc, argv); }
+int main(int argc, char* argv[]) { return !run_gemm_example<GemmConfigAQuantMemory>(argc, argv); }
