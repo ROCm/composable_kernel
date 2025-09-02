@@ -141,13 +141,5 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
 static_assert(sizeof(ck::int4_t) == sizeof(int8_t));
 #endif
 
-int main(int argc, char* argv[])
-{
-    // temp disable on gfx11
-    if(ck::is_gfx11_supported())
-    {
-        return 0;
-    }
-    return run_batched_gemm_gemm_example(argc, argv) ? 0 : 1;
-}
+int main(int argc, char* argv[]) { return run_batched_gemm_gemm_example(argc, argv) ? 0 : 1; }
 #endif

@@ -108,7 +108,7 @@ using DeviceBatchedGemmGemmInstance =
 
 int main(int argc, char* argv[])
 {
-    // temp disable on gfx11
+    // disable on gfx11 due to precsion issue.
     if(ck::is_gfx11_supported())
     {
         return 0;
