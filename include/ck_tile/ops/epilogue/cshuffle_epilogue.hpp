@@ -342,6 +342,9 @@ struct CShuffleEpilogue
         }
     }
 
+    /**
+     * @brief Move both the output and D tensors windows for the next access.
+     */
     template <auto iAccess, typename OutDramWindow, typename DDramWindows>
     CK_TILE_DEVICE void move_windows(OutDramWindow& out_dram_window, DDramWindows& d_dram_windows)
     {
@@ -350,8 +353,10 @@ struct CShuffleEpilogue
         {
             constexpr auto step = SFC::get_forward_step(iAccess);
 
+            // move the output dram window
             move_tile_window(out_dram_window, {step.at(number<0>{}), step.at(number<1>{})});
 
+            // move windows for each of the D matrices (inputs for element-wise)
             static_for<0, NumDTensor, 1>{}([&](auto idx) {
                 move_tile_window(d_dram_windows[idx], {step.at(number<0>{}), step.at(number<1>{})});
             });
