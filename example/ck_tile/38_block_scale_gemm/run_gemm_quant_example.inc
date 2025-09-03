@@ -201,6 +201,11 @@ int run_gemm_example_with_layouts(int argc,
     {
         stride_AQ = ck_tile::get_default_stride(M, AQK, stride_AQ, is_row_major(aq_layout));
     }
+    else if constexpr(QuantMode == ck_tile::QuantType::RowColQuant)
+    {
+        stride_AQ = ck_tile::get_default_stride(M, 1, stride_AQ, is_row_major(aq_layout));
+        stride_BQ = ck_tile::get_default_stride(1, N, stride_BQ, is_row_major(bq_layout));
+    }
 
     ck_tile::HostTensor<ADataType> a_m_k(
         ck_tile::host_tensor_descriptor(M, K, stride_A, is_row_major(a_layout)));
