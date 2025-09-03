@@ -25,7 +25,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <index_t ndim>
     static constexpr auto swap_last2 = generate_sequence_v2(
         [](auto i) {
-            return number < i == ndim - 2 ? ndim - 1 : i == ndim - 1 ? ndim - 2 : i > {};
+            return number<i == ndim - 2 ? ndim - 1 : i == ndim - 1 ? ndim - 2 : i>{};
         },
         number<ndim>{});
 
@@ -43,15 +43,19 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm0BlockWarps,
                                            typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
 
-        using WarpGemm = WarpGemmDispatcher<
-            typename Problem::QDataType,
-            typename Problem::KDataType,
-            typename Problem::AccDataType,
-            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
-            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
-            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
-            false,
-            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}) == 16 ? false : true>;
+        using WarpGemm =
+            WarpGemmDispatcher<typename Problem::QDataType,
+                               typename Problem::KDataType,
+                               typename Problem::AccDataType,
+                               Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
+                               Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
+                               Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
+                               false,
+                               (Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}) *
+                                    Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}) ==
+                                512)
+                                   ? false
+                                   : true>;
 
         using BlockGemmPolicy =
             BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::QDataType,
@@ -87,7 +91,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                true,
                                false, // SwizzleAccess
                                false, // UseStructuredSparsity
-                               (Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}) == 32)
+                               (Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}) *
+                                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}) ==
+                                512)
                                    ? WGAttrNumAccessEnum ::Double
                                    : WGAttrNumAccessEnum ::Single>;
 
@@ -115,15 +121,19 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm2BlockWarps,
                                            typename Problem::BlockFmhaShape::Gemm2WarpTile>>;
 
-        using WarpGemm = WarpGemmDispatcher<
-            typename Problem::OGradDataType,
-            typename Problem::VDataType,
-            typename Problem::AccDataType,
-            Problem::BlockFmhaShape::Gemm2WarpTile::at(number<0>{}),
-            Problem::BlockFmhaShape::Gemm2WarpTile::at(number<1>{}),
-            Problem::BlockFmhaShape::Gemm2WarpTile::at(number<2>{}),
-            false,
-            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}) == 16 ? false : true>;
+        using WarpGemm =
+            WarpGemmDispatcher<typename Problem::OGradDataType,
+                               typename Problem::VDataType,
+                               typename Problem::AccDataType,
+                               Problem::BlockFmhaShape::Gemm2WarpTile::at(number<0>{}),
+                               Problem::BlockFmhaShape::Gemm2WarpTile::at(number<1>{}),
+                               Problem::BlockFmhaShape::Gemm2WarpTile::at(number<2>{}),
+                               false,
+                               (Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}) *
+                                    Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}) ==
+                                512)
+                                   ? false
+                                   : true>;
 
         using BlockGemmPolicy =
             BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::OGradDataType,
@@ -159,7 +169,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                true,
                                false, // SwizzleAccess
                                false, // UseStructuredSparsity
-                               (Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}) == 32)
+                               (Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}) *
+                                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}) ==
+                                512)
                                    ? WGAttrNumAccessEnum ::Double
                                    : WGAttrNumAccessEnum ::Single>;
 
@@ -1421,7 +1433,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t N0 = NWarp;
 
         // M4 *2 and M2 /2 when swizzle mode enabled
-        constexpr index_t SwizzleConfig = WG::kM == 16 ? 1 : 2;
+        constexpr index_t SwizzleConfig = (WG::kM * WG::kK == 512) ? 1 : 2;
         // constexpr index_t SwizzleConfig = 1;
         constexpr index_t M4 = WG::WarpGemmAttribute::Impl::kCM1PerLane * SwizzleConfig;
         constexpr index_t M3 = WG::WarpGemmAttribute::Impl::kCMLane;

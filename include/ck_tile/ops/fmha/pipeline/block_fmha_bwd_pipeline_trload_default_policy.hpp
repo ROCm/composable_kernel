@@ -116,7 +116,9 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
             false,
             false,
             false,
-            (Problem::BlockFmhaShape::Gemm4WarpTile::at(number<2>{}) == 32)
+            (Problem::BlockFmhaShape::Gemm4WarpTile::at(number<2>{}) *
+                 Problem::BlockFmhaShape::Gemm4WarpTile::at(number<1>{}) ==
+             512)
                 ? WGAttrNumAccessEnum ::Double
                 : WGAttrNumAccessEnum ::Single>;
 
@@ -580,8 +582,11 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
 
         constexpr index_t M2 = WarpGemm::WarpGemmAttribute::Impl::kCM1PerLane;
-        constexpr index_t M1 = WarpGemm::WarpGemmAttribute::Impl::kCMLane;
-        static_assert(WarpGemm::WarpGemmAttribute::Impl::kCM0PerLane == 1, "kCM0PerLane must be 1");
+        constexpr index_t M1 = WarpGemm::WarpGemmAttribute::Impl::kCMLane *
+                               WarpGemm::WarpGemmAttribute::Impl::kCM0PerLane;
+        // constexpr index_t M1 = WarpGemm::WarpGemmAttribute::Impl::kCM0PerLane;
+        // static_assert(WarpGemm::WarpGemmAttribute::Impl::kCM0PerLane == 1, "kCM0PerLane must be
+        // 1");
         constexpr index_t M0 = kMPerBlock / (M1 * M2);
 
         constexpr index_t N1 = WarpGemm::WarpGemmAttribute::Impl::kCNLane;
@@ -590,10 +595,12 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
         constexpr auto desc_0 = make_naive_tensor_descriptor_packed(
             make_tuple(number<M0>{}, number<N0>{}, number<M1>{}, number<N1>{}, number<M2>{}));
 
-        constexpr index_t M1_0 = 2, M1_1 = 2;
-        constexpr index_t N1_0 = 2, N1_1 = 8;
-        static_assert(M1_0 * M1_1 == M1, "M1_0 * M1_1 must equal M1");
-        static_assert(N1_0 * N1_1 == N1, "N1_0 * N1_1 must equal N1");
+        constexpr index_t M1_1 = (32 / WarpGemm::WarpGemmAttribute::Impl::kCNLane);
+        constexpr index_t M1_0 = M1 / M1_1;
+        constexpr index_t N1_1 = 4 * (32 / WarpGemm::WarpGemmAttribute::Impl::kCNLane);
+        constexpr index_t N1_0 = N1 / N1_1;
+        // static_assert(M1_0 * M1_1 == M1, "M1_0 * M1_1 must equal M1");
+        // static_assert(N1_0 * N1_1 == N1, "N1_0 * N1_1 must equal N1");
 
         constexpr auto desc_1 = transform_tensor_descriptor(
             desc_0,
@@ -821,7 +828,7 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
         constexpr index_t N0 = NWarp;
 
         // M4 *2 and M2 /2 when swizzle mode enabled
-        constexpr index_t SwizzleConfig = WG::kM == 16 ? 1 : 2;
+        constexpr index_t SwizzleConfig = (WG::kM * WG::kK == 512) ? 1 : 2;
         // constexpr index_t SwizzleConfig = 1;
         constexpr index_t M4 = WG::WarpGemmAttribute::Impl::kCM1PerLane * SwizzleConfig;
         constexpr index_t M3 = WG::WarpGemmAttribute::Impl::kCMLane;
