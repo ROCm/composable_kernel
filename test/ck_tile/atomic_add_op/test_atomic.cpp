@@ -252,11 +252,13 @@ TEST_P(TestAtomicKernelFloat_2, TestCorrectness)
     auto [M, N] = GetParam();
     this->RunTest({M, N});
 }
+#if defined(CK_USE_XDL)
 TEST_P(TestAtomicKernelFloat_4, TestCorrectness)
 {
     auto [M, N] = GetParam();
     this->RunTest({M, N});
 }
+#endif
 
 //
 // WaveSize=32 tests (auto-skip on wave64 devices)
