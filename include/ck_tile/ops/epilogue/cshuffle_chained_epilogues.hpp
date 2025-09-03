@@ -213,8 +213,8 @@ struct CShuffleEpilogueStageBase
                                   KPerXdl,
                                   isCTransposed>;
 
-    using CWarpDstr   = typename WG::CWarpDstr;
-    using CWarpTensor = typename WG::CWarpTensor;
+    using CWarpDstr         = typename WG::CWarpDstr;
+    using CWarpTensor       = typename WG::CWarpTensor;
     using CWarpDstrEncoding = typename WG::CWarpDstrEncoding;
     using SFC               = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
                                                   sequence<0, 1>,
@@ -266,26 +266,30 @@ struct CShuffleEpilogueStageBase
 
     using TileEncodingPattern =
         tile_distribution_encoding_pattern_2d<kBlockSize,
-                                            MPerIterationShuffle,
-                                            NPerIterationShuffle,
-                                            GetVectorSizeC(),
-                                            tile_distribution_pattern::thread_raked,
-                                            Problem::kNumWaveGroups>;
+                                              MPerIterationShuffle,
+                                              NPerIterationShuffle,
+                                              GetVectorSizeC(),
+                                              tile_distribution_pattern::thread_raked,
+                                              Problem::kNumWaveGroups>;
 
     /// @brief Context structure for sharing data between epilogue stages
-    /// 
+    ///
     /// This structure holds all the intermediate data that needs to be shared
     /// between different stages of the epilogue pipeline.
-    template <typename LdsTileType, typename OLdsBlockType, typename InLdsWindowType, 
-              typename OutLdsWindowType, typename DramWindowsType, typename COutTensor>
+    template <typename LdsTileType,
+              typename OLdsBlockType,
+              typename InLdsWindowType,
+              typename OutLdsWindowType,
+              typename DramWindowsType,
+              typename COutTensor>
     struct EpilogueContext
     {
-        LdsTileType lds_tile;           
-        OLdsBlockType o_lds_block;      
-        InLdsWindowType in_lds_window;  
+        LdsTileType lds_tile;
+        OLdsBlockType o_lds_block;
+        InLdsWindowType in_lds_window;
         OutLdsWindowType out_lds_window;
         DramWindowsType d_dram_windows;
-        COutTensor c_out_tensor;        
+        COutTensor c_out_tensor;
     };
 
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows>
@@ -295,13 +299,13 @@ struct CShuffleEpilogueStageBase
                                    [[maybe_unused]] void* p_smem)
     {
         static_assert(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
-                "Currently, the CShuffle Epilogue only supports the Row Major Output layout");
-        
+                      "Currently, the CShuffle Epilogue only supports the Row Major Output layout");
+
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
-        auto lds_tile = make_static_distributed_tensor<AccDataType>(LdsTileDistr);
+        auto lds_tile               = make_static_distributed_tensor<AccDataType>(LdsTileDistr);
 
         constexpr auto lds_block_desc = MakeLdsBlockDescriptor<Problem>();
-        auto o_lds_block = make_tensor_view<address_space_enum::lds>(
+        auto o_lds_block              = make_tensor_view<address_space_enum::lds>(
             static_cast<ODataType*>(p_smem), lds_block_desc);
 
         auto in_lds_window = make_tile_window(
@@ -314,8 +318,9 @@ struct CShuffleEpilogueStageBase
             o_lds_block,
             make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
             {0, 0});
-        
-        constexpr auto dram_tile_distribution = TileEncodingPattern::make_2d_static_tile_distribution();
+
+        constexpr auto dram_tile_distribution =
+            TileEncodingPattern::make_2d_static_tile_distribution();
         auto d_dram_windows = generate_tuple(
             [&](auto idx) {
                 return make_tile_window(ds_dram_windows[idx], dram_tile_distribution);
@@ -324,15 +329,13 @@ struct CShuffleEpilogueStageBase
 
         auto c_out_tensor = load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
 
-        using ContextType = EpilogueContext<
-            decltype(lds_tile),
-            decltype(o_lds_block),
-            decltype(in_lds_window),
-            decltype(out_lds_window),
-            decltype(d_dram_windows),
-            decltype(c_out_tensor)
-        >;
-        
+        using ContextType = EpilogueContext<decltype(lds_tile),
+                                            decltype(o_lds_block),
+                                            decltype(in_lds_window),
+                                            decltype(out_lds_window),
+                                            decltype(d_dram_windows),
+                                            decltype(c_out_tensor)>;
+
         ContextType context;
         context.lds_tile       = lds_tile;
         context.o_lds_block    = o_lds_block;
@@ -340,22 +343,21 @@ struct CShuffleEpilogueStageBase
         context.out_lds_window = out_lds_window;
         context.d_dram_windows = d_dram_windows;
         context.c_out_tensor   = c_out_tensor;
-        
+
         return context;
     }
 };
 
-
 template <typename Problem_>
 struct SliceEpilogue : public CShuffleEpilogueStageBase<Problem_>
 {
-    using Base = CShuffleEpilogueStageBase<Problem_>;
-    using SFC = typename Base::SFC;
-    using CWarpDstr = typename Base::CWarpDstr;  
+    using Base                                        = CShuffleEpilogueStageBase<Problem_>;
+    using SFC                                         = typename Base::SFC;
+    using CWarpDstr                                   = typename Base::CWarpDstr;
     static constexpr index_t NumMXdlPerWavePerShuffle = Base::NumMXdlPerWavePerShuffle;
     static constexpr index_t NumNXdlPerWavePerShuffle = Base::NumNXdlPerWavePerShuffle;
-    static constexpr index_t MPerIterationShuffle = Base::MPerIterationShuffle;
-    static constexpr index_t NPerIterationShuffle = Base::NPerIterationShuffle;
+    static constexpr index_t MPerIterationShuffle     = Base::MPerIterationShuffle;
+    static constexpr index_t NPerIterationShuffle     = Base::NPerIterationShuffle;
 
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename ContextType>
     CK_TILE_DEVICE auto operator()([[maybe_unused]] ODramWindow& out_dram_window,
@@ -366,16 +368,17 @@ struct SliceEpilogue : public CShuffleEpilogueStageBase<Problem_>
                                    [[maybe_unused]] ContextType& context)
     {
         (void)out_dram_window;
-        
+
         block_sync_lds();
-        
+
         // Calculate which tile slice to extract based on access index
         constexpr auto idx_y_start = SFC::get_index(iAccess);
-        constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (MPerIterationShuffle)>{};
-        constexpr auto nIter = number<idx_y_start.at(number<1>{}) / (NPerIterationShuffle)>{};
-        
+        constexpr auto mIter       = number<idx_y_start.at(number<0>{}) / (MPerIterationShuffle)>{};
+        constexpr auto nIter       = number<idx_y_start.at(number<1>{}) / (NPerIterationShuffle)>{};
+
         // Get warp distribution parameters
-        constexpr auto c_warp_y_lengths = to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+        constexpr auto c_warp_y_lengths =
+            to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
 
         // Extract the slice from accumulator tile and store in context LDS tile
@@ -386,16 +389,20 @@ struct SliceEpilogue : public CShuffleEpilogueStageBase<Problem_>
             merge_sequences(sequence<NumMXdlPerWavePerShuffle, NumNXdlPerWavePerShuffle>{},
                             c_warp_y_lengths));
     }
-
 };
 
 template <typename Problem_>
 struct ScaleEpilogue : public CShuffleEpilogueStageBase<Problem_>
 {
     using Base = CShuffleEpilogueStageBase<Problem_>;
-    using SFC = typename Base::SFC;
+    using SFC  = typename Base::SFC;
 
-    template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename ContextType, typename ScaleM, typename ScaleN>
+    template <typename ODramWindow,
+              typename OAccTile,
+              typename DsDramWindows,
+              typename ContextType,
+              typename ScaleM,
+              typename ScaleN>
     CK_TILE_DEVICE auto operator()([[maybe_unused]] ODramWindow& out_dram_window,
                                    [[maybe_unused]] const OAccTile& o_acc_tile,
                                    [[maybe_unused]] const DsDramWindows& ds_dram_windows,
@@ -406,36 +413,32 @@ struct ScaleEpilogue : public CShuffleEpilogueStageBase<Problem_>
                                    [[maybe_unused]] const ScaleN& scale_n_tensor)
     {
         // Calculate offset for this iteration
-        constexpr auto step = SFC::get_index(iAccess);
+        constexpr auto step     = SFC::get_index(iAccess);
         constexpr auto m_offset = step.at(number<0>{});
         constexpr auto n_offset = step.at(number<1>{});
-        
+
         // Create windows with correct offset directly
         auto scale_m_window = make_tile_window(
-            scale_m_tensor, 
-            {m_offset, n_offset},
-            context.lds_tile.get_tile_distribution()
-        );
+            scale_m_tensor, {m_offset, n_offset}, context.lds_tile.get_tile_distribution());
         auto scale_n_window = make_tile_window(
-            scale_n_tensor, 
-            {m_offset, n_offset},
-            context.lds_tile.get_tile_distribution()
-        );
+            scale_n_tensor, {m_offset, n_offset}, context.lds_tile.get_tile_distribution());
 
         // Load and apply scaling
         const auto scale_m_tile = load_tile(scale_m_window);
         const auto scale_n_tile = load_tile(scale_n_window);
-        
-        tile_elementwise_inout(element_wise::MultiDMultiply{}, context.lds_tile, 
-                              context.lds_tile, scale_m_tile, scale_n_tile);
-        
+
+        tile_elementwise_inout(element_wise::MultiDMultiply{},
+                               context.lds_tile,
+                               context.lds_tile,
+                               scale_m_tile,
+                               scale_n_tile);
     }
 };
 
 template <typename Problem_>
 struct CastLdsEpilogue : public CShuffleEpilogueStageBase<Problem_>
 {
-    using Base = CShuffleEpilogueStageBase<Problem_>;
+    using Base      = CShuffleEpilogueStageBase<Problem_>;
     using ODataType = typename Base::ODataType;
 
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename ContextType>
@@ -455,7 +458,7 @@ struct CastLdsEpilogue : public CShuffleEpilogueStageBase<Problem_>
 template <typename Problem_>
 struct PrepCTensorEpilogue : public CShuffleEpilogueStageBase<Problem_>
 {
-    using Base = CShuffleEpilogueStageBase<Problem_>;
+    using Base                = CShuffleEpilogueStageBase<Problem_>;
     using TileEncodingPattern = typename Base::TileEncodingPattern;
 
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename ContextType>
@@ -467,20 +470,22 @@ struct PrepCTensorEpilogue : public CShuffleEpilogueStageBase<Problem_>
                                    [[maybe_unused]] ContextType& context)
     {
         // Create distribution and synchronize before loading from LDS
-        constexpr auto dram_tile_distribution = TileEncodingPattern::make_2d_static_tile_distribution();
+        constexpr auto dram_tile_distribution =
+            TileEncodingPattern::make_2d_static_tile_distribution();
         block_sync_lds();
-        
+
         // Load C tensor from LDS into context
-        context.c_out_tensor = load_tile(make_tile_window(context.out_lds_window, dram_tile_distribution));
+        context.c_out_tensor =
+            load_tile(make_tile_window(context.out_lds_window, dram_tile_distribution));
     }
 };
 
 template <typename Problem_>
 struct ApplyDEpilogue : public CShuffleEpilogueStageBase<Problem_>
 {
-    using Base = CShuffleEpilogueStageBase<Problem_>;
-    using Problem = typename Base::Problem;
-    using ODataType = typename Base::ODataType;
+    using Base                          = CShuffleEpilogueStageBase<Problem_>;
+    using Problem                       = typename Base::Problem;
+    using ODataType                     = typename Base::ODataType;
     static constexpr index_t NumDTensor = Base::NumDTensor;
 
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename ContextType>
@@ -499,7 +504,7 @@ struct ApplyDEpilogue : public CShuffleEpilogueStageBase<Problem_>
         const auto c_ds_tiles = concat_tuple_of_reference(
             tie(context.c_out_tensor, context.c_out_tensor),
             generate_tie([&](auto idx) -> const auto& { return ds_tensor[idx]; },
-                            number<NumDTensor>{}));
+                         number<NumDTensor>{}));
 
         // Apply element-wise operation (e.g., C = C + D0 + D1 + ...)
         tile_elementwise_inout_unpack(typename Problem::CDElementwise{}, c_ds_tiles);
@@ -509,7 +514,7 @@ struct ApplyDEpilogue : public CShuffleEpilogueStageBase<Problem_>
 template <typename Problem_>
 struct StoreToDramEpilogue : public CShuffleEpilogueStageBase<Problem_>
 {
-    using Base = CShuffleEpilogueStageBase<Problem_>;
+    using Base                                             = CShuffleEpilogueStageBase<Problem_>;
     static constexpr memory_operation_enum MemoryOperation = Base::MemoryOperation;
 
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename ContextType>
@@ -535,8 +540,8 @@ struct StoreToDramEpilogue : public CShuffleEpilogueStageBase<Problem_>
 template <typename Problem_>
 struct MoveWindowsEpilogue : public CShuffleEpilogueStageBase<Problem_>
 {
-    using Base = CShuffleEpilogueStageBase<Problem_>;
-    using SFC = typename Base::SFC;
+    using Base                          = CShuffleEpilogueStageBase<Problem_>;
+    using SFC                           = typename Base::SFC;
     static constexpr index_t NumDTensor = Base::NumDTensor;
 
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename ContextType>
@@ -559,11 +564,10 @@ struct MoveWindowsEpilogue : public CShuffleEpilogueStageBase<Problem_>
             // Move all D tensor windows
             static_for<0, NumDTensor, 1>{}([&](auto idx) {
                 move_tile_window(context.d_dram_windows[idx],
-                                    {step.at(number<0>{}), step.at(number<1>{})});
+                                 {step.at(number<0>{}), step.at(number<1>{})});
             });
         }
     }
 };
-
 
 } // namespace ck_tile

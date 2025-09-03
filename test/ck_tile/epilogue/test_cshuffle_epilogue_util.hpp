@@ -74,13 +74,26 @@ __global__ void test_cshuffle_epilogue_kernel(typename Problem::ODataType* __res
                 n_scale, make_tuple(M, N), make_tuple(0, 1), number<1>{}, number<1>{}),
             make_tuple(number<Problem::kMPerBlock>{}, number<Problem::kNPerBlock>{}),
             {0, 0});
-        
+
         // Use the new interface with separate argument tuples
-        auto init_args = make_tuple();
-        auto main_args = make_tuple(make_tuple(), make_tuple(m_scale_window, n_scale_window), make_tuple(), make_tuple(), make_tuple(), make_tuple(), make_tuple());
+        auto init_args  = make_tuple();
+        auto main_args  = make_tuple(make_tuple(),
+                                    make_tuple(m_scale_window, n_scale_window),
+                                    make_tuple(),
+                                    make_tuple(),
+                                    make_tuple(),
+                                    make_tuple(),
+                                    make_tuple());
         auto final_args = make_tuple();
-        
-        EpilogueScale{}(output_tile_window, acc_tile, empty_ds, smem, init_args, main_args, final_args, std::true_type{});
+
+        EpilogueScale{}(output_tile_window,
+                        acc_tile,
+                        empty_ds,
+                        smem,
+                        init_args,
+                        main_args,
+                        final_args,
+                        std::true_type{});
     }
     else
     {
