@@ -291,13 +291,14 @@ struct CShuffleEpilogue
                       "Currently, the CShuffle Epilogue only supports the Row Major Output layout");
 
         using TileEncodingPattern =
-            TileDistributionEncodingPattern2D<kBlockSize,
-                                              MPerIterationShuffle,
-                                              NPerIterationShuffle,
-                                              GetVectorSizeC(),
-                                              tile_distribution_pattern::thread_raked,
-                                              Problem::kNumWaveGroups>;
-        constexpr auto dram_tile_distribution = TileEncodingPattern::Make2DStaticTileDistribution();
+            tile_distribution_encoding_pattern_2d<kBlockSize,
+                                                  MPerIterationShuffle,
+                                                  NPerIterationShuffle,
+                                                  GetVectorSizeC(),
+                                                  tile_distribution_pattern::thread_raked,
+                                                  Problem::kNumWaveGroups>;
+        constexpr auto dram_tile_distribution =
+            TileEncodingPattern::make_2d_static_tile_distribution();
 
         auto d_dram_windows = generate_tuple(
             [&](auto idx) {
