@@ -258,11 +258,11 @@ TEST_P(TestAtomicKernelFloat_4, TestCorrectness)
     auto [M, N] = GetParam();
     this->RunTest({M, N});
 }
-#endif
 
 //
 // WaveSize=32 tests (auto-skip on wave64 devices)
 //
+#else
 TEST_P(TestAtomicKernelHalf_1, TestCorrectnessWS32)
 {
     auto [M, N] = GetParam();
@@ -323,6 +323,7 @@ TEST_P(TestAtomicKernelFloat_2, TestCorrectnessWS32)
     auto [M, N] = GetParam();
     this->RunTestWave32({M, N});
 }
+#endif
 
 // Common parameter lists
 INSTANTIATE_TEST_SUITE_P(TestAtomicKernelSuite,
