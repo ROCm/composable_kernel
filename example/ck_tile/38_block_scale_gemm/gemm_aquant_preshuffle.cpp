@@ -24,8 +24,6 @@ template <typename GemmConfig,
           typename CDEElementWise>
 float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::stream_config& s)
 {
-    constexpr int kBlockPerCu = 1;
-
     static_assert(std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::RowMajor>);
 
     constexpr ck_tile::index_t M_Tile = GemmConfig::M_Tile;

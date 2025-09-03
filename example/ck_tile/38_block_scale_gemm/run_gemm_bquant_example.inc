@@ -30,6 +30,22 @@ auto shuffle_bq(const ck_tile::HostTensor<T>& t, int block_bq_k)
     return ck_tile::reference_permute(t_view, {1, 0, 2});
 }
 
+template <typename GemmConfig, typename T>
+auto shuffle_b(const ck_tile::HostTensor<T>& t)
+{
+    assert(t.get_lengths().size() == 2);
+    int n_                = t.get_lengths()[1];
+    int k_                = t.get_lengths()[0];
+    constexpr int divisor = GemmConfig::N_Warp_Tile == 32 ? 2 : 4;
+    ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
+                                   GemmConfig::N_Warp_Tile,
+                                   k_ / GemmConfig::K_Warp_Tile,
+                                   divisor,
+                                   GemmConfig::K_Warp_Tile / divisor});
+    std::copy(t.begin(), t.end(), t_view.begin());
+    return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
+}
+
 template <typename GemmConfig,
           typename ADataType,
           typename BDataType,
@@ -56,7 +72,9 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   ck_tile::index_t stride_C,
                   ck_tile::index_t kbatch,
                   int n_warmup,
-                  int n_repeat)
+                  int n_repeat,
+                bool flush_cache,
+                int rotating_count)
 {
     ck_tile::BQuantGemmHostArgs args;
     args.a_ptr     = a_m_k_dev_buf.GetDeviceBuffer();
@@ -85,7 +103,7 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                       CLayout,
                                       QuantGroupSize,
                                       CDEElementWise>(
-        args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
+        args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, flush_cache, rotating_count});
 
     std::size_t flop     = std::size_t(2) * M * N * K;
     std::size_t num_byte = sizeof(ADataType) * M * K + sizeof(BDataType) * N * K +
@@ -151,6 +169,10 @@ int run_gemm_example_with_layouts(int argc,
     int n_warmup                 = arg_parser.get_int("warmup");
     int n_repeat                 = arg_parser.get_int("repeat");
     ck_tile::index_t init_method = arg_parser.get_int("init");
+    bool flush_cache             = arg_parser.get_bool("flush_cache");
+    int rotating_count           = arg_parser.get_int("rotating_count");
+
+    const bool preshuffleB = GemmConfig::PreshuffleB;
 
     stride_A  = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
     stride_B  = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
@@ -207,8 +229,18 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::DeviceMem bq_bqk_n_dev_buf(bq_bqk_n.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
 
+    if constexpr(preshuffleB)
+    {
+        ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<GemmConfig>(b_k_n);
+        // shuffled buffer B for device implementation
+        b_k_n_dev_buf.ToDevice(b_shuffle_host.data());
+    }
+    else
+    {
+        b_k_n_dev_buf.ToDevice(b_k_n.data());
+    }
+
     a_m_k_dev_buf.ToDevice(a_m_k.data());
-    b_k_n_dev_buf.ToDevice(b_k_n.data());
     bq_bqk_n_dev_buf.ToDevice(bq_bqk_n.data());
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
@@ -237,7 +269,9 @@ int run_gemm_example_with_layouts(int argc,
                                 stride_C,
                                 kbatch,
                                 n_warmup,
-                                n_repeat);
+                                n_repeat,
+                            flush_cache,
+                            rotating_count);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass = true;

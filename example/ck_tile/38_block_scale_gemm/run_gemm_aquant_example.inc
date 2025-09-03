@@ -58,7 +58,9 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   ck_tile::index_t stride_C,
                   ck_tile::index_t kbatch,
                   int n_warmup,
-                  int n_repeat)
+                  int n_repeat,
+                bool flush_cache,
+                int rotating_count)
 {
     ck_tile::AQuantGemmHostArgs args;
     args.a_ptr     = a_m_k_dev_buf.GetDeviceBuffer();
@@ -87,7 +89,7 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                       CLayout,
                                       QuantGroupSize,
                                       CDEElementWise>(
-        args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
+        args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, flush_cache, rotating_count});
 
     std::size_t flop     = std::size_t(2) * M * N * K;
     std::size_t num_byte = sizeof(ADataType) * M * K + sizeof(AQDataType) * M * AQK +
@@ -153,6 +155,9 @@ int run_gemm_example_with_layouts(int argc,
     int n_warmup                 = arg_parser.get_int("warmup");
     int n_repeat                 = arg_parser.get_int("repeat");
     ck_tile::index_t init_method = arg_parser.get_int("init");
+    bool flush_cache             = arg_parser.get_bool("flush_cache");
+    int rotating_count           = arg_parser.get_int("rotating_count");
+
 
     stride_A  = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
     stride_AQ = ck_tile::get_default_stride(M, AQK, stride_AQ, is_row_major(aq_layout));
@@ -249,7 +254,9 @@ int run_gemm_example_with_layouts(int argc,
                                 stride_C,
                                 kbatch,
                                 n_warmup,
-                                n_repeat);
+                                n_repeat,
+                            flush_cache,
+                            rotating_count);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass = true;
