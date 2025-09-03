@@ -13,6 +13,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
+#include "ck_tile/ops/gemm_group_quant.hpp"
 #include "ck_tile/host.hpp"
 #include "quant_grouped_gemm.hpp"
 
@@ -30,8 +31,7 @@ template <typename GemmConfig,
           typename CDataType>
 float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                             const ck_tile::index_t num_groups,
-                            void* kargs_ptr,
-                            bool splitk)
+                            void* kargs_ptr)
 {
     constexpr ck_tile::index_t TileParitionerGroupNum = 8;
     constexpr ck_tile::index_t TileParitionerM01      = 4;
@@ -44,32 +44,39 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
     using TilePartitioner = ck_tile::
         GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
-    using GemmUniversalTraits =
-        ck_tile::PersistentTileGemmUniversalTraits<GemmConfig::kPadM,
-                                                   GemmConfig::kPadN,
-                                                   GemmConfig::kPadK,
-                                                   GemmConfig::DoubleSmemBuffer,
-                                                   ALayout,
-                                                   BLayout,
-                                                   CLayout>;
+    constexpr ck_tile::QuantType QuantMode = ck_tile::QuantType::RowColQuant;
+    using GemmUniversalTraits              = ck_tile::TileGemmQuantTraits<GemmConfig::kPadM,
+                                                                          GemmConfig::kPadN,
+                                                                          GemmConfig::kPadK,
+                                                                          false,
+                                                                          ALayout,
+                                                                          BLayout,
+                                                                          CLayout,
+                                                                          QuantMode,
+                                                                          AQLayout,
+                                                                          BQLayout,
+                                                                          GemmConfig::DoubleSmemBuffer,
+                                                                          true>;
 
     float ave_time{0};
 
     const auto Run = [&](const auto memory_operation_) {
         constexpr auto scheduler        = GemmConfig::Scheduler;
         constexpr auto memory_operation = memory_operation_.value;
-        // constexpr bool transpose_c    = false;
-        // We create the GEMM pipeline without specifying hotloop or tailnumber.
-        // These are automatically run inside the kernel based on the given input data.
-        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                           BDataType,
-                                                                           AccDataType,
-                                                                           GemmShape,
-                                                                           GemmUniversalTraits,
-                                                                           scheduler>;
+        constexpr bool transpose_c      = false;
+
+        using QuantGemmProblem = ck_tile::GemmRowColQuantPipelineProblem<ADataType,
+                                                                             BDataType,
+                                                                             AccDataType,
+                                                                             AccDataType,
+                                                                             GemmShape,
+                                                                             GemmUniversalTraits,
+                                                                             transpose_c,
+                                                                             BDataType,
+                                                                             scheduler>;
 
         using GemmPipeline = typename PipelineTypeTraits<
-            GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
+            GemmConfig::Pipeline>::template GemmPipeline<QuantGemmProblem>;
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
                                              BDataType,
@@ -86,9 +93,12 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                                              GemmConfig::M_Warp_Tile,
                                              GemmConfig::N_Warp_Tile,
                                              GemmConfig::K_Warp_Tile,
-                                             UniversalGemmProblem::TransposeC,
+                                             QuantGemmProblem::TransposeC,
                                              memory_operation>>;
-        using Kernel      = ck_tile::QuantGroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue, ck_tile::QuantType::RowColQuant>;
+        using Kernel      = ck_tile::QuantGroupedGemmKernel<TilePartitioner,
+                                                            GemmPipeline,
+                                                            GemmEpilogue,
+                                                            GemmUniversalTraits::kQuantType>;
         const dim3 blocks = Kernel::BlockSize();
         const dim3 grids  = Kernel::MaxOccupancyGridSize(s);
 
@@ -112,24 +122,15 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
         return ave_time;
     };
 
-    if(!splitk)
-    {
-        Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+    Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
                                        ck_tile::memory_operation_enum::set>{});
-    }
-    else
-    {
-        Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                       ck_tile::memory_operation_enum::atomic_add>{});
-    }
-
+    
     return ave_time;
 }
 
 #include "quant_run_grouped_gemm_example.inc"
 
-constexpr bool Persistent = true;
 int main(int argc, char* argv[])
 {
-    return !run_grouped_gemm_example<Persistent, GemmConfigComputeV3_2>(argc, argv);
+    return !run_grouped_gemm_example<GemmConfigComputeV3_2>(argc, argv);
 }

@@ -151,7 +151,7 @@ int run_gemm_example_with_layouts(int argc,
     int n_warmup                 = arg_parser.get_int("warmup");
     int n_repeat                 = arg_parser.get_int("repeat");
     ck_tile::index_t init_method = arg_parser.get_int("init");
-
+    
     stride_A  = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
     stride_AQ = ck_tile::get_default_stride(M, AQK, stride_AQ, is_row_major(aq_layout));
     stride_B  = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));

@@ -43,7 +43,6 @@ template <typename GemmConfig,
           typename BLayout,
           typename BQLayout,
           typename CLayout,
-          bool Persistent,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float invoke_gemm(int n_warmup,
                   int n_repeat,
@@ -66,7 +65,7 @@ float invoke_gemm(int n_warmup,
     // written by e.g. another kernel from earlier stage.
     std::vector<ck_tile::QuantGemmTransKernelArg> kargs;
     void* kargs_ptr   = gemm_workspace.GetDeviceBuffer();
-    const bool splitk = args[0].k_batch > 1;
+    assert(args[0].k_batch == 1);
     for(const auto& arg : args)
     {
         kargs.emplace_back(ck_tile::QuantGroupedGemmKernelArgs{arg.a_ptr,
@@ -103,7 +102,7 @@ float invoke_gemm(int n_warmup,
                                         BDataType,
                                         BQDataType,
                                         AccDataType,
-                                        CDataType>(stream, group_count, kargs_ptr, splitk);
+                                        CDataType>(stream, group_count, kargs_ptr);
     
 
     std::string op_name{"Grouped Gemm"};
@@ -127,8 +126,7 @@ float invoke_gemm(int n_warmup,
     return ave_time;
 }
 
-template <bool Persistent,
-          typename GemmConfig,
+template <typename GemmConfig,
           typename ADataType,
           typename AQDataType,
           typename BDataType,
@@ -319,8 +317,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
                 AQLayout,
                 BLayout,
                 BQLayout,
-                CLayout,
-                Persistent>(warmup, repeat, group_count, gemm_descs);
+                CLayout>(warmup, repeat, group_count, gemm_descs);
 
     for(int i = 0; i < group_count; i++)
     {
@@ -342,8 +339,6 @@ int run_grouped_gemm_example_with_layouts(int argc,
                                                 AccDataType,
                                                 CDataType>(
             a_m_k_tensors[i], aq_tensors[i], b_k_n_tensors[i], bq_tensors[i], c_m_n_host_ref);
-            // ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
-            //     a_m_k_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
             const float max_accumulated_value =
                 *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
             const auto rtol_atol =
@@ -365,7 +360,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
     return pass;
 }
 
-template <bool Persistent, typename GemmConfig, typename PrecType>
+template <typename GemmConfig, typename PrecType>
 int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
 {
     using Row   = ck_tile::tensor_layout::gemm::RowMajor;
@@ -380,8 +375,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     using BQDataType = typename Types::AccDataType;
     if(a_layout == "R" && b_layout == "C")
     {
-        return run_grouped_gemm_example_with_layouts<Persistent,
-                                                     GemmConfig,
+        return run_grouped_gemm_example_with_layouts<GemmConfig,
                                                      ADataType,
                                                      AQDataType,
                                                      BDataType,
@@ -391,8 +385,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     }
     else if(a_layout == "R" && b_layout == "R")
     {
-        return run_grouped_gemm_example_with_layouts<Persistent,
-                                                     GemmConfig,
+        return run_grouped_gemm_example_with_layouts<GemmConfig,
                                                      ADataType,
                                                      AQDataType,
                                                      BDataType,
@@ -402,8 +395,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     }
     else if(a_layout == "C" && b_layout == "R")
     {
-        return run_grouped_gemm_example_with_layouts<Persistent,
-                                                     GemmConfig,
+        return run_grouped_gemm_example_with_layouts<GemmConfig,
                                                      ADataType,
                                                      AQDataType,
                                                      BDataType,
@@ -413,8 +405,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     }
     else if(a_layout == "C" && b_layout == "C")
     {
-        return run_grouped_gemm_example_with_layouts<Persistent,
-                                                     GemmConfig,
+        return run_grouped_gemm_example_with_layouts<GemmConfig,
                                                      ADataType,
                                                      AQDataType,
                                                      BDataType,
@@ -428,7 +419,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     }
 }
 
-template <bool Persistent, template <typename PrecType> typename GemmConfig>
+template <template <typename PrecType> typename GemmConfig>
 int run_grouped_gemm_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -443,12 +434,12 @@ int run_grouped_gemm_example(int argc, char* argv[])
 
     if(data_type == "fp16")
     {
-        return run_gemm_example_prec_type<Persistent, GemmConfig<ck_tile::half_t>, ck_tile::half_t>(
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::half_t>(
             a_layout, b_layout, argc, argv);
     }
     else if(data_type == "fp8")
     {
-        return run_gemm_example_prec_type<Persistent, GemmConfig<ck_tile::fp8_t>, ck_tile::fp8_t>(
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>, ck_tile::fp8_t>(
             a_layout, b_layout, argc, argv);
     }
     else
