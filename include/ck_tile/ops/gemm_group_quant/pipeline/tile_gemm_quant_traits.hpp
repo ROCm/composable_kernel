@@ -28,6 +28,35 @@ struct TileGemmAQuantTraits
     using CLayout  = CLayout_;
     using AQLayout = AQLayout_;
 
+    static constexpr bool TransposeC            = false;
+    static constexpr bool UseStructuredSparsity = false;
+    static constexpr index_t NumWaveGroups      = 1;
+
+    static constexpr bool PreshuffleQuant = PreshuffleQuant_;
+};
+
+template <bool kPadM_,
+          bool kPadN_,
+          bool kPadK_,
+          bool PreshuffleQuant_,
+          typename ALayout_,
+          typename BLayout_,
+          typename CLayout_,
+          typename BQLayout_ = BLayout_>
+struct TileGemmBQuantTraits
+{
+    static constexpr bool kPadM = kPadM_;
+    static constexpr bool kPadN = kPadN_;
+    static constexpr bool kPadK = kPadK_;
+
+    static constexpr int _VectorSize = 16;
+
+    using ALayout  = ALayout_;
+    using BLayout  = BLayout_;
+    using CLayout  = CLayout_;
+    using BQLayout = BQLayout_;
+
+    static constexpr bool TransposeC            = false;
     static constexpr bool UseStructuredSparsity = false;
     static constexpr index_t NumWaveGroups      = 1;
     static constexpr bool PreshuffleQuant       = PreshuffleQuant_;
