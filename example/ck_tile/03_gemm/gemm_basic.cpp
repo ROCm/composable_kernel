@@ -1,15 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
-#include <hip/hip_runtime.h>
-
-#include <cstring>
-#include <iostream>
-#include <ostream>
-#include <string>
-#include <tuple>
-
-#include "ck_tile/host.hpp"
 #include "gemm_utils.hpp"
 
 template <typename GemmConfig,
@@ -24,17 +15,11 @@ template <typename GemmConfig,
           typename CLayout,
           bool Persistent,
           typename CDEElementWise>
-float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile::stream_config& s)
+float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 
 {
     if constexpr(Persistent)
         std::cout << "WARNING: Ignoring persistent kernel option for basic gemm." << std::endl;
-    // The kPadM, kPadN, kPadK & kBlockPerCu should also come from the Codegen part.
-    constexpr bool kPadM = false;
-    constexpr bool kPadN = false;
-    constexpr bool kPadK = false;
-
-    constexpr int kBlockPerCu = 1;
 
     // This part comes from the Codegen
     constexpr ck_tile::index_t M_Tile = 256;
@@ -56,8 +41,12 @@ float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile:
 
     using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenGemmShape>;
 
-    using CodegenGemmTraits =
-        ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
+    using CodegenGemmTraits = ck_tile::TileGemmTraits<GemmConfig::kPadM,
+                                                      GemmConfig::kPadN,
+                                                      GemmConfig::kPadK,
+                                                      ALayout,
+                                                      BLayout,
+                                                      CLayout>;
 
     using CodegenPipelineProblem = ck_tile::
         GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenGemmShape, CodegenGemmTraits>;
@@ -76,7 +65,6 @@ float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile:
                                              ck_tile::tuple<>,
                                              CLayout,
                                              ck_tile::element_wise::PassThrough,
-                                             CodegenPipelineProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,
                                              M_Warp,
@@ -92,8 +80,8 @@ float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile:
         using Kernel = ck_tile::GemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
         auto kargs   = Kernel::MakeKernelArgs(args);
 
-        const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
-        constexpr dim3 blocks = Kernel::BlockSize();
+        const dim3 grids  = Kernel::GridSize(args.M, args.N, args.k_batch);
+        const dim3 blocks = Kernel::BlockSize();
 
         if(!Kernel::IsSupportedArgument(kargs))
         {
@@ -112,27 +100,27 @@ float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile:
         }
 
         float ave_time = ck_tile::launch_kernel(
-            s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+            s, ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 
         return ave_time;
     };
 
     if(args.k_batch == 1)
     {
-        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                              ck_tile::memory_operation_enum::set>{});
+        return Run(MemoryOpSet{});
     }
     else
     {
-        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                              ck_tile::memory_operation_enum::atomic_add>{});
+        return Run(MemoryOpAtomicAdd{});
     }
 }
 
 #include "run_gemm_example.inc"
 
 template <typename APrecType, typename BPrecType = APrecType, typename CPrecType = APrecType>
-int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
+int run_gemm_example_prec_type(std::string a_layout,
+                               std::string b_layout,
+                               ck_tile::ArgParser& arg_parser)
 {
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
@@ -142,12 +130,12 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
         if(a_layout == "R" && b_layout == "C")
         {
             return run_gemm_example_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Col{}, Row{});
+                arg_parser, Row{}, Col{}, Row{});
         }
         else if(a_layout == "C" && b_layout == "C")
         {
             return run_gemm_example_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Col{}, Row{});
+                arg_parser, Col{}, Col{}, Row{});
         }
         else
         {
@@ -160,22 +148,22 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
         if(a_layout == "R" && b_layout == "C")
         {
             return run_gemm_example_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Col{}, Row{});
+                arg_parser, Row{}, Col{}, Row{});
         }
         else if(a_layout == "R" && b_layout == "R")
         {
             return run_gemm_example_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Row{}, Row{});
+                arg_parser, Row{}, Row{}, Row{});
         }
         else if(a_layout == "C" && b_layout == "R")
         {
             return run_gemm_example_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Row{}, Row{});
+                arg_parser, Col{}, Row{}, Row{});
         }
         else if(a_layout == "C" && b_layout == "C")
         {
             return run_gemm_example_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Col{}, Row{});
+                arg_parser, Col{}, Col{}, Row{});
         }
         else
         {
@@ -184,38 +172,34 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     }
 }
 
-int run_gemm_example(int argc, char* argv[])
+int run_gemm_example(ck_tile::ArgParser& arg_parser)
 {
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
-        return -1;
-
     std::string data_type = arg_parser.get_str("prec");
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
 
     if(data_type == "fp16")
     {
-        return run_gemm_example_prec_type<ck_tile::half_t>(a_layout, b_layout, argc, argv);
+        return run_gemm_example_prec_type<ck_tile::half_t>(a_layout, b_layout, arg_parser);
     }
     else if(data_type == "bf16")
     {
-        return run_gemm_example_prec_type<ck_tile::bf16_t>(a_layout, b_layout, argc, argv);
+        return run_gemm_example_prec_type<ck_tile::bf16_t>(a_layout, b_layout, arg_parser);
     }
     else if(data_type == "fp8")
     {
         return run_gemm_example_prec_type<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>(
-            a_layout, b_layout, argc, argv);
+            a_layout, b_layout, arg_parser);
     }
     else if(data_type == "bf8")
     {
         return run_gemm_example_prec_type<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>(
-            a_layout, b_layout, argc, argv);
+            a_layout, b_layout, arg_parser);
     }
     else if(data_type == "i8")
     {
         return run_gemm_example_prec_type<ck_tile::int8_t, ck_tile::int8_t, int32_t>(
-            a_layout, b_layout, argc, argv);
+            a_layout, b_layout, arg_parser);
     }
     else if(data_type == "pk_int4_t")
     {
@@ -223,7 +207,7 @@ int run_gemm_example(int argc, char* argv[])
         if constexpr(GemmConfigBase::Pipeline == CK_TILE_PIPELINE_COMPUTE_V3)
         {
             return run_gemm_example_prec_type<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>(
-                a_layout, b_layout, argc, argv);
+                a_layout, b_layout, arg_parser);
         }
         else
         {
@@ -238,9 +222,13 @@ int run_gemm_example(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
+    auto [result, arg_parser] = create_args(argc, argv);
+    if(!result)
+        return -1;
+
     try
     {
-        return !run_gemm_example(argc, argv);
+        return !run_gemm_example(arg_parser);
     }
     catch(const std::runtime_error& e)
     {

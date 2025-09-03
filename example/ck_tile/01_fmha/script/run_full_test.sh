@@ -9,6 +9,8 @@
 # host name        : $hostname
 # gpu architecture: e.g., gfx90a, or gfx942, etc.
 
+set -euo pipefail
+
 #get the command line arguments:
 export env_type=$1
 echo 'Environment type: ' $env_type

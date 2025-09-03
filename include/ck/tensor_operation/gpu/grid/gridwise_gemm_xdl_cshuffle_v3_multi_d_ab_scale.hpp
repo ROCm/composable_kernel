@@ -33,12 +33,12 @@ template <typename GridwiseGemm,
           TailNumber TailNum       = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3(typename GridwiseGemm::Argument karg)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if defined(__gfx9__)
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
@@ -402,6 +402,34 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
         }
     }
 
+    __host__ __device__ static constexpr auto MakeAScaleGridDesciptor_M_K(index_t M, index_t K)
+    {
+        const auto BM = math::integer_divide_ceil(M, ScaleBlockM);
+        const auto BK = math::integer_divide_ceil(K, ScaleBlockK);
+        if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
+        {
+            return make_naive_tensor_descriptor(make_tuple(BM, BK), make_tuple(BK, I1));
+        }
+        else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, ALayout>::value)
+        {
+            return make_naive_tensor_descriptor(make_tuple(BM, BK), make_tuple(I1, BM));
+        }
+    }
+
+    __host__ __device__ static constexpr auto MakeBScaleGridDesciptor_N_K(index_t N, index_t K)
+    {
+        const auto BN = math::integer_divide_ceil(N, ScaleBlockN);
+        const auto BK = math::integer_divide_ceil(K, ScaleBlockK);
+        if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
+        {
+            return make_naive_tensor_descriptor(make_tuple(BN, BK), make_tuple(BK, I1));
+        }
+        else if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
+        {
+            return make_naive_tensor_descriptor(make_tuple(BN, BK), make_tuple(I1, BN));
+        }
+    }
+
     template <typename ABlockDesc_AK0_M_AK1>
     __host__ __device__ static constexpr auto
     MakeAMmaTileDescriptor_M0_M1_M2_K(const ABlockDesc_AK0_M_AK1&)
@@ -538,20 +566,11 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
 
         __host__ void Print() const
         {
-            std::cout << "problem {"
-                      << "M:" << M << ", "
-                      << "N:" << N << ", "
-                      << "K:" << K << ", "
-                      << "SA:" << StrideA << ", "
-                      << "SB:" << StrideB << ", "
-                      << "SC:" << StrideC << ", "
-                      << "MP:" << MPadded << ", "
-                      << "NP:" << NPadded << ", "
-                      << "KRead:" << KRead << ", "
-                      << "KP:" << KPadded << ", "
-                      << "AK0:" << AK0 << ", "
-                      << "BK0:" << BK0 << ", "
-                      << "MBlock: " << MBlock << ", "
+            std::cout << "problem {" << "M:" << M << ", " << "N:" << N << ", " << "K:" << K << ", "
+                      << "SA:" << StrideA << ", " << "SB:" << StrideB << ", " << "SC:" << StrideC
+                      << ", " << "MP:" << MPadded << ", " << "NP:" << NPadded << ", "
+                      << "KRead:" << KRead << ", " << "KP:" << KPadded << ", " << "AK0:" << AK0
+                      << ", " << "BK0:" << BK0 << ", " << "MBlock: " << MBlock << ", "
                       << "NBlock: " << NBlock << "}" << std::endl;
         }
 
@@ -1190,14 +1209,8 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N<CLayout>(
             problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideC);
 
-        const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor(
-            make_tuple(math::integer_divide_ceil(problem.M, ScaleBlockM),
-                       math::integer_divide_ceil(problem.K, ScaleBlockK)),
-            make_tuple(math::integer_divide_ceil(problem.K, ScaleBlockK), 1));
-        const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(
-            make_tuple(math::integer_divide_ceil(problem.N, ScaleBlockN),
-                       math::integer_divide_ceil(problem.K, ScaleBlockK)),
-            make_tuple(math::integer_divide_ceil(problem.K, ScaleBlockK), 1));
+        const auto a_scale_grid_desc_am_ak = MakeAScaleGridDesciptor_M_K(problem.M, problem.K);
+        const auto b_scale_grid_desc_bn_ak = MakeBScaleGridDesciptor_N_K(problem.N, problem.K);
 
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
@@ -1556,18 +1569,16 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
             // tuple of reference to C/Ds tensor descriptors
             const auto c_ds_desc_refs = concat_tuple_of_reference(
                 tie(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
-                generate_tie(
-                    [&](auto i) -> const auto& // return type should be reference
-                    { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
-                    Number<NumDTensor>{}));
+                generate_tie([&](auto i) -> const auto& // return type should be reference
+                             { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
+                             Number<NumDTensor>{}));
 
             // tuple of reference to C/Ds tensor descriptors
             const auto c_ds_buf_refs = concat_tuple_of_reference(
                 tie(c_shuffle_block_buf),
-                generate_tie(
-                    [&](auto i) -> const auto& // return type should be reference
-                    { return ds_grid_buf[i]; },
-                    Number<NumDTensor>{}));
+                generate_tie([&](auto i) -> const auto& // return type should be reference
+                             { return ds_grid_buf[i]; },
+                             Number<NumDTensor>{}));
 
             // tuple of starting index of C/Ds blockwise copy
             const auto idx_c_ds_block_begin = container_concat(

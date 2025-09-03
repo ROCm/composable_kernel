@@ -6,6 +6,9 @@
 #include "ck_tile/core/numeric/half.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
 #include "ck_tile/core/numeric/numeric.hpp"
+#if CK_TILE_USE_LLVM_BUILTIN_BF16
+#include <hip/hip_bfloat16.h>
+#endif
 #include <stdint.h>
 
 #pragma once
@@ -102,7 +105,11 @@ struct native_t<bfloat16_t>
 using bf16_t     = bfloat16_t;
 using bf16_raw_t = typename bf16_t::raw_type;
 #else
+#if CK_TILE_USE_LLVM_BUILTIN_BF16
+using bfloat16_t = __bf16;
+#else
 using bfloat16_t = ushort;
+#endif
 using bf16_t     = bfloat16_t;
 using bf16_raw_t = uint16_t;
 #endif
@@ -280,7 +287,11 @@ template <bf16_rounding_mode rounding =
               static_cast<bf16_rounding_mode>(CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT)>
 CK_TILE_HOST_DEVICE constexpr bfloat16_t float_to_bf16(float f, constant<rounding> = {})
 {
+#if defined(__gfx950__)
+    return static_cast<bfloat16_t>(f);
+#else
     return bit_cast<bfloat16_t>(float_to_bf16_raw(f, constant<rounding>{}));
+#endif
 }
 
 template <bf16_rounding_mode rounding =

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -110,6 +110,86 @@ CK_TILE_DEVICE bf16x4_t i4_to_bhalf4(int q)
     return res;
 }
 
+CK_TILE_DEVICE fp8x8_t amd_assembly_i4_to_fp8x8(int a)
+{
+    uint32_t src = static_cast<uint32_t>(a), src_hi;
+    uint32_t fp8x4_lo, fp8x4_hi;
+    float tmp_0, tmp_1;
+
+    asm volatile("v_lshrrev_b32 %[v_hi_src], 4, %[v_src]\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src], src0_sel:BYTE_3\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_hi_src], src0_sel:BYTE_3\n"
+                 "v_cvt_pk_fp8_f32 %[v_dst_hi], %[v_tmp_1], %[v_tmp_0], op_sel:[0, 0, 1]\n"
+
+                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src], src0_sel:BYTE_2\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_hi_src], src0_sel:BYTE_2\n"
+                 "v_cvt_pk_fp8_f32 %[v_dst_hi], %[v_tmp_1], %[v_tmp_0]\n"
+
+                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src], src0_sel:BYTE_1\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_hi_src], src0_sel:BYTE_1\n"
+                 "v_cvt_pk_fp8_f32 %[v_dst_lo], %[v_tmp_1], %[v_tmp_0], op_sel:[0, 0, 1]\n"
+
+                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src]\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_hi_src]\n"
+                 "v_cvt_pk_fp8_f32 %[v_dst_lo], %[v_tmp_1], %[v_tmp_0]\n"
+                 : [v_tmp_0] "+v"(tmp_0),
+                   [v_tmp_1] "+v"(tmp_1),
+                   [v_hi_src] "+v"(src_hi),
+                   [v_dst_lo] "+v"(fp8x4_lo),
+                   [v_dst_hi] "+v"(fp8x4_hi),
+                   [v_src] "+v"(src)
+                 :);
+
+    return bit_cast<fp8x8_t>(((static_cast<uint64_t>(fp8x4_hi) << 32) | fp8x4_lo));
+}
+
+CK_TILE_DEVICE float amd_assembly_fp8_to_fp32(uint32_t src)
+{
+    float res;
+    asm volatile("v_cvt_f32_fp8 %0, %1, src0_sel:BYTE_0" : "=v"(res) : "v"(src));
+    return res;
+}
+
+CK_TILE_DEVICE float amd_assembly_bf8_to_fp32(uint32_t src)
+{
+    float res;
+    asm volatile("v_cvt_f32_bf8 %0, %1, src0_sel:BYTE_0" : "=v"(res) : "v"(src));
+    return res;
+}
+
+CK_TILE_DEVICE bf8x8_t amd_assembly_i4_to_bf8x8(int a)
+{
+    uint32_t src = static_cast<uint32_t>(a), src_hi;
+    uint32_t bf8x4_lo, bf8x4_hi;
+    float tmp_0, tmp_1;
+
+    asm volatile("v_lshrrev_b32 %[v_hi_src], 4, %[v_src]\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src], src0_sel:BYTE_3\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_hi_src], src0_sel:BYTE_3\n"
+                 "v_cvt_pk_bf8_f32 %[v_dst_hi], %[v_tmp_1], %[v_tmp_0], op_sel:[0, 0, 1]\n"
+
+                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src], src0_sel:BYTE_2\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_hi_src], src0_sel:BYTE_2\n"
+                 "v_cvt_pk_bf8_f32 %[v_dst_hi], %[v_tmp_1], %[v_tmp_0]\n"
+
+                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src], src0_sel:BYTE_1\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_hi_src], src0_sel:BYTE_1\n"
+                 "v_cvt_pk_bf8_f32 %[v_dst_lo], %[v_tmp_1], %[v_tmp_0], op_sel:[0, 0, 1]\n"
+
+                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src]\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_hi_src]\n"
+                 "v_cvt_pk_bf8_f32 %[v_dst_lo], %[v_tmp_1], %[v_tmp_0]\n"
+                 : [v_tmp_0] "+v"(tmp_0),
+                   [v_tmp_1] "+v"(tmp_1),
+                   [v_hi_src] "+v"(src_hi),
+                   [v_dst_lo] "+v"(bf8x4_lo),
+                   [v_dst_hi] "+v"(bf8x4_hi),
+                   [v_src] "+v"(src)
+                 :);
+
+    return bit_cast<bf8x8_t>(((static_cast<uint64_t>(bf8x4_hi) << 32) | bf8x4_lo));
+}
+
 struct PassThroughPack8
 {
     template <typename Y, typename X>
@@ -125,6 +205,16 @@ struct PassThroughPack8
     {
         y.lo = i4_to_bhalf4(bit_cast<int>(x));
         y.hi = i4_to_bhalf4(bit_cast<int>(x) >> 16);
+    }
+
+    CK_TILE_HOST_DEVICE constexpr void operator()(fp8x8_t& y, const pk_int4x4_t& x) const
+    {
+        y = amd_assembly_i4_to_fp8x8(bit_cast<int>(x));
+    }
+
+    CK_TILE_HOST_DEVICE constexpr void operator()(bf8x8_t& y, const pk_int4x4_t& x) const
+    {
+        y = amd_assembly_i4_to_bf8x8(bit_cast<int>(x));
     }
     constexpr const static bool is_pack8_invocable = true;
 };
@@ -172,219 +262,67 @@ struct PassThroughPack2
 
 struct PassThrough
 {
-    template <typename Y, typename X>
-    CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const;
+    template <class T>
+    using raw_t = std::remove_cv_t<std::remove_reference_t<T>>;
 
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<double, double>(double& y, const double& x) const
+    template <class Y, class X>
+    CK_TILE_HOST_DEVICE void operator()(Y&& y, const X& x) const
     {
-        y = x;
+        /*  Only do the assignment when
+            - y is an *l-value*   and
+            - y is *not* const     */
+        if constexpr(std::is_lvalue_reference_v<Y&&> && !std::is_const_v<raw_t<Y>>)
+        {
+            y = ck_tile::type_convert<raw_t<Y>>(x);
+        }
+        /*  otherwise (r-value or const)     → do nothing  */
     }
 
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<float, double>(float& y, const double& x) const
+    template <typename E, typename C, typename... Ds>
+    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const Ds&... ds) const -> void
     {
-        y = type_convert<float>(x);
-    }
+        // Suppress unused parameter warning for ds
+        ((void)ds, ...);
 
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<double, float>(double& y, const float& x) const
-    {
-        y = type_convert<double>(x);
+        // Just assign e with c
+        if constexpr(std::is_same_v<E, C>)
+        {
+            e = c;
+        }
+        else
+        {
+            e = ck_tile::type_convert<E>(c);
+        }
     }
+};
 
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<float, float>(float& y, const float& x) const
+struct MultiDMultiply
+{
+    template <typename E, typename C, typename... Ds>
+    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const Ds&... ds) const -> void
     {
-        y = x;
-    }
+        // Start with the base value c
+        float result = ck_tile::type_convert<float>(c);
 
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::fp16_t, ck_tile::fp16_t>(ck_tile::fp16_t& y, const ck_tile::fp16_t& x) const
-    {
-        y = x;
-    }
+        // Multiply by each D parameter using fold expression
+        ((result *= ck_tile::type_convert<float>(ds)), ...);
 
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<ck_tile::fp16_t, float>(ck_tile::fp16_t& y,
-                                                                const float& x) const
-    {
-        y = type_convert<ck_tile::fp16_t>(x);
+        e = ck_tile::type_convert<E>(result);
     }
+};
 
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::bf16_t, ck_tile::bf16_t>(ck_tile::bf16_t& y, const ck_tile::bf16_t& x) const
+struct MultiDAdd
+{
+    template <typename E, typename C, typename... Ds>
+    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const Ds&... ds) const -> void
     {
-        y = x;
-    }
+        // Start with the base value c
+        float result = ck_tile::type_convert<float>(c);
 
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<int32_t, int32_t>(int32_t& y, const int32_t& x) const
-    {
-        y = x;
-    }
+        // Add by each D parameter using fold expression
+        ((result += ck_tile::type_convert<float>(ds)), ...);
 
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<ck_tile::bf16_t, float>(ck_tile::bf16_t& y,
-                                                                const float& x) const
-    {
-        y = type_convert<ck_tile::bf16_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<float, ck_tile::bf16_t>(float& y,
-                                                                const ck_tile::bf16_t& x) const
-    {
-        y = type_convert<float>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::bf16_t, ck_tile::fp16_t>(ck_tile::bf16_t& y, const ck_tile::fp16_t& x) const
-    {
-        y = type_convert<ck_tile::bf16_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<float, ck_tile::fp16_t>(float& y,
-                                                                const ck_tile::fp16_t& x) const
-    {
-        y = type_convert<float>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<int8_t, int8_t>(int8_t& y, const int8_t& x) const
-    {
-        y = x;
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<ck_tile::fp16_t, int8_t>(ck_tile::fp16_t& y,
-                                                                 const int8_t& x) const
-    {
-        y = type_convert<ck_tile::fp16_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<ck_tile::bf16_t, int8_t>(ck_tile::bf16_t& y,
-                                                                 const int8_t& x) const
-    {
-        y = type_convert<ck_tile::bf16_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<uint8_t, uint8_t>(uint8_t& y, const uint8_t& x) const
-    {
-        y = x;
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<int8_t, int32_t>(int8_t& y, const int32_t& x) const
-    {
-        y = type_convert<int8_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<int32_t, int8_t>(int32_t& y, const int8_t& x) const
-    {
-        y = type_convert<int32_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<int8_t, float>(int8_t& y, const float& x) const
-    {
-        y = type_convert<int8_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<float, int8_t>(float& y, const int8_t& x) const
-    {
-        y = type_convert<float>(x);
-    }
-
-#ifdef CK_TILE_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<int4_t, int4_t>(int4_t& y, const int4_t& x) const
-    {
-        y = x;
-    }
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<int4_t, int>(int4_t& y, const int& x) const
-    {
-        y = type_convert<int4_t>(x);
-    }
-#endif
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::fp8_t, ck_tile::fp8_t>(ck_tile::fp8_t& y, const ck_tile::fp8_t& x) const
-    {
-        y = x;
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<float, ck_tile::fp8_t>(float& y,
-                                                               const ck_tile::fp8_t& x) const
-    {
-        y = type_convert<float>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<ck_tile::fp8_t, float>(ck_tile::fp8_t& y,
-                                                               const float& x) const
-    {
-        y = type_convert<ck_tile::fp8_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::fp16_t, ck_tile::fp8_t>(ck_tile::fp16_t& y, const ck_tile::fp8_t& x) const
-    {
-        y = type_convert<ck_tile::fp16_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::fp8_t, ck_tile::fp16_t>(ck_tile::fp8_t& y, const ck_tile::fp16_t& x) const
-    {
-        y = type_convert<ck_tile::fp8_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::bf8_t, ck_tile::bf8_t>(ck_tile::bf8_t& y, const ck_tile::bf8_t& x) const
-    {
-        y = x;
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<float, ck_tile::bf8_t>(float& y,
-                                                               const ck_tile::bf8_t& x) const
-    {
-        y = type_convert<float>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<ck_tile::bf8_t, float>(ck_tile::bf8_t& y,
-                                                               const float& x) const
-    {
-        y = type_convert<ck_tile::bf8_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::fp16_t, ck_tile::bf8_t>(ck_tile::fp16_t& y, const ck_tile::bf8_t& x) const
-    {
-        y = type_convert<ck_tile::fp16_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::bf8_t, ck_tile::fp16_t>(ck_tile::bf8_t& y, const ck_tile::fp16_t& x) const
-    {
-        y = ck_tile::type_convert<ck_tile::bf8_t>(x);
+        e = ck_tile::type_convert<E>(result);
     }
 };
 

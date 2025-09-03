@@ -30,22 +30,37 @@ template <typename GridwiseGemm,
           TailNumber TailNum       = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3(typename GridwiseGemm::Argument karg)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+#if defined(__gfx9__)
+    enum struct Arch : bool
+    {
+#if defined(__gfx950__)
+        is_gfx950_build = true,
+#else
+        is_gfx950_build = false,
+#endif
+    };
+    // skip building the instances with K1>=32 && PackedSize != 2 on pre-gfx950
+    if constexpr(static_cast<bool>(Arch::is_gfx950_build) ||
+                 (GridwiseGemm::AK1Number < 32 && GridwiseGemm::BK1Number < 32) ||
+                 (GridwiseGemm::AK1Number >= 32 && GridwiseGemm::APackedSize == 2) ||
+                 (GridwiseGemm::BK1Number >= 32 && GridwiseGemm::BPackedSize == 2))
+    {
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
+        auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
 
-    GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
-        karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-        karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
-        p_shared,
-        karg);
+        GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+            karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
+            karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
+            karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
+            p_shared,
+            karg);
+    }
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -58,26 +73,41 @@ template <typename GridwiseGemm,
           TailNumber TailNum       = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3_2lds(typename GridwiseGemm::Argument karg)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
-    // Pass two lds pointer is the key to tell compiler that ds_read/write
-    // operate on different lds chunk at same time without order dependecy
-    __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-    __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+#if defined(__gfx9__)
+    enum struct Arch : bool
+    {
+#if defined(__gfx950__)
+        is_gfx950_build = true,
+#else
+        is_gfx950_build = false,
+#endif
+    };
+    // skip building the instances with K1>=32 && PackedSize != 2 on pre-gfx950
+    if constexpr(static_cast<bool>(Arch::is_gfx950_build) ||
+                 (GridwiseGemm::AK1Number < 32 && GridwiseGemm::BK1Number < 32) ||
+                 (GridwiseGemm::AK1Number >= 32 && GridwiseGemm::APackedSize == 2) ||
+                 (GridwiseGemm::BK1Number >= 32 && GridwiseGemm::BPackedSize == 2))
+    {
+        // Pass two lds pointer is the key to tell compiler that ds_read/write
+        // operate on different lds chunk at same time without order dependecy
+        __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
+        auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
 
-    GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
-        karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-        karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
-        p_shared_0,
-        p_shared_1,
-        karg);
+        GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+            karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
+            karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
+            karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
+            p_shared_0,
+            p_shared_1,
+            karg);
+    }
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -666,20 +696,11 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
         __host__ void Print() const
         {
-            std::cout << "problem {"
-                      << "M:" << M << ", "
-                      << "N:" << N << ", "
-                      << "K:" << K << ", "
-                      << "SA:" << StrideA << ", "
-                      << "SB:" << StrideB << ", "
-                      << "SC:" << StrideC << ", "
-                      << "MP:" << MPadded << ", "
-                      << "NP:" << NPadded << ", "
-                      << "KRead:" << KRead << ", "
-                      << "KP:" << KPadded << ", "
-                      << "AK0:" << AK0 << ", "
-                      << "BK0:" << BK0 << ", "
-                      << "MBlock: " << MBlock << ", "
+            std::cout << "problem {" << "M:" << M << ", " << "N:" << N << ", " << "K:" << K << ", "
+                      << "SA:" << StrideA << ", " << "SB:" << StrideB << ", " << "SC:" << StrideC
+                      << ", " << "MP:" << MPadded << ", " << "NP:" << NPadded << ", "
+                      << "KRead:" << KRead << ", " << "KP:" << KPadded << ", " << "AK0:" << AK0
+                      << ", " << "BK0:" << BK0 << ", " << "MBlock: " << MBlock << ", "
                       << "NBlock: " << NBlock << "}" << std::endl;
         }
 

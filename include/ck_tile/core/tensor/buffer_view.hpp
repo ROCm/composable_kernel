@@ -5,7 +5,7 @@
 
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/arch/arch.hpp"
-#if __clang_major__ == 20
+#if __clang_major__ >= 20
 #include "ck_tile/core/arch/amd_buffer_addressing_builtins.hpp"
 #else
 #include "ck_tile/core/arch/amd_buffer_addressing.hpp"
@@ -210,28 +210,6 @@ struct buffer_view<address_space_enum::generic,
 
     // FIXME: remove
     CK_TILE_DEVICE static constexpr bool is_dynamic_buffer() { return true; }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("buffer_view{");
-
-        // AddressSpace
-        printf("AddressSpace: generic, ");
-
-        // p_data_
-        printf("p_data_: %p, ", static_cast<void*>(const_cast<remove_cvref_t<T>*>(p_data_)));
-
-        // buffer_size_
-        printf("buffer_size_: ");
-        print(buffer_size_);
-        printf(", ");
-
-        // invalid_element_value_
-        printf("invalid_element_value_: ");
-        print(invalid_element_value_);
-
-        printf("}");
-    }
 };
 
 // Address Space: Global
@@ -757,28 +735,6 @@ struct buffer_view<address_space_enum::global,
 
     // FIXME: remove
     CK_TILE_DEVICE static constexpr bool is_dynamic_buffer() { return true; }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("buffer_view{");
-
-        // AddressSpace
-        printf("AddressSpace: Global, ");
-
-        // p_data_
-        printf("p_data_: %p, ", static_cast<void*>(const_cast<remove_cvref_t<T>*>(p_data_)));
-
-        // buffer_size_
-        printf("buffer_size_: ");
-        print(buffer_size_);
-        printf(", ");
-
-        // invalid_element_value_
-        printf("invalid_element_value_: ");
-        print(invalid_element_value_);
-
-        printf("}");
-    }
 };
 
 // Address Space: LDS
@@ -994,51 +950,34 @@ struct buffer_view<address_space_enum::lds,
                 // ISA, so I try to let compiler emit IR "store<i32, 4>" which would be lower to
                 // ds_write_b128
                 // TODO: remove this after compiler fix
+                // clang-format off
                 static_assert(
-                    (std::is_same_v<remove_cvref_t<T>, int8_t> &&
-                     std::is_same_v<remove_cvref_t<X>, int8_t>) ||
-                        (std::is_same_v<remove_cvref_t<T>, int8_t> &&
-                         std::is_same_v<remove_cvref_t<X>, int8x2_t>) ||
-                        (std::is_same_v<remove_cvref_t<T>, int8_t> &&
-                         std::is_same_v<remove_cvref_t<X>, int8x4_t>) ||
-                        (std::is_same_v<remove_cvref_t<T>, int8_t> &&
-                         std::is_same_v<remove_cvref_t<X>, int8x8_t>) ||
-                        (std::is_same_v<remove_cvref_t<T>, int8_t> &&
-                         std::is_same_v<remove_cvref_t<X>, int8x16_t>) ||
-                        (std::is_same_v<remove_cvref_t<T>, int8x4_t> &&
-                         std::is_same_v<remove_cvref_t<X>, int8x4_t>) ||
-                        (std::is_same_v<remove_cvref_t<T>, int8x8_t> &&
-                         std::is_same_v<remove_cvref_t<X>, int8x8_t>) ||
-                        (std::is_same_v<remove_cvref_t<T>, int8x16_t> &&
-                         std::is_same_v<remove_cvref_t<X>, int8x16_t>) ||
+                    (std::is_same_v<remove_cvref_t<T>, int8_t> && std::is_same_v<remove_cvref_t<X>, int8_t>) ||
+                        (std::is_same_v<remove_cvref_t<T>, int8_t> && std::is_same_v<remove_cvref_t<X>, int8x2_t>) ||
+                        (std::is_same_v<remove_cvref_t<T>, int8_t> && std::is_same_v<remove_cvref_t<X>, int8x4_t>) ||
+                        (std::is_same_v<remove_cvref_t<T>, int8_t> && std::is_same_v<remove_cvref_t<X>, int8x8_t>) ||
+                        (std::is_same_v<remove_cvref_t<T>, int8_t> && std::is_same_v<remove_cvref_t<X>, int8x16_t>) ||
+                        (std::is_same_v<remove_cvref_t<T>, int8x4_t> && std::is_same_v<remove_cvref_t<X>, int8x4_t>) ||
+                        (std::is_same_v<remove_cvref_t<T>, int8x8_t> && std::is_same_v<remove_cvref_t<X>, int8x8_t>) ||
+                        (std::is_same_v<remove_cvref_t<T>, int8x16_t> && std::is_same_v<remove_cvref_t<X>, int8x16_t>) ||
                         // int8 on thread buffer
-                        (std::is_same_v<remove_cvref_t<T>, int8_t> &&
-                         std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 8>>) ||
-                        (std::is_same_v<remove_cvref_t<T>, int8_t> &&
-                         std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 4>>) ||
-                        (std::is_same_v<remove_cvref_t<T>, int8_t> &&
-                         std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 2>>) ||
-                        (std::is_same_v<remove_cvref_t<T>, int8_t> &&
-                         std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 1>>) ||
+                        (std::is_same_v<remove_cvref_t<T>, int8_t> && std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 16>>) ||
+                        (std::is_same_v<remove_cvref_t<T>, int8_t> && std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 8>>) ||
+                        (std::is_same_v<remove_cvref_t<T>, int8_t> && std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 4>>) ||
+                        (std::is_same_v<remove_cvref_t<T>, int8_t> && std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 2>>) ||
+                        (std::is_same_v<remove_cvref_t<T>, int8_t> && std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 1>>) ||
                         // ext_vector_type for pk_int4 must use int8_t as type
-                        (std::is_same_v<remove_cvref_t<T>, pk_int4_t> &&
-                         std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 1>>) ||
-                        (std::is_same_v<remove_cvref_t<T>, pk_int4_t> &&
-                         std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 2>>) ||
-                        (std::is_same_v<remove_cvref_t<T>, pk_int4_t> &&
-                         std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 4>>) ||
-                        (std::is_same_v<remove_cvref_t<T>, pk_int4_t> &&
-                         std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 8>>) ||
-                        (std::is_same_v<remove_cvref_t<T>, pk_int4_t> &&
-                         std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 16>>) ||
-                        (std::is_same_v<remove_cvref_t<T>, pk_int4x4_t> &&
-                         std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 4>>) ||
-                        (std::is_same_v<remove_cvref_t<T>, pk_int4x8_t> &&
-                         std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 8>>) ||
-                        (std::is_same_v<remove_cvref_t<T>, pk_int4x16_t> &&
-                         std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 16>>),
+                        (std::is_same_v<remove_cvref_t<T>, pk_int4_t> && std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 1>>) ||
+                        (std::is_same_v<remove_cvref_t<T>, pk_int4_t> && std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 2>>) ||
+                        (std::is_same_v<remove_cvref_t<T>, pk_int4_t> && std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 4>>) ||
+                        (std::is_same_v<remove_cvref_t<T>, pk_int4_t> && std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 8>>) ||
+                        (std::is_same_v<remove_cvref_t<T>, pk_int4_t> && std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 16>>) ||
+                        (std::is_same_v<remove_cvref_t<T>, pk_int4x4_t> && std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 4>>) ||
+                        (std::is_same_v<remove_cvref_t<T>, pk_int4x8_t> && std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 8>>) ||
+                        (std::is_same_v<remove_cvref_t<T>, pk_int4x16_t> && std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 16>>),
                     "wrong! not implemented for this combination, please add "
                     "implementation");
+                // clang-format on
 
                 if constexpr((std::is_same_v<remove_cvref_t<T>, int8_t> &&
                               std::is_same_v<remove_cvref_t<X>, int8_t>) ||
@@ -1090,6 +1029,8 @@ struct buffer_view<address_space_enum::lds,
                 }
                 else if constexpr((std::is_same_v<remove_cvref_t<T>, int8_t> &&
                                    std::is_same_v<remove_cvref_t<X>, int8x16_t>) ||
+                                  (std::is_same_v<remove_cvref_t<T>, int8_t> &&
+                                   std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 16>>) ||
                                   (std::is_same_v<remove_cvref_t<T>, pk_int4_t> &&
                                    std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 16>>))
                 {
@@ -1153,28 +1094,6 @@ struct buffer_view<address_space_enum::lds,
 
     // FIXME: remove
     CK_TILE_DEVICE static constexpr bool is_dynamic_buffer() { return true; }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("buffer_view{");
-
-        // AddressSpace
-        printf("AddressSpace: Lds, ");
-
-        // p_data_
-        printf("p_data_: %p, ", static_cast<void*>(const_cast<remove_cvref_t<T>*>(p_data_)));
-
-        // buffer_size_
-        printf("buffer_size_: ");
-        print(buffer_size_);
-        printf(", ");
-
-        // invalid_element_value_
-        printf("invalid_element_value_: ");
-        print(invalid_element_value_);
-
-        printf("}");
-    }
 };
 
 // Address Space: Vgpr
@@ -1328,28 +1247,6 @@ struct buffer_view<address_space_enum::vgpr,
 
     // FIXME: remove
     CK_TILE_DEVICE static constexpr bool is_dynamic_buffer() { return true; }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("buffer_view{");
-
-        // AddressSpace
-        printf("AddressSpace: Vgpr, ");
-
-        // p_data_
-        printf("p_data_: %p, ", static_cast<void*>(const_cast<remove_cvref_t<T>*>(p_data_)));
-
-        // buffer_size_
-        printf("buffer_size_: ");
-        print(buffer_size_);
-        printf(", ");
-
-        // invalid_element_value_
-        printf("invalid_element_value_: ");
-        print(invalid_element_value_);
-
-        printf("}");
-    }
 };
 
 template <address_space_enum BufferAddressSpace,
@@ -1373,6 +1270,27 @@ make_buffer_view(T* p, BufferSizeType buffer_size, X invalid_element_value)
 {
     return buffer_view<BufferAddressSpace, T, BufferSizeType, false, Coherence>{
         p, buffer_size, invalid_element_value};
+}
+
+// Generalized print function for all buffer_view variants
+template <address_space_enum BufferAddressSpace,
+          typename T,
+          typename BufferSizeType,
+          bool InvalidElementUseNumericalZeroValue,
+          amd_buffer_coherence_enum Coherence>
+CK_TILE_HOST_DEVICE void print(const buffer_view<BufferAddressSpace,
+                                                 T,
+                                                 BufferSizeType,
+                                                 InvalidElementUseNumericalZeroValue,
+                                                 Coherence>& bv)
+{
+    printf("buffer_view{AddressSpace: %s, p_data_: %p, buffer_size_: ",
+           address_space_to_string(BufferAddressSpace),
+           static_cast<void*>(const_cast<remove_cvref_t<T>*>(bv.p_data_)));
+    print(bv.buffer_size_);
+    printf(", invalid_element_value_: ");
+    print(bv.invalid_element_value_);
+    printf("}");
 }
 
 } // namespace ck_tile

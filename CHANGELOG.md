@@ -2,10 +2,11 @@
 
 Documentation for Composable Kernel available at [https://rocm.docs.amd.com/projects/composable_kernel/en/latest/](https://rocm.docs.amd.com/projects/composable_kernel/en/latest/).
 
-## Composable Kernel 1.1.0 for ROCm 6.5.0
+## Composable Kernel 1.1.0 for ROCm 7.0.0
 
 ### Added
 
+* Added a basic copy kernel example and supporting documentation for new CK Tile developers.
 * Added support for bf16, f32, and f16 for 2D and 3D NGCHW grouped convolution backward data
 * Added a fully asynchronous HOST (CPU) arguments copy flow for CK grouped GEMM kernels.
 * Added support GKCYX layout for grouped convolution forward (NGCHW/GKCYX/NGKHW, number of instances in instance factory for NGCHW/GKYXC/NGKHW has been reduced).
@@ -19,10 +20,13 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added support for Split K for grouped convolution backward data.
 * Added logit soft-capping support for fMHA forward kernels.
 * Added support for hdim as a multiple of 32 for FMHA (fwd/fwd_splitkv)
+* Added support for hdim as a multiple of 32 for FMHA (fwd/fwd_splitkv/bwd)
 * Added benchmarking support for tile engine GEMM.
 * Added Ping-pong scheduler support for GEMM operation along the K dimension.
 * Added rotating buffer feature for CK_Tile GEMM.
 * Added int8 support for CK_TILE GEMM.
+* Added support for elementwise kernel.
+* Added benchmarking support for tile engine GEMM Multi D.
 
 ### Optimized
 
@@ -44,10 +48,15 @@ None
 * Number of instances in instance factory for grouped convolution forward NGCHW/GKYXC/NGKHW has been reduced.
 * Number of instances in instance factory for grouped convolution backward weight NGCHW/GKYXC/NGKHW has been reduced.
 * Number of instances in instance factory for grouped convolution backward data NGCHW/GKYXC/NGKHW has been reduced.
+* Removed `BlockSize` in `make_kernel` and `CShuffleEpilogueProblem` to support Wave32 in CK_TILE (#2594)
 
 ### Known issues
 
 None
+
+### Upcoming changes
+
+* Non-grouped convolutions are deprecated. All of their functionality is supported by grouped convolution.
 
 ## Composable Kernel 1.1.0 for ROCm 6.1.0
 

@@ -1,21 +1,50 @@
 
 set(GEMM_DATATYPE "fp8;fp16" CACHE STRING "List of datatypes for GEMM (semicolon-separated)")
+set(GEMM_LAYOUT "rcr" CACHE STRING "List of layout for GEMM (semicolon-separated)")
 
-function(build_gemm_for_datatype datatype)
-    set(working_path "${CMAKE_CURRENT_BINARY_DIR}/${datatype}/")
-    set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_config.json")
-    #set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/user_provided_config.json")
+function(build_gemm_for_datatype datatype layout)
+    # Filter GPU targets to only gfx90a, gfx942, and gfx950
+    set(GEMM_GPU_TARGETS "")
+    set(DESIRED_TARGETS "gfx90a;gfx942;gfx950")
+    
+    foreach(target IN LISTS SUPPORTED_GPU_TARGETS)
+        if(target IN_LIST DESIRED_TARGETS)
+            list(APPEND GEMM_GPU_TARGETS ${target})
+        endif()
+    endforeach()
+    
+    # Skip compilation if no matching targets found
+    if(NOT GEMM_GPU_TARGETS)
+        message(WARNING "Skipping Tile Engine GEMM compilation: No supported GPU targets (gfx90a, gfx942, gfx950) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
+        return()
+    endif()
+    
+    message(STATUS "Building GEMM for GPU targets: ${GEMM_GPU_TARGETS}")
+    
+    set(working_path "${CMAKE_CURRENT_BINARY_DIR}/${datatype}/${layout}")
+
+    # Comment this if-else block when using user_provided_config
+    if(layout STREQUAL "rcr")
+        set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_config.json")
+    else()
+        set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/custom_ci_config.json")
+    endif()
+
+    # uncomment this if you want to use user_provided_config.json
+    # set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/user_provided_config.json")
+    
     # Generate kernel list
     execute_process(
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
                 --working_path ${working_path}
                 --datatype ${datatype}
+                --layout ${layout}
                 --config_json ${json_blob}
                 --list_blobs
         RESULT_VARIABLE ret
     )
     if(NOT ret EQUAL 0)
-        message(FATAL_ERROR "Failed to list kernels for ${datatype}: ${ret}")
+        message(FATAL_ERROR "Failed to list kernels for ${datatype} ${layout}: ${ret}")
     endif()
 
     file(STRINGS "${working_path}/gemm_instance_blobs.txt" codegen_blobs)
@@ -27,11 +56,12 @@ function(build_gemm_for_datatype datatype)
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
                 --working_path "${working_path}"
                 --datatype ${datatype}
+                --layout ${layout}
                 --config_json "${json_blob}"
                 --gen_blobs
-        COMMENT "Generating GEMM instance sources for ${datatype}"
+        COMMENT "Generating GEMM instance sources for ${datatype} ${layout}"
     )
-    add_custom_target(gemm_gen_${datatype} DEPENDS ${codegen_blobs})
+    add_custom_target(gemm_gen_${datatype}_${layout} DEPENDS ${codegen_blobs})
 
     set(intermediate_libs)
     list(LENGTH codegen_blobs codegen_blobs_len)
@@ -69,8 +99,9 @@ function(build_gemm_for_datatype datatype)
             #list(LENGTH chunk_files chunk_files_len)
             #if(chunk_files_len AND chunk_files_len GREATER 1)
             if(chunk_files)
-                set(sub_intermediate_lib_name "gemm_objlib_${name}_${i}_${datatype}")
+                set(sub_intermediate_lib_name "gemm_objlib_${name}_${i}_${datatype}_${layout}")
                 add_library(${sub_intermediate_lib_name} OBJECT ${chunk_files})
+                set_property(TARGET ${sub_intermediate_lib_name} PROPERTY HIP_ARCHITECTURES ${GEMM_GPU_TARGETS})
                 list(APPEND sub_intermediate_libs ${sub_intermediate_lib_name})
             endif()
 
@@ -80,7 +111,7 @@ function(build_gemm_for_datatype datatype)
         #list(LENGTH sub_intermediate_libs sub_intermediate_libs_len)
         #if(sub_intermediate_libs AND sub_intermediate_libs_len GREATER 1)
         if(sub_intermediate_libs)
-            set(intermediate_lib_name "gemm_staticlib_${name}_${datatype}")
+            set(intermediate_lib_name "gemm_staticlib_${name}_${datatype}_${layout}")
             # Collect the $<TARGET_OBJECTS:...> expressions
             
             set(obj_exprs)
@@ -89,7 +120,8 @@ function(build_gemm_for_datatype datatype)
             endforeach()
             
             add_library(${intermediate_lib_name} STATIC ${obj_exprs})
-            add_dependencies(${intermediate_lib_name} gemm_gen_${datatype})
+            add_dependencies(${intermediate_lib_name} gemm_gen_${datatype}_${layout})
+            set_property(TARGET ${intermediate_lib_name} PROPERTY HIP_ARCHITECTURES ${GEMM_GPU_TARGETS})
             #foreach(objlib IN LISTS sub_intermediate_libs)
             #    target_sources(${intermediate_lib_name} PRIVATE $<TARGET_OBJECTS:${objlib}>)
             #endforeach()
@@ -99,28 +131,29 @@ function(build_gemm_for_datatype datatype)
     endforeach()
     
     # Interface library for instances
-    add_library(gemm_template_instances_${datatype} INTERFACE)
-    add_dependencies(gemm_template_instances_${datatype} gemm_gen_${datatype})
-    target_link_libraries(gemm_template_instances_${datatype} INTERFACE ${intermediate_libs})
-    target_include_directories(gemm_template_instances_${datatype} INTERFACE
+    add_library(gemm_template_instances_${datatype}_${layout} INTERFACE)
+    add_dependencies(gemm_template_instances_${datatype}_${layout} gemm_gen_${datatype}_${layout})
+    target_link_libraries(gemm_template_instances_${datatype}_${layout} INTERFACE ${intermediate_libs})
+    target_include_directories(gemm_template_instances_${datatype}_${layout} INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}
         "${working_path}"
     )
-    set_target_properties(gemm_template_instances_${datatype} PROPERTIES LINKER_LANGUAGE CXX)
+    set_target_properties(gemm_template_instances_${datatype}_${layout} PROPERTIES LINKER_LANGUAGE CXX)
     
     # Host API interface library
-    add_library(gemm_host_api_${datatype} INTERFACE)
-    target_link_libraries(gemm_host_api_${datatype} INTERFACE gemm_template_instances_${datatype})
-    target_include_directories(gemm_host_api_${datatype} INTERFACE
+    add_library(gemm_host_api_${datatype}_${layout} INTERFACE)
+    target_link_libraries(gemm_host_api_${datatype}_${layout} INTERFACE gemm_template_instances_${datatype}_${layout})
+    target_include_directories(gemm_host_api_${datatype}_${layout} INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}
         "${working_path}"
     )
     
 
     # Executable per datatype
-    set(exec_name "benchmark_gemm_${datatype}")
+    set(exec_name "benchmark_gemm_${datatype}_${layout}")
     add_executable(${exec_name} benchmark_gemm.cpp)
-    target_link_libraries(${exec_name} PRIVATE gemm_host_api_${datatype})
+    set_property(TARGET ${exec_name} PROPERTY HIP_ARCHITECTURES ${GEMM_GPU_TARGETS})
+    target_link_libraries(${exec_name} PRIVATE gemm_host_api_${datatype}_${layout})
     target_compile_options(${exec_name} PRIVATE
         -Wno-undefined-func-template
         -Wno-float-equal
@@ -130,5 +163,7 @@ endfunction()
 
 # Process each datatype in isolation
 foreach(dt IN LISTS GEMM_DATATYPE)
-    build_gemm_for_datatype(${dt})
+    foreach(l IN LISTS GEMM_LAYOUT)
+        build_gemm_for_datatype(${dt} ${l})
+    endforeach()
 endforeach()

@@ -98,6 +98,12 @@ add_compile_options(-Wno-pass-failed)
 add_compile_options(-Wno-switch-default)
 add_compile_options(-Wno-unique-object-duplication)
 
+# add -Og -gdwarf64 for debug builds
+add_compile_options(
+    "$<$<CONFIG:Debug>:-Og>"
+    "$<$<CONFIG:Debug>:-gdwarf64>"
+)
+
 # Recent change in compiler makes this warning ON by default, which led to compile errors.
 add_compile_options(-Wno-nrvo)
 
@@ -236,6 +242,8 @@ endif()
 if (SUPPORTED_GPU_TARGETS MATCHES "gfx950")
     add_definitions(-DCK_USE_NATIVE_MX_SUPPORT)
     set(CK_USE_NATIVE_MX_SUPPORT "ON")
+    add_definitions(-DCK_GFX950_SUPPORT)
+    set(CK_GFX950_SUPPORT "ON")
 endif()
 
 option(CK_USE_FP8_ON_UNSUPPORTED_ARCH "Enable FP8 GEMM instances on older architectures" OFF)
@@ -328,13 +336,18 @@ if(ENABLE_ASM_DUMP)
     message("CK compiled with ENABLE_ASM_DUMP set to ${ENABLE_ASM_DUMP}")
 endif()
 
+if(USE_OPT_GFX12 AND (SUPPORTED_GPU_TARGETS MATCHES "gfx12"))
+    add_compile_options(-mno-wavefrontsize64)
+    message(STATUS "CK compiled with USE_OPT_GFX12 set to ${USE_OPT_GFX12}")
+endif()
+
 ## Threads
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 link_libraries(Threads::Threads)
 
 ## C++
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 message(STATUS "CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")

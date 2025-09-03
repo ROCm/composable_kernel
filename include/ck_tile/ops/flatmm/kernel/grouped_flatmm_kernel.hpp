@@ -214,6 +214,7 @@ struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Epi
     using DsDataType       = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
 
     static constexpr index_t NumDTensor = DsDataType::size();
+    static constexpr index_t kBlockSize = FlatmmPipeline_::BlockSize;
 
     static constexpr auto I0 = number<0>();
     static constexpr auto I1 = number<1>();

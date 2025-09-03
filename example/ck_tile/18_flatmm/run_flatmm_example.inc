@@ -76,6 +76,7 @@ int run_flatmm_example_with_layouts(int argc,
         ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_origin_host);
         ck_tile::FillUniformDistribution<AccDataType>{1.f, 1.f}(per_token_scale);
         ck_tile::FillUniformDistribution<AccDataType>{1.f, 1.f}(per_channel_scale);
+
     }
     else
     {

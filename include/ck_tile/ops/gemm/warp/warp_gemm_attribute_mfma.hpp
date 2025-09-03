@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -8,10 +8,22 @@
 
 namespace ck_tile {
 
-template <typename WarpGemmAttributeMfmaImpl_>
-struct WarpGemmAtrributeMfma
+// Number of groups of consecutive elements to fill in a ABKLane
+enum class WGAttrNumAccessEnum
 {
-    using Impl = remove_cvref_t<WarpGemmAttributeMfmaImpl_>;
+    Single  = 1,
+    Double  = 2,
+    Quad    = 4,
+    Invalid = -1
+};
+
+template <typename WarpGemmAttributeMfmaImpl_,
+          WGAttrNumAccessEnum AttrNumAccess_ = WGAttrNumAccessEnum::Single>
+struct WarpGemmAttributeMfma
+{
+    using Impl                           = remove_cvref_t<WarpGemmAttributeMfmaImpl_>;
+    static constexpr auto AttrNumAccess  = AttrNumAccess_;
+    static constexpr auto AttrNumAccessV = static_cast<index_t>(AttrNumAccess);
 
     using ADataType = typename Impl::ADataType;
     using BDataType = typename Impl::BDataType;
@@ -25,27 +37,42 @@ struct WarpGemmAtrributeMfma
     static constexpr index_t kN          = Impl::kN;
     static constexpr index_t kK          = Impl::kK;
     static constexpr index_t kKPerThread = Impl::kABKPerLane;
+    static constexpr index_t kCMLane     = Impl::kCMLane;
 
     CK_TILE_HOST_DEVICE static constexpr auto get_num_of_access() { return 1; }
 
     static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1,
                   "Multi-block WarpGemmAttributeMfmaImpl is not supported");
 
-    using AWarpDstrEncoding = tile_distribution_encoding<
-        sequence<>,
-        tuple<sequence<Impl::kAMLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
-        tuple<sequence<2, 1>>,
-        tuple<sequence<0, 0>>,
-        sequence<2>,
-        sequence<1>>;
-
-    using BWarpDstrEncoding = tile_distribution_encoding<
-        sequence<>,
-        tuple<sequence<Impl::kBNLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
-        tuple<sequence<2, 1>>,
-        tuple<sequence<0, 0>>,
-        sequence<2>,
-        sequence<1>>;
+    template <index_t kMNLane>
+    static constexpr auto get_warp_dstr_encoding()
+    {
+        if constexpr(AttrNumAccessV == 1)
+        {
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<kMNLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+                tuple<sequence<2, 1>>,
+                tuple<sequence<0, 0>>,
+                sequence<2>,
+                sequence<1>>{};
+        }
+        else
+        {
+            static_assert(kKPerThread % AttrNumAccessV == 0,
+                          "kKPerThread must be divisible by NumAccess");
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<kMNLane>,
+                      sequence<AttrNumAccessV, Impl::kABKLane, Impl::kABKPerLane / AttrNumAccessV>>,
+                tuple<sequence<2, 1>>,
+                tuple<sequence<1, 0>>,
+                sequence<2, 2>,
+                sequence<0, 2>>{};
+        }
+    }
+    using AWarpDstrEncoding = decltype(get_warp_dstr_encoding<Impl::kAMLane>());
+    using BWarpDstrEncoding = decltype(get_warp_dstr_encoding<Impl::kBNLane>());
 
     using CWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
@@ -73,12 +100,16 @@ struct WarpGemmAtrributeMfma
     }
 };
 
-template <typename WarpGemmAttributeMfmaImpl_, index_t kKIter>
-struct WarpGemmAtrributeMfmaIterateK
+template <typename WarpGemmAttributeMfmaImpl_,
+          index_t kKIter,
+          WGAttrNumAccessEnum AttrNumAccess_ = WGAttrNumAccessEnum::Single>
+struct WarpGemmAttributeMfmaIterateK
 {
     static_assert(kKIter > 0, "wrong!");
 
-    using Impl = remove_cvref_t<WarpGemmAttributeMfmaImpl_>;
+    using Impl                           = remove_cvref_t<WarpGemmAttributeMfmaImpl_>;
+    static constexpr auto AttrNumAccess  = AttrNumAccess_;
+    static constexpr auto AttrNumAccessV = static_cast<index_t>(AttrNumAccess);
 
     using ADataType = typename Impl::ADataType;
     using BDataType = typename Impl::BDataType;
@@ -104,17 +135,37 @@ struct WarpGemmAtrributeMfmaIterateK
     {
         if constexpr(Impl::kAMBlock == 1 && Impl::kBNBlock == 1)
         {
-            return tile_distribution_encoding<
-                sequence<>,
-                tuple<sequence<Impl::kAMLane>,
-                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
-                tuple<sequence<2, 1>>,
-                tuple<sequence<0, 0>>,
-                sequence<2>,
-                sequence<1>>{};
+            if constexpr(AttrNumAccessV == 1)
+            {
+                return tile_distribution_encoding<
+                    sequence<>,
+                    tuple<sequence<Impl::kAMLane>,
+                          sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
+                    tuple<sequence<2, 1>>,
+                    tuple<sequence<0, 0>>,
+                    sequence<2>,
+                    sequence<1>>{};
+            }
+            else
+            {
+                static_assert(kKPerThread % AttrNumAccessV == 0,
+                              "kKPerThread must be divisible by NumAccess");
+                return tile_distribution_encoding<
+                    sequence<>,
+                    tuple<sequence<Impl::kAMLane>,
+                          sequence<AttrNumAccessV,
+                                   Impl::kABKLane,
+                                   Impl::kABKPerLane * kKIter / AttrNumAccessV>>,
+                    tuple<sequence<2, 1>>,
+                    tuple<sequence<1, 0>>,
+                    sequence<2, 2>,
+                    sequence<0, 2>>{};
+            }
         }
         else if constexpr(Impl::kAMBlock == 1 && 1 < Impl::kBNBlock)
         {
+            static_assert(AttrNumAccessV == 1,
+                          "Multiple access is not supported when using multi-block");
             // each M blocks share the same data
             return tile_distribution_encoding<
                 sequence<Impl::kBNBlock>,
@@ -127,6 +178,8 @@ struct WarpGemmAtrributeMfmaIterateK
         }
         else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
         {
+            static_assert(AttrNumAccessV == 1,
+                          "Multiple access is not supported when using multi-block");
             // single block to multi-block thread mapping
             return tile_distribution_encoding<
                 sequence<>,
@@ -143,17 +196,38 @@ struct WarpGemmAtrributeMfmaIterateK
     {
         if constexpr(Impl::kAMBlock == 1 && Impl::kBNBlock == 1)
         {
-            return tile_distribution_encoding<
-                sequence<>,
-                tuple<sequence<Impl::kBNLane>,
-                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
-                tuple<sequence<2, 1>>,
-                tuple<sequence<0, 0>>,
-                sequence<2>,
-                sequence<1>>{};
+            if constexpr(AttrNumAccessV == 1)
+            {
+                return tile_distribution_encoding<
+                    sequence<>,
+                    tuple<sequence<Impl::kBNLane>,
+                          sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
+                    tuple<sequence<2, 1>>,
+                    tuple<sequence<0, 0>>,
+                    sequence<2>,
+                    sequence<1>>{};
+            }
+            else
+            {
+
+                static_assert(kKPerThread % AttrNumAccessV == 0,
+                              "kKPerThread must be divisible by NumAccess");
+                return tile_distribution_encoding<
+                    sequence<>,
+                    tuple<sequence<Impl::kBNLane>,
+                          sequence<AttrNumAccessV,
+                                   Impl::kABKLane,
+                                   Impl::kABKPerLane * kKIter / AttrNumAccessV>>,
+                    tuple<sequence<2, 1>>,
+                    tuple<sequence<1, 0>>,
+                    sequence<2, 2>,
+                    sequence<0, 2>>{};
+            }
         }
         else if constexpr(Impl::kAMBlock == 1 && 1 < Impl::kBNBlock)
         {
+            static_assert(AttrNumAccessV == 1,
+                          "Multiple access is not supported when using multi-block");
             // single block to multi-block thread mapping
             return tile_distribution_encoding<
                 sequence<>,
@@ -166,6 +240,8 @@ struct WarpGemmAtrributeMfmaIterateK
         }
         else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
         {
+            static_assert(AttrNumAccessV == 1,
+                          "Multiple access is not supported when using multi-block");
             // each N blocks share the same data
             return tile_distribution_encoding<
                 sequence<Impl::kAMBlock>,
@@ -289,10 +365,13 @@ struct WarpGemmAtrributeMfmaIterateK
     }
 };
 
-template <typename WarpGemmAttributeMfmaImpl_>
-struct WarpGemmAtrributeMfmaTransposedCDistribution
+template <typename WarpGemmAttributeMfmaImpl_,
+          WGAttrNumAccessEnum AttrNumAccess_ = WGAttrNumAccessEnum::Single>
+struct WarpGemmAttributeMfmaTransposedCDistribution
 {
-    using Impl = remove_cvref_t<WarpGemmAttributeMfmaImpl_>;
+    using Impl                           = remove_cvref_t<WarpGemmAttributeMfmaImpl_>;
+    static constexpr auto AttrNumAccess  = AttrNumAccess_;
+    static constexpr auto AttrNumAccessV = static_cast<index_t>(AttrNumAccess);
 
     using ADataType = typename Impl::BDataType;
     using BDataType = typename Impl::ADataType;
@@ -312,21 +391,35 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution
     static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1,
                   "Multi-block WarpGemmAttributeMfmaImpl is not supported");
 
-    using AWarpDstrEncoding = tile_distribution_encoding<
-        sequence<>,
-        tuple<sequence<Impl::kBNLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
-        tuple<sequence<2, 1>>,
-        tuple<sequence<0, 0>>,
-        sequence<2>,
-        sequence<1>>;
-
-    using BWarpDstrEncoding = tile_distribution_encoding<
-        sequence<>,
-        tuple<sequence<Impl::kAMLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
-        tuple<sequence<2, 1>>,
-        tuple<sequence<0, 0>>,
-        sequence<2>,
-        sequence<1>>;
+    template <index_t kMNLane>
+    static constexpr auto get_warp_dstr_encoding()
+    {
+        if constexpr(AttrNumAccessV == 1)
+        {
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<kMNLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+                tuple<sequence<2, 1>>,
+                tuple<sequence<0, 0>>,
+                sequence<2>,
+                sequence<1>>{};
+        }
+        else
+        {
+            static_assert(kKPerThread % AttrNumAccessV == 0,
+                          "kKPerThread must be divisible by NumAccess");
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<kMNLane>,
+                      sequence<AttrNumAccessV, Impl::kABKLane, Impl::kABKPerLane / AttrNumAccessV>>,
+                tuple<sequence<2, 1>>,
+                tuple<sequence<1, 0>>,
+                sequence<2, 2>,
+                sequence<0, 2>>{};
+        }
+    }
+    using AWarpDstrEncoding = decltype(get_warp_dstr_encoding<Impl::kBNLane>());
+    using BWarpDstrEncoding = decltype(get_warp_dstr_encoding<Impl::kAMLane>());
 
     using CWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
@@ -357,7 +450,7 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution
 };
 
 template <typename WarpGemmAttributeMfmaImpl_, index_t SFactor_ = 2>
-struct WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB
+struct WarpGemmAttributeMfmaTransposedCDistribution_SwizzleB
 {
     using Impl = remove_cvref_t<WarpGemmAttributeMfmaImpl_>;
 
@@ -450,10 +543,13 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB
     }
 };
 
-template <typename WarpGemmAttributeMfmaImpl_, index_t kKIter>
-struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution
+template <typename WarpGemmAttributeMfmaImpl_,
+          index_t kKIter,
+          WGAttrNumAccessEnum AttrNumAccess_ = WGAttrNumAccessEnum::Single>
+struct WarpGemmAttributeMfmaIterateKAndTransposedCDistribution
 {
-    using Impl = remove_cvref_t<WarpGemmAttributeMfmaImpl_>;
+    using Impl                          = remove_cvref_t<WarpGemmAttributeMfmaImpl_>;
+    static constexpr auto AttrNumAccess = AttrNumAccess_;
 
     // swap A and B
     using ADataType = typename Impl::BDataType;
@@ -478,80 +574,14 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution
 
     CK_TILE_DEVICE static constexpr auto get_awarp_dstr_encoding()
     {
-        if constexpr(Impl::kAMBlock == 1 && Impl::kBNBlock == 1)
-        {
-            return tile_distribution_encoding<
-                sequence<>,
-                tuple<sequence<Impl::kBNLane>,
-                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
-                tuple<sequence<2, 1>>,
-                tuple<sequence<0, 0>>,
-                sequence<2>,
-                sequence<1>>{};
-        }
-        else if constexpr(Impl::kAMBlock == 1 && 1 < Impl::kBNBlock)
-        {
-            // single block to multi-block thread mapping
-            return tile_distribution_encoding<
-                sequence<>,
-                tuple<sequence<Impl::kBNBlock, Impl::kBNLane>,
-                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
-                tuple<sequence<1, 2, 1>>,
-                tuple<sequence<0, 0, 1>>,
-                sequence<2>,
-                sequence<1>>{};
-        }
-        else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
-        {
-            // each N blocks share the same data
-            return tile_distribution_encoding<
-                sequence<Impl::kAMBlock>,
-                tuple<sequence<Impl::kBNLane>,
-                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
-                tuple<sequence<0, 2, 1>>,
-                tuple<sequence<0, 0, 0>>,
-                sequence<2>,
-                sequence<1>>{};
-        }
+        return WarpGemmAttributeMfmaIterateK<Impl, kKIter, AttrNumAccess>::
+            get_bwarp_dstr_encoding();
     }
 
     CK_TILE_DEVICE static constexpr auto get_bwarp_dstr_encoding()
     {
-        if constexpr(Impl::kAMBlock == 1 && Impl::kBNBlock == 1)
-        {
-            return tile_distribution_encoding<
-                sequence<>,
-                tuple<sequence<Impl::kAMLane>,
-                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
-                tuple<sequence<2, 1>>,
-                tuple<sequence<0, 0>>,
-                sequence<2>,
-                sequence<1>>{};
-        }
-        else if constexpr(Impl::kAMBlock == 1 && 1 < Impl::kBNBlock)
-        {
-            // each M blocks share the same data
-            return tile_distribution_encoding<
-                sequence<Impl::kBNBlock>,
-                tuple<sequence<Impl::kAMLane>,
-                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
-                tuple<sequence<0, 2, 1>>,
-                tuple<sequence<0, 0, 0>>,
-                sequence<2>,
-                sequence<1>>{};
-        }
-        else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
-        {
-            // single block to multi-block thread mapping
-            return tile_distribution_encoding<
-                sequence<>,
-                tuple<sequence<Impl::kAMBlock, Impl::kAMLane>,
-                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
-                tuple<sequence<1, 2, 1>>,
-                tuple<sequence<0, 0, 1>>,
-                sequence<2>,
-                sequence<1>>{};
-        }
+        return WarpGemmAttributeMfmaIterateK<Impl, kKIter, AttrNumAccess>::
+            get_awarp_dstr_encoding();
     }
 
     CK_TILE_DEVICE static constexpr auto get_cwarp_dstr_encoding()
@@ -666,7 +696,7 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution
 };
 
 template <typename WarpGemmAttributeMfmaImpl_, index_t kKIter, index_t SFactor_ = 2>
-struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB
+struct WarpGemmAttributeMfmaIterateKAndTransposedCDistribution_SwizzleB
 {
     using Impl = remove_cvref_t<WarpGemmAttributeMfmaImpl_>;
 
@@ -810,7 +840,7 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB
 };
 
 template <typename WarpGemmAttributeMfmaImpl_, index_t kKIter, index_t SFactor_ = 2>
-struct WarpGemmAtrributeMfmaIterateK_SwizzleA
+struct WarpGemmAttributeMfmaIterateK_SwizzleA
 {
     using Impl = remove_cvref_t<WarpGemmAttributeMfmaImpl_>;
 

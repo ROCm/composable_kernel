@@ -36,8 +36,16 @@ struct GemmPipelineAGmemBGmemCRegV1
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t GetVectorSizeA() { return Problem::VectorSizeA; }
-    static constexpr index_t GetVectorSizeB() { return Problem::VectorSizeB; }
+    template <bool IsWave32Host = false>
+    static constexpr index_t GetVectorSizeA()
+    {
+        return Problem::VectorSizeA;
+    }
+    template <bool IsWave32Host = false>
+    static constexpr index_t GetVectorSizeB()
+    {
+        return Problem::VectorSizeB;
+    }
     static constexpr index_t GetVectorSizeC() { return Problem::VectorSizeC; }
 
     static constexpr index_t GetSmemPackA() { return Policy::template GetSmemPackA<Problem>(); }
@@ -46,6 +54,8 @@ struct GemmPipelineAGmemBGmemCRegV1
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
+
+    static constexpr bool Preshuffle = Problem::Preshuffle;
 
     static constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
 
@@ -282,9 +292,9 @@ struct GemmPipelineAGmemBGmemCRegV1
     {
         return operator()(
             a_dram_block_window_tmp,
-            [](const ADataType& a) { return a; },
+            [](const ADataType & a) { return a; },
             b_dram_block_window_tmp,
-            [](const BDataType& b) { return b; },
+            [](const BDataType & b) { return b; },
             num_loop,
             p_smem);
     }
