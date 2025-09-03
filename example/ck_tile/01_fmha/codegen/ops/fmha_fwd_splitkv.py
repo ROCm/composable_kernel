@@ -871,7 +871,7 @@ def write_blobs(arch : str, output_dir : Path, filter_list : str, receipt, optdi
     filter_list = filter_list.split('@')
     filter_list.extend([''] * (2 - len(filter_list)))
 
-    combine_kernels = get_fwd_splitkv_combine_blobs(arch, filter_list[0], receipt)
+    combine_kernels = get_fwd_splitkv_combine_blobs(arch, filter_list[0], receipt, optdim_list)
     for kernel in combine_kernels:
         write_single_kernel(kernel, output_dir)
     kernels = get_fwd_splitkv_blobs(arch, filter_list[1], receipt, mask_impl, optdim_list)

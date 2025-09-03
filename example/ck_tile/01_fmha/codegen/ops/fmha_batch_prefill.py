@@ -612,13 +612,13 @@ def write_single_fwd_kernel(kernel: FmhaFwdKernel, autogen_dir: Path) -> None:
 def write_fwd_api(api_pool : FmhaFwdApiPool, autogen_dir: Path) -> None:
     (autogen_dir / FMHA_FWD_API_FILENAME).write_text(api_pool.api)
 
-def write_blobs(output_dir : Path, kernel_filter : str, receipt, optdim_list, mask_impl) -> None:
+def write_blobs(arch : str, output_dir : Path, kernel_filter : str, receipt, optdim_list, mask_impl) -> None:
     api_pool, kernels = get_fwd_blobs(kernel_filter, receipt, optdim_list, mask_impl)
     for kernel in kernels:
         write_single_fwd_kernel(kernel, output_dir)
     write_fwd_api(api_pool, output_dir)
 
-def list_blobs(file_path : Path, kernel_filter : str, receipt, optdim_list, mask_impl) -> None:
+def list_blobs(arch : str, file_path : Path, kernel_filter : str, receipt, optdim_list, mask_impl) -> None:
     with file_path.open('a') as f:
         _, kernels = get_fwd_blobs(kernel_filter, receipt, optdim_list, mask_impl)
         for kernel in kernels:

@@ -398,20 +398,13 @@ def get_dq_dk_dv_tiles_gfx12(dtype : str, tr_load: str) -> List[FmhaBwdDQDKDVTil
     if (dtype == 'fp16' or dtype == 'bf16') and tr_load == 'f':
         return [
             #                     bm0, bn0, bk0, bk1, bk2, bk3, bk4, bhdq, bhdv,
-            FmhaBwdDQDKDVTileSize( 32,  64,  32,  32,  32,  32,  64,   32,   32,  1, 4, 1,  4, 1, 1,  2, 2, 1,  16, 16, 16,  16, 16, 16),
-            FmhaBwdDQDKDVTileSize( 32,  64,  64,  32,  64,  32,  32,   64,   64,  1, 4, 1,  4, 1, 1,  1, 4, 1,  16, 16, 16,  16, 16, 16),
-            FmhaBwdDQDKDVTileSize( 16,  64, 128,  16, 128,  16,  32,  128,  128,  1, 4, 1,  4, 1, 1,  1, 4, 1,  16, 16, 16,  16, 16, 16),
-            FmhaBwdDQDKDVTileSize( 16,  64, 256,  16, 256,  16,  32,  256,  256,  1, 4, 1,  4, 1, 1,  1, 4, 1,  16, 16, 16,  16, 16, 16),
+            FmhaBwdDQDKDVTileSize( 32,  64,  32,  32,  32,  32,  64,   32,   32,  1, 4, 1,  4, 1, 1,  2, 2, 1,  16, 16, 16,  16, 16, 16, -1),
+            FmhaBwdDQDKDVTileSize( 32,  64,  64,  32,  64,  32,  32,   64,   64,  1, 4, 1,  4, 1, 1,  1, 4, 1,  16, 16, 16,  16, 16, 16, -1),
+            FmhaBwdDQDKDVTileSize( 16,  64, 128,  16, 128,  16,  32,  128,  128,  1, 4, 1,  4, 1, 1,  1, 4, 1,  16, 16, 16,  16, 16, 16, -1),
+            FmhaBwdDQDKDVTileSize( 16,  64, 256,  16, 256,  16,  32,  256,  256,  1, 4, 1,  4, 1, 1,  1, 4, 1,  16, 16, 16,  16, 16, 16, -1),
         ]
     else:
         return []
-
-def get_dq_dk_dv_tiles(arch : str, dtype : str, tr_load : str) -> Optional[dict]:
-    if arch.startswith('gfx12'):
-        return get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype_gfx12(dtype, tr_load)
-    else:
-        return get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype_gfx9(dtype, tr_load)
-
 
 FMHA_BWD_DOT_DO_O_KERNEL_BODY="""
 using fmha_dtype_{F_idx} = {F_dtype};
@@ -804,6 +797,8 @@ def get_bwd_blobs(arch: str, filter_list: str, receipt, mask_impl, optdim_list) 
     filter_convert_dq = filters[1]
     filter_dq_dk_dv = filters[2]
 
+    get_dq_dk_dv_tiles = get_dq_dk_dv_tiles_gfx12 if arch.startswith('gfx12') else get_dq_dk_dv_tiles_gfx9
+
     # use dict as ordered set
     gen_dot_do_o: Dict[FmhaBwdOGradDotOKernel, Literal[True]] = {}
     gen_dq_dk_dv: Dict[FmhaBwdDQDKDVKernel, Literal[True]] = {}
@@ -811,7 +806,7 @@ def get_bwd_blobs(arch: str, filter_list: str, receipt, mask_impl, optdim_list) 
     api_pool = FmhaBwdApiPool(mask_impl)
 
     for dtype, tr_load in itertools.product(BWD_DTYPE_MAP.keys(), ["t", "f"]):
-        tiles: Any = get_dq_dk_dv_tiles(arch, dtype, tr_load)
+        tiles: Any = get_dq_dk_dv_tiles(dtype, tr_load)
         for tile, mode, mask, bias, dbias, dropout, spad1d, dpad, dvpad, deterministic in itertools.product(tiles, MODE_MAP.keys(), get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], DROPOUT_MAP.keys(), *([["t", "f"]] * 4)):
             assert isinstance(tile, FmhaBwdDQDKDVTileSize), "tile must be FmhaBwdDQDKDVTileSize"
             hdim = tile.F_bhdq

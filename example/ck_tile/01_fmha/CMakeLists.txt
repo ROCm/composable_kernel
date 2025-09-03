@@ -12,6 +12,7 @@ set(FMHA_FWD_ENABLE_APIS "fwd" CACHE STRING
   "semicolon-separated list of APIs to generate (${FMHA_FWD_KNOWN_APIS}) & link, or \"all\".")
 if(BUILD_TESTING)
   # Build instances of all APIs for tests
+  message(DEBUG "Enabling all FWD APIs of CK Tile FMHA for because testing is enabled")
   set(FMHA_FWD_ENABLE_APIS "all")
 endif()
 if(FMHA_FWD_ENABLE_APIS STREQUAL "all")

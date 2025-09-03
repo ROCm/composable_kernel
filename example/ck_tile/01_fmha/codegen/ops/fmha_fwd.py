@@ -635,16 +635,16 @@ class KernelComponentFactoryGfx12:
         pipelines = []
         if dtype in ['fp16', 'bf16']:
             for logits, mask, bias, lse, dropout, skip in itertools.product(['t', 'f'], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ['t', 'f'], ['t', 'f'], ['t', 'f']):
-                pipelines.append(FmhaFwdPipeline('qr', 'row', 'f', 'f', 'f', 'f', logits, bias, lse, dropout, squant, mask, skip))
-                pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask, skip))
-                pipelines.append(FmhaFwdPipeline('qr', 'col', 'f', 'f', 'f', 'f', logits, bias, lse, dropout, squant, mask, skip))
-                pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask, skip))
+                pipelines.append(FmhaFwdPipeline('qr', 'row', 'f', 'f', 'f', 'f', logits, bias, lse, dropout, squant, mask, skip, 'f'))
+                pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask, skip, 'f'))
+                pipelines.append(FmhaFwdPipeline('qr', 'col', 'f', 'f', 'f', 'f', logits, bias, lse, dropout, squant, mask, skip, 'f'))
+                pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask, skip, 'f'))
         elif dtype in ['fp8', 'bf8']:
             # no need lse/dropout kernels
             for logits, mask, bias in itertools.product(['t', 'f'], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()):
-                pipelines.append(FmhaFwdPipeline('qr', 'col', 'f', 'f', 'f', 'f', logits, bias, 'f', 'f', squant, mask, 'f'))
+                pipelines.append(FmhaFwdPipeline('qr', 'col', 'f', 'f', 'f', 'f', logits, bias, 'f', 'f', squant, mask, 'f', 'f'))
                 # TODO: this cannot be compiled, investigate why
-                # pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 't', 't', 't', logits, bias, 'f', 'f', squant, mask, 'f'))
+                # pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 't', 't', 't', logits, bias, 'f', 'f', squant, mask, 'f', 'f'))
         else:
             assert False
         return pipelines
