@@ -120,8 +120,6 @@ struct SplitKTwoStageInvoker
             using GemmKernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
 
             ck_tile::DeviceMem ws_m_n_dev_buf(args.M * args.N * sizeof(WorkspaceType));
-            ws_m_n_dev_buf.SetZero();
-
             ck_tile::GemmHostArgs ws_args = ck_tile::GemmHostArgs(args);
             auto c_ptr                    = ws_args.c_ptr;
             ws_args.c_ptr                 = ws_m_n_dev_buf.GetDeviceBuffer();
