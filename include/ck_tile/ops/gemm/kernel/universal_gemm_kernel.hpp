@@ -341,6 +341,12 @@ struct UniversalGemmKernel
 
     CK_TILE_HOST static bool IsSupportedArgument(const KernelArgs& kargs)
     {
+
+        printf("[DEBUG] M,N,K... Per Block: %d, %d, %d\n",
+               TilePartitioner::MPerBlock,
+               TilePartitioner::NPerBlock,
+               TilePartitioner::KPerBlock);
+
         if constexpr(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                      is_any_of<EDataType, fp16_t, bf16_t>::value)
         {

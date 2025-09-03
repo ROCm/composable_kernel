@@ -127,7 +127,7 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
     static constexpr index_t GetSmemPackB() { return Policy::template GetSmemPackB<Problem>(); }
 
     // TODO check KRepeat
-    static constexpr index_t KRepeat = KPerBlock / GetSmemPackA();
+    static constexpr index_t KRepeat = BlockGemm::WarpGemm::kKPerThread / GetSmemPackA();
 
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
@@ -149,7 +149,8 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
         return concat('_', "pipeline_AgBgCrCompV6", BlockSize,
                       concat('x', GetVectorSizeA(), GetVectorSizeB(),  GetVectorSizeC()),
                       concat('x', kPadM, kPadN, kPadK),
-                      concat('x', TailNum));
+                      concat('x', TailNum),
+                      concat('_', KRepeat)); // DEBUG
         // clang-format on
     }
 
@@ -525,6 +526,10 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
             // Local prefetch 1
             BasePImpl::LocalPrefetch(a_lds_tile, a_lds_gemm_window);
             BasePImpl::LocalPrefetch(b_lds_tile, b_lds_gemm_window);
+            // if(threadIdx.x == 0)
+            //{
+            //     printf("[DEBUG] KRepeat: %d\n", KRepeat);
+            // }
 
             if(HasHotLoop)
             {
@@ -532,9 +537,77 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
                 do
                 {
                     auto LoopFunc = [&](auto vmem_buf_idx) {
+                        static_for<0, KRepeat, 1>{}([&](auto k0) {
+                            if constexpr(k0 == (KRepeat - 1))
+                            {
+                                block_sync_lds();
+
+                                // Local prefill 2
+                                if constexpr(is_a_col_major && !is_a_load_tr_v())
+                                {
+                                    auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                                        Policy::template MakeShuffledARegTileDistribution<
+                                            Problem>());
+                                    transpose_tile2d(a_shuffle_tmp, a_block_tile[vmem_buf_idx]);
+                                    BasePImpl::LocalPrefill(
+                                        a_copy_lds_window, a_shuffle_tmp, a_element_func);
+                                }
+                                else
+                                {
+                                    BasePImpl::LocalPrefill(a_copy_lds_window,
+                                                            a_block_tile[vmem_buf_idx],
+                                                            a_element_func);
+                                }
+                                if constexpr(is_b_row_major && !is_b_load_tr_v())
+                                {
+                                    auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
+                                        Policy::template MakeShuffledBRegTileDistribution<
+                                            Problem>());
+                                    transpose_tile2d(b_shuffle_tmp, b_block_tile[vmem_buf_idx]);
+                                    BasePImpl::LocalPrefill(
+                                        b_copy_lds_window, b_shuffle_tmp, b_element_func);
+                                }
+                                else
+                                {
+                                    BasePImpl::LocalPrefill(b_copy_lds_window,
+                                                            b_block_tile[vmem_buf_idx],
+                                                            b_element_func);
+                                }
+
+                                // Global prefetch 4
+                                BasePImpl::GlobalPrefetch(a_block_tile[vmem_buf_idx],
+                                                          a_copy_dram_window,
+                                                          a_dram_tile_window_step);
+                                BasePImpl::GlobalPrefetch(b_block_tile[vmem_buf_idx],
+                                                          b_copy_dram_window,
+                                                          b_dram_tile_window_step);
+
+                                block_sync_lds();
+                            }
+                            block_gemm(c_block_tile, a_lds_tile, b_lds_tile);
+
+                            // Local prefetch 2
+                            BasePImpl::LocalPrefetch(a_lds_tile, a_lds_gemm_window);
+                            BasePImpl::LocalPrefetch(b_lds_tile, b_lds_gemm_window);
+                        });
+
+                        HotLoopScheduler();
+                    };
+
+                    LoopFunc(I0);
+                    LoopFunc(I1);
+
+                    i += Base::HotloopUnroll;
+                } while(i < (num_loop - Base::PrefetchStages));
+            }
+
+            auto ReadWriteCompFunc = [&](auto vmem_buf_idx) {
+                static_for<0, KRepeat, 1>{}([&](auto k0) {
+                    if constexpr(k0 == (KRepeat - 1))
+                    {
                         block_sync_lds();
 
-                        // Local prefill 2
+                        // Local prefill 3
                         if constexpr(is_a_col_major && !is_a_load_tr_v())
                         {
                             auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
@@ -562,93 +635,58 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
                                 b_copy_lds_window, b_block_tile[vmem_buf_idx], b_element_func);
                         }
 
-                        // Global prefetch 4
-                        BasePImpl::GlobalPrefetch(a_block_tile[vmem_buf_idx],
-                                                  a_copy_dram_window,
-                                                  a_dram_tile_window_step);
-                        BasePImpl::GlobalPrefetch(b_block_tile[vmem_buf_idx],
-                                                  b_copy_dram_window,
-                                                  b_dram_tile_window_step);
-
                         block_sync_lds();
+                    }
 
-                        block_gemm(c_block_tile, a_lds_tile, b_lds_tile);
+                    block_gemm(c_block_tile, a_lds_tile, b_lds_tile);
 
-                        // Local prefetch 2
-                        BasePImpl::LocalPrefetch(a_lds_tile, a_lds_gemm_window);
-                        BasePImpl::LocalPrefetch(b_lds_tile, b_lds_gemm_window);
-
-                        HotLoopScheduler();
-                    };
-
-                    LoopFunc(I0);
-                    LoopFunc(I1);
-
-                    i += Base::HotloopUnroll;
-                } while(i < (num_loop - Base::PrefetchStages));
-            }
-
-            auto ReadWriteCompFunc = [&](auto vmem_buf_idx) {
-                block_sync_lds();
-
-                // Local prefill 3
-                if constexpr(is_a_col_major && !is_a_load_tr_v())
-                {
-                    auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-                        Policy::template MakeShuffledARegTileDistribution<Problem>());
-                    transpose_tile2d(a_shuffle_tmp, a_block_tile[vmem_buf_idx]);
-                    BasePImpl::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
-                }
-                else
-                {
-                    BasePImpl::LocalPrefill(
-                        a_copy_lds_window, a_block_tile[vmem_buf_idx], a_element_func);
-                }
-                if constexpr(is_b_row_major && !is_b_load_tr_v())
-                {
-                    auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
-                        Policy::template MakeShuffledBRegTileDistribution<Problem>());
-                    transpose_tile2d(b_shuffle_tmp, b_block_tile[vmem_buf_idx]);
-                    BasePImpl::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
-                }
-                else
-                {
-                    BasePImpl::LocalPrefill(
-                        b_copy_lds_window, b_block_tile[vmem_buf_idx], b_element_func);
-                }
-
-                block_sync_lds();
-                block_gemm(c_block_tile, a_lds_tile, b_lds_tile);
-
-                BasePImpl::LocalPrefetch(a_lds_tile, a_lds_gemm_window);
-                BasePImpl::LocalPrefetch(b_lds_tile, b_lds_gemm_window);
+                    BasePImpl::LocalPrefetch(a_lds_tile, a_lds_gemm_window);
+                    BasePImpl::LocalPrefetch(b_lds_tile, b_lds_gemm_window);
+                });
 
                 HotLoopScheduler();
             };
 
             auto ReadCompFunc = [&]() {
-                if(threadIdx.x == 0)
-                {
-                    printf("[DEBUG] ReadCompFunc before blockgemm... Values: %f, %f, %f\n",
-                           c_block_tile.get_thread_buffer()[0],
-                           c_block_tile.get_thread_buffer()[1],
-                           c_block_tile.get_thread_buffer()[2]);
-                }
+                // if(threadIdx.x == 0)
+                //{
+                //     printf("[DEBUG] ReadCompFunc before blockgemm 1... Values: %f, %f, %f\n",
+                //            c_block_tile.get_thread_buffer()[0],
+                //            c_block_tile.get_thread_buffer()[1],
+                //            c_block_tile.get_thread_buffer()[2]);
+                // }
+                static_for<0, KRepeat - 1, 1>{}([&]() {
+                    if(threadIdx.x == 0)
+                    {
+                        printf("[DEBUG] ReadCompFunc inside static for\n");
+                    }
+                    __syncthreads();
+                    block_gemm(c_block_tile, a_lds_tile, b_lds_tile);
+
+                    // Local prefetch 4
+                    BasePImpl::LocalPrefetch(a_lds_tile, a_lds_gemm_window);
+                    BasePImpl::LocalPrefetch(b_lds_tile, b_lds_gemm_window);
+
+                    __syncthreads();
+                });
+
+                // if(threadIdx.x == 0)
+                //{
+                //     printf("[DEBUG] ReadCompFunc after block_gemm 1... Values: %f, %f, %f\n",
+                //            c_block_tile.get_thread_buffer()[0],
+                //            c_block_tile.get_thread_buffer()[1],
+                //            c_block_tile.get_thread_buffer()[2]);
+                // }
                 block_gemm(c_block_tile, a_lds_tile, b_lds_tile);
-                __syncthreads();
+                // block_gemm.TailOp(c_block_tile, a_lds_tile, b_lds_tile);
 
-                // Local prefetch 4
-                BasePImpl::LocalPrefetch(a_lds_tile, a_lds_gemm_window);
-                BasePImpl::LocalPrefetch(b_lds_tile, b_lds_gemm_window);
-
-                __syncthreads();
-                if(threadIdx.x == 0)
-                {
-                    printf("[DEBUG] ReadCompFunc after block_gemm... Values: %f, %f, %f\n",
-                           c_block_tile.get_thread_buffer()[0],
-                           c_block_tile.get_thread_buffer()[1],
-                           c_block_tile.get_thread_buffer()[2]);
-                }
+                // if(threadIdx.x == 0)
+                //{
+                //     printf("[DEBUG] ReadCompFunc after block_gemm 2... Values: %f, %f, %f\n",
+                //            c_block_tile.get_thread_buffer()[0],
+                //            c_block_tile.get_thread_buffer()[1],
+                //            c_block_tile.get_thread_buffer()[2]);
+                // }
 
                 HotLoopScheduler();
             };
