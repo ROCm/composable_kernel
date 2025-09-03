@@ -22,29 +22,26 @@ template <typename GemmConfig,
           typename ALayout,
           typename BLayout,
           typename CLayout,
-          uint32_t QuantGroupSize,
-          bool Preshuffle = false>
+          uint32_t QuantGroupSize>
 float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::stream_config& s)
 {
     constexpr bool kPadM = false;
     constexpr bool kPadN = false;
     constexpr bool kPadK = false;
 
-    constexpr int kBlockPerCu = 1;
-
     static_assert(std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::RowMajor>);
 
-    constexpr ck_tile::index_t M_Tile = 16;
-    constexpr ck_tile::index_t N_Tile = 64;
-    constexpr ck_tile::index_t K_Tile = 256;
+    constexpr ck_tile::index_t M_Tile = GemmConfig::M_Tile;
+    constexpr ck_tile::index_t N_Tile = GemmConfig::N_Tile;
+    constexpr ck_tile::index_t K_Tile = GemmConfig::K_Tile;
 
-    constexpr ck_tile::index_t M_Warp = 1;
-    constexpr ck_tile::index_t N_Warp = 4;
-    constexpr ck_tile::index_t K_Warp = 1;
+    constexpr ck_tile::index_t M_Warp = GemmConfig::M_Warp;
+    constexpr ck_tile::index_t N_Warp = GemmConfig::N_Warp;
+    constexpr ck_tile::index_t K_Warp = GemmConfig::K_Warp;
 
-    constexpr ck_tile::index_t M_Warp_Tile = 16;
-    constexpr ck_tile::index_t N_Warp_Tile = 16;
-    constexpr ck_tile::index_t K_Warp_Tile = 32;
+    constexpr ck_tile::index_t M_Warp_Tile = GemmConfig::M_Warp_Tile;
+    constexpr ck_tile::index_t N_Warp_Tile = GemmConfig::N_Warp_Tile;
+    constexpr ck_tile::index_t K_Warp_Tile = GemmConfig::K_Warp_Tile;
 
     using CodegenGemmShape =
         ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
@@ -53,8 +50,13 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
 
     using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenGemmShape>;
 
-    using CodegenGemmTraits =
-        ck_tile::TileGemmAQuantTraits<kPadM, kPadN, kPadK, Preshuffle, ALayout, BLayout, CLayout>;
+    using CodegenGemmTraits = ck_tile::TileGemmAQuantTraits<kPadM,
+                                                            kPadN,
+                                                            kPadK,
+                                                            GemmConfig::PreshuffleQuant,
+                                                            ALayout,
+                                                            BLayout,
+                                                            CLayout>;
 
     using GemmPipelineProblem = ck_tile::GemmPipelineProblemBase<ADataType,
                                                                  BDataType,
@@ -76,20 +78,20 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
         constexpr bool has_hot_loop_v = has_hot_loop_.value;
         constexpr auto tail_number_v  = tail_number_.value;
 
-        using CodegenPipelineProblem =
-            ck_tile::GemmAQuantPipelineProblem<ADataType,
-                                               AQDataType,
-                                               BDataType,
-                                               AccDataType,
-                                               CodegenGemmShape,
-                                               CodegenGemmTraits,
-                                               QuantGroupSize,
-                                               ComputeDataType,
-                                               ck_tile::GemmPipelineScheduler::Interwave,
-                                               has_hot_loop_v,
-                                               tail_number_v>;
-        using CodegenGemmPipeline = typename PipelineTypeTraits<
-            GemmConfig::Pipeline>::template AQuantGemmPipeline<CodegenPipelineProblem>;
+        using CodegenPipelineProblem = ck_tile::GemmAQuantPipelineProblem<ADataType,
+                                                                          AQDataType,
+                                                                          BDataType,
+                                                                          AccDataType,
+                                                                          CodegenGemmShape,
+                                                                          CodegenGemmTraits,
+                                                                          QuantGroupSize,
+                                                                          transposed_warp_gemm,
+                                                                          ComputeDataType,
+                                                                          GemmConfig::Scheduler,
+                                                                          has_hot_loop_v,
+                                                                          tail_number_v>;
+        using CodegenGemmPipeline    = typename PipelineTypeTraits<
+               GemmConfig::Pipeline>::template AQuantGemmPipeline<CodegenPipelineProblem>;
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
@@ -139,7 +141,7 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
         }
 
         float ave_time = ck_tile::launch_kernel(
-            s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+            s, ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 
         return ave_time;
     };
