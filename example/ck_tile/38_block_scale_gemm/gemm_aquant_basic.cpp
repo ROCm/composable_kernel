@@ -8,8 +8,6 @@
 #include <string>
 #include <tuple>
 
-#include "ck_tile/core/config.hpp"
-#include "ck_tile/host.hpp"
 #include "gemm_utils.hpp"
 
 template <typename GemmConfig,
@@ -192,13 +190,14 @@ int run_gemm_example(int argc, char* argv[])
     if(data_type == "fp8")
     {
         using TypeConfig =
-            decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>{});
+            decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t, float>{});
         return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
     else if(data_type == "bf8")
     {
-        using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, float>{});
+        using TypeConfig =
+            decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t, float>{});
         return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
@@ -206,32 +205,18 @@ int run_gemm_example(int argc, char* argv[])
     {
         using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t,
                                                         ck_tile::fp8_t,
-                                                        float,
+                                                        ck_tile::half_t,
                                                         ck_tile::fp8_t>{});
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, TypeConfig, 128>(
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
     else if(data_type == "i4bf8")
     {
         using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t,
                                                         ck_tile::bf8_t,
-                                                        float,
+                                                        ck_tile::half_t,
                                                         ck_tile::bf8_t>{});
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, TypeConfig, 128>(
-            a_layout, b_layout, argc, argv);
-    }
-    else if(data_type == "i4f32fp8")
-    {
-        using TypeConfig =
-            decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::fp8_t, float, float>{});
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, TypeConfig, 128>(
-            a_layout, b_layout, argc, argv);
-    }
-    else if(data_type == "i4f32bf8")
-    {
-        using TypeConfig =
-            decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t, ck_tile::bf8_t, float, float>{});
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_int4_t>, TypeConfig, 128>(
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>, TypeConfig, 128>(
             a_layout, b_layout, argc, argv);
     }
     else

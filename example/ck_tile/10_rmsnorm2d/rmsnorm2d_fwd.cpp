@@ -1,6 +1,7 @@
 #include "ck_tile/host.hpp"
 #include "rmsnorm2d_fwd.hpp"
 #include <cstring>
+#include "json_dump.hpp"
 
 // different threshold for different dtype
 template <typename DataType>
@@ -53,7 +54,9 @@ auto create_args(int argc, char* argv[])
         .insert("fquant", "0", "fused-quant, 0:no, 1:smooth-dynamic-quant, 2:dynamic-quant")
         .insert("warmup", "5", "cold iter")
         .insert("repeat", "20", "hot iter")
-        .insert("s", "0", "sensitive model mode, 0: for no specific model, 1: for T5-like model");
+        .insert("s", "0", "sensitive model mode, 0: for no specific model, 1: for T5-like model")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "rmsnorm2d_fwd.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -435,6 +438,23 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
 
         std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
+    }
+
+    if(arg_parser.get_int("json") == 1)
+    {
+        dump_rmsnorm2d_fwd_json(arg_parser.get_str("jsonfile"),
+                                prec_str,
+                                m,
+                                n,
+                                x_stride,
+                                xr_stride,
+                                y_stride,
+                                yr_stride,
+                                use_model_sensitive_rmsnorm,
+                                ave_time,
+                                0,
+                                gb_per_sec,
+                                pass);
     }
 
     return pass;

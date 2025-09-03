@@ -1,3 +1,4 @@
+
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -42,8 +43,7 @@ template <typename GemmConfig,
           typename AQLayout,
           typename BLayout,
           typename CLayout,
-          uint32_t QuantGroupSize,
-          bool Preshuffle = false>
+          uint32_t QuantGroupSize>
 float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   ck_tile::DeviceMem& aq_m_aqk_dev_buf,
                   ck_tile::DeviceMem& b_k_n_dev_buf,
@@ -234,22 +234,21 @@ int run_gemm_example_with_layouts(int argc,
                 AQLayout,
                 BLayout,
                 CLayout,
-                QuantGroupSize,
-                GemmConfig::PreshuffleQuant>(a_m_k_dev_buf,
-                                             aq_m_aqk_dev_buf,
-                                             b_k_n_dev_buf,
-                                             c_m_n_dev_buf,
-                                             M,
-                                             N,
-                                             K,
-                                             AQK,
-                                             stride_A,
-                                             stride_AQ,
-                                             stride_B,
-                                             stride_C,
-                                             kbatch,
-                                             n_warmup,
-                                             n_repeat);
+                QuantGroupSize>(a_m_k_dev_buf,
+                                aq_m_aqk_dev_buf,
+                                b_k_n_dev_buf,
+                                c_m_n_dev_buf,
+                                M,
+                                N,
+                                K,
+                                AQK,
+                                stride_A,
+                                stride_AQ,
+                                stride_B,
+                                stride_C,
+                                kbatch,
+                                n_warmup,
+                                n_repeat);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass = true;
