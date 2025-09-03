@@ -343,8 +343,7 @@ struct CShuffleEpilogue
     }
 
     template <auto iAccess, typename OutDramWindow, typename DDramWindows>
-    CK_TILE_DEVICE void move_windows(OutDramWindow& out_dram_window,
-                                     const DDramWindows& d_dram_windows)
+    CK_TILE_DEVICE void move_windows(OutDramWindow& out_dram_window, DDramWindows& d_dram_windows)
     {
         constexpr index_t num_access = SFC::get_num_of_access();
         if constexpr(iAccess != num_access - 1)

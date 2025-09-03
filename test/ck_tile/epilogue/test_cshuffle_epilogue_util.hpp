@@ -19,23 +19,6 @@
 
 namespace ck_tile {
 
-// CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
-// {
-//     constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
-//         sequence<>,
-//         tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
-//         tuple<sequence<1, 2>>,
-//         tuple<sequence<1, 1>>,
-//         sequence<1, 2>,
-//         sequence<0, 0>>{};
-
-//     constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-//         c_block_outer_dstr_encoding, typename WarpGemm::CWarpDstrEncoding{});
-//     constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
-//     auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
-
-//     return c_block_tensor;
-// }
 // Simple test kernel to invoke the CShuffleEpilogue
 template <typename Problem, index_t M, index_t N, bool UseScale>
 __global__ void test_cshuffle_epilogue_kernel(typename Problem::ODataType* __restrict__ output_data,
@@ -198,12 +181,6 @@ bool run_cshuffle_epilogue_test(bool use_scale = false)
         scale_has_4 = type_convert<float>(host_output[1]) > 3.9F &&
                       type_convert<float>(host_output[1]) < 4.1F;
     }
-
-    // for (size_t i = 0; i < 512; ++i)
-    // {
-    //     std::cout << "output[" << i << "] = " << type_convert<float>(host_output[i]) <<
-    //     std::endl;
-    // }
 
     // Cleanup
     HIP_CHECK_ERROR(hipFree(device_output));
