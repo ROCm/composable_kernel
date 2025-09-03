@@ -157,17 +157,20 @@ This will result in an executable `build/bin/tile_example_grouped_gemm`
 ## example
 ```
 args:
- -Ms          M dimensions - (Default: empty).
- -Ns          N dimensions - (Default: empty).
- -Ks          K dimensions - (Default: empty).
- -stride_As   Tensor A strides - (Default: empty).
- -stride_Bs   Tensor B strides - (Default: empty).
- -stride_Cs   Tensor C strides - (Default: empty).
- -a_layout    A tensor data layout - (Default: Row).
- -b_layout    B tensor data layout - (Default: Col).
- -c_layout    C tensor data layout - (Default: Row).
- -validate    0. No validation, 1. Validation on CPU. (Default: 1).
- -warmup      Number of iterations before benchmark the kernel. (Default: 10).
- -repeat      Number of iterations to benchmark the kernel. (Default: 100).
- -group_count Group count. (Default: 16).
+          -Ms    M dimensions - empty by default. (default:)
+          -Ns    N dimensions - empty by default. (default:)
+          -Ks    K dimensions - empty by default. (default:)
+    -stride_As    Tensor A strides - it is empty by default. (default:)
+    -stride_Bs    Tensor B strides - it is empty by default. (default:)
+    -stride_Cs    Tensor C strides - it is empty by default. (default:)
+    -a_layout    A tensor data layout - Row by default. (default:R)
+    -b_layout    B tensor data layout - Row by default. (default:C)
+    -c_layout    C tensor data layout - Row by default. (default:R)
+    -validate    0. No validation, 1. Validation on CPU. (default:1)
+      -warmup    number of iterations before benchmark the kernel. (default:10)
+      -repeat    number of iterations to benchmark the kernel. (default:100)
+  -group_count    group count. (default:8)
+      -kbatch    kbatch for SplitK (default:1)
+        -json    0: No Json, 1: Dump Results in Json format (default:0)
+    -jsonfile    json file name to dump results (default:grouped_gemm.json)
 ```

@@ -2,7 +2,6 @@
 // Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
 {
@@ -113,24 +112,6 @@ float invoke_gemm(int n_warmup,
                                          AccDataType,
                                          CDataType>(stream, group_count, kargs_ptr, splitk);
     }
-
-    std::string op_name{"Grouped Gemm"};
-
-    std::size_t flop = 0, num_btype = 0;
-    for(int j = 0; j < group_count; ++j)
-    {
-        flop += std::size_t(2) * args[j].M * args[j].N * args[j].K;
-
-        num_btype += sizeof(ADataType) * args[j].M * args[j].K +
-                     sizeof(BDataType) * args[j].K * args[j].N +
-                     sizeof(CDataType) * args[j].M * args[j].N;
-    }
-
-    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
-    float gb_per_sec = num_btype / 1.E6 / ave_time;
-
-    std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops << " TFlops, "
-              << gb_per_sec << " GB/s, " << op_name << std::endl;
 
     return ave_time;
 }
@@ -259,17 +240,34 @@ int run_grouped_gemm_example_with_layouts(int argc,
             {p_a, p_b, p_c, kbatch, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
     }
 
-    invoke_gemm<GemmConfig,
-                ADataType,
-                BDataType,
-                ck_tile::tuple<>,
-                AccDataType,
-                CDataType,
-                ALayout,
-                BLayout,
-                ck_tile::tuple<>,
-                CLayout,
-                Persistent>(warmup, repeat, group_count, gemm_descs);
+    float ave_time = invoke_gemm<ADataType,
+                                 BDataType,
+                                 ck_tile::tuple<>,
+                                 AccDataType,
+                                 CDataType,
+                                 ALayout,
+                                 BLayout,
+                                 ck_tile::tuple<>,
+                                 CLayout,
+                                 Persistent>(warmup, repeat, group_count, gemm_descs);
+
+    std::string op_name{"Grouped Gemm"};
+
+    std::size_t flop = 0, num_btype = 0;
+    for(int j = 0; j < group_count; ++j)
+    {
+        flop += std::size_t(2) * gemm_descs[j].M * gemm_descs[j].N * gemm_descs[j].K;
+
+        num_btype += sizeof(ADataType) * gemm_descs[j].M * gemm_descs[j].K +
+                     sizeof(BDataType) * gemm_descs[j].K * gemm_descs[j].N +
+                     sizeof(CDataType) * gemm_descs[j].M * gemm_descs[j].N;
+    }
+
+    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
+    float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+    std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops << " TFlops, "
+              << gb_per_sec << " GB/s, " << op_name << std::endl;
 
     for(int i = 0; i < group_count; i++)
     {
@@ -302,6 +300,17 @@ int run_grouped_gemm_example_with_layouts(int argc,
                       << std::endl;
         }
         std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
+    }
+
+    if(arg_parser.get_int("json") == 1)
+    {
+        dump_grouped_gemm_json_results<ALayout, BLayout, CLayout>(arg_parser.get_str("jsonfile"),
+                                                                  op_name,
+                                                                  group_count,
+                                                                  pass,
+                                                                  ave_time,
+                                                                  tflops,
+                                                                  gb_per_sec);
     }
 
     return pass;
