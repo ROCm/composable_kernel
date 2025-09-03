@@ -154,8 +154,13 @@ struct UniversalInvoker
                 auto size_a_buffer = a_m.get_element_space_size_in_bytes();
                 auto size_b_buffer = b_n.get_element_space_size_in_bytes();
 
-                rotating_mem_ptr = std::make_unique<ck_tile::RotatingMemWrapper<ADataType, BDataType>>(
-                    kargs.as_ptr[0], kargs.bs_ptr[0], s.rotating_count_, size_a_buffer, size_b_buffer);
+                rotating_mem_ptr =
+                    std::make_unique<ck_tile::RotatingMemWrapper<ADataType, BDataType>>(
+                        kargs.as_ptr[0],
+                        kargs.bs_ptr[0],
+                        s.rotating_count_,
+                        size_a_buffer,
+                        size_b_buffer);
                 rotating_mem_ptr->Print();
 
                 preprocess = [&]() {
@@ -169,11 +174,10 @@ struct UniversalInvoker
                 preprocess = clear_gemm_output;
             }
 
-            return
-                ck_tile::launch_kernel_time_mask(s,
-                                                 preprocess,
-                                                 ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
-                                                     Kernel{}, grids, blocks, 0, kargs));
+            return ck_tile::launch_kernel_time_mask(
+                s,
+                preprocess,
+                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         };
 
         const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {

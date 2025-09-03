@@ -185,6 +185,19 @@ struct SplitKTwoStageInvoker
                           << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
                           << "}" << std::endl;
             }
+
+            // Declare rotating_mem_ptr here so it stays in scope until it is needed
+            std::unique_ptr<ck_tile::RotatingMemWrapper<ADataType, BDataType>> rotating_mem_ptr;
+            std::function<void()> preprocess;
+
+            auto clear_gemm_output = [&]() {
+                if(args.k_batch > 1)
+                    hipGetErrorString(hipMemsetAsync(ws_args.c_ptr,
+                                                        0,
+                                                        args.M * args.N * sizeof(WorkspaceType),
+                                                        s.stream_id_));
+            };
+
             if(s.flush_cache_)
             {
                 std::cout << "Flushing cache..." << std::endl;
@@ -197,59 +210,41 @@ struct SplitKTwoStageInvoker
                 auto size_a_buffer = a_m.get_element_space_size_in_bytes();
                 auto size_b_buffer = b_n.get_element_space_size_in_bytes();
 
-                ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(gemm_kargs.as_ptr[0],
-                                                                               gemm_kargs.bs_ptr[0],
-                                                                               s.rotating_count_,
-                                                                               size_a_buffer,
-                                                                               size_b_buffer);
-                rotating_mem.Print();
+                rotating_mem_ptr =
+                    std::make_unique<ck_tile::RotatingMemWrapper<ADataType, BDataType>>(
+                        gemm_kargs.as_ptr[0],
+                        gemm_kargs.bs_ptr[0],
+                        s.rotating_count_,
+                        size_a_buffer,
+                        size_b_buffer);
+                rotating_mem_ptr->Print();
 
-                auto run_flush_cache = [&]() {
-                    // flush icache
+                preprocess = [&]() {
                     ck_tile::flush_icache();
-                    // rotating mem
-                    rotating_mem.Next();
-                    // clear c mem
-                    if(args.k_batch > 1)
-                        hipGetErrorString(hipMemsetAsync(ws_args.c_ptr,
-                                                         0,
-                                                         args.M * args.N * sizeof(WorkspaceType),
-                                                         s.stream_id_));
+                    rotating_mem_ptr->Next();
+                    clear_gemm_output();
                 };
-                ave_time = ck_tile::launch_kernel_time_mask(
-                    s,
-                    run_flush_cache,
-                    ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
-                        GemmKernel{}, grids, blocks, 0, gemm_kargs),
-                    ck_tile::make_kernel<kBlockPerCu>(
-                        ElementwiseKernel{},
-                        kGridSize,
-                        kBlockSize,
-                        0,
-                        input_size,
-                        ck_tile::make_tuple(args.N, 1), // Input Stride
-                        ck_tile::make_tuple(args.N, 1), // Output Stride
-                        input_tensors,
-                        static_cast<CDataType*>(c_ptr)));
             }
             else
             {
-                ave_time =
-                    ck_tile::launch_kernel(s,
-                                           ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
-                                               GemmKernel{}, grids, blocks, 0, gemm_kargs),
-                                           ck_tile::make_kernel<kBlockPerCu>(
-                                               ElementwiseKernel{},
-                                               kGridSize,
-                                               kBlockSize,
-                                               0,
-                                               input_size,
-                                               ck_tile::make_tuple(args.N, 1), // Input Stride
-                                               ck_tile::make_tuple(args.N, 1), // Output Stride
-                                               input_tensors,
-                                               static_cast<CDataType*>(c_ptr)));
+                preprocess = clear_gemm_output;
             }
-            return ave_time;
+
+            return ck_tile::launch_kernel_time_mask(
+                s,
+                preprocess,
+                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
+                    GemmKernel{}, grids, blocks, 0, gemm_kargs),
+                ck_tile::make_kernel<kBlockPerCu>(
+                    ElementwiseKernel{},
+                    kGridSize,
+                    kBlockSize,
+                    0,
+                    input_size,
+                    ck_tile::make_tuple(args.N, 1), // Input Stride
+                    ck_tile::make_tuple(args.N, 1), // Output Stride
+                    input_tensors,
+                    static_cast<CDataType*>(c_ptr)));
         };
 
         const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
