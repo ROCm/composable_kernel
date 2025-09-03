@@ -133,60 +133,21 @@ CK_TILE_HOST void reference_gemm_rowcol_quant(const HostTensor<ADataType>& a_m_k
                                               const BElementOp& b_element_op     = {},
                                               const ACCElementOp& acc_element_op = {})
 {
+    static_assert(std::is_same_v<ADataType, fp8_t> || std::is_same_v<ADataType, bf8_t>);
+    static_assert(std::is_same_v<BDataType, fp8_t> || std::is_same_v<BDataType, bf8_t>);
+    static_assert(std::is_same_v<AccDataType, float>);
+    static_assert(std::is_same_v<CDataType, float> || std::is_same_v<CDataType, ck_tile::half_t>);
+    static_assert(std::is_same_v<AQDataType, float> && std::is_same_v<BQDataType, float>);
     const std::size_t M = a_m_k.get_length(0);
     const std::size_t N = b_k_n.get_length(1);
     const std::size_t K = a_m_k.get_length(1);
 
     auto f_mn = [&](auto m, auto n) {
+        // Init accumulator
         AccDataType v_acc = 0;
-
-        static_assert(std::is_same_v<ADataType, pk_int4_t> || std::is_same_v<ADataType, fp8_t> ||
-                      std::is_same_v<ADataType, bf8_t>);
-        static_assert(std::is_same_v<BDataType, fp8_t> || std::is_same_v<BDataType, bf8_t> ||
-                      std::is_same_v<BDataType, pk_int4_t>);
-        static_assert(std::is_same_v<AccDataType, float>);
-        static_assert(std::is_same_v<CDataType, float> ||
-                      std::is_same_v<CDataType, ck_tile::half_t>);
-
         // Get row scale for A and column scale for B
-        float a_scale = 0.f;
-        float b_scale = 0.f;
-
-        // Extract A row scale
-        if constexpr(std::is_same_v<AQDataType, float>)
-        {
-            a_scale = aq_m_1(m, 0);
-        }
-        else if constexpr(std::is_same_v<AQDataType, ck_tile::fp8_t>)
-        {
-            a_scale = fp8_to_float_raw(aq_m_1(m, 0));
-        }
-        else if constexpr(std::is_same_v<AQDataType, ck_tile::bf8_t>)
-        {
-            a_scale = bf8_to_float_raw(aq_m_1(m, 0));
-        }
-        else
-        {
-            static_assert(false, "Unexpected AQ datatype.");
-        }
-
-        // Extract B column scale
-        if constexpr(std::is_same_v<BQDataType, float>)
-        {
-            b_scale = bq_1_n(0, n);
-        }
-        else if constexpr(std::is_same_v<BQDataType, ck_tile::fp8_t>)
-        {
-            b_scale = fp8_to_float_raw(bq_1_n(0, n));
-        }
-        else if constexpr(std::is_same_v<BQDataType, ck_tile::bf8_t>)
-        {
-            b_scale = bf8_to_float_raw(bq_1_n(0, n));
-        }
-        else
-        {
-            static_assert(false, "Unexpected BQ datatype.");
-        }
+        float a_scale = aq_m_1(m, 0);
+        float b_scale = bq_1_n(0, n);
 
         // Compute the dot product
         for(std::size_t k = 0; k < K; ++k)

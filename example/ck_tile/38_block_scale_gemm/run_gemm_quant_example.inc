@@ -2,7 +2,6 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-#include <bit>
 #include <random>
 #include <stdexcept>
 
@@ -31,20 +30,15 @@ auto shuffle_aq(const ck_tile::HostTensor<T>& t, int block_aq_k)
     return ck_tile::reference_permute(t_view, {1, 0, 2});
 }
 
-template <typename ADataType,
-          typename AQDataType,
-          typename BDataType,
-          typename BQDataType,
-          typename AccDataType,
-          typename CDataType,
+template <typename GemmConfig,
+          typename TypeConfig,
           typename ALayout,
           typename AQLayout,
-          typename BQLayout,
           typename BLayout,
+          typename BQLayout,
           typename CLayout,
           uint32_t QuantGroupSize,
-          ck_tile::QuantType QuantMode,
-          bool Preshuffle = false>
+          ck_tile::QuantType QuantMode>
 float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   ck_tile::DeviceMem& aq_dev_buf,
                   ck_tile::DeviceMem& b_k_n_dev_buf,
@@ -82,26 +76,23 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     args.stride_AQ = stride_AQ;
     args.stride_BQ = stride_BQ;
 
-    float ave_time = gemm_calc_quant<ADataType,
-                                     AQDataType,
-                                     BDataType,
-                                     AccDataType,
-                                     CDataType,
-                                     BDataType,
+    float ave_time = gemm_calc_quant<GemmConfig,
+                                     TypeConfig,
                                      ALayout,
                                      BLayout,
                                      CLayout,
                                      QuantGroupSize,
-                                     QuantMode,
-                                     Preshuffle>(
+                                     QuantMode>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::size_t flop     = std::size_t(2) * M * N * K;
-    std::size_t num_byte = sizeof(ADataType) * M * K + sizeof(AQDataType) * M * AQK +
-                           sizeof(BDataType) * N * K + sizeof(CDataType) * M * N;
+    std::size_t num_byte = sizeof(typename TypeConfig::ADataType) * M * K +
+                           sizeof(typename TypeConfig::QDataType) * M * AQK +
+                           sizeof(typename TypeConfig::BDataType) * N * K +
+                           sizeof(typename TypeConfig::CDataType) * M * N;
     if(bq_dev_buf != nullptr)
     {
-        num_byte += sizeof(BQDataType) * BQK;
+        num_byte += sizeof(typename TypeConfig::QDataType) * BQK;
     }
 
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
@@ -115,15 +106,16 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     {
         std::cout << " StrideBQ =" << stride_BQ;
     }
-    std::cout << " A_Type = " << DataTypeTraits<ADataType>::name
-              << " AQ_Type = " << DataTypeTraits<AQDataType>::name
-              << " B_Type = " << DataTypeTraits<BDataType>::name;
-    if constexpr(!std::is_same_v<BQDataType, void>)
+    std::cout << " A_Type = " << DataTypeTraits<typename TypeConfig::ADataType>::name
+              << " AQ_Type = " << DataTypeTraits<typename TypeConfig::QDataType>::name
+              << " B_Type = " << DataTypeTraits<typename TypeConfig::BDataType>::name;
+    if constexpr(!std::is_same_v<typename TypeConfig::QDataType, void>)
     {
-        std::cout << " BQ_Type = " << DataTypeTraits<BQDataType>::name;
+        std::cout << " BQ_Type = " << DataTypeTraits<typename TypeConfig::QDataType>::name;
     }
-    std::cout << " Acc_Type = " << DataTypeTraits<AccDataType>::name
-              << " C_Type = " << DataTypeTraits<CDataType>::name << " QuantMode = "
+    std::cout << " Acc_Type = " << DataTypeTraits<typename TypeConfig::AccDataType>::name
+              << " C_Type = " << DataTypeTraits<typename TypeConfig::CDataType>::name
+              << " QuantMode = "
               << (QuantMode == ck_tile::QuantType::AQuantGrouped ? "AQuantGrouped" : "RowColQuant")
               << " : " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << std::endl;
@@ -185,7 +177,7 @@ int run_gemm_example_with_layouts(int argc,
     }
     else
     {
-        throw std::runtime_error("Unsupported QuantMode");
+        static_assert(false, "Unsupported QuantMode");
     }
 
     ck_tile::index_t stride_A  = arg_parser.get_int("stride_a");
@@ -208,11 +200,6 @@ int run_gemm_example_with_layouts(int argc,
     if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
     {
         stride_AQ = ck_tile::get_default_stride(M, AQK, stride_AQ, is_row_major(aq_layout));
-    }
-    else if constexpr(QuantMode == ck_tile::QuantType::RowColQuant)
-    {
-        stride_AQ = ck_tile::get_default_stride(M, AQK, stride_AQ, is_row_major(aq_layout));
-        stride_BQ = ck_tile::get_default_stride(1, N, stride_BQ, is_row_major(bq_layout));
     }
 
     ck_tile::HostTensor<ADataType> a_m_k(
@@ -326,38 +313,33 @@ int run_gemm_example_with_layouts(int argc,
         bq_dev_buf_ptr->ToDevice(bq_tensor_ptr->data());
     }
 
-    invoke_gemm<ADataType,
-                AQDataType,
-                BDataType,
-                BQDataType,
-                AccDataType,
-                CDataType,
+    invoke_gemm<GemmConfig,
+                TypeConfig,
                 ALayout,
                 AQLayout,
                 BLayout,
                 BQLayout,
                 CLayout,
                 QuantGroupSize,
-                QuantMode,
-                GemmConfig::PreshuffleQuant>(
-        a_m_k_dev_buf,
-        aq_dev_buf,
-        b_k_n_dev_buf,
-        c_m_n_dev_buf,
-        (QuantMode == ck_tile::QuantType::RowColQuant) ? bq_dev_buf_ptr.get() : nullptr,
-        M,
-        N,
-        K,
-        AQK,
-        BQK,
-        stride_A,
-        stride_AQ,
-        stride_B,
-        stride_BQ,
-        stride_C,
-        kbatch,
-        n_warmup,
-        n_repeat);
+                QuantMode>(a_m_k_dev_buf,
+                           aq_dev_buf,
+                           b_k_n_dev_buf,
+                           c_m_n_dev_buf,
+                           (QuantMode == ck_tile::QuantType::RowColQuant) ? bq_dev_buf_ptr.get()
+                                                                          : nullptr,
+                           M,
+                           N,
+                           K,
+                           AQK,
+                           BQK,
+                           stride_A,
+                           stride_AQ,
+                           stride_B,
+                           stride_BQ,
+                           stride_C,
+                           kbatch,
+                           n_warmup,
+                           n_repeat);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass = true;

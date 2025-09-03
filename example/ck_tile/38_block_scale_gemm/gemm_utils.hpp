@@ -83,14 +83,13 @@ struct GemmConfigBase
 
     static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
     static constexpr ck_tile::index_t TileParitionerM01      = 4;
-    static constexpr auto Scheduler = ck_tile::GemmPipelineScheduler::Intrawave;
 
     static constexpr bool PreshuffleQuant  = false;
     static constexpr bool DoubleSmemBuffer = false;
 };
 
 template <typename PrecType>
-struct GemmConfigDecode : public GemmConfigBase
+struct GemmConfigQuant : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 16;
     static constexpr ck_tile::index_t N_Tile = 64;
@@ -105,29 +104,6 @@ struct GemmConfigDecode : public GemmConfigBase
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
 
     static constexpr int kBlockPerCu = 1;
-
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_DECODE;
-};
-
-template <typename PrecType>
-struct GemmConfigPrefill : public GemmConfigBase
-{
-    static constexpr ck_tile::index_t M_Tile = 128;
-    static constexpr ck_tile::index_t N_Tile = 128;
-    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
-
-    static constexpr ck_tile::index_t M_Warp = 1;
-    static constexpr ck_tile::index_t N_Warp = 4;
-    static constexpr ck_tile::index_t K_Warp = 1;
-
-    static constexpr ck_tile::index_t M_Warp_Tile = 16;
-    static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
-
-    static constexpr int kBlockPerCu           = 2;
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PREFILL;
 };
 
 template <typename PrecType>
@@ -148,9 +124,7 @@ struct GemmConfigPreshuffleQuant : public GemmConfigBase
 
     static constexpr int kBlockPerCu = 1;
 
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLEQUANT;
-    static constexpr bool PreshuffleQuant      = true;
+    static constexpr bool PreshuffleQuant = true;
 };
 
 template <typename ADataType_,
