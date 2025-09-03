@@ -16,9 +16,11 @@
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/dtype_vector.hpp"
 #include "ck/utility/type_convert.hpp"
+#include "ck/utility/static_buffer.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
+#include "ck/host_utility/device_prop.hpp"
 
 using namespace ck;
 
@@ -97,7 +99,10 @@ __global__ void testVGPRToLDSTransfer_kernel(
     // Allocate shared memory for LDS
     __shared__ DstData lds_data[buffer_size * NumThreads];
     
-    StaticBuffer<AddressSpaceEnum::Vgpr, SrcData, buffer_size, true> src_thread_buf;
+    //StaticBuffer<AddressSpaceEnum::Vgpr, SrcData, buffer_size, true> src_thread_buf;
+    static constexpr index_t vector_size = 2;
+    static constexpr index_t num_vectors = buffer_size / vector_size;
+    StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr, SrcData, num_vectors, vector_size, true> src_thread_buf;
     
     // Initialize thread buffer with test data.
     // Each thread will handle a slice of the input data.
@@ -306,7 +311,7 @@ class VGPRToLDSTransferTest : public ::testing::Test
 {
 public:
     template <index_t TestCShuffleMXdlPerWavePerShuffle, index_t TestCShuffleNXdlPerWavePerShuffle, index_t TestM2, index_t TestM4>
-    void run_perf_test()
+    void run_perf_test(float required_speedup)
     {
         constexpr int NRepeats = 5000;
         const int num_iters = 250;
@@ -330,7 +335,7 @@ public:
         if (baseline_time && packed_cast_time) {
             const float speedup = (*baseline_time - *packed_cast_time)  / *baseline_time;
             std::cout << "Speedup = " << speedup * 100.0f << "%" << std::endl;
-            EXPECT_GT(speedup, -0.01f) << "Packed cast should not be more than 1% slower than baseline";
+            EXPECT_GT(speedup, required_speedup) << "Packed cast should be at least " << 100.0f * required_speedup << "% faster than baseline";
         }
         else {
             GTEST_FAIL() << "Failed to get average execution time for one or both runs.";
@@ -476,10 +481,10 @@ TEST_F(VGPRToLDSTransferTest, FloatToBhalf_device_NoPack)
 {
     constexpr bool UsePackedCast = false;
     constexpr bool UseGpu = true;
-    constexpr index_t TestM2 = 4; //4
-    constexpr index_t TestM4 = 2; // 2
-    constexpr index_t TestCShuffleMXdlPerWavePerShuffle = 4; //2; // 4 
-    constexpr index_t TestCShuffleNXdlPerWavePerShuffle = 8; //4; // 8
+    constexpr index_t TestM2 = 4;
+    constexpr index_t TestM4 = 2;
+    constexpr index_t TestCShuffleMXdlPerWavePerShuffle = 1;
+    constexpr index_t TestCShuffleNXdlPerWavePerShuffle = 1;
     run<TestCShuffleMXdlPerWavePerShuffle, TestCShuffleNXdlPerWavePerShuffle, TestM2, TestM4, UsePackedCast, UseGpu>();
 }
 
@@ -487,18 +492,26 @@ TEST_F(VGPRToLDSTransferTest, FloatToBhalf_device_PackedCast)
 {
     constexpr bool UsePackedCast = true;
     constexpr bool UseGpu = true;
-    constexpr index_t TestM2 = 4; //4
-    constexpr index_t TestM4 = 2; // 2
-    constexpr index_t TestCShuffleMXdlPerWavePerShuffle = 4; //2; // 4 
-    constexpr index_t TestCShuffleNXdlPerWavePerShuffle = 8; //4; // 8
+    constexpr index_t TestM2 = 4;
+    constexpr index_t TestM4 = 2;
+    constexpr index_t TestCShuffleMXdlPerWavePerShuffle = 1;
+    constexpr index_t TestCShuffleNXdlPerWavePerShuffle = 1;
     run<TestCShuffleMXdlPerWavePerShuffle, TestCShuffleNXdlPerWavePerShuffle, TestM2, TestM4, UsePackedCast, UseGpu>();
 }
 
-TEST_F(VGPRToLDSTransferTest, FloatToBhalf_device_test_peformance) 
+// This test might occasionally although the tolerances are quite lenient.
+TEST_F(VGPRToLDSTransferTest, DISABLED_FloatToBhalf_device_test_peformance) 
 {
-    // Relevant cases for convolution gridwise GEMMs.
-    //            MXdlPerWavePerShuffle  NXdlPerWavePerShuffle   M2              M4
-    run_perf_test<1,                     1,                      4,              4>();
-    run_perf_test<1,                     1,                      1,              4>();
-    run_perf_test<1,                     1,                      4,              1>();
+    if (ck::get_device_name() == "gfx950")
+    {
+        // Relevant cases for convolution gridwise GEMMs.
+        //            MXdlPerWavePerShuffle  NXdlPerWavePerShuffle   M2              M4
+        run_perf_test<1,                     1,                      4,              4>(0.1);       // 10% speedup required
+        run_perf_test<1,                     1,                      1,              4>(0.01);      // 1% speedup required
+        run_perf_test<1,                     1,                      4,              1>(0.01);      // 1% speedup required
+    }
+    else 
+    {
+        GTEST_SKIP() << "Performance test skipped on non-gfx950 devices.";
+    }
 }

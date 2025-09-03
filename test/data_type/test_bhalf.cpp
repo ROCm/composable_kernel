@@ -35,26 +35,10 @@ __global__ void cast(const float input, float* output)
     *output                 = type_convert<float>(bhalf_val);
 }
 
-__global__ void packed_cast_in_place(const float x1, const float x2, ck::bhalf2_t* output)
-{
-    union 
-    {
-        float src;
-        ck::bhalf2_t dst;
-    } converter;
-    
-    float x = x1;
-    ck::static_cast_float_to_bhalf_packed_v2(x, x2);
-
-    converter.src = x;
-    *output = converter.dst;
-}
-
 enum struct CastMode : int
 {
     Standard = 0,
-    Packed = 1,
-    PackedInPlace = 2
+    Packed = 1
 };
 
 template <CastMode PackedCast, int NumElements>
@@ -96,60 +80,6 @@ __global__ void test_performance_kernel(float* input, ck::bhalf_t* output)
     }
 }
 
-template <CastMode PackedCast, int NumElements>
-__global__ void test_in_place_performance_kernel(float* input, ck::bhalf_t* output)
-{
-    ck::bhalf_t buffer_bf16[NumElements];
-    float buffer_float[NumElements];
-
-    // Initialize input data
-    for(int i = 0; i < NumElements; i++)
-    {
-        buffer_float[i] = input[i];
-    }
-
-    if constexpr (PackedCast == CastMode::PackedInPlace)
-    {
-        union 
-        {   
-            float src;
-            ck::bhalf2_t dst;
-        } workspace;
-
-        for(int i = 0; i < NumElements; i++)
-        {
-            for (int j = 0; j < NumElements; j++)
-            {
-                int index = (i + j) % NumElements;
-                index = index < NumElements - 1 ? index : NumElements - 2;
-                workspace.src = buffer_float[i];
-                ck::static_cast_float_to_bhalf_packed_v2(workspace.src, buffer_float[j]);
-                ck::bhalf2_t* buffer_range = reinterpret_cast<ck::bhalf2_t*>(&buffer_bf16[index]);
-                *buffer_range = workspace.dst;
-            }
-        }
-    }
-    else 
-    {
-        for(int i = 0; i < NumElements; i++)
-        {
-            for (int j = 0; j < NumElements; j++)
-            {
-                int index = (i + j) % NumElements;
-                index = index < NumElements - 1 ? index : NumElements - 2;
-                buffer_bf16[index] = ck::bf16_convert_rtn_base(buffer_float[i]);
-                buffer_bf16[index + 1] = ck::bf16_convert_rtn_base(buffer_float[j]);
-            }
-        }
-    }
-
-    // Copy results back to output
-    for(int i = 0; i < NumElements; i++)
-    {
-        output[i] = buffer_bf16[i];
-    }
-}
-
 template <int NumElements>
 void run_performance_test()
 {
@@ -174,52 +104,6 @@ void run_performance_test()
 
     auto baseline_kernel = test_performance_kernel<CastMode::Standard, NumElements>;
     auto packed_kernel = test_performance_kernel<CastMode::Packed, NumElements>;
-
-    constexpr dim3 grid_size(1);
-    constexpr dim3 block_size(1);
-    constexpr size_t shared_mem_size = 0;
-
-    const float baseline_time = launch_and_time_kernel(stream_config, baseline_kernel, grid_size, block_size, shared_mem_size, input_dev, output_dev);
-    hip_check_error(hipMemcpy(output_host.data(), output_dev, sizeof(ck::bhalf_t) * NumElements, hipMemcpyDeviceToHost));
-
-    const float packed_time = launch_and_time_kernel(stream_config, packed_kernel, grid_size, block_size, shared_mem_size, input_dev, output_dev);
-    hip_check_error(hipMemcpy(output_host.data(), output_dev, sizeof(ck::bhalf_t) * NumElements, hipMemcpyDeviceToHost));
-
-    // Cleanup
-    hip_check_error(hipFree(input_dev));
-    hip_check_error(hipFree(output_dev));
-
-    std::cout << "Packed cast time ( " << NumElements << " elements): " << packed_time << " ms" << std::endl;
-    std::cout << "Baseline cast time ( " << NumElements << " elements): " << baseline_time << " ms" << std::endl;
-
-    // Check if packed cast is faster than baseline
-    ASSERT_LT(packed_time, baseline_time);
-}
-
-template <int NumElements>
-void run_in_place_performance_test()
-{
-    float* input_dev;
-    ck::bhalf_t* output_dev;
-    std::vector<ck::bhalf_t> output_host(NumElements);
-
-    hip_check_error(hipMalloc(&input_dev, sizeof(float) * NumElements));
-    hip_check_error(hipMalloc(&output_dev, sizeof(ck::bhalf_t) * NumElements));
-
-    // Initialize input data on the device
-    std::vector<float> input_host(NumElements);
-    for (int i = 0; i < NumElements; i++)
-    {
-        input_host[i] = 3.14f * static_cast<float>(i) - 1.7f;
-    }
-
-    hip_check_error(hipMemcpy(input_dev, input_host.data(), sizeof(float) * NumElements, hipMemcpyHostToDevice));
-
-    StreamConfig stream_config;
-    stream_config.time_kernel_ = true;
-
-    auto baseline_kernel = test_in_place_performance_kernel<CastMode::Standard, NumElements>;
-    auto packed_kernel = test_in_place_performance_kernel<CastMode::PackedInPlace, NumElements>;
 
     constexpr dim3 grid_size(1);
     constexpr dim3 block_size(1);
@@ -479,43 +363,5 @@ TEST(BHALF_T, CastOnDevice)
                                   hipMemcpyDeviceToHost));
 
         ASSERT_NEAR(float_val_after_cast_host, -float_vals[idx], abs_tol);
-    }
-}
-
-TEST(BHALF_T, PackedCast_in_place)
-{
-    const float v1 = 3.14f;
-    const float v2 = -1.618f;
-    ck::bhalf2_t* bhalf2_val_d;
-    hip_check_error(hipMalloc(&bhalf2_val_d, sizeof(ck::bhalf2_t)));
-
-    packed_cast_in_place<<<1, 1>>>(v1, v2, bhalf2_val_d);
-    hip_check_error(hipGetLastError());
-
-    ck::bhalf2_t bhalf2_val_h;
-    hip_check_error(hipMemcpy(&bhalf2_val_h, bhalf2_val_d, sizeof(ck::bhalf2_t), hipMemcpyDeviceToHost));
-
-    // Convert back to floats
-    const float fval1 = type_convert<float>(bhalf2_val_h[0]);
-    const float fval2 = type_convert<float>(bhalf2_val_h[1]);
-
-    const float abs_tol = std::pow(2, -7);
-    ASSERT_NEAR(fval1, v1, abs_tol);
-    ASSERT_NEAR(fval2, v2, abs_tol);
-
-    hip_check_error(hipFree(bhalf2_val_d));
-}
-
-TEST(BHALF_T, PackedCast_in_place_performance)
-{
-    if (ck::get_device_name() == "gfx950")
-    {
-        run_in_place_performance_test<32>();
-        run_in_place_performance_test<64>();
-        run_in_place_performance_test<128>();
-    }
-    else
-    {
-        GTEST_SKIP() << "Packed cast performance test requires gfx950.";
     }
 }
