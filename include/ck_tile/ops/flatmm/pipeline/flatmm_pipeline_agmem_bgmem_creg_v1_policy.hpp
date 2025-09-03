@@ -261,10 +261,12 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
 
+        constexpr index_t APackedSize = numeric_traits<ADataType>::PackedSize;
+
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
         {
-            constexpr index_t M1           = Problem::VectorLoadSize / sizeof(ADataType);
-            constexpr index_t M0           = MPerBlock / M1;
+            constexpr index_t M1 = Problem::VectorLoadSize / sizeof(ADataType) * APackedSize;
+            constexpr index_t M0 = MPerBlock / M1;
             constexpr index_t total_pixels = MPerBlock * KPerBlock / BlockSize;
             static_assert(total_pixels % M1 == 0);
             constexpr index_t K3    = total_pixels / M1;
@@ -301,7 +303,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
         }
         else
         {
-            constexpr index_t K1 = Problem::VectorLoadSize / sizeof(ADataType);
+            constexpr index_t K1 = Problem::VectorLoadSize / sizeof(ADataType) * APackedSize;
             constexpr index_t K0 = KPerBlock / K1;
             constexpr index_t M2 = get_warp_size() / K0;
             // coalesce reading for each blocks
@@ -463,12 +465,12 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
         using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
         using WarpGemm   = WarpGemmMfmaDispatcher<typename Problem::ADataType,
-                                                  typename Problem::BDataType,
-                                                  typename Problem::CDataType,
-                                                  WarpTile::at(I0),
-                                                  WarpTile::at(I1),
-                                                  WarpTile::at(I2),
-                                                  Problem::TransposeC>;
+                                                typename Problem::BDataType,
+                                                typename Problem::CDataType,
+                                                WarpTile::at(I0),
+                                                WarpTile::at(I1),
+                                                WarpTile::at(I2),
+                                                Problem::TransposeC>;
 
         using BlockFlatmmPolicy = BlockFlatmmASmemBSmemCRegV1CustomPolicy<
             typename Problem::ADataType,

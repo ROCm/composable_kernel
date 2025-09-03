@@ -44,9 +44,9 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
     static constexpr int APackedSize = numeric_traits<ADataType>::PackedSize;
     static constexpr int BPackedSize = numeric_traits<BDataType>::PackedSize;
 
-    static constexpr int MXdlPack = 2;
-    static constexpr int NXdlPack = 2;
-    static constexpr int KXdlPack = 2;
+    static constexpr int MXdlPack = remove_cvref_t<typename FlatmmPipeline::MXdlPack>;
+    static constexpr int NXdlPack = remove_cvref_t<typename FlatmmPipeline::NXdlPack>;
+    static constexpr int KXdlPack = remove_cvref_t<typename FlatmmPipeline::KXdlPack>;
 
     static constexpr index_t NumDTensor = DsDataType::size();
 
@@ -464,7 +464,8 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
                                       FlatmmPipeline::GetADramTileDistribution());
         const auto& c_block_tile = FlatmmPipeline{}(a_block_window_with_distr,
                                                     b_flat_block_window,
-                                                    scale_block_window,
+                                                    scale_a_block_window,
+                                                    scale_b_block_window,
                                                     num_loop,
                                                     smem_ptr_ping,
                                                     smem_ptr_pong);
