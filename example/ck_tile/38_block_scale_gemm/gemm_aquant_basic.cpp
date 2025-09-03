@@ -20,13 +20,10 @@ template <typename GemmConfig,
           typename ALayout,
           typename BLayout,
           typename CLayout,
-          uint32_t QuantGroupSize>
+          uint32_t QuantGroupSize,
+          typename CDEElementWise>
 float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::stream_config& s)
 {
-    constexpr bool kPadM = false;
-    constexpr bool kPadN = false;
-    constexpr bool kPadK = false;
-
     static_assert(std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::RowMajor>);
 
     constexpr ck_tile::index_t M_Tile = GemmConfig::M_Tile;
@@ -41,26 +38,26 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
     constexpr ck_tile::index_t N_Warp_Tile = GemmConfig::N_Warp_Tile;
     constexpr ck_tile::index_t K_Warp_Tile = GemmConfig::K_Warp_Tile;
 
-    using CodegenGemmShape =
+    using GemmShape =
         ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
                                ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
                                ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
 
-    using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenGemmShape>;
+    using TilePartitioner = ck_tile::GemmTile1DPartitioner<GemmShape>;
 
-    using CodegenGemmTraits = ck_tile::TileGemmAQuantTraits<kPadM,
-                                                            kPadN,
-                                                            kPadK,
-                                                            GemmConfig::PreshuffleQuant,
-                                                            ALayout,
-                                                            BLayout,
-                                                            CLayout>;
+    using Traits = ck_tile::TileGemmAQuantTraits<GemmConfig::kPadM,
+                                                 GemmConfig::kPadN,
+                                                 GemmConfig::kPadK,
+                                                 GemmConfig::PreshuffleQuant,
+                                                 ALayout,
+                                                 BLayout,
+                                                 CLayout>;
 
     using GemmPipelineProblem = ck_tile::GemmPipelineProblemBase<ADataType,
                                                                  BDataType,
                                                                  AccDataType,
-                                                                 CodegenGemmShape,
-                                                                 CodegenGemmTraits,
+                                                                 GemmShape,
+                                                                 Traits,
                                                                  ComputeDataType>;
 
     using BaseGemmPipeline = ck_tile::BaseAQuantGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
@@ -75,20 +72,20 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
         constexpr bool has_hot_loop_v = has_hot_loop_.value;
         constexpr auto tail_number_v  = tail_number_.value;
 
-        using CodegenPipelineProblem =
+        using PipelineProblem =
             ck_tile::GemmAQuantPipelineProblem<ADataType,
                                                AQDataType,
                                                BDataType,
                                                AccDataType,
-                                               CodegenGemmShape,
-                                               CodegenGemmTraits,
+                                               GemmShape,
+                                               Traits,
                                                QuantGroupSize,
                                                transposed_warp_gemm,
                                                ComputeDataType,
-                                               ck_tile::GemmPipelineScheduler::Intrawave,
+                                               GemmConfig::Scheduler,
                                                has_hot_loop_v,
                                                tail_number_v>;
-        using CodegenGemmPipeline = ck_tile::AQuantGemmPipelineAgBgCrCompV3<CodegenPipelineProblem>;
+        using GemmPipeline = ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>;
         using GemmEpilogue        = ck_tile::CShuffleEpilogue<
                    ck_tile::CShuffleEpilogueProblem<ADataType,
                                                     BDataType,
@@ -97,7 +94,7 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
                                                     CDataType,
                                                     ck_tile::tuple<>,
                                                     CLayout,
-                                                    ck_tile::element_wise::PassThrough,
+                                                    CDEElementWise,
                                                     TilePartitioner::MPerBlock,
                                                     TilePartitioner::NPerBlock,
                                                     M_Warp,
@@ -108,7 +105,7 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
                                                     transposed_warp_gemm,
                                                     ck_tile::memory_operation_enum::set>>;
         using Kernel =
-            ck_tile::AQuantGemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
+            ck_tile::AQuantGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
 
         auto kargs = Kernel::MakeKernelArgs(args);
 
@@ -128,9 +125,9 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
         if(s.log_level_ > 0)
         {
             std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
-                      << "shape: " << CodegenGemmShape::GetName() << '\n'
-                      << "problem: " << CodegenPipelineProblem::GetName() << '\n'
-                      << "pipeline: " << CodegenGemmPipeline::GetName() << '\n'
+                      << "shape: " << GemmShape::GetName() << '\n'
+                      << "problem: " << PipelineProblem::GetName() << '\n'
+                      << "pipeline: " << GemmPipeline::GetName() << '\n'
                       << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
                       << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
                       << std::endl;

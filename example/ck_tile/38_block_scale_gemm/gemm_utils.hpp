@@ -84,7 +84,7 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
     static constexpr ck_tile::index_t TileParitionerM01      = 4;
     static constexpr auto Scheduler = ck_tile::GemmPipelineScheduler::Intrawave;
-
+    static constexpr int kBlockPerCu = 1;
     static constexpr bool PreshuffleQuant  = false;
     static constexpr bool DoubleSmemBuffer = false;
 };
@@ -106,7 +106,7 @@ struct GemmConfigDecode : public GemmConfigBase
 
     static constexpr int kBlockPerCu = 1;
 
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
+    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_DECODE;
 };
 
@@ -146,9 +146,7 @@ struct GemmConfigPreshuffleQuant : public GemmConfigBase
     static constexpr ck_tile::index_t K_Warp_Tile =
         get_k_from_preshuffled_warp_tile<PrecType, M_Warp_Tile>();
 
-    static constexpr int kBlockPerCu = 1;
-
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
+    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLEQUANT;
     static constexpr bool PreshuffleQuant      = true;
 };

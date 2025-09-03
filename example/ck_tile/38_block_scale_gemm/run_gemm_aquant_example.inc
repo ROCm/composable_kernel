@@ -42,7 +42,8 @@ template <typename GemmConfig,
           typename AQLayout,
           typename BLayout,
           typename CLayout,
-          uint32_t QuantGroupSize>
+          uint32_t QuantGroupSize,
+          typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   ck_tile::DeviceMem& aq_m_aqk_dev_buf,
                   ck_tile::DeviceMem& b_k_n_dev_buf,
@@ -84,7 +85,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                       ALayout,
                                       BLayout,
                                       CLayout,
-                                      QuantGroupSize>(
+                                      QuantGroupSize,
+                                      CDEElementWise>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::size_t flop     = std::size_t(2) * M * N * K;
