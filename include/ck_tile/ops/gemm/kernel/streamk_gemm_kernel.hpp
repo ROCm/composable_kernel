@@ -240,40 +240,60 @@ struct StreamKKernel
         kargs.workspace_ptr = workspace_ptr;
     }
 
+    /// @brief Entry point for the Stream-K Kernel, performing the main Stream-K loop.
     CK_TILE_DEVICE void operator()(StreamKKernelArgs kargs) const
     {
-        // allocate LDS
+        // Allocate LDS
         __shared__ char smem_ptr_0[UniversalGemmKernel::GetSmemSize()];
 
         uint32_t block_idx = ck_tile::get_block_1d_id();
 
+        // Determine the K offset of the first and final macro tile in the A and B tensors along the
+        // K dimension.
         uint32_t iter_start, iter_end;
         kargs.tile_partitioner.GetBlockItr(block_idx, iter_start, iter_end);
+
+        // An "iteration" denotes the multiplication of one macro tile in A with a macro tile in B.
+        // The total iteration length is the total of such multiplications performed.
         uint32_t total_iter_length = iter_end - iter_start;
 
+        // Main Stream-K loop
         while(true)
         {
-
+            // Determine the number of macro tiles in A and B this WG is resposible for in the
+            // current C macro tile.
             uint32_t current_iter_length =
                 __builtin_amdgcn_readfirstlane(kargs.tile_partitioner.GetCurrentIterLength(
                     iter_start, iter_end, total_iter_length));
 
+            // Determine the 1D tile_idx and the iter_offset for this WG.
+            // The tile_idx is the 1D macro tile index in the C tensor.
+            // The iter_offset is the starting macro tile index in the K dimension for the WG in the
+            // current iteration of the while loop.
             uint32_t tile_idx, iter_offset;
             kargs.tile_partitioner.GetTileIdxWithOffset(iter_end - 1, tile_idx, iter_offset);
             iter_offset = __builtin_amdgcn_readfirstlane(iter_offset - current_iter_length + 1);
+
+            // Get the 2D tile index in the C tensor for this WG using the 1D index (i.e. tile_idx)
             auto spatial_idx = kargs.tile_partitioner.GetOutputTileIndex(tile_idx);
 
-            index_t i_m    = static_cast<index_t>(spatial_idx[UniversalGemmKernel::I0]);
-            index_t i_n    = static_cast<index_t>(spatial_idx[UniversalGemmKernel::I1]);
-            index_t i_k    = static_cast<index_t>(iter_offset) * TilePartitioner::KPerBlock;
+            // Get the offsets in A, B, C tensors.
+            index_t i_m = static_cast<index_t>(spatial_idx[UniversalGemmKernel::I0] *
+                                               TilePartitioner::MPerBlock);
+            index_t i_n = static_cast<index_t>(spatial_idx[UniversalGemmKernel::I1] *
+                                               TilePartitioner::NPerBlock);
+            index_t i_k = static_cast<index_t>(iter_offset) * TilePartitioner::KPerBlock;
+
+            // Determine the total size along the K dimension the WG is using in this iteration
+            // (used to construct tensor views).
             index_t k_size = static_cast<index_t>(current_iter_length * TilePartitioner::KPerBlock);
 
+            // Update pointer offsets for A, B, and C.
             const ADataType* a_ptr = static_cast<const ADataType*>(kargs.as_ptr[0]) + i_k;
-
             const BDataType* b_ptr = static_cast<const BDataType*>(kargs.bs_ptr[0]) + i_k;
+            CDataType* c_ptr       = static_cast<CDataType*>(kargs.e_ptr);
 
-            CDataType* c_ptr = static_cast<CDataType*>(kargs.e_ptr);
-
+            // Run the GEMM pipeline and Epilogue.
             RunGemm({a_ptr},
                     {b_ptr},
                     {/*ds_ptr*/},
@@ -285,6 +305,7 @@ struct StreamKKernel
                     i_n,
                     k_size);
 
+            // Prepare for next Stream-K loop iteration.
             iter_end -= current_iter_length;
             if(iter_end <= iter_start)
                 break;

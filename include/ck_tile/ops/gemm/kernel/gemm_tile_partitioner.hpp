@@ -672,9 +672,7 @@ struct StreamKTilePartitioner
     CK_TILE_DEVICE void
     GetTileIdxWithOffset(uint32_t iter, uint32_t& tile_idx, uint32_t& iter_offset) const noexcept
     {
-        uint32_t tile_idx_val    = static_cast<uint32_t>(tile_idx);
-        uint32_t iter_offset_val = static_cast<uint32_t>(iter_offset);
-        k_iters_per_tile.divmod(iter, tile_idx_val, iter_offset_val);
+        k_iters_per_tile.divmod(iter, tile_idx, iter_offset);
     }
 
     /**
