@@ -328,23 +328,15 @@ struct DeviceBatchedGemmMultiD_Wmma_CShuffleV3
                 }
             }();
 
-            if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
-            {
-                // TODO
-            }
-            else
-            {
-                hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
-                    &max_occupancy,
-                    kernel_batched_gemm_multi_d_wmma_cshuffle_v3<
-                        GridwiseGemm,
-                        ComputePtrOffsetOfStridedBatch,
-                        true,
-                        InMemoryDataOperationEnum::AtomicAdd,
-                        minimum_occupancy>,
-                    BlockSize,
-                    dynamic_smem_size));
-            }
+            hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                &max_occupancy,
+                kernel_batched_gemm_multi_d_wmma_cshuffle_v3<GridwiseGemm,
+                                                             ComputePtrOffsetOfStridedBatch,
+                                                             true,
+                                                             InMemoryDataOperationEnum::AtomicAdd,
+                                                             minimum_occupancy>,
+                BlockSize,
+                dynamic_smem_size));
 
             max_occupancy_ = std::max(1, max_occupancy);
         }
@@ -428,7 +420,7 @@ struct DeviceBatchedGemmMultiD_Wmma_CShuffleV3
                         rotating_mem.Next();
                         // clear c mem
                         if(arg_.KBatch > 1)
-                            hipGetErrorString(
+                            HIP_CHECK_ERROR(
                                 hipMemsetAsync(arg_.p_e_grid,
                                                0,
                                                arg.Batch * arg_.M * arg_.N * sizeof(EDataType),
@@ -449,7 +441,7 @@ struct DeviceBatchedGemmMultiD_Wmma_CShuffleV3
                 {
                     const auto clear_workspace = [&]() {
                         if(arg.KBatch > 1)
-                            hipGetErrorString(
+                            HIP_CHECK_ERROR(
                                 hipMemsetAsync(arg.p_e_grid,
                                                0,
                                                arg.Batch * arg.M * arg.N * sizeof(EDataType),
@@ -509,10 +501,6 @@ struct DeviceBatchedGemmMultiD_Wmma_CShuffleV3
                             minimum_occupancy>;
                         Run(kernel);
                     }
-                }
-                else
-                {
-                    // TODO: Implement
                 }
             }
             else
