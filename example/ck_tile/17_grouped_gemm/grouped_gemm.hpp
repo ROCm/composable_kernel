@@ -9,6 +9,7 @@
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
+#include "json_dump.hpp"
 
 #define CK_TILE_PIPELINE_COMPUTE_V3 1
 #define CK_TILE_PIPELINE_MEMORY 2
@@ -171,7 +172,9 @@ auto create_args(int argc, char* argv[])
         .insert("warmup", "10", "number of iterations before benchmark the kernel.")
         .insert("repeat", "100", "number of iterations to benchmark the kernel.")
         .insert("group_count", "8", "group count.")
-        .insert("kbatch", "1", "kbatch for SplitK");
+        .insert("kbatch", "1", "kbatch for SplitK")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "grouped_gemm.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
