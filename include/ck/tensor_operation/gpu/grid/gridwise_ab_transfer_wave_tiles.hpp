@@ -5,6 +5,7 @@
 
 #include "ck/utility/amd_address_space.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_global.hpp"
+#include "ck/utility/math.hpp"
 
 namespace ck {
 
@@ -27,9 +28,16 @@ struct ABTransferWaveTiles
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     // Tiles distribution for global memory loading
+    // Notes: support for not power of 2 needs to be reviewed later on
     static constexpr index_t NumberOfWaves = BlockSize / WaveSize;
-    static constexpr index_t MNMajorWaves_ = std::min(MNPerBlock / MNPerWmma, NumberOfWaves);
-    static constexpr index_t KMajorWaves_  = std::min(KPerBlock / KPack, NumberOfWaves);
+    static constexpr index_t MNMajorWaves_ =
+        MNPerBlock / MNPerWmma % std::min(MNPerBlock / MNPerWmma, NumberOfWaves) == 0
+            ? std::min(MNPerBlock / MNPerWmma, NumberOfWaves)
+            : (MNPerBlock / MNPerWmma % 2 == 0 ? 2 : 1);
+    static constexpr index_t KMajorWaves_ =
+        KPerBlock / KPack % std::min(KPerBlock / KPack, NumberOfWaves) == 0
+            ? std::min(KPerBlock / KPack, NumberOfWaves)
+            : (KPerBlock / KPack % 2 == 0 ? 2 : 1);
 
     static constexpr bool ABDoTranspose = !is_same_v<ABLayout, ABMajorLayout>;
 
@@ -55,9 +63,10 @@ struct ABTransferWaveTiles
         const auto ab_grid_desc_mntiles_ktiles = transform_tensor_descriptor(
             base_desc,
             make_tuple(
-                make_unmerge_transform(
-                    make_tuple(sizeMN / Number<MNPerWmma>{}, Number<MNPerWmma>{})),
-                make_unmerge_transform(make_tuple(sizeK / Number<KPack>{}, Number<KPack>{}))),
+                make_unmerge_transform(make_tuple(
+                    math::integer_divide_ceil(sizeMN, Number<MNPerWmma>{}), Number<MNPerWmma>{})),
+                make_unmerge_transform(make_tuple(math::integer_divide_ceil(sizeK, Number<KPack>{}),
+                                                  Number<KPack>{}))),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 2>{}, Sequence<1, 3>{}));
 
@@ -72,8 +81,10 @@ struct ABTransferWaveTiles
             const auto ab_grid_desc_mntiles_ktiles_lanegroup_lanelocal_abk1 =
                 transform_tensor_descriptor(
                     ab_grid_desc_mntiles_ktiles,
-                    make_tuple(make_pass_through_transform(sizeMN / Number<MNPerWmma>{}),
-                               make_pass_through_transform(sizeK / Number<KPack>{}),
+                    make_tuple(make_pass_through_transform(
+                                   math::integer_divide_ceil(sizeMN, Number<MNPerWmma>{})),
+                               make_pass_through_transform(
+                                   math::integer_divide_ceil(sizeK, Number<KPack>{})),
                                make_unmerge_transform(make_tuple(Number<MNPerWmma / ABK1Value>{},
                                                                  Number<ABK1Value>{})),
                                make_unmerge_transform(
@@ -84,12 +95,14 @@ struct ABTransferWaveTiles
             // Freeze VectorSize to first element of the loading chunk (for convenience)
             return transform_tensor_descriptor(
                 ab_grid_desc_mntiles_ktiles_lanegroup_lanelocal_abk1,
-                make_tuple(make_pass_through_transform(sizeMN / Number<MNPerWmma>{}),
-                           make_pass_through_transform(sizeK / Number<KPack>{}),
-                           make_merge_transform(make_tuple(Number<MNPerWmma / ABK1Value>{},
-                                                           Number<KPack / ABK1Value>{})),
-                           make_pass_through_transform(Number<ABK1Value>{}),
-                           make_freeze_transform(I0)),
+                make_tuple(
+                    make_pass_through_transform(
+                        math::integer_divide_ceil(sizeMN, Number<MNPerWmma>{})),
+                    make_pass_through_transform(math::integer_divide_ceil(sizeK, Number<KPack>{})),
+                    make_merge_transform(
+                        make_tuple(Number<MNPerWmma / ABK1Value>{}, Number<KPack / ABK1Value>{})),
+                    make_pass_through_transform(Number<ABK1Value>{}),
+                    make_freeze_transform(I0)),
                 make_tuple(
                     Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4>{}, Sequence<5>{}),
                 make_tuple(
@@ -105,8 +118,10 @@ struct ABTransferWaveTiles
             const auto ab_grid_desc_mntiles_ktiles_lanegroup_lanelocal_abk1 =
                 transform_tensor_descriptor(
                     ab_grid_desc_mntiles_ktiles,
-                    make_tuple(make_pass_through_transform(sizeMN / Number<MNPerWmma>{}),
-                               make_pass_through_transform(sizeK / Number<KPack>{}),
+                    make_tuple(make_pass_through_transform(
+                                   math::integer_divide_ceil(sizeMN, Number<MNPerWmma>{})),
+                               make_pass_through_transform(
+                                   math::integer_divide_ceil(sizeK, Number<KPack>{})),
                                make_unmerge_transform(
                                    make_tuple(Number<KPack / ABK1Value>{}, Number<ABK1Value>{})),
                                make_unmerge_transform(make_tuple(Number<MNPerWmma / ABK1Value>{},
@@ -117,12 +132,14 @@ struct ABTransferWaveTiles
             // Freeze VectorSize to first element of the loading chunk (for convenience)
             return transform_tensor_descriptor(
                 ab_grid_desc_mntiles_ktiles_lanegroup_lanelocal_abk1,
-                make_tuple(make_pass_through_transform(sizeMN / Number<MNPerWmma>{}),
-                           make_pass_through_transform(sizeK / Number<KPack>{}),
-                           make_merge_transform(make_tuple(Number<MNPerWmma / ABK1Value>{},
-                                                           Number<KPack / ABK1Value>{})),
-                           make_pass_through_transform(Number<ABK1Value>{}),
-                           make_freeze_transform(I0)),
+                make_tuple(
+                    make_pass_through_transform(
+                        math::integer_divide_ceil(sizeMN, Number<MNPerWmma>{})),
+                    make_pass_through_transform(math::integer_divide_ceil(sizeK, Number<KPack>{})),
+                    make_merge_transform(
+                        make_tuple(Number<MNPerWmma / ABK1Value>{}, Number<KPack / ABK1Value>{})),
+                    make_pass_through_transform(Number<ABK1Value>{}),
+                    make_freeze_transform(I0)),
                 make_tuple(
                     Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4>{}, Sequence<5>{}),
                 make_tuple(

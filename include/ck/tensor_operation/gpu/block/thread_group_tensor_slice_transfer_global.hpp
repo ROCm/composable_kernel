@@ -158,6 +158,10 @@ struct ThreadGroupTransferGlobal
                 },
                 Number<src_data_idx.Size() + 1>{});
 
+            // check if src element is valid
+            const bool is_src_valid =
+                coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
+
             // Vector length of elementwise operation
             constexpr auto get_elem_op_vec_len = []() {
                 if constexpr(is_detected<is_pack8_invocable_t, decltype(element_op_)>::value)
@@ -192,6 +196,8 @@ struct ThreadGroupTransferGlobal
             using dst_vector_type = vector_type_maker_t<DstData, VectorSize>;
             using dst_vector_t    = typename dst_vector_type::type;
 
+            using vector_t = typename vector_type_maker<DstData, VectorSize>::type::type;
+
             dst_vector_type op_r_v;
 
             // Load data from memory in src_vector first
@@ -208,8 +214,9 @@ struct ThreadGroupTransferGlobal
             // store result in dvgpr_ (static array holding loaded data).
             // At this point data is already converted to DstData type and
             // the elementwise operation has been applied
-            dvgpr_.template SetAsType<dst_vector_t>(vgpr_data_idx_seq,
-                                                    op_r_v.template AsType<dst_vector_t>()[I0]);
+            dvgpr_.template SetAsType<dst_vector_t>(
+                vgpr_data_idx_seq,
+                is_src_valid ? op_r_v.template AsType<dst_vector_t>()[I0] : vector_t(0));
 
             // For each dimension move fwd, bwd or don't move
             static_for<0, nDim, 1>{}([&](auto i) {

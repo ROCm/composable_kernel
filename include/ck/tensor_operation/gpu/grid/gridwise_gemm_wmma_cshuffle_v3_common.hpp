@@ -110,7 +110,8 @@ template <typename ALayout,
           typename ComputeTypeA,
           typename ComputeTypeB,
           bool PermuteA,
-          bool PermuteB>
+          bool PermuteB,
+          bool ForceThreadTileTransfer = false> // only needed for convolution (limitation)
 struct GridwiseGemm_wmma_cshuffle_v3_base
 {
 
@@ -151,74 +152,101 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
+    // Limitations of the current implementation:
+    //  - no multiAB
+    //  - fp16 only
+    //  - GemmSpecialization Default
+    //  - pipeline v1 because v3 is buggy (fixed in batched gemm gemm implementation)
+    // AK1Value == 8 is not really a limitation but a requirement for the method so
+    // it will stay
+#ifdef __gfx12__
+    static constexpr bool IsAWaveTransferApplicable =
+        !ForceThreadTileTransfer && NumATensor == 1 &&
+        is_same_v<remove_cvref_t<tuple_element_t<0, AsDataType>>, half_t> &&
+        GemmSpec == tensor_operation::device::GemmSpecialization::Default &&
+        BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 && AK1Value == 8;
+
+    static constexpr bool IsBWaveTransferApplicable =
+        !ForceThreadTileTransfer && NumBTensor == 1 &&
+        is_same_v<remove_cvref_t<tuple_element_t<0, BsDataType>>, half_t> &&
+        GemmSpec == tensor_operation::device::GemmSpecialization::Default &&
+        BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 && BK1Value == 8;
+#else
+    static constexpr bool IsAWaveTransferApplicable = false;
+    static constexpr bool IsBWaveTransferApplicable = false;
+#endif
+
     static constexpr index_t WaveSize =
         WmmaSelector<ComputeTypeA, ComputeTypeB, AccDataType, MPerWmma, NPerWmma>::selected_wmma
             .wave_size;
-    using ATransfer = ABTransferWaveTiles<ALayout,
-                                          tensor_layout::gemm::RowMajor,
-                                          BlockSize,
-                                          MPerBlock,
-                                          KPerBlock,
-                                          MPerWmma,
-                                          KPack,
-                                          AK1Value,
-                                          WaveSize>;
+    static constexpr bool UseBlockPaddingA =
+        ABlockLdsExtraM || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4;
+    using ATransfer = typename std::conditional<
+        IsAWaveTransferApplicable,
+        ABTransferWaveTiles<ALayout,
+                            tensor_layout::gemm::RowMajor,
+                            BlockSize,
+                            MPerBlock,
+                            KPerBlock,
+                            MPerWmma,
+                            KPack,
+                            AK1Value,
+                            WaveSize>,
+        ABTransferThreadTiles<ALayout,
+                              tensor_layout::gemm::RowMajor,
+                              LDSTypeA,
+                              BlockSize,
+                              MPerBlock,
+                              KPerBlock,
+                              MPerWmma,
+                              AK1Value,
+                              UseBlockPaddingA,
+                              PermuteA,
+                              ABlockTransferThreadClusterLengths_AK0_M_AK1,
+                              ABlockTransferThreadClusterArrangeOrder,
+                              ABlockTransferSrcAccessOrder,
+                              ABlockTransferSrcVectorDim,
+                              ABlockTransferSrcScalarPerVector,
+                              ABlockTransferDstScalarPerVector_AK1,
+                              AThreadTransferSrcResetCoordinateAfterRun>>::type;
 
-    using BTransfer = ABTransferWaveTiles<BLayout,
-                                          tensor_layout::gemm::ColumnMajor,
-                                          BlockSize,
-                                          NPerBlock,
-                                          KPerBlock,
-                                          NPerWmma,
-                                          KPack,
-                                          BK1Value,
-                                          WaveSize>;
+    static constexpr bool UseBlockPaddingB =
+        BBlockLdsExtraN || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4;
+
+    using BTransfer = typename std::conditional<
+        IsBWaveTransferApplicable,
+        ABTransferWaveTiles<BLayout,
+                            tensor_layout::gemm::ColumnMajor,
+                            BlockSize,
+                            NPerBlock,
+                            KPerBlock,
+                            NPerWmma,
+                            KPack,
+                            BK1Value,
+                            WaveSize>,
+        ABTransferThreadTiles<BLayout,
+                              tensor_layout::gemm::ColumnMajor,
+                              LDSTypeB,
+                              BlockSize,
+                              NPerBlock,
+                              KPerBlock,
+                              NPerWmma,
+                              BK1Value,
+                              UseBlockPaddingB,
+                              PermuteB,
+                              BBlockTransferThreadClusterLengths_BK0_N_BK1,
+                              BBlockTransferThreadClusterArrangeOrder,
+                              BBlockTransferSrcAccessOrder,
+                              BBlockTransferSrcVectorDim,
+                              BBlockTransferSrcScalarPerVector,
+                              BBlockTransferDstScalarPerVector_BK1,
+                              BThreadTransferSrcResetCoordinateAfterRun>>::type;
 
     static_assert(!(is_same_v<remove_cvref_t<LDSTypeB>, pk_i4_t> &&
                     GemmSpec != tensor_operation::device::GemmSpecialization::Default),
                   "pk_i4_t does not support padding");
 
     static_assert(!PermuteA, "PermuteA is not supported");
-
-    // static constexpr bool UseBlockPaddingA =
-    //     ABlockLdsExtraM || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4;
-    // static constexpr bool UseBlockPaddingB =
-    //     BBlockLdsExtraN || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4;
-    // using ATransfer = ABTransferThreadTiles<ALayout,
-    //                                         tensor_layout::gemm::RowMajor,
-    //                                         LDSTypeA,
-    //                                         BlockSize,
-    //                                         MPerBlock,
-    //                                         KPerBlock,
-    //                                         MPerWmma,
-    //                                         AK1Value,
-    //                                         UseBlockPaddingA,
-    //                                         PermuteA,
-    //                                         ABlockTransferThreadClusterLengths_AK0_M_AK1,
-    //                                         ABlockTransferThreadClusterArrangeOrder,
-    //                                         ABlockTransferSrcAccessOrder,
-    //                                         ABlockTransferSrcVectorDim,
-    //                                         ABlockTransferSrcScalarPerVector,
-    //                                         ABlockTransferDstScalarPerVector_AK1,
-    //                                         AThreadTransferSrcResetCoordinateAfterRun>;
-
-    // using BTransfer = ABTransferThreadTiles<BLayout,
-    //                                         tensor_layout::gemm::ColumnMajor,
-    //                                         LDSTypeB,
-    //                                         BlockSize,
-    //                                         NPerBlock,
-    //                                         KPerBlock,
-    //                                         NPerWmma,
-    //                                         BK1Value,
-    //                                         UseBlockPaddingB,
-    //                                         PermuteB,
-    //                                         BBlockTransferThreadClusterLengths_BK0_N_BK1,
-    //                                         BBlockTransferThreadClusterArrangeOrder,
-    //                                         BBlockTransferSrcAccessOrder,
-    //                                         BBlockTransferSrcVectorDim,
-    //                                         BBlockTransferSrcScalarPerVector,
-    //                                         BBlockTransferDstScalarPerVector_BK1,
-    //                                         BThreadTransferSrcResetCoordinateAfterRun>;
 
     static constexpr index_t APackedSize = []() {
         if constexpr(is_same_v<remove_cvref_t<LDSTypeA>, pk_i4_t>)
@@ -897,7 +925,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
         // A matrix blockwise copy
         auto a_blockwise_copy =
-            ATransfer::template GetBlockTransfer<decltype(as_grid_desc_ak0_m_ak1),
+            ATransfer::template GetBlockTransfer<AGridDesc_AK0_M_K1,
                                                  decltype(a_block_desc_ak0_m_ak1),
                                                  AsDataType,
                                                  AElementwiseOperation,
@@ -906,7 +934,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
         // B matrix blockwise copy
         auto b_blockwise_copy =
-            BTransfer::template GetBlockTransfer<decltype(bs_grid_desc_bk0_n_bk1),
+            BTransfer::template GetBlockTransfer<BGridDesc_BK0_N_K1,
                                                  decltype(b_block_desc_bk0_n_bk1),
                                                  BsDataType,
                                                  BElementwiseOperation,

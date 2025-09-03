@@ -213,9 +213,6 @@ struct GridwiseGemm_wmma_cshuffle_v3_b_scale
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    using Base::GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1;
-    using Base::GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1;
-
     using Base::NumATensor;
     using Base::NumBTensor;
     using Base::NumDTensor;
