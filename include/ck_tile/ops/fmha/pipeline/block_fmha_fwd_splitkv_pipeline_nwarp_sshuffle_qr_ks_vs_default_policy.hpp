@@ -46,6 +46,16 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVSDefaultPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeQRegTileDistribution()
+    {
+        using BlockGemm = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
+
+        return BlockGemm::template MakeABlockTileDistribution<
+            Problem::BlockFmhaShape::kM0,
+            Problem::BlockFmhaShape::kSubQKHeaddim>();
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQDramTileDistribution()
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
@@ -75,9 +85,38 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVSDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeQRegTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto GetQKBlockGemm()
     {
-        return BasePolicy::template MakeQRegTileDistribution<Problem>();
+        using GemmProblem =
+            BlockGemmProblem<typename Problem::QDataType,
+                             typename Problem::KDataType,
+                             typename Problem::SaccDataType,
+                             Problem::kNumGemm0Warps * get_warp_size(),
+                             TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
+                                                    Problem::BlockFmhaShape::kN0,
+                                                    Problem::BlockFmhaShape::kK0>,
+                                           typename Problem::BlockFmhaShape::Gemm0BlockWarps,
+                                           typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
+
+        using WarpGemm = WarpGemmDispatcher<typename Problem::QDataType,
+                                            typename Problem::KDataType,
+                                            typename Problem::SaccDataType,
+                                            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
+                                            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
+                                            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
+                                            true>;
+
+        using BlockGemmPolicy =
+            BlockGemmARegBSmemCRegV2CustomPolicy<typename Problem::QDataType,
+                                                 typename Problem::KDataType,
+                                                 typename Problem::SaccDataType,
+                                                 typename Problem::BlockFmhaShape::Gemm0BlockWarps,
+                                                 WarpGemm>;
+
+        if constexpr(1 < Problem::kNumGemm0Warps)
+            return BlockGemmARegBSmemCRegV2<GemmProblem, BlockGemmPolicy>{};
+        else
+            return BlockGemmARegBSmemCRegOneWarpV1<GemmProblem, BlockGemmPolicy>{};
     }
 
     template <typename Problem>
