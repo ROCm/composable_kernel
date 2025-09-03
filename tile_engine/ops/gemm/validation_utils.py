@@ -11,6 +11,7 @@ import subprocess
 import re
 from functools import lru_cache
 import logging
+from typing import Tuple, List
 
 # Element size mapping for different data types
 ELEMENT_SIZE_MAP = {
@@ -169,7 +170,7 @@ def validate_dimension_alignment(
     warp_tile_m: int,
     warp_tile_n: int,
     warp_tile_k: int,
-) -> tuple[bool, list[str]]:
+) -> Tuple[bool, List[str]]:
     """Check if tile dimensions are properly aligned with warp dimensions."""
     alignment_issues = []
 
@@ -196,7 +197,7 @@ def validate_lds_capacity(
     a_datatype: str,
     b_datatype: str,
     pipeline: str,
-) -> tuple[bool, str]:
+) -> Tuple[bool, str]:
     """Validate LDS capacity requirements."""
     matrix_a_size = (tile_m * tile_k) * element_size(a_datatype)
     matrix_b_size = (tile_n * tile_k) * element_size(b_datatype)
@@ -224,7 +225,7 @@ def validate_warp_tile_combination(
     b_datatype: str,
     c_datatype: str,
     gpu_name: str = None,
-) -> tuple[bool, str]:
+) -> Tuple[bool, str]:
     """Validate warp tile combination against GPU-specific supported combinations."""
     if gpu_name is None:
         gpu_name = get_gpu_name_by_id(0)
