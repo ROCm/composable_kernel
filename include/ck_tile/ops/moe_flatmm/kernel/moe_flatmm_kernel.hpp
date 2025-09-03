@@ -847,21 +847,6 @@ struct MoeFlatmmKernel
 
             constexpr bool EnableBias = decltype(kargs.exp_bias)::GranularityMN != -1;
 
-            auto make_col_broadcast_window = [&](auto scale_pointer) {
-                return make_tile_window(
-                    make_naive_tensor_view<address_space_enum::global>(
-                        kargs.scale_n.ptr + expert_id * kargs.N,
-                        make_tuple(1, kargs.N),
-                        make_tuple(0, scale_stride_n),
-                        number<ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1>{},
-                        number<1>{}),
-                    make_tuple(number<TilePartitioner::MPerBlock>{},
-                               number<IsGateUp ? TilePartitioner::NPerBlock / 2
-                                               : TilePartitioner::NPerBlock>{}),
-                    {0, IsGateUp ? coord_n / 2 : coord_n},
-                    output_acc_tile_distr);
-            };
-
             auto permute_tensor_view = [&](auto naive_view, auto is_needed_to_permute_N_PACK) {
                 if constexpr(!is_needed_to_permute_N_PACK)
                 {
@@ -1083,7 +1068,7 @@ struct MoeFlatmmKernel
                         acc_tile_like_tensor.get_y_sliced_thread_data(
                             merge_sequences(
                                 sequence<epi_m_idx * NumMXdlPerWavePerShuffle,
-                                         epi_n_idx * OutputNumNXdlPerWavePerShuffle + 2 * n_xdl>{},
+                                         epi_n_idx * NumNXdlPerWavePerShuffle + 2 * n_xdl>{},
                                 c_warp_y_index_zeros),
                             merge_sequences(sequence<NumMXdlPerWavePerShuffle, 1>{},
                                             c_warp_y_lengths)));
@@ -1091,10 +1076,10 @@ struct MoeFlatmmKernel
                         merge_sequences(sequence<0, n_xdl>{}, c_warp_y_index_zeros),
                         merge_sequences(sequence<NumMXdlPerWavePerShuffle, 1>{}, c_warp_y_lengths),
                         acc_tile_like_tensor.get_y_sliced_thread_data(
-                            merge_sequences(sequence<epi_m_idx * NumMXdlPerWavePerShuffle,
-                                                     epi_n_idx * OutputNumNXdlPerWavePerShuffle +
-                                                         2 * n_xdl + 1>{},
-                                            c_warp_y_index_zeros),
+                            merge_sequences(
+                                sequence<epi_m_idx * NumMXdlPerWavePerShuffle,
+                                         epi_n_idx * NumNXdlPerWavePerShuffle + 2 * n_xdl + 1>{},
+                                c_warp_y_index_zeros),
                             merge_sequences(sequence<NumMXdlPerWavePerShuffle, 1>{},
                                             c_warp_y_lengths)));
                 });
