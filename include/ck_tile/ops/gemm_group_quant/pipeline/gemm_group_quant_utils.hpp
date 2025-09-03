@@ -53,7 +53,7 @@ template <typename BlockGemmShape,
           index_t KPerBlockAQ,
           index_t VecSize,
           bool PreshuffleQuant>
-struct TileDistributionEncodingPatternAQ : public TileDistributionEncodingPattern
+struct tile_distribution_encoding_pattern_aq : public tile_distribution_encoding_pattern
 {
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
     static constexpr index_t warp_size = get_warp_size();
@@ -70,7 +70,7 @@ struct TileDistributionEncodingPatternAQ : public TileDistributionEncodingPatter
     // KWarps > 1 isn't supported
     static_assert(KWarps == 1);
 
-    CK_TILE_HOST_DEVICE static constexpr auto Make2DStaticTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto make_2d_static_tile_distribution()
     {
         if constexpr(PreshuffleQuant)
         {
@@ -119,7 +119,8 @@ template <typename BlockGemmShape,
           index_t YPerTile,
           index_t XPerTile,
           index_t VecSize>
-struct TileDistributionEncodingPatternAQTransposedC : public TileDistributionEncodingPattern
+struct tile_distribution_encoding_pattern_aq_transposed_c
+    : public tile_distribution_encoding_pattern
 {
     // TODO: make pattern where below condition does not need to hold - GGemmMultiDSplitk!
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
@@ -152,7 +153,7 @@ struct TileDistributionEncodingPatternAQTransposedC : public TileDistributionEnc
 
     static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover the blocktile along Y.");
 
-    CK_TILE_HOST_DEVICE static constexpr auto Make2DStaticTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto make_2d_static_tile_distribution()
     {
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<NWarps, XR>,
@@ -171,7 +172,7 @@ template <typename BlockGemmShape,
           index_t YPerTile,
           index_t XPerTile,
           index_t VecSize>
-struct TileDistributionEncodingPatternBQ : public TileDistributionEncodingPattern
+struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding_pattern
 {
     // TODO: make pattern where below condition does not need to hold - GGemmMultiDSplitk!
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
@@ -204,7 +205,7 @@ struct TileDistributionEncodingPatternBQ : public TileDistributionEncodingPatter
 
     static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover the blocktile along Y.");
 
-    CK_TILE_HOST_DEVICE static constexpr auto Make2DStaticTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto make_2d_static_tile_distribution()
     {
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<MWarps, XR>,
