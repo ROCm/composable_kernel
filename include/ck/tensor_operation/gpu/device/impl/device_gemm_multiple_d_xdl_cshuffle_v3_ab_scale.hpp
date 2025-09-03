@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -235,7 +235,8 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
             //     // if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout> &&
             //     //              is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
             //     // {
-            //     //     // FIXME: many instances have many spills with occupancy > 1, a better solution
+            //     //     // FIXME: many instances have many spills with occupancy > 1, a better
+            //     solution
             //     //     // needed to get best performance
             //     //     return 1;
             //     // }

@@ -1331,22 +1331,13 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
             b_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align);
 
         // Cast after lds
-        auto a_block_buf_1 = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<LDSTypeA*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
-        auto a_block_buf_2 = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<LDSTypeA*>(p_shared) + a_block_space_size_aligned, a_block_desc_ak0_m_ak1.GetElementSpaceSize());
-        auto a_block_bufs = make_tuple(a_block_buf_1, a_block_buf_2);
 
-        auto b_block_buf_1 = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+        auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<LDSTypeB*>(p_shared) +
-                2 * a_block_space_size_aligned * sizeof(LDSTypeA) / sizeof(LDSTypeB),
+                a_block_space_size_aligned * sizeof(LDSTypeA) / sizeof(LDSTypeB),
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
-        auto b_block_buf_2 = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<LDSTypeB*>(p_shared) +
-                2 * a_block_space_size_aligned * sizeof(LDSTypeA) / sizeof(LDSTypeB) +
-                b_block_space_size_aligned,
-            b_block_desc_bk0_n_bk1.GetElementSpaceSize());
-        auto b_block_bufs = make_tuple(b_block_buf_1, b_block_buf_2);
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1Number, 0, 0);
@@ -1421,13 +1412,13 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
             a_block_desc_ak0_m_ak1,
             a_blockwise_copy,
             a_grid_buf,
-            a_block_bufs,
+            a_block_buf,
             a_block_slice_copy_step,
             b_grid_desc_bk0_n_bk1,
             b_block_desc_bk0_n_bk1,
             b_blockwise_copy,
             b_grid_buf,
-            b_block_bufs,
+            b_block_buf,
             b_block_slice_copy_step,
 
             c_scale_thread_desc,
