@@ -12,6 +12,7 @@
 
 #include "batched_transpose_example.hpp"
 
+#include "json_dump.hpp"
 #if 0
 template <typename T>
 void dump_host_tensor_4d(const ck_tile::HostTensor<T>& x)
@@ -103,6 +104,8 @@ auto create_args(int argc, char* argv[])
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("seed", "-1", "seed to be used, -1 means random every time")
         .insert("kname", "0", "t to 1 will print kernel name")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "batched_transpose.json", "json file name to dump results")
         .insert("pipeline", "0", "0: no LDS usage, 1: LDS-accelerated (gfx950)");
 
     bool result = arg_parser.parse(argc, argv);
@@ -236,6 +239,23 @@ bool run_batched_transpose(ck_tile::ArgParser args)
            "--------------------------------------------------------------------\n",
            rtn ? "y" : "n");
     fflush(stdout);
+
+    if(args.get_int("json") == 1)
+    {
+        dump_batched_transpose_json(args.get_str("jsonfile"),
+                                    N,
+                                    C,
+                                    H,
+                                    W,
+                                    layout_in,
+                                    layout_out,
+                                    prec,
+                                    ms,
+                                    0,
+                                    gb_per_sec,
+                                    rtn);
+    }
+
     return rtn;
 }
 
