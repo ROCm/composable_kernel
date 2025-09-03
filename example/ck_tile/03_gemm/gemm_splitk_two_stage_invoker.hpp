@@ -192,10 +192,8 @@ struct SplitKTwoStageInvoker
 
             auto clear_gemm_output = [&]() {
                 if(args.k_batch > 1)
-                    hipGetErrorString(hipMemsetAsync(ws_args.c_ptr,
-                                                        0,
-                                                        args.M * args.N * sizeof(WorkspaceType),
-                                                        s.stream_id_));
+                    hipGetErrorString(hipMemsetAsync(
+                        ws_args.c_ptr, 0, args.M * args.N * sizeof(WorkspaceType), s.stream_id_));
             };
 
             if(s.flush_cache_)
@@ -235,16 +233,15 @@ struct SplitKTwoStageInvoker
                 preprocess,
                 ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
                     GemmKernel{}, grids, blocks, 0, gemm_kargs),
-                ck_tile::make_kernel<kBlockPerCu>(
-                    ElementwiseKernel{},
-                    kGridSize,
-                    kBlockSize,
-                    0,
-                    input_size,
-                    ck_tile::make_tuple(args.N, 1), // Input Stride
-                    ck_tile::make_tuple(args.N, 1), // Output Stride
-                    input_tensors,
-                    static_cast<CDataType*>(c_ptr)));
+                ck_tile::make_kernel<kBlockPerCu>(ElementwiseKernel{},
+                                                  kGridSize,
+                                                  kBlockSize,
+                                                  0,
+                                                  input_size,
+                                                  ck_tile::make_tuple(args.N, 1), // Input Stride
+                                                  ck_tile::make_tuple(args.N, 1), // Output Stride
+                                                  input_tensors,
+                                                  static_cast<CDataType*>(c_ptr)));
         };
 
         const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
