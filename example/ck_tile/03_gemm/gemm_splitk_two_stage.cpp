@@ -20,7 +20,7 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
                   << std::endl;
     }
 
-    return run_gemm_example_prec_type<GemmConfigTwoStage<ck_tile::half_t, float>,
+    return run_gemm_example_prec_type<GemmConfigTwoStage<ck_tile::bf16_t, float>,
                                       Invoker,
                                       ck_tile::bf16_t>(a_layout, b_layout, arg_parser);
 }

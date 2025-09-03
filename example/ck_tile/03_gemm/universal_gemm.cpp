@@ -31,7 +31,7 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
     }
     else if(data_type == "bf16")
     {
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, Invoker, ck_tile::bf16_t>(
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::bf16_t>, Invoker, ck_tile::bf16_t>(
             a_layout, b_layout, arg_parser);
     }
     else if(data_type == "fp8")
