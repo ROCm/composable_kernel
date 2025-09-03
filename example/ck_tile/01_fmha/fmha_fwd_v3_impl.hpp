@@ -80,7 +80,7 @@ struct fmha_fwd_v3_kernel_traits
                                             -1     // kBlockPerCu
                                             >;
 
-    using fmha_mask = SimplifiedGenericAttentionMask<IsMasking>;
+    using fmha_mask = GenericAttentionMask<IsMasking, /*IsLocal=*/false>;
 
     using fmha_pipeline_problem =
         BlockFmhaFwdV3PipelineProblem<typename fmha_fwd_v3_problem_traits<date_type>::qkvp_dtype,
