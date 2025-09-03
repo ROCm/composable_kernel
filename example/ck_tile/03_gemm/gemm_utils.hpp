@@ -9,6 +9,7 @@
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
+#include "json_dump.hpp"
 
 #define CK_TILE_PIPELINE_COMPUTE_V3 1
 #define CK_TILE_PIPELINE_MEMORY 2
@@ -486,13 +487,15 @@ auto create_args(int argc, char* argv[])
         .insert("stride_b", "0", "Tensor B stride")
         .insert("stride_c", "0", "Tensor C stride")
         .insert("v", "2", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
-        .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
+        .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8/pk_int4_t")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("split_k", "1", "splitK value")
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
         .insert("persistent", "0", "0:non-persistent, 1:persistent")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "gemm.json", "json file name to dump results")
         .insert("flush_cache", "true", "flush cache before running the kernel, defaults to true")
         .insert("rotating_count", "1000", "rotating count, defaults to 1000");
 

@@ -104,7 +104,7 @@ struct intrin_wmma_bf16_16x16x16_bf16_w32<16, 16, Opsel>
         // opsel usage
         // false: D0.[0:15] = result
         // true : D0.[16:31]= result
-#if defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx11__)
         reg_c.template AsType<bhalf16_t>()(Number<0>{}) =
             __builtin_amdgcn_wmma_bf16_16x16x16_bf16_w32(
                 reg_a, reg_b, reg_c.template AsType<bhalf16_t>()[Number<0>{}], Opsel);
