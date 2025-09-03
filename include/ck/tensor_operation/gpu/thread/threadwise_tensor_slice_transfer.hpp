@@ -18,32 +18,48 @@ namespace ck {
 template <typename Idx1, typename Idx2>
 constexpr bool indices_equal(const Idx1& idx1, const Idx2& idx2)
 {
-    if constexpr (Idx1::Size() != Idx2::Size()) {
+    if constexpr(Idx1::Size() != Idx2::Size())
+    {
         return false;
-    } else {
+    }
+    else
+    {
         bool equal = true;
-        static_for<0, Idx1::Size(), 1>{}([&](auto i) {
-            equal = equal && (idx1.At(i) == idx2.At(i));
-        });
+        static_for<0, Idx1::Size(), 1>{}(
+            [&](auto i) { equal = equal && (idx1.At(i) == idx2.At(i)); });
         return equal;
     }
 }
 
-template <typename SpaceFillingCurveSrc, typename SpaceFillingCurveDst, index_t DstIdx, index_t SearchIdx, index_t MaxIdx>
+template <typename SpaceFillingCurveSrc,
+          typename SpaceFillingCurveDst,
+          index_t DstIdx,
+          index_t SearchIdx,
+          index_t MaxIdx>
 struct LinearIndexFinder
 {
     static constexpr index_t find()
     {
-        if constexpr (SearchIdx >= MaxIdx) {
+        if constexpr(SearchIdx >= MaxIdx)
+        {
             return index_t(-1); // Not found
-        } else {
+        }
+        else
+        {
             constexpr auto dst_md = SpaceFillingCurveDst::GetIndex(Number<DstIdx>{});
             constexpr auto src_md = SpaceFillingCurveSrc::GetIndex(Number<SearchIdx>{});
-            
-            if constexpr (indices_equal(dst_md, src_md)) {
+
+            if constexpr(indices_equal(dst_md, src_md))
+            {
                 return SearchIdx;
-            } else {
-                return LinearIndexFinder<SpaceFillingCurveSrc, SpaceFillingCurveDst, DstIdx, SearchIdx + 1, MaxIdx>::find();
+            }
+            else
+            {
+                return LinearIndexFinder<SpaceFillingCurveSrc,
+                                         SpaceFillingCurveDst,
+                                         DstIdx,
+                                         SearchIdx + 1,
+                                         MaxIdx>::find();
             }
         }
     }
@@ -71,7 +87,7 @@ template <typename SrcData,
           index_t DstScalarStrideInVector,
           bool DstResetCoordinateAfterRun,
           typename enable_if<SrcDesc::IsKnownAtCompileTime(), bool>::type = false>
-struct ThreadwiseTensorSliceTransfer_v1r3_packed_cast 
+struct ThreadwiseTensorSliceTransfer_v1r3_packed_cast
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -92,9 +108,8 @@ struct ThreadwiseTensorSliceTransfer_v1r3_packed_cast
 
     using DstCoordStep = decltype(make_tensor_coordinate_step(DstDesc{}, Index{}));
 
-    __device__ constexpr ThreadwiseTensorSliceTransfer_v1r3_packed_cast(const DstDesc& dst_desc,
-                                                            const Index& dst_slice_origin_idx,
-                                                            const ElementwiseOperation&)
+    __device__ constexpr ThreadwiseTensorSliceTransfer_v1r3_packed_cast(
+        const DstDesc& dst_desc, const Index& dst_slice_origin_idx, const ElementwiseOperation&)
         : dst_coord_(make_tensor_coordinate(dst_desc, dst_slice_origin_idx))
     {
         static_assert(SrcDesc::IsKnownAtCompileTime(),
@@ -103,15 +118,13 @@ struct ThreadwiseTensorSliceTransfer_v1r3_packed_cast
                       "wrong! Not divisible");
 
         // Assert that elementwise op is pass through.
-        static_assert(
-            std::is_same_v<remove_cvref_t<ElementwiseOperation>, ck::tensor_operation::element_wise::PassThrough>,
-            "wrong! ElementwiseOperation must be PassThrough");
+        static_assert(std::is_same_v<remove_cvref_t<ElementwiseOperation>,
+                                     ck::tensor_operation::element_wise::PassThrough>,
+                      "wrong! ElementwiseOperation must be PassThrough");
 
         // For now, SrcData must be float and DstData must be ck::bhalf_t
-        static_assert(std::is_same_v<SrcData, float>,
-                      "wrong! SrcData must be float");
-        static_assert(std::is_same_v<DstData, ck::bhalf_t>,
-                      "wrong! DstData must be bhalf_t");
+        static_assert(std::is_same_v<SrcData, float>, "wrong! SrcData must be float");
+        static_assert(std::is_same_v<DstData, ck::bhalf_t>, "wrong! DstData must be bhalf_t");
     }
 
     __device__ void SetDstSliceOrigin(const DstDesc& dst_desc, const Index& dst_slice_origin_idx)
@@ -141,63 +154,78 @@ struct ThreadwiseTensorSliceTransfer_v1r3_packed_cast
         constexpr auto dst_scalar_per_access = generate_sequence(
             detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
 
-        // Note: We cannot easily have different SFC for src and dst because this will lead to increased register usage.
+        // Note: We cannot easily have different SFC for src and dst because this will lead to
+        // increased register usage.
         using SpaceFillingCurveDst = SpaceFillingCurve<SliceLengths,
-                                                    DimAccessOrder,
-                                                    remove_cv_t<decltype(dst_scalar_per_access)>,
-                                                    SerpentineAccessPatternDst>;
+                                                       DimAccessOrder,
+                                                       remove_cv_t<decltype(dst_scalar_per_access)>,
+                                                       SerpentineAccessPatternDst>;
 
         using SpaceFillingCurveSrc = SpaceFillingCurve<SliceLengths,
-                                                    DimAccessOrder,
-                                                    remove_cv_t<decltype(dst_scalar_per_access)>,
-                                                    SerpentineAccessPatternSrc>;
-          
+                                                       DimAccessOrder,
+                                                       remove_cv_t<decltype(dst_scalar_per_access)>,
+                                                       SerpentineAccessPatternSrc>;
+
         static_assert(1 == SpaceFillingCurveDst::ScalarPerVector,
-                    "wrong!DstScalarPerVector != SpaceFillingCurveDst::ScalarPerVector");
+                      "wrong!DstScalarPerVector != SpaceFillingCurveDst::ScalarPerVector");
 
-        static_assert(SpaceFillingCurveDst::GetNumOfAccess() == SpaceFillingCurveSrc::GetNumOfAccess(),
-                  "wrong! SpaceFillingCurveDst and SpaceFillingCurveSrc must have the same number of access.");
+        static_assert(SpaceFillingCurveDst::GetNumOfAccess() ==
+                          SpaceFillingCurveSrc::GetNumOfAccess(),
+                      "wrong! SpaceFillingCurveDst and SpaceFillingCurveSrc must have the same "
+                      "number of access.");
 
-        constexpr auto num_access = SpaceFillingCurveDst::GetNumOfAccess();
-        constexpr index_t num_pairs = num_access / 2;
+        constexpr auto num_access      = SpaceFillingCurveDst::GetNumOfAccess();
+        constexpr index_t num_pairs    = num_access / 2;
         constexpr bool has_odd_element = (num_access % 2 == 1);
 
         // TODO: Enable also odd number of elements.
         static_assert(!has_odd_element, "wrong!Slice should have even number of elements.");
-      
+
         ck::float2_t float2_buffer;
-        static_for<0, num_pairs, 1>{}([&](auto i_pair) 
-        {
+        static_for<0, num_pairs, 1>{}([&](auto i_pair) {
             // First of the pair of the float values
             constexpr auto idx_1d_dst_0 = I2 * i_pair;
-            constexpr index_t idx_1d_src_0 = SerpentineAccessPatternDst != SerpentineAccessPatternSrc
-                ? LinearIndexFinder<SpaceFillingCurveSrc, SpaceFillingCurveDst, idx_1d_dst_0.value, 0, num_access>::find()
-                : idx_1d_dst_0.value;
+            constexpr index_t idx_1d_src_0 =
+                SerpentineAccessPatternDst != SerpentineAccessPatternSrc
+                    ? LinearIndexFinder<SpaceFillingCurveSrc,
+                                        SpaceFillingCurveDst,
+                                        idx_1d_dst_0.value,
+                                        0,
+                                        num_access>::find()
+                    : idx_1d_dst_0.value;
             static_assert(idx_1d_src_0 != index_t(-1), "wrong! Cannot find first linear index.");
             constexpr auto idx_md_src_0 = SpaceFillingCurveSrc::GetIndex(Number<idx_1d_src_0>{});
-            constexpr index_t src_offset_0 = src_desc.CalculateOffset(src_slice_origin_idx + idx_md_src_0);
+            constexpr index_t src_offset_0 =
+                src_desc.CalculateOffset(src_slice_origin_idx + idx_md_src_0);
 
             // Second pf the pair of the float values
             constexpr auto idx_1d_dst_1 = I2 * i_pair + I1;
-            constexpr index_t idx_1d_src_1 = SerpentineAccessPatternDst != SerpentineAccessPatternSrc
-                ? LinearIndexFinder<SpaceFillingCurveSrc, SpaceFillingCurveDst, idx_1d_dst_1.value, 0, num_access>::find()
-                : idx_1d_dst_1.value;
+            constexpr index_t idx_1d_src_1 =
+                SerpentineAccessPatternDst != SerpentineAccessPatternSrc
+                    ? LinearIndexFinder<SpaceFillingCurveSrc,
+                                        SpaceFillingCurveDst,
+                                        idx_1d_dst_1.value,
+                                        0,
+                                        num_access>::find()
+                    : idx_1d_dst_1.value;
             static_assert(idx_1d_src_1 != index_t(-1), "wrong! Cannot find first linear index.");
             constexpr auto idx_md_src_1 = SpaceFillingCurveSrc::GetIndex(Number<idx_1d_src_1>{});
-            constexpr index_t src_offset_1 = src_desc.CalculateOffset(src_slice_origin_idx + idx_md_src_1);
+            constexpr index_t src_offset_1 =
+                src_desc.CalculateOffset(src_slice_origin_idx + idx_md_src_1);
 
-            if constexpr (src_offset_1 - src_offset_0 == 1)
+            if constexpr(src_offset_1 - src_offset_0 == 1)
             {
                 // Load two consecutive float values from the src buffer
                 float2_buffer = src_buf.template GetAsType<ck::float2_t>(Number<src_offset_0>{});
             }
-            else 
+            else
             {
                 // Load the two float values one by one
-                float2_buffer= {src_buf[Number<src_offset_0>{}], src_buf[Number<src_offset_1>{}]};
+                float2_buffer = {src_buf[Number<src_offset_0>{}], src_buf[Number<src_offset_1>{}]};
             }
 
-            const ck::bhalf2_t packed_value= bf16x2_convert_rne<ck::bhalf2_t, float>(float2_buffer[0], float2_buffer[1]);
+            const ck::bhalf2_t packed_value =
+                bf16x2_convert_rne<ck::bhalf2_t, float>(float2_buffer[0], float2_buffer[1]);
 
             const bool is_dst_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
@@ -205,25 +233,21 @@ struct ThreadwiseTensorSliceTransfer_v1r3_packed_cast
             // Store the packed value into the dst buffer one by one.
             const auto dst_offset_0 = dst_coord_.GetOffset();
             dst_buf.template Update<DstInMemOp, ck::bhalf_t>(
-                dst_offset_0,
-                is_dst_valid,
-                packed_value[0]);
+                dst_offset_0, is_dst_valid, packed_value[0]);
 
             // Move to the next dst coordinate
             constexpr auto forward_step_0 = SpaceFillingCurveDst::GetForwardStep(idx_1d_dst_0);
-                move_tensor_coordinate(
-                    dst_desc, dst_coord_, make_tensor_coordinate_step(dst_desc, forward_step_0));
+            move_tensor_coordinate(
+                dst_desc, dst_coord_, make_tensor_coordinate_step(dst_desc, forward_step_0));
 
             const auto dst_offset_1 = dst_coord_.GetOffset();
             dst_buf.template Update<DstInMemOp, ck::bhalf_t>(
-                dst_offset_1,
-                is_dst_valid,
-                packed_value[1]);
-            
+                dst_offset_1, is_dst_valid, packed_value[1]);
+
             // Move to next dst coordinate, unless this was the last pair
             if constexpr(i_pair.value != num_pairs - 1)
             {
-                
+
                 constexpr auto forward_step_1 = SpaceFillingCurveDst::GetForwardStep(idx_1d_dst_1);
                 move_tensor_coordinate(
                     dst_desc, dst_coord_, make_tensor_coordinate_step(dst_desc, forward_step_1));
@@ -239,7 +263,6 @@ struct ThreadwiseTensorSliceTransfer_v1r3_packed_cast
             move_tensor_coordinate(dst_desc, dst_coord_, dst_reset_step);
         }
     }
-
 
     __device__ static constexpr auto GetDstCoordinateResetStep()
     {
@@ -279,7 +302,8 @@ struct ThreadwiseTensorSliceTransfer_v1r3_packed_cast
 
         move_tensor_coordinate(dst_desc, dst_coord_, adjusted_step);
     }
-private:
+
+    private:
     DstCoord dst_coord_;
 };
 

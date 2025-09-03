@@ -99,7 +99,7 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
                                is_single_rate_mfma,
                                is_scale_mfma>::selected_mfma.k_per_blk);
 
-    using ThisThreadBlock = ThisThreadBlock<BlockSize>; 
+    using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     __host__ static auto CalculateGridSize(index_t M, index_t N, index_t KBatch, index_t Batch)
     {
@@ -643,12 +643,10 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
     __device__ static constexpr bool is_gfx650_and_bf16_output()
     {
 #if defined(__gfx950__)
-            return 
-                std::is_same_v<CShuffleDataType, ck::bhalf_t> &&
-                std::is_same_v<AccDataType, float>;
+        return std::is_same_v<CShuffleDataType, ck::bhalf_t> && std::is_same_v<AccDataType, float>;
 #else
-            return false;
-#endif 
+        return false;
+#endif
     }
 
     template <typename AGridDesc_AK0_M_K1,
@@ -897,27 +895,27 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
 
             using ThreadwiseTransfer = std::conditional_t<
                 is_gfx650_and_bf16_output(),
-                    ThreadwiseTensorSliceTransfer_v1r3_packed_cast<
-                                                   AccDataType,
-                                                   CShuffleDataType,
-                                                   decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                   decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                   ck::tensor_operation::element_wise::PassThrough,
-                                                   Sequence<CShuffleMXdlPerWavePerShuffle,
-                                                            CShuffleNXdlPerWavePerShuffle,
-                                                            I1,
-                                                            I1,
-                                                            M2,
-                                                            I1,
-                                                            M4,
-                                                            I1>,
-                                                   Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
-                                                   7,
-                                                   1,
-                                                   InMemoryDataOperationEnum::Set,
-                                                   1,
-                                                   true>,
-                    ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
+                ThreadwiseTensorSliceTransfer_v1r3_packed_cast<
+                    AccDataType,
+                    CShuffleDataType,
+                    decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                    decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                    ck::tensor_operation::element_wise::PassThrough,
+                    Sequence<CShuffleMXdlPerWavePerShuffle,
+                             CShuffleNXdlPerWavePerShuffle,
+                             I1,
+                             I1,
+                             M2,
+                             I1,
+                             M4,
+                             I1>,
+                    Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                    7,
+                    1,
+                    InMemoryDataOperationEnum::Set,
+                    1,
+                    true>,
+                ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
                                                    CShuffleDataType,
                                                    decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                    decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
@@ -938,17 +936,17 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
                                                    true>>;
 
             // shuffle: threadwise copy C from VGPR to LDS
-            auto c_thread_copy_vgpr_to_lds = ThreadwiseTransfer{
-                    c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                    make_multi_index(0,
-                                     0,
-                                     m_thread_data_on_block_idx[I1],
-                                     n_thread_data_on_block_idx[I1],
-                                     m_thread_data_on_block_idx[I2],
-                                     m_thread_data_on_block_idx[I3],
-                                     m_thread_data_on_block_idx[I4],
-                                     n_thread_data_on_block_idx[I2]),
-                    ck::tensor_operation::element_wise::PassThrough{}};
+            auto c_thread_copy_vgpr_to_lds =
+                ThreadwiseTransfer{c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                   make_multi_index(0,
+                                                    0,
+                                                    m_thread_data_on_block_idx[I1],
+                                                    n_thread_data_on_block_idx[I1],
+                                                    m_thread_data_on_block_idx[I2],
+                                                    m_thread_data_on_block_idx[I3],
+                                                    m_thread_data_on_block_idx[I4],
+                                                    n_thread_data_on_block_idx[I2]),
+                                   ck::tensor_operation::element_wise::PassThrough{}};
 
             // shuffle: blockwise copy C from LDS to global
             auto c_shuffle_block_copy_lds_to_global = ThreadGroupTensorSliceTransfer_v6r1<
@@ -1008,10 +1006,10 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
 
                 // each thread write its data from VGPR to LDS
                 c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                                            sfc_c_vgpr.GetIndexTupleOfNumber(access_id),
-                                            c_thread_buf,
-                                            c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                                            c_shuffle_block_buf);
+                                              sfc_c_vgpr.GetIndexTupleOfNumber(access_id),
+                                              c_thread_buf,
+                                              c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                              c_shuffle_block_buf);
 
                 // make sure it's safe to read from LDS
                 block_sync_lds();
@@ -1292,27 +1290,27 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
 
             using ThreadwiseTransfer = std::conditional_t<
                 is_gfx650_and_bf16_output(),
-                    ThreadwiseTensorSliceTransfer_v1r3_packed_cast<
-                                                   AccDataType,
-                                                   CShuffleDataType,
-                                                   decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                   decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                   ck::tensor_operation::element_wise::PassThrough,
-                                                   Sequence<CShuffleMXdlPerWavePerShuffle,
-                                                            CShuffleNXdlPerWavePerShuffle,
-                                                            I1,
-                                                            I1,
-                                                            M2,
-                                                            I1,
-                                                            M4,
-                                                            I1>,
-                                                   Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
-                                                   7,
-                                                   1,
-                                                   InMemoryDataOperationEnum::Set,
-                                                   1,
-                                                   true>,
-                    ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
+                ThreadwiseTensorSliceTransfer_v1r3_packed_cast<
+                    AccDataType,
+                    CShuffleDataType,
+                    decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                    decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                    ck::tensor_operation::element_wise::PassThrough,
+                    Sequence<CShuffleMXdlPerWavePerShuffle,
+                             CShuffleNXdlPerWavePerShuffle,
+                             I1,
+                             I1,
+                             M2,
+                             I1,
+                             M4,
+                             I1>,
+                    Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                    7,
+                    1,
+                    InMemoryDataOperationEnum::Set,
+                    1,
+                    true>,
+                ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
                                                    CShuffleDataType,
                                                    decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                    decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
@@ -1333,17 +1331,17 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
                                                    true>>;
 
             // shuffle: threadwise copy C from VGPR to LDS
-            auto c_thread_copy_vgpr_to_lds = ThreadwiseTransfer{
-                    c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                    make_multi_index(0,
-                                     0,
-                                     m_thread_data_on_block_idx[I1],
-                                     n_thread_data_on_block_idx[I1],
-                                     m_thread_data_on_block_idx[I2],
-                                     m_thread_data_on_block_idx[I3],
-                                     m_thread_data_on_block_idx[I4],
-                                     n_thread_data_on_block_idx[I2]),
-                    ck::tensor_operation::element_wise::PassThrough{}};
+            auto c_thread_copy_vgpr_to_lds =
+                ThreadwiseTransfer{c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                   make_multi_index(0,
+                                                    0,
+                                                    m_thread_data_on_block_idx[I1],
+                                                    n_thread_data_on_block_idx[I1],
+                                                    m_thread_data_on_block_idx[I2],
+                                                    m_thread_data_on_block_idx[I3],
+                                                    m_thread_data_on_block_idx[I4],
+                                                    n_thread_data_on_block_idx[I2]),
+                                   ck::tensor_operation::element_wise::PassThrough{}};
 
             // shuffle: blockwise copy C from LDS to global
             auto c_shuffle_block_copy_lds_to_global = ThreadGroupTensorSliceTransfer_v6r1<

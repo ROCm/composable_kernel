@@ -1373,13 +1373,11 @@ struct GridwiseGemm_xdl_cshuffle_v3
     __device__ static constexpr bool is_gfx650_and_bf16_output()
     {
 #if defined(__gfx950__)
-            return 
-                !DoElementwiseBeforeCShuffle &&
-                std::is_same_v<CShuffleDataType, ck::bhalf_t> &&
-                std::is_same_v<AccDataType, float>;
+        return !DoElementwiseBeforeCShuffle && std::is_same_v<CShuffleDataType, ck::bhalf_t> &&
+               std::is_same_v<AccDataType, float>;
 #else
-            return false;
-#endif 
+        return false;
+#endif
     }
 
     template <typename AGridDesc_AK0_M_K1,
@@ -1644,64 +1642,63 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 }
             };
 
-            using ThreadwiseTransfer = std::conditional_t<
-                is_gfx650_and_bf16_output(),
-                    ThreadwiseTensorSliceTransfer_v1r3_packed_cast<
-                                                    AccDataType,
-                                                    CShuffleDataType,
-                                                    decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                    decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                    tensor_operation::element_wise::PassThrough,
-                                                    Sequence<CShuffleMXdlPerWavePerShuffle,
-                                                            CShuffleNXdlPerWavePerShuffle,
-                                                            I1,
-                                                            I1,
-                                                            M2,
-                                                            I1,
-                                                            M4,
-                                                            I1>,
-                                                    Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
-                                                    7,
-                                                    1,
-                                                    InMemoryDataOperationEnum::Set,
-                                                    1,
-                                                    true>,
-                    ThreadwiseTensorSliceTransfer_v1r3<
-                                                    AccDataType,
-                                                    CShuffleDataType,
-                                                    decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                    decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                    conditional_t<DoElementwiseBeforeCShuffle,
-                                                                CElementwiseOperation,
-                                                                tensor_operation::element_wise::PassThrough>,
-                                                    Sequence<CShuffleMXdlPerWavePerShuffle,
-                                                            CShuffleNXdlPerWavePerShuffle,
-                                                            I1,
-                                                            I1,
-                                                            M2,
-                                                            I1,
-                                                            M4,
-                                                            I1>,
-                                                    Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
-                                                    7,
-                                                    1,
-                                                    InMemoryDataOperationEnum::Set,
-                                                    1,
-                                                    true>
-                                                        >;
+            using ThreadwiseTransfer =
+                std::conditional_t<is_gfx650_and_bf16_output(),
+                                   ThreadwiseTensorSliceTransfer_v1r3_packed_cast<
+                                       AccDataType,
+                                       CShuffleDataType,
+                                       decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                                       decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                                       tensor_operation::element_wise::PassThrough,
+                                       Sequence<CShuffleMXdlPerWavePerShuffle,
+                                                CShuffleNXdlPerWavePerShuffle,
+                                                I1,
+                                                I1,
+                                                M2,
+                                                I1,
+                                                M4,
+                                                I1>,
+                                       Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                                       7,
+                                       1,
+                                       InMemoryDataOperationEnum::Set,
+                                       1,
+                                       true>,
+                                   ThreadwiseTensorSliceTransfer_v1r3<
+                                       AccDataType,
+                                       CShuffleDataType,
+                                       decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                                       decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                                       conditional_t<DoElementwiseBeforeCShuffle,
+                                                     CElementwiseOperation,
+                                                     tensor_operation::element_wise::PassThrough>,
+                                       Sequence<CShuffleMXdlPerWavePerShuffle,
+                                                CShuffleNXdlPerWavePerShuffle,
+                                                I1,
+                                                I1,
+                                                M2,
+                                                I1,
+                                                M4,
+                                                I1>,
+                                       Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                                       7,
+                                       1,
+                                       InMemoryDataOperationEnum::Set,
+                                       1,
+                                       true>>;
 
             // shuffle: threadwise copy C from VGPR to LDS
-            auto c_thread_copy_vgpr_to_lds = ThreadwiseTransfer{
-                      c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                      make_multi_index(0,
-                                       0,
-                                       m_thread_data_on_block_idx[I1],
-                                       n_thread_data_on_block_idx[I1],
-                                       m_thread_data_on_block_idx[I2],
-                                       m_thread_data_on_block_idx[I3],
-                                       m_thread_data_on_block_idx[I4],
-                                       n_thread_data_on_block_idx[I2]),
-                      vpgr_to_lds_element_op()};
+            auto c_thread_copy_vgpr_to_lds =
+                ThreadwiseTransfer{c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                   make_multi_index(0,
+                                                    0,
+                                                    m_thread_data_on_block_idx[I1],
+                                                    n_thread_data_on_block_idx[I1],
+                                                    m_thread_data_on_block_idx[I2],
+                                                    m_thread_data_on_block_idx[I3],
+                                                    m_thread_data_on_block_idx[I4],
+                                                    n_thread_data_on_block_idx[I2]),
+                                   vpgr_to_lds_element_op()};
 
             // shuffle: blockwise copy C from LDS to global
             auto c_shuffle_block_copy_lds_to_global = ThreadGroupTensorSliceTransfer_v6r1<
@@ -1732,16 +1729,17 @@ struct GridwiseGemm_xdl_cshuffle_v3
                  lds_to_global_element_op()};
 
             // space filling curve for threadwise C in VGPR
-            constexpr auto sfc_c_vgpr = SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
-                                    Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
-                                    Sequence<CShuffleMXdlPerWavePerShuffle,
-                                            CShuffleNXdlPerWavePerShuffle,
-                                            1,
-                                            1,
-                                            M2,
-                                            1,
-                                            M4,
-                                            1>>{};
+            constexpr auto sfc_c_vgpr =
+                SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
+                                  Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                                  Sequence<CShuffleMXdlPerWavePerShuffle,
+                                           CShuffleNXdlPerWavePerShuffle,
+                                           1,
+                                           1,
+                                           M2,
+                                           1,
+                                           M4,
+                                           1>>{};
 
             // space filling curve for shuffled blockwise C in global mem
             constexpr auto sfc_c_global =
@@ -2073,64 +2071,63 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 n_thread_data_on_block_to_n0_n1_n2_adaptor.CalculateBottomIndex(
                     make_multi_index(n_thread_data_on_block));
 
-            using ThreadwiseTransfer = std::conditional_t<
-                is_gfx650_and_bf16_output(),
-                    ThreadwiseTensorSliceTransfer_v1r3_packed_cast<
-                                                    AccDataType,
-                                                    CShuffleDataType,
-                                                    decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                    decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                    ck::tensor_operation::element_wise::PassThrough,
-                                                    Sequence<CShuffleMXdlPerWavePerShuffle,
-                                                                CShuffleNXdlPerWavePerShuffle,
-                                                                I1,
-                                                                I1,
-                                                                M2,
-                                                                I1,
-                                                                M4,
-                                                                I1>,
-                                                    Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
-                                                    7,
-                                                    1,
-                                                    InMemoryDataOperationEnum::Set,
-                                                    1,
-                                                    true>,
-                    ThreadwiseTensorSliceTransfer_v1r3<
-                                                    AccDataType,
-                                                    CShuffleDataType,
-                                                    decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                    decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                    conditional_t<DoElementwiseBeforeCShuffle,
-                                                        CElementwiseOperation,
-                                                        tensor_operation::element_wise::PassThrough>,
-                                                    Sequence<CShuffleMXdlPerWavePerShuffle,
-                                                                CShuffleNXdlPerWavePerShuffle,
-                                                                I1,
-                                                                I1,
-                                                                M2,
-                                                                I1,
-                                                                M4,
-                                                                I1>,
-                                                    Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
-                                                    7,
-                                                    1,
-                                                    InMemoryDataOperationEnum::Set,
-                                                    1,
-                                                    true>
-                                                        >;
+            using ThreadwiseTransfer =
+                std::conditional_t<is_gfx650_and_bf16_output(),
+                                   ThreadwiseTensorSliceTransfer_v1r3_packed_cast<
+                                       AccDataType,
+                                       CShuffleDataType,
+                                       decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                                       decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                                       ck::tensor_operation::element_wise::PassThrough,
+                                       Sequence<CShuffleMXdlPerWavePerShuffle,
+                                                CShuffleNXdlPerWavePerShuffle,
+                                                I1,
+                                                I1,
+                                                M2,
+                                                I1,
+                                                M4,
+                                                I1>,
+                                       Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                                       7,
+                                       1,
+                                       InMemoryDataOperationEnum::Set,
+                                       1,
+                                       true>,
+                                   ThreadwiseTensorSliceTransfer_v1r3<
+                                       AccDataType,
+                                       CShuffleDataType,
+                                       decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                                       decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                                       conditional_t<DoElementwiseBeforeCShuffle,
+                                                     CElementwiseOperation,
+                                                     tensor_operation::element_wise::PassThrough>,
+                                       Sequence<CShuffleMXdlPerWavePerShuffle,
+                                                CShuffleNXdlPerWavePerShuffle,
+                                                I1,
+                                                I1,
+                                                M2,
+                                                I1,
+                                                M4,
+                                                I1>,
+                                       Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                                       7,
+                                       1,
+                                       InMemoryDataOperationEnum::Set,
+                                       1,
+                                       true>>;
 
             // shuffle: threadwise copy C from VGPR to LDS
-            auto c_thread_copy_vgpr_to_lds = ThreadwiseTransfer{
-                    c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                    make_multi_index(0,
-                                     0,
-                                     m_thread_data_on_block_idx[I1],
-                                     n_thread_data_on_block_idx[I1],
-                                     m_thread_data_on_block_idx[I2],
-                                     m_thread_data_on_block_idx[I3],
-                                     m_thread_data_on_block_idx[I4],
-                                     n_thread_data_on_block_idx[I2]),
-                    ck::tensor_operation::element_wise::PassThrough{}};
+            auto c_thread_copy_vgpr_to_lds =
+                ThreadwiseTransfer{c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                   make_multi_index(0,
+                                                    0,
+                                                    m_thread_data_on_block_idx[I1],
+                                                    n_thread_data_on_block_idx[I1],
+                                                    m_thread_data_on_block_idx[I2],
+                                                    m_thread_data_on_block_idx[I3],
+                                                    m_thread_data_on_block_idx[I4],
+                                                    n_thread_data_on_block_idx[I2]),
+                                   ck::tensor_operation::element_wise::PassThrough{}};
 
             // shuffle: blockwise copy C from LDS to global
             auto c_shuffle_block_copy_lds_to_global = ThreadGroupTensorSliceTransfer_v6r1<
@@ -2159,16 +2156,17 @@ struct GridwiseGemm_xdl_cshuffle_v3
                  problem.c_element_op_};
 
             // space filling curve for threadwise C in VGPR
-            constexpr auto sfc_c_vgpr = SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
-                                            Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
-                                            Sequence<CShuffleMXdlPerWavePerShuffle,
-                                                    CShuffleNXdlPerWavePerShuffle,
-                                                    1,
-                                                    1,
-                                                    M2,
-                                                    1,
-                                                    M4,
-                                                    1>>{};
+            constexpr auto sfc_c_vgpr =
+                SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
+                                  Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                                  Sequence<CShuffleMXdlPerWavePerShuffle,
+                                           CShuffleNXdlPerWavePerShuffle,
+                                           1,
+                                           1,
+                                           M2,
+                                           1,
+                                           M4,
+                                           1>>{};
 
             // space filling curve for shuffled blockwise C in global mem
             constexpr auto sfc_c_global =

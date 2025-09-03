@@ -99,7 +99,7 @@ inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(fl
  * @param y     Second float value.
  * @return      Converted vector of 2 bhalf_t.
  */
-template<>
+template <>
 inline __host__ __device__ bhalf2_t bf16x2_convert_rne<bhalf2_t, float>(float x, float y)
 {
     typedef __attribute__((__vector_size__(4))) __bf16 llvm_bf16x2_t;
