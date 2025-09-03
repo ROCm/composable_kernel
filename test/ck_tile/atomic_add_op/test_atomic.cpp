@@ -192,6 +192,7 @@ class TestAtomicKernelFloat_4 : public TestAtomicKernel<float, 4>
 //
 // WaveSize=64 tests (auto-skip on wave32 devices)
 //
+#if defined(CK_USE_XDL)
 TEST_P(TestAtomicKernelHalf_1, TestCorrectness)
 {
     auto [M, N] = GetParam();
@@ -252,7 +253,6 @@ TEST_P(TestAtomicKernelFloat_2, TestCorrectness)
     auto [M, N] = GetParam();
     this->RunTest({M, N});
 }
-#if defined(CK_USE_XDL)
 TEST_P(TestAtomicKernelFloat_4, TestCorrectness)
 {
     auto [M, N] = GetParam();
