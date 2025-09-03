@@ -9,15 +9,6 @@
 
 namespace ck_tile {
 
-enum StreamKReductionStrategy : uint32_t
-{
-    /// @brief Workgroups atomically add their results to the C tensor
-    Atomic = 0u,
-    /// @brief For a given tile in the C tensor, one workgroup accumulates results of other
-    /// contributing workgroups
-    Reduction = 1u
-};
-
 /// @brief The Stream K GEMM kernel host arguments.
 ///
 /// @par Overview
@@ -37,7 +28,7 @@ struct StreamKHostArgs : public ck_tile::UniversalGemmHostArgs<>
                                           index_t stride_B_,
                                           index_t stride_C_,
                                           StreamKReductionStrategy reduction_strategy_,
-                                          index_t num_sk_blocks_ = -1)
+                                          uint32_t num_sk_blocks_ = 0xffffffff)
         : UniversalGemmHostArgs<>({a_ptr_},
                                   {b_ptr_},
                                   {/*ds_ptr*/},
@@ -56,7 +47,7 @@ struct StreamKHostArgs : public ck_tile::UniversalGemmHostArgs<>
     }
 
     ck_tile::StreamKReductionStrategy reduction_strategy;
-    index_t num_sk_blocks;
+    uint32_t num_sk_blocks;
 };
 
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
@@ -103,7 +94,7 @@ struct StreamKKernel
         /// @brief  The strategy used by work groups to compute final results in C tensor.
         StreamKReductionStrategy reduction_strategy;
         /// @brief  The number of stream k blocks.
-        index_t num_sk_blocks;
+        uint32_t num_sk_blocks;
         /// @brief  A pointer to a buffer in device memory for accumulating partial via reduction
         /// strategy.
         void* workspace_ptr;
@@ -152,29 +143,32 @@ struct StreamKKernel
 
     CK_TILE_HOST static StreamKKernelArgs MakeKernelArgs(const StreamKHostArgs& host_args)
     {
-        index_t occupancy = static_cast<index_t>(Occupancy());
-        index_t num_cu    = static_cast<index_t>(NumCU());
+        uint32_t occupancy = static_cast<uint32_t>(Occupancy());
+        uint32_t num_cu    = static_cast<uint32_t>(NumCU());
 
-        return StreamKKernelArgs{
-            {host_args.as_ptr,
-             host_args.bs_ptr,
-             host_args.ds_ptr,
-             host_args.e_ptr,
-             host_args.M,
-             host_args.N,
-             host_args.K,
-             host_args.stride_As,
-             host_args.stride_Bs,
-             host_args.stride_Ds,
-             host_args.stride_E,
-             host_args.k_batch},
-            host_args.reduction_strategy,
-            host_args.num_sk_blocks,
-            // The workspace pointer is set to nullptr because we must first
-            // instantiate the TilePartitioner to get the necessary size
-            /*workspace_ptr =*/nullptr,
-            TilePartitioner{
-                host_args.M, host_args.N, host_args.K, num_cu, occupancy, host_args.num_sk_blocks}};
+        return StreamKKernelArgs{{host_args.as_ptr,
+                                  host_args.bs_ptr,
+                                  host_args.ds_ptr,
+                                  host_args.e_ptr,
+                                  host_args.M,
+                                  host_args.N,
+                                  host_args.K,
+                                  host_args.stride_As,
+                                  host_args.stride_Bs,
+                                  host_args.stride_Ds,
+                                  host_args.stride_E,
+                                  host_args.k_batch},
+                                 host_args.reduction_strategy,
+                                 host_args.num_sk_blocks,
+                                 // The workspace pointer is set to nullptr because we must first
+                                 // instantiate the TilePartitioner to get the necessary size
+                                 /*workspace_ptr =*/nullptr,
+                                 TilePartitioner{static_cast<uint32_t>(host_args.M),
+                                                 static_cast<uint32_t>(host_args.N),
+                                                 static_cast<uint32_t>(host_args.K),
+                                                 num_cu,
+                                                 occupancy,
+                                                 host_args.num_sk_blocks}};
     }
 
     CK_TILE_HOST static bool
