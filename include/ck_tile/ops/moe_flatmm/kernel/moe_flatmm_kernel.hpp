@@ -197,8 +197,10 @@ struct MoeFlatmmKernel
     // MXF4_Pipeline only has the of scale B and granularityK is 32
     static constexpr bool MXFP4_Pipeline = std::is_same_v<BDataType, pk_fp4_t>;
     static constexpr int MXFP4N_Pack     = 2;
+    static constexpr int MXFP4K_Pack     = 2;
 
     static constexpr int N_Pack = MXFP4_Pipeline ? MXFP4N_Pack : 1;
+    static constexpr int K_Pack = MXFP4_Pipeline ? MXFP4K_Pack : 1;
 
     static constexpr int WeightPackedSize = numeric_traits<BDataType>::PackedSize;
 
@@ -659,13 +661,16 @@ struct MoeFlatmmKernel
             {0, // offset_m is included when construct C-scatter-window offsets
              output_N_offset});
 
-        constexpr int GranularityK = 32;
+        constexpr int GranularityK = 32; // fixed config for MXF4_Pipeline
+        constexpr int XDLPerLoadScaleB =
+            MXFP4_Pipeline ? 4 : 1; // GranularityK32 / XDL16x16x32_K8 = 4
 
-        auto scale_block_window = make_tile_window(
-            views.at(I3),
-            make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
-                       number<FlatmmPipeline::flatKPerWarp * N_Pack * 4 / GranularityK>{}),
-            {coord_n / BlockGemmShape::WarpTile::at(I1) / N_Pack, 0});
+        auto scale_block_window =
+            make_tile_window(views.at(I3),
+                             make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
+                                        number<FlatmmPipeline::flatKPerWarp * N_Pack * K_Pack *
+                                               XDLPerLoadScaleB / GranularityK>{}),
+                             {coord_n / BlockGemmShape::WarpTile::at(I1) / N_Pack, 0});
 
         return make_tuple(a_block_window, b_flat_block_window, c_block_window, scale_block_window);
     }
@@ -771,11 +776,10 @@ struct MoeFlatmmKernel
                                         smem_ptr_pong);
             }
         }();
-        using AccTile = decltype(c_block_tile);
 
-        // Run EpiloguePipeline Pipeline
         auto& c_block_window = gemm_tile_windows.at(number<2>{});
 
+        // Run EpiloguePipeline
         {
             using EpiProblem = typename EpiloguePipeline::Problem;
             using ODataType  = typename EpiloguePipeline::ODataType;
@@ -786,9 +790,11 @@ struct MoeFlatmmKernel
             constexpr index_t MPerIterationShuffle     = EpiloguePipeline::MPerIterationShuffle;
             constexpr index_t NPerIterationShuffle     = EpiloguePipeline::NPerIterationShuffle;
 
-            constexpr index_t EpiVectorSizeC = EpiloguePipeline::GetVectorSizeC();
-            constexpr index_t MRepeat        = EpiloguePipeline::MRepeat;
-            constexpr index_t NRepeat        = EpiloguePipeline::NRepeat;
+            constexpr index_t EpiVectorSizeC      = EpiloguePipeline::GetVectorSizeC();
+            constexpr index_t MRepeat             = EpiloguePipeline::MRepeat;
+            constexpr index_t NRepeat             = EpiloguePipeline::NRepeat;
+            constexpr index_t OutputNRepeat       = IsGateUp ? NRepeat / 2 : NRepeat;
+            constexpr index_t BlockedXDLN_PerWarp = EpiloguePipeline::BlockedXDLN_PerWarp;
 
             static_assert(!IsGateUp || NumNXdlPerWavePerShuffle % 2 == 0);
 
@@ -804,6 +810,195 @@ struct MoeFlatmmKernel
             // EpiloguePipeline::template MakeLdsBlockDescriptor<EpiProblem>();
             auto o_lds_block = make_tensor_view<address_space_enum::lds>(
                 reinterpret_cast<ODataType*>(smem_ptr_ping), lds_block_desc);
+
+            constexpr int ScaleGranularityM = decltype(kargs.scale_m)::GranularityMN;
+            constexpr int ScaleGranularityN = decltype(kargs.scale_n)::GranularityMN;
+
+            constexpr index_t scale_stride_m = ScaleGranularityM == 0 ? 0  // per-tensor scale
+                                                                      : 1; // per-token scale
+            constexpr index_t scale_stride_n = ScaleGranularityN == 0 ? 0  // per-tensor scale
+                                                                      : 1; // per-channel scale
+
+            auto output_acc_tile_distr =
+                make_static_tile_distribution(detail::make_embed_tile_distribution_encoding(
+                    tile_distribution_encoding<
+                        sequence<>,
+                        tuple<sequence<MRepeat, MWave>, sequence<OutputNRepeat, NWave>>,
+                        tuple<sequence<1, 2>>,
+                        tuple<sequence<1, 1>>,
+                        sequence<1, 2>,
+                        sequence<0, 0>>{},
+                    typename CWarpDstr::DstrEncode{}));
+
+            const auto scale_m_coord =
+                output_acc_tile_distr.calculate_index(); // 2d thread offset, [i_row, i_col]
+
+            constexpr ck_tile::index_t ScaleMRepeat =
+                decltype(output_acc_tile_distr)::DstrEncode::hs_lengthss_[number<0>{}][number<0>{}];
+            statically_indexed_array<ck_tile::index_t, ScaleMRepeat> scale_m_offsets;
+
+            static_for<0, ScaleMRepeat, 1>{}([&](auto m0) {
+                const auto row_idx =
+                    coord_m + m0 * (TilePartitioner::MPerBlock / ScaleMRepeat) + scale_m_coord[I0];
+                scale_m_offsets[m0] = row_to_token_idx(row_idx);
+            });
+
+            constexpr int DynamicTileOffsetFlag = 0;
+
+            constexpr bool EnableBias = decltype(kargs.exp_bias)::GranularityMN != -1;
+
+            auto make_col_broadcast_window = [&](auto scale_pointer) {
+                return make_tile_window(
+                    make_naive_tensor_view<address_space_enum::global>(
+                        kargs.scale_n.ptr + expert_id * kargs.N,
+                        make_tuple(1, kargs.N),
+                        make_tuple(0, scale_stride_n),
+                        number<ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1>{},
+                        number<1>{}),
+                    make_tuple(number<TilePartitioner::MPerBlock>{},
+                               number<IsGateUp ? TilePartitioner::NPerBlock / 2
+                                               : TilePartitioner::NPerBlock>{}),
+                    {0, IsGateUp ? coord_n / 2 : coord_n},
+                    output_acc_tile_distr);
+            };
+
+            auto permute_tensor_view = [&](auto naive_view, auto is_needed_to_permute_N_PACK) {
+                if constexpr(!is_needed_to_permute_N_PACK)
+                {
+                    return naive_view;
+                }
+                else
+                {
+                    auto view1 = transform_tensor_view(
+                        naive_view,
+                        make_tuple(
+                            make_pass_through_transform(number<DynamicTileOffsetFlag>{}),
+                            make_unmerge_transform(make_tuple(number<DynamicTileOffsetFlag>{},
+                                                              number<NRepeat / N_Pack>{},
+                                                              number<NWave>{},
+                                                              number<N_Pack>{},
+                                                              number<NPerXdl>{}))),
+                        make_tuple(sequence<0>{}, sequence<1>{}),
+                        make_tuple(sequence<0>{}, sequence<1, 2, 3, 4, 5>{}));
+                    return transform_tensor_view(
+                        view1,
+                        make_tuple(make_pass_through_transform(number<DynamicTileOffsetFlag>{}),
+                                   make_merge_transform_v3_division_mod(
+                                       make_tuple(number<DynamicTileOffsetFlag>{},
+                                                  number<NRepeat / N_Pack>{},
+                                                  number<N_Pack>{},
+                                                  number<NWave>{},
+                                                  number<NPerXdl>{}))),
+                        make_tuple(sequence<0>{}, sequence<1, 2, 4, 3, 5>{}),
+                        make_tuple(sequence<0>{}, sequence<1>{}));
+                }
+            };
+
+            auto scale_m_window = make_tile_scatter_gather(
+                make_naive_tensor_view<address_space_enum::global>(
+                    kargs.scale_m.ptr,
+                    make_tuple(kargs.M, 1),
+                    make_tuple(scale_stride_m, 0),
+                    number<ScaleGranularityM == 1 ? FlatmmPipeline::GetVectorSizeA() : 1>{},
+                    number<1>{}),
+                make_tuple(number<TilePartitioner::MPerBlock>{},
+                           number<TilePartitioner::NPerBlock>{}),
+                {0, 0}, // offset m is included in gather offsets
+                output_acc_tile_distr,
+                scale_m_offsets);
+
+            auto scale_n_window = make_tile_window(
+                make_naive_tensor_view<address_space_enum::global>(
+                    kargs.scale_n.ptr + expert_id * kargs.N,
+                    make_tuple(1, kargs.N),
+                    make_tuple(0, scale_stride_n),
+                    number<ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1>{},
+                    number<1>{}), // MXF4_Pipeline does't use scale_n, so there is no need to
+                                  // permute as n_pack
+                make_tuple(number<TilePartitioner::MPerBlock>{},
+                           number<IsGateUp ? TilePartitioner::NPerBlock / 2
+                                           : TilePartitioner::NPerBlock>{}),
+                {0, IsGateUp ? coord_n / 2 : coord_n},
+                output_acc_tile_distr);
+
+            auto scale_n_up_window = make_tile_window(
+                make_naive_tensor_view<address_space_enum::global>(
+                    kargs.scale_n.ptr + expert_id * kargs.N + kargs.N / 2,
+                    make_tuple(1, kargs.N),
+                    make_tuple(0, scale_stride_n),
+                    number<ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1>{},
+                    number<1>{}),
+                make_tuple(number<TilePartitioner::MPerBlock>{},
+                           number<TilePartitioner::NPerBlock / 2>{}),
+                {0, coord_n / 2},
+                output_acc_tile_distr);
+
+            auto exp_bias_view = make_naive_tensor_view<address_space_enum::global>(
+                kargs.exp_bias.ptr + expert_id * kargs.N,
+                make_tuple(1, kargs.N),
+                make_tuple(0, scale_stride_n),
+                number<FlatmmPipeline::GetVectorSizeB()>{},
+                number<1>{});
+
+            auto exp_bias_window = make_tile_window(
+                permute_tensor_view(exp_bias_view, number<(MXFP4_Pipeline && !IsInputGemm)>{}),
+                make_tuple(number<TilePartitioner::MPerBlock>{},
+                           number<IsGateUp ? TilePartitioner::NPerBlock / 2
+                                           : TilePartitioner::NPerBlock>{}),
+                {0, IsGateUp ? coord_n / 2 : coord_n},
+                output_acc_tile_distr);
+
+            auto exp_bias_up_window =
+                make_tile_window(make_naive_tensor_view<address_space_enum::global>(
+                                     kargs.exp_bias.ptr + expert_id * kargs.N + kargs.N / 2,
+                                     make_tuple(1, kargs.N),
+                                     make_tuple(0, scale_stride_n),
+                                     number<FlatmmPipeline::GetVectorSizeB()>{},
+                                     number<1>{}),
+                                 make_tuple(number<TilePartitioner::MPerBlock>{},
+                                            number<TilePartitioner::NPerBlock / 2>{}),
+                                 {0, coord_n / 2},
+                                 output_acc_tile_distr);
+
+            auto exp_weight_window =
+                make_tile_window(make_naive_tensor_view<address_space_enum::global>(
+                                     static_cast<const float*>(kargs.p_sorted_expert_weights),
+                                     make_tuple(kargs.M, 1),
+                                     make_tuple(1, 0),
+                                     number<FlatmmPipeline::GetVectorSizeA()>{},
+                                     number<1>{}),
+                                 make_tuple(number<TilePartitioner::MPerBlock>{},
+                                            number<TilePartitioner::NPerBlock>{}),
+                                 {coord_m, 0},
+                                 output_acc_tile_distr);
+
+            using ScaleMBuffer    = decltype(load_tile(scale_m_window));
+            using ScaleNBuffer    = decltype(load_tile(scale_n_window));
+            using ExpBiasBuffer   = decltype(load_tile(exp_bias_window));
+            using ExpWeightBuffer = decltype(load_tile(exp_weight_window));
+
+            ScaleMBuffer scale_m_buffer;
+            ScaleNBuffer scale_n_buffer, scale_n_up_buffer;
+
+            ExpBiasBuffer exp_bias_buffer, exp_bias_up_buffer;
+            ExpWeightBuffer exp_weight_buffer;
+
+            if constexpr(!MXFP4_Pipeline)
+            {
+                scale_m_buffer = load_tile(scale_m_window);
+                scale_n_buffer = load_tile(scale_n_window);
+                if constexpr(IsGateUp)
+                    scale_n_up_buffer = load_tile(scale_n_up_window);
+            }
+
+            if constexpr(EnableBias)
+            {
+                exp_bias_buffer = load_tile(exp_bias_window);
+                if constexpr(IsGateUp)
+                    exp_bias_up_buffer = load_tile(exp_bias_up_window);
+            }
+            if constexpr(!IsInputGemm)
+                exp_weight_buffer = load_tile(exp_weight_window);
 
             auto in_lds_window = make_tile_window(
                 o_lds_block,
@@ -862,354 +1057,111 @@ struct MoeFlatmmKernel
             constexpr auto c_warp_y_lengths =
                 to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
             constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
-
-            constexpr int kM2 = 4;                   // Val
-            constexpr int kM1 = (64 / NPerXdl);      // Thr
-            constexpr int kM0 = MPerXdl / kM1 / kM2; // Val
-
             constexpr int ActVectorSize = c_warp_y_lengths.product() * NumMXdlPerWavePerShuffle *
                                           OutputNumNXdlPerWavePerShuffle;
-            constexpr bool EnableBias = decltype(kargs.exp_bias)::GranularityMN != -1;
 
-            const index_t iMWarp = get_warp_id() / NWave;
-            const index_t iNWarp = get_warp_id() - iMWarp * NWave;
-            const index_t iMLane = get_lane_id() / NPerXdl;
-            const index_t iNLane = get_lane_id() % NPerXdl;
+            auto epi_tile_idx_slice =
+                [&](const auto& acc_tile_like_tensor, auto epi_m_idx, auto epi_n_idx) {
+                    return acc_tile_like_tensor.get_y_sliced_thread_data(
+                        merge_sequences(sequence<epi_m_idx * NumMXdlPerWavePerShuffle,
+                                                 epi_n_idx * OutputNumNXdlPerWavePerShuffle>{},
+                                        c_warp_y_index_zeros),
+                        merge_sequences(
+                            sequence<NumMXdlPerWavePerShuffle, OutputNumNXdlPerWavePerShuffle>{},
+                            c_warp_y_lengths));
+                };
 
-            float vec_scale_A[kM0 * kM2 * MRepeat];
-            float vec_scale_B[NRepeat];
-
-            float vec_expert_weights[kM0 * kM2 * MRepeat];
-            float vec_expert_bias[kM0 * kM2 * MRepeat];
-
-            const float* expert_weights = static_cast<const float*>(kargs.p_sorted_expert_weights);
-
-            //===----------------------------------------------------------------------===//
-            // Load scales and expert weights
-            //===----------------------------------------------------------------------===//
-            if constexpr(!MXFP4_Pipeline)
-            {
-                if constexpr(IsGateUp)
-                {
-                    static_for<0, NRepeat / 2, 1>{}([&](auto i) {
-                        vec_scale_B[i * 2] =
-                            kargs.scale_n[expert_id * kargs.N + coord_n / 2 + i * NWave * NPerXdl +
-                                          iNWarp * NPerXdl + iNLane];
-                        vec_scale_B[i * 2 + 1] =
-                            kargs.scale_n[expert_id * kargs.N + kargs.N / 2 + coord_n / 2 +
-                                          i * NWave * NPerXdl + iNWarp * NPerXdl + iNLane];
-                    });
-                }
-                else
-                {
-                    static_for<0, NRepeat, 1>{}([&](auto i) {
-                        vec_scale_B[i] =
-                            kargs.scale_n[expert_id * kargs.N + coord_n + i * NWave * NPerXdl +
-                                          iNWarp * NPerXdl + iNLane];
-                    });
-                }
-            }
-            if constexpr(MXFP4_Pipeline && EnableBias)
-            {
-                if constexpr(IsGateUp)
-                {
-                    static_for<0, NRepeat / 2, 1>{}([&](auto i) {
-                        vec_expert_bias[i * 2] =
-                            kargs.exp_bias[expert_id * kargs.N + coord_n / 2 + i * NWave * NPerXdl +
-                                           iNWarp * NPerXdl + iNLane];
-                        vec_expert_bias[i * 2 + 1] =
-                            kargs.exp_bias[expert_id * kargs.N + kargs.N / 2 + coord_n / 2 +
-                                           i * NWave * NPerXdl + iNWarp * NPerXdl + iNLane];
-                    });
-                }
-                else
-                {
-                    static_for<0, NRepeat, 2>{}([&](auto i) {
-                        vec_expert_bias[i] =
-                            kargs.exp_bias[expert_id * kargs.N + coord_n + i * NWave * NPerXdl +
-                                           iNWarp * 2 * NPerXdl + iNLane];
-                        vec_expert_bias[i + 1] =
-                            kargs.exp_bias[expert_id * kargs.N + coord_n + i * NWave * NPerXdl +
-                                           iNWarp * 2 * NPerXdl + NPerXdl + iNLane];
-                    });
-                }
-            }
-
-            static_for<0, MRepeat, 1>{}([&](auto i) {
-                static_for<0, kM0, 1>{}([&](auto m0) {
-                    static_for<0, kM2, 1>{}([&](auto m2) {
-                        index_t M2_offset = m2 + iMLane * kM2 + m0 * kM2 * kM1 + iMWarp * MPerXdl +
-                                            i * MPerXdl * MWave + coord_m;
-                        if constexpr(!MXFP4_Pipeline)
-                            vec_scale_A[i * kM0 * kM2 + m0 * kM2 + m2] =
-                                kargs.scale_m[row_to_token_idx(M2_offset)];
-                        if constexpr(!IsInputGemm)
-                            vec_expert_weights[i * kM0 * kM2 + m0 * kM2 + m2] =
-                                expert_weights[M2_offset];
-                    });
-                });
-            });
-
-            //===----------------------------------------------------------------------===//
-            // Pingpong process start
-            //===----------------------------------------------------------------------===//
-            if constexpr(IsGateUp)
-            {
-                LDSTileTensor gate_tensor, up_tensor;
-
-                // gate and up are interleaved along NRepeat dimension.
+            auto gate_up_epi_tile_idx_interleave_slice = [&](auto& dest_gate_tensor,
+                                                             auto& dest_up_tensor,
+                                                             const auto& acc_tile_like_tensor,
+                                                             auto epi_m_idx,
+                                                             auto epi_n_idx) {
                 static_for<0, OutputNumNXdlPerWavePerShuffle, 1>{}([&](auto n_xdl) {
-                    gate_tensor.set_y_sliced_thread_data(
+                    dest_gate_tensor.set_y_sliced_thread_data(
                         merge_sequences(sequence<0, n_xdl>{}, c_warp_y_index_zeros),
                         merge_sequences(sequence<NumMXdlPerWavePerShuffle, 1>{}, c_warp_y_lengths),
-                        c_block_tile.get_y_sliced_thread_data(
-                            merge_sequences(sequence<0 * NumMXdlPerWavePerShuffle, 2 * n_xdl>{},
-                                            c_warp_y_index_zeros),
+                        acc_tile_like_tensor.get_y_sliced_thread_data(
+                            merge_sequences(
+                                sequence<epi_m_idx * NumMXdlPerWavePerShuffle,
+                                         epi_n_idx * OutputNumNXdlPerWavePerShuffle + 2 * n_xdl>{},
+                                c_warp_y_index_zeros),
                             merge_sequences(sequence<NumMXdlPerWavePerShuffle, 1>{},
                                             c_warp_y_lengths)));
-
-                    up_tensor.set_y_sliced_thread_data(
+                    dest_up_tensor.set_y_sliced_thread_data(
                         merge_sequences(sequence<0, n_xdl>{}, c_warp_y_index_zeros),
                         merge_sequences(sequence<NumMXdlPerWavePerShuffle, 1>{}, c_warp_y_lengths),
-                        c_block_tile.get_y_sliced_thread_data(
-                            merge_sequences(sequence<0 * NumMXdlPerWavePerShuffle, 2 * n_xdl + 1>{},
+                        acc_tile_like_tensor.get_y_sliced_thread_data(
+                            merge_sequences(sequence<epi_m_idx * NumMXdlPerWavePerShuffle,
+                                                     epi_n_idx * OutputNumNXdlPerWavePerShuffle +
+                                                         2 * n_xdl + 1>{},
                                             c_warp_y_index_zeros),
                             merge_sequences(sequence<NumMXdlPerWavePerShuffle, 1>{},
                                             c_warp_y_lengths)));
                 });
+            };
 
-                static_for<0, OutputNumNXdlPerWavePerShuffle, 1>{}([&](auto n_xdl) {
-                    static_for<0, NumMXdlPerWavePerShuffle, 1>{}([&](auto m_xdl) {
-                        constexpr int acc_xdl_offset =
-                            (m_xdl * OutputNumNXdlPerWavePerShuffle + n_xdl) *
-                            c_warp_y_lengths.product();
-
-                        static_for<0, kM0, 1>{}([&](auto m0) {
-                            static_for<0, kM2, 1>{}([&](auto m2) {
-                                if constexpr(!MXFP4_Pipeline)
-                                {
-                                    gate_tensor
-                                        .get_thread_buffer()[acc_xdl_offset + m0 * kM2 + m2] *=
-                                        vec_scale_A[m_xdl * kM0 * kM2 + m0 * kM2 + m2] *
-                                        vec_scale_B[2 * n_xdl];
-                                    up_tensor.get_thread_buffer()[acc_xdl_offset + m0 * kM2 + m2] *=
-                                        vec_scale_A[m_xdl * kM0 * kM2 + m0 * kM2 + m2] *
-                                        vec_scale_B[2 * n_xdl + 1];
-                                }
-                                if constexpr(EnableBias)
-                                {
-                                    gate_tensor
-                                        .get_thread_buffer()[acc_xdl_offset + m0 * kM2 + m2] +=
-                                        vec_expert_bias[2 * n_xdl];
-                                    up_tensor.get_thread_buffer()[acc_xdl_offset + m0 * kM2 + m2] +=
-                                        vec_expert_bias[2 * n_xdl + 1];
-                                }
-                            });
-                        });
-                    });
-                });
-                static_for<0, ActVectorSize, 1>{}([&](auto idx) {
-                    lds_tile[0].get_thread_buffer().at(idx) =
-                        ActivationOp{}(gate_tensor.get_thread_buffer().at(idx),
-                                       up_tensor.get_thread_buffer().at(idx));
-                });
-            }
-            else
-            {
-                lds_tile[0].get_thread_buffer() = c_block_tile.get_y_sliced_thread_data(
-                    merge_sequences(
-                        sequence<0 * NumMXdlPerWavePerShuffle, 0 * NumNXdlPerWavePerShuffle>{},
-                        c_warp_y_index_zeros),
-                    merge_sequences(sequence<NumMXdlPerWavePerShuffle, NumNXdlPerWavePerShuffle>{},
-                                    c_warp_y_lengths));
-                static_for<0, NumNXdlPerWavePerShuffle, 1>{}([&](auto n_xdl) {
-                    static_for<0, NumMXdlPerWavePerShuffle, 1>{}([&](auto m_xdl) {
-                        constexpr int acc_xdl_offset =
-                            (m_xdl * NumNXdlPerWavePerShuffle + n_xdl) * c_warp_y_lengths.product();
-                        static_for<0, kM0, 1>{}([&](auto m0) {
-                            static_for<0, kM2, 1>{}([&](auto m2) {
-                                if constexpr(!MXFP4_Pipeline)
-                                    lds_tile[0]
-                                        .get_thread_buffer()[acc_xdl_offset + m0 * kM2 + m2] *=
-                                        vec_scale_A[m_xdl * kM0 * kM2 + m0 * kM2 + m2] *
-                                        vec_scale_B[n_xdl];
-                                if constexpr(EnableBias)
-                                    lds_tile[0]
-                                        .get_thread_buffer()[acc_xdl_offset + m0 * kM2 + m2] +=
-                                        vec_expert_bias[n_xdl];
-                                if constexpr(!IsInputGemm)
-                                    lds_tile[0]
-                                        .get_thread_buffer()[acc_xdl_offset + m0 * kM2 + m2] *=
-                                        vec_expert_weights[m_xdl * kM0 * kM2 + m0 * kM2 + m2];
-                            });
-                        });
-                    });
-                });
-                if constexpr(IsInputGemm)
+            auto process_epi_tile = [&](auto lds_stage, auto epi_m, auto epi_n) {
+                if constexpr(IsGateUp)
                 {
+                    LDSTileTensor gate_tensor, up_tensor;
+
+                    gate_up_epi_tile_idx_interleave_slice(
+                        gate_tensor, up_tensor, c_block_tile, epi_m, epi_n);
+                    auto epi_scale_m    = epi_tile_idx_slice(scale_m_buffer, epi_m, epi_n);
+                    auto epi_scale_n    = epi_tile_idx_slice(scale_n_buffer, epi_m, epi_n);
+                    auto epi_scale_n_up = epi_tile_idx_slice(scale_n_up_buffer, epi_m, epi_n);
+
+                    auto epi_exp_bias    = epi_tile_idx_slice(exp_bias_buffer, epi_m, epi_n);
+                    auto epi_exp_bias_up = epi_tile_idx_slice(exp_bias_up_buffer, epi_m, epi_n);
+
                     static_for<0, ActVectorSize, 1>{}([&](auto idx) {
-                        lds_tile[0].get_thread_buffer().at(idx) =
-                            ActivationOp{}(lds_tile[0].get_thread_buffer().at(idx));
+                        if constexpr(!MXFP4_Pipeline)
+                        {
+                            gate_tensor.get_thread_buffer()[idx] *=
+                                epi_scale_m[idx] * epi_scale_n[idx];
+                            up_tensor.get_thread_buffer()[idx] *=
+                                epi_scale_m[idx] * epi_scale_n_up[idx];
+                        }
+                        if constexpr(EnableBias)
+                        {
+                            gate_tensor.get_thread_buffer()[idx] += epi_exp_bias[idx];
+                            up_tensor.get_thread_buffer()[idx] += epi_exp_bias_up[idx];
+                        }
+                        lds_tile[lds_stage].get_thread_buffer().at(idx) =
+                            ActivationOp{}(gate_tensor.get_thread_buffer().at(idx),
+                                           up_tensor.get_thread_buffer().at(idx));
                     });
                 }
-            }
-
-            static_for<0, num_access, 1>{}([&](auto iAccess) {
-                constexpr int read_stage  = iAccess % 2;
-                constexpr int write_stage = read_stage ^ 1;
-
-                block_sync_lds();
-                constexpr auto idx_y_start      = SFC::get_index(number<iAccess.value>{});
-                constexpr auto idx_y_start_next = SFC::get_index(number<iAccess.value + 1>{});
-
-                constexpr auto mIter = number<idx_y_start.at(number<0>{}) / MPerIterationShuffle>{};
-                constexpr auto nIter = number<idx_y_start.at(number<1>{}) / NPerIterationShuffle>{};
-
-                constexpr auto mIter_next =
-                    number<idx_y_start_next.at(number<0>{}) / MPerIterationShuffle>{};
-                constexpr auto nIter_next =
-                    number<idx_y_start_next.at(number<1>{}) / NPerIterationShuffle>{};
-
-                const auto c_warptile_in_tensor_casted = cast_tile<ODataType>(lds_tile[read_stage]);
-
-                store_tile(in_lds_window, c_warptile_in_tensor_casted);
-
-                if constexpr(iAccess < num_access - 1)
+                else
                 {
-                    if constexpr(IsGateUp)
-                    {
-                        LDSTileTensor gate_tensor, up_tensor;
+                    lds_tile[lds_stage].get_thread_buffer() =
+                        epi_tile_idx_slice(c_block_tile, epi_m, epi_n);
+                    auto epi_scale_m    = epi_tile_idx_slice(scale_m_buffer, epi_m, epi_n);
+                    auto epi_scale_n    = epi_tile_idx_slice(scale_n_buffer, epi_m, epi_n);
+                    auto epi_exp_weight = epi_tile_idx_slice(exp_weight_buffer, epi_m, epi_n);
+                    auto epi_exp_bias   = epi_tile_idx_slice(exp_bias_buffer, epi_m, epi_n);
 
-                        static_for<0, OutputNumNXdlPerWavePerShuffle, 1>{}([&](auto n_xdl) {
-                            gate_tensor.set_y_sliced_thread_data(
-                                merge_sequences(sequence<0, n_xdl>{}, c_warp_y_index_zeros),
-                                merge_sequences(sequence<NumMXdlPerWavePerShuffle, 1>{},
-                                                c_warp_y_lengths),
-                                c_block_tile.get_y_sliced_thread_data(
-                                    merge_sequences(sequence<mIter_next * NumMXdlPerWavePerShuffle,
-                                                             nIter_next * NumNXdlPerWavePerShuffle +
-                                                                 2 * n_xdl>{},
-                                                    c_warp_y_index_zeros),
-                                    merge_sequences(sequence<NumMXdlPerWavePerShuffle, 1>{},
-                                                    c_warp_y_lengths)));
-
-                            up_tensor.set_y_sliced_thread_data(
-                                merge_sequences(sequence<0, n_xdl>{}, c_warp_y_index_zeros),
-                                merge_sequences(sequence<NumMXdlPerWavePerShuffle, 1>{},
-                                                c_warp_y_lengths),
-                                c_block_tile.get_y_sliced_thread_data(
-                                    merge_sequences(sequence<mIter_next * NumMXdlPerWavePerShuffle,
-                                                             nIter_next * NumNXdlPerWavePerShuffle +
-                                                                 2 * n_xdl + 1>{},
-                                                    c_warp_y_index_zeros),
-                                    merge_sequences(sequence<NumMXdlPerWavePerShuffle, 1>{},
-                                                    c_warp_y_lengths)));
-                        });
-
-                        static_for<0, OutputNumNXdlPerWavePerShuffle, 1>{}([&](auto n_xdl) {
-                            static_for<0, NumMXdlPerWavePerShuffle, 1>{}([&](auto m_xdl) {
-                                constexpr int acc_xdl_offset =
-                                    (m_xdl * OutputNumNXdlPerWavePerShuffle + n_xdl) *
-                                    c_warp_y_lengths.product();
-                                static_for<0, kM0, 1>{}([&](auto m0) {
-                                    static_for<0, kM2, 1>{}([&](auto m2) {
-                                        if constexpr(!MXFP4_Pipeline)
-                                        {
-                                            gate_tensor.get_thread_buffer()[acc_xdl_offset +
-                                                                            m0 * kM2 + m2] *=
-                                                vec_scale_A[mIter_next * NumMXdlPerWavePerShuffle *
-                                                                kM0 * kM2 +
-                                                            m_xdl * kM0 * kM2 + m0 * kM2 + m2] *
-                                                vec_scale_B[nIter_next * NumNXdlPerWavePerShuffle +
-                                                            2 * n_xdl];
-                                            up_tensor.get_thread_buffer()[acc_xdl_offset +
-                                                                          m0 * kM2 + m2] *=
-                                                vec_scale_A[mIter_next * NumMXdlPerWavePerShuffle *
-                                                                kM0 * kM2 +
-                                                            m_xdl * kM0 * kM2 + m0 * kM2 + m2] *
-                                                vec_scale_B[nIter_next * NumNXdlPerWavePerShuffle +
-                                                            2 * n_xdl + 1];
-                                        }
-                                        if constexpr(EnableBias)
-                                        {
-                                            gate_tensor.get_thread_buffer()[acc_xdl_offset +
-                                                                            m0 * kM2 + m2] +=
-                                                vec_expert_bias[nIter_next *
-                                                                    NumNXdlPerWavePerShuffle +
-                                                                2 * n_xdl];
-                                            up_tensor.get_thread_buffer()[acc_xdl_offset +
-                                                                          m0 * kM2 + m2] +=
-                                                vec_expert_bias[nIter_next *
-                                                                    NumNXdlPerWavePerShuffle +
-                                                                2 * n_xdl + 1];
-                                        }
-                                    });
-                                });
-                            });
-                        });
-                        static_for<0, ActVectorSize, 1>{}([&](auto idx) {
-                            lds_tile[write_stage].get_thread_buffer().at(idx) =
-                                ActivationOp{}(gate_tensor.get_thread_buffer().at(idx),
-                                               up_tensor.get_thread_buffer().at(idx));
-                        });
-                    }
-                    else
-                    {
-                        lds_tile[write_stage].get_thread_buffer() =
-                            c_block_tile.get_y_sliced_thread_data(
-                                merge_sequences(sequence<mIter_next * NumMXdlPerWavePerShuffle,
-                                                         nIter_next * NumNXdlPerWavePerShuffle>{},
-                                                c_warp_y_index_zeros),
-                                merge_sequences(
-                                    sequence<NumMXdlPerWavePerShuffle, NumNXdlPerWavePerShuffle>{},
-                                    c_warp_y_lengths));
-                        static_for<0, NumNXdlPerWavePerShuffle, 1>{}([&](auto n_xdl) {
-                            static_for<0, NumMXdlPerWavePerShuffle, 1>{}([&](auto m_xdl) {
-                                constexpr int acc_xdl_offset =
-                                    (m_xdl * NumNXdlPerWavePerShuffle + n_xdl) *
-                                    c_warp_y_lengths.product();
-                                static_for<0, kM0, 1>{}([&](auto m0) {
-                                    static_for<0, kM2, 1>{}([&](auto m2) {
-                                        if constexpr(!MXFP4_Pipeline)
-                                            lds_tile[write_stage]
-                                                .get_thread_buffer()[acc_xdl_offset + m0 * kM2 +
-                                                                     m2] *=
-                                                vec_scale_A[mIter_next * NumMXdlPerWavePerShuffle *
-                                                                kM0 * kM2 +
-                                                            m_xdl * kM0 * kM2 + m0 * kM2 + m2] *
-                                                vec_scale_B[nIter_next * NumNXdlPerWavePerShuffle +
-                                                            n_xdl];
-                                        if constexpr(EnableBias)
-                                            lds_tile[write_stage]
-                                                .get_thread_buffer()[acc_xdl_offset + m0 * kM2 +
-                                                                     m2] +=
-                                                vec_expert_bias[nIter_next *
-                                                                    NumNXdlPerWavePerShuffle +
-                                                                n_xdl];
-                                        if constexpr(!IsInputGemm)
-                                            lds_tile[write_stage]
-                                                .get_thread_buffer()[acc_xdl_offset + m0 * kM2 +
-                                                                     m2] *= vec_expert_weights
-                                                [mIter_next * NumMXdlPerWavePerShuffle * kM0 * kM2 +
-                                                 m_xdl * kM0 * kM2 + m0 * kM2 + m2];
-                                    });
-                                });
-                            });
-                        });
-                        if constexpr(IsInputGemm)
-                        {
-                            static_for<0, ActVectorSize, 1>{}([&](auto idx) {
-                                lds_tile[write_stage].get_thread_buffer().at(idx) = ActivationOp{}(
-                                    lds_tile[write_stage].get_thread_buffer().at(idx));
-                            });
-                        }
-                    }
+                    static_for<0, ActVectorSize, 1>{}([&](auto idx) {
+                        if constexpr(!MXFP4_Pipeline)
+                            lds_tile[lds_stage].get_thread_buffer()[idx] *=
+                                epi_scale_m[idx] * epi_scale_n[idx];
+                        if constexpr(EnableBias)
+                            lds_tile[lds_stage].get_thread_buffer()[idx] += epi_exp_bias[idx];
+                        if constexpr(!IsInputGemm)
+                            lds_tile[lds_stage].get_thread_buffer()[idx] *= epi_exp_weight[idx];
+                        else // for mlp1 gate-only
+                            lds_tile[lds_stage].get_thread_buffer()[idx] =
+                                ActivationOp{}(lds_tile[lds_stage].get_thread_buffer()[idx]);
+                    });
                 }
+            };
 
-                constexpr int MPerThread = TileEncodingPattern::Y2;
-                statically_indexed_array<index_t, MPerThread> offsets;
-
-                auto c_coord = dram_tile_distribution.calculate_index();
+            constexpr int NumMEpiTile = MRepeat / NumMXdlPerWavePerShuffle;
+            constexpr int MPerThread  = TileEncodingPattern::Y2;
+            statically_indexed_array<statically_indexed_array<index_t, MPerThread>, NumMEpiTile>
+                c_scatter_offsets;
+            auto c_coord = dram_tile_distribution.calculate_index();
+            static_for<0, NumMEpiTile, 1>{}([&](auto mIter) {
                 static_for<0, MPerThread, 1>{}([&](auto m0) {
                     auto row_idx = coord_m + mIter * MPerIterationShuffle + c_coord[0] + m0;
                     auto fused_token =
@@ -1217,34 +1169,57 @@ struct MoeFlatmmKernel
 
                     index_t scatter_token_id = fused_token & token_id_mask;
                     if constexpr(IsInputGemm)
-                    {
                         scatter_token_id =
                             scatter_token_id * kargs.TopK + (fused_token >> token_id_offset);
-                    }
-                    offsets[m0] = scatter_token_id * kargs.stride_C;
+                    c_scatter_offsets[mIter][m0] = scatter_token_id * kargs.stride_C;
                 });
+            });
+
+            //===----------------------------------------------------------------------===//
+            // Pingpong process start
+            //===----------------------------------------------------------------------===//
+            process_epi_tile(number<0>{}, number<0>{}, number<0>{});
+
+            static_for<0, num_access, 1>{}([&](auto iAccess) {
+                constexpr int read_stage  = iAccess % 2;
+                constexpr int write_stage = read_stage ^ 1;
+
+                block_sync_lds();
+                constexpr auto idx_y_start = SFC::get_index(number<iAccess.value>{});
+                constexpr auto mIter = number<idx_y_start.at(number<0>{}) / MPerIterationShuffle>{};
+
+                const auto c_warptile_in_tensor_casted = cast_tile<ODataType>(lds_tile[read_stage]);
+
+                store_tile(in_lds_window, c_warptile_in_tensor_casted);
+
+                if constexpr(iAccess < num_access - 1)
+                {
+                    constexpr auto idx_y_start_next = SFC::get_index(number<iAccess.value + 1>{});
+                    constexpr auto mIter_next =
+                        number<idx_y_start_next.at(number<0>{}) / MPerIterationShuffle>{};
+                    constexpr auto nIter_next =
+                        number<idx_y_start_next.at(number<1>{}) / NPerIterationShuffle>{};
+
+                    process_epi_tile(number<write_stage>{}, mIter_next, nIter_next);
+                }
 
                 block_sync_lds();
 
                 auto c_out_tensor =
                     load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
-
                 auto c_scatter_tile_window =
                     make_tile_scatter_gather(c_block_window.get_bottom_tensor_view(),
                                              c_block_window.get_window_lengths(),
                                              c_block_window.get_window_origin(),
                                              dram_tile_distribution,
-                                             offsets);
+                                             c_scatter_offsets[mIter]);
 
                 if constexpr(!IsInputGemm ||
                              EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add)
-                {
                     c_scatter_tile_window.update(c_out_tensor);
-                }
                 else
-                {
                     c_scatter_tile_window.store(c_out_tensor);
-                }
+
                 if constexpr(iAccess != num_access - 1)
                 {
                     constexpr auto step = SFC::get_forward_step(iAccess);

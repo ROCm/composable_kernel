@@ -35,44 +35,29 @@ struct FlatmmScalePointer
     static constexpr int GranularityK  = SharedGranularityK;
 
     const float* ptr;
-    index_t scale_stride = 1;
 
     CK_TILE_HOST_DEVICE FlatmmScalePointer() = default;
     CK_TILE_HOST_DEVICE FlatmmScalePointer(const float* ptr_) : ptr(ptr_) {}
-    CK_TILE_HOST_DEVICE FlatmmScalePointer(const float* ptr_, index_t stride)
-        : ptr(ptr_), scale_stride(stride)
+    CK_TILE_HOST_DEVICE FlatmmScalePointer(const float* ptr_, [[maybe_unused]] index_t length_)
+        : ptr(ptr_)
     {
     }
 
     CK_TILE_HOST_DEVICE FlatmmScalePointer operator+(index_t offset) const
     {
         FlatmmScalePointer ret;
-        // if constexpr(GranularityMN == 0)
-        // {
-        //     ret.scalar = scalar;
-        // }
-        // else if constexpr(GranularityMN == 1)
-        // {
-        //     ret.ptr = ptr + offset;
-        // }
-        // else
-        // {
-        //     ret.ptr = ptr + offset / GranularityMN;
-        // }
-        return ret;
-    }
-
-    CK_TILE_HOST_DEVICE float operator[](index_t i) const
-    {
-        if constexpr(GranularityMN == 1)
+        if constexpr(GranularityMN == 0)
         {
-            return ptr[i];
+            ret.ptr = ptr + offset / GranularityK;
         }
         else
         {
-            return ptr[i / GranularityMN];
+            ret.ptr = ptr + offset / GranularityMN / GranularityK;
         }
+        return ret;
     }
+
+    CK_TILE_HOST_DEVICE float operator[](index_t i) const = delete;
 };
 
 template <int SharedGranularityMN>
@@ -83,54 +68,39 @@ struct FlatmmScalePointer<SharedGranularityMN, 0>
 
     static_assert(GranularityMN != 0);
 
-    union
-    {
-        const float* ptr;
-        float scalar; // if shared granularity is 0, all rows/columns use the same scale value
-    };
+    const float* ptr;
+    index_t length;
 
     CK_TILE_HOST_DEVICE FlatmmScalePointer() = default;
-    CK_TILE_HOST_DEVICE FlatmmScalePointer(float scalar_) : scalar(scalar_) {}
-    CK_TILE_HOST_DEVICE FlatmmScalePointer(const float* ptr_) : ptr(ptr_) {}
-    CK_TILE_HOST_DEVICE FlatmmScalePointer(const float* ptr_, [[maybe_unused]] index_t stride)
-        : ptr(ptr_)
+    CK_TILE_HOST_DEVICE FlatmmScalePointer(const float* ptr_) : ptr(ptr_), length(1) {}
+    CK_TILE_HOST_DEVICE FlatmmScalePointer(const float* ptr_, index_t length_)
+        : ptr(ptr_), length(length_)
     {
     }
 
     CK_TILE_HOST_DEVICE FlatmmScalePointer operator+(index_t offset) const
     {
         FlatmmScalePointer ret;
-        if constexpr(GranularityMN == 0)
+        if constexpr(GranularityMN == 1)
         {
-            ret.scalar = scalar;
-        }
-        else if constexpr(GranularityMN == 1)
-        {
-            ret.ptr = ptr + offset;
+            ret.ptr    = ptr + offset;
+            ret.length = length - offset;
         }
         else
         {
-            ret.ptr = ptr + offset / GranularityMN;
+            ret.ptr    = ptr + offset / GranularityMN;
+            ret.length = length - offset / GranularityMN;
         }
         return ret;
     }
 
-    CK_TILE_HOST_DEVICE FlatmmScalePointer& advance() { return *this; }
-
     CK_TILE_HOST_DEVICE float operator[](index_t i) const
     {
-        if constexpr(GranularityMN == 0)
-        {
-            return scalar;
-        }
-        else if constexpr(GranularityMN == 1)
-        {
-            return ptr[i];
-        }
+        // with additional oob check
+        if constexpr(GranularityMN == 1)
+            return i < length ? ptr[i] : 0;
         else
-        {
-            return ptr[i / GranularityMN];
-        }
+            return i / GranularityMN < length ? ptr[i / GranularityMN] : 0;
     }
 };
 
@@ -141,14 +111,11 @@ struct FlatmmScalePointer<-1, 0>
     static constexpr int GranularityMN = -1;
     static constexpr int GranularityK  = 0;
 
-    CK_TILE_HOST_DEVICE constexpr FlatmmScalePointer() = default;
-    CK_TILE_HOST_DEVICE constexpr FlatmmScalePointer(float) {}
-    CK_TILE_HOST_DEVICE constexpr FlatmmScalePointer(const float*) {}
-    CK_TILE_HOST_DEVICE constexpr FlatmmScalePointer(const float*, [[maybe_unused]] index_t stride)
-    {
-    }
+    const float* ptr = nullptr;
 
-    CK_TILE_HOST_DEVICE FlatmmScalePointer& advance() { return *this; }
+    CK_TILE_HOST_DEVICE constexpr FlatmmScalePointer() = default;
+    CK_TILE_HOST_DEVICE constexpr FlatmmScalePointer(const float*) {}
+    CK_TILE_HOST_DEVICE constexpr FlatmmScalePointer(const float*, index_t) {}
 
     CK_TILE_HOST_DEVICE constexpr FlatmmScalePointer operator+(index_t) const
     {
@@ -679,7 +646,45 @@ struct FlatmmKernel
             }
         }();
 
-        return make_tuple(a_tensor_view, b_flat_tensor_view, ds_tensor_view, e_tensor_view);
+        constexpr int ScaleGranularityM = decltype(kargs.scale_m_ptr)::GranularityMN;
+        constexpr int ScaleGranularityN = decltype(kargs.scale_n_ptr)::GranularityMN;
+
+        constexpr int ScaleGranularityKA = decltype(kargs.scale_m_ptr)::GranularityK;
+        constexpr int ScaleGranularityKB = decltype(kargs.scale_n_ptr)::GranularityK;
+
+        auto scale_stride_m = ScaleGranularityM == 0 ? 0  // per-tensor scale
+                                                     : 1; // per-token scale
+        auto scale_stride_n = ScaleGranularityN == 0 ? 0  // per-tensor scale
+                                                     : 1; // per-channel scale
+
+        static_assert(ScaleGranularityM == 0 || ScaleGranularityM == 1 || ScaleGranularityM == -1,
+                      "only support per-tensor or per-row scaling");
+        static_assert(ScaleGranularityN == 0 || ScaleGranularityN == 1 || ScaleGranularityN == -1,
+                      "only support per-tensor or per-column scaling");
+
+        const auto scale_m_view = make_naive_tensor_view<address_space_enum::global>(
+            kargs.scale_m_ptr.ptr,
+            make_tuple(
+                kargs.M / ScaleGranularityM,
+                ScaleGranularityKA == 0 ? 1 : splitk_batch_offset.splitted_k / ScaleGranularityKA),
+            make_tuple(scale_stride_m, 0),
+            number<ScaleGranularityM == 1 ? FlatmmPipeline::GetVectorSizeA() : 1>{},
+            number<1>{});
+        const auto scale_n_view = make_naive_tensor_view<address_space_enum::global>(
+            kargs.scale_n_ptr.ptr,
+            make_tuple(
+                ScaleGranularityKB == 0 ? 1 : splitk_batch_offset.splitted_k / ScaleGranularityKB,
+                kargs.N / ScaleGranularityN),
+            make_tuple(0, scale_stride_n),
+            number<ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1>{},
+            number<1>{});
+
+        return make_tuple(a_tensor_view,
+                          b_flat_tensor_view,
+                          ds_tensor_view,
+                          e_tensor_view,
+                          scale_m_view,
+                          scale_n_view);
     }
 
     template <typename TensorView>
@@ -745,7 +750,12 @@ struct FlatmmKernel
             }
         }();
 
-        return make_tuple(a_pad_view, b_flat_tensor_view, ds_pad_view, e_pad_view);
+        return make_tuple(a_pad_view,
+                          b_flat_tensor_view,
+                          ds_pad_view,
+                          e_pad_view,
+                          views.at(number<4>{}),
+                          views.at(number<5>{}));
     }
 
     template <typename PadView>
@@ -805,7 +815,28 @@ struct FlatmmKernel
             make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
             {i_m, i_n});
 
-        return make_tuple(a_block_window, b_flat_block_window, ds_block_window, e_block_window);
+        constexpr int ScaleGranularityKA = 0; // decltype(kargs.scale_m_ptr)::GranularityK;
+        constexpr int ScaleGranularityKB = 0; // decltype(kargs.scale_n_ptr)::GranularityK;
+
+        auto scale_m_window = make_tile_window(
+            views.at(number<4>{}),
+            make_tuple(number<TilePartitioner::MPerBlock>{},
+                       number<ScaleGranularityKA == 0 ? TilePartitioner::NPerBlock
+                                                      : TilePartitioner::KPerBlock>{}),
+            {i_m, 0});
+        auto scale_n_window = make_tile_window(
+            views.at(number<5>{}),
+            make_tuple(number<ScaleGranularityKB == 0 ? TilePartitioner::MPerBlock
+                                                      : TilePartitioner::KPerBlock>{},
+                       number<TilePartitioner::NPerBlock>{}),
+            {0, i_n});
+
+        return make_tuple(a_block_window,
+                          b_flat_block_window,
+                          ds_block_window,
+                          e_block_window,
+                          scale_m_window,
+                          scale_n_window);
     }
 
     template <class ScaleM, class ScaleN, bool UseDefaultScheduler = true>
@@ -837,6 +868,9 @@ struct FlatmmKernel
         const auto& c_block_tile        = FlatmmPipeline{}.template operator()(
             a_block_window, b_flat_block_window, num_loop, smem_ptr_ping, smem_ptr_pong);
 
+        auto scale_m_window = gemm_tile_windows.at(number<4>{});
+        auto scale_n_window = gemm_tile_windows.at(number<5>{});
+
         // Run Epilogue Pipeline
         if constexpr(ScaleM::GranularityMN != -1 || ScaleN::GranularityMN != -1)
         {
@@ -847,8 +881,8 @@ struct FlatmmKernel
                 c_block_tile,
                 d_block_window,
                 smem_ptr_ping,
-                kargs.scale_m_ptr + block_idx_m,
-                kargs.scale_n_ptr + block_idx_n);
+                scale_m_window,
+                scale_n_window);
         }
         else if(UseDefaultScheduler || (get_warp_id() == 0))
         {
