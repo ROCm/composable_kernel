@@ -85,8 +85,7 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                       ALayout,
                                       BLayout,
                                       CLayout,
-                                      QuantGroupSize,
-                                      Preshuffle>(
+                                      QuantGroupSize>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::size_t flop     = std::size_t(2) * M * N * K;
@@ -209,7 +208,7 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
 
-    if constexpr(GemmConfig::Preshuffle)
+    if constexpr(GemmConfig::PreshuffleQuant)
     {
         ck_tile::HostTensor<AQDataType> aq_shuffle_host =
             shuffle_aq(aq_m_aqk, GemmConfig::K_Tile / QuantGroupSize);
@@ -236,21 +235,21 @@ int run_gemm_example_with_layouts(int argc,
                 BLayout,
                 CLayout,
                 QuantGroupSize,
-                GemmConfig::Preshuffle>(a_m_k_dev_buf,
-                                        aq_m_aqk_dev_buf,
-                                        b_k_n_dev_buf,
-                                        c_m_n_dev_buf,
-                                        M,
-                                        N,
-                                        K,
-                                        AQK,
-                                        stride_A,
-                                        stride_AQ,
-                                        stride_B,
-                                        stride_C,
-                                        kbatch,
-                                        n_warmup,
-                                        n_repeat);
+                GemmConfig::PreshuffleQuant>(a_m_k_dev_buf,
+                                             aq_m_aqk_dev_buf,
+                                             b_k_n_dev_buf,
+                                             c_m_n_dev_buf,
+                                             M,
+                                             N,
+                                             K,
+                                             AQK,
+                                             stride_A,
+                                             stride_AQ,
+                                             stride_B,
+                                             stride_C,
+                                             kbatch,
+                                             n_warmup,
+                                             n_repeat);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass = true;
