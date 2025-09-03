@@ -66,6 +66,8 @@ def get_tflops_per_kernel(file):
 
 def filter_by_kernel(perf_results, kernel):
     """Filter performance results by kernel name."""
+    if kernel == "all":
+        return perf_results
     if kernel:
         return {k: v for k, v in perf_results.items() if kernel == k.split('<')[0]}
     return perf_results
