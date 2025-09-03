@@ -21,7 +21,9 @@ struct BasicInvoker
     static float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     {
         if constexpr(Persistent)
+        {
             std::cout << "WARNING: Ignoring persistent kernel option for basic gemm." << std::endl;
+        }
 
         // This part comes from the Codegen
         constexpr ck_tile::index_t M_Tile = 256;
