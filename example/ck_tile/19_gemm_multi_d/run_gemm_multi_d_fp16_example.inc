@@ -3,6 +3,7 @@
 
 #pragma once
 #include <cstddef>
+#include "json_dump.hpp"
 
 template <typename ADataType,
           typename BDataType,
@@ -53,30 +54,6 @@ float invoke_gemm_multi_d(const void* a_m_k_dev_buf,
                                   ELayout,
                                   CDEElementWise>(
         gemm_descs, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
-
-    std::string op_name{"Gemm Multiple-D"};
-    static constexpr ck_tile::index_t NumDTensor = DsDataType::size();
-
-    std::size_t flop = 0, num_btype = 0;
-
-    flop += std::size_t(2) * M * N * K;
-
-    ck_tile::static_for<0, NumDTensor, 1>{}([&](auto i) {
-        num_btype += sizeof(ck_tile::remove_cvref_t<std::tuple_element_t<i, DsDataType>>) * M * N;
-        flop += sizeof(ck_tile::remove_cvref_t<std::tuple_element_t<i, DsDataType>>) * M * N;
-    });
-
-    num_btype += sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(EDataType) * M * N;
-
-    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
-    float gb_per_sec = num_btype / 1.E6 / ave_time;
-
-    std::cout << "Run Gemm Multiple-D kernel with:\n";
-    std::cout << "M =" << M << " N =" << N << " K =" << K << "\n";
-    std::cout << "StrideA = " << StrideA << " StrideB = " << StrideB << " StrideE = " << StrideE
-              << "\n";
-    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << "\n";
 
     return ave_time;
 }
@@ -159,29 +136,53 @@ int run_multiple_d_gemm_example_with_layouts(int argc,
 
     std::array<ck_tile::index_t, DsDataType::size()> stridesDs = {StrideD0, StrideD1};
 
-    invoke_gemm_multi_d<ADataType,
-                        BDataType,
-                        DsDataType,
-                        AccDataType,
-                        EDataType,
-                        ALayout,
-                        BLayout,
-                        DsLayout,
-                        ELayout,
-                        CDElementWiseFn>(a_m_k_dev_buf.GetDeviceBuffer(),
-                                         b_k_n_dev_buf.GetDeviceBuffer(),
-                                         ds_ptr_buf,
-                                         e_m_n_dev_buf.GetDeviceBuffer(),
-                                         M,
-                                         N,
-                                         K,
-                                         StrideA,
-                                         StrideB,
-                                         stridesDs,
-                                         StrideE,
-                                         n_warmup,
-                                         n_repeat,
-                                         k_batch);
+    float ave_time = invoke_gemm_multi_d<ADataType,
+                                         BDataType,
+                                         DsDataType,
+                                         AccDataType,
+                                         EDataType,
+                                         ALayout,
+                                         BLayout,
+                                         DsLayout,
+                                         ELayout,
+                                         CDElementWiseFn>(a_m_k_dev_buf.GetDeviceBuffer(),
+                                                          b_k_n_dev_buf.GetDeviceBuffer(),
+                                                          ds_ptr_buf,
+                                                          e_m_n_dev_buf.GetDeviceBuffer(),
+                                                          M,
+                                                          N,
+                                                          K,
+                                                          StrideA,
+                                                          StrideB,
+                                                          stridesDs,
+                                                          StrideE,
+                                                          n_warmup,
+                                                          n_repeat,
+                                                          k_batch);
+
+    std::string op_name{"Gemm Multiple-D"};
+    static constexpr ck_tile::index_t NumDTensor = DsDataType::size();
+
+    std::size_t flop = 0, num_btype = 0;
+
+    flop += std::size_t(2) * M * N * K;
+
+    ck_tile::static_for<0, NumDTensor, 1>{}([&](auto i) {
+        num_btype += sizeof(ck_tile::remove_cvref_t<std::tuple_element_t<i, DsDataType>>) * M * N;
+        flop += sizeof(ck_tile::remove_cvref_t<std::tuple_element_t<i, DsDataType>>) * M * N;
+    });
+
+    num_btype += sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(EDataType) * M * N;
+
+    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
+    float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+    std::cout << "Run Gemm Multiple-D kernel with:\n";
+    std::cout << "M =" << M << " N =" << N << " K =" << K << "\n";
+    std::cout << "StrideA = " << StrideA << " StrideB = " << StrideB << " StrideE = " << StrideE
+              << "\n";
+    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
+              << "\n";
 
     e_m_n_dev_buf.FromDevice(e_m_n_device_result.data());
 
@@ -216,6 +217,24 @@ int run_multiple_d_gemm_example_with_layouts(int argc,
         std::cout << "Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
                   << std::endl;
         std::cout << "The CPU veification result is: " << (pass ? "correct" : "fail") << std::endl;
+    }
+
+    if(arg_parser.get_int("json") == 1)
+    {
+        dump_gemm_multi_d_fp16_json_results(arg_parser.get_str("jsonfile"),
+                                            op_name,
+                                            M,
+                                            N,
+                                            K,
+                                            StrideA,
+                                            StrideB,
+                                            StrideD0,
+                                            StrideD1,
+                                            StrideE,
+                                            pass,
+                                            ave_time,
+                                            tflops,
+                                            gb_per_sec);
     }
     return pass;
 }

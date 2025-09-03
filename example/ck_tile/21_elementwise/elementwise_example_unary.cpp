@@ -5,6 +5,7 @@
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/elementwise.hpp"
 #include "ck_tile/host/reference/reference_elementwise.hpp"
+#include "json_dump.hpp"
 
 auto create_args(int argc, char* argv[])
 {
@@ -15,7 +16,9 @@ auto create_args(int argc, char* argv[])
         .insert("v", "1", "cpu validation or not")
         .insert("prec", "fp16", "precision")
         .insert("warmup", "10", "cold iter")
-        .insert("repeat", "50", "hot iter");
+        .insert("repeat", "50", "hot iter")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "elementwise_unary.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -125,6 +128,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         pass = ck_tile::check_err(
             y_validation, y_host, "Elementwise Add Error: Incorrect results!", 0.01, 0.01);
+    }
+
+    if(arg_parser.get_int("json") == 1)
+    {
+        dump_elementwise_json_results(arg_parser.get_str("jsonfile"),
+                                      arg_parser.get_str("prec"),
+                                      kGridSize,
+                                      kBlockSize,
+                                      ave_time,
+                                      0,
+                                      0,
+                                      "elementwise_unary");
     }
 
     return pass;
