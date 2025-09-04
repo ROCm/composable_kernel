@@ -610,7 +610,7 @@ struct BQuantGemmKernel
                     b_pad_view,
                     make_tuple(number<GemmPipeline::flatNPerWarp>{},
                                number<GemmPipeline::flatKPerWarp>{}),
-                    {static_cast<int>(i_n / TilePartitioner::BlockGemmShape::WarpTile::at(idxN)),
+                    {static_cast<int>(i_n / TilePartitioner::BlockGemmShape::WarpTile::at(I1)),
                      0});
             }
             else

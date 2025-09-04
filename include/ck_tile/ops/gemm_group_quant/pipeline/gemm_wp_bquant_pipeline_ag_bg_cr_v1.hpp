@@ -15,18 +15,18 @@
 namespace ck_tile {
 
 template <typename Problem>
-struct BaseWeightPreshuffleBQuantBPipelineAgBgCrV1
+struct BaseWPQuantBPipelineAgBgCrV1
     : public BaseWeightPreshufflePipelineAGmemBGmemCRegV1<Problem>
 {
     // Added Just to maintain same structure in host code while preparing pipeline
 };
 
 template <typename Problem,
-          typename PipelinePolicy = GemmWeightPreshuffleBQuantPipelineAgBgCrPolicy>
-struct WeightPreshuffleBQuantBPipelineAgBgCrV1
-    : public BaseWeightPreshuffleBQuantPipelineAgBgCrV1<Problem>
+          typename PipelinePolicy = GemmWPQuantPipelineAgBgCrPolicy>
+struct WPQuantBPipelineAgBgCrV1
+    : public BaseWPQuantBPipelineAgBgCrV1<Problem>
 {
-    using Base           = BaseWeightPreshuffleBQuantPipelineAgBgCrV1<Problem>;
+    using Base           = BaseWPQuantBPipelineAgBgCrV1<Problem>;
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
     using BQDataType     = remove_cvref_t<typename Problem::BQDataType>;
@@ -79,7 +79,7 @@ struct WeightPreshuffleBQuantBPipelineAgBgCrV1
     using WarpTile   = remove_cvref_t<typename BlockGemmShape::WarpTile>;
 
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
-    static constexpr bool Preshuffle       = Problem::Preshuffle;
+    static constexpr bool PreshuffleB       = Problem::PreshuffleB;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
@@ -284,27 +284,7 @@ struct WeightPreshuffleBQuantBPipelineAgBgCrV1
             make_tile_window(b_flat_dram_block_window_tmp.get_bottom_tensor_view(),
                              make_tuple(number<flatNPerWarp>{}, number<flatKPerWarp>{}),
                              b_flat_dram_block_window_tmp.get_window_origin(),
-                             b_flat_distribution);
-
-        // if(get_block_id() == 0 && get_warp_id() == 0 && get_thread_id() == 0){
-        //     printf("b_flat_dram_window: %d\n",
-        //              type_convert<int>(b_flat_dram_window.get_bottom_tensor_view().get_buffer_view()[get_thread_id()]));
-        // }
-
-        using BRegTile = decltype(make_static_distributed_tensor<ComputeDataType>(b_flat_distribution));
-
-        BRegTile b_block_tile1;       
-
-        if constexpr(std::is_same_v<BDataType, pk_int4_t>)
-        {
-            static_assert(std::is_same_v<ComputeDataType, fp8_t> ||
-                            std::is_same_v<ComputeDataType, bf8_t>);
-            // it should be block tensor and tile_window for interleaved pk type
-            block_flatmm.load_interleaved_pk_type(b_block_tile1, b_flat_dram_window); 
-
-        }else{
-            b_block_tile1 = load_tile(b_flat_dram_window);
-        }
+                             b_flat_distribution);      
 
         // BQ DRAM window for load
         auto bq_copy_dram_window =
@@ -326,12 +306,12 @@ struct WeightPreshuffleBQuantBPipelineAgBgCrV1
             b_flat_dram_windows;
 
         statically_indexed_array<
-            statically_indexed_array<decltype(b_block_tile1/*load_tile(b_flat_dram_window)*/), KIterPerWarp>,
+            statically_indexed_array<decltype(load_tile(b_flat_dram_window)), KIterPerWarp>,
             NIterPerWarp>
             b_warp_tensor;
 
         statically_indexed_array<
-            statically_indexed_array<decltype(b_block_tile1/*load_tile(b_flat_dram_window)*/), KIterPerWarp>,
+            statically_indexed_array<decltype(load_tile(b_flat_dram_window)), KIterPerWarp>,
             NIterPerWarp>
             b_warp_tensor_2;
 
@@ -342,8 +322,7 @@ struct WeightPreshuffleBQuantBPipelineAgBgCrV1
                 move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                  {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
 
-                //b_warp_tensor(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
-                block_flatmm.load_interleaved_pk_type(b_warp_tensor(nIter)(kIter), b_flat_dram_windows(nIter)(kIter)); 
+                b_warp_tensor(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
             });
         });
 
@@ -397,8 +376,7 @@ struct WeightPreshuffleBQuantBPipelineAgBgCrV1
                     move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                      {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
 
-                    //b_warp_tensor_2(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
-                    block_flatmm.load_interleaved_pk_type(b_warp_tensor_2(nIter)(kIter), b_flat_dram_windows(nIter)(kIter)); 
+                    b_warp_tensor_2(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
                 });
             });
 
@@ -435,8 +413,7 @@ struct WeightPreshuffleBQuantBPipelineAgBgCrV1
                     move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                      {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
 
-                    //b_warp_tensor(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
-                    block_flatmm.load_interleaved_pk_type(b_warp_tensor(nIter)(kIter), b_flat_dram_windows(nIter)(kIter)); 
+                    b_warp_tensor(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
                 });
             });
 
@@ -479,8 +456,7 @@ struct WeightPreshuffleBQuantBPipelineAgBgCrV1
                     move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                      {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
 
-                    //b_warp_tensor_2(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
-                    block_flatmm.load_interleaved_pk_type(b_warp_tensor_2(nIter)(kIter), b_flat_dram_windows(nIter)(kIter)); 
+                    b_warp_tensor_2(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
                 });
             });
 

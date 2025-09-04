@@ -8,7 +8,7 @@
 
 namespace ck_tile {
 
-struct GemmWeightPreshuffleBQuantPipelineAgBgCrPolicy
+struct GemmWPQuantPipelineAgBgCrPolicy
     : public UniversalWeightPreshufflePipelineAgBgCrPolicy
 {
     template <typename Problem>
@@ -35,7 +35,7 @@ struct GemmWeightPreshuffleBQuantPipelineAgBgCrPolicy
         using WarpTile    = typename Problem::BlockGemmShape::WarpTile;
         //static_assert(std::is_same_v<typename Problem::ComputeDataType, ck_tile::pk_int4_t>, "compute data type must be fp8_t");
 
-        using WarpGemm    = WarpGemmMfmaDispatcher<typename Problem::ComputeDataType,
+        using WarpGemm    = WarpGemmDispatcher<typename Problem::ComputeDataType,
                                                    typename Problem::ComputeDataType,
                                                    typename Problem::CDataType,
                                                    WarpTile::at(I0),

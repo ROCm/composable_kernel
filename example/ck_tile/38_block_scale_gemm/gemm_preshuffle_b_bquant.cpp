@@ -51,7 +51,7 @@ float gemm_calc_bquant(const ck_tile::BQuantGemmHostArgs& args, const ck_tile::s
                                                             GemmConfig::kPadN,
                                                             GemmConfig::kPadK,
                                                             GemmConfig::PreshuffleQuant,
-                                                            GemmConfig::PreshffuleB,
+                                                            GemmConfig::PreshuffleB,
                                                             ALayout,
                                                             BLayout,
                                                             CLayout>;
@@ -63,7 +63,7 @@ float gemm_calc_bquant(const ck_tile::BQuantGemmHostArgs& args, const ck_tile::s
                                                                  Traits,
                                                                  ComputeDataType>;
 
-    using BaseGemmPipeline = ck_tile::BaseWeightPreshuffleBQuantBPipelineAgBgCrV1<GemmPipelineProblem>;
+    using BaseGemmPipeline = ck_tile::BaseWPQuantBPipelineAgBgCrV1<GemmPipelineProblem>;
 
     const ck_tile::index_t K_split      = (args.K + K_Tile - 1) / K_Tile * K_Tile;
     const ck_tile::index_t num_loop     = TilePartitioner::GetLoopNum(K_split);
@@ -87,7 +87,7 @@ float gemm_calc_bquant(const ck_tile::BQuantGemmHostArgs& args, const ck_tile::s
                                                GemmConfig::Scheduler,
                                                has_hot_loop_v,
                                                tail_number_v>;
-        using GemmPipeline = ck_tile::WeightPreshuffleBQuantBPipelineAgBgCrV1<PipelineProblem>;
+        using GemmPipeline = ck_tile::WPQuantBPipelineAgBgCrV1<PipelineProblem>;
         using GemmEpilogue        = ck_tile::CShuffleEpilogue<
                    ck_tile::CShuffleEpilogueProblem<ADataType,
                                                     BDataType,
