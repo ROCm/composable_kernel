@@ -818,10 +818,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
     __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
-        constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);
-        constexpr index_t NWaves = (NXdlPerWave * NPerXdl == 0) ? 0 : NPerBlock / (NXdlPerWave * NPerXdl);
-        constexpr index_t WaveSize = (MWaves * NWaves == 0) ? 64 : BlockSize / (MWaves * NWaves);
-
+        constexpr index_t MWave    = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t NWave    = NPerBlock / (NXdlPerWave * NPerXdl);
+        constexpr index_t WaveSize = BlockSize / (MWave * NWave);   
         // A matrix in LDS memory, dst of blockwise copy
         if constexpr(ABlockLdsExtraM || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
         {
@@ -960,9 +959,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
     __device__ static constexpr auto GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()
     {
-        constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);
-        constexpr index_t NWaves = (NXdlPerWave * NPerXdl == 0) ? 0 : NPerBlock / (NXdlPerWave * NPerXdl);
-        constexpr index_t WaveSize = (MWaves * NWaves == 0) ? 64 : BlockSize / (MWaves * NWaves);
+        constexpr index_t MWave    = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t NWave    = NPerBlock / (NXdlPerWave * NPerXdl);
+        constexpr index_t WaveSize = BlockSize / (MWave * NWave);
         // B matrix in LDS memory, dst of blockwise copy
         if constexpr(BBlockLdsExtraN || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
         {

@@ -709,6 +709,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
     __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
+        constexpr index_t MWave    = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t NWave    = NPerBlock / (NXdlPerWave * NPerXdl);
+        constexpr index_t WaveSize = BlockSize / (MWave * NWave);
         // A matrix in LDS memory, dst of blockwise copy
         if constexpr(ABlockLdsExtraM || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
         {
@@ -764,7 +767,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
             constexpr auto KThreadWrite     = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I0);
             constexpr auto K0PerThreadWrite = AK0Number / KThreadWrite;
-            constexpr auto KThreadRead      = 64 / MPerXdl;
+            constexpr auto KThreadRead      = WaveSize / MPerXdl;
             constexpr auto K0PerThreadRead  = AK0Number / KThreadRead;
 
             constexpr auto kfold = (AK1Number * M0 * sizeof(ADataType) > 128)
@@ -845,6 +848,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
     __device__ static constexpr auto GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()
     {
+        constexpr index_t MWave    = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t NWave    = NPerBlock / (NXdlPerWave * NPerXdl);
+        constexpr index_t WaveSize = BlockSize / (MWave * NWave);
         // B matrix in LDS memory, dst of blockwise copy
         if constexpr(BBlockLdsExtraN || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
         {
@@ -896,7 +902,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
             constexpr auto KThreadWrite     = BBlockTransferThreadClusterLengths_BK0_N_BK1{}.At(I0);
             constexpr auto K0PerThreadWrite = BK0Number / KThreadWrite;
-            constexpr auto KThreadRead      = 64 / NPerXdl;
+            constexpr auto KThreadRead      = WaveSize / NPerXdl;
             constexpr auto K0PerThreadRead  = BK0Number / KThreadRead;
 
             constexpr auto kfold = (BK1Number * N0 * sizeof(BDataType) > 128)
@@ -1444,12 +1450,18 @@ struct GridwiseGemm_xdl_cshuffle_v3
         constexpr auto b_scale_thread_desc = make_naive_tensor_descriptor_packed(
             make_tuple(Number<ScaleSliceSizeN>{}, Number<ScaleSliceSizeK>{}));
 
-        constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl);
-
-        auto b_thread_offset_n =
-            get_thread_local_1d_id() % NPerXdl + (get_thread_local_1d_id() / 64) % NWaves * NPerXdl;
-        auto b_thread_offset_k = (get_thread_local_1d_id() % 64) / NPerXdl * KPerThread;
-
+        constexpr index_t NWaves   = NPerBlock / (NXdlPerWave * NPerXdl);
+        constexpr index_t MWaves   = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t WaveSize = BlockSize / (MWaves * NWaves);
+#if defined(__gfx11__)
+        auto b_thread_offset_n = get_thread_local_1d_id() % NPerXdl +
+                                 (get_thread_local_1d_id() / WaveSize) % NWaves * NPerXdl;
+        auto b_thread_offset_k = (get_thread_local_1d_id() % 16) / NPerXdl * KPerThread;
+#else
+        auto b_thread_offset_n = get_thread_local_1d_id() % NPerXdl +
+                                 (get_thread_local_1d_id() / WaveSize) % NWaves * NPerXdl;
+        auto b_thread_offset_k = (get_thread_local_1d_id() % WaveSize) / NPerXdl * KPerThread;
+#endif
         auto b_scale_thread_copy =
             ThreadwiseTensorSliceTransfer_v2<BScaleType,
                                              BScaleType,
@@ -1916,11 +1928,18 @@ struct GridwiseGemm_xdl_cshuffle_v3
         constexpr auto b_scale_thread_desc = make_naive_tensor_descriptor_packed(
             make_tuple(Number<ScaleSliceSizeN>{}, Number<ScaleSliceSizeK>{}));
 
-        constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl);
-
-        auto b_thread_offset_n =
-            get_thread_local_1d_id() % NPerXdl + (get_thread_local_1d_id() / 64) % NWaves * NPerXdl;
-        auto b_thread_offset_k = (get_thread_local_1d_id() % 64) / NPerXdl * KPerThread;
+        constexpr index_t NWaves   = NPerBlock / (NXdlPerWave * NPerXdl);
+        constexpr index_t MWaves   = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t WaveSize = BlockSize / (MWaves * NWaves);
+#if defined(__gfx11__)
+        auto b_thread_offset_n = get_thread_local_1d_id() % NPerXdl +
+                                 (get_thread_local_1d_id() / WaveSize) % NWaves * NPerXdl;
+        auto b_thread_offset_k = (get_thread_local_1d_id() % 16) / NPerXdl * KPerThread;
+#else
+        auto b_thread_offset_n = get_thread_local_1d_id() % NPerXdl +
+                                 (get_thread_local_1d_id() / WaveSize) % NWaves * NPerXdl;
+        auto b_thread_offset_k = (get_thread_local_1d_id() % WaveSize) / NPerXdl * KPerThread;
+#endif
 
         auto b_scale_thread_copy =
             ThreadwiseTensorSliceTransfer_v2<BScaleType,
