@@ -1484,10 +1484,6 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!ck::is_xdl_supported())
-        {
-            return false;
-        }
         // gfx11 doesn't support float atomic
         if(ck::is_gfx11_supported() && arg.k_batch_ > 1)
         {

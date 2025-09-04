@@ -476,10 +476,6 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!ck::is_xdl_supported())
-        {
-            return false;
-        }
         // gfx11 doesn't support float atomic
         if(ck::is_gfx11_supported())
         {

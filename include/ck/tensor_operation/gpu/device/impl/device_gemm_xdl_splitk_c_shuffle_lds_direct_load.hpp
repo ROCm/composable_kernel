@@ -302,10 +302,6 @@ struct DeviceGemmXdlSplitKCShuffle_LdsDirectLoad : public DeviceGemmSplitK<ALayo
 
     static bool IsSupportedArgument(const Argument& karg)
     {
-        if(!ck::is_xdl_supported())
-        {
-            return false;
-        }
         if(!ck::is_lds_direct_load_supported())
         {
             return false;

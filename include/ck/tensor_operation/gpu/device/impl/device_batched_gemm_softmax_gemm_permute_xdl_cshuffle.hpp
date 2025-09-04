@@ -738,10 +738,6 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             arg.Print();
         }
 
-        if(!ck::is_xdl_supported())
-        {
-            return false;
-        }
         if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
         {
             return false;

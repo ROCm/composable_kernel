@@ -268,10 +268,6 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
 
     static bool IsSupportedArgument(const Argument& karg)
     {
-        if(!(ck::is_xdl_supported()))
-        {
-            return false;
-        }
         if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
         {
             return false;

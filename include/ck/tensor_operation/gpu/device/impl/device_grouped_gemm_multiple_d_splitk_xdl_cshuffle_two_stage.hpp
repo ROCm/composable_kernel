@@ -830,10 +830,6 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!ck::is_xdl_supported())
-        {
-            return false;
-        }
         if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
         {
             return false;

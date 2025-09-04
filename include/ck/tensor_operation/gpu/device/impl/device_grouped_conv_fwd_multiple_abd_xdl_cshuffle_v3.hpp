@@ -1389,7 +1389,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             }
         }
 
-        if(!ck::is_xdl_supported())
+        if(!ck::is_xdl_wmma_supported<AComputeDataType, BComputeDataType, MPerXDL, NPerXDL>())
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
@@ -1397,11 +1397,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                           << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
                           << std::endl;
             }
-            return false;
-        }
-
-        if(!ck::is_xdl_wmma_supported<AComputeDataType, BComputeDataType, MPerXDL, NPerXDL>())
-        {
             return false;
         }
         // check ConvolutionForwardSpecialization

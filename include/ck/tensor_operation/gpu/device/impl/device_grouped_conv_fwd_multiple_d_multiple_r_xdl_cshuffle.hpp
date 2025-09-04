@@ -802,7 +802,10 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
     static bool IsSupportedArgument(const Argument& arg)
     {
         namespace ctc = tensor_layout::convolution;
-
+        if(!is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, MPerXDL>())
+        {
+            return false;
+        }
         // check device
         if(get_device_name() == "gfx908")
         {
@@ -823,10 +826,6 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
         else if(ck::is_gfx12_supported() || ck::is_gfx11_supported())
         {
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
-            {
-                return false;
-            }
-            if(!is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, MPerXDL>())
             {
                 return false;
             }

@@ -631,10 +631,6 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!ck::is_xdl_supported())
-        {
-            return false;
-        }
         using A0DataType = remove_cvref_t<tuple_element_t<0, AsDataType>>;
         using B0DataType = remove_cvref_t<tuple_element_t<0, BsDataType>>;
         if(!ck::is_xdl_wmma_supported<A0DataType, B0DataType, MPerXDL, NPerXDL>())
