@@ -74,7 +74,40 @@ constexpr std::array TEST_CASES = {
         .expected_type =
             "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 256, 256, 32, Default, 32, 32, "
             "4, 4, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v4>",
-    }};
+    },
+    TestCase{
+        .name      = "GroupedConvFwdXdlBf16CompInstance1",
+        .algorithm = {.thread_block{.block_size = 256, .sub_matrix = {.m = 128, .n = 128, .k = 64}},
+                      .tuning_params{.ak1 = 8, .bk1 = 8, .m_xdl_per_wave = 2, .n_xdl_per_wave = 2},
+                      .block_transfer{
+                          .thread_cluster_lengths_a = {.k0 = 8, .m = 32, .k1 = 1},
+                          .thread_cluster_lengths_b = {.k0 = 8, .n = 32, .k1 = 1},
+                          .thread_cluster_lengths_c = {.m_block        = 1,
+                                                       .m_wave_per_xdl = 32,
+                                                       .n_block        = 1,
+                                                       .n_wave_per_xdl = 8},
+                      }},
+        .expected_type =
+            "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 128, 128, 64, Default, 32, 32, "
+            "2, 2, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v4>",
+    },
+    TestCase{
+        .name      = "GroupedConvFwdXdlBf16CompInstance1",
+        .algorithm = {.thread_block{.block_size = 256, .sub_matrix = {.m = 128, .n = 128, .k = 32}},
+                      .tuning_params{.ak1 = 8, .bk1 = 8, .m_xdl_per_wave = 2, .n_xdl_per_wave = 2},
+                      .block_transfer{
+                          .thread_cluster_lengths_a = {.k0 = 4, .m = 64, .k1 = 1},
+                          .thread_cluster_lengths_b = {.k0 = 4, .n = 64, .k1 = 1},
+                          .thread_cluster_lengths_c = {.m_block        = 1,
+                                                       .m_wave_per_xdl = 32,
+                                                       .n_block        = 1,
+                                                       .n_wave_per_xdl = 8},
+                      }},
+        .expected_type =
+            "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 128, 128, 32, Default, 32, 32, "
+            "2, 2, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v4>",
+    },
+};
 
 static constexpr int NUM_TEST_CASES = std::tuple_size_v<decltype(TEST_CASES)>;
 
@@ -116,12 +149,15 @@ struct TestNameGenerator
     }
 };
 
-TYPED_TEST_SUITE(ConvBuilderInstancesTest, TestingIndices<NUM_TEST_CASES>::Types, TestNameGenerator);
+TYPED_TEST_SUITE(ConvBuilderInstancesTest,
+                 TestingIndices<NUM_TEST_CASES>::Types,
+                 TestNameGenerator);
 
 // General test case, instantiated for each test case.
 TYPED_TEST(ConvBuilderInstancesTest, KernelParamsConfigured)
 {
-    static constexpr const FwdConvAlgorithm& ALGORITHM = ConvBuilderInstancesTest<TypeParam>::ALGORITHM;
+    static constexpr const FwdConvAlgorithm& ALGORITHM =
+        ConvBuilderInstancesTest<TypeParam>::ALGORITHM;
     using Builder = ckb::ConvBuilder<FwdConvSignature, ALGORITHM, API_VERSION>;
     EXPECT_EQ(Builder::Instance::TypeString(), ConvBuilderInstancesTest<TypeParam>::EXPECTED_TYPE);
     const auto& tp = ALGORITHM.tuning_params;
@@ -140,6 +176,18 @@ TYPED_TEST(ConvBuilderInstancesTest, KernelParamsConfigured)
     EXPECT_EQ(Builder::factory::C_BLOCK_TRANSFER.thread_cluster_lengths[1], tclc.m_wave_per_xdl);
     EXPECT_EQ(Builder::factory::C_BLOCK_TRANSFER.thread_cluster_lengths[2], tclc.n_block);
     EXPECT_EQ(Builder::factory::C_BLOCK_TRANSFER.thread_cluster_lengths[3], tclc.n_wave_per_xdl);
+}
+
+TEST(ConvBuilderInstancesTest, TypeStringsAreUnique)
+{
+    std::set<std::string> strings;
+    for(int i = 0; i < NUM_TEST_CASES; ++i)
+    {
+        const auto& [iter, inserted] = strings.insert(std::string(TEST_CASES[i].expected_type));
+        EXPECT_TRUE(inserted) << "Duplicate expected_string " << *iter;
+    }
+    EXPECT_EQ(strings.size(), NUM_TEST_CASES)
+        << "Found fewer unique expected_strings than test cases";
 }
 
 } // namespace
