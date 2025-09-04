@@ -1493,7 +1493,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         {
             return false;
         }
-        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        if(!ck::is_xdl_wmma_supported<AComputeType, BComputeType, MPerXDL, NPerXDL>())
         {
             return false;
         }

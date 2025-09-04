@@ -599,6 +599,10 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         {
             return false;
         }
+        if(is_gfx11_supported() && arg.K_Batch > 1)
+        {
+            return false;
+        }
         if((ck::type_convert<ck::index_t>(arg.gemm_kernel_args_.size()) +
             arg.skipped_group_count_) != arg.group_count_)
         {

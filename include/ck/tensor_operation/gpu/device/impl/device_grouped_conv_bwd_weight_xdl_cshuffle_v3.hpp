@@ -1327,7 +1327,11 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         {
             return false;
         }
-        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        if(!ck::is_xdl_wmma_supported<ComputeTypeA, ComputeTypeB, MPerXDL, NPerXDL>())
+        {
+            return false;
+        }
+        if(is_gfx11_supported() && arg.k_batch_ > 1)
         {
             return false;
         }

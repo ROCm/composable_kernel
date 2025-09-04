@@ -752,7 +752,7 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
         {
             return false;
         }
-        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        if(!ck::is_xdl_wmma_supported<ComputeTypeA, ComputeTypeB, MPerXDL, NPerXDL>())
         {
             return false;
         }
