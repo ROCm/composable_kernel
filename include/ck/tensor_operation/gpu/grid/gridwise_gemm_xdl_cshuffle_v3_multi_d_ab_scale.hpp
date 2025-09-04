@@ -16,7 +16,7 @@
 
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v7r3.hpp"
 
-#define DEBUG_LOG 0
+#define DEBUG_LOG 1
 
 namespace ck {
 
@@ -973,8 +973,8 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
         constexpr auto c_block_size =
             c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
 
-        return math::max((2 * a_block_space_size_aligned * sizeof(LDSTypeA) +
-                          2 * b_block_space_size_aligned * sizeof(LDSTypeB)),
+        return math::max((a_block_space_size_aligned * sizeof(LDSTypeA) +
+                          b_block_space_size_aligned * sizeof(LDSTypeB)),
                          c_block_size * sizeof(CShuffleDataType));
     }
 
@@ -1327,8 +1327,6 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
         // LDS allocation for A and B: be careful of alignment
         constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
             a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
-        constexpr auto b_block_space_size_aligned = math::integer_least_multiple(
-            b_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align);
 
         // Cast after lds
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(

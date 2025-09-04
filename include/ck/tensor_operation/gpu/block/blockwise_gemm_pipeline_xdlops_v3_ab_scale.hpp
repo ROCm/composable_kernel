@@ -543,9 +543,11 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
                             c_scale_thread_buf[m0];
                         static_for<0, NRepeat, 1>{}([&](auto n0) {
                             // Clear the current mfma output buffer
+                            constexpr index_t mfma_reg_buf_offset =
+                                mfma_reg_buf * xdlops_gemm.GetRegSizePerXdlops();
                             static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
                                 c_thread_buf_per_scale
-                                    .GetVectorTypeReference(Number<mfma_reg_buf>{})
+                                    .GetVectorTypeReference(Number<mfma_reg_buf_offset>{})
                                     .template AsType<AccDataType>()(Number<t>{}) = 0;
                             });
                             static_for<0, KRepeat, 1>{}([&](auto k0) {
@@ -569,7 +571,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
                                     a_thread_vec.template AsType<mfma_input_type>(),
                                     b_thread_vec.template AsType<mfma_input_type>(),
                                     c_thread_buf_per_scale.GetVectorTypeReference(
-                                        Number<mfma_reg_buf>{}));
+                                        Number<mfma_reg_buf_offset>{}));
                             });
                             // Run the element-wise FMA with offset data from the above MFMA to
                             // break dependencies
@@ -580,11 +582,13 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
                             static_for<0, xdlops_gemm.GetRegSizePerXdlops() / 2, 1>{}([&](auto t) {
                                 using pk_fma_type = typename vector_type<AccDataType, 2>::type;
 
+                                constexpr auto scale_buf_idx_offset =
+                                    scale_buf_idx * xdlops_gemm.GetRegSizePerXdlops();
                                 c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
                                     .template AsType<pk_fma_type>()(t) = __builtin_elementwise_fma(
                                     c_thread_buf_per_scale // mfma output from previous iteration
                                                            // (scale_buf_idx)
-                                        .GetVectorTypeReference(Number<scale_buf_idx>{})
+                                        .GetVectorTypeReference(Number<scale_buf_idx_offset>{})
                                         .template AsType<pk_fma_type>()[t],
                                     c_scale_thread_vec.template AsType<
                                         pk_fma_type>()[Number<0>{}], // scales c=a*b
@@ -629,6 +633,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
                 i += 2;
             } while(i < (num_loop - 2));
         }
+        __builtin_amdgcn_sched_barrier(0);
 
         // tail
         // if constexpr(TailNum == TailNumber::Full)

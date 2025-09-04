@@ -248,7 +248,7 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
             //                    : 2;
             //     }
             // }();
-            constexpr index_t minimum_occupancy = 1;
+            constexpr index_t minimum_occupancy = 2;
 
             if(has_main_k_block_loop)
             {
