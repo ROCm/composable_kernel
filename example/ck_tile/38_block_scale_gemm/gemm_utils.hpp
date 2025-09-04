@@ -291,26 +291,23 @@ auto create_args(int argc, char* argv[])
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("m", "3840", "m dimension")
         .insert("n", "4096", "n dimension")
-        .insert("k", "512", "k dimension")
+        .insert("k", "2048", "k dimension")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
         .insert("aq_layout", "R", "Aq tensor data layout - Row by default")
         .insert("b_layout", "C", "B tensor data layout - Column by default")
         .insert("c_layout", "R", "C tensor data layout - Row by default")
         .insert("stride_a", "0", "Tensor A stride")
-        .insert("stride_q", "0", "Tensor AQ stride")
+        .insert("stride_aq", "0", "Tensor AQ stride")
         .insert("stride_b", "0", "Tensor B stride")
         .insert("stride_c", "0", "Tensor C stride")
         .insert("v", "1", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
         .insert("prec", "fp8", "data type. fp8/bf8/i4fp8/i4bf8/i4f32fp8/i4f32bf8")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "1000", "number of iterations to benchmark the kernel")
-        .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("split_k", "1", "splitK value")
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
-        .insert("persistent", "0", "0:non-persistent, 1:persistent")
-        .insert("as_br_cr", "false", "Choose between as_br_cr and as_bs_cr");
 
-    bool result = arg_parser.parse(argc, argv);
+            bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
 

@@ -3,7 +3,7 @@
 This folder contains the Block-Scale GEMM example using the ck_tile tile-programming implementation.
 
 ## Overview
-- **Operation**: Computes C = (A × B) scaled by AQ.
+- **Operation**: Computes C = (A scaled by AQ) × B.
   - A shape: M × K
   - B shape: K × N
   - AQ shape: M × (K / QuantGroupSize)
@@ -38,16 +38,13 @@ args:
    -b_layout    Tensor B data layout (default: C)
    -c_layout    Tensor C data layout (default: R)
    -stride_a    Tensor A stride (default:0)
-   -stride_q    Tensor AQ stride (default:0)
+   -stride_aq   Tensor AQ stride (default:0)
    -stride_b    Tensor B stride (default:0)
    -stride_c    Tensor C stride (default:0)
           -v    0. No validation, 1. Validation on CPU, 2. Validation on GPU (default:1)
        -prec    data type. fp8/bf8/i4fp8/i4bf8/i4f32fp8/i4f32bf8 (default:fp8)
      -warmup    number of iterations before benchmark the kernel (default:50)
      -repeat    number of iterations to benchmark the kernel (default:1000)
-      -timer    gpu:gpu timer, cpu:cpu timer (default:gpu)
     -split_k    splitK value (default:1)
        -init    0:random, 1:linear, 2:constant(1) (default:2)
-  -persistent   0:non-persistent, 1:persistent (default:0)
-  -as_br_cr      Choose between as_br_cr and as_bs_cr (default:false)
 ```

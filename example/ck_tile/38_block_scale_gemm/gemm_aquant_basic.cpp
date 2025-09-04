@@ -53,7 +53,7 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
         GemmConfig::Pipeline>::template BaseAQuantGemmPipeline<GemmPipelineProblem>;
 
     const ck_tile::index_t K_split =
-        (args.K + GemmConfig::K_Tile - 1) / GemmConfig::K_Tile * GemmConfig::K_Tile;
+        ck_tile::integer_divide_ceil(args.K, GemmConfig::K_Tile) * GemmConfig::K_Tile;
     const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
     const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
     const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);

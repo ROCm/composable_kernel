@@ -144,7 +144,7 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::index_t AQK = K / QuantGroupSize;
 
     ck_tile::index_t stride_A  = arg_parser.get_int("stride_a");
-    ck_tile::index_t stride_AQ = arg_parser.get_int("stride_q");
+    ck_tile::index_t stride_AQ = arg_parser.get_int("stride_aq");
     ck_tile::index_t stride_B  = arg_parser.get_int("stride_b");
     ck_tile::index_t stride_C  = arg_parser.get_int("stride_c");
 

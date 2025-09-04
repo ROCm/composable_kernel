@@ -142,7 +142,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
 
     using Base::PrefetchStages;
 
-    static_assert("Schedular must Intrawave for compute pipeline" &&
+    static_assert("Scheduler must Intrawave for compute pipeline" &&
                   Scheduler == GemmPipelineScheduler::Intrawave);
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
