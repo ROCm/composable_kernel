@@ -146,20 +146,7 @@ void permute_vectors_i4x4_b(Tensor& tensor)
 }
 
 template <typename GemmConfig,
-          typename ADataType,
-          typename BDataType,
-          typename DsDataType,
-          typename AccDataType,
-          typename CDataType,
-          typename ALayout,
-          typename BLayout,
-          typename DsLayout,
-          typename CLayout,
-          bool Persistent,
-          typename CDEElementWise = ck_tile::element_wise::PassThrough>
-float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s);
-
-template <typename GemmConfig,
+          typename Invoker,
           typename ADataType,
           typename BDataType,
           typename DsDataType,
@@ -200,36 +187,36 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     float ave_time;
     if(persistent)
     {
-        ave_time = gemm<GemmConfig,
-                        ADataType,
-                        BDataType,
-                        DsDataType,
-                        AccDataType,
-                        CDataType,
-                        ALayout,
-                        BLayout,
-                        DsLayout,
-                        CLayout,
-                        true,
-                        CDEElementWise>(
+        ave_time = Invoker::template gemm<GemmConfig,
+                                          ADataType,
+                                          BDataType,
+                                          DsDataType,
+                                          AccDataType,
+                                          CDataType,
+                                          ALayout,
+                                          BLayout,
+                                          DsLayout,
+                                          CLayout,
+                                          true,
+                                          CDEElementWise>(
             args,
             ck_tile::stream_config{
                 nullptr, true, 1, n_warmup, n_repeat, true, flush_cache, rotating_count});
     }
     else
     {
-        ave_time = gemm<GemmConfig,
-                        ADataType,
-                        BDataType,
-                        DsDataType,
-                        AccDataType,
-                        CDataType,
-                        ALayout,
-                        BLayout,
-                        DsLayout,
-                        CLayout,
-                        false,
-                        CDEElementWise>(
+        ave_time = Invoker::template gemm<GemmConfig,
+                                          ADataType,
+                                          BDataType,
+                                          DsDataType,
+                                          AccDataType,
+                                          CDataType,
+                                          ALayout,
+                                          BLayout,
+                                          DsLayout,
+                                          CLayout,
+                                          false,
+                                          CDEElementWise>(
             args,
             ck_tile::stream_config{
                 nullptr, true, 1, n_warmup, n_repeat, true, flush_cache, rotating_count});
@@ -274,6 +261,7 @@ bool do_verify(const ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
 }
 
 template <typename GemmConfig,
+          typename Invoker,
           typename ADataType,
           typename BDataType = ADataType,
           typename CDataType = ADataType,
@@ -399,6 +387,7 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
     c_m_n_dev_result.SetZero();
 
     float ave_time = invoke_gemm<GemmConfig,
+                                 Invoker,
                                  ADataType,
                                  BDataType,
                                  ck_tile::tuple<>,

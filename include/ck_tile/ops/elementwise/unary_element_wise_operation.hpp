@@ -326,7 +326,6 @@ struct MultiDAdd
     }
 };
 
-#if 0
 struct UnaryConvert
 {
     template <typename Y, typename X>
@@ -336,6 +335,7 @@ struct UnaryConvert
     }
 };
 
+#if 0
 struct ConvertBF16RTN
 {
     // convert to bf16 using round to nearest (rtn)
@@ -472,14 +472,14 @@ struct UnaryDivide
 
 struct UnarySquare
 {
-    template <typename T>
-    CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
+    template <typename Y, typename X>
+    CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
     {
-        static_assert(std::is_same_v<T, float> || std::is_same_v<T, ck_tile::fp16_t> ||
-                          std::is_same_v<T, double> || std::is_same_v<T, int32_t> ||
-                          std::is_same_v<T, int8_t>
+        static_assert(std::is_same_v<X, float> || std::is_same_v<X, ck_tile::fp16_t> ||
+                          std::is_same_v<X, double> || std::is_same_v<X, int32_t> ||
+                          std::is_same_v<X, int8_t>
 #ifdef CK_TILE_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-                          || std::is_same_v<T, int4_t>
+                          || std::is_same_v<X, int4_t>
 #endif
                       ,
                       "Data type is not supported by this operation!");
