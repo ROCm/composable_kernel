@@ -218,13 +218,13 @@ constexpr CBlockTransfer SetCBlockTransfer()
 }
 
 // Factory builds an instance of a grouped convolution kernel.
-template <ConvSignature Signature, ConvAlgorithm auto ALGORITHM, auto Version>
+template <ConvSignature auto SIGNATURE, ConvAlgorithm auto ALGORITHM, auto Version>
     requires SupportedVersion<Version>
 struct GroupedConvForwardXldCShuffleFactoryV3
 {
-    static constexpr int SPATIAL_DIM = Signature::SPATIAL_DIM;
-    using Layouts                    = ConvTensorLayouts<Signature::LAYOUT>;
-    using Types                      = ConvTensorTypes<Signature::DATA_TYPE>;
+    static constexpr int SPATIAL_DIM = SIGNATURE.spatial_dim;
+    using Layouts                    = ConvTensorLayouts<SIGNATURE.layout>;
+    using Types                      = ConvTensorTypes<SIGNATURE.data_type>;
     using Ops                        = ConvPassThroughOps;
     static constexpr ConvSpec SPECIALIZATION{
         .conv_spec = ck::tensor_operation::device::ConvolutionForwardSpecialization::Default,
