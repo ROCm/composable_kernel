@@ -396,8 +396,8 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
     }
 
     // Gridwise always expects tuple of datatypes.
-    using GemmADataType = std::conditional_t<!isMultiA, Tuple<ADataType>, ADataType>;
-    using GemmBDataType = std::conditional_t<!isMultiB, Tuple<BDataType>, BDataType>;
+    using GemmAsDataType = std::conditional_t<!isMultiA, Tuple<ADataType>, ADataType>;
+    using GemmBsDataType = std::conditional_t<!isMultiB, Tuple<BDataType>, BDataType>;
 
     // Use appropriate gridwise gemm
     using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3<
@@ -405,8 +405,8 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
         tensor_layout::gemm::ColumnMajor,
         DsLayout,
         tensor_layout::gemm::RowMajor,
-        GemmADataType,
-        GemmBDataType,
+        GemmAsDataType,
+        GemmBsDataType,
         AccDataType,
         CShuffleDataType,
         DsDataType,
@@ -463,8 +463,8 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
         DsLayout,
         tensor_layout::gemm::RowMajor,
 
-        GemmBDataType,
-        GemmADataType,
+        GemmBsDataType,
+        GemmAsDataType,
 
         AccDataType,
         CShuffleDataType,
@@ -1009,12 +1009,97 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
             }
 
             const auto Run = [&](const auto& kernel) {
-                // TODO: To implement rotating mem wrapper for this device struct we need to use
-                // RotatingMemWrapperMultiABD and carefully consider what to do with the multiple A,
-                // B and D tensor sizes, as well as consider Ctranspose, (merge)groups, split_n
-                // and split_k. It might make more sense to do this after implementing all this
-                // functionality.
-                if(stream_config.flush_cache) {}
+                // Calculate rotating memory buffer sizes ahead of time. The convolution to gemm
+                // transformer doesn't always lead to correct GetElementSpaceSize() results for the
+                // Tensor descriptor, so we have to do a bunch of ad-hoc corrections. There might be
+                // a better way to do this.
+                std::array<std::size_t, NumATensor> size_as_buffers;
+                std::array<std::size_t, NumBTensor> size_bs_buffers;
+                std::array<std::size_t, NumDTensor> size_ds_buffers;
+
+                if(stream_config.flush_cache && !NeedTransposeKernel)
+                {
+                    ck::index_t eff_num_group = arg.num_group_ / NumGroupsToMerge;
+
+                    static_for<0, NumATensor, 1>{}([&](auto i) {
+                        using ADataType_single =
+                            remove_cvref_t<tuple_element_t<i.value, GemmAsDataType>>;
+                        if constexpr(is_same_v<ALayout, tensor_layout::convolution::NWGC> ||
+                                     is_same_v<ALayout, tensor_layout::convolution::NHWGC> ||
+                                     is_same_v<ALayout, tensor_layout::convolution::NDHWGC>)
+                        {
+                            size_as_buffers[i] = (arg.a_grid_desc_ak0_m_ak1_.GetElementSpaceSize() +
+                                                  (arg.num_group_ - NumGroupsToMerge) *
+                                                      (arg.a_g_n_c_wis_strides_[0])) *
+                                                 sizeof(ADataType_single) /
+                                                 GridwiseGemm::APackedSize;
+                        }
+                        else
+                        {
+                            if(CTranspose && arg.a_g_n_c_wis_lengths_[I1] > 1)
+                            {
+                                size_as_buffers[i] =
+                                    (arg.a_grid_desc_ak0_m_ak1_.GetElementSpaceSize() +
+                                     (eff_num_group - 1) * (arg.a_g_n_c_wis_strides_[0])) *
+                                    sizeof(ADataType_single) / GridwiseGemm::APackedSize;
+                            }
+                            else
+                            {
+                                size_as_buffers[i] =
+                                    arg.a_grid_desc_ak0_m_ak1_.GetElementSpaceSize() *
+                                    eff_num_group * sizeof(ADataType_single) /
+                                    GridwiseGemm::APackedSize;
+                            }
+                        }
+                    });
+
+                    static_for<0, NumBTensor, 1>{}([&](auto i) {
+                        using BDataType_single =
+                            remove_cvref_t<tuple_element_t<i.value, GemmBsDataType>>;
+                        size_bs_buffers[i] = arg.b_grid_desc_bk0_n_bk1_.GetElementSpaceSize() *
+                                             eff_num_group * sizeof(BDataType_single) /
+                                             GridwiseGemm::BPackedSize;
+                    });
+
+                    // TODO: Ds packed size consideration?
+                    static_for<0, NumDTensor, 1>{}([&](auto i) {
+                        using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+                        using DLayout   = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
+
+                        if constexpr(is_same_v<DLayout, tensor_layout::convolution::NWGK> ||
+                                     is_same_v<DLayout, tensor_layout::convolution::NHWGK> ||
+                                     is_same_v<DLayout, tensor_layout::convolution::NDHWGK>)
+                        {
+                            size_ds_buffers[i] = (arg.ds_grid_desc_m_n_[i].GetElementSpaceSize() +
+                                                  (arg.num_group_ - NumGroupsToMerge) *
+                                                      arg.ds_g_n_k_wos_strides_[i][0]) *
+                                                 sizeof(DDataType);
+                        }
+                        else
+                        {
+                            if(CTranspose && arg.ds_g_n_k_wos_lengths_[i][I1] > 1)
+                            {
+                                size_ds_buffers[i] =
+                                    (arg.ds_grid_desc_m_n_[i].GetElementSpaceSize() +
+                                     (eff_num_group - 1) * (arg.ds_g_n_k_wos_strides_[i][0])) *
+                                    sizeof(DDataType);
+                            }
+                            else
+                            {
+                                size_ds_buffers[i] =
+                                    arg.ds_grid_desc_m_n_[i].GetElementSpaceSize() * eff_num_group *
+                                    sizeof(DDataType);
+                            }
+                        }
+                    });
+
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        printf("\033[032mUsing rotating memory num group %d eff %d!\033[0m\n",
+                               arg.num_group_,
+                               eff_num_group);
+                    }
+                }
 
                 if constexpr(CTranspose)
                 {
@@ -1042,20 +1127,71 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                         arg.cde_element_op_};
                     // TODO: No is_reduce argument, defaults to false.
 
-                    ave_time += launch_and_time_kernel(
-                        stream_config,
-                        kernel,
-                        dim3(gdx, gdy, gdz),
-                        dim3(BlockSize),
-                        0,
-                        gemm_arg,
-                        arg.b_grid_desc_bk0_n_bk1_,
-                        arg.a_grid_desc_ak0_m_ak1_,
-                        arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
-                        arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
-                        arg.compute_ptr_offset_of_groups_,
-                        arg.compute_ptr_offset_of_n_,
-                        KPerBlock); // TODO: splitK consideration (num_k_per_block)
+                    if(stream_config.flush_cache && !NeedTransposeKernel)
+                    {
+                        typename GridwiseGemmCTranspose::Argument gemm_arg_ = gemm_arg;
+
+                        ck::utility::RotatingMemWrapperMultiABD<
+                            typename GridwiseGemmCTranspose::Argument,
+                            GemmBsDataType,
+                            GemmAsDataType,
+                            DsDataType>
+                            rotating_mem(gemm_arg_,
+                                         stream_config.rotating_count,
+                                         size_bs_buffers,
+                                         size_as_buffers,
+                                         size_ds_buffers);
+
+                        rotating_mem.Print();
+
+                        auto run_flush_cache = [&]() {
+                            // flush icache
+                            ck::utility::flush_icache();
+                            // rotating mem
+                            rotating_mem.Next();
+                            // clear c mem
+                            // TODO: this E clearing does not look correct. Fix when implementing
+                            // splitK. if(arg_.KBatch > 1)
+                            //     HIP_CHECK_ERROR(hipMemsetAsync(arg_.p_e_grid,
+                            //                                    0,
+                            //                                    arg_.M * arg_.N *
+                            //                                    sizeof(EDataType),
+                            //                                    stream_config.stream_id_));
+                        };
+
+                        ave_time = ck::utility::launch_and_time_kernel_with_preprocess<false>(
+                            stream_config,
+                            run_flush_cache,
+                            kernel,
+                            dim3(gdx, gdy, gdz),
+                            dim3(BlockSize),
+                            0,
+                            gemm_arg_,
+                            arg.b_grid_desc_bk0_n_bk1_,
+                            arg.a_grid_desc_ak0_m_ak1_,
+                            arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
+                            arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
+                            arg.compute_ptr_offset_of_groups_,
+                            arg.compute_ptr_offset_of_n_,
+                            KPerBlock); // TODO: splitK consideration (num_k_per_block)
+                    }
+                    else
+                    {
+                        ave_time += launch_and_time_kernel(
+                            stream_config,
+                            kernel,
+                            dim3(gdx, gdy, gdz),
+                            dim3(BlockSize),
+                            0,
+                            gemm_arg,
+                            arg.b_grid_desc_bk0_n_bk1_,
+                            arg.a_grid_desc_ak0_m_ak1_,
+                            arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
+                            arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
+                            arg.compute_ptr_offset_of_groups_,
+                            arg.compute_ptr_offset_of_n_,
+                            KPerBlock); // TODO: splitK consideration (num_k_per_block)
+                    }
                 }
                 else
                 {
@@ -1078,20 +1214,70 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                         arg.cde_element_op_};
                     // TODO: No is_reduce argument, defaults to false.
 
-                    ave_time += launch_and_time_kernel(
-                        stream_config,
-                        kernel,
-                        dim3(gdx, gdy, gdz),
-                        dim3(BlockSize),
-                        0,
-                        gemm_arg,
-                        arg.a_grid_desc_ak0_m_ak1_,
-                        arg.b_grid_desc_bk0_n_bk1_,
-                        arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
-                        arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
-                        arg.compute_ptr_offset_of_groups_,
-                        arg.compute_ptr_offset_of_n_,
-                        KPerBlock); // TODO: splitK consideration (num_k_per_block)
+                    if(stream_config.flush_cache && !NeedTransposeKernel)
+                    {
+                        typename GridwiseGemm::Argument gemm_arg_ = gemm_arg;
+
+                        ck::utility::RotatingMemWrapperMultiABD<typename GridwiseGemm::Argument,
+                                                                GemmAsDataType,
+                                                                GemmBsDataType,
+                                                                DsDataType>
+                            rotating_mem(gemm_arg_,
+                                         stream_config.rotating_count,
+                                         size_as_buffers,
+                                         size_bs_buffers,
+                                         size_ds_buffers);
+
+                        rotating_mem.Print();
+
+                        auto run_flush_cache = [&]() {
+                            // flush icache
+                            ck::utility::flush_icache();
+                            // rotating mem
+                            rotating_mem.Next();
+                            // clear c mem
+                            // TODO: this E clearing does not look correct. Fix when implementing
+                            // splitK. if(arg_.KBatch > 1)
+                            //     HIP_CHECK_ERROR(hipMemsetAsync(arg_.p_e_grid,
+                            //                                    0,
+                            //                                    arg_.M * arg_.N *
+                            //                                    sizeof(EDataType),
+                            //                                    stream_config.stream_id_));
+                        };
+
+                        ave_time = ck::utility::launch_and_time_kernel_with_preprocess<false>(
+                            stream_config,
+                            run_flush_cache,
+                            kernel,
+                            dim3(gdx, gdy, gdz),
+                            dim3(BlockSize),
+                            0,
+                            gemm_arg_,
+                            arg.a_grid_desc_ak0_m_ak1_,
+                            arg.b_grid_desc_bk0_n_bk1_,
+                            arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
+                            arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
+                            arg.compute_ptr_offset_of_groups_,
+                            arg.compute_ptr_offset_of_n_,
+                            KPerBlock); // TODO: splitK consideration (num_k_per_block)
+                    }
+                    else
+                    {
+                        ave_time += launch_and_time_kernel(
+                            stream_config,
+                            kernel,
+                            dim3(gdx, gdy, gdz),
+                            dim3(BlockSize),
+                            0,
+                            gemm_arg,
+                            arg.a_grid_desc_ak0_m_ak1_,
+                            arg.b_grid_desc_bk0_n_bk1_,
+                            arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
+                            arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
+                            arg.compute_ptr_offset_of_groups_,
+                            arg.compute_ptr_offset_of_n_,
+                            KPerBlock); // TODO: splitK consideration (num_k_per_block)
+                    }
                 }
             };
 
