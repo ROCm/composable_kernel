@@ -109,6 +109,7 @@ struct GemmConfigAQuantMemory : public GemmConfigBase
 
     static constexpr bool DoubleSmemBuffer     = false;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_AQUANT_MEMORY;
+    // Memory bound pipeline only support Interwave scheduler
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Interwave;
 };
 
