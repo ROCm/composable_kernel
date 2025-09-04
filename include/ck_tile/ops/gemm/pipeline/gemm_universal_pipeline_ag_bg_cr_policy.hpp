@@ -677,26 +677,43 @@ struct UniversalGemmPipelineAgBgCrPolicy
                                             Problem::UseStructuredSparsity,
                                             wg_attr_num_access>;
 
-        using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
-                                                                      typename Problem::BDataType,
-                                                                      typename Problem::CDataType,
-                                                                      BlockWarps,
-                                                                      WarpGemm>;
-
         if constexpr(Problem::SkipALds == false && Problem::SkipBLds == false)
         {
+            using BlockGemmPolicy =
+                BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
+                                                      typename Problem::BDataType,
+                                                      typename Problem::CDataType,
+                                                      BlockWarps,
+                                                      WarpGemm>;
             return BlockUniversalGemmAsBsCr<Problem, BlockGemmPolicy>{};
         }
         else if constexpr(Problem::SkipALds == false && Problem::SkipBLds == true)
         {
+            using BlockGemmPolicy =
+                BlockGemmASmemBRegCRegV1CustomPolicy<typename Problem::ADataType,
+                                                     typename Problem::BDataType,
+                                                     typename Problem::CDataType,
+                                                     BlockWarps,
+                                                     WarpGemm>;
             return BlockUniversalGemmAsBrCr<Problem, BlockGemmPolicy>{};
         }
         else if constexpr(Problem::SkipALds == true && Problem::SkipBLds == false)
         {
+            using BlockGemmPolicy =
+                BlockGemmARegBSmemCRegV1CustomPolicy<typename Problem::ADataType,
+                                                     typename Problem::BDataType,
+                                                     typename Problem::CDataType,
+                                                     BlockWarps,
+                                                     WarpGemm>;
             return BlockUniversalGemmArBsCr<Problem, BlockGemmPolicy>{};
         }
         else
         {
+            using BlockGemmPolicy = BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::ADataType,
+                                                                        typename Problem::BDataType,
+                                                                        typename Problem::CDataType,
+                                                                        BlockWarps,
+                                                                        WarpGemm>;
             return BlockUniversalGemmArBrCr<Problem, BlockGemmPolicy>{};
         }
     }
