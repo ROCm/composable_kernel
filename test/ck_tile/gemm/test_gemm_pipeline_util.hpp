@@ -92,16 +92,16 @@ class TestCkTileGemmPipeline : public ::testing::Test
     static constexpr ck_tile::index_t N_Warp_Tile = std::tuple_element_t<11, Tuple>{};
     static constexpr ck_tile::index_t K_Warp_Tile = std::tuple_element_t<12, Tuple>{};
 
-    static constexpr bool SkipALds =
-        ck_tile::tuple_element_or_default_t<Tuple, 15, std::false_type>::value;
-    static constexpr bool SkipBLds =
-        ck_tile::tuple_element_or_default_t<Tuple, 16, std::false_type>::value;
-
     using DsLayout   = ck_tile::tuple<>;
     using DsDataType = ck_tile::tuple<>;
 
     static constexpr bool Persistent =
         ck_tile::tuple_element_or_default_t<Tuple, 15, std::false_type>::value;
+
+    static constexpr bool SkipALds =
+        Persistent ? false : ck_tile::tuple_element_or_default_t<Tuple, 15, std::false_type>::value;
+    static constexpr bool SkipBLds =
+        Persistent ? false : ck_tile::tuple_element_or_default_t<Tuple, 16, std::false_type>::value;
 
     template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
     void invoke_gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
