@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -119,9 +119,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
     // K1 should be Number<...>
     static constexpr auto K1 = Number<K1Value>{};
 
-    static constexpr index_t WaveSize = 64;
     static constexpr index_t MWaves   = MPerBlock / (MXdlPerWave * MPerXDL);
     static constexpr index_t NWaves   = NPerBlock / (NXdlPerWave * NPerXDL);
+    static constexpr index_t WaveSize = BlockSize / (MWaves * NWaves);
 
     static constexpr auto xdlops_gemm    = XdlopsGemm<FloatAB, MPerXDL, NPerXDL, K1>{};
     static constexpr index_t K0PerThread = K0PerBlock / xdlops_gemm.K0PerXdlops;
