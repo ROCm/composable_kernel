@@ -752,8 +752,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
                                    dq_acc);
         else
             tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, dq_acc);
-        // static_assert(kIsDeterministic);
-        dq_epilogue(dq_dram_window, dq_acc);
+        dq_epilogue(dq_dram_window, dq_acc, nullptr);
         return;
     }
 };
