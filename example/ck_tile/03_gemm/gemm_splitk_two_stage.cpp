@@ -14,15 +14,22 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
 
     using Invoker = SplitKTwoStageInvoker;
 
-    if(data_type != "bf16")
+    if(data_type == "fp16")
     {
-        std::cout << "WARNING: Ignoring prec option for splitk two stage, and using bf16."
-                  << std::endl;
+        return run_gemm_example_prec_type<GemmConfigTwoStage<ck_tile::half_t, float>,
+                                          Invoker,
+                                          ck_tile::half_t>(a_layout, b_layout, arg_parser);
     }
-
-    return run_gemm_example_prec_type<GemmConfigTwoStage<ck_tile::bf16_t, float>,
-                                      Invoker,
-                                      ck_tile::bf16_t>(a_layout, b_layout, arg_parser);
+    else if(data_type == "bf16")
+    {
+        return run_gemm_example_prec_type<GemmConfigTwoStage<ck_tile::bf16_t, float>,
+                                          Invoker,
+                                          ck_tile::bf16_t>(a_layout, b_layout, arg_parser);
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data type for this operation !!!");
+    }
 }
 
 int main(int argc, char* argv[])
