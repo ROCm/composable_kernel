@@ -412,6 +412,16 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                     Base::LocalPrefill(a_copy_lds_window, a_block_tiles.get(I0{}), a_element_func);
                 }
             }
+            else
+            {
+                if constexpr(is_a_col_major && !is_a_load_tr_v())
+                {
+                    auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                        Policy::template MakeShuffledARegTileDistribution<Problem>());
+                    transpose_tile2d(a_shuffle_tmp, a_block_tiles.get(I0{}));
+                    a_block_tiles.get(I0{}) = a_shuffle_tmp;
+                }
+            }
             if constexpr(SkipBLds == false)
             {
                 if constexpr(is_b_row_major && !is_b_load_tr_v())
@@ -424,6 +434,16 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                 else
                 {
                     Base::LocalPrefill(b_copy_lds_window, b_block_tiles.get(I0{}), b_element_func);
+                }
+            }
+            else
+            {
+                if constexpr(is_b_row_major && !is_b_load_tr_v())
+                {
+                    auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
+                        Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                    transpose_tile2d(b_shuffle_tmp, b_block_tiles.get(I0{}));
+                    b_block_tiles.get(I0{}) = b_shuffle_tmp;
                 }
             }
 
@@ -480,6 +500,20 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                                     a_element_func);
                             }
                         }
+                        else
+                        {
+                            if constexpr(is_a_col_major && !is_a_load_tr_v())
+                            {
+                                auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                                    Policy::template MakeShuffledARegTileDistribution<Problem>());
+                                transpose_tile2d(
+                                    a_shuffle_tmp,
+                                    a_block_tiles.get(
+                                        number<(prefetch_idx + 1) % PrefetchStages>{}));
+                                a_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}) =
+                                    a_shuffle_tmp;
+                            }
+                        }
                         if constexpr(SkipBLds == false)
                         {
                             if constexpr(is_b_row_major && !is_b_load_tr_v())
@@ -500,6 +534,20 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                                     b_block_tiles.get(
                                         number<(prefetch_idx + 1) % PrefetchStages>{}),
                                     b_element_func);
+                            }
+                        }
+                        else
+                        {
+                            if constexpr(is_b_row_major && !is_b_load_tr_v())
+                            {
+                                auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
+                                    Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                                transpose_tile2d(
+                                    b_shuffle_tmp,
+                                    b_block_tiles.get(
+                                        number<(prefetch_idx + 1) % PrefetchStages>{}));
+                                b_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}) =
+                                    b_shuffle_tmp;
                             }
                         }
 
@@ -547,6 +595,19 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                                                a_element_func);
                         }
                     }
+                    else
+                    {
+                        if constexpr(is_a_col_major && !is_a_load_tr_v())
+                        {
+                            auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                                Policy::template MakeShuffledARegTileDistribution<Problem>());
+                            transpose_tile2d(
+                                a_shuffle_tmp,
+                                a_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}));
+                            a_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}) =
+                                a_shuffle_tmp;
+                        }
+                    }
                     if constexpr(SkipBLds == false)
                     {
                         if constexpr(is_b_row_major && !is_b_load_tr_v())
@@ -562,6 +623,19 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                             Base::LocalPrefill(b_copy_lds_window,
                                                b_block_tiles.get(number<prefetch_idx>{}),
                                                b_element_func);
+                        }
+                    }
+                    else
+                    {
+                        if constexpr(is_b_row_major && !is_b_load_tr_v())
+                        {
+                            auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
+                                Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                            transpose_tile2d(
+                                b_shuffle_tmp,
+                                b_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}));
+                            b_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}) =
+                                b_shuffle_tmp;
                         }
                     }
                 });
@@ -774,6 +848,16 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                     Base::LocalPrefill(a_copy_lds_window, a_block_tiles.get(I0{}), a_element_func);
                 }
             }
+            else
+            {
+                if constexpr(is_a_col_major && !is_a_load_tr_v())
+                {
+                    auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                        Policy::template MakeShuffledARegTileDistribution<Problem>());
+                    transpose_tile2d(a_shuffle_tmp, a_block_tiles.get(I0{}));
+                    a_block_tiles.get(I0{}) = a_shuffle_tmp;
+                }
+            }
             if constexpr(SkipBLds == false)
             {
                 if constexpr(is_b_row_major && !is_b_load_tr_v())
@@ -788,11 +872,16 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                     Base::LocalPrefill(b_copy_lds_window, b_block_tiles.get(I0{}), b_element_func);
                 }
             }
-            // TODO add encoding and support for BRowMajor for SkipBLds, current
-
-            // MakeShuffledBRegTileDistribution takes into account shuffling encoding which is used
-            // for [Global -> Vgpr -> Lds -> Vgpr] reading, but for skipping lds we need to have
-            // different shuffled layout for [Global -> Vgpr] reads, similar for AColMajor
+            else
+            {
+                if constexpr(is_b_row_major && !is_b_load_tr_v())
+                {
+                    auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
+                        Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                    transpose_tile2d(b_shuffle_tmp, b_block_tiles.get(I0{}));
+                    b_block_tiles.get(I0{}) = b_shuffle_tmp;
+                }
+            }
 
             // Global prefetch [1, PrefetchStages]
             static_for<1, PrefetchStages, 1>{}([&](auto prefetch_idx) {
@@ -845,6 +934,20 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                                     a_element_func);
                             }
                         }
+                        else
+                        {
+                            if constexpr(is_a_col_major && !is_a_load_tr_v())
+                            {
+                                auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                                    Policy::template MakeShuffledARegTileDistribution<Problem>());
+                                transpose_tile2d(
+                                    a_shuffle_tmp,
+                                    a_block_tiles.get(
+                                        number<(prefetch_idx + 1) % PrefetchStages>{}));
+                                a_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}) =
+                                    a_shuffle_tmp;
+                            }
+                        }
                         if constexpr(SkipBLds == false)
                         {
                             if constexpr(is_b_row_major && !is_b_load_tr_v())
@@ -865,6 +968,20 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                                     b_block_tiles.get(
                                         number<(prefetch_idx + 1) % PrefetchStages>{}),
                                     b_element_func);
+                            }
+                        }
+                        else
+                        {
+                            if constexpr(is_b_row_major && !is_b_load_tr_v())
+                            {
+                                auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
+                                    Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                                transpose_tile2d(
+                                    b_shuffle_tmp,
+                                    b_block_tiles.get(
+                                        number<(prefetch_idx + 1) % PrefetchStages>{}));
+                                b_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}) =
+                                    b_shuffle_tmp;
                             }
                         }
 
@@ -903,6 +1020,19 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                                                a_element_func);
                         }
                     }
+                    else
+                    {
+                        if constexpr(is_a_col_major && !is_a_load_tr_v())
+                        {
+                            auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                                Policy::template MakeShuffledARegTileDistribution<Problem>());
+                            transpose_tile2d(
+                                a_shuffle_tmp,
+                                a_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}));
+                            a_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}) =
+                                a_shuffle_tmp;
+                        }
+                    }
                     if constexpr(SkipBLds == false)
                     {
                         if constexpr(is_b_row_major && !is_b_load_tr_v())
@@ -918,6 +1048,19 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                             Base::LocalPrefill(b_copy_lds_window,
                                                b_block_tiles.get(number<prefetch_idx>{}),
                                                b_element_func);
+                        }
+                    }
+                    else
+                    {
+                        if constexpr(is_b_row_major && !is_b_load_tr_v())
+                        {
+                            auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
+                                Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                            transpose_tile2d(
+                                b_shuffle_tmp,
+                                b_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}));
+                            b_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}) =
+                                b_shuffle_tmp;
                         }
                     }
                 });
