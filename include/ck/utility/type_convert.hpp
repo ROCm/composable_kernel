@@ -192,7 +192,6 @@ template <typename Y, typename X>
 __host__ __device__ constexpr Y type_convert_sp(X x)
 {
     static_assert(!ck::is_reference_v<Y> && !ck::is_reference_v<X>);
-
     return static_cast<Y>(x);
 }
 
@@ -244,6 +243,41 @@ inline __host__ __device__ constexpr half_t type_convert_sp<half_t, int>(int x)
     return u.fp16;
 }
 
+template <>
+inline __host__ __device__ constexpr int type_convert_sp<int, bhalf_t>(bhalf_t x)
+{
+    union
+    {
+        bhalf_t fp16;
+        int int32;
+    } u = {x};
+
+    return u.int32;
+}
+
+template <>
+inline __host__ __device__ constexpr bhalf_t type_convert_sp<bhalf_t, int>(int x)
+{
+    union
+    {
+        int int32;
+        bhalf_t fp16;
+    } u = {x};
+
+    return u.fp16;
+}
+
+template <>
+inline __host__ __device__ constexpr bhalf_t type_convert_sp<bhalf_t, float>(float x)
+{
+    return type_convert<bhalf_t>(x);
+}
+
+template <>
+inline __host__ __device__ constexpr half_t type_convert_sp<half_t, float>(float x)
+{
+    return type_convert<half_t>(x);
+}
 // Declare a template function for fp8 conversion using SR
 template <typename Y, typename X>
 __host__ __device__ constexpr Y f8_convert_sr(X x);
