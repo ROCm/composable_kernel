@@ -10,10 +10,10 @@ namespace ck_tile {
 
 template <index_t NDimSpatial,
           ConvolutionSpecialization ConvSpecialization,
+          index_t NumGroupsToMerge = 1,
           bool SplitN              = false,
           typename ADataType       = float,
           typename CDataType       = float,
-          index_t NumGroupsToMerge = 1,
           typename IndexType       = index_t>
 struct TransformConvFwdToGemm
 {

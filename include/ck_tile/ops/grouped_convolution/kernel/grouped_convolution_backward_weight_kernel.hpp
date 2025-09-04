@@ -23,7 +23,8 @@ struct GroupedConvBwdWeightKernelArgs
 
     using ConvToGemmTransformer =
         TransformConvBwdWeightToGemm<GroupedConvTraitsType_::NDimSpatial,
-                                     GroupedConvTraitsType_::ConvSpecialization>;
+                                     GroupedConvTraitsType_::ConvSpecialization,
+                                     GroupedConvTraitsType_::NumGroupsToMerge>;
     static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;
 
     template <
@@ -314,10 +315,9 @@ struct GroupedConvBwdWeightKernelArgs
 ///            the policy is responsible for definition of all necessary data layouts and thread's
 ///            work distribution.
 ///
-/// @tparam GroupedConvTraitsType_       The type of class providing traits for grouped convolution.
+/// @tparam GroupedConvTraitsType_      The type of class providing traits for grouped convolution.
 /// @tparam TilePartitioner_            The type of class providing mapping of workgroup index into
-/// the
-///                                     output data tile to be calculated. It determines the
+///                                     the output data tile to be calculated. It determines the
 ///                                     workgroup to data relationship (or in other words - which
 ///                                     data would be processed and calculated by which workgroup).
 /// @tparam GemmPipeline_               The type of class which provides the core part of matrix

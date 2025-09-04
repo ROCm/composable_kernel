@@ -23,7 +23,8 @@ struct GroupedConvFwdKernelArgs
 
     using ConvToGemmFwdTransformer =
         TransformConvFwdToGemm<GroupedConvTraitsType_::NDimSpatial,
-                               GroupedConvTraitsType_::ConvSpecialization>;
+                               GroupedConvTraitsType_::ConvSpecialization,
+                               GroupedConvTraitsType_::NumGroupsToMerge>;
     static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;
 
     template <

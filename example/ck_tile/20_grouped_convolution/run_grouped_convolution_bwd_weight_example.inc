@@ -9,7 +9,8 @@ template <ck_tile::index_t NDimSpatial,
           typename OutDataType,
           typename InLayout,
           typename WeiLayout,
-          typename OutLayout>
+          typename OutLayout,
+          ck_tile::index_t NumGroupsToMerge>
 float invoke_grouped_conv_bwd_weight(ck_tile::GroupedConvBwdWeightHostArgs& args,
                                      int n_warmup,
                                      int n_repeat)
@@ -21,7 +22,8 @@ float invoke_grouped_conv_bwd_weight(ck_tile::GroupedConvBwdWeightHostArgs& args
                                              OutDataType,
                                              InLayout,
                                              WeiLayout,
-                                             OutLayout>(
+                                             OutLayout,
+                                             NumGroupsToMerge>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::size_t flop     = args.GetFlops();
@@ -39,6 +41,7 @@ template <ck_tile::index_t NDimSpatial,
           typename InDataType,
           typename WeiDataType = InDataType,
           typename OutDataType = InDataType,
+          ck_tile::index_t NumGroupsToMerge,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout>
@@ -134,6 +137,7 @@ int run_grouped_conv_bwd_weight_example_with_layouts(
     std::cout << "input: " << input.mDesc << std::endl;
     std::cout << "weight: " << weight.mDesc << std::endl;
     std::cout << "output: " << output.mDesc << std::endl;
+    std::cout << "number of groups to merge: " << NumGroupsToMerge << std::endl;
 
     invoke_grouped_conv_bwd_weight<NDimSpatial,
                                    InDataType,
@@ -142,7 +146,8 @@ int run_grouped_conv_bwd_weight_example_with_layouts(
                                    OutDataType,
                                    InLayout,
                                    WeiLayout,
-                                   OutLayout>(args, n_warmup, n_repeat);
+                                   OutLayout,
+                                   NumGroupsToMerge>(args, n_warmup, n_repeat);
 
     weight_dev_buf.FromDevice(weight.data());
     bool pass = true;

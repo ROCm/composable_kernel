@@ -49,7 +49,8 @@ template <index_t NDimSpatial_,
           typename InLayout_,
           typename WeiLayout_,
           typename DsLayout_,
-          typename OutLayout_>
+          typename OutLayout_,
+          index_t NumGroupsToMerge_ = 1>
 struct GroupedConvTraits
 {
     private:
@@ -60,7 +61,7 @@ struct GroupedConvTraits
     }
 
     public:
-    static constexpr index_t NumGroupsToMerge                     = 1;
+    static constexpr index_t NumGroupsToMerge                     = NumGroupsToMerge_;
     static constexpr index_t NDimSpatial                          = NDimSpatial_;
     static constexpr ConvolutionSpecialization ConvSpecialization = ConvSpecialization_;
     using InLayout                                                = InLayout_;
