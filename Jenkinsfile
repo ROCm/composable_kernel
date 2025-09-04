@@ -855,21 +855,31 @@ def run_aiter_tests(Map conf=[:]){
     }
 
     withDockerContainer(image: image, args: dockerOpts) {
-        timeout(time: 45, unit: 'MINUTES'){
-            try{
-                sh "rocminfo"
-                sh "python3 --version"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha.py"
+        def failMessage
+        timeout(time: 180, unit: 'MINUTES'){
+            def files = findFiles("op_tests/*")
+            bool testsFailed = false
+
+            for (file in files) {
+                try {
+                    timeout(time: 30, unit: 'MINUTES') {
+                        sh """#!/usr/bin/bash
+                            set -e -o pipefail
+                            python3 ${file.path} 2>&1 | tee latest_test.log
+                            """
+                    }
+                    break
+                } catch (Exception e) {
+                    String logContent = readFile(file: "latest_test.log")
+                    print(logContent)
+                    failMessage = "Failed to execute ${file.path} tests"
+                    testsFailed = true
+                    break
+                }
             }
-            catch(e){
-                echo "Throwing error exception while running AITER tests"
-                echo 'Exception occurred: ' + e.toString()
-                throw e
-            }
-            finally{
-                echo "Finished running AITER tests"
+
+            if (testsFailed) {
+                error(failMessage)
             }
         }
     }
