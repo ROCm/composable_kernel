@@ -2,7 +2,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 include(gtest)
 
-add_executable(test_conv_builder test_conv_builder.cpp)
+add_executable(test_conv_builder test_conv_builder.cpp test_conv_instances.cpp)
 target_include_directories(test_conv_builder PRIVATE
     "${PROJECT_SOURCE_DIR}/experimental/builder/include"
     "${PROJECT_SOURCE_DIR}/include"
