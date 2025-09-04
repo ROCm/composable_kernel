@@ -5,13 +5,12 @@
 namespace {
 
 namespace ckb = ck_tile::builder;
-
 struct FwdConvSignature
 {
-    static constexpr int SPATIAL_DIM = 2;
-    static constexpr auto DIRECTION  = ckb::ConvDirection::Forward;
-    static constexpr auto LAYOUT     = ckb::GroupConvLayout::NHWGC_GKYXC_NHWGK;
-    static constexpr auto DATA_TYPE  = ckb::DataType::FP16;
+    static constexpr int spatial_dim = 2;
+    static constexpr auto direction  = ckb::ConvDirection::Forward;
+    static constexpr auto layout     = ckb::GroupConvLayout::NHWGC_GKYXC_NHWGK;
+    static constexpr auto data_type  = ckb::DataType::FP16;
 };
 static_assert(ckb::ConvSignature<FwdConvSignature>);
 
@@ -158,7 +157,8 @@ TYPED_TEST(ConvBuilderInstancesTest, KernelParamsConfigured)
 {
     static constexpr const FwdConvAlgorithm& ALGORITHM =
         ConvBuilderInstancesTest<TypeParam>::ALGORITHM;
-    using Builder = ckb::ConvBuilder<FwdConvSignature, ALGORITHM, API_VERSION>;
+    static constexpr const FwdConvSignature SIGNATURE;
+    using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM, API_VERSION>;
     EXPECT_EQ(Builder::Instance::TypeString(), ConvBuilderInstancesTest<TypeParam>::EXPECTED_TYPE);
     const auto& tp = ALGORITHM.tuning_params;
     EXPECT_EQ(Builder::factory::TUNING.ak1, tp.ak1);

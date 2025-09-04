@@ -47,16 +47,16 @@ enum class ElementwiseOperation
 template <typename T>
 concept ConvSignature = requires {
     // Dimensionality of the convolution (e.g., 1, 2, or 3).
-    requires ConvSpatialDim<T::SPATIAL_DIM>;
+    requires ConvSpatialDim<T::spatial_dim>;
 
     // Direction of the convolition (fwd, bwd, or weights).
-    { T::DIRECTION } -> std::same_as<const ConvDirection&>;
+    { T::direction } -> std::same_as<const ConvDirection&>;
 
     // Memory layout of the tensors.
-    { T::LAYOUT } -> std::same_as<const GroupConvLayout&>;
+    { T::layout } -> std::same_as<const GroupConvLayout&>;
 
     // Tensor datatype for input and output.
-    requires ConvDataType<T::DATA_TYPE>;
+    requires ConvDataType<T::data_type>;
 };
 
 } // namespace ck_tile::builder
