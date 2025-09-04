@@ -192,27 +192,6 @@ __device__ static bool constexpr IsValidGemmCompilationParameter()
             CGlobalMemoryDataOperation_>();                                   \
     }
 
-#define CHECK_XDL_LAYOUT                                                       \
-    if constexpr((MPerXdl * MXdlPerWave) == 0 || (NXdlPerWave * NPerXdl) == 0) \
-    {                                                                          \
-        return false;                                                          \
-    }                                                                          \
-    else                                                                       \
-    {                                                                          \
-        if constexpr((MPerBlock % (MPerXdl * MXdlPerWave) != 0) ||             \
-                     (NPerBlock % (NXdlPerWave * NPerXdl) != 0))               \
-        {                                                                      \
-            return false;                                                      \
-        }                                                                      \
-        else                                                                   \
-        {                                                                      \
-            if(WaveSize != get_warp_size())                                    \
-            {                                                                  \
-                return false;                                                  \
-            }                                                                  \
-        }                                                                      \
-    }
-
 #ifndef CK_CODE_GEN_RTC
 struct BaseArgument
 {
