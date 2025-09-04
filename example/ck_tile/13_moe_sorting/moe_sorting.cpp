@@ -14,7 +14,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/reduce.hpp"
 #include "moe_sorting_api.hpp"
-#include "json_dump.hpp"
+#include "ck_tile/utility/json_dump.hpp"
 
 auto create_args(int argc, char* argv[])
 {
