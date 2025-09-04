@@ -1,7 +1,6 @@
 #include "ck_tile/host.hpp"
 #include "add_rmsnorm2d_rdquant_fwd.hpp"
 #include <cstring>
-#include "json_dump.hpp"
 
 // different threshold for different dtype
 template <typename InputDataType>
@@ -42,9 +41,7 @@ auto create_args(int argc, char* argv[])
         .insert("prec", "fp16", "precision")
         .insert("quant", "int8", "precision")
         .insert("warmup", "5", "cold iter")
-        .insert("repeat", "20", "hot iter")
-        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
-        .insert("jsonfile", "add_rmsnorm2d_rdquant_fwd.json", "json file name to dump results");
+        .insert("repeat", "20", "hot iter");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -261,21 +258,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
 
         std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
-    }
-
-    if(arg_parser.get_int("json") == 1)
-    {
-        dump_add_rmsnorm2d_rdquant_fwd_json(arg_parser.get_str("jsonfile"),
-                                            input_data_type,
-                                            quantized_data_type,
-                                            m,
-                                            n,
-                                            stride,
-                                            epsilon,
-                                            ave_time,
-                                            0,
-                                            gb_per_sec,
-                                            pass);
     }
 
     return pass;

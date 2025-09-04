@@ -1,6 +1,5 @@
 #include "ck_tile/host.hpp"
 #include "smoothquant.hpp"
-#include "json_dump.hpp"
 #include <cstring>
 
 // different threshold for different dtype
@@ -40,9 +39,7 @@ auto create_args(int argc, char* argv[])
         .insert("kname", "1", "print kernel name or not")
         .insert("prec", "fp16", "precision")
         .insert("warmup", "5", "cold iter")
-        .insert("repeat", "20", "hot iter")
-        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
-        .insert("jsonfile", "smoothquant.json", "json file name to dump results");
+        .insert("repeat", "20", "hot iter");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -205,19 +202,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
         std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
     }
 
-    if(arg_parser.get_int("json") == 1)
-    {
-        dump_smoothquant_json(arg_parser.get_str("jsonfile"),
-                              data_type,
-                              m,
-                              n,
-                              x_stride,
-                              y_stride,
-                              ave_time,
-                              0,
-                              gb_per_sec,
-                              pass);
-    }
     return pass;
 }
 
