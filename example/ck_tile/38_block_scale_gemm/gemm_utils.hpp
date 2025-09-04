@@ -88,7 +88,7 @@ struct GemmConfigBase
 
     static constexpr bool PreshuffleQuant  = false;
     static constexpr bool DoubleSmemBuffer = false;
-    static constexpr int kBlockPerCu = 1;
+    static constexpr int kBlockPerCu       = 1;
 };
 
 template <typename PrecType>
@@ -109,7 +109,8 @@ struct GemmConfigAQuantMemory : public GemmConfigBase
 
     static constexpr bool DoubleSmemBuffer     = false;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_AQUANT_MEMORY;
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Interwave;
+    // Memory bound pipeline only support Interwave scheduler
+    static constexpr auto Scheduler = ck_tile::GemmPipelineScheduler::Interwave;
 };
 
 template <typename PrecType>
@@ -129,7 +130,7 @@ struct GemmConfigDecode : public GemmConfigBase
 
     static constexpr int kBlockPerCu = 1;
 
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
+    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_DECODE;
 };
 
@@ -149,7 +150,7 @@ struct GemmConfigPrefill : public GemmConfigBase
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
 
     static constexpr int kBlockPerCu           = 2;
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
+    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PREFILL;
 };
 
@@ -258,12 +259,39 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_AQUANT_MEMORY>
     using BaseAQuantGemmPipeline = ck_tile::BaseAQuantGemmPipelineAgBgCrMem<PipelineProblem>;
 };
 
+template <>
+struct PipelineTypeTraits<CK_TILE_PIPELINE_DECODE>
+{
+    template <typename PipelineProblem>
+    using AQuantGemmPipeline = ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>;
+    template <typename PipelineProblem>
+    using BaseAQuantGemmPipeline = ck_tile::BaseAQuantGemmPipelineAgBgCrCompV3<PipelineProblem>;
+};
+
+template <>
+struct PipelineTypeTraits<CK_TILE_PIPELINE_PREFILL>
+{
+    template <typename PipelineProblem>
+    using AQuantGemmPipeline = ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>;
+    template <typename PipelineProblem>
+    using BaseAQuantGemmPipeline = ck_tile::BaseAQuantGemmPipelineAgBgCrCompV3<PipelineProblem>;
+};
+
+template <>
+struct PipelineTypeTraits<CK_TILE_PIPELINE_PRESHUFFLEQUANT>
+{
+    template <typename PipelineProblem>
+    using AQuantGemmPipeline = ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>;
+    template <typename PipelineProblem>
+    using BaseAQuantGemmPipeline = ck_tile::BaseAQuantGemmPipelineAgBgCrCompV3<PipelineProblem>;
+};
+
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("m", "16", "m dimension")
-        .insert("n", "64", "n dimension")
-        .insert("k", "256", "k dimension")
+    arg_parser.insert("m", "3840", "m dimension")
+        .insert("n", "4096", "n dimension")
+        .insert("k", "2048", "k dimension")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
         .insert("aq_layout", "R", "Aq tensor data layout - Row by default")
         .insert("b_layout", "C", "B tensor data layout - Column by default")
