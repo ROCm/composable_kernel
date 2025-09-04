@@ -30,9 +30,9 @@ This will result in an executable `build/bin/tile_example_gemm_aquant_basic`
 ## example
 ```
 args:
-          -m    m dimension (default:16)
-          -n    n dimension (default:64)
-          -k    k dimension (default:256)
+          -m    m dimension (default:3840)
+          -n    n dimension (default:4096)
+          -k    k dimension (default:512)
    -a_layout    Tensor A data layout (default: R)
   -aq_layout    Tensor AQ data layout (default: R)
    -b_layout    Tensor B data layout (default: C)
