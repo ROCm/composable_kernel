@@ -2,7 +2,7 @@
 // Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 #include <type_traits>
-#include "json_dump.hpp"
+#include "ck_tile/utility/json_dump.hpp"
 template <typename T>
 constexpr const char* DataTypeToString()
 {

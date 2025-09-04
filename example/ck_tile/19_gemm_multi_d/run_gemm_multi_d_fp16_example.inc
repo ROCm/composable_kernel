@@ -3,7 +3,7 @@
 
 #pragma once
 #include <cstddef>
-#include "json_dump.hpp"
+#include "ck_tile/utility/json_dump.hpp"
 
 template <typename ADataType,
           typename BDataType,

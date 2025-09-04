@@ -4,7 +4,7 @@
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/elementwise.hpp"
 #include "ck_tile/host/reference/reference_transpose.hpp"
-#include "json_dump.hpp"
+#include "ck_tile/utility/json_dump.hpp"
 #include "elementwise_common.hpp"
 
 auto create_args(int argc, char* argv[])

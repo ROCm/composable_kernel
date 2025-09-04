@@ -1,7 +1,6 @@
 include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/library/include
-    ${PROJECT_SOURCE_DIR}/example/include
 )
 
 add_custom_target(examples)

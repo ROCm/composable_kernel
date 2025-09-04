@@ -5,7 +5,7 @@
 #include "ck_tile/host.hpp"
 #include "mask.hpp"
 #include "utils.hpp"
-#include "json_dump.hpp"
+#include "ck_tile/utility/json_dump.hpp"
 
 #include <array>
 #include <cstring>
