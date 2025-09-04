@@ -141,11 +141,17 @@ struct StreamKKernel
         return UniversalGemmKernel::BlockSize();
     }
 
-    CK_TILE_HOST static StreamKKernelArgs MakeKernelArgs(const StreamKHostArgs& host_args)
+    /// @brief Constructs kernel arguments for the Stream-K kernel.
+    /// @param host_args Stream-K host arguments.
+    /// @param num_cu Number of compute units (CUs). The default is the number of CUs on the device.
+    /// The caller may select their own to assist with test reproducibility, etc.
+    /// @param occupancy The maximum number of active blocks per CU for this kernel. The caller may
+    /// select their own to assist with test reproducibility, etc.
+    /// @return The kernel arguments for Stream-K.
+    CK_TILE_HOST static StreamKKernelArgs MakeKernelArgs(const StreamKHostArgs& host_args,
+                                                         int num_cu    = NumCU(),
+                                                         int occupancy = Occupancy())
     {
-        uint32_t occupancy = static_cast<uint32_t>(Occupancy());
-        uint32_t num_cu    = static_cast<uint32_t>(NumCU());
-
         return StreamKKernelArgs{{host_args.as_ptr,
                                   host_args.bs_ptr,
                                   host_args.ds_ptr,
@@ -166,8 +172,8 @@ struct StreamKKernel
                                  TilePartitioner{static_cast<uint32_t>(host_args.M),
                                                  static_cast<uint32_t>(host_args.N),
                                                  static_cast<uint32_t>(host_args.K),
-                                                 num_cu,
-                                                 occupancy,
+                                                 static_cast<uint32_t>(num_cu),
+                                                 static_cast<uint32_t>(occupancy),
                                                  host_args.num_sk_blocks}};
     }
 
@@ -212,9 +218,17 @@ struct StreamKKernel
         }
     }
 
-    CK_TILE_HOST static bool
-    IsSupportedArgument(const typename UniversalGemmKernel::KernelArgs& kargs)
+    CK_TILE_HOST static bool IsSupportedArgument(const StreamKKernelArgs& kargs)
     {
+        if(kargs.tile_partitioner.sk_num_blocks != 0)
+        {
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR("CK Tile Stream-K currently only supports 0 SK blocks (i.e., "
+                              "data-parallel only).");
+            }
+            return false;
+        }
         return UniversalGemmKernel::IsSupportedArgument(kargs);
     }
 
