@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <vector>
 #include <iostream>
@@ -13,6 +13,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/reduce.hpp"
 #include "topk_softmax_api.hpp"
+#include "json_dump.hpp"
 
 #if 0
 template <typename T>
@@ -130,7 +131,9 @@ auto create_args(int argc, char* argv[])
         .insert("seed", "-1", "seed to be used, -1 means random every time")
         .insert("kname", "0", "when set to 1 it will print kernel name")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
-        .insert("repeat", "20", "number of iterations to benchmark the kernel");
+        .insert("repeat", "20", "number of iterations to benchmark the kernel")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "topk_softmax.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -273,6 +276,23 @@ bool test_topk_softmax(ck_tile::ArgParser args)
     }
 
     printf("valid:%s\n", rtn ? "y" : "n");
+
+    if(args.get_int("json") == 1)
+    {
+        dump_topk_softmax_json(args.get_str("jsonfile"),
+                               input_prec,
+                               weight_prec,
+                               tokens,
+                               experts,
+                               topk,
+                               stride_input,
+                               stride_output,
+                               ms,
+                               0,
+                               0,
+                               rtn);
+    }
+
     fflush(stdout);
     return rtn;
 }

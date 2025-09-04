@@ -16,12 +16,21 @@ else()
             "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel.")
 endif()
 
+# Allow user to specify the C++ standard.
+# We must support C++17 builds until downstream users are migrated to C++20, but we default to C++20.
+set(CK_CXX_STANDARD "20" CACHE STRING "C++ standard to use (e.g. 17 or 20)")
+set(valid_cxx_standards 17 20)
+set_property(CACHE CK_CXX_STANDARD PROPERTY STRINGS ${valid_cxx_standards})
+if(NOT CK_CXX_STANDARD IN_LIST valid_cxx_standards)
+    message(FATAL_ERROR "CK_CXX_STANDARD must be one of ${valid_cxx_standards}")
+endif()
+
 # Default installation path
 if(NOT WIN32)
     set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
 endif()
 
-set(version 1.1.0)
+set(version 1.2.0)
 # Check support for CUDA/HIP in Cmake
 project(composable_kernel VERSION ${version} LANGUAGES CXX HIP)
 include(CTest)
@@ -221,11 +230,24 @@ if (SUPPORTED_GPU_TARGETS MATCHES "gfx94" OR SUPPORTED_GPU_TARGETS MATCHES "gfx9
     add_definitions(-DCK_USE_GFX94)
     set(CK_USE_GFX94 "ON")
 endif()
+
+# new macro CK_TILE_USE_WMMA in order to separately compile examples for MFMA/WMMA
+set(CK_TILE_USE_WMMA 0)
+
+if (SUPPORTED_GPU_TARGETS MATCHES "gfx10")
+    add_definitions(-DCK_GFX1030_SUPPORT)
+endif()
+
 if (SUPPORTED_GPU_TARGETS MATCHES "gfx11" OR SUPPORTED_GPU_TARGETS MATCHES "gfx12")
     message(STATUS "Enabling WMMA instances")
     add_definitions(-DCK_USE_WMMA)
     set(CK_USE_WMMA "ON")
+    set(CK_TILE_USE_WMMA 1)
 endif()
+
+# define the macro with the current value (0 or 1)
+add_definitions(-DCK_TILE_USE_WMMA=${CK_TILE_USE_WMMA})
+
 if (SUPPORTED_GPU_TARGETS MATCHES "gfx12")
     message(STATUS "Enabling WMMA FP8 gemms on native architectures")
     add_definitions(-DCK_USE_WMMA_FP8)
@@ -324,21 +346,10 @@ if(USE_BITINT_EXTENSION_INT4)
     message(STATUS "CK compiled with USE_BITINT_EXTENSION_INT4 set to ${USE_BITINT_EXTENSION_INT4}")
 endif()
 
-if(USE_OPT_GFX11)
-    add_compile_options(-mcumode)
-    add_compile_options(-mno-wavefrontsize64)
-    message(STATUS "CK compiled with USE_OPT_GFX11 set to ${USE_OPT_GFX11}")
-endif()
-
 if(ENABLE_ASM_DUMP)
     add_compile_options(--save-temps) 
     add_compile_options(-Wno-gnu-line-marker)
     message("CK compiled with ENABLE_ASM_DUMP set to ${ENABLE_ASM_DUMP}")
-endif()
-
-if(USE_OPT_GFX12 AND (SUPPORTED_GPU_TARGETS MATCHES "gfx12"))
-    add_compile_options(-mno-wavefrontsize64)
-    message(STATUS "CK compiled with USE_OPT_GFX12 set to ${USE_OPT_GFX12}")
 endif()
 
 ## Threads
@@ -347,7 +358,7 @@ find_package(Threads REQUIRED)
 link_libraries(Threads::Threads)
 
 ## C++
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD ${CK_CXX_STANDARD})
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 message(STATUS "CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")

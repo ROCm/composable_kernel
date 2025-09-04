@@ -74,6 +74,8 @@ args:
  -num_splits    number of splits for key/value. 0 to determine actual number by heuristic (default:1)
      -warmup    number of iterations before benchmark the kernel (default:5)
      -repeat    number of iterations to benchmark the kernel (default:20)
+       -json    0: No Json, 1: Dump Results in Json format (default:0)
+   -jsonfile    json file name to dump results (default:fmha_fwd.json)
 ```
 Example 1: `./bin/tile_example_fmha_fwd -b=1 -h=16 -s=16384 -d=128` will run a fmha case with batch=1, nhead=16, sequence length=16384, hdim=128, fp16 case.
 Example 2: `./bin/tile_example_fmha_fwd -b=1 -h=8 -s=16384 -d=64 -drop_prefs=1 -drop_seed=10 -drop_offset=1234` will run a fmha case with 

@@ -689,6 +689,9 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
 
     __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
+        constexpr index_t MWave    = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t NWave    = NPerBlock / (NXdlPerWave * NPerXdl);
+        constexpr index_t WaveSize = BlockSize / (MWave * NWave);
         // A matrix in LDS memory, dst of blockwise copy
         if constexpr(ABlockLdsExtraM || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
         {
@@ -747,7 +750,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
 
             constexpr auto KThreadWrite     = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I0);
             constexpr auto K0PerThreadWrite = AK0Number / KThreadWrite;
-            constexpr auto KThreadRead      = 64 / MPerXdl;
+            constexpr auto KThreadRead      = WaveSize / MPerXdl;
             constexpr auto K0PerThreadRead  = AK0Number / KThreadRead;
 
             constexpr auto kfold = (AK1Number * M0 * sizeof(LDSTypeA) > 128)
@@ -828,6 +831,9 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
 
     __device__ static constexpr auto GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()
     {
+        constexpr index_t MWave    = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t NWave    = NPerBlock / (NXdlPerWave * NPerXdl);
+        constexpr index_t WaveSize = BlockSize / (MWave * NWave);
         // B matrix in LDS memory, dst of blockwise copy
         if constexpr(BBlockLdsExtraN || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
         {
@@ -883,7 +889,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
 
             constexpr auto KThreadWrite     = BBlockTransferThreadClusterLengths_BK0_N_BK1{}.At(I0);
             constexpr auto K0PerThreadWrite = BK0Number / KThreadWrite;
-            constexpr auto KThreadRead      = 64 / NPerXdl;
+            constexpr auto KThreadRead      = WaveSize / NPerXdl;
             constexpr auto K0PerThreadRead  = BK0Number / KThreadRead;
 
             constexpr auto kfold = (BK1Number * N0 * sizeof(LDSTypeB) > 128)
