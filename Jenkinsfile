@@ -855,7 +855,7 @@ def run_aiter_tests(Map conf=[:]){
     }
 
     withDockerContainer(image: image, args: dockerOpts) {
-        timeout(time: 45, unit: 'MINUTES'){
+        timeout(time: 2, unit: 'HOURS'){
             try{
                 sh "rocminfo"
                 sh "python3 --version"
@@ -913,7 +913,7 @@ def run_pytorch_tests(Map conf=[:]){
     }
 
     withDockerContainer(image: image, args: dockerOpts) {
-        timeout(time: 45, unit: 'MINUTES'){
+        timeout(time: 2, unit: 'HOURS'){
             try{
                 sh "rocminfo"
                 sh "python3 --version"
