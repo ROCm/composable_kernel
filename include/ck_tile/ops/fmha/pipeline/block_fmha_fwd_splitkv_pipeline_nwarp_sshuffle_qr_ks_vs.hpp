@@ -181,6 +181,24 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                           kM0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
                           kN0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
+
+        constexpr index_t k0_loops = kQKHeaddim / kK0;
+        constexpr index_t k1_loops = kN0 / kK1;
+
+        static_assert(2 <= k0_loops);
+        static_assert(2 <= k1_loops);
+
+        auto q_dram_window =
+            make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
+                             q_dram_block_window_tmp.get_window_lengths(),
+                             q_dram_block_window_tmp.get_window_origin(),
+                             Policy::template MakeQDramTileDistribution<Problem>());
+
+        // load Q here, will store Q into LDS to maximize throughput
+        auto origin_q = load_tile(q_dram_window);
+
+        __builtin_amdgcn_sched_barrier(0);
+
         // Q tile in LDS
         QDataType* q_lds_ptr =
             static_cast<QDataType*>(static_cast<void*>(static_cast<char*>(smem_ptr)));
@@ -221,15 +239,6 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
         // Block GEMM
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
         constexpr auto gemm_1 = Policy::template GetKVBlockGemm<Problem>();
-
-        auto q_dram_window =
-            make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
-                             q_dram_block_window_tmp.get_window_lengths(),
-                             q_dram_block_window_tmp.get_window_origin(),
-                             Policy::template MakeQDramTileDistribution<Problem>());
-
-        // load Q here, will store Q into LDS to maximize throughput
-        auto origin_q = load_tile(q_dram_window);
 
         using SaccBlockTileType = decltype(gemm_0.MakeCBlockTile());
         auto s_acc              = SaccBlockTileType{};
@@ -310,6 +319,28 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
         auto [i_page_block_k, k_dram_block_window] = k_page_block_navigator.make_tile_window(
             k_dram_block_window_lengths, {aligned_physical_seqlen_k_start, 0});
 
+        auto k_dram_window = make_tile_window(
+            k_dram_block_window,
+            Policy::template MakeKDramTileDistribution<Problem>()); // K DRAM tile window for
+
+        using k_tile_type = decltype(load_tile(k_dram_window));
+
+        statically_indexed_array<k_tile_type, 2> k_tiles;
+
+        __builtin_amdgcn_sched_barrier(0);
+
+        k_tiles[number<0>{}] = load_tile(k_dram_window);
+
+        // moving k_dram_window is an in-page-block operation, so there is
+        // no need to invoke k_page_block_navigator.move_tile_window() here.
+        move_tile_window(k_dram_window, {0, kK0});
+
+        k_tiles[number<1>{}] = load_tile(k_dram_window);
+
+        move_tile_window(k_dram_window, {0, kK0});
+
+        __builtin_amdgcn_sched_barrier(0);
+
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
         auto bias_dram_window =
             make_tile_window(bias_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -345,30 +376,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
         auto q_tile = tile_elementwise_in(q_element_func, q);
 
         // prefetch K tile
-        index_t i_total_loops      = 0;
-        constexpr index_t k0_loops = kQKHeaddim / kK0;
-        constexpr index_t k1_loops = kN0 / kK1;
-
-        static_assert(2 <= k0_loops);
-        static_assert(2 <= k1_loops);
-
-        auto k_dram_window = make_tile_window(
-            k_dram_block_window,
-            Policy::template MakeKDramTileDistribution<Problem>()); // K DRAM tile window for
-
-        using k_tile_type = decltype(load_tile(k_dram_window));
-
-        statically_indexed_array<k_tile_type, 2> k_tiles;
-
-        k_tiles[number<0>{}] = load_tile(k_dram_window);
-
-        // moving k_dram_window is an in-page-block operation, so there is
-        // no need to invoke k_page_block_navigator.move_tile_window() here.
-        move_tile_window(k_dram_window, {0, kK0});
-
-        k_tiles[number<1>{}] = load_tile(k_dram_window);
-
-        move_tile_window(k_dram_window, {0, kK0});
+        index_t i_total_loops = 0;
 
         block_sync_lds();
         store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_tiles[number<0>{}]));
