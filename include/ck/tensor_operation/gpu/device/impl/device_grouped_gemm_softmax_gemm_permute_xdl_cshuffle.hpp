@@ -205,7 +205,6 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                                  CElementwiseOperation,
                                                  MaskingSpec>
 {
-    GET_NXDL_PER_WAVE2_IMPL
     static constexpr auto MXdlPerWave64 =
         GetNXdlPerWave2<BlockSize, NPerBlock, MPerBlock, NPerXDL, MPerXDL, NXdlPerWave, true>();
     static constexpr auto MXdlPerWave32 =

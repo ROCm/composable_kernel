@@ -595,7 +595,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         {
             return false;
         }
-        if(is_gfx11_supported() && arg.K_Batch > 1)
+        if(is_gfx11_supported() && arg.K_BATCH > 1)
         {
             return false;
         }
