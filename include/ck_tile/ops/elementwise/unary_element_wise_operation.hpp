@@ -326,7 +326,6 @@ struct MultiDAdd
     }
 };
 
-#if 0
 struct UnaryConvert
 {
     template <typename Y, typename X>
@@ -336,6 +335,7 @@ struct UnaryConvert
     }
 };
 
+#if 0
 struct ConvertBF16RTN
 {
     // convert to bf16 using round to nearest (rtn)
@@ -472,14 +472,14 @@ struct UnaryDivide
 
 struct UnarySquare
 {
-    template <typename T>
-    CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
+    template <typename Y, typename X>
+    CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
     {
-        static_assert(std::is_same_v<T, float> || std::is_same_v<T, ck_tile::fp16_t> ||
-                          std::is_same_v<T, double> || std::is_same_v<T, int32_t> ||
-                          std::is_same_v<T, int8_t>
+        static_assert(std::is_same_v<X, float> || std::is_same_v<X, ck_tile::fp16_t> ||
+                          std::is_same_v<X, double> || std::is_same_v<X, int32_t> ||
+                          std::is_same_v<X, int8_t>
 #ifdef CK_TILE_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-                          || std::is_same_v<T, int4_t>
+                          || std::is_same_v<X, int4_t>
 #endif
                       ,
                       "Data type is not supported by this operation!");
@@ -1156,7 +1156,7 @@ struct Swish
 
 struct SoftRelu
 {
-    SoftRelu(float alpha = 1.f) : alpha_(alpha) {};
+    SoftRelu(float alpha = 1.f) : alpha_(alpha){};
 
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
@@ -1175,7 +1175,7 @@ struct SoftRelu
 struct Power
 {
     Power(float alpha = 0.f, float beta = 1.f, float gamma = 2.f)
-        : alpha_(alpha), beta_(beta), gamma_(gamma) {};
+        : alpha_(alpha), beta_(beta), gamma_(gamma){};
 
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
@@ -1197,7 +1197,7 @@ struct Power
 
 struct ClippedRelu
 {
-    ClippedRelu(float alpha = 0.f, float beta = 1.f) : alpha_(alpha), beta_(beta) {};
+    ClippedRelu(float alpha = 0.f, float beta = 1.f) : alpha_(alpha), beta_(beta){};
 
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
@@ -1216,7 +1216,7 @@ struct ClippedRelu
 
 struct LeakyRelu
 {
-    LeakyRelu(float alpha = 0.01f) : alpha_(alpha) {};
+    LeakyRelu(float alpha = 0.01f) : alpha_(alpha){};
 
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
@@ -1233,7 +1233,7 @@ struct LeakyRelu
 
 struct Elu
 {
-    Elu(float alpha = 1.f) : alpha_(alpha) {};
+    Elu(float alpha = 1.f) : alpha_(alpha){};
 
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
@@ -1250,7 +1250,7 @@ struct Elu
 
 struct Logistic
 {
-    Logistic(float alpha = 1.f) : alpha_(alpha) {};
+    Logistic(float alpha = 1.f) : alpha_(alpha){};
 
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
