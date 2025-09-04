@@ -26,7 +26,7 @@ template <typename GemmConfig,
           typename BLayout,
           typename CLayout,
           uint32_t QuantGroupSize>
-float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::stream_config& s)
+float gemm_calc_aquant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s)
 {
     constexpr bool kPadM = false;
     constexpr bool kPadN = false;
@@ -55,13 +55,14 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
 
     using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenGemmShape>;
 
-    using CodegenGemmTraits = ck_tile::TileGemmAQuantTraits<kPadM,
-                                                            kPadN,
-                                                            kPadK,
-                                                            GemmConfig::PreshuffleQuant,
-                                                            ALayout,
-                                                            BLayout,
-                                                            CLayout>;
+    using CodegenGemmTraits = ck_tile::TileGemmQuantTraits<kPadM,
+                                                           kPadN,
+                                                           kPadK,
+                                                           false, // preshuffle
+                                                           ALayout,
+                                                           BLayout,
+                                                           CLayout,
+                                                           ck_tile::QuantType::AQuantGrouped>;
 
     using GemmPipelineProblem = ck_tile::GemmPipelineProblemBase<ADataType,
                                                                  BDataType,
@@ -114,8 +115,10 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
                                                     K_Warp_Tile,
                                                     transposed_warp_gemm,
                                                     ck_tile::memory_operation_enum::set>>;
-        using Kernel =
-            ck_tile::AQuantGemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
+        using Kernel = ck_tile::QuantGemmKernel<TilePartitioner,
+                                                CodegenGemmPipeline,
+                                                GemmEpilogue,
+                                                ck_tile::QuantType::AQuantGrouped>;
 
         auto kargs = Kernel::MakeKernelArgs(args);
 
@@ -185,7 +188,7 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   int n_warmup,
                   int n_repeat)
 {
-    ck_tile::AQuantGemmHostArgs args;
+    ck_tile::QuantGemmHostArgs args;
     args.a_ptr     = a_m_k_dev_buf.GetDeviceBuffer();
     args.aq_ptr    = aq_m_aqk_dev_buf.GetDeviceBuffer();
     args.b_ptr     = b_k_n_dev_buf.GetDeviceBuffer();
@@ -194,7 +197,7 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     args.M         = M;
     args.N         = N;
     args.K         = K;
-    args.QK        = AQK;
+    args.QK_A      = AQK;
     args.stride_A  = stride_A;
     args.stride_B  = stride_B;
     args.stride_C  = stride_C;

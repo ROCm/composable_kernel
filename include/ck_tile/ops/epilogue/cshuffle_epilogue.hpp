@@ -6,6 +6,9 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
+#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
+
+#include <optional>
 
 namespace ck_tile {
 
@@ -210,8 +213,12 @@ struct CShuffleEpilogue
                                   KPerXdl,
                                   isCTransposed>;
 
-    using CWarpDstr   = typename WG::CWarpDstr;
-    using CWarpTensor = typename WG::CWarpTensor;
+    using CWarpDstr         = typename WG::CWarpDstr;
+    using CWarpTensor       = typename WG::CWarpTensor;
+    using CWarpDstrEncoding = typename WG::CWarpDstrEncoding;
+    using SFC               = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
+                                                  sequence<0, 1>,
+                                                  sequence<MPerIterationShuffle, NPerIterationShuffle>>;
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsBlockDescriptor()
@@ -257,11 +264,120 @@ struct CShuffleEpilogue
         return MPerIterationShuffle * NPerIterationShuffle * sizeof(ODataType);
     }
 
-    template <typename ODramWindow, typename OAccTile, typename DsDramWindows>
+    template <auto iAccess, typename LdsTile, typename ScaleM, typename ScaleN>
+    CK_TILE_DEVICE void
+    scale_tile(LdsTile& lds_tile, ScaleM& scale_m_window, ScaleN& scale_n_window)
+    {
+        // Load tiles
+        const auto scale_m_tile = load_tile(scale_m_window);
+        const auto scale_n_tile = load_tile(scale_n_window);
+
+        // Compute element-wise product in-place i.e. lds_tile = lds_tile * scale_m * scale_n
+        tile_elementwise_inout(
+            element_wise::MultiDMultiply{}, lds_tile, lds_tile, scale_m_tile, scale_n_tile);
+
+        // Move scale windows
+        constexpr index_t num_access = SFC::get_num_of_access();
+        if constexpr(iAccess != num_access - 1)
+        {
+            constexpr auto step = SFC::get_forward_step(iAccess);
+
+            move_tile_window(scale_m_window, {step.at(number<0>{}), step.at(number<1>{})});
+            move_tile_window(scale_n_window, {step.at(number<0>{}), step.at(number<1>{})});
+        }
+    }
+
+    template <auto iAccess, typename OAccTile, typename LdsTile>
+    CK_TILE_DEVICE void slice_acc_tile(const OAccTile& o_acc_tile, LdsTile& lds_tile)
+    {
+        constexpr auto idx_y_start = SFC::get_index(iAccess);
+
+        constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (MPerIterationShuffle)>{};
+        constexpr auto nIter = number<idx_y_start.at(number<1>{}) / (NPerIterationShuffle)>{};
+        constexpr auto c_warp_y_lengths =
+            to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+        constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
+
+        lds_tile.get_thread_buffer() = o_acc_tile.get_y_sliced_thread_data(
+            merge_sequences(
+                sequence<mIter * NumMXdlPerWavePerShuffle, nIter * NumNXdlPerWavePerShuffle>{},
+                c_warp_y_index_zeros),
+            merge_sequences(sequence<NumMXdlPerWavePerShuffle, NumNXdlPerWavePerShuffle>{},
+                            c_warp_y_lengths));
+    }
+
+    template <typename LdsTile, typename InLdsWindow>
+    CK_TILE_DEVICE void cast_lds_tile(LdsTile& lds_tile, InLdsWindow& in_lds_window)
+    {
+        const auto c_warptile_in_tensor_casted = cast_tile<ODataType>(lds_tile);
+
+        store_tile(in_lds_window, c_warptile_in_tensor_casted);
+    }
+
+    template <typename DramWindows, typename COutTensor>
+    CK_TILE_DEVICE void apply_d_tensors(DramWindows& d_dram_windows, COutTensor& c_out_tensor)
+    {
+        const auto ds_tensor = generate_tuple(
+            [&](auto idx) { return load_tile(d_dram_windows[idx]); }, number<NumDTensor>{});
+
+        const auto c_ds_tiles = concat_tuple_of_reference(
+            tie(c_out_tensor, c_out_tensor),
+            generate_tie([&](auto idx) -> const auto& { return ds_tensor[idx]; },
+                         number<NumDTensor>{}));
+
+        tile_elementwise_inout_unpack(typename Problem::CDElementwise{}, c_ds_tiles);
+    }
+
+    template <typename OutDramWindow, typename COutTensor>
+    CK_TILE_DEVICE void store_to_dram(OutDramWindow& out_dram_window,
+                                      const COutTensor& c_out_tensor)
+    {
+        if constexpr(MemoryOperation == memory_operation_enum::set)
+        {
+            store_tile(out_dram_window, c_out_tensor);
+        }
+        else
+        {
+            update_tile(out_dram_window, c_out_tensor);
+        }
+    }
+
+    /**
+     * @brief Move both the output and D tensors windows for the next access.
+     */
+    template <auto iAccess, typename OutDramWindow, typename DDramWindows>
+    CK_TILE_DEVICE void move_windows(OutDramWindow& out_dram_window, DDramWindows& d_dram_windows)
+    {
+        constexpr index_t num_access = SFC::get_num_of_access();
+        if constexpr(iAccess != num_access - 1)
+        {
+            constexpr auto step = SFC::get_forward_step(iAccess);
+
+            // move the output dram window
+            move_tile_window(out_dram_window, {step.at(number<0>{}), step.at(number<1>{})});
+
+            // move windows for each of the D matrices (inputs for element-wise)
+            static_for<0, NumDTensor, 1>{}([&](auto idx) {
+                move_tile_window(d_dram_windows[idx], {step.at(number<0>{}), step.at(number<1>{})});
+            });
+        }
+    }
+
+    // TODO: Check if there would be nicer ways to overload rather than with EmptyScale or nullptr_t
+    struct EmptyScale
+    {
+    };
+    template <typename ODramWindow,
+              typename OAccTile,
+              typename DsDramWindows,
+              typename ScaleM = EmptyScale,
+              typename ScaleN = EmptyScale>
     CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window,
                                    const OAccTile& o_acc_tile,
                                    const DsDramWindows& ds_dram_windows,
-                                   void* p_smem)
+                                   void* p_smem,
+                                   const ScaleM& scale_m = {},
+                                   const ScaleN& scale_n = {})
     {
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
 
@@ -282,9 +398,6 @@ struct CShuffleEpilogue
             make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
             {0, 0});
 
-        using SFC                    = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
-                                                           sequence<0, 1>,
-                                                           sequence<MPerIterationShuffle, NPerIterationShuffle>>;
         constexpr index_t num_access = SFC::get_num_of_access();
 
         static_assert(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
@@ -306,60 +419,46 @@ struct CShuffleEpilogue
             },
             number<NumDTensor>{});
 
-        constexpr auto c_warp_y_lengths =
-            to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
-        constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
+        constexpr bool has_scales =
+            !std::is_same<ScaleM, EmptyScale>::value && !std::is_same<ScaleN, EmptyScale>::value;
+        auto scale_m_window = [&]() {
+            if constexpr(has_scales)
+            {
+                return make_tile_window(scale_m, lds_tile.get_tile_distribution());
+            }
+            else
+            {
+                return EmptyScale{};
+            }
+        }();
+        auto scale_n_window = [&]() {
+            if constexpr(has_scales)
+            {
+                return make_tile_window(scale_n, lds_tile.get_tile_distribution());
+            }
+            else
+            {
+                return EmptyScale{};
+            }
+        }();
 
         static_for<0, num_access, 1>{}([&](auto iAccess) {
             block_sync_lds();
-            constexpr auto idx_y_start = SFC::get_index(iAccess);
+            slice_acc_tile<iAccess>(o_acc_tile, lds_tile);
 
-            constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (MPerIterationShuffle)>{};
-            constexpr auto nIter = number<idx_y_start.at(number<1>{}) / (NPerIterationShuffle)>{};
+            if constexpr(has_scales)
+            {
+                scale_tile<iAccess>(lds_tile, scale_m_window, scale_n_window);
+            }
 
-            lds_tile.get_thread_buffer() = o_acc_tile.get_y_sliced_thread_data(
-                merge_sequences(
-                    sequence<mIter * NumMXdlPerWavePerShuffle, nIter * NumNXdlPerWavePerShuffle>{},
-                    c_warp_y_index_zeros),
-                merge_sequences(sequence<NumMXdlPerWavePerShuffle, NumNXdlPerWavePerShuffle>{},
-                                c_warp_y_lengths));
-
-            const auto c_warptile_in_tensor_casted = cast_tile<ODataType>(lds_tile);
-
-            store_tile(in_lds_window, c_warptile_in_tensor_casted);
+            cast_lds_tile(lds_tile, in_lds_window);
             block_sync_lds();
 
             auto c_out_tensor = load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
 
-            const auto ds_tensor = generate_tuple(
-                [&](auto idx) { return load_tile(d_dram_windows[idx]); }, number<NumDTensor>{});
-
-            const auto c_ds_tiles = concat_tuple_of_reference(
-                tie(c_out_tensor, c_out_tensor),
-                generate_tie([&](auto idx) -> const auto& { return ds_tensor[idx]; },
-                             number<NumDTensor>{}));
-
-            tile_elementwise_inout_unpack(typename Problem::CDElementwise{}, c_ds_tiles);
-
-            if constexpr(MemoryOperation == memory_operation_enum::set)
-            {
-                store_tile(out_dram_window, c_out_tensor);
-            }
-            else
-            {
-                update_tile(out_dram_window, c_out_tensor);
-            }
-            if constexpr(iAccess != num_access - 1)
-            {
-                constexpr auto step = SFC::get_forward_step(iAccess);
-
-                move_tile_window(out_dram_window, {step.at(number<0>{}), step.at(number<1>{})});
-
-                static_for<0, NumDTensor, 1>{}([&](auto idx) {
-                    move_tile_window(d_dram_windows[idx],
-                                     {step.at(number<0>{}), step.at(number<1>{})});
-                });
-            }
+            apply_d_tensors(d_dram_windows, c_out_tensor);
+            store_to_dram(out_dram_window, c_out_tensor);
+            move_windows<iAccess>(out_dram_window, d_dram_windows);
         });
     }
 };

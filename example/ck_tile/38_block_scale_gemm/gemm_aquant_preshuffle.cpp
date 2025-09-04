@@ -21,7 +21,7 @@ template <typename GemmConfig,
           typename BLayout,
           typename CLayout,
           uint32_t QuantGroupSize>
-float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::stream_config& s)
+float gemm_calc_aquant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s)
 {
     constexpr bool kPadM = false;
     constexpr bool kPadN = false;
@@ -50,13 +50,14 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
 
     using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenGemmShape>;
 
-    using CodegenGemmTraits = ck_tile::TileGemmAQuantTraits<kPadM,
-                                                            kPadN,
-                                                            kPadK,
-                                                            GemmConfig::PreshuffleQuant,
-                                                            ALayout,
-                                                            BLayout,
-                                                            CLayout>;
+    using CodegenGemmTraits = ck_tile::TileGemmQuantTraits<kPadM,
+                                                           kPadN,
+                                                           kPadK,
+                                                           GemmConfig::PreshuffleQuant,
+                                                           ALayout,
+                                                           BLayout,
+                                                           CLayout,
+                                                           ck_tile::QuantType::AQuantGrouped>;
 
     using GemmPipelineProblem = ck_tile::GemmPipelineProblemBase<ADataType,
                                                                  BDataType,
@@ -109,8 +110,10 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
                                                     K_Warp_Tile,
                                                     transposed_warp_gemm,
                                                     ck_tile::memory_operation_enum::set>>;
-        using Kernel =
-            ck_tile::AQuantGemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
+        using Kernel = ck_tile::QuantGemmKernel<TilePartitioner,
+                                                CodegenGemmPipeline,
+                                                GemmEpilogue,
+                                                ck_tile::QuantType::AQuantGrouped>;
 
         auto kargs = Kernel::MakeKernelArgs(args);
 
