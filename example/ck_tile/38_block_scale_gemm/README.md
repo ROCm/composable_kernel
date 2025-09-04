@@ -1,6 +1,6 @@
 # Quant GEMM Matrix Multiplication
 
-This folder contains example for quant GEMMs using ck_tile tile-programming implementation.
+This folder contains examples of quant GEMMs using the ck_tile tile-programming implementation.
 
 - AQuant kernel with blocks of A matrix sharing scales: custom GEMM pipeline
 - Row and Column-wise scaled: scaling implemented in Epilogue
