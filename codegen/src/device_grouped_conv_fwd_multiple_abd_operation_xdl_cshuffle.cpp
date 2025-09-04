@@ -116,7 +116,7 @@ std::vector<Operation_Conv_Fwd_Xdl_Cshuffle> Operation_Conv_Fwd_Xdl_Cshuffle::Cr
 //         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl
 //                             |                
   {              S<1, 16, 1, 4>,               1},
-  {              S<1, 32, 1, 8>,               4},
+  {              S<1, 16, 1, 16>,              4},
   {              S<1, 32, 1, 8>,               4},
   {              S<1, 16, 1, 4>,               1},
   {              S<1, 32, 1, 8>,               4},
