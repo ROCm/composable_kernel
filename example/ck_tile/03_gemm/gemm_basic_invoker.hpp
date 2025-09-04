@@ -116,11 +116,52 @@ struct BasicInvoker
                           << "}" << std::endl;
             }
 
-            float ave_time = ck_tile::launch_kernel(
-                s,
-                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+            // Declare rotating_mem_ptr here so it stays in scope until it is needed
+            std::unique_ptr<ck_tile::RotatingMemWrapper<ADataType, BDataType>> rotating_mem_ptr;
+            std::function<void()> preprocess;
 
-            return ave_time;
+            auto clear_gemm_output = [&]() {
+                if(args.k_batch > 1)
+                    hipGetErrorString(hipMemsetAsync(
+                        args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
+            };
+
+            if(s.flush_cache_)
+            {
+                std::cout << "Flushing cache..." << std::endl;
+
+                ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
+                    args.M, args.K, args.stride_A, is_row_major(ALayout{})));
+                ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
+                    args.K, args.N, args.stride_B, is_row_major(BLayout{})));
+
+                auto size_a_buffer = a_m.get_element_space_size_in_bytes();
+                auto size_b_buffer = b_n.get_element_space_size_in_bytes();
+
+                rotating_mem_ptr =
+                    std::make_unique<ck_tile::RotatingMemWrapper<ADataType, BDataType>>(
+                        kargs.as_ptr[0],
+                        kargs.bs_ptr[0],
+                        s.rotating_count_,
+                        size_a_buffer,
+                        size_b_buffer);
+                rotating_mem_ptr->Print();
+
+                preprocess = [&]() {
+                    ck_tile::flush_icache();
+                    rotating_mem_ptr->Next();
+                    clear_gemm_output();
+                };
+            }
+            else
+            {
+                preprocess = clear_gemm_output;
+            }
+
+            return ck_tile::launch_kernel_time_mask(
+                s,
+                preprocess,
+                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         };
 
         if(args.k_batch == 1)
