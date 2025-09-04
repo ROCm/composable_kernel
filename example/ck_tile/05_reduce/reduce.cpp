@@ -3,7 +3,7 @@
 
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/reduce.hpp"
-#include "json_dump.hpp"
+#include "ck_tile/utility/json_dump.hpp"
 #include <cstring>
 
 template <typename T>
