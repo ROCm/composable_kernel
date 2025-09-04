@@ -28,7 +28,7 @@ extern "C" __global__ void f(const ck::half_t* a, const ck::half_t* b, ck::half_
                                              ck::make_tuple(),
                                              ck::make_naive_tensor_descriptor_packed(ck::make_tuple(${m}, ${n})));
 
-    //static_assert(desc.IsValid(), "Invalid ck gemm.");
+    static_assert(desc.IsValid(), "Invalid ck gemm.");
 
     if constexpr(desc.IsValid())
     {
