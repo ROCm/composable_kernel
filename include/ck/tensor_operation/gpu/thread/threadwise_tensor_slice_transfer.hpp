@@ -1900,6 +1900,7 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
                         const DstSliceOriginIdx&,
                         DstBuffer& dst_buf) const
     {
+        ElementwiseOperation element_op_{};
         static_assert(SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
                       "wrong! Desc need to known at compile-time");
 
@@ -1985,7 +1986,6 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
             });
         });
     }
-    ElementwiseOperation element_op_{};
 };
 
 // Specialized for gfx12
