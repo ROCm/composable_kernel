@@ -28,6 +28,8 @@ constexpr ck_tile::index_t get_k_warp_tile()
         return is_8bit_float ? 64 : 16;
     else
         return is_8bit_float ? 128 : 32;
+#elif defined(CK_TILE_USE_WMMA)
+    return 16;
 #else
     if constexpr(M_Warp_Tile == 32)
         return 16;
@@ -44,6 +46,8 @@ constexpr ck_tile::index_t get_k_warp_tile_flatmm()
         return sizeof(PrecType) == 2 ? 16 : 64;
     else
         return sizeof(PrecType) == 2 ? 32 : 128;
+#elif defined(CK_TILE_USE_WMMA)
+    return 16;
 #else
     if constexpr(M_Warp_Tile == 32)
         return sizeof(PrecType) == 2 ? 16 : 32;

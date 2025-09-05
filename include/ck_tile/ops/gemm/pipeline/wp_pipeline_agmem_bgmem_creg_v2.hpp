@@ -499,12 +499,12 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
               typename ADramBlockWindowTmp,
               typename BFlatBlockWindowTmp,
               typename AElementFunction>
-    CK_TILE_HOST_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
-                                        const AElementFunction& a_element_func,
-                                        const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
-                                        index_t num_loop,
-                                        void* p_smem_ping,
-                                        void* p_smem_pong) const
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const AElementFunction& a_element_func,
+                                   const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
+                                   index_t num_loop,
+                                   void* p_smem_ping,
+                                   void* p_smem_pong) const
     {
         static_assert(
             std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>>,
