@@ -11,6 +11,7 @@
 #include "ck_tile/core/numeric/half.hpp"
 #include "ck_tile/core/numeric/bfloat16.hpp"
 #include "ck_tile/core/numeric/pk_int4.hpp"
+#include "ck_tile/core/numeric/pk_fp4.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 
 namespace ck_tile {
@@ -237,4 +238,13 @@ using pk_int4x4_t  = int8_t __attribute__((ext_vector_type(4)));
 using pk_int4x8_t  = int8_t __attribute__((ext_vector_type(8)));
 using pk_int4x16_t = int8_t __attribute__((ext_vector_type(16)));
 using pk_int4x32_t = int8_t __attribute__((ext_vector_type(32)));
+
+// pk_fp4_t
+// using pk_fp4_t
+using pk_fp4x2_t  = uint8_t __attribute((ext_vector_type(2)));
+using pk_fp4x4_t  = uint8_t __attribute((ext_vector_type(4)));
+using pk_fp4x8_t  = uint8_t __attribute((ext_vector_type(8)));
+using pk_fp4x16_t = uint8_t __attribute((ext_vector_type(16)));
+using pk_fp4x32_t = uint8_t __attribute((ext_vector_type(32)));
+
 } // namespace ck_tile

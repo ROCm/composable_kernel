@@ -89,10 +89,11 @@ struct CShuffleEpilogue
     using BDataType = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataTypeTuple>>;
 
     using ATypeToUse =
-        std::conditional_t<std::is_same_v<ADataType, pk_int4_t>, BDataType, ADataType>;
+        std::conditional_t<std::is_same_v<ADataType, pk_int4_t> || std::is_same_v<ADataType, pk_fp4_t>, BDataType, ADataType>;
     // Used for weight-only quantization kernel, B would be dequantized to the same data type as A
     using BTypeToUse =
-        std::conditional_t<std::is_same_v<BDataType, pk_int4_t>, ADataType, BDataType>;
+        std::conditional_t<std::is_same_v<BDataType, pk_int4_t> || std::is_same_v<BDataType, pk_fp4_t> || std::is_same_v<BDataType, uint8_t>, ADataType, BDataType>;
+     
     using ELayout       = remove_cvref_t<typename Problem::ELayout>;
     using CDElementwise = remove_cvref_t<typename Problem::CDElementwise>;
     static constexpr memory_operation_enum MemoryOperation = Problem::MemoryOperation;
