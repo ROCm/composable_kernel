@@ -54,6 +54,7 @@ using MFMA = ck::tensor_layout::gemm::MFMA;
 
 using Row_Tuple     = ck::Tuple<Row>;
 using Row_Row_Tuple = ck::Tuple<Row, Row>;
+using Row_Col_Tuple = ck::Tuple<Row, Col>;
 
 // Conv layout
 //

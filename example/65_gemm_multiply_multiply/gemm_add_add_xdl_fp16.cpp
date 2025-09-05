@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -184,7 +184,6 @@ int main(int argc, char* argv[])
     b0_device_buf.ToDevice(b0_k_n.mData.data());
     d0_device_buf.ToDevice(d0_m_n.mData.data());
     d1_device_buf.ToDevice(d1_m_n.mData.data());
-    e_device_buf.ToDevice(e_m_n_device_result.mData.data());
 
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
@@ -220,11 +219,12 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel, 20, 50});
+    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel, 0, 20, 50});
 
-    std::size_t flop = std::size_t(2) * M * N * K;
-    std::size_t num_btype =
-        sizeof(A0DataType) * M * K + sizeof(B0DataType) * K * N + sizeof(EDataType) * M * N;
+    std::size_t flop      = std::size_t(2) * M * N * K;
+    std::size_t num_btype = sizeof(A0DataType) * M * K + sizeof(B0DataType) * K * N +
+                            sizeof(D0DataType) * M * N + sizeof(D1DataType) * M * N +
+                            sizeof(EDataType) * M * N;
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
@@ -232,8 +232,6 @@ int main(int argc, char* argv[])
 
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
               << std::endl;
-
-    e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
     if(do_verification)
     {
