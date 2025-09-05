@@ -266,6 +266,7 @@ CK_TILE_DEVICE float amd_assembly_bf8_to_fp32(uint32_t src)
     return res;
 }
 
+#if 0
 /**
  * @brief This function converts 8 packed 4-bit integers into 8 bf8 values.
  *
@@ -316,6 +317,33 @@ CK_TILE_DEVICE bf8x8_t amd_assembly_i4_to_bf8x8(uint32_t a)
 
     return bit_cast<bf8x8_t>((static_cast<uint64_t>(tmp_res_high) << 32) | tmp_res_low);
 }
+#elif 1
+CK_TILE_DEVICE bf8x4_t i4_to_bf8x4(int q)
+{
+    // This approach is likely substantially less performant than a lookup table based one.
+    fp16x4_t src = i4_to_half4(q);
+    return bf8x4_t{
+        ck_tile::type_convert<bf8_t>(ck_tile::type_convert<float>(src[0])),
+        ck_tile::type_convert<bf8_t>(ck_tile::type_convert<float>(src[1])),
+        ck_tile::type_convert<bf8_t>(ck_tile::type_convert<float>(src[2])),
+        ck_tile::type_convert<bf8_t>(ck_tile::type_convert<float>(src[3])),
+    };
+}
+#elif 0
+CK_TILE_DEVICE bf8x4_t i4_to_bf8x4(int q)
+{
+    // The approach below can be used once this compiler issue is resolved:
+    // "constexpr bit cast involving type 'unsigned _BitInt(8)' is not yet supported"
+    // Lookup table for bf8_t values corresponding to int4 values -8 to 7
+    constexpr auto bf8_lookup_table = make_lookup_table<bf8_t, 16>(
+        [](int i) { return impl::cast_to_f8<float, bf8_t, true, false>(i - 8, 0); });
+
+    return bf8x4_t{bf8_lookup_table[(q >> 0) & 0xf],
+                   bf8_lookup_table[(q >> 16) & 0xf],
+                   bf8_lookup_table[(q >> 4) & 0xf],
+                   bf8_lookup_table[(q >> 20) & 0xf]};
+}
+#endif
 
 struct PassThroughPack8
 {
@@ -346,7 +374,12 @@ struct PassThroughPack8
 
     CK_TILE_HOST_DEVICE constexpr void operator()(bf8x8_t& y, const pk_int4x4_t& x) const
     {
+#if 0
         y = amd_assembly_i4_to_bf8x8(bit_cast<uint32_t>(x));
+#else
+        y.lo = i4_to_bf8x4(bit_cast<int>(x));
+        y.hi = i4_to_bf8x4(bit_cast<int>(x) >> 8);
+#endif
     }
     constexpr const static bool is_pack8_invocable = true;
 };
