@@ -47,6 +47,7 @@ struct TestCase
 // Test cases to drive the typed test suite.
 constexpr std::array TEST_CASES = {
     TestCase{
+        // double rate mfma instances on gfx950
         .name = "ConvFwdXdlBf16CompInstances2x_0",
         .algorithm =
             {
@@ -65,6 +66,7 @@ constexpr std::array TEST_CASES = {
             "2, 2, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v4>",
     },
     TestCase{
+        // Compute-friendly.
         .name = "GroupedConvFwdXdlBf16CompInstance0",
         .algorithm =
             {
@@ -101,7 +103,7 @@ constexpr std::array TEST_CASES = {
             "2, 2, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v4>",
     },
     TestCase{
-        .name = "GroupedConvFwdXdlBf16CompInstance1",
+        .name = "GroupedConvFwdXdlBf16CompInstance2",
         .algorithm =
             {
                 .thread_block{.block_size = 256, .sub_matrix = {.m = 128, .n = 128, .k = 32}},
@@ -117,6 +119,150 @@ constexpr std::array TEST_CASES = {
         .expected_type =
             "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 128, 128, 32, Default, 32, 32, "
             "2, 2, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v4>",
+    },
+    TestCase{
+        .name = "GroupedConvFwdXdlBf16CompInstance3",
+        .algorithm =
+            {
+                .thread_block{.block_size = 256, .sub_matrix = {.m = 256, .n = 256, .k = 32}},
+                .tuning_params{.ak1 = 8, .bk1 = 8, .m_xdl_per_wave = 4, .n_xdl_per_wave = 4},
+                .block_transfer{
+                    .thread_cluster_lengths_a = {.k0 = 4, .m = 64, .k1 = 1},
+                    .thread_cluster_lengths_b = {.k0 = 4, .n = 64, .k1 = 1},
+                    .thread_cluster_lengths_c =
+                        {.m_block = 1, .m_wave_per_xdl = 32, .n_block = 1, .n_wave_per_xdl = 8},
+                },
+                .pipeline_version = ckb::BlockGemmPipelineVersion::V3,
+            },
+        .expected_type =
+            "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 256, 256, 32, Default, 32, 32, "
+            "4, 4, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v3>",
+    },
+    TestCase{
+        .name = "GroupedConvFwdXdlBf16CompInstance4",
+        .algorithm =
+            {
+                .thread_block{.block_size = 256, .sub_matrix = {.m = 256, .n = 256, .k = 32}},
+                .tuning_params{.ak1 = 8, .bk1 = 8, .m_xdl_per_wave = 4, .n_xdl_per_wave = 4},
+                .block_transfer{
+                    .thread_cluster_lengths_a = {.k0 = 4, .m = 64, .k1 = 1},
+                    .thread_cluster_lengths_b = {.k0 = 4, .n = 64, .k1 = 1},
+                    .thread_cluster_lengths_c =
+                        {.m_block = 1, .m_wave_per_xdl = 32, .n_block = 1, .n_wave_per_xdl = 8},
+                },
+                .pipeline_version = ckb::BlockGemmPipelineVersion::V5,
+            },
+        .expected_type =
+            "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 256, 256, 32, Default, 32, 32, "
+            "4, 4, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v5>",
+    },
+    TestCase{
+        .name = "GroupedConvFwdXdlBf16CompInstance5",
+        .algorithm =
+            {
+                .thread_block{.block_size = 256, .sub_matrix = {.m = 256, .n = 128, .k = 32}},
+                .tuning_params{.ak1 = 8, .bk1 = 8, .m_xdl_per_wave = 2, .n_xdl_per_wave = 4},
+                .block_transfer{
+                    .thread_cluster_lengths_a = {.k0 = 4, .m = 64, .k1 = 1},
+                    .thread_cluster_lengths_b = {.k0 = 4, .n = 64, .k1 = 1},
+                    .thread_cluster_lengths_c =
+                        {.m_block = 1, .m_wave_per_xdl = 32, .n_block = 1, .n_wave_per_xdl = 8},
+                },
+                .pipeline_version = ckb::BlockGemmPipelineVersion::V1,
+            },
+        .expected_type =
+            "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 256, 128, 32, Default, 32, 32, "
+            "2, 4, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v1>",
+    },
+    TestCase{
+        .name = "GroupedConvFwdXdlBf16CompInstance7",
+        .algorithm =
+            {
+                .thread_block{.block_size = 256, .sub_matrix = {.m = 128, .n = 256, .k = 32}},
+                .tuning_params{.ak1 = 8, .bk1 = 8, .m_xdl_per_wave = 2, .n_xdl_per_wave = 4},
+                .block_transfer{
+                    .thread_cluster_lengths_a = {.k0 = 4, .m = 64, .k1 = 1},
+                    .thread_cluster_lengths_b = {.k0 = 4, .n = 64, .k1 = 1},
+                    .thread_cluster_lengths_c =
+                        {.m_block = 1, .m_wave_per_xdl = 32, .n_block = 1, .n_wave_per_xdl = 8},
+                },
+                .pipeline_version = ckb::BlockGemmPipelineVersion::V1,
+            },
+        .expected_type =
+            "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 128, 256, 32, Default, 32, 32, "
+            "2, 4, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v1>",
+    },
+    TestCase{
+        .name = "GroupedConvFwdXdlBf16CompInstance8",
+        .algorithm =
+            {
+                .thread_block{.block_size = 256, .sub_matrix = {.m = 128, .n = 128, .k = 64}},
+                .tuning_params{.ak1 = 8, .bk1 = 8, .m_xdl_per_wave = 2, .n_xdl_per_wave = 4},
+                .block_transfer{
+                    .thread_cluster_lengths_a = {.k0 = 4, .m = 64, .k1 = 1},
+                    .thread_cluster_lengths_b = {.k0 = 4, .n = 64, .k1 = 1},
+                    .thread_cluster_lengths_c =
+                        {.m_block = 1, .m_wave_per_xdl = 32, .n_block = 1, .n_wave_per_xdl = 8},
+                },
+                .pipeline_version = ckb::BlockGemmPipelineVersion::V1,
+            },
+        .expected_type =
+            "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 128, 128, 64, Default, 32, 32, "
+            "2, 4, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v1>",
+    },
+    TestCase{
+        .name = "GroupedConvFwdXdlBf16CompInstance9",
+        .algorithm =
+            {
+                .thread_block{.block_size = 256, .sub_matrix = {.m = 128, .n = 64, .k = 64}},
+                .tuning_params{.ak1 = 8, .bk1 = 8, .m_xdl_per_wave = 2, .n_xdl_per_wave = 4},
+                .block_transfer{
+                    .thread_cluster_lengths_a = {.k0 = 4, .m = 64, .k1 = 1},
+                    .thread_cluster_lengths_b = {.k0 = 4, .n = 64, .k1 = 1},
+                    .thread_cluster_lengths_c =
+                        {.m_block = 1, .m_wave_per_xdl = 32, .n_block = 1, .n_wave_per_xdl = 8},
+                },
+                .pipeline_version = ckb::BlockGemmPipelineVersion::V3,
+            },
+        .expected_type =
+            "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 128, 64, 64, Default, 32, 32, 2, "
+            "4, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v3>",
+    },
+    TestCase{
+        .name = "GroupedConvFwdXdlBf16CompInstance9",
+        .algorithm =
+            {
+                .thread_block{.block_size = 256, .sub_matrix = {.m = 64, .n = 128, .k = 64}},
+                .tuning_params{.ak1 = 8, .bk1 = 8, .m_xdl_per_wave = 2, .n_xdl_per_wave = 4},
+                .block_transfer{
+                    .thread_cluster_lengths_a = {.k0 = 4, .m = 64, .k1 = 1},
+                    .thread_cluster_lengths_b = {.k0 = 4, .n = 64, .k1 = 1},
+                    .thread_cluster_lengths_c =
+                        {.m_block = 1, .m_wave_per_xdl = 32, .n_block = 1, .n_wave_per_xdl = 8},
+                },
+                .pipeline_version = ckb::BlockGemmPipelineVersion::V3,
+            },
+        .expected_type =
+            "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 64, 128, 64, Default, 32, 32, 2, "
+            "4, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v3>",
+    },
+    TestCase{
+        .name = "GroupedConvFwdXdlBf16CompInstance9",
+        .algorithm =
+            {
+                .thread_block{.block_size = 256, .sub_matrix = {.m = 64, .n = 64, .k = 32}},
+                .tuning_params{.ak1 = 8, .bk1 = 8, .m_xdl_per_wave = 2, .n_xdl_per_wave = 4},
+                .block_transfer{
+                    .thread_cluster_lengths_a = {.k0 = 4, .m = 64, .k1 = 1},
+                    .thread_cluster_lengths_b = {.k0 = 4, .n = 64, .k1 = 1},
+                    .thread_cluster_lengths_c =
+                        {.m_block = 1, .m_wave_per_xdl = 32, .n_block = 1, .n_wave_per_xdl = 8},
+                },
+                .pipeline_version = ckb::BlockGemmPipelineVersion::V3,
+            },
+        .expected_type =
+            "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 64, 64, 32, Default, 32, 32, 2, "
+            "4, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v3>",
     },
 };
 
