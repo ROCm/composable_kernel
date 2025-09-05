@@ -26,9 +26,7 @@ template <bool kPadM_,
           typename AQLayout_ = ALayout_,
           typename BQLayout_ = BLayout_,
           bool DoubleSmemBuffer_      = false,
-          bool UsePersistentKernel_   = false
-          >
-          
+          bool UsePersistentKernel_   = false>
 struct TileGemmQuantTraits
 {
     static constexpr bool kPadM = kPadM_;
@@ -50,6 +48,7 @@ struct TileGemmQuantTraits
     static constexpr bool UseStructuredSparsity = false;
     static constexpr index_t NumWaveGroups      = 1;
     static constexpr bool UsePersistentKernel   = UsePersistentKernel_;
+    
     static constexpr bool PreshuffleQuant = PreshuffleQuant_;
 };
 

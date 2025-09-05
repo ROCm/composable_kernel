@@ -8,6 +8,7 @@ import multiprocessing
 import concurrent.futures
 from pathlib import Path
 import logging
+from typing import Optional
 from validation_utils import is_tile_config_valid, is_trait_combination_valid
 
 logging.basicConfig(level=logging.INFO)
@@ -325,7 +326,7 @@ class GemmKernelBuilder:
         "c": "ck_tile::tensor_layout::gemm::ColumnMajor",
     }
 
-    def _get_abc_layouts(self, layout_code: str | None = None):
+    def _get_abc_layouts(self, layout_code: Optional[str] = None):
         """
         Return (ALayout, BLayout, CLayout) from a 3-letter code like 'rcr', 'ccr', 'crr', 'rrr'.
         If layout_code is None, use self.layout.

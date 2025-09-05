@@ -23,9 +23,9 @@ struct ElementWiseKernel
     static constexpr index_t kBlockSize = Problem::BlockShape::kBlockSize;
 
     template <typename... XDataType, typename Dims>
-    CK_TILE_DEVICE void operator()(Dims lens,
-                                   Dims input_strides,
-                                   Dims output_strides,
+    CK_TILE_DEVICE void operator()(const Dims lens,
+                                   const Dims input_strides,
+                                   const Dims output_strides,
                                    const tuple<XDataType...>& input_tensors,
                                    YDataType* p_y) const
     {

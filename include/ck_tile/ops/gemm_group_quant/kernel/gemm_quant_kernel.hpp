@@ -774,10 +774,6 @@ struct QuantGemmKernel
         const auto& b_pad_view  = views.at(I2);
         const auto& bq_pad_view = views.at(I3);
         const auto& c_pad_view  = views.at(I4);
-        // if(threadIdx.x == 0 && blockIdx.x == 0)
-        // {
-        //     print(aq_pad_view.desc_);
-        // }
         const auto& a_block_window = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
             {
