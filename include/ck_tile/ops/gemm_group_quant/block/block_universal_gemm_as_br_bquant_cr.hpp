@@ -16,14 +16,14 @@ namespace ck_tile {
 template <typename Problem_, typename BlockPolicy_>
 struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
 {
-    using Problem        = remove_cvref_t<Problem_>;
-    using BlockPolicy    = remove_cvref_t<BlockPolicy_>;
-    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
-    using BQDataType     = remove_cvref_t<typename Problem::BQDataType>;
-    using CDataType      = remove_cvref_t<typename Problem::CDataType>;
-    using ComputeDataType= remove_cvref_t<typename Problem::ComputeDataType>;
-    using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>; // TileFlatmmShape
+    using Problem         = remove_cvref_t<Problem_>;
+    using BlockPolicy     = remove_cvref_t<BlockPolicy_>;
+    using ADataType       = remove_cvref_t<typename Problem::ADataType>;
+    using BDataType       = remove_cvref_t<typename Problem::BDataType>;
+    using BQDataType      = remove_cvref_t<typename Problem::BQDataType>;
+    using CDataType       = remove_cvref_t<typename Problem::CDataType>;
+    using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
+    using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>; // TileFlatmmShape
 
     static constexpr auto I0   = number<0>();
     static constexpr auto I1   = number<1>();
@@ -93,14 +93,14 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
         }
         return scale_reg_f;
     }
-    
+
     template <typename WarpWindow, typename WarpTile>
     CK_TILE_DEVICE static void load_interleaved_pk_type(WarpTile& warp_tile,
                                                         const WarpWindow& warp_window)
     {
         const element_wise::PassThroughPack8 elementwise_op{};
         const index_t UnaryOpSize = 8;
-        
+
         static_assert(WarpTile::get_thread_buffer_size() % UnaryOpSize == 0);
         constexpr index_t thread_buffer_size = WarpTile::get_thread_buffer_size() / UnaryOpSize;
         const auto in_dstr_tensors           = load_tile(warp_window);
@@ -131,7 +131,6 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
         return c_block_tensor;
     }
 
-    
     // C += A * B
     template <typename CBlockTensor,
               typename ABlockWindow,

@@ -73,8 +73,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   ck_tile::index_t kbatch,
                   int n_warmup,
                   int n_repeat,
-                bool flush_cache,
-                int rotating_count)
+                  bool flush_cache,
+                  int rotating_count)
 {
     ck_tile::BQuantGemmHostArgs args;
     args.a_ptr     = a_m_k_dev_buf.GetDeviceBuffer();
@@ -103,7 +103,9 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                       CLayout,
                                       QuantGroupSize,
                                       CDEElementWise>(
-        args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, flush_cache, rotating_count});
+        args,
+        ck_tile::stream_config{
+            nullptr, true, 1, n_warmup, n_repeat, true, flush_cache, rotating_count});
 
     std::size_t flop     = std::size_t(2) * M * N * K;
     std::size_t num_byte = sizeof(ADataType) * M * K + sizeof(BDataType) * N * K +
@@ -270,8 +272,8 @@ int run_gemm_example_with_layouts(int argc,
                                 kbatch,
                                 n_warmup,
                                 n_repeat,
-                            flush_cache,
-                            rotating_count);
+                                flush_cache,
+                                rotating_count);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass = true;

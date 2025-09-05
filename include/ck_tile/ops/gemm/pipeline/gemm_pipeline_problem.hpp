@@ -19,7 +19,7 @@ template <typename ADataType_,
           index_t VectorSizeA_      = 1,
           index_t VectorSizeB_      = 1>
 struct GemmPipelineProblemBase
-{   
+{
     using Traits = remove_cvref_t<Traits_>;
 
     using ADataType       = remove_cvref_t<ADataType_>;

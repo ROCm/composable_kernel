@@ -15,24 +15,21 @@
 namespace ck_tile {
 
 template <typename Problem>
-struct BaseWPQuantBPipelineAgBgCrV1
-    : public BaseWeightPreshufflePipelineAGmemBGmemCRegV1<Problem>
+struct BaseWPQuantBPipelineAgBgCrV1 : public BaseWeightPreshufflePipelineAGmemBGmemCRegV1<Problem>
 {
     // Added Just to maintain same structure in host code while preparing pipeline
 };
 
-template <typename Problem,
-          typename PipelinePolicy = GemmWPQuantPipelineAgBgCrPolicy>
-struct WPQuantBPipelineAgBgCrV1
-    : public BaseWPQuantBPipelineAgBgCrV1<Problem>
+template <typename Problem, typename PipelinePolicy = GemmWPQuantPipelineAgBgCrPolicy>
+struct WPQuantBPipelineAgBgCrV1 : public BaseWPQuantBPipelineAgBgCrV1<Problem>
 {
-    using Base           = BaseWPQuantBPipelineAgBgCrV1<Problem>;
-    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
-    using BQDataType     = remove_cvref_t<typename Problem::BQDataType>;
-    using CDataType      = remove_cvref_t<typename Problem::CDataType>;
-    using ComputeDataType= remove_cvref_t<typename Problem::ComputeDataType>;
-    using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
+    using Base            = BaseWPQuantBPipelineAgBgCrV1<Problem>;
+    using ADataType       = remove_cvref_t<typename Problem::ADataType>;
+    using BDataType       = remove_cvref_t<typename Problem::BDataType>;
+    using BQDataType      = remove_cvref_t<typename Problem::BQDataType>;
+    using CDataType       = remove_cvref_t<typename Problem::CDataType>;
+    using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
+    using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
 
     using ALayout  = remove_cvref_t<typename Problem::ALayout>;
     using BLayout  = remove_cvref_t<typename Problem::BLayout>;
@@ -65,7 +62,7 @@ struct WPQuantBPipelineAgBgCrV1
     {
         return PipelinePolicy::template GetVectorSizeBQ<Problem>();
     }
-    
+
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
@@ -79,7 +76,7 @@ struct WPQuantBPipelineAgBgCrV1
     using WarpTile   = remove_cvref_t<typename BlockGemmShape::WarpTile>;
 
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
-    static constexpr bool PreshuffleB       = Problem::PreshuffleB;
+    static constexpr bool PreshuffleB      = Problem::PreshuffleB;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
@@ -94,7 +91,7 @@ struct WPQuantBPipelineAgBgCrV1
                       concat('x', kPadM, kPadN, kPadK), QuantGroupSize);
         // clang-format on
     }
-    
+
     CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
@@ -183,7 +180,7 @@ struct WPQuantBPipelineAgBgCrV1
             __builtin_amdgcn_sched_group_barrier(0x008, 4, 0); // MFMA
         }
     }
-    
+
     template <typename ADramBlockWindowTmp,
               typename BFlatBlockWindowTmp,
               typename BQDramBlockWindowTmp,
@@ -230,7 +227,7 @@ struct WPQuantBPipelineAgBgCrV1
         constexpr index_t KPerBlockPerIter = kKPerBlock / KIterPerWarp;
 
         const index_t iMWarp = get_warp_id() / NWarp;
-        
+
         // A tile in LDS
         ADataType* p_a_lds = static_cast<ADataType*>(p_smem);
 
@@ -284,7 +281,7 @@ struct WPQuantBPipelineAgBgCrV1
             make_tile_window(b_flat_dram_block_window_tmp.get_bottom_tensor_view(),
                              make_tuple(number<flatNPerWarp>{}, number<flatKPerWarp>{}),
                              b_flat_dram_block_window_tmp.get_window_origin(),
-                             b_flat_distribution);      
+                             b_flat_distribution);
 
         // BQ DRAM window for load
         auto bq_copy_dram_window =
@@ -354,7 +351,7 @@ struct WPQuantBPipelineAgBgCrV1
             store_tile(a_copy_lds_window, tile_elementwise_in(a_element_func, a_block_tile));
 
             block_sync_lds();
-            //prefetch B tensor that convert int4 -> fp8 in registers.
+            // prefetch B tensor that convert int4 -> fp8 in registers.
         }
 
         index_t iCounter = num_loop / 2 - 1;

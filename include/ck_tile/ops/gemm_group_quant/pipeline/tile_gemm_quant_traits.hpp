@@ -60,7 +60,7 @@ struct TileGemmBQuantTraits
     static constexpr bool TransposeC            = false;
     static constexpr bool UseStructuredSparsity = false;
     static constexpr index_t NumWaveGroups      = 1;
-    static constexpr bool PreshuffleB          = PreshuffleB_;
+    static constexpr bool PreshuffleB           = PreshuffleB_;
     static constexpr bool PreshuffleQuant       = PreshuffleQuant_;
 };
 

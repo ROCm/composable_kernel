@@ -118,7 +118,7 @@ struct BQuantGemmKernel
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
-        return concat('_', "gemm", gemm_prec_str<ADataType, BDataType>, GemmPipeline::GetName());
+        return concat('_', "gemm", gemm_prec_str<ADataType, BDataType>, GemmPipeline::GetName(), GemmPipeline::PreshuffleB ? "PreshuffleB" : "NoPreshuffle");
         // clang-format on
     }
 
@@ -450,7 +450,8 @@ struct BQuantGemmKernel
                             number<GemmPipeline::GetVectorSizeB()>{},
                             number<1>{});
                     }
-                    else{
+                    else
+                    {
                         return make_naive_tensor_view<address_space_enum::global>(
                             b_ptr,
                             make_tuple(kargs.N, splitk_batch_offset.splitted_k),
@@ -610,8 +611,7 @@ struct BQuantGemmKernel
                     b_pad_view,
                     make_tuple(number<GemmPipeline::flatNPerWarp>{},
                                number<GemmPipeline::flatKPerWarp>{}),
-                    {static_cast<int>(i_n / TilePartitioner::BlockGemmShape::WarpTile::at(I1)),
-                     0});
+                    {static_cast<int>(i_n / TilePartitioner::BlockGemmShape::WarpTile::at(I1)), 0});
             }
             else
             {
@@ -619,14 +619,14 @@ struct BQuantGemmKernel
                 {
                     return make_tile_window(b_pad_view,
                                             make_tuple(number<TilePartitioner::NPerBlock>{},
-                                                    number<TilePartitioner::KPerBlock>{}),
+                                                       number<TilePartitioner::KPerBlock>{}),
                                             {i_n, 0});
                 }
                 else
                 {
                     return make_tile_window(b_pad_view,
                                             make_tuple(number<TilePartitioner::KPerBlock>{},
-                                                    number<TilePartitioner::NPerBlock>{}),
+                                                       number<TilePartitioner::NPerBlock>{}),
                                             {0, i_n});
                 }
             }

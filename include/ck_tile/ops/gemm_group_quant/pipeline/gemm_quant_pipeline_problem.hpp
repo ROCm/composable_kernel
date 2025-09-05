@@ -160,7 +160,7 @@ struct GemmBQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_
     using typename Base::BLayout;
     using typename Base::CLayout;
 
-    static constexpr bool TransposeC = Traits::TransposeC;
+    static constexpr bool TransposeC  = Traits::TransposeC;
     static constexpr bool PreshuffleB = Traits::PreshuffleB;
 
     using Base::kBlockSize;
