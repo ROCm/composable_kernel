@@ -675,12 +675,13 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
             // ensure all ds_read for s are done
             block_sync_lds();
 
+            auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
+                Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
+            shuffle_tile(v_shuffle_tmp, v_tiles[number<0>{}]);
+
             // STAGE 3, KV gemm
             static_for<0, k1_loops, 1>{}(
                 [&, &i_page_block_v_ = i_page_block_v, &v_dram_window_ = v_dram_window](auto i_k1) {
-                    auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
-                        Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
-                    shuffle_tile(v_shuffle_tmp, v_tiles[number<i_k1 % 2>{}]);
                     store_tile(v_lds_window,
                                tile_elementwise_in(v_element_func,
                                                    v_shuffle_tmp)); // store the prefetch
@@ -704,7 +705,11 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                            v_lds_window);
 
                     if constexpr(i_k1 < k1_loops - 1)
+                    {
+                        shuffle_tile(v_shuffle_tmp, v_tiles[number<(i_k1 + 1) % 2>{}]);
+
                         block_sync_lds();
+                    };
                 });
         } while(++i_total_loops < num_total_loop);
 
