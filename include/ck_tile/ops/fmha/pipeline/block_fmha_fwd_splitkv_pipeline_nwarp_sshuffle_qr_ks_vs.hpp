@@ -398,38 +398,40 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                     0); // prevent from messing up the order of global loads
             }
 
-            static_for<0, k0_loops, 1>{}([&](auto i_k0) {
-                block_sync_lds();
-                gemm_0(s_acc,
-                       get_slice_tile(
-                           q_tile, sequence<0, i_k0 * kK0>{}, sequence<kM0, (i_k0 + 1) * kK0>{}),
-                       k_lds_window);
-                block_sync_lds();
-
-                if constexpr(i_k0 < k0_loops - 1)
-                {
-                    store_tile(
-                        k_lds_window,
-                        tile_elementwise_in(k_element_func, k_tiles[number<(i_k0 + 1) % 2>{}]));
-                }
-
-                if constexpr(i_k0 < k0_loops - 2)
-                {
-                    k_tiles[number<i_k0 % 2>{}] = load_tile(k_dram_window);
-                    move_tile_window(k_dram_window, {0, kK0});
-                }
-            });
-
             using v_tile_type = decltype(load_tile(v_dram_window));
 
             statically_indexed_array<v_tile_type, 2> v_tiles;
 
-            static_for<0, 2, 1>{}(
-                [&, &i_page_block_v_ = i_page_block_v, &v_dram_window_ = v_dram_window](auto i_k1) {
-                    v_tiles[number<i_k1>{}] = load_tile(v_dram_window_);
+            static_for<0, k0_loops, 1>{}(
+                [&, &i_page_block_v_ = i_page_block_v, &v_dram_window_ = v_dram_window](auto i_k0) {
+                    block_sync_lds();
+                    gemm_0(s_acc,
+                           get_slice_tile(q_tile,
+                                          sequence<0, i_k0 * kK0>{},
+                                          sequence<kM0, (i_k0 + 1) * kK0>{}),
+                           k_lds_window);
+                    block_sync_lds();
 
-                    i_page_block_v_ = v_page_block_navigator.move_tile_window(
-                        i_page_block_v_, v_dram_window_, {0, kK1});
+                    if constexpr(i_k0 < k0_loops - 1)
+                    {
+                        store_tile(
+                            k_lds_window,
+                            tile_elementwise_in(k_element_func, k_tiles[number<(i_k0 + 1) % 2>{}]));
+                    }
+
+                    if constexpr(i_k0 < k0_loops - 2)
+                    {
+                        k_tiles[number<i_k0 % 2>{}] = load_tile(k_dram_window);
+                        move_tile_window(k_dram_window, {0, kK0});
+                    }
+                    else
+                    {
+
+                        v_tiles[number<i_k0 - (k0_loops - 2)>{}] = load_tile(v_dram_window_);
+
+                        i_page_block_v_ = v_page_block_navigator.move_tile_window(
+                            i_page_block_v_, v_dram_window_, {0, kK1});
+                    };
                 });
 
             // STAGE 2, scale_s, add bias, mask, softmax
@@ -567,6 +569,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
 
             // shuffle through LDS so that the tile layout is consistent with required by Gemm1
             store_tile(s_write_lds_window, s);
+            // at this point, all LDS operations are done including ds_read for k and ds_write for s
             block_sync_lds();
             auto s_new = load_tile(s_read_lds_window);
 
