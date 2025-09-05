@@ -173,10 +173,9 @@ auto gemm_multi_abd(const gemm_multi_abd_kargs& args, const ck_tile::stream_conf
 
             if(s.log_level_ > 0)
             {
-                std::cout << "Launching kernel with args:"
-                          << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                          << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
-                          << "}" << std::endl;
+                std::cout << "Launching kernel with args:" << " grid: {" << grids.x << ", "
+                          << grids.y << ", " << grids.z << "}" << ", blocks: {" << blocks.x << ", "
+                          << blocks.y << ", " << blocks.z << "}" << std::endl;
             }
 
             ave_time = ck_tile::launch_kernel(
