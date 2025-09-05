@@ -1521,7 +1521,6 @@ struct WarpGemmAttributeMfmaScaleImpl_f32_16x16x128_fp4
     static constexpr index_t kCM0PerLane = 1;
     static constexpr index_t kCM1PerLane = 4;
 
-
     // c_vec += a_vec * b_vec
     template <index_t opselA, index_t opselB, bool post_nop_ = false>
     CK_TILE_DEVICE void operator()(CVecType& c_vec,
@@ -1560,7 +1559,6 @@ struct WarpGemmAttributeMfmaScaleImpl_f32_16x16x128_fp4
         return CVecType{0.f};
 #endif
     }
-
 };
 
 template <typename AType_, typename BType_, WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
