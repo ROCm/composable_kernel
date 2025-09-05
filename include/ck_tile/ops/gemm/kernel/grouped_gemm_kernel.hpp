@@ -267,7 +267,7 @@ struct GroupedGemmKernel
                             const index_t block_idx_z) const
     {
 
-        static_assert(!(!GemmPipeline::DoubleSmemBuffer && GemmPipeline::Preshuffle),
+        static_assert(GemmPipeline::DoubleSmemBuffer || !GemmPipeline::Preshuffle,
                       "SingleSmemBuffer and Preshuffle cannot both be enabled simultaneously!");
 
         const auto [iM, iN] = block_idx_2d;

@@ -76,6 +76,18 @@ float invoke_gemm(int n_warmup,
             throw std::runtime_error(
                 "Persistent grouped gemm with preshuffle is not supported yet");
         }
+
+        // NOTE: With the persistent TileLoop kernel, we do not necessarily need to haveCollapse
+        // commentComment on line L74tenpercent commented on Sep 5, 2025 tenpercenton Sep 5,
+        // 2025ContributorMore actionsdid you intend to remove the comment?Write a replyResolve
+        // commentCode has comments. Press enter to view. the gemm problems known on the host.
+        // Instead, we can just pass the pointer to the kernel and let the workgroups figure out
+        // which tiles to work on. This is useful when the gemm problems are generated dynamically.
+        // In this example however, we generate the `kargs` using the known gemm_descs,
+        // and copy the gemm descriptions to the device memory.
+        // The contents of the memory pointed to by `kargs_ptr` pointer could be
+        // written by e.g. another kernel from earlier stage.
+
         std::vector<ck_tile::GemmTransKernelArg> kargs;
         void* kargs_ptr   = gemm_workspace.GetDeviceBuffer();
         const bool splitk = args[0].k_batch > 1;
@@ -315,7 +327,6 @@ int run_grouped_gemm_example_with_layouts(int argc,
                                                                   tflops,
                                                                   gb_per_sec);
     }
-
 
     return pass;
 }
