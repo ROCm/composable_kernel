@@ -238,10 +238,6 @@ def validate_warp_tile_combination(
 
     # Check if we have GPU-specific combinations
     gpu_warp_tile_combinations = WARP_TILE_SUPPORTED_COMBINATIONS.get(gpu_name, {})
-    print("[DELETE] GPU name detected:", gpu_name)  # [DELETE]
-    print(
-        "[DELETE] GPU warp tile combinations:", gpu_warp_tile_combinations
-    )  # [DELETE]
     if not gpu_warp_tile_combinations:
         # If GPU not recognized, try to be permissive but log warning
         logging.warning(f"No warp tile combinations found for GPU: {gpu_name}")
@@ -338,7 +334,6 @@ def is_tile_config_valid(
         logging.debug(f"LDS validation failed: {lds_error}")
         return False
 
-    print("[DELETE] Validating warp tile combination...")  # [DELETE]
     # Validate warp tile combination
     warp_tile_valid, warp_tile_error = validate_warp_tile_combination(
         warp_tile_m, warp_tile_n, warp_tile_k, a_datatype, b_datatype, c_datatype
