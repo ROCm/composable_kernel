@@ -139,6 +139,7 @@ concept HasCBlockTransferInfo = requires(T t) {
 
 enum class BlockGemmPipelineVersion
 {
+    V1,
     V3,
     V4,
     V5

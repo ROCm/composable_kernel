@@ -225,6 +225,7 @@ constexpr ck::BlockGemmPipelineVersion SetBlockGemmPipelineVersion()
     {
         switch(ALGORITHM.pipeline_version)
         {
+        case BlockGemmPipelineVersion::V1: return ck::BlockGemmPipelineVersion::v1;
         case BlockGemmPipelineVersion::V3: return ck::BlockGemmPipelineVersion::v3;
         case BlockGemmPipelineVersion::V4: return ck::BlockGemmPipelineVersion::v4;
         case BlockGemmPipelineVersion::V5: return ck::BlockGemmPipelineVersion::v5;
