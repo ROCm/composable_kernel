@@ -152,7 +152,7 @@ def getDockerImage(Map conf=[:]){
         image = conf.get("docker_name", "")
         echo "Using legacy docker: ${image}"
     }
-    else if ( params.BUILD_GFX950 && conf.get("docker_name", "") != "" ){
+    else if ( (params.BUILD_GFX950 || params.RUN_CK_TILE_FMHA_TESTS) && conf.get("docker_name", "") != "" ){
         image = conf.get("docker_name", "")
         echo "Using special docker: ${image}"
     }
@@ -1353,6 +1353,7 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx950") }
                     environment{
+                        def docker_name: "${env.CK_DOCKERHUB_PRIVATE}:ck_ub24.04_rocm7.0"
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx950 && \
                                            make -j128 tile_example_fmha_fwd tile_example_fmha_bwd && \
@@ -1360,7 +1361,7 @@ pipeline {
                                            example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx950 """
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, docker_name: "${env.CK_DOCKERHUB_PRIVATE}:ck_ub24.04_rocm7.0", no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        buildHipClangJobAndReboot(setup_args:setup_args, docker_name: docker_name, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
                     }
                 }
