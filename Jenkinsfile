@@ -33,9 +33,6 @@ def nthreads() {
     def nproc = sh(returnStdout: true, script: 'nproc')
     echo "Number of cores: ${nproc}"
     def n = nproc.toInteger()
-    if (n > 32){
-        n /= 2
-    }
     if (n > 64){
         n = 64
     }
