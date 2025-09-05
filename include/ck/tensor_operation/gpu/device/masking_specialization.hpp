@@ -33,7 +33,7 @@ struct MaskDisabledPredicate
     };
 
     __host__ __device__ constexpr bool
-        IsTileSkippable(index_t /*m*/, index_t /*n*/, index_t /*m_tile*/, index_t /*n_tile*/) const
+    IsTileSkippable(index_t /*m*/, index_t /*n*/, index_t /*m_tile*/, index_t /*n_tile*/) const
     {
         return false;
     }

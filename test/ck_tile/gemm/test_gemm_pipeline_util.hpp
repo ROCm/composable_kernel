@@ -10,6 +10,7 @@
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
+#include "ck_tile/core/numeric/math.hpp"
 
 template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
 auto calculate_rtol_atol(const ck_tile::index_t K,
@@ -69,7 +70,7 @@ struct GemmPipelineTypeSelector<GemmPipelineType::CompV4, Problem>
     static constexpr auto GetName() { return "GemmPipelineAgBgCrCompV4"; }
 };
 
-template <typename Tuple>
+template <typename Tuple, typename Derived>
 class TestCkTileGemmPipeline : public ::testing::Test
 {
     protected:
@@ -80,36 +81,34 @@ class TestCkTileGemmPipeline : public ::testing::Test
     using BDataType                    = std::tuple_element_t<4, Tuple>;
     using AccDataType                  = std::tuple_element_t<5, Tuple>;
     using CDataType                    = std::tuple_element_t<6, Tuple>;
-    static constexpr auto Scheduler    = std::tuple_element_t<7, Tuple>::value;
-    static constexpr auto PipelineType = std::tuple_element_t<8, Tuple>::value;
+    static constexpr auto Scheduler    = std::tuple_element_t<13, Tuple>::value;
+    static constexpr auto PipelineType = std::tuple_element_t<14, Tuple>::value;
+
+    static constexpr ck_tile::index_t M_Tile = std::tuple_element_t<7, Tuple>{};
+    static constexpr ck_tile::index_t N_Tile = std::tuple_element_t<8, Tuple>{};
+    static constexpr ck_tile::index_t K_Tile = std::tuple_element_t<9, Tuple>{};
+
+    static constexpr ck_tile::index_t M_Warp_Tile = std::tuple_element_t<10, Tuple>{};
+    static constexpr ck_tile::index_t N_Warp_Tile = std::tuple_element_t<11, Tuple>{};
+    static constexpr ck_tile::index_t K_Warp_Tile = std::tuple_element_t<12, Tuple>{};
 
     using DsLayout   = ck_tile::tuple<>;
     using DsDataType = ck_tile::tuple<>;
 
     static constexpr bool Persistent =
-        ck_tile::tuple_element_or_default_t<Tuple, 9, std::false_type>::value;
-    // TODO: expose tile size through test t-param ?
+        ck_tile::tuple_element_or_default_t<Tuple, 15, std::false_type>::value;
 
-    template <bool PadM, bool PadN, bool PadK>
-    void invoke_gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args,
-                     const ck_tile::stream_config& s)
+    template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
+    void invoke_gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     {
-        // TODO: This should be parameterized in tests
-        constexpr ck_tile::index_t M_Tile = 256;
-        constexpr ck_tile::index_t N_Tile = 256;
-        constexpr ck_tile::index_t K_Tile = (PipelineType == GemmPipelineType::CompV4) ? 32 : 64;
-
         constexpr ck_tile::index_t M_Warp = 2;
         constexpr ck_tile::index_t N_Warp = 2;
         constexpr ck_tile::index_t K_Warp = 1;
 
-        constexpr ck_tile::index_t M_Warp_Tile = 32;
-        constexpr ck_tile::index_t N_Warp_Tile = 32;
-        constexpr ck_tile::index_t K_Warp_Tile = 16;
-
-        constexpr bool kPadM = PadM;
-        constexpr bool kPadN = PadN;
-        constexpr bool kPadK = PadK;
+        constexpr bool kPadM      = PadM;
+        constexpr bool kPadN      = PadN;
+        constexpr bool kPadK      = PadK;
+        constexpr bool preshuffle = Preshuffle;
 
         constexpr bool DoubleSmemBuffer = (PipelineType == GemmPipelineType::CompV4) ? true : false;
 
@@ -131,7 +130,9 @@ class TestCkTileGemmPipeline : public ::testing::Test
 
         using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
         static constexpr bool StructuredSparsity = false;
-        using GemmUniversalTraits                = ck_tile::TileGemmUniversalTraits<kPadM,
+        static constexpr bool NumWaveGroup       = 1;
+
+        using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
                                                                      kPadN,
                                                                      kPadK,
                                                                      DoubleSmemBuffer,
@@ -140,7 +141,9 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                                      CLayout,
                                                                      TransposeC,
                                                                      StructuredSparsity,
-                                                                     Persistent>;
+                                                                     Persistent,
+                                                                     NumWaveGroup,
+                                                                     preshuffle>;
 
         using GemmPipelineProblem =
             ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
@@ -182,7 +185,6 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                  DsLayout,
                                                  CLayout,
                                                  ck_tile::element_wise::PassThrough,
-                                                 GemmPipeline::BlockSize,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,
                                                  M_Warp,
@@ -205,7 +207,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
             {
                 grids = Kernel::GridSize(args.M, args.N, args.k_batch);
             }
-            constexpr dim3 blocks = Kernel::BlockSize();
+            dim3 blocks = Kernel::BlockSize();
 
             if(!Kernel::IsSupportedArgument(kargs))
             {
@@ -214,14 +216,13 @@ class TestCkTileGemmPipeline : public ::testing::Test
 
             if(s.log_level_ > 0)
             {
-                std::cout << "Launching kernel with args:"
-                          << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                          << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
-                          << "}" << std::endl;
+                std::cout << "Launching kernel with args:" << " grid: {" << grids.x << ", "
+                          << grids.y << ", " << grids.z << "}" << ", blocks: {" << blocks.x << ", "
+                          << blocks.y << ", " << blocks.z << "}" << std::endl;
             }
 
             ck_tile::launch_kernel(
-                s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+                s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         };
 
         const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
@@ -244,11 +245,48 @@ class TestCkTileGemmPipeline : public ::testing::Test
         BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
     }
 
+    template <typename ADataType,
+              typename BDataType,
+              typename AccDataType,
+              ck_tile::index_t M_Warp_Tile,
+              ck_tile::index_t N_Warp_Tile,
+              ck_tile::index_t K_Warp_Tile>
+    bool check_data_type()
+    {
+        return static_cast<Derived*>(this)
+            ->template check_data_type_impl<ADataType,
+                                            BDataType,
+                                            AccDataType,
+                                            M_Warp_Tile,
+                                            N_Warp_Tile,
+                                            K_Warp_Tile>();
+    }
+
+    template <typename ADataType,
+              typename BDataType,
+              typename AccDataType,
+              ck_tile::index_t M_Warp_Tile,
+              ck_tile::index_t N_Warp_Tile,
+              ck_tile::index_t K_Warp_Tile>
+    bool check_data_type_impl()
+    {
+        return true;
+    }
+
     public:
     std::vector<int> k_batches_;
 
     void SetUp() override
     {
+        if(!check_data_type<ADataType,
+                            BDataType,
+                            AccDataType,
+                            M_Warp_Tile,
+                            N_Warp_Tile,
+                            K_Warp_Tile>())
+        {
+            GTEST_SKIP() << "Unsupported data type combination for gemm pipeline test.";
+        }
         if constexpr(PipelineType == GemmPipelineType::CompV4)
         {
             // Only do k_batch = 1 when pipeline is CompV4
@@ -261,7 +299,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
         }
     }
 
-    template <bool PadM = true, bool PadN = true, bool PadK = true>
+    template <bool PadM = true, bool PadN = true, bool PadK = true, bool Preshuffle = false>
     void Run(const int M,
              const int N,
              const int K,
@@ -271,11 +309,11 @@ class TestCkTileGemmPipeline : public ::testing::Test
     {
         for(auto kb : k_batches_)
         {
-            RunSingle<PadM, PadN, PadK>(M, N, K, StrideA, StrideB, StrideC, kb);
+            RunSingle<PadM, PadN, PadK, Preshuffle>(M, N, K, StrideA, StrideB, StrideC, kb);
         }
     }
 
-    template <bool PadM, bool PadN, bool PadK>
+    template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
     void RunSingle(const int M,
                    const int N,
                    const int K,
@@ -319,17 +357,17 @@ class TestCkTileGemmPipeline : public ::testing::Test
                     return stride;
             };
 
-        std::size_t stride_A = f_get_default_stride(M, K, StrideA, ALayout{});
-        std::size_t stride_B = f_get_default_stride(K, N, StrideB, BLayout{});
-        std::size_t stride_C = f_get_default_stride(M, N, StrideC, CLayout{});
+        ck_tile::index_t stride_A = f_get_default_stride(M, K, StrideA, ALayout{});
+        ck_tile::index_t stride_B = f_get_default_stride(K, N, StrideB, BLayout{});
+        ck_tile::index_t stride_C = f_get_default_stride(M, N, StrideC, CLayout{});
 
         ck_tile::HostTensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, stride_A, ALayout{}));
         ck_tile::HostTensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, stride_B, BLayout{}));
         ck_tile::HostTensor<CDataType> c_m_n_dev_result(
             f_host_tensor_descriptor(M, N, stride_C, CLayout{}));
 
-        ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5, 5}(a_m_k);
-        ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5, 5}(b_k_n);
+        ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5, 5, 11939}(a_m_k);
+        ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5, 5, 11940}(b_k_n);
 
         ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
@@ -340,19 +378,18 @@ class TestCkTileGemmPipeline : public ::testing::Test
         c_m_n_dev_buf.SetZero();
         c_m_n_dev_result.SetZero();
 
-        ck_tile::GemmHostArgs</*NumDTensor = 0*/> args;
-        args.a_ptr    = a_m_k_dev_buf.GetDeviceBuffer();
-        args.b_ptr    = b_k_n_dev_buf.GetDeviceBuffer();
-        args.e_ptr    = c_m_n_dev_buf.GetDeviceBuffer();
-        args.k_batch  = kbatch;
-        args.M        = M;
-        args.N        = N;
-        args.K        = K;
-        args.stride_A = stride_A;
-        args.stride_B = stride_B;
-        args.stride_E = stride_C;
+        ck_tile::GemmHostArgs args = {a_m_k_dev_buf.GetDeviceBuffer(),
+                                      b_k_n_dev_buf.GetDeviceBuffer(),
+                                      c_m_n_dev_buf.GetDeviceBuffer(),
+                                      kbatch,
+                                      M,
+                                      N,
+                                      K,
+                                      stride_A,
+                                      stride_B,
+                                      stride_C};
 
-        invoke_gemm<PadM, PadN, PadK>(args, ck_tile::stream_config{nullptr, false});
+        invoke_gemm<PadM, PadN, PadK, Preshuffle>(args, ck_tile::stream_config{nullptr, false});
 
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
         bool pass = true;

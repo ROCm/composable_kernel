@@ -1,5 +1,6 @@
 #include "ck_tile/host.hpp"
 #include "moe_smoothquant.hpp"
+#include "ck_tile/utility/json_dump.hpp"
 #include <cstring>
 #include <set>
 
@@ -66,7 +67,9 @@ auto create_args(int argc, char* argv[])
         .insert("prec_i", "fp16", "input precision, fp16/bf16")
         .insert("prec_o", "int8", "precision, int8/fp8")
         .insert("warmup", "5", "cold iter")
-        .insert("repeat", "20", "hot iter");
+        .insert("repeat", "20", "hot iter")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "moe_smoothquant.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -124,9 +127,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     smscale_buf.ToDevice(smscale_host.data());
     topk_ids_buf.ToDevice(topk_ids_host.data());
 
-    std::cout << "[" << prec_i << "-" << prec_o << "]"
-              << " tokens:" << tokens << ", hidden_size:" << hidden_size << ", stride:" << stride
-              << ", experts:" << experts << ", topk:" << topk << std::flush;
+    std::cout << "[" << prec_i << "-" << prec_o << "]" << " tokens:" << tokens
+              << ", hidden_size:" << hidden_size << ", stride:" << stride << ", experts:" << experts
+              << ", topk:" << topk << std::flush;
 
     moe_smoothquant_traits traits{prec_i, prec_o};
 
@@ -244,6 +247,21 @@ bool run(const ck_tile::ArgParser& arg_parser)
         std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
     }
 
+    if(arg_parser.get_int("json"))
+    {
+        dump_moe_smoothquant_json(arg_parser.get_str("jsonfile"),
+                                  prec_i,
+                                  prec_o,
+                                  tokens,
+                                  hidden_size,
+                                  stride,
+                                  experts,
+                                  topk,
+                                  pass,
+                                  ave_time,
+                                  0,
+                                  gb_per_sec);
+    }
     return pass;
 }
 

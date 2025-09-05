@@ -30,6 +30,7 @@ struct FmhaFwdPagedKVKernel
     using EpiloguePipeline                        = ck_tile::remove_cvref_t<EpiloguePipeline_>;
     static constexpr ck_tile::index_t kBlockSize  = FmhaPipeline::kBlockSize;
     static constexpr ck_tile::index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
+
     static_assert(kBlockPerCu > 0);
     static constexpr ck_tile::index_t kBlockPerCuInput = FmhaPipeline::Problem::kBlockPerCu;
 
@@ -1122,7 +1123,8 @@ struct FmhaFwdPagedKVKernel
                     const index_t num_blocks =
                         integer_divide_ceil(kv_l2p_offset + kargs.seqlen_k, kargs.page_block_size);
 
-                    const long_index_t fixed_offset = i_nhead_ * kargs.nhead_stride_k;
+                    const long_index_t fixed_offset =
+                        static_cast<long_index_t>(i_nhead_) * kargs.nhead_stride_k;
 
                     return make_page_block_navigator<const KDataType, 0>(
                         kargs.k_ptr,
@@ -1152,7 +1154,8 @@ struct FmhaFwdPagedKVKernel
                     const index_t num_blocks =
                         integer_divide_ceil(kv_l2p_offset + kargs.seqlen_k, kargs.page_block_size);
 
-                    const long_index_t fixed_offset = i_nhead_ * kargs.nhead_stride_v;
+                    const long_index_t fixed_offset =
+                        static_cast<long_index_t>(i_nhead_) * kargs.nhead_stride_v;
 
                     return make_page_block_navigator<const VDataType, 1>(
                         kargs.v_ptr,
@@ -1355,7 +1358,6 @@ struct FmhaFwdPagedKVKernel
                 make_tuple(kargs.stride_o, 1),
                 number<FmhaPipeline::kAlignmentO>{},
                 number<1>{});
-
             return pad_tensor_view(
                 o_dram_naive,
                 make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
@@ -1367,7 +1369,7 @@ struct FmhaFwdPagedKVKernel
                              make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
                              {i_m0, i_n1});
 
-        EpiloguePipeline{}(o_dram_window, o_acc_tile);
+        EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr);
     }
 };
 

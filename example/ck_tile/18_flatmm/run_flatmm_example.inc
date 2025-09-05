@@ -2,7 +2,7 @@
 // Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 #include <type_traits>
-
+#include "ck_tile/utility/json_dump.hpp"
 template <typename T>
 constexpr const char* DataTypeToString()
 {
@@ -17,6 +17,10 @@ constexpr const char* DataTypeToString()
     else if constexpr(std::is_same_v<T, ck_tile::bf8_t>)
     {
         return "bf8";
+    }
+    else if constexpr(std::is_same_v<T, ck_tile::bf16_t>)
+    {
+        return "bf16";
     }
     else
     {
@@ -36,9 +40,11 @@ template <typename FlatmmConfig, typename T>
 auto shuffle_b(const ck_tile::HostTensor<T>& t)
 {
     assert(t.get_lengths().size() == 2);
-    int n_                = t.get_lengths()[1];
-    int k_                = t.get_lengths()[0];
-    constexpr int divisor = FlatmmConfig::N_Warp_Tile == 32 ? 2 : 4;
+    int n_ = t.get_lengths()[1];
+    int k_ = t.get_lengths()[0];
+
+    int divisor = ck_tile::is_wave32() ? (FlatmmConfig::N_Warp_Tile == 32 ? 1 : 2)
+                                       : (FlatmmConfig::N_Warp_Tile == 32 ? 2 : 4);
     ck_tile::HostTensor<T> t_view({n_ / FlatmmConfig::N_Warp_Tile,
                                    FlatmmConfig::N_Warp_Tile,
                                    k_ / FlatmmConfig::K_Warp_Tile,
@@ -69,14 +75,31 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
-template <typename ADataType,
+template <typename FlatmmConfig,
+          typename ADataType,
           typename BDataType,
+          typename DsDatatype,
           typename AccDataType,
           typename CDataType,
-          typename FlatmmConfig,
           typename ALayout,
           typename BLayout,
-          typename CLayout>
+          typename DsLayout,
+          typename ELayout,
+          bool persistent,
+          typename CDEElementWise>
+float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_config& s);
+
+template <typename FlatmmConfig,
+          typename ADataType,
+          typename BDataType,
+          typename DsDatatype,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename DsLayout,
+          typename CLayout,
+          typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float invoke_flatmm(ck_tile::DeviceMem& a_dev_buf,
                     ck_tile::DeviceMem& b_shuffle_dev_buf,
                     ck_tile::DeviceMem& c_dev_buf,
@@ -90,39 +113,32 @@ float invoke_flatmm(ck_tile::DeviceMem& a_dev_buf,
                     int n_warmup,
                     int n_repeat)
 {
-    ck_tile::FlatmmHostArgs args;
-    args.a_ptr         = a_dev_buf.GetDeviceBuffer();
-    args.b_shuffle_ptr = b_shuffle_dev_buf.GetDeviceBuffer();
-    args.c_ptr         = c_dev_buf.GetDeviceBuffer();
+    ck_tile::FlatmmHostArgs<> args = {a_dev_buf.GetDeviceBuffer(),
+                                      b_shuffle_dev_buf.GetDeviceBuffer(),
+                                      {},
+                                      c_dev_buf.GetDeviceBuffer(),
+                                      kbatch,
+                                      M,
+                                      N,
+                                      K,
+                                      stride_A,
+                                      stride_B,
+                                      {},
+                                      stride_C};
 
-    args.k_batch  = kbatch;
-    args.M        = M;
-    args.N        = N;
-    args.K        = K;
-    args.stride_A = stride_A;
-    args.stride_B = stride_B;
-    args.stride_C = stride_C;
-
-    float ave_time = flatmm_calc<ADataType,
+    float ave_time = flatmm_calc<FlatmmConfig,
+                                 ADataType,
                                  BDataType,
+                                 DsDatatype,
                                  AccDataType,
                                  CDataType,
-                                 FlatmmConfig,
                                  ALayout,
                                  BLayout,
-                                 CLayout>(
+                                 DsLayout,
+                                 CLayout,
+                                 false,
+                                 CDEElementWise>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
-
-    std::size_t flop = std::size_t(2) * M * N * K;
-    std::size_t num_byte =
-        sizeof(ADataType) * M * K + sizeof(BDataType) * N * K + sizeof(CDataType) * M * N;
-    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
-    float gb_per_sec = num_byte / 1.E6 / ave_time;
-
-    std::cout << "Run Flatmm kernel with DataType = " << DataTypeToString<ADataType>()
-              << " M =" << M << " N =" << N << " K =" << K << " StrideA =" << stride_A
-              << " StrideB =" << stride_B << " StrideC =" << stride_C << " : " << ave_time
-              << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
 
     return ave_time;
 }
@@ -159,6 +175,7 @@ int run_flatmm_example_with_layouts(int argc,
     int n_warmup                 = arg_parser.get_int("warmup");
     int n_repeat                 = arg_parser.get_int("repeat");
     ck_tile::index_t init_method = arg_parser.get_int("init");
+    // persistent not added
 
     stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
     stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
@@ -187,6 +204,16 @@ int run_flatmm_example_with_layouts(int argc,
         ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_host);
         ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_origin_host);
     }
+    else if(init_method == 3)
+    {
+        ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_host);
+        ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_origin_host);
+    }
+    else if(init_method == 4)
+    {
+        ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_host);
+        ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_origin_host);
+    }
     else
     {
         a_host.SetZero();
@@ -204,25 +231,38 @@ int run_flatmm_example_with_layouts(int argc,
     ck_tile::DeviceMem b_shuffle_dev_buf(b_shuffle_host.get_element_space_size_in_bytes());
     b_shuffle_dev_buf.ToDevice(b_shuffle_host.data());
 
-    invoke_flatmm<ADataType,
-                  BDataType,
-                  AccDataType,
-                  CDataType,
-                  FlatmmConfig,
-                  ALayout,
-                  BLayout,
-                  CLayout>(a_dev_buf,
-                           b_shuffle_dev_buf,
-                           c_dev_buf,
-                           M,
-                           N,
-                           K,
-                           stride_A,
-                           stride_B,
-                           stride_C,
-                           kbatch,
-                           n_warmup,
-                           n_repeat);
+    float ave_time = invoke_flatmm<FlatmmConfig,
+                                   ADataType,
+                                   BDataType,
+                                   ck_tile::tuple<>,
+                                   AccDataType,
+                                   CDataType,
+                                   ALayout,
+                                   BLayout,
+                                   ck_tile::tuple<>,
+                                   CLayout>(a_dev_buf,
+                                            b_shuffle_dev_buf,
+                                            c_dev_buf,
+                                            M,
+                                            N,
+                                            K,
+                                            stride_A,
+                                            stride_B,
+                                            stride_C,
+                                            kbatch,
+                                            n_warmup,
+                                            n_repeat);
+
+    std::size_t flop = std::size_t(2) * M * N * K;
+    std::size_t num_byte =
+        sizeof(ADataType) * M * K + sizeof(BDataType) * N * K + sizeof(CDataType) * M * N;
+    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
+    float gb_per_sec = num_byte / 1.E6 / ave_time;
+
+    std::cout << "Run Flatmm kernel with DataType = " << DataTypeToString<ADataType>()
+              << " M =" << M << " N =" << N << " K =" << K << " StrideA =" << stride_A
+              << " StrideB =" << stride_B << " StrideC =" << stride_C << " : " << ave_time
+              << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
 
     c_dev_buf.FromDevice(c_rslt_host.data());
     bool pass = true;
@@ -308,6 +348,23 @@ int run_flatmm_example_with_layouts(int argc,
                   << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
                   << std::endl;
         std::cout << "The GPU veification result is: " << (pass ? "correct" : "fail") << std::endl;
+    }
+
+    if(arg_parser.get_int("json") == 1)
+    {
+        dump_flatmm_json_results(arg_parser.get_str("jsonfile"),
+                                 DataTypeToString<ADataType>(),
+                                 M,
+                                 N,
+                                 K,
+                                 stride_A,
+                                 stride_B,
+                                 stride_C,
+                                 kbatch,
+                                 pass,
+                                 ave_time,
+                                 tflops,
+                                 gb_per_sec);
     }
 
     return pass;

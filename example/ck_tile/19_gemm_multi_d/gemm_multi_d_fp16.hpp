@@ -58,13 +58,15 @@ auto create_args(int argc, char* argv[])
         .insert("v", "1", "0. No validation, 1. Validation on GPU")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
-        .insert("kbatch", "1", "kbatch for SplitK");
+        .insert("kbatch", "1", "kbatch for SplitK")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "cktile_gemm_multi_d_fp16.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
 
-using gemm_multi_d_kargs = ck_tile::GemmHostArgs<DsDataType::size()>;
+using gemm_multi_d_kargs = ck_tile::GemmMultiDHostArgs<DsDataType::size()>;
 
 template <typename ADataType,
           typename BDataType,

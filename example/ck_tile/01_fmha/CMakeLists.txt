@@ -28,12 +28,14 @@ string(REPLACE ";" "," FMHA_FWD_APIS "${FMHA_FWD_ENABLE_APIS}")
 set(FMHA_FWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
   --api ${FMHA_FWD_APIS}
+  --optdim 32,64,128,256
   # --filter fmha_fwd...
 )
 set(FMHA_BWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
   --api bwd
   --receipt 3
+  --optdim 32,64,128,256
   # --filter fmha_bwd_dot...@fmha_bwd_convert...@fmha_bwd...
 )
 
@@ -141,6 +143,28 @@ list(APPEND EXAMPLE_FMHA_BWD_COMPILE_OPTIONS -Wno-float-equal)
 
 target_compile_options(${EXAMPLE_FMHA_FWD} PRIVATE ${EXAMPLE_FMHA_FWD_COMPILE_OPTIONS})
 target_compile_options(${EXAMPLE_FMHA_BWD} PRIVATE ${EXAMPLE_FMHA_BWD_COMPILE_OPTIONS})
+
+# add fmha_fwd_v3 example
+set(EXAMPLE_FMHA_FWD_V3 "tile_example_fmha_fwd_v3")
+message(DEBUG "adding example ${EXAMPLE_FMHA_FWD_V3}")
+
+add_executable(${EXAMPLE_FMHA_FWD_V3} EXCLUDE_FROM_ALL example_fmha_fwd_v3.cpp)
+target_include_directories(${EXAMPLE_FMHA_FWD_V3} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+file(GLOB FMHA_FWD_V3_INSTANCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_LIST_DIR}/instances/*.cpp"
+)
+target_sources(${EXAMPLE_FMHA_FWD_V3} PRIVATE
+  fmha_fwd_v3.cpp
+  ${FMHA_FWD_V3_INSTANCES}
+)
+
+set(EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS)
+list(APPEND EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS
+  -fgpu-flush-denormals-to-zero
+  -Wno-undefined-func-template
+  --save-temps
+)
+target_compile_options(${EXAMPLE_FMHA_FWD_V3} PRIVATE ${EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS})
 
 # TODO: we have to turn off this global prop, otherwise the progress bar generated
 # by cmake will print too many files, execvp: /bin/sh: Argument list too long

@@ -215,9 +215,8 @@ ck::utils::conv::ConvParam parse_conv_param(int num_dim_spatial, int arg_idx, ch
 
 std::ostream& operator<<(std::ostream& os, const ck::utils::conv::ConvParam& p)
 {
-    os << "ConvParam {"
-       << "\nnum_dim_spatial: " << p.num_dim_spatial_ << "\nG: " << p.G_ << "\nN: " << p.N_
-       << "\nK: " << p.K_ << "\nC: " << p.C_
+    os << "ConvParam {" << "\nnum_dim_spatial: " << p.num_dim_spatial_ << "\nG: " << p.G_
+       << "\nN: " << p.N_ << "\nK: " << p.K_ << "\nC: " << p.C_
        << "\nfilter_spatial_lengths: " << p.filter_spatial_lengths_
        << "\ninput_spatial_lengths: " << p.input_spatial_lengths_
        << "\nconv_filter_strides: " << p.conv_filter_strides_

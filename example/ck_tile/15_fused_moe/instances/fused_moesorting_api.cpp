@@ -40,11 +40,11 @@
     constexpr bool local_expert_masking       = local_expert_masking_;                                  \
     constexpr bool local_token                = local_token_;                                           \
     using ms_problem                          = ck_tile::MoeSortingProblemEx<index_t,                   \
-                                                    ms_weight_type,            \
-                                                    sub_token_tile,            \
-                                                    sub_token_onshot,          \
-                                                    local_expert_masking,      \
-                                                    local_token>;              \
+                                                                             ms_weight_type,            \
+                                                                             sub_token_tile,            \
+                                                                             sub_token_onshot,          \
+                                                                             local_expert_masking,      \
+                                                                             local_token>;              \
     using kernel                              = ck_tile::MoeSortingKernel<ms_problem>;                  \
     auto kargs                                = kernel::MakeKargs(a);                                   \
     const dim3 grids                          = kernel::GridSize(a);                                    \
@@ -204,16 +204,16 @@ float fused_moesorting(fused_moesorting_trait t, fused_moesorting_args a, ck_til
         constexpr bool expert_masking         = expert_masking_;                                    \
         constexpr bool local_token            = local_token_;                                       \
         using ms_problem                      = ck_tile::MoeSortingProblemMp<ms_index_t,            \
-                                                        ms_weight_type,        \
-                                                        mesh_type_,            \
-                                                        unroll_num,            \
-                                                        expert_masking,        \
-                                                        local_token>;          \
+                                                                             ms_weight_type,        \
+                                                                             mesh_type_,            \
+                                                                             unroll_num,            \
+                                                                             expert_masking,        \
+                                                                             local_token>;          \
         using kernel                          = ck_tile::MoeSortingMultiPhaseKernel_P0<ms_problem>; \
         auto kargs                            = kernel::MakeKargs(a);                               \
         const dim3 grids                      = kernel::GridSize(a);                                \
         const dim3 blocks                     = kernel::BlockSize(a);                               \
-        return ck_tile::make_kernel<kernel::BLOCK_SIZE>(kernel{}, grids, blocks, 0, kargs);         \
+        return ck_tile::make_kernel(kernel{}, grids, blocks, 0, kargs);                             \
     }()
 
 #define MOE_SORTING_MP_1(mesh_type_, unroll_num_, expert_masking_, local_token_)                    \
@@ -222,16 +222,16 @@ float fused_moesorting(fused_moesorting_trait t, fused_moesorting_args a, ck_til
         constexpr bool expert_masking         = expert_masking_;                                    \
         constexpr bool local_token            = local_token_;                                       \
         using ms_problem                      = ck_tile::MoeSortingProblemMp<ms_index_t,            \
-                                                        ms_weight_type,        \
-                                                        mesh_type_,            \
-                                                        unroll_num,            \
-                                                        expert_masking,        \
-                                                        local_token>;          \
+                                                                             ms_weight_type,        \
+                                                                             mesh_type_,            \
+                                                                             unroll_num,            \
+                                                                             expert_masking,        \
+                                                                             local_token>;          \
         using kernel                          = ck_tile::MoeSortingMultiPhaseKernel_P1<ms_problem>; \
         auto kargs                            = kernel::MakeKargs(a);                               \
         const dim3 grids                      = kernel::GridSize(a);                                \
         const dim3 blocks                     = kernel::BlockSize(a);                               \
-        return ck_tile::make_kernel<kernel::BLOCK_SIZE>(kernel{}, grids, blocks, 0, kargs);         \
+        return ck_tile::make_kernel(kernel{}, grids, blocks, 0, kargs);                             \
     }()
 #if MOE_SORTING_SUPPORT_LARGE_EXPERT
 #define MOE_SORTING_MP_2(mesh_type_, unroll_num_, expert_masking_, local_token_)                    \
@@ -240,11 +240,11 @@ float fused_moesorting(fused_moesorting_trait t, fused_moesorting_args a, ck_til
         constexpr bool expert_masking         = expert_masking_;                                    \
         constexpr bool local_token            = local_token_;                                       \
         using ms_problem                      = ck_tile::MoeSortingProblemMp<ms_index_t,            \
-                                                        ms_weight_type,        \
-                                                        mesh_type_,            \
-                                                        unroll_num,            \
-                                                        expert_masking,        \
-                                                        local_token>;          \
+                                                                             ms_weight_type,        \
+                                                                             mesh_type_,            \
+                                                                             unroll_num,            \
+                                                                             expert_masking,        \
+                                                                             local_token>;          \
         using kernel                          = ck_tile::MoeSortingMultiPhaseKernel_P2<ms_problem>; \
         auto kargs                            = kernel::MakeKargs(a);                               \
         const dim3 grids                      = kernel::GridSize(a);                                \
@@ -258,11 +258,11 @@ float fused_moesorting(fused_moesorting_trait t, fused_moesorting_args a, ck_til
         constexpr bool expert_masking         = expert_masking_;                                    \
         constexpr bool local_token            = local_token_;                                       \
         using ms_problem                      = ck_tile::MoeSortingProblemMp<ms_index_t,            \
-                                                        ms_weight_type,        \
-                                                        mesh_type_,            \
-                                                        unroll_num,            \
-                                                        expert_masking,        \
-                                                        local_token>;          \
+                                                                             ms_weight_type,        \
+                                                                             mesh_type_,            \
+                                                                             unroll_num,            \
+                                                                             expert_masking,        \
+                                                                             local_token>;          \
         using kernel                          = ck_tile::MoeSortingMultiPhaseKernel_P3<ms_problem>; \
         auto kargs                            = kernel::MakeKargs(a);                               \
         const dim3 grids                      = kernel::GridSize(a);                                \
@@ -277,17 +277,17 @@ float fused_moesorting(fused_moesorting_trait t, fused_moesorting_args a, ck_til
         constexpr bool expert_masking         = expert_masking_;                                     \
         constexpr bool local_token            = local_token_;                                        \
         using ms_problem                      = ck_tile::MoeSortingProblemMp<ms_index_t,             \
-                                                        ms_weight_type,         \
-                                                        mesh_type_,             \
-                                                        unroll_num,             \
-                                                        expert_masking,         \
-                                                        local_token>;           \
+                                                                             ms_weight_type,         \
+                                                                             mesh_type_,             \
+                                                                             unroll_num,             \
+                                                                             expert_masking,         \
+                                                                             local_token>;           \
         using kernel                          = ck_tile::MoeSortingMultiPhaseKernel_P23<ms_problem>; \
         auto kargs                            = kernel::MakeKargs(a);                                \
         const dim3 grids                      = kernel::GridSize(a);                                 \
         const dim3 blocks                     = kernel::BlockSize(a);                                \
         const auto lds_size                   = kernel::GetSmemSize(a);                              \
-        return ck_tile::make_kernel<kernel::BLOCK_SIZE>(kernel{}, grids, blocks, lds_size, kargs);   \
+        return ck_tile::make_kernel(kernel{}, grids, blocks, lds_size, kargs);                       \
     }()
 
 #define MOR_SORTING_MP_DISPATCH_(mesh_type_, token_vec_0_, token_vec_1_, token_vec_23_)            \
@@ -413,5 +413,6 @@ float fused_moesorting_mp(fused_moesorting_trait t,
 
 int fused_moesorting_get_workspace_size(int tokens, int num_experts, int topk)
 {
-    return ck_tile::moe_sorting_get_workspace_size(tokens, num_experts, topk);
+    return ck_tile::moe_sorting_get_workspace_size(
+        tokens, num_experts, topk, 0 /*dispatch policy*/);
 }
