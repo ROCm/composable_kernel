@@ -5,7 +5,7 @@
 #include <ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp>
 #include <ck_tile/builder/conv_signature.hpp>
 #include <ck_tile/builder/conv_algorithm.hpp>
-#include <ck_tile/builder/sequence_util.hpp>
+#include <ck_tile/builder/builder_utils.hpp>
 #include <ck_tile/builder/versions.h>
 
 namespace ck_tile::builder {
@@ -266,23 +266,23 @@ struct GroupedConvForwardXldCShuffleFactoryV3
             TUNING.n_per_dxl,
             TUNING.m_xdl_per_wave,
             TUNING.n_xdl_per_wave,
-            ToSequence<A_BLOCK_TRANSFER.thread_cluster_lengths>,
-            ToSequence<A_BLOCK_TRANSFER.thread_cluster_order>,
-            ToSequence<A_BLOCK_TRANSFER.src_access_order>,
+            to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_lengths>,
+            to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_order>,
+            to_sequence_v<A_BLOCK_TRANSFER.src_access_order>,
             A_BLOCK_TRANSFER.src_vector_dim,
             A_BLOCK_TRANSFER.src_scaler_per_vector,
             A_BLOCK_TRANSFER.dest_scaler_per_vector_k1,
             A_BLOCK_TRANSFER.add_extra,
-            ToSequence<B_BLOCK_TRANSFER.thread_cluster_lengths>,
-            ToSequence<B_BLOCK_TRANSFER.thread_cluster_order>,
-            ToSequence<B_BLOCK_TRANSFER.src_access_order>,
+            to_sequence_v<B_BLOCK_TRANSFER.thread_cluster_lengths>,
+            to_sequence_v<B_BLOCK_TRANSFER.thread_cluster_order>,
+            to_sequence_v<B_BLOCK_TRANSFER.src_access_order>,
             B_BLOCK_TRANSFER.src_vector_dim,
             B_BLOCK_TRANSFER.src_scaler_per_vector,
             B_BLOCK_TRANSFER.dest_scaler_per_vector_k1,
             B_BLOCK_TRANSFER.add_extra,
             C_BLOCK_TRANSFER.m_xdl_per_wave_per_shuffle,
             C_BLOCK_TRANSFER.n_xdl_per_wave_per_shuffle,
-            ToSequence<C_BLOCK_TRANSFER.thread_cluster_lengths>,
+            to_sequence_v<C_BLOCK_TRANSFER.thread_cluster_lengths>,
             C_BLOCK_TRANSFER.scaler_per_vector,
             PIPELINE_SCHEDULER,
             PIPELINE_VERSION>;
