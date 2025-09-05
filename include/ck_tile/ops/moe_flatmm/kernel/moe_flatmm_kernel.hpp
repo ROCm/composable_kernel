@@ -372,13 +372,13 @@ struct MoeFlatmmKernel
 
         if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
         {
-            if(kargs.N % TilePartitioner::NPerBlock != 0 && FlatmmPipeline::kPadN == false)
-            {
-                std::cerr << "Can't support N that is not a multiple of NPerBlock"
-                             " without padding!"
-                          << std::endl;
-                return false;
-            }
+            // if(kargs.N % TilePartitioner::NPerBlock != 0 && FlatmmPipeline::kPadN == false)
+            // {
+            //     std::cerr << "Can't support N that is not a multiple of NPerBlock"
+            //                  " without padding!"
+            //               << std::endl;
+            //     return false;
+            // }
             if(kargs.N % FlatmmPipeline::GetVectorSizeB() != 0)
             {
                 std::cerr << "N is not a multiple of vector load size for B tensor!" << std::endl;
@@ -441,7 +441,7 @@ struct MoeFlatmmKernel
 
         if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
         {
-            if(kargs.N % TilePartitioner::NPerBlock != 0 && FlatmmPipeline::kPadN == false)
+            if(kargs.stride_C % TilePartitioner::NPerBlock != 0 && FlatmmPipeline::kPadN == false)
             {
                 std::cerr << "Can't support N that is not a multiple of NPerBlock"
                              " without padding!"
@@ -525,7 +525,7 @@ struct MoeFlatmmKernel
                 return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
                     e_ptr,
                     make_tuple(IsInputGemm ? kargs.NumTokens * kargs.TopK : kargs.NumTokens,
-                               IsGateUp ? kargs.N / 2 : kargs.N),
+                               IsGateUp ? kargs.stride_C / 2 : kargs.stride_C),
                     make_tuple(kargs.stride_C, 1),
                     number<EpiloguePipeline::GetVectorSizeC()>{},
                     number<1>{});
@@ -535,7 +535,7 @@ struct MoeFlatmmKernel
                 return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
                     e_ptr,
                     make_tuple(IsInputGemm ? kargs.NumTokens * kargs.TopK : kargs.NumToken,
-                               IsGateUp ? kargs.N / 2 : kargs.N),
+                               IsGateUp ? kargs.stride_C / 2 : kargs.stride_C),
                     make_tuple(1, kargs.stride_C),
                     number<1>{},
                     number<1>{});
