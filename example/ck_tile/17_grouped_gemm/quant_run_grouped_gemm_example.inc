@@ -432,12 +432,7 @@ int run_grouped_gemm_example(int argc, char* argv[])
     const std::string b_layout  = arg_parser.get_str("b_layout");
     const std::string data_type = arg_parser.get_str("prec");
 
-    if(data_type == "fp16")
-    {
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::half_t>(
-            a_layout, b_layout, argc, argv);
-    }
-    else if(data_type == "fp8")
+    if(data_type == "fp8")
     {
         return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>, ck_tile::fp8_t>(
             a_layout, b_layout, argc, argv);

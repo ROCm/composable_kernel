@@ -42,15 +42,6 @@ template <typename DataType>
 struct GemmTypeConfig;
 
 template <>
-struct GemmTypeConfig<ck_tile::half_t>
-{
-    using ADataType   = ck_tile::half_t;
-    using BDataType   = ck_tile::half_t;
-    using CDataType   = ck_tile::half_t;
-    using AccDataType = float;
-};
-
-template <>
 struct GemmTypeConfig<ck_tile::fp8_t>
 {
     using ADataType   = ck_tile::fp8_t;
@@ -139,7 +130,7 @@ auto create_args(int argc, char* argv[])
         .insert("b_layout", "C", "B tensor data layout - Row by default.")
         .insert("c_layout", "R", "C tensor data layout - Row by default.")
         .insert("validate", "1", "0. No validation, 1. Validation on CPU.")
-        .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
+        .insert("prec", "fp8", "data type. fp16/bf16/fp8/bf8")
         .insert("warmup", "10", "number of iterations before benchmark the kernel.")
         .insert("repeat", "100", "number of iterations to benchmark the kernel.")
         .insert("group_count", "8", "group count.")
