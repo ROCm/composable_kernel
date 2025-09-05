@@ -3,7 +3,23 @@
 
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/reduce.hpp"
+#include "ck_tile/utility/json_dump.hpp"
 #include <cstring>
+
+template <typename T>
+struct DataTypeTraits;
+
+template <>
+struct DataTypeTraits<ck_tile::half_t>
+{
+    static constexpr const char* name = "fp16";
+};
+
+template <>
+struct DataTypeTraits<ck_tile::bf16_t>
+{
+    static constexpr const char* name = "bf16";
+};
 
 auto create_args(int argc, char* argv[])
 {
@@ -14,8 +30,10 @@ auto create_args(int argc, char* argv[])
         .insert("c", "512", "c dimension")
         .insert("v", "1", "cpu validation or not")
         .insert("prec", "fp16", "precision")
-        .insert("warmup", "0", "cold iter")
-        .insert("repeat", "1", "hot iter");
+        .insert("warmup", "5", "cold iter")
+        .insert("repeat", "20", "hot iter")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "reduce.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -124,6 +142,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
         pass = ck_tile::check_err(y_host_dev, y_host_ref);
 
         std::cout << "valid:" << (pass ? "y" : "n") << std::flush << std::endl;
+    }
+
+    if(arg_parser.get_int("json") == 1)
+    {
+        dump_reduce_json_results<DataType, DataTypeTraits>(
+            arg_parser.get_str("jsonfile"), N, C, H, W, pass, ave_time, 0, gb_per_sec);
     }
 
     return pass;

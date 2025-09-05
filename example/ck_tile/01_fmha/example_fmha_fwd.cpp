@@ -111,7 +111,9 @@ auto create_args(int argc, char* argv[])
         .insert("page_block_size", "0", "paged-kvcache block size. 0 means not use paged-kvcahe")
         .insert("cache_batch_idx", "0", "whether to use index map to the kvcache")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
-        .insert("repeat", "20", "number of iterations to benchmark the kernel");
+        .insert("repeat", "20", "number of iterations to benchmark the kernel")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "fmha_fwd.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -170,6 +172,10 @@ auto run(const ck_tile::ArgParser& arg_parser)
                                          arg_parser.get_int("repeat"),
                                          arg_parser.get_str("timer") == std::string("gpu")};
 
+    auto json = arg_parser.get_int("json") == 1
+                    ? std::optional<std::string>{arg_parser.get_str("jsonfile")}
+                    : std::nullopt;
+
     return fmha_fwd_run<DataTypeConfig>(mode,
                                         batch,
                                         nhead,
@@ -206,7 +212,8 @@ auto run(const ck_tile::ArgParser& arg_parser)
                                         init_method,
                                         seed,
                                         do_validation,
-                                        stream_config);
+                                        stream_config,
+                                        json);
 }
 
 int main(int argc, char* argv[])
