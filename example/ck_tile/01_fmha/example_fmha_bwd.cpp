@@ -80,7 +80,7 @@ auto create_args(int argc, char* argv[])
                 "if set to 1 will use multi-buffer reduction strategy for dq, atomic operation "
                 "will not be used")
         .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
-        .insert("jsonfile", "fmha_fwd.json", "json file name to dump results");
+        .insert("jsonfile", "fmha_bwd.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);

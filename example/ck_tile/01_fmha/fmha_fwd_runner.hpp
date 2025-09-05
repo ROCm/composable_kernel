@@ -1155,140 +1155,146 @@ fwd_result fmha_fwd_run(mode_enum mode,
             ck_tile::index_t nr = nhead / nhead_k;
 
             // clang-format off
-        // permute
-        if(i_perm) q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b_idx, i[0], i[1] + query_offset, i[2]); });
-        else       q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b_idx, i[1] + query_offset, i[0], i[2]); });
+            // permute
+            if(i_perm) q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b_idx, i[0], i[1] + query_offset, i[2]); });
+            else       q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b_idx, i[1] + query_offset, i[0], i[2]); });
+                // clang-format on
 
 #if CK_TILE_FMHA_FWD_APPENDKV_API
-        // optionally apply RoPE to the q_host_ref
-        if(0 < rotary_dim)
-        {
-            decltype(q_host_ref) q_host_ref_ro(q_host_ref.get_lengths());
-
-            auto [rotary_cos_slice, rotary_sin_slice] =
-                slice_rotary_cos_sin(rotary_cos_host, rotary_sin_host, cache_seqlen_ks[wb], real_seqlen_q);
-
-            ck_tile::reference_batched_rotary_position_embedding(
-                q_host_ref, rotary_cos_slice, rotary_sin_slice, is_rotary_interleaved, q_host_ref_ro,
-                /*use_1_row_sin_cos=*/mask.type == mask_enum::no_mask);
-
-            q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host_ref_ro(i); });
-        }
-#endif
-#if CK_TILE_FMHA_FWD_SPLITKV_API || CK_TILE_FMHA_FWD_PAGEDKV_API
-        if(0 < page_block_size) {
-            if(i_perm) {
-                k_host_ref.ForEach([&](auto& self, auto i) {
-                    self(i) = k_host(block_table_host(wb, i[1] / page_block_size), i[0] / nr, i[1] % page_block_size, i[2]);
-                });
-            } else {
-                k_host_ref.ForEach([&](auto& self, auto i) {
-                    self(i) = k_host(block_table_host(wb, i[1] / page_block_size), i[1] % page_block_size, i[0] / nr, i[2]);
-                });
-            }
-        } else
-#endif
-        {
-            if(i_perm) k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(cache_b_idx, i[0] / nr, i[1] + key_offset, i[2]); });
-            else       k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(cache_b_idx, i[1] + key_offset, i[0] / nr, i[2]); });
-        }
-
-#if CK_TILE_FMHA_FWD_APPENDKV_API
-        // copy Knew to the end of K
-        if(0 < seqlen_knew)
-        {
-            ck_tile::HostTensor<KDataType> knew_host_ref({nhead, seqlen_knew, hdim_q});
-            if(i_perm) knew_host_ref.ForEach([&](auto& self, auto i) { self(i) = knew_host(wb, i[0] / nr, i[1], i[2]); });
-            else       knew_host_ref.ForEach([&](auto& self, auto i) { self(i) = knew_host(wb, i[1], i[0] / nr, i[2]); });
-
-            // optionally apply RoPE to the knew_host_ref
-            auto* real_knew_host_ref = &knew_host_ref;
-            std::optional<decltype(knew_host_ref)> knew_host_ref_ro;
+            // optionally apply RoPE to the q_host_ref
             if(0 < rotary_dim)
             {
-                knew_host_ref_ro.emplace(knew_host_ref.get_lengths());
+                decltype(q_host_ref) q_host_ref_ro(q_host_ref.get_lengths());
 
-                auto [rotary_cos_slice, rotary_sin_slice] =
-                    slice_rotary_cos_sin(rotary_cos_host, rotary_sin_host, cache_seqlen_ks[wb], seqlen_knew);
+                auto [rotary_cos_slice, rotary_sin_slice] = slice_rotary_cos_sin(
+                    rotary_cos_host, rotary_sin_host, cache_seqlen_ks[wb], real_seqlen_q);
 
                 ck_tile::reference_batched_rotary_position_embedding(
-                    knew_host_ref,
+                    q_host_ref,
                     rotary_cos_slice,
                     rotary_sin_slice,
                     is_rotary_interleaved,
-                    knew_host_ref_ro.value());
+                    q_host_ref_ro,
+                    /*use_1_row_sin_cos=*/mask.type == mask_enum::no_mask);
 
-                real_knew_host_ref = &knew_host_ref_ro.value();
+                q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host_ref_ro(i); });
             }
-
-            (*real_knew_host_ref).ForEach([&](auto& self, auto i) {
-                k_host_ref(i[0], i[1] + cache_seqlen_ks[wb], i[2]) = self(i);
-            });
-        }
 #endif
 #if CK_TILE_FMHA_FWD_SPLITKV_API || CK_TILE_FMHA_FWD_PAGEDKV_API
-        if(0 < page_block_size) {
-            if(is_v_rowmajor) {
-                if(i_perm) {
-                    v_host_ref.ForEach([&](auto& self, auto i) {
-                        self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[0] / nr, i[2] % page_block_size, i[1]);
-                    });
-                } else {
-                    v_host_ref.ForEach([&](auto& self, auto i) {
-                        self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[2] % page_block_size, i[0] / nr, i[1]);
-                    });
-                }
+            if(0 < page_block_size)
+            {
+                // clang-format off
+                if(i_perm) k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(block_table_host(wb, i[1] / page_block_size), i[0] / nr, i[1] % page_block_size, i[2]); });
+                else       k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(block_table_host(wb, i[1] / page_block_size), i[1] % page_block_size, i[0] / nr, i[2]); });
+                // clang-format on
             }
             else
-            {
-                if(i_perm) {
-                    v_host_ref.ForEach([&](auto& self, auto i) {
-                        self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[0] / nr, i[1], i[2] % page_block_size);
-                    });
-                } else {
-                    v_host_ref.ForEach([&](auto& self, auto i) {
-                        self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[1], i[0] / nr, i[2] % page_block_size);
-                    });
-                }
-            }
-        } else
 #endif
-        {
-            if(is_v_rowmajor) {
-                //                                                             v_host_ref: [nhead, hdim, seq], v_host: [b, h_k, s, d]
-                if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(cache_b_idx, i[0] / nr, i[2] + key_offset, i[1]); });
-                //                                                             v_host_ref: [nhead, hdim, seq], v_host: [b, s, h_k, d]
-                else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(cache_b_idx, i[2] + key_offset, i[0] / nr, i[1]); });
-            }
-            else
             {
-                if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(cache_b_idx, i[0] / nr, i[1], i[2] + key_offset); });
-                else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(cache_b_idx, i[1], i[0] / nr, i[2] + key_offset); });
+                // clang-format off
+                if(i_perm) k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(cache_b_idx, i[0] / nr, i[1] + key_offset, i[2]); });
+                else       k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(cache_b_idx, i[1] + key_offset, i[0] / nr, i[2]); });
+                // clang-format on
             }
-        }
 
 #if CK_TILE_FMHA_FWD_APPENDKV_API
-        // copy Vnew to the end of V
-        if(0 < seqlen_knew)
-        {
-            ck_tile::HostTensor<VDataType> vnew_host_ref({nhead, hdim_v, seqlen_knew});
-            if(is_v_rowmajor)
+            // copy Knew to the end of K
+            if(0 < seqlen_knew)
             {
-                if(i_perm) vnew_host_ref.ForEach([&](auto& self, auto i) { self(i) = vnew_host(wb, i[0] / nr, i[2], i[1]); });
-                else       vnew_host_ref.ForEach([&](auto& self, auto i) { self(i) = vnew_host(wb, i[2], i[0] / nr, i[1]); });
+                ck_tile::HostTensor<KDataType> knew_host_ref({nhead, seqlen_knew, hdim_q});
+                // clang-format off
+                if(i_perm) knew_host_ref.ForEach([&](auto& self, auto i) { self(i) = knew_host(wb, i[0] / nr, i[1], i[2]); });
+                else       knew_host_ref.ForEach([&](auto& self, auto i) { self(i) = knew_host(wb, i[1], i[0] / nr, i[2]); });
+                // clang-format on
+
+                // optionally apply RoPE to the knew_host_ref
+                auto* real_knew_host_ref = &knew_host_ref;
+                std::optional<decltype(knew_host_ref)> knew_host_ref_ro;
+                if(0 < rotary_dim)
+                {
+                    knew_host_ref_ro.emplace(knew_host_ref.get_lengths());
+
+                    auto [rotary_cos_slice, rotary_sin_slice] = slice_rotary_cos_sin(
+                        rotary_cos_host, rotary_sin_host, cache_seqlen_ks[wb], seqlen_knew);
+
+                    ck_tile::reference_batched_rotary_position_embedding(knew_host_ref,
+                                                                         rotary_cos_slice,
+                                                                         rotary_sin_slice,
+                                                                         is_rotary_interleaved,
+                                                                         knew_host_ref_ro.value());
+
+                    real_knew_host_ref = &knew_host_ref_ro.value();
+                }
+
+                (*real_knew_host_ref).ForEach([&](auto& self, auto i) {
+                    k_host_ref(i[0], i[1] + cache_seqlen_ks[wb], i[2]) = self(i);
+                });
+            }
+#endif
+#if CK_TILE_FMHA_FWD_SPLITKV_API || CK_TILE_FMHA_FWD_PAGEDKV_API
+            if(0 < page_block_size)
+            {
+                if(is_v_rowmajor)
+                {
+                    // clang-format off
+                    if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[0] / nr, i[2] % page_block_size, i[1]); });
+                    else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[2] % page_block_size, i[0] / nr, i[1]); });
+                    // clang-format on
+                }
+                else
+                {
+                    // clang-format off
+                    if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[0] / nr, i[1], i[2] % page_block_size); });
+                    else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[1], i[0] / nr, i[2] % page_block_size); });
+                    // clang-format on
+                }
             }
             else
+#endif
             {
-                if(i_perm) vnew_host_ref.ForEach([&](auto& self, auto i) { self(i) = vnew_host(wb, i[0] / nr, i[1], i[2]); });
-                else       vnew_host_ref.ForEach([&](auto& self, auto i) { self(i) = vnew_host(wb, i[1], i[0] / nr, i[2]); });
+                if(is_v_rowmajor)
+                {
+                    // clang-format off
+                    //                                v_host_ref: [nhead, hdim, seq], v_host: [b, h_k, s, d]
+                    if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(cache_b_idx, i[0] / nr, i[2] + key_offset, i[1]); });
+                    //                                v_host_ref: [nhead, hdim, seq], v_host: [b, s, h_k, d]
+                    else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(cache_b_idx, i[2] + key_offset, i[0] / nr, i[1]); });
+                    // clang-format on
+                }
+                else
+                {
+                    // clang-format off
+                    if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(cache_b_idx, i[0] / nr, i[1], i[2] + key_offset); });
+                    else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(cache_b_idx, i[1], i[0] / nr, i[2] + key_offset); });
+                    // clang-format on
+                }
             }
 
-            vnew_host_ref.ForEach([&](auto& self, auto i) {
-                v_host_ref(i[0], i[1], i[2] + cache_seqlen_ks[wb]) = self(i);
-            });
-        }
+#if CK_TILE_FMHA_FWD_APPENDKV_API
+            // copy Vnew to the end of V
+            if(0 < seqlen_knew)
+            {
+                ck_tile::HostTensor<VDataType> vnew_host_ref({nhead, hdim_v, seqlen_knew});
+                if(is_v_rowmajor)
+                {
+                    // clang-format off
+                    if(i_perm) vnew_host_ref.ForEach([&](auto& self, auto i) { self(i) = vnew_host(wb, i[0] / nr, i[2], i[1]); });
+                    else       vnew_host_ref.ForEach([&](auto& self, auto i) { self(i) = vnew_host(wb, i[2], i[0] / nr, i[1]); });
+                    // clang-format on
+                }
+                else
+                {
+                    // clang-format off
+                    if(i_perm) vnew_host_ref.ForEach([&](auto& self, auto i) { self(i) = vnew_host(wb, i[0] / nr, i[1], i[2]); });
+                    else       vnew_host_ref.ForEach([&](auto& self, auto i) { self(i) = vnew_host(wb, i[1], i[0] / nr, i[2]); });
+                    // clang-format on
+                }
+
+                vnew_host_ref.ForEach([&](auto& self, auto i) {
+                    v_host_ref(i[0], i[1], i[2] + cache_seqlen_ks[wb]) = self(i);
+                });
+            }
 #endif
-            // clang-format on
 
             // reference
             ck_tile::
@@ -1315,10 +1321,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
                 // elementwise bias
                 ck_tile::HostTensor<BiasDataType> bias_host_ref({1, real_seqlen_q, real_seqlen_k});
                 // clang-format off
-                if(i_perm)
-                    bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, 0, i[1] + query_offset, i[2]); });
-                else
-                    bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, i[1] + query_offset, 0, i[2]); });
+                if(i_perm) bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, 0, i[1] + query_offset, i[2]); });
+                else       bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, i[1] + query_offset, 0, i[2]); });
                 // clang-format on
 
                 // broadcast from [1, real_seqlen_q, real_seqlen_k] to [nhead, real_seqlen_q,
@@ -1468,9 +1472,9 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
             ck_tile::HostTensor<ODataType> o_host_result({nhead, real_seqlen_q, hdim_v});
             // clang-format off
-        // permute
-        if(o_perm) o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host(b_idx, idx[0], idx[1] + query_offset, idx[2]); });
-        else       o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host(b_idx, idx[1] + query_offset, idx[0], idx[2]); });
+            // permute
+            if(o_perm) o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host(b_idx, idx[0], idx[1] + query_offset, idx[2]); });
+            else       o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host(b_idx, idx[1] + query_offset, idx[0], idx[2]); });
             // clang-format on
 
             auto [rtol, atol] = get_elimit<DataTypeConfig>(init_method);
