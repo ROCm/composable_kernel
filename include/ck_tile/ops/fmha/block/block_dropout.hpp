@@ -125,7 +125,7 @@ struct BlockDropout
         constexpr auto randval_block_inner_part_dstr_encoding = []() {
             if constexpr(std::is_same_v<typename BlockGemm::ADataType, half_t> &&
                          std::is_same_v<typename BlockGemm::BDataType, half_t> &&
-                         std::is_same_v<typename BlockGemm::CDataType, float>)
+                         std::is_same_v<typename BlockGemm::EDataType, float>)
             {
                 return typename WarpGemmMfmaF16F16F32M32N32K16SwizzleA::CWarpDstrEncoding{};
             }
@@ -448,7 +448,7 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
         constexpr auto randval_block_inner_part_dstr_encoding = []() {
             if constexpr(std::is_same_v<typename BlockGemm::ADataType, half_t> &&
                          std::is_same_v<typename BlockGemm::BDataType, half_t> &&
-                         std::is_same_v<typename BlockGemm::CDataType, float>)
+                         std::is_same_v<typename BlockGemm::EDataType, float>)
             {
                 if constexpr(IsWG32)
                     return typename WarpGemmMfmaF16F16F32M32N32K16SwizzleA::CWarpDstrEncoding{};

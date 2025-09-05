@@ -37,15 +37,24 @@ template <typename Problem, typename PipelinePolicy = UniversalWeightPreshuffleP
 struct WeightPreshufflePipelineAGmemBGmemCRegV1
     : public BaseWeightPreshufflePipelineAGmemBGmemCRegV1<Problem>
 {
-    using Base           = BaseWeightPreshufflePipelineAGmemBGmemCRegV1<Problem>;
-    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
-    using CDataType      = remove_cvref_t<typename Problem::CDataType>;
+    using Base       = BaseWeightPreshufflePipelineAGmemBGmemCRegV1<Problem>;
+    using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
+    using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
+    using EDataType  = remove_cvref_t<typename Problem::EDataType>;
+
+    using AElementWise   = remove_cvref_t<typename Problem::AElementWise>;
+    using BElementWise   = remove_cvref_t<typename Problem::BElementWise>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
-    using ALayout = remove_cvref_t<typename Problem::ALayout>;
-    using BLayout = remove_cvref_t<typename Problem::BLayout>;
-    using CLayout = remove_cvref_t<typename Problem::CLayout>;
+    using AsLayout = remove_cvref_t<typename Problem::AsLayoutTuple>;
+    using BsLayout = remove_cvref_t<typename Problem::BsLayoutTuple>;
+    using ELayout  = remove_cvref_t<typename Problem::ELayout>;
+
+    using ALayout = remove_cvref_t<std::tuple_element_t<0, AsLayout>>;
+    using BLayout = remove_cvref_t<std::tuple_element_t<0, BsLayout>>;
+
+    using ADataType = remove_cvref_t<std::tuple_element_t<0, AsDataType>>;
+    using BDataType = remove_cvref_t<std::tuple_element_t<0, BsDataType>>;
 
     using BlockWeightPreshuffle =
         remove_cvref_t<decltype(PipelinePolicy::template GetBlockWeightPreshuffle<Problem>())>;
@@ -188,13 +197,25 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
         }
     }
 
-    template <typename ADramBlockWindowTmp, typename BFlatBlockWindowTmp, typename AElementFunction>
-    CK_TILE_HOST_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+    template <typename AsDramBlockWindowTmp,
+              typename BsFlatBlockWindowTmp,
+              typename AElementFunction>
+    CK_TILE_HOST_DEVICE auto operator()(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
                                         const AElementFunction& a_element_func,
-                                        const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
+                                        const BsFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                         index_t num_loop,
                                         void* p_smem) const
     {
+        static_assert(AsDramBlockWindowTmp::size() == 1 && BsFlatBlockWindowTmp::size() == 1,
+                      "The A/B DRAM block window should have a size of 1 "
+                      "Currently, WeightPreshufflePipelineAGmemBGmemCRegV1 supports only a single "
+                      "A/B DRAM block window.");
+
+        using ADramBlockWindowTmp =
+            remove_cvref_t<std::tuple_element_t<number<0>{}, AsDramBlockWindowTmp>>;
+        using BFlatBlockWindowTmp =
+            remove_cvref_t<std::tuple_element_t<number<0>{}, BsFlatBlockWindowTmp>>;
+
         static_assert(
             std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
                 std::is_same_v<BDataType, remove_cvref_t<typename BFlatBlockWindowTmp::DataType>>,
@@ -279,9 +300,9 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
         auto b_flat_distribution =
             PipelinePolicy::template MakeBFlatDramTileDistribution<Problem>();
         auto b_flat_dram_window =
-            make_tile_window(b_flat_dram_block_window_tmp.get_bottom_tensor_view(),
+            make_tile_window(b_flat_dram_block_window_tmp[number<0>{}].get_bottom_tensor_view(),
                              make_tuple(number<flatNPerWarp>{}, number<flatKPerWarp>{}),
-                             b_flat_dram_block_window_tmp.get_window_origin(),
+                             b_flat_dram_block_window_tmp[number<0>{}].get_window_origin(),
                              b_flat_distribution);
 
         // Acc register tile
@@ -455,9 +476,9 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
         return c_block_tile;
     }
 
-    template <typename ADramBlockWindowTmp, typename BFlatBlockWindowTmp>
-    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
-                                   const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
+    template <typename AsDramBlockWindowTmp, typename BsFlatBlockWindowTmp>
+    CK_TILE_DEVICE auto operator()(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const BsFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                    index_t num_loop,
                                    void* p_smem) const
     {

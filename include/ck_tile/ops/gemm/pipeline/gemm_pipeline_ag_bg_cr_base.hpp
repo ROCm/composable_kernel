@@ -11,11 +11,16 @@ namespace ck_tile {
 template <typename Problem, typename Policy>
 struct GemmPipelineAgBgCrImplBase
 {
-    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
-    using ALayout        = remove_cvref_t<typename Problem::ALayout>;
-    using BLayout        = remove_cvref_t<typename Problem::BLayout>;
+    using AsDataType     = remove_cvref_t<typename Problem::AsDataTypeTuple>;
+    using BsDataType     = remove_cvref_t<typename Problem::BsDataTypeTuple>;
+    using AsLayout       = remove_cvref_t<typename Problem::AsLayoutTuple>;
+    using BsLayout       = remove_cvref_t<typename Problem::BsLayoutTuple>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
+
+    using ADataType = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
+    using ALayout   = remove_cvref_t<std::tuple_element_t<number<0>{}, AsLayout>>;
+    using BDataType = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
+    using BLayout   = remove_cvref_t<std::tuple_element_t<number<0>{}, BsLayout>>;
 
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
@@ -53,8 +58,16 @@ struct GemmPipelineAgBgCrImplBase
                                      const SrcBlockTile& src_block_tile,
                                      const ElementFunction& element_func) const
     {
-        const auto block_tile_tmp = tile_elementwise_in(element_func, src_block_tile);
-        store_tile(lds_tile_window, block_tile_tmp);
+        const auto block_tile_tmp =
+            tile_elementwise_in(element_func, src_block_tile, src_block_tile);
+        store_tile(lds_tile_window, src_block_tile);
+    }
+
+    template <typename DstTileWindow, typename SrcBlockTile>
+    CK_TILE_DEVICE void LocalPrefill(DstTileWindow& lds_tile_window,
+                                     const SrcBlockTile& src_block_tile) const
+    {
+        store_tile(lds_tile_window, src_block_tile);
     }
 
     template <typename DstBlockTile, typename SrcTileWindow, bool LoadTranspose = false>
@@ -100,11 +113,15 @@ struct GemmPipelineAgBgCrImplBase
         using XPerTile = std::conditional_t<is_col_major, number<MPerBlock>, number<KPerBlock>>;
 
         // A DRAM tile window for load
-        auto a_copy_dram_window =
-            make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(YPerTile{}, XPerTile{}),
-                             a_dram_block_window_tmp.get_window_origin() + offset,
-                             Policy::template MakeADramTileDistribution<Problem>());
+        auto a_copy_dram_window = generate_tuple(
+            [&](auto idx) {
+                return make_tile_window(
+                    a_dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view(),
+                    make_tuple(YPerTile{}, XPerTile{}),
+                    a_dram_block_window_tmp[number<idx>{}].get_window_origin() + offset,
+                    Policy::template MakeADramTileDistribution<Problem>());
+            },
+            number<ADramBlockWindowTmp::size()>{});
 
         // A LDS tile window for store
         auto a_lds_shape = []() {
@@ -143,11 +160,15 @@ struct GemmPipelineAgBgCrImplBase
         using YPerTile = std::conditional_t<is_row_major, number<KPerBlock>, number<NPerBlock>>;
         using XPerTile = std::conditional_t<is_row_major, number<NPerBlock>, number<KPerBlock>>;
 
-        auto b_copy_dram_window =
-            make_tile_window(b_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(YPerTile{}, XPerTile{}),
-                             b_dram_block_window_tmp.get_window_origin() + offset,
-                             Policy::template MakeBDramTileDistribution<Problem>());
+        auto b_copy_dram_window = generate_tuple(
+            [&](auto idx) {
+                return make_tile_window(
+                    b_dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view(),
+                    make_tuple(YPerTile{}, XPerTile{}),
+                    b_dram_block_window_tmp[number<idx>{}].get_window_origin() + offset,
+                    Policy::template MakeBDramTileDistribution<Problem>());
+            },
+            number<BDramBlockWindowTmp::size()>{});
 
         // TODO: Do we really need those two tile windows???
         // They're exactly same...

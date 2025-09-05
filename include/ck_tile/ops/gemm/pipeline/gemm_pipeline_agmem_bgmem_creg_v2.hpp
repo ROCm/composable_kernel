@@ -15,30 +15,66 @@ namespace ck_tile {
 template <typename Problem, typename Policy = GemmPipelineAGmemBGmemCRegV2DefaultPolicy>
 struct GemmPipelineAGmemBGmemCRegV2
 {
-    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
-    using CDataType      = remove_cvref_t<typename Problem::CDataType>;
+    using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
+    using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
+    using EDataType  = remove_cvref_t<typename Problem::EDataType>;
+
+    using AElementWise   = remove_cvref_t<typename Problem::AElementWise>;
+    using BElementWise   = remove_cvref_t<typename Problem::BElementWise>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
+
+    using AsLayout = remove_cvref_t<typename Problem::AsLayoutTuple>;
+    using BsLayout = remove_cvref_t<typename Problem::BsLayoutTuple>;
+    using ELayout  = remove_cvref_t<typename Problem::ELayout>;
+
+    using ALayout = remove_cvref_t<std::tuple_element_t<0, AsLayout>>;
+    using BLayout = remove_cvref_t<std::tuple_element_t<0, BsLayout>>;
+
+    using ADataType = remove_cvref_t<std::tuple_element_t<0, AsDataType>>;
+    using BDataType = remove_cvref_t<std::tuple_element_t<0, BsDataType>>;
 
     static constexpr index_t APackedSize =
         ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
     static constexpr index_t BPackedSize =
         ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
 
-    static constexpr index_t kBlockSize = Problem::kBlockSize;
+    static constexpr index_t BlockSize = Problem::kBlockSize;
 
     static constexpr index_t kMPerBlock = BlockGemmShape::kM;
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
 
+    template <bool IsWave32Host = false>
+    static constexpr index_t GetVectorSizeA()
+    {
+        return Problem::VectorSizeA;
+    }
+    template <bool IsWave32Host = false>
+    static constexpr index_t GetVectorSizeB()
+    {
+        return Problem::VectorSizeB;
+    }
+    static constexpr index_t GetVectorSizeC() { return Problem::VectorSizeC; }
+
     static constexpr index_t GetSmemPackA() { return Policy::template GetSmemPackA<Problem>(); }
     static constexpr index_t GetSmemPackB() { return Policy::template GetSmemPackB<Problem>(); }
+
+    static constexpr bool kPadM = Problem::kPadM;
+    static constexpr bool kPadN = Problem::kPadN;
+    static constexpr bool kPadK = Problem::kPadK;
+
+    static constexpr bool Preshuffle = Problem::Preshuffle;
+
+    static constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
+
+    // For the basic gemm pipelien DoubleSmemBuffer set to be false naturally.
+    static constexpr bool DoubleSmemBuffer = false;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
         return concat('_', "pipeline_AGmemBGmemCRegV2",
-                      concat('x', kMPerBlock, kNPerBlock, kKPerBlock, kBlockSize));
+                      concat('x', kMPerBlock, kNPerBlock, kKPerBlock, BlockSize));
         // clang-format on
     }
     CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
@@ -56,17 +92,32 @@ struct GemmPipelineAGmemBGmemCRegV2
                    BPackedSize;
     }
 
-    template <typename ADramBlockWindowTmp,
-              typename BDramBlockWindowTmp,
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
+    {
+        return Policy::template GetSmemSize<Problem>();
+    }
+
+    template <typename AsDramBlockWindowTmp,
+              typename BsDramBlockWindowTmp,
               typename AElementFunction,
               typename BElementFunction>
-    CK_TILE_HOST_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+    CK_TILE_HOST_DEVICE auto operator()(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
                                         const AElementFunction& a_element_func,
-                                        const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                        const BsDramBlockWindowTmp& b_dram_block_window_tmp,
                                         const BElementFunction& b_element_func,
                                         index_t num_loop,
                                         void* p_smem) const
     {
+        static_assert(AsDramBlockWindowTmp::size() == 1 && BsDramBlockWindowTmp::size() == 1,
+                      "The A/B DRAM block window should have a size of 1 "
+                      "Currently, GemmPipelineAGmemBGmemCRegV2 supports only a single A/B DRAM "
+                      "block window.");
+
+        using ADramBlockWindowTmp =
+            remove_cvref_t<std::tuple_element_t<number<0>{}, AsDramBlockWindowTmp>>;
+        using BDramBlockWindowTmp =
+            remove_cvref_t<std::tuple_element_t<number<0>{}, BsDramBlockWindowTmp>>;
+
         static_assert(
             std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
                 std::is_same_v<BDataType, remove_cvref_t<typename BDramBlockWindowTmp::DataType>>,
@@ -99,9 +150,9 @@ struct GemmPipelineAGmemBGmemCRegV2
 
         // A DRAM tile window for load
         auto a_copy_dram_window =
-            make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
+            make_tile_window(a_dram_block_window_tmp[number<0>{}].get_bottom_tensor_view(),
                              make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
-                             a_dram_block_window_tmp.get_window_origin(),
+                             a_dram_block_window_tmp[number<0>{}].get_window_origin(),
                              Policy::template MakeADramTileDistribution<Problem>());
 
         // A LDS tile window for store
@@ -113,9 +164,9 @@ struct GemmPipelineAGmemBGmemCRegV2
 
         // B DRAM tile window for load
         auto b_copy_dram_window =
-            make_tile_window(b_dram_block_window_tmp.get_bottom_tensor_view(),
+            make_tile_window(b_dram_block_window_tmp[number<0>{}].get_bottom_tensor_view(),
                              make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}),
-                             b_dram_block_window_tmp.get_window_origin(),
+                             b_dram_block_window_tmp[number<0>{}].get_window_origin(),
                              Policy::template MakeBDramTileDistribution<Problem>());
 
         // B LDS tile window for store

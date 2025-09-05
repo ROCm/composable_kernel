@@ -34,7 +34,7 @@ struct GemmPipelineAgBgCrCompV4DefaultPolicy
 
         using WarpGemm = WarpGemmDispatcher<typename Problem::ADataType,
                                             typename Problem::BDataType,
-                                            typename Problem::CDataType, // AccDataType
+                                            typename Problem::EDataType, // AccDataType
                                             WarpTile::at(I0),
                                             WarpTile::at(I1),
                                             WarpTile::at(I2),
@@ -45,7 +45,7 @@ struct GemmPipelineAgBgCrCompV4DefaultPolicy
 
         using BlockGemmPolicy = BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::ADataType,
                                                                     typename Problem::BDataType,
-                                                                    typename Problem::CDataType,
+                                                                    typename Problem::EDataType,
                                                                     BlockWarps,
                                                                     WarpGemm>;
 

@@ -403,7 +403,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
 
         using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
                                                                       typename Problem::BDataType,
-                                                                      typename Problem::CDataType,
+                                                                      typename Problem::EDataType,
                                                                       BlockWarps,
                                                                       WarpGemm>;
 

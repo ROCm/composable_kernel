@@ -25,7 +25,7 @@ struct GemmPipelineAgBgCrCompV5DefaultPolicy
         using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
         using WarpGemm   = WarpGemmDispatcher<typename Problem::ADataType,
                                               typename Problem::BDataType,
-                                              typename Problem::CDataType, // AccDataType
+                                              typename Problem::EDataType, // AccDataType
                                               WarpTile::at(I0),
                                               WarpTile::at(I1),
                                               WarpTile::at(I2),
@@ -33,7 +33,7 @@ struct GemmPipelineAgBgCrCompV5DefaultPolicy
 
         using BlockGemmPolicy = BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::ADataType,
                                                                     typename Problem::BDataType,
-                                                                    typename Problem::CDataType,
+                                                                    typename Problem::EDataType,
                                                                     BlockWarps,
                                                                     WarpGemm>;
 
@@ -46,7 +46,7 @@ struct GemmPipelineAgBgCrCompV5DefaultPolicy
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
 
-        return integer_least_multiple(sizeof(typename Problem::CDataType) * MPerBlock * NPerBlock,
+        return integer_least_multiple(sizeof(typename Problem::EDataType) * MPerBlock * NPerBlock,
                                       16);
     }
 

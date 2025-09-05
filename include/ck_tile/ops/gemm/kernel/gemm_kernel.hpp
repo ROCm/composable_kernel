@@ -89,7 +89,7 @@ struct GemmKernel
     /// @brief Specify the layout configurations for A, B, E and D
     using ALayout = remove_cvref_t<typename GemmPipeline::ALayout>;
     using BLayout = remove_cvref_t<typename GemmPipeline::BLayout>;
-    using ELayout = remove_cvref_t<typename GemmPipeline::CLayout>;
+    using ELayout = remove_cvref_t<typename GemmPipeline::ELayout>;
 
     /// @brief  Specify the data type configurations for A, B, E and D
     using ADataType = remove_cvref_t<typename GemmPipeline::ADataType>;

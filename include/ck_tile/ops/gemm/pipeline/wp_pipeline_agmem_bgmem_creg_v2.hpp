@@ -50,14 +50,23 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
 {
     using Base = BaseWeightPreshufflePipelineAGmemBGmemCRegV2<Problem>;
 
-    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
-    using CDataType      = remove_cvref_t<typename Problem::CDataType>;
+    using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
+    using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
+    using EDataType  = remove_cvref_t<typename Problem::EDataType>;
+
+    using AElementWise   = remove_cvref_t<typename Problem::AElementWise>;
+    using BElementWise   = remove_cvref_t<typename Problem::BElementWise>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>; // TileFlatmmShape
 
-    using ALayout = remove_cvref_t<typename Problem::ALayout>;
-    using BLayout = remove_cvref_t<typename Problem::BLayout>;
-    using CLayout = remove_cvref_t<typename Problem::CLayout>;
+    using AsLayout = remove_cvref_t<typename Problem::AsLayoutTuple>;
+    using BsLayout = remove_cvref_t<typename Problem::BsLayoutTuple>;
+    using ELayout  = remove_cvref_t<typename Problem::ELayout>;
+
+    using ALayout = remove_cvref_t<std::tuple_element_t<0, AsLayout>>;
+    using BLayout = remove_cvref_t<std::tuple_element_t<0, BsLayout>>;
+
+    using ADataType = remove_cvref_t<std::tuple_element_t<0, AsDataType>>;
+    using BDataType = remove_cvref_t<std::tuple_element_t<0, BsDataType>>;
 
     using BlockWeightPreshuffle =
         remove_cvref_t<decltype(PipelinePolicy::template GetBlockWeightPreshuffle<Problem>())>;
@@ -555,14 +564,24 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
         }
     }
 
-    template <typename ADramBlockWindowTmp, typename BFlatBlockWindowTmp, typename AElementFunction>
-    CK_TILE_HOST_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+    template <typename AsDramBlockWindowTmp,
+              typename BsFlatBlockWindowTmp,
+              typename AElementFunction>
+    CK_TILE_HOST_DEVICE auto operator()(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
                                         const AElementFunction& a_element_func,
-                                        const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
+                                        const BsFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                         index_t num_loop,
                                         void* p_smem_ping,
                                         void* p_smem_pong) const
     {
+        static_assert(AsDramBlockWindowTmp::size() == 1 && BsFlatBlockWindowTmp::size() == 1,
+                      "The A/B DRAM block window should have a size of 1 "
+                      "Currently, BaseWeightPreshufflePipelineAGmemBGmemCRegV2 supports only a "
+                      "single A/B DRAM block window.");
+
+        using ADramBlockWindowTmp =
+            remove_cvref_t<std::tuple_element_t<number<0>{}, AsDramBlockWindowTmp>>;
+
         static_assert(
             std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>>,
             "wrong!");
