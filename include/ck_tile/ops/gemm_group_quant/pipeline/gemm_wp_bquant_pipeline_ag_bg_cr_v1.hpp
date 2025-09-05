@@ -83,7 +83,7 @@ struct WPQuantBPipelineAgBgCrV1 : public BaseWPQuantBPipelineAgBgCrV1<Problem>
         // clang-format off
         constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(I0);
         constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1);
-        return concat('_', "bquant_pipeline_AgBgCrCompV3", 
+        return concat('_', "bquant_pipeline_AgBgCrV1", 
                       concat('x', kMPerBlock, kNPerBlock, kKPerBlock),
                       BlockSize,
                       concat('x', WaveNumM, WaveNumN),
@@ -351,7 +351,6 @@ struct WPQuantBPipelineAgBgCrV1 : public BaseWPQuantBPipelineAgBgCrV1<Problem>
             store_tile(a_copy_lds_window, tile_elementwise_in(a_element_func, a_block_tile));
 
             block_sync_lds();
-            // prefetch B tensor that convert int4 -> fp8 in registers.
         }
 
         index_t iCounter = num_loop / 2 - 1;
@@ -398,7 +397,7 @@ struct WPQuantBPipelineAgBgCrV1 : public BaseWPQuantBPipelineAgBgCrV1<Problem>
             a_block_tile = load_tile(a_copy_dram_window);
 
             // GEMM i + 1
-            //      block_flatmm(c_block_tile, a_warp_windows, b_warp_tensor_2, bq_block_tile_2);
+            block_flatmm(c_block_tile, a_warp_windows, b_warp_tensor_2, bq_block_tile_2);
 
             block_sync_lds();
 
@@ -434,7 +433,7 @@ struct WPQuantBPipelineAgBgCrV1 : public BaseWPQuantBPipelineAgBgCrV1<Problem>
             block_sync_lds();
 
             iCounter--;
-            break;
+            // break;
         }
         // tail
         {

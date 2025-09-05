@@ -16,14 +16,13 @@ namespace ck_tile {
 template <typename Problem_, typename BlockPolicy_>
 struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
 {
-    using Problem         = remove_cvref_t<Problem_>;
-    using BlockPolicy     = remove_cvref_t<BlockPolicy_>;
-    using ADataType       = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType       = remove_cvref_t<typename Problem::BDataType>;
-    using BQDataType      = remove_cvref_t<typename Problem::BQDataType>;
-    using CDataType       = remove_cvref_t<typename Problem::CDataType>;
-    using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
-    using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>; // TileFlatmmShape
+    using Problem        = remove_cvref_t<Problem_>;
+    using BlockPolicy    = remove_cvref_t<BlockPolicy_>;
+    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
+    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
+    using BQDataType     = remove_cvref_t<typename Problem::BQDataType>;
+    using CDataType      = remove_cvref_t<typename Problem::CDataType>;
+    using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>; // TileFlatmmShape
 
     static constexpr auto I0   = number<0>();
     static constexpr auto I1   = number<1>();
@@ -66,11 +65,6 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
 
     static constexpr index_t KIterPerQScale = KIterPerWarp / QScalesPerBlockRow;
 
-    static constexpr index_t InterWaveSchedulingMacClusters = 1;
-
-    static constexpr index_t KPack      = WG::kKPerThread;
-    static constexpr index_t KPerThread = KIterPerWarp * WG::kKPerThread;
-
     template <typename T>
     CK_TILE_DEVICE static float cvt_scale_to_fp32(T& scale)
     {
@@ -92,24 +86,6 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
             static_assert(false, "BQDataType must be float, fp8_t or bf8_t.");
         }
         return scale_reg_f;
-    }
-
-    template <typename WarpWindow, typename WarpTile>
-    CK_TILE_DEVICE static void load_interleaved_pk_type(WarpTile& warp_tile,
-                                                        const WarpWindow& warp_window)
-    {
-        const element_wise::PassThroughPack8 elementwise_op{};
-        const index_t UnaryOpSize = 8;
-
-        static_assert(WarpTile::get_thread_buffer_size() % UnaryOpSize == 0);
-        constexpr index_t thread_buffer_size = WarpTile::get_thread_buffer_size() / UnaryOpSize;
-        const auto in_dstr_tensors           = load_tile(warp_window);
-
-        using ComputeVectorType = ComputeDataType __attribute__((ext_vector_type(UnaryOpSize)));
-        static_for<0, thread_buffer_size, 1>{}([&](auto i) {
-            elementwise_op(warp_tile.get_thread_buffer().template get_as<ComputeVectorType>()(i),
-                           in_dstr_tensors.get_thread_buffer().template get_as<pk_int4x4_t>()[i]);
-        });
     }
 
     CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
@@ -154,7 +130,6 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
                 static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                     // read A warp tensor from A block tensor
                     auto a_warp_tensor = load_tile(a_warp_windows(mIter)(kIter));
-
                     // warp GEMM
                     if constexpr(kIter % KIterPerQScale == 0)
                     {

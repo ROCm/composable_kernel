@@ -35,8 +35,8 @@ struct GemmWPQuantPipelineAgBgCrPolicy : public UniversalWeightPreshufflePipelin
         // static_assert(std::is_same_v<typename Problem::ComputeDataType, ck_tile::pk_int4_t>,
         // "compute data type must be fp8_t");
 
-        using WarpGemm = WarpGemmDispatcher<typename Problem::ComputeDataType,
-                                            typename Problem::ComputeDataType,
+        using WarpGemm = WarpGemmDispatcher<typename Problem::ADataType,
+                                            typename Problem::BDataType,
                                             typename Problem::CDataType,
                                             WarpTile::at(I0),
                                             WarpTile::at(I1),
