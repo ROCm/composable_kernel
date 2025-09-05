@@ -22,14 +22,14 @@ struct BlockGemmARegBGmemCRegV1
     using Policy         = remove_cvref_t<Policy_>;
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
-    using CDataType      = remove_cvref_t<typename Problem::CDataType>;
+    using EDataType      = remove_cvref_t<typename Problem::EDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
     // use BlockGemmARegBSmemCRegV1 as the underlying block-GEMM implementation
     using BlockGemmARegBGmemCRegImpl = BlockGemmARegBGmemCRegV1<
-        BlockGemmProblem<ADataType, BDataType, CDataType, kBlockSize, BlockGemmShape>,
+        BlockGemmProblem<ADataType, BDataType, EDataType, kBlockSize, BlockGemmShape>,
         BlockGemmARegBGmemCRegV1DefaultPolicy>;
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetStaticLdsSize()
@@ -48,7 +48,7 @@ struct BlockGemmARegBGmemCRegV1
         static_assert(
             std::is_same_v<ADataType, remove_cv_t<typename ABlockTensor::DataType>> &&
                 std::is_same_v<BDataType, remove_cv_t<typename BBlockGmemWindowTmp::DataType>> &&
-                std::is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
+                std::is_same_v<EDataType, remove_cv_t<typename CBlockTensor::DataType>>,
             "wrong!");
 
         constexpr index_t MPerBlock = ABlockTensor{}.get_lengths()[number<0>{}];

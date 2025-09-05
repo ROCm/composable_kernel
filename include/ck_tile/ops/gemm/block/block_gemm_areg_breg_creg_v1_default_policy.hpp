@@ -17,13 +17,13 @@ struct BlockGemmARegBRegCRegV1DefaultPolicy
     {
         if constexpr(std::is_same_v<typename Problem::ADataType, half_t> &&
                      std::is_same_v<typename Problem::BDataType, half_t> &&
-                     std::is_same_v<typename Problem::CDataType, float>)
+                     std::is_same_v<typename Problem::EDataType, float>)
         {
             return make_tuple(WarpGemmMfmaF16F16F32M32N32K8TransposedCDistribution{}, 4, 1);
         }
         else if constexpr(std::is_same_v<typename Problem::ADataType, bf16_t> &&
                           std::is_same_v<typename Problem::BDataType, bf16_t> &&
-                          std::is_same_v<typename Problem::CDataType, float>)
+                          std::is_same_v<typename Problem::EDataType, float>)
         {
             return make_tuple(WarpGemmMfmaBf16Bf16F32M32N32K8TransposedCDistribution{}, 4, 1);
         }

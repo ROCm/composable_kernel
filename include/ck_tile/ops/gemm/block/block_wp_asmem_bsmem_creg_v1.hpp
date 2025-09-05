@@ -18,7 +18,7 @@ struct BlockWeightPreshuffleASmemBSmemCRegV1
     using BlockPolicy    = remove_cvref_t<BlockPolicy_>;
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
-    using CDataType      = remove_cvref_t<typename Problem::CDataType>;
+    using EDataType      = remove_cvref_t<typename Problem::EDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
     static constexpr auto I0   = number<0>();
@@ -61,7 +61,7 @@ struct BlockWeightPreshuffleASmemBSmemCRegV1
 
         constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
 
-        auto c_block_tensor = make_static_distributed_tensor<CDataType>(c_block_dstr);
+        auto c_block_tensor = make_static_distributed_tensor<EDataType>(c_block_dstr);
         return c_block_tensor;
     }
 
