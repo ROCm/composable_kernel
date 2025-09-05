@@ -979,6 +979,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
         if constexpr(NumDimSpatial == 3 && is_same_v<InLayout, NDHWGC> &&
                      is_same_v<WeiLayout, GKZYXC> && is_same_v<OutLayout, NDHWGK>)
         {
+#ifdef CK_USE_WMMA_FP8
 #ifdef CK_ENABLE_FP8
             if constexpr(is_same_v<InDataType, ck::f8_t> && is_same_v<WeiDataType, ck::f8_t> &&
                          is_same_v<OutDataType, ck::f8_t> && is_same_v<AComputeType, ck::f8_t> &&
@@ -1014,6 +1015,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                 add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf8_f8_instances(
                     op_ptrs);
             }
+#endif
 #endif
 #ifdef CK_ENABLE_FP16
             if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
