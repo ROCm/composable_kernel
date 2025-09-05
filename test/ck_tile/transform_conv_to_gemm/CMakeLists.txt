@@ -1,0 +1,4 @@
+add_gtest_executable(test_transform_conv_bwd_weight_to_gemm test_transform_conv_bwd_weight_to_gemm.cpp)
+if(result EQUAL 0)
+    target_link_libraries(test_transform_conv_bwd_weight_to_gemm PRIVATE utility)
+endif()
