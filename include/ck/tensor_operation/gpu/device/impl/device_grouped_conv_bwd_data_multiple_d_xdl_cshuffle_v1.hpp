@@ -79,7 +79,7 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoopInAllGemm,
           bool NoMainKBlockLoopInAllGemm,
           bool CTranspose,
-          bool SkipBLds>
+          bool SkipALds>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
 __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -151,7 +151,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
     }
 
     // If constexpr to be compatible with skip LDS gridwise gemm
-    if constexpr(SkipBLds)
+    if constexpr(SkipALds)
     {
         if constexpr(HasMainKBlockLoopInAllGemm || NoMainKBlockLoopInAllGemm)
         {
@@ -348,7 +348,8 @@ template <index_t NDimSpatial,
           typename BComputeType                          = AComputeType,
           index_t MaxTransposeTransferInScalarPerVector  = 1,
           index_t MaxTransposeTransferOutScalarPerVector = 1,
-          bool SkipBLds                                  = false>
+          bool SkipALds                                  = false,
+          index_t ABlockBufferSize = 1>
 struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     : public DeviceGroupedConvBwdDataMultipleD<NDimSpatial,
                                                ALayout,    // output image
@@ -369,7 +370,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     static_assert(NDimSpatial == 2 || NDimSpatial == 3,
                   "wrong! only implemented for 2D and 3D now");
 
-    static_assert(!SkipBLds || AK1 == BK1);
+    static_assert(!SkipALds || AK1 == BK1);
 
     // MaxGroupedGemmGroupsNum  is used to specify number of gemm args in compile time. With this
     // implementation we can avoid copy data to workspace before kernel launch since number of
@@ -387,7 +388,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     static constexpr GemmSpecialization GemmSpec = GemmSpecialization::MNKPadding;
     static constexpr bool IsSplitKSupported =
         (CDEBlockTransferScalarPerVector_NPerBlock % 2 == 0 || sizeof(EDataType) % 4 == 0) &&
-        std::is_same_v<remove_cvref_t<CDEElementwiseOp>, element_wise::PassThrough> && !SkipBLds;
+        std::is_same_v<remove_cvref_t<CDEElementwiseOp>, element_wise::PassThrough> && !SkipALds;
 
     // TODO: Add support for different A and B data types.
     using ABDataType = ADataType;
@@ -411,7 +412,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     static constexpr bool CTranspose = (NeedTransposeKernel == false) &&
                                        (is_same_v<ELayout, tensor_layout::convolution::NGCHW> ||
                                         is_same_v<ELayout, tensor_layout::convolution::NGCDHW>) &&
-                                       !SkipBLds;
+                                       !SkipALds;
 
     using ALayoutAfterTranspose = std::conditional_t<
         is_NGCHW_NGKHW<ELayout, BLayout, ALayout>() && NeedTransposeKernel,
@@ -530,26 +531,53 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                       \
         CDEBlockTransferScalarPerVector_NPerBlock, LoopSched, PipelineVersion::v1, BComputeType
 
-    static constexpr index_t BBlockBufferSize = 1;
+    // static constexpr index_t BBlockBufferSize = 1;
     // Force to 1, due to KN layout for GKYXC
-    static constexpr index_t BScalarPerVectorSkipLds = 1;
+    // static constexpr index_t BScalarPerVectorSkipLds = 1;
 
-#define GridwiseGemmMultiDSkipBLdsTemplateParams                                                 \
+    
+    static constexpr index_t SharedMemoryABlockBufferRequiredSize()
+    {
+        constexpr auto max_lds_align = AK1;
+
+        // A matrix in LDS memory, dst of blockwise copy
+        constexpr auto b_block_desc_k0_n_k1 = [&]() {
+            if constexpr(BBlockLdsExtraN)
+            {
+                return make_naive_tensor_descriptor(
+                    make_tuple(Number<(KPerBlock / AK1) * ABlockBufferSize>{}, Number<NPerBlock>{}, AK1),
+                    make_tuple(Number<NPerBlock + 1>{} * AK1, AK1, I1));
+            }
+            else
+            {
+                return make_naive_tensor_descriptor_packed(
+                    make_tuple(Number<(KPerBlock / AK1) * ABlockBufferSize>{}, Number<NPerBlock>{}, AK1));
+            }
+        }();
+
+        constexpr auto b_block_space_size_aligned =
+            math::integer_least_multiple(b_block_desc_k0_n_k1.GetElementSpaceSize(), max_lds_align);
+
+        return b_block_space_size_aligned * sizeof(ABDataType);
+    }
+
+    static constexpr index_t ABlockBufferSizeAligned = std::max(1, std::min(65536 / SharedMemoryABlockBufferRequiredSize(), ABlockBufferSize));
+
+#define GridwiseGemmMultiDSkipALdsTemplateParams                                                 \
     BlockSize, ABDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,                 \
         InMemoryDataOperationEnum::Set, element_wise::PassThrough, element_wise::PassThrough,    \
         element_wise::PassThrough, MPerBlock, NPerBlock, KPerBlock / AK1, MPerXDL, NPerXDL, AK1, \
-        MXdlPerWave, NXdlPerWave, ABlockTransferThreadClusterLengths_AK0_M_AK1,                  \
-        ABlockTransferThreadClusterArrangeOrder, ABlockTransferSrcAccessOrder,                   \
-        ABlockTransferSrcVectorDim, ABlockTransferSrcScalarPerVector,                            \
-        ABlockTransferDstScalarPerVector_AK1, false, ABlockLdsExtraM, BScalarPerVectorSkipLds,   \
-        false, BBlockBufferSize, CShuffleMXdlPerWavePerShuffle, CShuffleNXdlPerWavePerShuffle,   \
+        MXdlPerWave, NXdlPerWave, \
+        ABlockTransferSrcScalarPerVector, false, ABlockBufferSizeAligned, \
+        BBlockTransferThreadClusterLengths_BK0_N_BK1, BBlockTransferThreadClusterArrangeOrder, BBlockTransferSrcAccessOrder, BBlockTransferSrcVectorDim, BBlockTransferSrcScalarPerVector, BBlockTransferDstScalarPerVector_BK1, false, BBlockLdsExtraN, \
+        CShuffleMXdlPerWavePerShuffle, CShuffleNXdlPerWavePerShuffle,   \
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                        \
         CDEBlockTransferScalarPerVector_NPerBlock
 
     using GridwiseGemm =
-        std::conditional_t<SkipBLds,
+        std::conditional_t<SkipALds,
                            GridwiseGemm_xdlops_skip_b_lds_multiple_d_cshuffle<
-                               GridwiseGemmMultiDSkipBLdsTemplateParams>,
+                               GridwiseGemmMultiDSkipALdsTemplateParams>,
                            GridwiseGemmMultipleD_xdl_cshuffle<GridwiseGemmMultiDTemplateParams>>;
     using GridwiseGemmCTranspose = std::conditional_t<
         CTranspose,
@@ -1005,7 +1033,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         const auto GemmK       = a_grid_desc_m_k.GetLength(I1);
                         const auto GemmK0      = a_grid_desc_ak0_m_ak1.GetLength(I0);
                         bool HasMainKBlockLoop = true;
-                        if constexpr(SkipBLds)
+                        if constexpr(SkipALds)
                         {
                             HasMainKBlockLoop =
                                 GridwiseGemmCTranspose::CalculateHasMainK0BlockLoop(GemmK0);
@@ -1091,6 +1119,33 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                 compute_ptr_offset_of_workspace_n_.BatchStrideE_ =
                     e_g_n_c_wis_strides[1] * conv_N_per_block_;
             }
+
+            has_loop_in_all_gemm_.resize(gemm_kernel_args_.size());
+            no_loop_in_all_gemm_.resize(gemm_kernel_args_.size());
+            for(std::size_t gemm_set_id = 0; gemm_set_id < gemm_kernel_args_.size();
+                gemm_set_id++)
+            {
+                const std::array<GemmArgs, MaxGroupedGemmGroupsNum>& gemm_kernel_args =
+                    gemm_kernel_args_[gemm_set_id];
+
+                const index_t gemms_count_for_set =
+                    gemm_set_id == gemm_kernel_args_.size() - 1
+                        ? gemms_count_ - MaxGroupedGemmGroupsNum * gemm_set_id
+                        : MaxGroupedGemmGroupsNum;
+                
+                bool has_loop_in_all_gemm = true;
+                bool no_loop_in_all_gemm  = true;
+                for(auto i = 0; i < gemms_count_for_set; i++)
+                {
+                    has_loop_in_all_gemm &= gemm_kernel_args[i].HasMainKBlockLoop_;
+                    no_loop_in_all_gemm &= !gemm_kernel_args[i].HasMainKBlockLoop_;
+                }
+                has_loop_in_all_gemm_[gemm_set_id] =has_loop_in_all_gemm;
+                no_loop_in_all_gemm_[gemm_set_id] =no_loop_in_all_gemm;
+            }
+
+            gdy_ = num_group_;
+            gdz_ = num_workgroups_per_Conv_N_ * k_batch_;
         }
 
         std::size_t GetWorkspaceATensorSizeBytes() const
@@ -1209,9 +1264,12 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         std::vector<index_t> gemms_grid_size_;
         index_t gemms_count_ = 0;
         std::vector<std::array<GemmArgs, MaxGroupedGemmGroupsNum>> gemm_kernel_args_;
+        std::vector<bool> has_loop_in_all_gemm_;
+        std::vector<bool> no_loop_in_all_gemm_;
 
         bool bwd_needs_zero_out;
         long_index_t e_space_size_bytes;
+        index_t gdy_, gdz_;
     };
 
     // Invoker
@@ -1223,9 +1281,6 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         float RunMultiDGemm(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             float ave_time = 0;
-
-            const index_t gdy = arg.num_group_;
-            const index_t gdz = arg.num_workgroups_per_Conv_N_ * arg.k_batch_;
 
             const ADataType* p_a_grid = arg.p_a_grid_;
             const BDataType* p_b_grid = arg.p_b_grid_;
@@ -1257,8 +1312,6 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                     gemm_set_id == arg.gemm_kernel_args_.size() - 1
                         ? arg.gemms_count_ - MaxGroupedGemmGroupsNum * gemm_set_id
                         : MaxGroupedGemmGroupsNum;
-                const std::array<GemmArgs, MaxGroupedGemmGroupsNum>& gemm_kernel_args =
-                    arg.gemm_kernel_args_[gemm_set_id];
 
                 const auto clear_workspace = [&]() {
                     if(arg.bwd_needs_zero_out && gemm_set_id == 0)
@@ -1267,14 +1320,6 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                             p_e_grid, 0, arg.e_space_size_bytes, stream_config.stream_id_));
                     }
                 };
-
-                bool has_loop_in_all_gemm = true;
-                bool no_loop_in_all_gemm  = true;
-                for(auto i = 0; i < gemms_count_for_set; i++)
-                {
-                    has_loop_in_all_gemm &= gemm_kernel_args[i].HasMainKBlockLoop_;
-                    no_loop_in_all_gemm &= !gemm_kernel_args[i].HasMainKBlockLoop_;
-                }
 
                 auto launch_kernel = [&](auto has_main_k_block_loop, auto no_main_k_block_loop) {
                     constexpr bool has_main_loop = has_main_k_block_loop.value;
@@ -1297,20 +1342,20 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                             has_main_loop,
                             no_main_loop,
                             CTranspose,
-                            SkipBLds>;
+                            SkipALds>;
 
                         return launch_and_time_kernel_with_preprocess(
                             stream_config,
                             clear_workspace,
                             kernel,
-                            dim3(gdx, gdy, gdz),
+                            dim3(gdx, arg.gdy_, arg.gdz_),
                             dim3(BlockSize),
                             0,
                             p_b_grid,
                             p_a_grid,
                             arg.p_ds_grid_,
                             p_e_grid,
-                            gemm_kernel_args,
+                            arg.gemm_kernel_args_[gemm_set_id],
                             gemms_count_for_set,
                             arg.b_element_op_,
                             arg.a_element_op_,
@@ -1337,20 +1382,20 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                             has_main_loop,
                             no_main_loop,
                             CTranspose,
-                            SkipBLds>;
+                            SkipALds>;
 
                         return launch_and_time_kernel_with_preprocess(
                             stream_config,
                             clear_workspace,
                             kernel,
-                            dim3(gdx, gdy, gdz),
+                            dim3(gdx, arg.gdy_, arg.gdz_),
                             dim3(BlockSize),
                             0,
                             p_a_grid,
                             p_b_grid,
                             arg.p_ds_grid_,
                             p_e_grid,
-                            gemm_kernel_args,
+                            arg.gemm_kernel_args_[gemm_set_id],
                             gemms_count_for_set,
                             arg.a_element_op_,
                             arg.b_element_op_,
@@ -1360,12 +1405,12 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                             arg.k_batch_);
                     }
                 };
-                if(has_loop_in_all_gemm)
+                if(arg.has_loop_in_all_gemm_[gemm_set_id])
                 {
                     ave_time += launch_kernel(integral_constant<bool, true>{},
                                               integral_constant<bool, false>{});
                 }
-                else if(no_loop_in_all_gemm)
+                else if(arg.no_loop_in_all_gemm_[gemm_set_id])
                 {
                     ave_time += launch_kernel(integral_constant<bool, false>{},
                                               integral_constant<bool, true>{});
@@ -1384,10 +1429,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         {
             float ave_time = 0;
 
-            if(stream_config.log_level_ > 0)
-            {
-                arg.Print();
-            }
+            // if(stream_config.log_level_ > 0)
+            // {
+            //     arg.Print();
+            // }
 
             // Transpose from NGKHW to NHWGK
             if constexpr(NeedTransposeKernel)
@@ -1699,7 +1744,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         // Gridwise GEMM size
         for(std::size_t i = 0; i < arg.a_grid_desc_m_k_container_.size(); i++)
         {
-            if constexpr(SkipBLds)
+            if constexpr(SkipALds)
             {
                 if(!GridwiseGemmCTranspose::CheckValidity(
                        arg.gemm_kernel_args_[i / MaxGroupedGemmGroupsNum]
@@ -1884,9 +1929,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         auto str = std::stringstream();
 
         str << "DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1";
-        if constexpr(SkipBLds)
+        if constexpr(SkipALds)
         {
-            str << "_SkipBLds";
+            str << "_SkipALds";
         }
 
         // clang-format off
@@ -1914,6 +1959,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                     << "TransposeTransferOutScalarPerVectorAligned: " << TransposeTransferOutScalarPerVectorAligned;
                 }
     
+            if constexpr(SkipALds)
+            {
+                str << ", " << ABlockBufferSize;
+            }
                 
             str << ">";
 
