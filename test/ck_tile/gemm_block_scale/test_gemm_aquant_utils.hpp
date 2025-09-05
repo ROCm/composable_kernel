@@ -18,7 +18,7 @@
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile()
 {
-#if defined(__gfx950__)
+#if defined(CK_GFX950_SUPPORT)
     constexpr bool is_8bit_float =
         std::is_same_v<PrecType, ck_tile::fp8_t> || std::is_same_v<PrecType, ck_tile::bf8_t>;
     if constexpr(M_Warp_Tile == 32)
@@ -240,4 +240,4 @@ auto create_args(int argc, char* argv[])
 }
 
 // host API
-float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::stream_config& s);
+float gemm_calc_aquant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s);
