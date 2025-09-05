@@ -43,11 +43,10 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t)
     int n_ = t.get_lengths()[1];
     int k_ = t.get_lengths()[0];
 
-    int divisor = ck_tile::is_wave32() ? (FlatmmConfig::N_Warp_Tile == 32 ? 1 : 2)
-                                       : (FlatmmConfig::N_Warp_Tile == 32 ? 2 : 4);
     if(ck_tile::is_gfx12_supported())
     {
         // TODO: Please modify it once kABK0PerLane is changed in WmmaTraitsBase<gfx12>
+        constexpr int divisor      = 2;
         constexpr int kABK0PerLane = 2;
         ck_tile::HostTensor<T> t_view({n_ / FlatmmConfig::N_Warp_Tile,
                                        FlatmmConfig::N_Warp_Tile,
@@ -60,6 +59,16 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t)
     }
     else
     {
+        int divisor = 1;
+        if(ck_tile::is_gfx11_supported())
+        {
+            divisor = 1;
+        }
+        else
+        {
+            assert(is_wave32() == false);
+            divisor = FlatmmConfig::N_Warp_Tile == 32 ? 2 : 4;
+        }
         ck_tile::HostTensor<T> t_view({n_ / FlatmmConfig::N_Warp_Tile,
                                        FlatmmConfig::N_Warp_Tile,
                                        k_ / FlatmmConfig::K_Warp_Tile,
