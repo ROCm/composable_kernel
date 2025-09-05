@@ -4,6 +4,8 @@
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/elementwise.hpp"
 #include "ck_tile/host/reference/reference_transpose.hpp"
+#include "ck_tile/utility/json_dump.hpp"
+#include "elementwise_common.hpp"
 
 auto create_args(int argc, char* argv[])
 {
@@ -14,7 +16,9 @@ auto create_args(int argc, char* argv[])
         .insert("v", "1", "cpu validation or not")
         .insert("prec", "fp16", "precision")
         .insert("warmup", "10", "cold iter")
-        .insert("repeat", "50", "hot iter");
+        .insert("repeat", "50", "hot iter")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "elementwise_transpose.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -29,10 +33,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(stride_in < 0)
         stride_in = N; // Dense input: stride for M dim is N
-    std::string data_type = arg_parser.get_str("prec");
-    int do_validation     = arg_parser.get_int("v");
-    int warmup            = arg_parser.get_int("warmup");
-    int repeat            = arg_parser.get_int("repeat");
+    int do_validation = arg_parser.get_int("v");
+    int warmup        = arg_parser.get_int("warmup");
+    int repeat        = arg_parser.get_int("repeat");
 
     if(stride_in < N)
     {
@@ -137,6 +140,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
             y_validation, y_host, "Transpose Error: Incorrect results!", 0.01, 0.01);
     }
 
+    if(arg_parser.get_int("json") == 1)
+    {
+        dump_elementwise_json_results(arg_parser.get_str("jsonfile"),
+                                      arg_parser.get_str("prec"),
+                                      kGridSize,
+                                      kBlockSize,
+                                      ave_time,
+                                      0,
+                                      0,
+                                      "elementwise_transpose");
+    }
+
     return pass;
 }
 
@@ -146,12 +161,19 @@ int main(int argc, char* argv[])
     if(!result)
         return -1;
 
-    const std::string data_type = arg_parser.get_str("prec");
-    if(data_type == "fp16")
+    try
     {
-        return run<ck_tile::half_t>(arg_parser) ? 0 : -2;
+        const auto prec_variant = string_to_datatype(arg_parser.get_str("prec"));
+        return std::visit(
+            [&](auto&& dt) -> int {
+                using DataType = std::decay_t<decltype(dt)>;
+                return run<DataType>(arg_parser);
+            },
+            prec_variant);
     }
-
-    std::cerr << "Unsupported data type: " << data_type << std::endl;
-    return -3;
+    catch(const std::exception& e)
+    {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return -3;
+    }
 }
