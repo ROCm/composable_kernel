@@ -30,7 +30,8 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
     using AttentionVariant    = remove_cvref_t<typename Problem::AttentionVariant>;
     using FmhaMask            = remove_cvref_t<typename Problem::FmhaMask>;
 
-    using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
+    using BlockFmhaShape = remove_cvref_t<typename Problem::BlockFmhaShape>;
+    // VLayout will be removed, only referred in the kernel
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
     static constexpr bool kQLoadOnce = true; // if q_tile load whole block length (hdim) at once
     static_assert(kQLoadOnce == Policy::QLoadOnce);
@@ -69,12 +70,8 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
         kPadHeadDimQ ? 1 : Policy::template GetAlignmentQ<Problem>();
     static constexpr index_t kAlignmentK =
         kPadHeadDimQ ? 1 : Policy::template GetAlignmentK<Problem>();
-    static constexpr index_t kAlignmentV = []() {
-        if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-            return kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
-        else
-            return kPadSeqLenK ? 1 : Policy::template GetAlignmentV<Problem>();
-    }();
+    static constexpr index_t kAlignmentV =
+        kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
 
     static constexpr index_t kAlignmentOacc =
         kPadHeadDimV ? 1 : Policy::template GetAlignmentOacc<Problem>();
@@ -681,22 +678,12 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
             // STAGE 3, KV gemm
             static_for<0, k1_loops, 1>{}(
                 [&, &i_page_block_v_ = i_page_block_v, &v_dram_window_ = v_dram_window](auto i_k1) {
-                    if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-                    {
-                        auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
-                            Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
-                        shuffle_tile(v_shuffle_tmp, v_tiles[number<i_k1 % 2>{}]);
-                        store_tile(v_lds_window,
-                                   tile_elementwise_in(v_element_func,
-                                                       v_shuffle_tmp)); // store the prefetch
-                    }
-                    else
-                    {
-                        store_tile(
-                            v_lds_window,
-                            tile_elementwise_in(v_element_func,
-                                                v_tiles[number<i_k1 % 2>{}])); // store the prefetch
-                    }
+                    auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
+                        Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
+                    shuffle_tile(v_shuffle_tmp, v_tiles[number<i_k1 % 2>{}]);
+                    store_tile(v_lds_window,
+                               tile_elementwise_in(v_element_func,
+                                                   v_shuffle_tmp)); // store the prefetch
 
                     if constexpr(i_k1 < k1_loops - 2)
                     {
