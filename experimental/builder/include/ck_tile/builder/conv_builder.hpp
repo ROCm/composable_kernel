@@ -3,7 +3,6 @@
 #include <concepts>
 #include <type_traits>
 
-#include "conv_builder_reference.hpp"
 #include <ck_tile/builder/conv_algorithm.hpp>
 #include <ck_tile/builder/conv_factory.hpp>
 #include <ck_tile/builder/conv_signature.hpp>
@@ -23,7 +22,7 @@ namespace ck_tile::builder {
  * @tparam ALGORITHM The specific convolution algorithm to be used for the implementation.
  * @tparam VERSION The version of the builder implementation.
  */
-template <ConvSignature auto SIGNATURE, ConvAlgorithm auto ALGORITHM, auto VERSION>
+template <ConvSignature auto SIGNATURE, ConvAlgorithm auto ALGORITHM, StringLiteral VERSION>
     requires SupportedVersion<VERSION>
 struct ConvBuilder
 {
