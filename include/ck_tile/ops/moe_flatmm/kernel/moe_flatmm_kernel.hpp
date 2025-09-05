@@ -276,7 +276,37 @@ struct MoeFlatmmKernel
     template <class MoeFlatmmKernelArgs>
     static constexpr auto GridSize(const MoeFlatmmKernelArgs& kargs)
     {
-        return dim3(TilePartitioner::GridSize(kargs.M, kargs.N), 1, kargs.k_batch);
+        if constexpr(UsePersistentKernel)
+        {
+            hipDeviceProp_t prop;
+            int deviceId = 0; // default device
+
+            constexpr int block_size = MoeFlatmmKernel::BlockSize().x;
+            int dync_smem_size       = 0;
+            int maxActiveBlocksPerCU = 0;
+
+            [[maybe_unused]] auto e = hipGetDeviceProperties(&prop, deviceId);
+
+            e = hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                &maxActiveBlocksPerCU,
+                reinterpret_cast<void*>(kentry2<block_size, MoeFlatmmKernel, MoeFlatmmKernelArgs>),
+                block_size,
+                dync_smem_size);
+
+            const int persistent_block_size = prop.multiProcessorCount * maxActiveBlocksPerCU;
+            const int total_work_tile_cnt   = TilePartitioner::GridSize(kargs.M, kargs.N);
+
+            // std::cout << "maxActiveBlocksPerCU: " << maxActiveBlocksPerCU
+            //           << ", persistent_block_size: " << persistent_block_size
+            //           << ", total_work_tile_cnt: " << total_work_tile_cnt << std::endl;
+
+            assert(kargs.k_batch == 1);
+            return dim3(min(persistent_block_size, total_work_tile_cnt), 1, kargs.k_batch);
+        }
+        else
+        {
+            return dim3(TilePartitioner::GridSize(kargs.M, kargs.N), 1, kargs.k_batch);
+        }
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemPingSize()
@@ -678,8 +708,23 @@ struct MoeFlatmmKernel
     template <class MoeFlatmmKernelArgs>
     CK_TILE_DEVICE void operator()(MoeFlatmmKernelArgs kargs) const
     {
+        int partition_idx       = blockIdx.x;
+        int total_work_tile_cnt = TilePartitioner::GridSize(kargs.M, kargs.N);
+        do
+        {
+            const auto [block_offset_m, block_offset_n] =
+                TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(partition_idx);
 
-        const auto [iM, iN]   = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockIdx.x);
+            this->operator()(kargs, block_offset_m, block_offset_n);
+            partition_idx += gridDim.x;
+        } while(UsePersistentKernel && partition_idx < total_work_tile_cnt);
+    }
+
+    template <class MoeFlatmmKernelArgs>
+    CK_TILE_DEVICE void operator()(MoeFlatmmKernelArgs kargs, index_t iM, index_t iN) const
+    {
+
+        // const auto [iM, iN]   = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockIdx.x);
         const index_t coord_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
         const index_t coord_n = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
 
