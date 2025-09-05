@@ -117,7 +117,7 @@ struct BlockCTransferLengthsInfo
     int n_block;
     int n_wave_per_xdl;
 };
-static_assert(BlockBTransferLengths<BlockBTransferLengthsInfo>);
+static_assert(BlockCTransferLengths<BlockCTransferLengthsInfo>);
 
 // Concept to check if a struct provides A Block tranfer info.
 template <typename T>
@@ -135,6 +135,19 @@ concept HasBBlockTransferInfo = requires(T t) {
 template <typename T>
 concept HasCBlockTransferInfo = requires(T t) {
     { T::block_transfer.thread_cluster_lengths_c } -> BlockCTransferLengths;
+};
+
+enum class BlockGemmPipelineVersion
+{
+    V3,
+    V4,
+    V5
+};
+
+// Concept to check if struct provides block_gemm_pipeline_version.
+template <typename T>
+concept ProvidesBlockGemmPipelineVersion = requires {
+    { T::pipeline_version } -> std::convertible_to<BlockGemmPipelineVersion>;
 };
 
 // No requirements yet for a ConvAlogorithm concept.

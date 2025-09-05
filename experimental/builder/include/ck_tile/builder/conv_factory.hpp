@@ -217,6 +217,23 @@ constexpr CBlockTransfer SetCBlockTransfer()
     return block_transfer;
 }
 
+template <ConvAlgorithm auto ALGORITHM>
+constexpr ck::BlockGemmPipelineVersion SetBlockGemmPipelineVersion()
+{
+    using AlgorithmType = decltype(ALGORITHM);
+    if constexpr(ProvidesBlockGemmPipelineVersion<AlgorithmType>)
+    {
+        switch(ALGORITHM.pipeline_version)
+        {
+        case BlockGemmPipelineVersion::V3: return ck::BlockGemmPipelineVersion::v3;
+        case BlockGemmPipelineVersion::V4: return ck::BlockGemmPipelineVersion::v4;
+        case BlockGemmPipelineVersion::V5: return ck::BlockGemmPipelineVersion::v5;
+        }
+    }
+    // Default value.
+    return ck::BlockGemmPipelineVersion::v4;
+}
+
 // Factory builds an instance of a grouped convolution kernel.
 template <ConvSignature auto SIGNATURE, ConvAlgorithm auto ALGORITHM, auto Version>
     requires SupportedVersion<Version>
@@ -236,7 +253,7 @@ struct GroupedConvForwardXldCShuffleFactoryV3
     static constexpr BlockTransfer B_BLOCK_TRANSFER  = SetBBlockTransfer<ALGORITHM>();
     static constexpr CBlockTransfer C_BLOCK_TRANSFER = SetCBlockTransfer<ALGORITHM>();
     static constexpr auto PIPELINE_SCHEDULER         = ck::BlockGemmPipelineScheduler::Intrawave;
-    static constexpr auto PIPELINE_VERSION           = ck::BlockGemmPipelineVersion::v4;
+    static constexpr auto PIPELINE_VERSION           = SetBlockGemmPipelineVersion<ALGORITHM>();
     // The convlution kernel class instance.
     using Instance =
         ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3< //
