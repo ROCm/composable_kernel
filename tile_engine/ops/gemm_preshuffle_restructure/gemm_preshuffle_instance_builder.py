@@ -6,7 +6,12 @@ import logging
 
 from pathlib import Path
 
-from commons.validation_utils import is_tile_config_valid, is_trait_combination_valid
+from commons.validation_utils import (
+    is_tile_config_valid,
+    is_trait_combination_valid,
+    get_dtype_string,
+    get_abc_layouts,
+)
 
 
 class GemmPreshuffleKernelBuilder:
@@ -28,9 +33,9 @@ class GemmPreshuffleKernelBuilder:
                 "No config JSON provided or file does not exist. Using default configuration."
             )
             self.config = self._get_default_config()
-        print("[DELETE] Printing", self.config)
 
     # [DELETE] Currently only support fp16 and fp8 needs to add more
+    # [DELETE] Add this into commons
     def _get_default_config(self):
         """Return default configuration if no config file is provided"""
         # Define base tile configurations that work for all layouts
@@ -376,6 +381,280 @@ class GemmPreshuffleKernelBuilder:
                 pipeline,
             )
 
+    def _generate_kernel_instance(self, tile_config, trait_combo, is_header=True):
+        """Generate a single kernel instance"""
+        (
+            pipeline,
+            epilogue,
+            scheduler,
+            pad_m,
+            pad_n,
+            pad_k,
+            persistent,
+        ) = trait_combo
+
+        # Create kernel name with proper boolean capitalization
+        kernel_name = f"gemm_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_{str(persistent).capitalize()}"
+
+        # Create tile configuration string
+        tile_str = (
+            f"{tile_config['tile_m']}x{tile_config['tile_n']}x{tile_config['tile_k']}_"
+        )
+        tile_str += (
+            f"{tile_config['warp_m']}x{tile_config['warp_n']}x{tile_config['warp_k']}_"
+        )
+        tile_str += f"{tile_config['warp_tile_m']}x{tile_config['warp_tile_n']}x{tile_config['warp_tile_k']}"
+
+        kernel_name += f"_{tile_str}"
+
+        # [DELETE] Update this
+        # Map pipeline names to the correct pipeline implementation
+        pipeline_impl_map = {
+            "preshufflev1": "WeightPreshufflePipelineAGmemBGmemCRegV1",
+            "preshufflev2": "WeightPreshufflePipelineAGmemBGmemCRegV2",
+        }
+
+        # [DELETE] Update this
+        # Map pipeline names to base pipeline for hot loop detection
+        base_pipeline_map = {
+            "preshufflev1": "BaseWeightPreshufflePipelineAGmemBGmemCRegV1",
+            "preshufflev2": "BaseWeightPreshufflePipelineAGmemBGmemCRegV2",
+        }
+
+        # [DELETE] Update this
+        # Map scheduler names to the correct enum values
+        scheduler_type_map = {
+            "intrawave": "ck_tile::GemmPipelineScheduler::Intrawave",
+            "interwave": "ck_tile::GemmPipelineScheduler::Interwave",
+            "default": "ck_tile::GemmPipelineScheduler::Default",
+        }
+
+        # Determine accumulator type based on datatype
+        acc_type = "float"
+        # [DELETE] This this if statement as we are not supporting it in Preshuffle check if type is correct in GEMM
+        if self.datatype in ["int8", "int4"]:
+            acc_type = "ck_tile::int32_t"
+
+        # Determine output type
+        c_type = get_dtype_string(self.datatype)
+        if self.datatype in ["fp8", "bf8"]:
+            c_type = "ck_tile::fp16_t"
+
+        # Determine layouts based on self.layout
+        a_layout, b_layout, c_layout = get_abc_layouts(self.layout)
+
+        print("[DELETE] I AM HERE 2")
+        print("[DELETE] WORK FROM HERE")
+
+        # Generate kernel instance code using the correct API
+        pragma_line = "#pragma once\n" if is_header else ""
+        instance_code = f"""// Generated kernel instance for {kernel_name}
+{pragma_line}
+#include <cstdint>
+#include <utility>
+#include <tuple>
+#include "ck_tile/core.hpp"
+#include "ck_tile/host/kernel_launch.hpp"
+#include "ck_tile/ops/gemm.hpp"
+#include "ck_tile/ops/gemm/kernel/gemm_kernel.hpp"
+#include "ck_tile/ops/common/tensor_layout.hpp"
+#include "ck_tile/ops/epilogue/default_2d_epilogue.hpp"
+#include "ck_tile/ops/epilogue/cshuffle_epilogue.hpp"
+
+using ADataType = {get_dtype_string(self.datatype)};
+using BDataType = {get_dtype_string(self.datatype)};
+using AccDataType = {acc_type};
+using CDataType = {c_type};
+
+using ALayout = {a_layout};
+using BLayout = {b_layout};
+using CLayout = {c_layout};
+
+// Kernel name for display
+constexpr const char* KERNEL_NAME = "{kernel_name}";
+
+// Wrapper for simplified launch interface
+struct SelectedKernel {{
+    // Tile configuration
+    static constexpr ck_tile::index_t BlockSize = 256;
+    static constexpr ck_tile::index_t TileM = {tile_config["tile_m"]};
+    static constexpr ck_tile::index_t TileN = {tile_config["tile_n"]};
+    static constexpr ck_tile::index_t TileK = {tile_config["tile_k"]};
+    static constexpr ck_tile::index_t WarpPerBlock_M = {tile_config["warp_m"]};
+    static constexpr ck_tile::index_t WarpPerBlock_N = {tile_config["warp_n"]};
+    static constexpr ck_tile::index_t WarpPerBlock_K = {tile_config["warp_k"]};
+    static constexpr ck_tile::index_t WarpTileM = {tile_config["warp_tile_m"]};
+    static constexpr ck_tile::index_t WarpTileN = {tile_config["warp_tile_n"]};
+    static constexpr ck_tile::index_t WarpTileK = {tile_config["warp_tile_k"]};
+
+    // Traits
+    static constexpr bool kPadM = {"true" if pad_m == "true" else "false"};
+    static constexpr bool kPadN = {"true" if pad_n == "true" else "false"};
+    static constexpr bool kPadK = {"true" if pad_k == "true" else "false"};
+    static constexpr bool TransposeC = false;
+    static constexpr bool UsePersistentKernel = {"true" if persistent == "true" else "false"};
+    static constexpr bool DoubleSmemBuffer = {"true" if pipeline == "compv4" else "false"};
+    static constexpr bool UseStructuredSparsity = false;
+    static constexpr bool Preshuffle = false;
+    static constexpr ck_tile::index_t NumWaveGroups = 1;
+
+    // Tile shape
+    using TileShape = ck_tile::TileGemmShape<
+        ck_tile::sequence<TileM, TileN, TileK>,
+        ck_tile::sequence<WarpPerBlock_M, WarpPerBlock_N, WarpPerBlock_K>,
+        ck_tile::sequence<WarpTileM, WarpTileN, WarpTileK>,
+        false, false>;
+    
+    // Tile partitioner
+    using TilePartitioner = ck_tile::GemmSpatiallyLocalTilePartitioner<TileShape, 8, 4>;
+    
+    // Traits
+    using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout, NumWaveGroups>;
+    
+    // Pipeline problem
+    using GemmPipelineProblem = ck_tile::GemmPipelineProblem<
+        ADataType,
+        BDataType,
+        AccDataType,
+        TileShape,
+        Traits>;
+    
+    // Base pipeline for hot loop detection
+    using BaseGemmPipeline = {base_pipeline_map.get(pipeline, "ck_tile::BaseGemmPipelineAgBgCrMem")}<GemmPipelineProblem>;
+
+    static float launch(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {{
+        const ck_tile::index_t k_grain = args.k_batch * TileK;
+        const ck_tile::index_t K_split = (args.K + k_grain - 1) / k_grain * TileK;
+        const ck_tile::index_t num_loop = TilePartitioner::GetLoopNum(K_split);
+        const bool has_hot_loop = BaseGemmPipeline::BlockHasHotloop(num_loop);
+        const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
+        
+        float ave_time{{0}};
+
+        const auto Run = [&](const auto has_hot_loop_, const auto tail_number_, const auto memory_operation_) {{
+            constexpr bool has_hot_loop_v = has_hot_loop_.value;
+            constexpr auto tail_number_v = tail_number_.value;
+            constexpr auto scheduler = {scheduler_type_map.get(scheduler, "ck_tile::GemmPipelineScheduler::Intrawave")};
+            [[maybe_unused]] constexpr auto memory_operation = memory_operation_.value;
+
+            using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
+                ADataType,
+                BDataType,
+                AccDataType,
+                TileShape,
+                ck_tile::TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
+                                                ALayout, BLayout, CLayout, TransposeC,
+                                                UseStructuredSparsity, UsePersistentKernel,
+                                                NumWaveGroups, Preshuffle>,
+                scheduler,
+                has_hot_loop_v,
+                tail_number_v>;
+            
+            using GemmPipeline = {pipeline_impl_map.get(pipeline, "ck_tile::GemmPipelineAgBgCrCompV3")}<UniversalGemmProblem>;
+            
+            // Epilogue
+"""
+
+        # Add epilogue configuration based on type
+        if epilogue == "cshuffle":
+            instance_code += """            using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<
+                ADataType,
+                BDataType,
+                ck_tile::tuple<>,  // DsDataType
+                AccDataType,
+                CDataType,
+                ck_tile::tuple<>,  // DsLayout
+                CLayout,
+                ck_tile::element_wise::PassThrough,
+                TilePartitioner::MPerBlock,  // kM_
+                TilePartitioner::NPerBlock,  // kN_
+                WarpPerBlock_M,              // MWave_
+                WarpPerBlock_N,              // NWave_
+                WarpTileM,                   // MPerXdl_
+                WarpTileN,                   // NPerXdl_
+                WarpTileK,                   // KPerXdl_
+                TransposeC,                  // isCTransposed_
+                memory_operation,            // MemoryOperation_
+                NumWaveGroups>;              // kNumWaveGroups_
+            
+            using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;
+"""
+        else:  # default epilogue
+            instance_code += """            using EpilogueProblem = ck_tile::DefaultGemm2DEpilogueProblem<
+                ADataType,
+                BDataType,
+                ck_tile::tuple<>,  // DsDataType
+                AccDataType,
+                CDataType,
+                ck_tile::tuple<>,  // DsLayout
+                CLayout,
+                ck_tile::element_wise::PassThrough,
+                TilePartitioner::MPerBlock,  // kM_
+                TilePartitioner::NPerBlock,  // kN_
+                kPadM,
+                kPadN,
+                WarpTileM,  // kMPerXdl_
+                WarpTileN,  // kNPerXdl_
+                WarpTileK,  // kKPerXdl_
+                TransposeC>;  // isCTransposed_
+            
+            using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<EpilogueProblem>;
+"""
+
+        instance_code += f"""
+            
+            // Kernel type
+            using GemmKernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+            
+            // Make kernel arguments
+            auto kargs = GemmKernel::MakeKernelArgs(args);
+            
+            if (!GemmKernel::IsSupportedArgument(kargs)) {{
+                throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!");
+            }}
+            
+            // Get grid and block sizes
+            const dim3 grids = {"GemmKernel::MaxOccupancyGridSize(stream)" if persistent == "true" else "GemmKernel::GridSize(args.M, args.N, args.k_batch)"};
+            const dim3 blocks = GemmKernel::BlockSize();
+            
+            if(stream.log_level_ > 0) {{
+                std::cout << "Launching kernel with args: " << GemmKernel::GetName() << '\\n'
+                          << "grid: {{" << grids.x << ", " << grids.y << ", " << grids.z << "}}"
+                          << ", blocks: {{" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}}"
+                          << std::endl;
+            }}
+            
+            // Launch kernel
+            constexpr int kBlockPerCu = 1;
+            ave_time = ck_tile::launch_kernel(
+                stream,
+                ck_tile::make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
+            
+            return ave_time;
+        }};
+
+        const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {{
+            if(args.k_batch == 1) {{
+                Run(has_hot_loop_,
+                    tail_number_,
+                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                            ck_tile::memory_operation_enum::set>{{}});
+            }} else {{
+                Run(has_hot_loop_,
+                    tail_number_,
+                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                            ck_tile::memory_operation_enum::atomic_add>{{}});
+            }}
+        }};
+
+        BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
+        return ave_time;
+    }}
+}};
+"""
+
+        return kernel_name, instance_code
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -419,7 +698,7 @@ def main():
 
     args = parser.parse_args()
 
-    # [DELETE] Add Validation for datatype and layout here
+    # [DELETE] Add Validation for datatype and layout here for supported types if no values are given default it to values
     # validation()
 
     # Create builder
@@ -432,13 +711,14 @@ def main():
         builder.write_kernel_list()
         pass
     elif args.gen_single:
-        """
+        # [DELETE] Add how to run this in read me and in GEMM operator
+        # [DELETE] Add validation that config file should not be given
+        # [DELETE] See how you can give tunable parameter
         # Generate a single kernel file
         if not args.kernel_name or not args.tile_config or not args.trait_combo:
             parser.error(
                 "--gen_single requires --kernel_name, --tile_config, and --trait_combo"
             )
-
         # Parse tile config
         tile_parts = args.tile_config.split("_")
         tile_dims = tile_parts[0].split("x")
@@ -470,10 +750,13 @@ def main():
         )
 
         # Generate the kernel
+
+        print("[DELETE] I AM HERE 1")  # [DELETE] --- IGNORE ---
         kernel_name, instance_code = builder._generate_kernel_instance(
             tile_config, trait_combo
         )
 
+        """
         # Write the file
         simplified_name = kernel_name
         if simplified_name.startswith("gemm_"):
@@ -484,7 +767,6 @@ def main():
             f.write(instance_code)
 
         print(f"Generated {header_file}") """
-        pass
 
     elif args.gen_individual:
         # Generate all individual kernel files
