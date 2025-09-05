@@ -28,6 +28,7 @@
 #include "ck_tile/host/reference/reference_fused_moe.hpp"
 #include "ck_tile/host/reference/reference_gemm.hpp"
 #include "ck_tile/host/reference/reference_grouped_conv_bwd_data.hpp"
+#include "ck_tile/host/reference/reference_gemm_block_quant_fp4.hpp"
 #include "ck_tile/host/reference/reference_grouped_conv_bwd_weight.hpp"
 #include "ck_tile/host/reference/reference_grouped_conv_fwd.hpp"
 #include "ck_tile/host/reference/reference_im2col.hpp"
