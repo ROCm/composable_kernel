@@ -257,7 +257,8 @@ void RunConvolutionTest(index_t batch_size, const char* description, bool expect
 
             if(error_count > 0)
             {
-                // std::cout << "[FAIL] Accuracy check FAILED: " << error_count << "/" << output_size
+                // std::cout << "[FAIL] Accuracy check FAILED: " << error_count << "/" <<
+                // output_size
                 //           << " elements exceed tolerance"
                 //           << ", max_diff=" << max_diff << std::endl;
                 accuracy_pass = false;
