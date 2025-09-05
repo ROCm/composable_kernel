@@ -55,7 +55,7 @@ CK_TILE_HOST void reference_gemm_block_quant_fp4(const HostTensor<ADataType>& a_
                                                  const HostTensor<BDataType>& b_k_n,
                                                  HostTensor<CDataType>& c_m_n,
                                                  const HostTensor<AccDataType>& bias,
-                                                 const HostTensor<uint8_t>& b_scale_m_k,
+                                                 const HostTensor<pk_fp4_raw_t>& b_scale_m_k,
                                                  const AElementOp& a_element_op     = {},
                                                  const BElementOp& b_element_op     = {},
                                                  const ACCElementOp& acc_element_op = {})
@@ -84,8 +84,8 @@ CK_TILE_HOST void reference_gemm_block_quant_fp4(const HostTensor<ADataType>& a_
                 auto b_pack      = type_convert<pk_fp4_t>(b_element_op(b_k_n(k, n)));
                 auto b_scale_fp4 = type_convert<float>(std::pow(2.0f, b_scale));
 
-                auto b_f4_lo = type_convert<pk_fp4_t>(b_pack.unpack(number<0>{}));
-                auto b_f4_hi = type_convert<pk_fp4_t>(b_pack.unpack(number<1>{}));
+                auto b_f4_lo = b_pack.unpack(number<0>{});
+                auto b_f4_hi = b_pack.unpack(number<1>{});
 
                 v_b_0 = type_convert<ComputeType>(b_f4_lo) * b_scale_fp4;
                 v_b_1 = type_convert<ComputeType>(b_f4_hi) * b_scale_fp4;
