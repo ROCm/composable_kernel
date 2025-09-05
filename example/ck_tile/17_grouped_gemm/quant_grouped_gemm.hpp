@@ -145,21 +145,6 @@ inline std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gem
     return gemm_descs.size() * sizeof(ck_tile::QuantGemmTransKernelArg);
 }
 
-template <typename ADataType,
-          typename BDataType,
-          typename DsDataType,
-          typename AccDataType,
-          typename CDataType,
-          typename ALayout,
-          typename BLayout,
-          typename DsLayout,
-          typename CLayout,
-          bool Persistent,
-          typename CDEElementWise>
-float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
-                   const ck_tile::stream_config& s,
-                   void* kargs_ptr);
-
 template <typename GemmConfig,
           typename ALayout,
           typename BLayout,

@@ -92,18 +92,17 @@ float invoke_gemm(int n_warmup,
                                         hipMemcpyHostToDevice,
                                         stream.stream_id_));
     ave_time = grouped_gemm_tileloop<GemmConfig,
-                                        ALayout,
-                                        AQLayout,
-                                        BLayout,
-                                        BQLayout,
-                                        CLayout,
-                                        ADataType,
-                                        AQDataType,
-                                        BDataType,
-                                        BQDataType,
-                                        AccDataType,
-                                        CDataType>(stream, group_count, kargs_ptr);
-    
+                                     ALayout,
+                                     AQLayout,
+                                     BLayout,
+                                     BQLayout,
+                                     CLayout,
+                                     ADataType,
+                                     AQDataType,
+                                     BDataType,
+                                     BQDataType,
+                                     AccDataType,
+                                     CDataType>(stream, group_count, kargs_ptr);
 
     std::string op_name{"Grouped Gemm"};
 
