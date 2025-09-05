@@ -487,6 +487,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                         if constexpr(m0.value == (MRepeat - 2))
                         {
                             block_sync_lds();
+
                             static_for<0, KRepeat, 1>{}([&](auto k0) {
                                 static_for<0, KGroup, 1>{}([&](auto kg0) {
                                     a_thread_copy_.Run(
@@ -625,6 +626,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                 if constexpr(m0.value == (MRepeat - 2))
                 {
                     block_sync_lds();
+
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
                         static_for<0, KGroup, 1>{}([&](auto kg0) {
                             a_thread_copy_.Run(
