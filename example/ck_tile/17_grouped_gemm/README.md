@@ -142,6 +142,8 @@ args:
  -repeat      Number of iterations to benchmark the kernel. (Default: 100).
  -group_count Group count. (Default: 16).
  -kbatch      kbatch for SplitK (Default: 1).
+ -json        0: No Json, 1: Dump Results in Json format (Default: 0).
+ -jsonfile    json file name to dump results (Default: grouped_gemm.json).
 ```
 
 If any of `Ms`, `Ns`, `Ks`, `stride_As`, `stride_Bs`, or `stride_Cs` are missing or their sizes

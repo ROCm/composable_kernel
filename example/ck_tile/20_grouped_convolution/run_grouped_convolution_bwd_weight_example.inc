@@ -130,7 +130,7 @@ int run_grouped_conv_bwd_weight_example_with_layouts(
                                                output_dev_buf.GetDeviceBuffer(),
                                                kbatch);
 
-    std::cout << "Run Grouped Conv Fwd kernel" << std::endl;
+    std::cout << "Run Grouped Conv Bwd Weight kernel" << std::endl;
     std::cout << "input: " << input.mDesc << std::endl;
     std::cout << "weight: " << weight.mDesc << std::endl;
     std::cout << "output: " << output.mDesc << std::endl;
