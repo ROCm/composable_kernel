@@ -178,20 +178,8 @@ void RunConvolutionTest(index_t batch_size, const char* description, bool expect
     const dim3 grids  = KernelType::GridSize(kargs);
     const dim3 blocks = KernelType::BlockSize();
 
-    std::cout << "Grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-              << " Block: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
-              << std::endl;
-
     // Check if Split-N is active
     bool split_n_active = (grids.z > 1);
-    if(split_n_active)
-    {
-        std::cout << "[PASS] Split-N ACTIVE with " << grids.z << " splits" << std::endl;
-    }
-    else
-    {
-        std::cout << "[INFO] Split-N NOT active (grid.z = 1)" << std::endl;
-    }
 
     // Verify Split-N activation when we expect it (only check when > 2GB)
     if(expect_split_n)
@@ -257,15 +245,7 @@ void RunConvolutionTest(index_t batch_size, const char* description, bool expect
 
             if(error_count > 0)
             {
-                std::cout << "[FAIL] Accuracy check FAILED: " << error_count << "/" << output_size
-                          << " elements exceed tolerance"
-                          << ", max_diff=" << max_diff << std::endl;
                 accuracy_pass = false;
-            }
-            else
-            {
-                std::cout << "[PASS] Accuracy check PASSED (rtol=" << rtol << ", atol=" << atol
-                          << ")" << std::endl;
             }
 
             EXPECT_TRUE(accuracy_pass) << "Accuracy check failed with " << error_count << " errors";
