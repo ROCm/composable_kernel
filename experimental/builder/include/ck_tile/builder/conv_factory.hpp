@@ -132,29 +132,29 @@ constexpr ConvTuning SetConvTuningInfo()
 // Block transfer paramters for A or B tensor.
 struct BlockTransfer
 {
-    ck::Array<int, 3> thread_cluster_lengths = {0, 0, 0}; // k0, m, k1
-    ck::Array<int, 3> thread_cluster_order   = {0, 0, 0};
-    ck::Array<int, 3> src_access_order       = {0, 0, 0};
-    int src_vector_dim                       = 0;
-    int src_scaler_per_vector                = 0;
-    int dest_scaler_per_vector_k1            = 0;
-    int add_extra                            = 0;
+    ck::Array<int, 3> thread_cluster_dims  = {0, 0, 0}; // k0, m, k1
+    ck::Array<int, 3> thread_cluster_order = {0, 0, 0};
+    ck::Array<int, 3> src_access_order     = {0, 0, 0};
+    int src_vector_dim                     = 0;
+    int src_scaler_per_vector              = 0;
+    int dest_scaler_per_vector_k1          = 0;
+    int add_extra                          = 0;
 };
 
 // Block transfer parameters for C tensor.
 struct CBlockTransfer
 {
-    int m_xdl_per_wave_per_shuffle           = 0;
-    int n_xdl_per_wave_per_shuffle           = 0;
-    ck::Array<int, 4> thread_cluster_lengths = {0, 0, 0, 0};
-    int scaler_per_vector                    = 8;
+    int m_xdl_per_wave_per_shuffle        = 0;
+    int n_xdl_per_wave_per_shuffle        = 0;
+    ck::Array<int, 4> thread_cluster_dims = {0, 0, 0, 0};
+    int scaler_per_vector                 = 8;
 };
 
 template <ConvAlgorithm auto ALGORITHM>
 constexpr BlockTransfer SetABlockTransfer()
 {
     BlockTransfer block_transfer{
-        .thread_cluster_lengths    = {4, 64, 1},
+        .thread_cluster_dims       = {4, 64, 1},
         .thread_cluster_order      = {1, 0, 2},
         .src_access_order          = {1, 0, 2},
         .src_vector_dim            = 2,
@@ -165,8 +165,8 @@ constexpr BlockTransfer SetABlockTransfer()
     using AlgorithmType = decltype(ALGORITHM);
     if constexpr(HasABlockTransferInfo<AlgorithmType>)
     {
-        constexpr auto& TCL                   = ALGORITHM.block_transfer.thread_cluster_lengths_a;
-        block_transfer.thread_cluster_lengths = {TCL.k0, TCL.m, TCL.k1};
+        constexpr auto& TCL                = ALGORITHM.block_transfer.thread_cluster_dims_a;
+        block_transfer.thread_cluster_dims = {TCL.k0, TCL.m, TCL.k1};
     }
     // Default.
     return block_transfer;
@@ -176,7 +176,7 @@ template <ConvAlgorithm auto ALGORITHM>
 constexpr BlockTransfer SetBBlockTransfer()
 {
     BlockTransfer block_transfer{
-        .thread_cluster_lengths    = {4, 64, 1},
+        .thread_cluster_dims       = {4, 64, 1},
         .thread_cluster_order      = {1, 0, 2},
         .src_access_order          = {1, 0, 2},
         .src_vector_dim            = 2,
@@ -187,8 +187,8 @@ constexpr BlockTransfer SetBBlockTransfer()
     using AlgorithmType = decltype(ALGORITHM);
     if constexpr(HasBBlockTransferInfo<AlgorithmType>)
     {
-        constexpr auto& TCL                   = ALGORITHM.block_transfer.thread_cluster_lengths_b;
-        block_transfer.thread_cluster_lengths = {TCL.k0, TCL.n, TCL.k1};
+        constexpr auto& TCL                = ALGORITHM.block_transfer.thread_cluster_dims_b;
+        block_transfer.thread_cluster_dims = {TCL.k0, TCL.n, TCL.k1};
     }
     // Default.
     return block_transfer;
@@ -200,14 +200,14 @@ constexpr CBlockTransfer SetCBlockTransfer()
     CBlockTransfer block_transfer{
         .m_xdl_per_wave_per_shuffle = 1,
         .n_xdl_per_wave_per_shuffle = 1,
-        .thread_cluster_lengths     = {1, 32, 1, 8},
+        .thread_cluster_dims        = {1, 32, 1, 8},
         .scaler_per_vector          = 8,
     };
     using AlgorithmType = decltype(ALGORITHM);
     if constexpr(HasCBlockTransferInfo<AlgorithmType>)
     {
-        constexpr auto& TCL                   = ALGORITHM.block_transfer.thread_cluster_lengths_c;
-        block_transfer.thread_cluster_lengths = {
+        constexpr auto& TCL                = ALGORITHM.block_transfer.thread_cluster_dims_c;
+        block_transfer.thread_cluster_dims = {
             TCL.m_block,
             TCL.m_wave_per_xdl,
             TCL.n_block,
@@ -284,14 +284,14 @@ struct GroupedConvForwardXldCShuffleFactoryV3
             TUNING.n_per_dxl,
             TUNING.m_xdl_per_wave,
             TUNING.n_xdl_per_wave,
-            to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_lengths>,
+            to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_dims>,
             to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_order>,
             to_sequence_v<A_BLOCK_TRANSFER.src_access_order>,
             A_BLOCK_TRANSFER.src_vector_dim,
             A_BLOCK_TRANSFER.src_scaler_per_vector,
             A_BLOCK_TRANSFER.dest_scaler_per_vector_k1,
             A_BLOCK_TRANSFER.add_extra,
-            to_sequence_v<B_BLOCK_TRANSFER.thread_cluster_lengths>,
+            to_sequence_v<B_BLOCK_TRANSFER.thread_cluster_dims>,
             to_sequence_v<B_BLOCK_TRANSFER.thread_cluster_order>,
             to_sequence_v<B_BLOCK_TRANSFER.src_access_order>,
             B_BLOCK_TRANSFER.src_vector_dim,
@@ -300,7 +300,7 @@ struct GroupedConvForwardXldCShuffleFactoryV3
             B_BLOCK_TRANSFER.add_extra,
             C_BLOCK_TRANSFER.m_xdl_per_wave_per_shuffle,
             C_BLOCK_TRANSFER.n_xdl_per_wave_per_shuffle,
-            to_sequence_v<C_BLOCK_TRANSFER.thread_cluster_lengths>,
+            to_sequence_v<C_BLOCK_TRANSFER.thread_cluster_dims>,
             C_BLOCK_TRANSFER.scaler_per_vector,
             PIPELINE_SCHEDULER,
             PIPELINE_VERSION>;
