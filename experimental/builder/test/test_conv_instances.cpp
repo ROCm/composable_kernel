@@ -5,6 +5,7 @@
 namespace {
 
 namespace ckb = ck_tile::builder;
+using P     = ckb::BlockGemmPipelineVersion;
 struct FwdConvSignature
 {
     static constexpr int spatial_dim = 2;
@@ -64,7 +65,7 @@ constexpr std::array TEST_CASES = {
                                                                .m_wave_per_xdl = 32,
                                                                .n_block        = 1,
                                                                .n_wave_per_xdl = 8}},
-             .pipeline_version = ckb::BlockGemmPipelineVersion::V4},
+             .pipeline_version = P::V4},
         .expected_type =
             "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 256, 128, 64, Default, 32, 32, "
             "2, 2, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v4>",
@@ -81,7 +82,7 @@ constexpr std::array TEST_CASES = {
                                                                .m_wave_per_xdl = 32,
                                                                .n_block        = 1,
                                                                .n_wave_per_xdl = 8}},
-             .pipeline_version = ckb::BlockGemmPipelineVersion::V4},
+             .pipeline_version = P::V4},
         .expected_type =
             "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 256, 256, 32, Default, 32, 32, "
             "4, 4, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v4>",
@@ -97,7 +98,7 @@ constexpr std::array TEST_CASES = {
                                                                .m_wave_per_xdl = 32,
                                                                .n_block        = 1,
                                                                .n_wave_per_xdl = 8}},
-             .pipeline_version = ckb::BlockGemmPipelineVersion::V4},
+             .pipeline_version = P::V4},
         .expected_type =
             "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 128, 128, 64, Default, 32, 32, "
             "2, 2, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v4>",
@@ -113,7 +114,7 @@ constexpr std::array TEST_CASES = {
                                                                .m_wave_per_xdl = 32,
                                                                .n_block        = 1,
                                                                .n_wave_per_xdl = 8}},
-             .pipeline_version = ckb::BlockGemmPipelineVersion::V4},
+             .pipeline_version = P::V4},
         .expected_type =
             "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 128, 128, 32, Default, 32, 32, "
             "2, 2, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v4>",
@@ -129,7 +130,7 @@ constexpr std::array TEST_CASES = {
                                                                .m_wave_per_xdl = 32,
                                                                .n_block        = 1,
                                                                .n_wave_per_xdl = 8}},
-             .pipeline_version = ckb::BlockGemmPipelineVersion::V3},
+             .pipeline_version = P::V3},
         .expected_type =
             "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 256, 256, 32, Default, 32, 32, "
             "4, 4, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v3>",
@@ -145,7 +146,7 @@ constexpr std::array TEST_CASES = {
                                                                .m_wave_per_xdl = 32,
                                                                .n_block        = 1,
                                                                .n_wave_per_xdl = 8}},
-             .pipeline_version = ckb::BlockGemmPipelineVersion::V5},
+             .pipeline_version = P::V5},
         .expected_type =
             "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 256, 256, 32, Default, 32, 32, "
             "4, 4, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v5>",
@@ -162,7 +163,7 @@ constexpr std::array TEST_CASES = {
                                                                   .m_wave_per_xdl = 32,
                                                                   .n_block        = 1,
                                                                   .n_wave_per_xdl = 8}},
-                .pipeline_version = ckb::BlockGemmPipelineVersion::V1,
+                .pipeline_version = P::V1,
             },
         .expected_type =
             "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 256, 128, 32, Default, 32, 32, "
@@ -180,7 +181,7 @@ constexpr std::array TEST_CASES = {
                                                                   .m_wave_per_xdl = 32,
                                                                   .n_block        = 1,
                                                                   .n_wave_per_xdl = 8}},
-                .pipeline_version = ckb::BlockGemmPipelineVersion::V1,
+                .pipeline_version = P::V1,
             },
         .expected_type =
             "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 128, 256, 32, Default, 32, 32, "
@@ -198,7 +199,7 @@ constexpr std::array TEST_CASES = {
                                                                   .m_wave_per_xdl = 32,
                                                                   .n_block        = 1,
                                                                   .n_wave_per_xdl = 8}},
-                .pipeline_version = ckb::BlockGemmPipelineVersion::V1,
+                .pipeline_version = P::V1,
             },
         .expected_type =
             "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 128, 128, 64, Default, 32, 32, "
@@ -216,7 +217,7 @@ constexpr std::array TEST_CASES = {
                                                                   .m_wave_per_xdl = 32,
                                                                   .n_block        = 1,
                                                                   .n_wave_per_xdl = 8}},
-                .pipeline_version = ckb::BlockGemmPipelineVersion::V3,
+                .pipeline_version = P::V3,
             },
         .expected_type =
             "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 128, 64, 64, Default, 32, 32, 2, "
@@ -234,7 +235,7 @@ constexpr std::array TEST_CASES = {
                                                                   .m_wave_per_xdl = 32,
                                                                   .n_block        = 1,
                                                                   .n_wave_per_xdl = 8}},
-                .pipeline_version = ckb::BlockGemmPipelineVersion::V3,
+                .pipeline_version = P::V3,
             },
         .expected_type =
             "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 64, 128, 64, Default, 32, 32, 2, "
@@ -252,7 +253,7 @@ constexpr std::array TEST_CASES = {
                                                                   .m_wave_per_xdl = 32,
                                                                   .n_block        = 1,
                                                                   .n_wave_per_xdl = 8}},
-                .pipeline_version = ckb::BlockGemmPipelineVersion::V3,
+                .pipeline_version = P::V3,
             },
         .expected_type =
             "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 64, 64, 32, Default, 32, 32, 2, "
