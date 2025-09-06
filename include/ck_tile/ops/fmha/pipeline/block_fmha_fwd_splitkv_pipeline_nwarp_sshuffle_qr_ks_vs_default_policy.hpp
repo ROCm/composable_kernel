@@ -255,8 +255,10 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVSDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        return max(GetSmemSizeQ<Problem>(), GetSmemSizeK<Problem>()) +
-               max(GetSmemSizeV<Problem>(), GetSmemSizeS<Problem>());
+        // in hdim128 situtation, Q and S are 16x128, K and V are 32x128 or 64x128,
+        // so it makes sense to let Q and S reuse LDS, K and V resuse LDS
+        return max(GetSmemSizeQ<Problem>(), GetSmemSizeS<Problem>()) +
+               max(GetSmemSizeK<Problem>(), GetSmemSizeV<Problem>());
     }
 };
 

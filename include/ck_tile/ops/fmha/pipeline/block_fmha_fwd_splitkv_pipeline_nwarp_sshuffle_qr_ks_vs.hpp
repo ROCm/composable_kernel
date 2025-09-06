@@ -197,34 +197,23 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
         __builtin_amdgcn_sched_barrier(0);
 
         // Q tile in LDS
-        QDataType* q_lds_ptr =
-            static_cast<QDataType*>(static_cast<void*>(static_cast<char*>(smem_ptr)));
-        auto q_lds = make_tensor_view<address_space_enum::lds>(
+        QDataType* q_lds_ptr = static_cast<QDataType*>(smem_ptr);
+        auto q_lds           = make_tensor_view<address_space_enum::lds>(
             q_lds_ptr, Policy::template MakeQLdsBlockDescriptor<Problem>());
 
         // K tile in LDS
-        KDataType* k_lds_ptr =
-            static_cast<KDataType*>(static_cast<void*>(static_cast<char*>(smem_ptr)));
+        KDataType* k_lds_ptr = reinterpret_cast<KDataType*>(
+            static_cast<char*>(smem_ptr) + max(Policy::template GetSmemSizeQ<Problem>(),
+                                               Policy::template GetSmemSizeS<Problem>()));
         auto k_lds = make_tensor_view<address_space_enum::lds>(
             k_lds_ptr, Policy::template MakeKLdsBlockDescriptor<Problem>());
         auto k_lds_window =
             make_tile_window(k_lds, make_tuple(number<kN0>{}, number<kK0>{}), {0, 0});
 
-        // V tile in LDS
-        auto v_lds = make_tensor_view<address_space_enum::lds>(
-            reinterpret_cast<VDataType*>(static_cast<char*>(smem_ptr) +
-                                         max(Policy::template GetSmemSizeQ<Problem>(),
-                                             Policy::template GetSmemSizeK<Problem>())),
-            Policy::template MakeVLdsBlockDescriptor<Problem>());
-        auto v_lds_window = make_tile_window(
-            v_lds, Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
-
         // S tile in LDS
-        auto s_lds = make_tensor_view<address_space_enum::lds>(
-            reinterpret_cast<SaccDataType*>(reinterpret_cast<char*>(smem_ptr) +
-                                            max(Policy::template GetSmemSizeQ<Problem>(),
-                                                Policy::template GetSmemSizeK<Problem>())),
-            Policy::template MakeSLdsBlockDescriptor<Problem>());
+        SaccDataType* s_lds_ptr = static_cast<SaccDataType*>(smem_ptr);
+        auto s_lds              = make_tensor_view<address_space_enum::lds>(
+            s_lds_ptr, Policy::template MakeSLdsBlockDescriptor<Problem>());
         auto s_write_lds_window = make_tile_window(
             s_lds, Policy::template MakeSLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
         auto s_read_lds_window =
@@ -232,6 +221,15 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                              Policy::template MakeSLdsBlockDescriptor<Problem>().get_lengths(),
                              {0, 0},
                              Policy::template MakeSRegTileDistribution<Problem>());
+
+        // V tile in LDS
+        VDataType* v_lds_ptr = reinterpret_cast<VDataType*>(
+            static_cast<char*>(smem_ptr) + max(Policy::template GetSmemSizeQ<Problem>(),
+                                               Policy::template GetSmemSizeS<Problem>()));
+        auto v_lds = make_tensor_view<address_space_enum::lds>(
+            v_lds_ptr, Policy::template MakeVLdsBlockDescriptor<Problem>());
+        auto v_lds_window = make_tile_window(
+            v_lds, Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
 
         // Block GEMM
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
@@ -374,9 +372,6 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
 
         // prefetch K tile
         index_t i_total_loops = 0;
-
-        // ensure all the ds_read for q are done
-        block_sync_lds();
 
         do
         {
@@ -672,9 +667,6 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                 });
             });
 
-            // ensure all ds_read for s are done
-            block_sync_lds();
-
             auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
                 Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
             shuffle_tile(v_shuffle_tmp, v_tiles[number<0>{}]);
@@ -711,6 +703,8 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                         block_sync_lds();
                     };
                 });
+
+            block_sync_lds();
         } while(++i_total_loops < num_total_loop);
 
         if constexpr(kStoreLSE)
