@@ -19,9 +19,9 @@ struct MNK
 template <typename T>
 concept ThreadBlockInfo = requires(T t) {
     { t.block_size } -> std::convertible_to<int>;
-    { t.sub_matrix.m } -> std::convertible_to<int>;
-    { t.sub_matrix.n } -> std::convertible_to<int>;
-    { t.sub_matrix.k } -> std::convertible_to<int>;
+    { t.submatrix.m } -> std::convertible_to<int>;
+    { t.submatrix.n } -> std::convertible_to<int>;
+    { t.submatrix.k } -> std::convertible_to<int>;
 };
 
 // Describe a thread block for a GEMM.
@@ -30,7 +30,7 @@ struct ThreadBlock
     // Thread block size.
     int block_size;
     // Size of the submatrix problem in a thread block.
-    MNK<int> sub_matrix;
+    MNK<int> submatrix;
 };
 static_assert(ThreadBlockInfo<ThreadBlock>);
 

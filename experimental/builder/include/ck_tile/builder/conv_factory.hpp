@@ -82,7 +82,7 @@ constexpr ConvBlock SetThreadBlockInfo()
         constexpr auto& TB = ALGORITHM.thread_block;
         return ConvBlock{
             .block_size = TB.block_size,
-            .per_block  = {.m = TB.sub_matrix.m, .n = TB.sub_matrix.n, .k = TB.sub_matrix.k}};
+            .per_block  = {.m = TB.submatrix.m, .n = TB.submatrix.n, .k = TB.submatrix.k}};
     }
     // Default values if  thread block info isn't specified.
     return ConvBlock{
