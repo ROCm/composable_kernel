@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
+#include <variant>
 #include "ck_tile/core/arch/arch.hpp"
 
 auto string_to_datatype(const std::string& datatype)
