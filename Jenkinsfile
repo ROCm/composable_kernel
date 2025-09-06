@@ -1355,7 +1355,7 @@ pipeline {
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 benchmark_gemm_all && \
-                                           python3 ../tile_engine/ops/gemm/gemm_benchmark.py bin --problem-sizes "1024,1024,1024" \
+                                           python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" \
                                            --warmup 5 --repeat 5 --verbose --json results.json && \
                                            ninja -j64 benchmark_gemm_multi_d_fp16_rrrr && \
                                            ./bin/benchmark_gemm_multi_d_fp16_rrrr && \
@@ -1390,7 +1390,7 @@ pipeline {
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 benchmark_gemm_all && \
-                                           python3 ../tile_engine/ops/gemm/gemm_benchmark.py bin --problem-sizes "1024,1024,1024" \
+                                           python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" \
                                            --warmup 5 --repeat 5 --verbose --json results.json && \
                                            ninja -j64 benchmark_gemm_multi_d_fp16_rrrr && \
                                            ./bin/benchmark_gemm_multi_d_fp16_rrrr && \
