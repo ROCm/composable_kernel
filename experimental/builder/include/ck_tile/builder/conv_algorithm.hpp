@@ -122,19 +122,19 @@ static_assert(BlockCTransferLengths<BlockCTransferLengthsInfo>);
 // Concept to check if a struct provides A Block tranfer info.
 template <typename T>
 concept HasABlockTransferInfo = requires(T t) {
-    { T::block_transfer.thread_cluster_lengths_a } -> BlockATransferLengths;
+    { T::block_transfer.thread_cluster_dims_a } -> BlockATransferLengths;
 };
 
 // Concept to check if a struct provides B Block tranfer info.
 template <typename T>
 concept HasBBlockTransferInfo = requires(T t) {
-    { T::block_transfer.thread_cluster_lengths_b } -> BlockBTransferLengths;
+    { T::block_transfer.thread_cluster_dims_b } -> BlockBTransferLengths;
 };
 
 // Concept to check if a struct provides C Block tranfer info.
 template <typename T>
 concept HasCBlockTransferInfo = requires(T t) {
-    { T::block_transfer.thread_cluster_lengths_c } -> BlockCTransferLengths;
+    { T::block_transfer.thread_cluster_dims_c } -> BlockCTransferLengths;
 };
 
 enum class BlockGemmPipelineVersion
