@@ -1,3 +1,9 @@
+// This test is designed to verify that the ConvBuilder can instantiate the same
+// kernel classes that are used in production code. Production code may have
+// hundreds or thousands of kernel instances, so this test uses a GTest typed
+// test suite to efficiently test a representative set of these kernel examples.
+// Each test case defines a specific convolution algorithm configuration and the
+// expected kernel type string that the builder should generate.
 #include <gtest/gtest.h>
 
 #include <ck_tile/builder/conv_builder.hpp>
@@ -6,6 +12,9 @@ namespace {
 
 namespace ckb = ck_tile::builder;
 using P       = ckb::BlockGemmPipelineVersion;
+// Defines the signature of the convolution operation to be tested.
+// This includes dimensionality, direction, data layout, and data type.
+// We wil not change these for this test suite, so we just use constexpr.
 struct FwdConvSignature
 {
     static constexpr int spatial_dim = 2;
@@ -18,6 +27,9 @@ static_assert(ckb::ConvSignature<FwdConvSignature>);
 constexpr char API_VERSION[] = "0.1.0";
 static_assert(ckb::SupportedVersion<API_VERSION>);
 
+// Defines the tunable algorithmic parameters for the convolution kernel.
+// This includes thread block configuration, tuning parameters, data transfer
+// settings, and the GEMM pipeline version.
 struct FwdConvAlgorithm
 {
     ckb::ThreadBlock thread_block;
@@ -38,6 +50,8 @@ static_assert(ckb::SpecifiesBlockBTransfer<FwdConvAlgorithm>);
 static_assert(ckb::SpecifiesBlockCTransfer<FwdConvAlgorithm>);
 static_assert(ckb::ProvidesBlockGemmPipelineVersion<FwdConvAlgorithm>);
 
+// A container for a single test case, bundling a descriptive name, the
+// algorithm configuration, and the expected generated kernel type string.
 struct TestCase
 {
     std::string_view name;
@@ -60,7 +74,8 @@ constexpr FwdConvAlgorithm::BlockTransfer set_thread_cluster_dims(int k0, int m,
                 .m_block = 1, .m_wave_per_xdl = 32, .n_block = 1, .n_wave_per_xdl = 8}};
 }
 
-// Test cases to drive the typed test suite.
+// An array of test cases that drive the typed test suite. Each entry
+// represents a unique kernel instance to be verified.
 constexpr std::array TEST_CASES = {
     TestCase{
         // double rate mfma instances on gfx950
@@ -207,7 +222,9 @@ struct TestingIndices
     using Types = decltype(GenerateTypes(std::make_integer_sequence<int, N>{}));
 };
 
-// A typed test suite so we can instantiate all the kernel builders.
+// A typed test suite that will be instantiated for each type in TestingIndices::Types.
+// This creates a separate test for each entry in the TEST_CASES array, allowing
+// GTest to run and report on them individually.
 template <typename T>
 class ConvBuilderInstancesTest : public ::testing::Test
 {
@@ -218,6 +235,8 @@ class ConvBuilderInstancesTest : public ::testing::Test
     static constexpr const std::string_view& EXPECTED_TYPE = TEST_CASES[N].expected_type;
 };
 
+// Custom test name generator to provide more descriptive names for each
+// typed test instance, incorporating the index and the name from the TestCase.
 struct TestNameGenerator
 {
     template <typename T>
@@ -231,7 +250,10 @@ TYPED_TEST_SUITE(ConvBuilderInstancesTest,
                  TestingIndices<NUM_TEST_CASES>::Types,
                  TestNameGenerator);
 
-// General test case, instantiated for each test case.
+// This is the body of the typed test. It will be executed for each TestCase.
+// It verifies that the ConvBuilder, when configured with a specific algorithm,
+// generates the correct kernel type string and correctly configures the
+// underlying factory parameters.
 TYPED_TEST(ConvBuilderInstancesTest, KernelParamsConfigured)
 {
     static constexpr const FwdConvAlgorithm& ALGORITHM =
@@ -257,6 +279,9 @@ TYPED_TEST(ConvBuilderInstancesTest, KernelParamsConfigured)
     EXPECT_EQ(Builder::factory::C_BLOCK_TRANSFER.thread_cluster_dims[3], tcdc.n_wave_per_xdl);
 }
 
+// A standard GTest to ensure that all `expected_type` strings in the
+// TEST_CASES array are unique. This helps prevent copy-paste errors and
+// ensures that each test case is meaningful.
 TEST(ConvBuilderInstancesTest, TypeStringsAreUnique)
 {
     std::set<std::string> strings;
