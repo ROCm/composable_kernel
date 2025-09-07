@@ -42,13 +42,13 @@ struct FwdConvAlgorithm
     } block_transfer;
     ckb::BlockGemmPipelineVersion pipeline_version;
 };
-static_assert(ckb::ConvAlgorithm<FwdConvAlgorithm>);
+static_assert(ckb::ConvAlgorithmDescriptor<FwdConvAlgorithm>);
 static_assert(ckb::SpecifiesThreadBlock<FwdConvAlgorithm>);
 static_assert(ckb::SpecifiesConvTuning<FwdConvAlgorithm>);
 static_assert(ckb::SpecifiesBlockATransfer<FwdConvAlgorithm>);
 static_assert(ckb::SpecifiesBlockBTransfer<FwdConvAlgorithm>);
 static_assert(ckb::SpecifiesBlockCTransfer<FwdConvAlgorithm>);
-static_assert(ckb::ProvidesBlockGemmPipelineVersion<FwdConvAlgorithm>);
+static_assert(ckb::SpecifiesGemmPipelineVersion<FwdConvAlgorithm>);
 
 // A container for a single test case, bundling a descriptive name, the
 // algorithm configuration, and the expected generated kernel type string.

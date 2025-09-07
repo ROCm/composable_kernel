@@ -22,7 +22,7 @@ namespace ck_tile::builder {
  * @tparam ALGORITHM The specific convolution algorithm to be used for the implementation.
  * @tparam VERSION The version of the builder implementation.
  */
-template <ConvSignature auto SIGNATURE, ConvAlgorithm auto ALGORITHM, StringLiteral VERSION>
+template <ConvSignature auto SIGNATURE, ConvAlgorithmDescriptor auto ALGORITHM, StringLiteral VERSION>
     requires SupportedVersion<VERSION>
 struct ConvBuilder
 {
