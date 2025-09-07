@@ -300,12 +300,12 @@ struct BlockFmhaFwdV3Pipeline
     }
 
     template <typename DataType, typename Descriptor>
-    CK_TILE_DEVICE static constexpr auto make_lds_tile_window(void* base, const Descriptor& desc)
+    CK_TILE_DEVICE static constexpr auto make_lds_tile_window(DataType* __restrict__ base,
+                                                              const Descriptor& desc)
     {
         using namespace ck_tile;
 
-        auto tensor_view =
-            make_tensor_view<address_space_enum::lds>(reinterpret_cast<DataType*>(base), desc);
+        auto tensor_view = make_tensor_view<address_space_enum::lds>(base, desc);
         return make_tile_window(tensor_view, desc.get_lengths(), {0, 0});
     }
 
@@ -343,20 +343,25 @@ struct BlockFmhaFwdV3Pipeline
               typename SAccElementFunction,
               typename PComputeElementFunction,
               typename OAccElementFunction>
-    CK_TILE_DEVICE auto operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
-                                   const QElementFunction& q_element_func,
-                                   const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
-                                   [[maybe_unused]] const KElementFunction& k_element_func,
-                                   const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
-                                   [[maybe_unused]] const VElementFunction& v_element_func,
-                                   LSEDramBlockWindowTmp& lse_dram_window_tmp, // M0*1 tile
-                                   const LSEElementFunction& lse_element_func,
-                                   [[maybe_unused]] const SAccElementFunction& s_acc_element_func,
-                                   const PComputeElementFunction& p_compute_element_func,
-                                   const OAccElementFunction& o_acc_element_func,
-                                   FmhaMask mask,
-                                   float scale_s,
-                                   void* smem_ptr) const
+    CK_TILE_DEVICE auto
+    operator()(const QDramBlockWindowTmp& __restrict__ q_dram_block_window_tmp, // M0*K0 tile
+               const QElementFunction& q_element_func,
+               const KDramBlockWindowTmp& __restrict__ k_dram_block_window_tmp, // N0*K0 tile
+               [[maybe_unused]] const KElementFunction& k_element_func,
+               const VDramBlockWindowTmp& __restrict__ v_dram_block_window_tmp, // N1*K1 tile
+               [[maybe_unused]] const VElementFunction& v_element_func,
+               LSEDramBlockWindowTmp& __restrict__ lse_dram_window_tmp, // M0*1 tile
+               const LSEElementFunction& lse_element_func,
+               [[maybe_unused]] const SAccElementFunction& s_acc_element_func,
+               const PComputeElementFunction& p_compute_element_func,
+               const OAccElementFunction& o_acc_element_func,
+               FmhaMask mask,
+               float scale_s,
+               KDataType* __restrict__ smem_k0,
+               KDataType* __restrict__ smem_k1,
+               VDataType* __restrict__ smem_v0,
+               VDataType* __restrict__ smem_v1,
+               void* __restrict__ smem_ptr) const
     {
         using namespace ck_tile;
 
@@ -375,28 +380,22 @@ struct BlockFmhaFwdV3Pipeline
 
         static_assert(sizeof(SaccDataType) * kM0 * kN0 <= GetSmemSize());
         auto s_lds = make_tensor_view<address_space_enum::lds>(
-            reinterpret_cast<SaccDataType*>(static_cast<char*>(smem_ptr)),
-            MakeSimpleLdsDesc<kM0, kN0>());
+            static_cast<SaccDataType* __restrict__>(smem_ptr), MakeSimpleLdsDesc<kM0, kN0>());
         [[maybe_unused]] auto s_lds_window =
             make_tile_window(s_lds, make_tuple(number<kM0>{}, number<kN0>{}), {0, 0});
 
         auto p_lds = make_tensor_view<address_space_enum::lds>(
-            reinterpret_cast<PDataType*>(static_cast<char*>(smem_ptr) +
-                                         Policy::template GetSmemSize<Problem>()),
-            MakeSimpleLdsDesc<kM0, kN0>());
+            static_cast<PDataType* __restrict__>(smem_ptr), MakeSimpleLdsDesc<kM0, kN0>());
         [[maybe_unused]] auto p_lds_window =
             make_tile_window(p_lds, make_tuple(number<kM0>{}, number<kN0>{}), {0, 0});
 
         auto o_lds = make_tensor_view<address_space_enum::lds>(
-            reinterpret_cast<PDataType*>(static_cast<char*>(smem_ptr)),
-            MakeSimpleLdsDesc<kM0, kN1>());
+            static_cast<PDataType* __restrict__>(smem_ptr), MakeSimpleLdsDesc<kM0, kN1>());
         [[maybe_unused]] auto o_lds_window =
             make_tile_window(o_lds, make_tuple(number<kM0>{}, number<kN1>{}), {0, 0});
 
         auto m_lds = make_tensor_view<address_space_enum::lds>(
-            reinterpret_cast<SMPLComputeDataType*>(static_cast<char*>(smem_ptr) +
-                                                   Policy::template GetSmemSize<Problem>()),
-            MakeSimpleLdsDesc1D<kM0>());
+            static_cast<SMPLComputeDataType* __restrict__>(smem_ptr), MakeSimpleLdsDesc1D<kM0>());
         [[maybe_unused]] auto m_lds_window =
             make_tile_window(m_lds, make_tuple(number<kM0>{}), {0});
 
@@ -413,35 +412,21 @@ struct BlockFmhaFwdV3Pipeline
         const auto f_max = [](auto e0, auto e1) { return max(e0, e1); };
         const auto f_sum = [](auto e0, auto e1) { return e0 + e1; };
 
-        auto k_lds_window_store = generate_tuple(
-            [&](auto i_buf) {
-                return make_lds_tile_window<KDataType>(
-                    smem_ptr, Policy::template MakeKLdsStoreBlockDescriptor<Problem>(i_buf));
-            },
-            number<2>{});
-
-        auto v_lds_window_store = generate_tuple(
-            [&](auto i_buf) {
-                return make_lds_tile_window<KDataType>(
-                    smem_ptr, Policy::template MakeVLdsStoreBlockDescriptor<Problem>(i_buf));
-            },
-            number<2>{});
-
         statically_indexed_array<decltype(make_tile_window(
                                      make_lds_tile_window<KDataType>(
                                          nullptr,
-                                         Policy::template MakeKLdsLoadBlockDescriptor<Problem>()),
+                                         Policy::template MakeKLdsBlockDescriptor<Problem>()),
                                      Policy::template MakeKRegTileDistribution<Problem>())),
                                  2>
-            k_lds_window_load;
+            k_lds_window;
 
         statically_indexed_array<decltype(make_tile_window(
                                      make_lds_tile_window<VDataType>(
                                          nullptr,
-                                         Policy::template MakeVLdsLoadBlockDescriptor<Problem>()),
+                                         Policy::template MakeVLdsBlockDescriptor<Problem>()),
                                      Policy::template MakeVRegTileDistribution<Problem>())),
                                  2>
-            v_lds_window_load;
+            v_lds_window;
 
         decltype(make_static_distributed_tensor<QDataType>(
             Policy::template MakeQRegTileDistribution<Problem>())) q_tile;
@@ -450,9 +435,9 @@ struct BlockFmhaFwdV3Pipeline
         {
             CK_TILE_DEVICE kv_tile_type() {}
 
-            decltype(load_tile(k_lds_window_load(number<0>{}))) k_tile;
+            decltype(load_tile(k_lds_window(number<0>{}))) k_tile;
 
-            decltype(load_tile_transpose(v_lds_window_load(number<0>{}))) v_tile;
+            decltype(load_tile_transpose(v_lds_window(number<0>{}))) v_tile;
         } kv_tile;
 
         union sp_compute_type
@@ -476,19 +461,28 @@ struct BlockFmhaFwdV3Pipeline
 
         // initialize k_lds_window and v_lds_window
         static_for<0, 2, 1>{}([&](auto idx) {
-            k_lds_window_load(idx) = make_tile_window(
-                make_lds_tile_window<KDataType>(
-                    static_cast<char*>(smem_ptr) + (idx)*Policy::template GetSmemSizeKV<Problem>(),
-                    Policy::template MakeKLdsLoadBlockDescriptor<Problem>()),
-                Policy::template MakeKRegTileDistribution<Problem>());
+            k_lds_window(idx) =
+                make_tile_window(make_lds_tile_window(
+                                     [&] {
+                                         if constexpr(idx == 0)
+                                             return smem_k0;
+                                         else
+                                             return smem_k1;
+                                     }(),
+                                     Policy::template MakeKLdsBlockDescriptor<Problem>()),
+                                 Policy::template MakeKRegTileDistribution<Problem>());
         });
 
         static_for<0, 2, 1>{}([&](auto idx) {
-            v_lds_window_load(idx) =
-                make_tile_window(make_lds_tile_window<VDataType>(
-                                     static_cast<char*>(smem_ptr) +
-                                         (idx + 2) * Policy::template GetSmemSizeKV<Problem>(),
-                                     Policy::template MakeVLdsLoadBlockDescriptor<Problem>()),
+            v_lds_window(idx) =
+                make_tile_window(make_lds_tile_window(
+                                     [&] {
+                                         if constexpr(idx == 0)
+                                             return smem_v0;
+                                         else
+                                             return smem_v1;
+                                     }(),
+                                     Policy::template MakeVLdsBlockDescriptor<Problem>()),
                                  Policy::template MakeVRegTileDistribution<Problem>());
         });
 
@@ -536,14 +530,12 @@ struct BlockFmhaFwdV3Pipeline
                              k_dram_block_window_tmp.get_window_lengths(),
                              {seqlen_k_start, 0},
                              Policy::template MakeKDramTileDistribution<Problem>());
-        k_dram_window.init_raw();
 
         auto v_dram_window =
             make_tile_window(v_dram_block_window_tmp.get_bottom_tensor_view(),
                              v_dram_block_window_tmp.get_window_lengths(),
                              {seqlen_k_start, 0}, // TODO: hdim split?
                              Policy::template MakeVDramTileDistribution<Problem>());
-        v_dram_window.init_raw();
 
         // prefetch K tile
         index_t i_total_loops      = 0;
@@ -635,7 +627,7 @@ struct BlockFmhaFwdV3Pipeline
         static constexpr int V_mem_su_ld_insts = 1;
 
         auto K_mem_load = [&](auto k_lds_write_idx) {
-            async_load_tile_raw(k_lds_window_store(k_lds_write_idx), k_dram_window);
+            async_load_tile(k_lds_window(k_lds_write_idx), k_dram_window);
 
             /// FIXME: use the future-predicting method to move the window
             // move K tile windows
@@ -643,19 +635,18 @@ struct BlockFmhaFwdV3Pipeline
         };
 
         auto K_lds_load = [&](auto k_lds_read_idx) {
-            kv_tile.k_tile = load_tile(k_lds_window_load(k_lds_read_idx));
+            kv_tile.k_tile = load_tile(k_lds_window(k_lds_read_idx));
         };
 
         auto V_mem_load = [&](auto v_lds_write_idx) {
-            async_load_tile_raw(v_lds_window_store(v_lds_write_idx), v_dram_window);
-            __builtin_amdgcn_sched_barrier(0);
+            async_load_tile(v_lds_window(v_lds_write_idx), v_dram_window);
 
             /// FIXME: use the future-predicting method to move the window
             move_tile_window(v_dram_window, {kK1, 0});
         };
 
         auto V_lds_load = [&](auto v_lds_read_idx) {
-            kv_tile.v_tile = load_tile_transpose(v_lds_window_load(v_lds_read_idx));
+            kv_tile.v_tile = load_tile_transpose(v_lds_window(v_lds_read_idx));
         };
 
         decltype(m) m_old;
@@ -1168,13 +1159,17 @@ struct BlockFmhaFwdV3Pipeline
               typename VDramBlockWindowTmp,
               typename LSEDramBlockWindowTmp>
     CK_TILE_HOST_DEVICE auto
-    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
-               const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
-               const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
-               LSEDramBlockWindowTmp& lse_dram_block_window_tmp,   // M0*1 tile
+    operator()(const QDramBlockWindowTmp& __restrict__ q_dram_block_window_tmp, // M0*K0 tile
+               const KDramBlockWindowTmp& __restrict__ k_dram_block_window_tmp, // N0*K0 tile
+               const VDramBlockWindowTmp& __restrict__ v_dram_block_window_tmp, // N1*K1 tile
+               LSEDramBlockWindowTmp& __restrict__ lse_dram_block_window_tmp,   // M0*1 tile
                FmhaMask mask,
                float scale_s,
-               void* smem_ptr) const
+               KDataType* __restrict__ smem_k0,
+               KDataType* __restrict__ smem_k1,
+               VDataType* __restrict__ smem_v0,
+               VDataType* __restrict__ smem_v1,
+               void* __restrict__ smem_ptr) const
     {
         using namespace ck_tile;
 
@@ -1191,6 +1186,10 @@ struct BlockFmhaFwdV3Pipeline
                           identity{},
                           mask,
                           scale_s,
+                          smem_k0,
+                          smem_k1,
+                          smem_v0,
+                          smem_v1,
                           smem_ptr);
     }
 };

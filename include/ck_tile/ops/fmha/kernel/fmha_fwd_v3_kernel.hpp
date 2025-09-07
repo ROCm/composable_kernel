@@ -308,9 +308,6 @@ struct FmhaFwdV3Kernel
     {
         using namespace ck_tile;
 
-        // allocate LDS
-        __shared__ char smem_ptr[GetSmemSize()];
-
         // divide problem
         const auto [i_tile_m, i_tile_n, i_nhead, i_batch] = GetTileIndex(kargs);
 
@@ -483,6 +480,16 @@ struct FmhaFwdV3Kernel
                 return FmhaMask{kargs.seqlen_q, kargs.seqlen_k};
         }();
 
+        __shared__ char
+            smem_k0[FmhaPipeline::Policy::template GetSmemSizeKV<typename FmhaPipeline::Problem>()];
+        __shared__ char
+            smem_k1[FmhaPipeline::Policy::template GetSmemSizeKV<typename FmhaPipeline::Problem>()];
+        __shared__ char
+            smem_v0[FmhaPipeline::Policy::template GetSmemSizeKV<typename FmhaPipeline::Problem>()];
+        __shared__ char
+            smem_v1[FmhaPipeline::Policy::template GetSmemSizeKV<typename FmhaPipeline::Problem>()];
+        __shared__ char smem[1];
+
         auto o_acc_tile = [&]() {
             return FmhaPipeline{}(q_dram_window,
                                   k_dram_window,
@@ -490,7 +497,11 @@ struct FmhaFwdV3Kernel
                                   lse_dram_window,
                                   mask,
                                   kargs.scale_s,
-                                  smem_ptr);
+                                  reinterpret_cast<KDataType*>(smem_k0),
+                                  reinterpret_cast<KDataType*>(smem_k1),
+                                  reinterpret_cast<VDataType*>(smem_v0),
+                                  reinterpret_cast<VDataType*>(smem_v1),
+                                  smem);
         }();
 
         // O DRAM and O DRAM window
