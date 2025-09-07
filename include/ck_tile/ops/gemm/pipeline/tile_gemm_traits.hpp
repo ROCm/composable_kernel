@@ -43,7 +43,7 @@ template <bool kPadM_,
           bool UseStructuredSparsity_ = false,
           bool UsePersistentKernel_   = false,
           index_t NumWaveGroups_      = 1,
-          bool Preshuffle_            = 0>
+          bool Preshuffle_            = false>
 struct TileGemmUniversalTraits
 {
     static constexpr bool kPadM            = kPadM_;
