@@ -148,12 +148,12 @@ enum class BlockGemmPipelineVersion
 
 // Concept to check if struct specifies block_gemm_pipeline_version.
 template <typename T>
-concept ProvidesBlockGemmPipelineVersion = requires {
+concept SpecifiesGemmPipelineVersion = requires {
     { T::pipeline_version } -> std::convertible_to<BlockGemmPipelineVersion>;
 };
 
 // No requirements yet for a ConvAlogorithm concept.
 template <typename T>
-concept ConvAlgorithm = std::is_class_v<T>;
+concept ConvAlgorithmDescriptor = std::is_class_v<T>;
 
 } // namespace ck_tile::builder

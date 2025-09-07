@@ -73,7 +73,7 @@ struct ConvBlock
     MNK<int> per_block;
 };
 
-template <ConvAlgorithm auto ALGORITHM>
+template <ConvAlgorithmDescriptor auto ALGORITHM>
 constexpr ConvBlock SetThreadBlockInfo()
 {
     using AlgorithmType = decltype(ALGORITHM);
@@ -102,7 +102,7 @@ struct ConvTuning
     int n_xdl_per_wave = 0;
 };
 
-template <ConvAlgorithm auto ALGORITHM>
+template <ConvAlgorithmDescriptor auto ALGORITHM>
 constexpr ConvTuning SetConvTuningInfo()
 {
     using AlgorithmType = decltype(ALGORITHM);
@@ -150,7 +150,7 @@ struct CBlockTransfer
     int scaler_per_vector                 = 8;
 };
 
-template <ConvAlgorithm auto ALGORITHM>
+template <ConvAlgorithmDescriptor auto ALGORITHM>
 constexpr BlockTransfer SetABlockTransfer()
 {
     BlockTransfer block_transfer{
@@ -172,7 +172,7 @@ constexpr BlockTransfer SetABlockTransfer()
     return block_transfer;
 }
 
-template <ConvAlgorithm auto ALGORITHM>
+template <ConvAlgorithmDescriptor auto ALGORITHM>
 constexpr BlockTransfer SetBBlockTransfer()
 {
     BlockTransfer block_transfer{
@@ -194,7 +194,7 @@ constexpr BlockTransfer SetBBlockTransfer()
     return block_transfer;
 }
 
-template <ConvAlgorithm auto ALGORITHM>
+template <ConvAlgorithmDescriptor auto ALGORITHM>
 constexpr CBlockTransfer SetCBlockTransfer()
 {
     CBlockTransfer block_transfer{
@@ -217,11 +217,11 @@ constexpr CBlockTransfer SetCBlockTransfer()
     return block_transfer;
 }
 
-template <ConvAlgorithm auto ALGORITHM>
+template <ConvAlgorithmDescriptor auto ALGORITHM>
 constexpr ck::BlockGemmPipelineVersion SetBlockGemmPipelineVersion()
 {
     using AlgorithmType = decltype(ALGORITHM);
-    if constexpr(ProvidesBlockGemmPipelineVersion<AlgorithmType>)
+    if constexpr(SpecifiesGemmPipelineVersion<AlgorithmType>)
     {
         switch(ALGORITHM.pipeline_version)
         {
@@ -236,7 +236,7 @@ constexpr ck::BlockGemmPipelineVersion SetBlockGemmPipelineVersion()
 }
 
 // Factory builds an instance of a grouped convolution kernel.
-template <ConvSignature auto SIGNATURE, ConvAlgorithm auto ALGORITHM, auto Version>
+template <ConvSignature auto SIGNATURE, ConvAlgorithmDescriptor auto ALGORITHM, auto Version>
     requires SupportedVersion<Version>
 struct GroupedConvForwardXldCShuffleFactoryV3
 {

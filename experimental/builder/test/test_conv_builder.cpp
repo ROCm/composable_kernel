@@ -18,7 +18,7 @@ static_assert(ckb::ConvSignature<FwdConvSignature>);
 struct DefaultFwdConvAlgorithm
 {
 };
-static_assert(ckb::ConvAlgorithm<DefaultFwdConvAlgorithm>);
+static_assert(ckb::ConvAlgorithmDescriptor<DefaultFwdConvAlgorithm>);
 
 constexpr char API_VERSION[] = "0.1.0";
 static_assert(ckb::SupportedVersion<API_VERSION>);
