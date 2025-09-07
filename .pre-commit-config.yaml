@@ -18,16 +18,3 @@ repos:
         language: script
         types_or: [c++, text]
         verbose: true
-    -   id: ruff-check
-        name: Ruff Linter
-        entry: ruff check --fix
-        language: python
-        types: [python]
-        additional_dependencies: [ruff]
-    -   id: ruff-format
-        name: Ruff Formatter
-        entry: ruff format
-        language: python
-        types: [python]
-        additional_dependencies: [ruff]
-

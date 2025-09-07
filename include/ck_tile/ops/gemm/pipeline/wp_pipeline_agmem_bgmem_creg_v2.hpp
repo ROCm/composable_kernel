@@ -146,10 +146,14 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
     static constexpr index_t mfma_per_wg = 1;
 #endif
     static constexpr index_t dsread_per_wg =
-        WG::kM * WG::kK * sizeof(ADataType) / WaveSize / Problem::VectorLoadSize;
-    static_assert((WG::kM * WG::kK * sizeof(ADataType) / WaveSize) % Problem::VectorLoadSize == 0);
-
-    static constexpr index_t dsread_num_perK  = dsread_per_wg * MIterPerWarp;
+        max(index_t(WG::kM * WG::kK * sizeof(ADataType) / WaveSize / Problem::VectorLoadSize), 1);
+#if defined(__HIP_DEVICE_COMPILE__)
+    static_assert((WG::kM * WG::kK * sizeof(ADataType) * MIterPerWarp / WaveSize) %
+                      Problem::VectorLoadSize ==
+                  0);
+#endif
+    static constexpr index_t dsread_num_perK =
+        WG::kM * WG::kK * sizeof(ADataType) * MIterPerWarp / WaveSize / Problem::VectorLoadSize;
     static constexpr index_t dswrite_num_perK = dsread_num_perK / (MWarp * NWarp);
     static constexpr index_t dswrite_rep    = (dswrite_num_perK + MIterPerWarp - 1) / MIterPerWarp;
     static constexpr index_t Aload_num_perK = dswrite_num_perK;
