@@ -492,7 +492,8 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
                                         const AElementFunction& a_element_func,
                                         const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                         const DequantBFlatWindow& scale_b_flat_window,
-                                        index_t num_loop,
+                                        const index_t num_loop,
+                                        const index_t k_padded_zeros,
                                         void* p_smem_ping,
                                         void* p_smem_pong) const
     {
@@ -900,8 +901,8 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
                             scale_b_flat_dram_window;
 
                         move_tile_window(scale_b_flat_dram_windows(scale_n_iter)(scale_k_iter),
-                                         {scale_n_iter * NFlatPerBlockPerIter,
-                                          scale_k_iter * ScaleKFlatPerWarp});
+                                        {scale_n_iter * NFlatPerBlockPerIter,
+                                        scale_k_iter * ScaleKFlatPerWarp});
 
                         scale_b_warp_tensor_ping(scale_n_iter)(scale_k_iter) =
                             load_tile(scale_b_flat_dram_windows(scale_n_iter)(scale_k_iter));
@@ -914,14 +915,13 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
                     move_tile_window(
                         b_flat_dram_windows(nIter)(kIter),
                         {packed_n_idx * ContinuousScaleNPerThread * NFlatPerBlockPerIter +
-                             packed_n_rank,
-                         kIter * KFlatPerBlockPerIter});
+                            packed_n_rank,
+                        kIter * KFlatPerBlockPerIter});
 
                     ub.mxfp4                         = load_tile(b_flat_dram_windows(nIter)(kIter));
                     b_warp_tensor_ping(nIter)(kIter) = ub.u;
                 });
             });
-
             // Prefill A(2i+2)
             a_block_tile_transformed = tile_elementwise_in(a_element_func, a_block_tile);
             store_tile(a_copy_lds_window_ping, a_block_tile_transformed);
@@ -996,6 +996,7 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
         if constexpr(TailNum == TailNumber::Even)
         {
             // prefetch B(loopK)
+            const int b_k_off = b_flat_dram_window.get_tile_distribution().calculate_index()[I1] / ContinuousKPerThread / WG::kN * ContinuousKPerThread;
             static_for<0, MXFP4KPerWarp, 1>{}([&](auto kIter) {
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                     if constexpr(nIter % XDL_PerScaleN == 0 && kIter % MXFP4K_PerScaleK == 0)
@@ -1007,27 +1008,32 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
                             scale_b_flat_dram_window;
 
                         move_tile_window(scale_b_flat_dram_windows(scale_n_iter)(scale_k_iter),
-                                         {scale_n_iter * NFlatPerBlockPerIter,
-                                          scale_k_iter * ScaleKFlatPerWarp});
+                                        {scale_n_iter * NFlatPerBlockPerIter,
+                                        scale_k_iter * ScaleKFlatPerWarp});
 
                         scale_b_warp_tensor_pong(scale_n_iter)(scale_k_iter) =
                             load_tile(scale_b_flat_dram_windows(scale_n_iter)(scale_k_iter));
                     }
-
-                    auto packed_n_idx  = nIter / number<ContinuousScaleNPerThread>{};
-                    auto packed_n_rank = nIter % number<ContinuousScaleNPerThread>{};
-
-                    b_flat_dram_windows(nIter)(kIter) = b_flat_dram_window;
-
-                    move_tile_window(
-                        b_flat_dram_windows(nIter)(kIter),
-                        {packed_n_idx * ContinuousScaleNPerThread * NFlatPerBlockPerIter +
-                             packed_n_rank,
-                         kIter * KFlatPerBlockPerIter});
-
-                    ub.mxfp4                         = load_tile(b_flat_dram_windows(nIter)(kIter));
-                    b_warp_tensor_pong(nIter)(kIter) = ub.u;
                 });
+
+                const int b_k_off_inter = kIter * kKPerBlock / MXFP4KPerWarp + b_k_off;
+                if( b_k_off_inter < kKPerBlock - k_padded_zeros) {
+                    static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                        auto packed_n_idx  = nIter / number<ContinuousScaleNPerThread>{};
+                        auto packed_n_rank = nIter % number<ContinuousScaleNPerThread>{};
+
+                        b_flat_dram_windows(nIter)(kIter) = b_flat_dram_window;
+
+                        move_tile_window(
+                            b_flat_dram_windows(nIter)(kIter),
+                            {packed_n_idx * ContinuousScaleNPerThread * NFlatPerBlockPerIter +
+                                packed_n_rank,
+                            kIter * KFlatPerBlockPerIter});
+
+                        ub.mxfp4                         = load_tile(b_flat_dram_windows(nIter)(kIter));
+                        b_warp_tensor_pong(nIter)(kIter) = ub.u;
+                    });
+                }
             });
 
             // Prefill A(loopK)
@@ -1088,51 +1094,55 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
                     load_tile(a_warp_windows_pong(number<mIter>{})(number<kIter>{}));
             });
 
-            Last2ndHotLoopScheduler();
+            __builtin_amdgcn_sched_barrier(0);
+            // Last2ndHotLoopScheduler();
 
             // GEMM loopK
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
-                static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-                    constexpr auto AwarpIter = (kIter * MIterPerWarp + mIter) % m_preload;
-                    static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-                        // read C warp tensor from C block tensor
-                        CWarpTensor c_warp_tensor;
+                
+                if(kIter * WG::kK < kKPerBlock - k_padded_zeros) {
+                    static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+                        constexpr auto AwarpIter = (kIter * MIterPerWarp + mIter) % m_preload;
+                        static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                            // read C warp tensor from C block tensor
+                            CWarpTensor c_warp_tensor;
 
-                        c_warp_tensor.get_thread_buffer() = c_block_tile.get_y_sliced_thread_data(
-                            merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
-                            merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+                            c_warp_tensor.get_thread_buffer() = c_block_tile.get_y_sliced_thread_data(
+                                merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                                merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
-                        if constexpr(mIter == 0)
-                            dequant_mxfp4(
-                                b_warp_tensor_pong(nIter)(kIter / number<XDL_PerWeightK>{}),
-                                scale_b_warp_tensor_pong(nIter / number<XDL_PerScaleN>{})(
-                                    kIter / number<XDL_PerScaleK>{}),
-                                nIter,
-                                kIter);
+                            if constexpr(mIter == 0)
+                                dequant_mxfp4(
+                                    b_warp_tensor_pong(nIter)(kIter / number<XDL_PerWeightK>{}),
+                                    scale_b_warp_tensor_pong(nIter / number<XDL_PerScaleN>{})(
+                                        kIter / number<XDL_PerScaleK>{}),
+                                    nIter,
+                                    kIter);
 
-                        // warp GEMM
-                        WG{}(c_warp_tensor, a_warp_tensor(number<AwarpIter>{}), dequant_B_n[nIter]);
+                            // warp GEMM
+                            WG{}(c_warp_tensor, a_warp_tensor(number<AwarpIter>{}), dequant_B_n[nIter]);
 
-                        // write C warp tensor into C block tensor
-                        c_block_tile.set_y_sliced_thread_data(
-                            merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
-                            merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
-                            c_warp_tensor.get_thread_buffer());
+                            // write C warp tensor into C block tensor
+                            c_block_tile.set_y_sliced_thread_data(
+                                merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                                merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
+                                c_warp_tensor.get_thread_buffer());
+                        });
+                        if constexpr((kIter * MIterPerWarp + mIter) <
+                                    (KIterPerWarp * MIterPerWarp - m_preload))
+                        {
+                            constexpr auto AmIter = (mIter + m_preload) % MIterPerWarp;
+                            constexpr auto AkIter = (kIter + (mIter + m_preload) / MIterPerWarp);
+                            a_warp_tensor(number<AwarpIter>{}) =
+                                load_tile(a_warp_windows_pong(number<AmIter>{})(number<AkIter>{}));
+                        }
+                        // barrier
+                        // if constexpr((kIter == KIterPerWarp - 1) && (mIter == MIter_2nd_last))
+                        // {
+                        //     block_sync_lds();
+                        // }
                     });
-                    if constexpr((kIter * MIterPerWarp + mIter) <
-                                 (KIterPerWarp * MIterPerWarp - m_preload))
-                    {
-                        constexpr auto AmIter = (mIter + m_preload) % MIterPerWarp;
-                        constexpr auto AkIter = (kIter + (mIter + m_preload) / MIterPerWarp);
-                        a_warp_tensor(number<AwarpIter>{}) =
-                            load_tile(a_warp_windows_pong(number<AmIter>{})(number<AkIter>{}));
-                    }
-                    // barrier
-                    if constexpr((kIter == KIterPerWarp - 1) && (mIter == MIter_2nd_last))
-                    {
-                        block_sync_lds();
-                    }
-                });
+                }
             });
             LastHotLoopScheduler();
         }
@@ -1195,7 +1205,8 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                    const DequantBFlatWindow& scale_b_flat_window,
-                                   index_t num_loop,
+                                   const index_t num_loop,
+                                   const index_t k_padded_zeros,
                                    void* p_smem_ping,
                                    void* p_smem_pong) const
     {
@@ -1205,6 +1216,7 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
             b_flat_dram_block_window_tmp,
             scale_b_flat_window,
             num_loop,
+            k_padded_zeros,
             p_smem_ping,
             p_smem_pong);
     }

@@ -26,6 +26,8 @@ struct MoeFlatmmHostArgs : ScaleFlatmmHostArgs<ScaleM, ScaleN, 0>
     const ck_tile::index_t* p_sorted_expert_ids;
     const ck_tile::index_t* p_max_token_id;
     const void* p_sorted_expert_weights;
+    const ck_tile::index_t n_padded_zeros;
+    const ck_tile::index_t k_padded_zeros;
     ExpertBias exp_bias;
 
     CK_TILE_HOST MoeFlatmmHostArgs() noexcept = default;
@@ -46,6 +48,8 @@ struct MoeFlatmmHostArgs : ScaleFlatmmHostArgs<ScaleM, ScaleN, 0>
                                    ck_tile::index_t stride_A_,
                                    ck_tile::index_t stride_B_,
                                    ck_tile::index_t stride_C_,
+                                   ck_tile::index_t n_padded_zeros_ = 0,
+                                   ck_tile::index_t k_padded_zeros_ = 0,
                                    ScaleM scale_m_      = {},
                                    ScaleN scale_n_      = {},
                                    ExpertBias exp_bias_ = {})
@@ -70,6 +74,8 @@ struct MoeFlatmmHostArgs : ScaleFlatmmHostArgs<ScaleM, ScaleN, 0>
           p_sorted_expert_ids(p_sorted_expert_ids_),
           p_max_token_id(p_max_token_id_),
           p_sorted_expert_weights(p_sorted_expert_weights_),
+          n_padded_zeros(n_padded_zeros_),
+          k_padded_zeros(k_padded_zeros_),
           exp_bias(exp_bias_)
     {
     }
@@ -217,6 +223,8 @@ struct MoeFlatmmKernel
         ck_tile::index_t stride_B;
         ck_tile::index_t stride_C;
         ck_tile::index_t k_batch;
+        ck_tile::index_t n_padded_zeros;
+        ck_tile::index_t k_padded_zeros;
         ScaleM scale_m;
         ScaleN scale_n;
         ExpertBias exp_bias;
@@ -244,6 +252,8 @@ struct MoeFlatmmKernel
                                                                hostArgs.stride_B,
                                                                hostArgs.stride_C,
                                                                hostArgs.k_batch,
+                                                               hostArgs.n_padded_zeros,
+                                                               hostArgs.k_padded_zeros,
                                                                hostArgs.scale_m,
                                                                hostArgs.scale_n,
                                                                hostArgs.exp_bias};
@@ -481,7 +491,8 @@ struct MoeFlatmmKernel
                                                    const AccDataType* exp_weight_ptr,
                                                    const int expert_id,
                                                    const KernelArgs& kargs,
-                                                   const SplitKBatchOffset& splitk_batch_offset)
+                                                   const SplitKBatchOffset& splitk_batch_offset,
+                                                const int n_pad_zeros = 12)
     {
         const auto& a_tensor_view = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
@@ -512,7 +523,7 @@ struct MoeFlatmmKernel
         const auto& b_flat_tensor_view = [&]() {
             return make_naive_tensor_view<address_space_enum::global>(
                 b_flat_ptr,
-                make_tuple(kFlatN, kFlatK),
+                make_tuple(kFlatN - kargs.n_padded_zeros / NPerXdl, kFlatK),
                 make_tuple(kFlatK, 1),
                 number<FlatmmPipeline::GetVectorSizeB()>{},
                 number<1>{});
@@ -553,7 +564,7 @@ struct MoeFlatmmKernel
 
         const auto scale_b_flat_view = make_naive_tensor_view<address_space_enum::global>(
             reinterpret_cast<const ScaleType*>(scale_n.ptr) + expert_id * kargs.N * scale_k,
-            make_tuple(FlatScaleN, FlatScaleK),
+            make_tuple(FlatScaleN - kargs.n_padded_zeros  / NPerXdl / N_Pack, FlatScaleK),
             make_tuple(FlatScaleK, 1),
             number<8>{},
             number<1>{});
@@ -746,6 +757,7 @@ struct MoeFlatmmKernel
                                         b_block_window,
                                         scale_block_window, // weight scale with granularityK = 32
                                         num_loop,
+                                        kargs.k_padded_zeros,
                                         smem_ptr_ping,
                                         smem_ptr_pong);
             }
