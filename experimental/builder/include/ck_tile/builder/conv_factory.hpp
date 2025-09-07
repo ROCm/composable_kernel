@@ -77,7 +77,7 @@ template <ConvAlgorithm auto ALGORITHM>
 constexpr ConvBlock SetThreadBlockInfo()
 {
     using AlgorithmType = decltype(ALGORITHM);
-    if constexpr(HasThreadBlockInfo<AlgorithmType>)
+    if constexpr(SpecifiesThreadBlock<AlgorithmType>)
     {
         constexpr auto& TB = ALGORITHM.thread_block;
         return ConvBlock{
@@ -106,7 +106,7 @@ template <ConvAlgorithm auto ALGORITHM>
 constexpr ConvTuning SetConvTuningInfo()
 {
     using AlgorithmType = decltype(ALGORITHM);
-    if constexpr(HasConvTuningInfo<AlgorithmType>)
+    if constexpr(SpecifiesConvTuning<AlgorithmType>)
     {
         constexpr auto& TP = ALGORITHM.tuning_params;
         return ConvTuning{
@@ -163,7 +163,7 @@ constexpr BlockTransfer SetABlockTransfer()
         .add_extra                 = 0,
     };
     using AlgorithmType = decltype(ALGORITHM);
-    if constexpr(HasABlockTransferInfo<AlgorithmType>)
+    if constexpr(SpecifiesBlockATransfer<AlgorithmType>)
     {
         constexpr auto& TCL                = ALGORITHM.block_transfer.thread_cluster_dims_a;
         block_transfer.thread_cluster_dims = {TCL.k0, TCL.m, TCL.k1};
@@ -185,7 +185,7 @@ constexpr BlockTransfer SetBBlockTransfer()
         .add_extra                 = 0,
     };
     using AlgorithmType = decltype(ALGORITHM);
-    if constexpr(HasBBlockTransferInfo<AlgorithmType>)
+    if constexpr(SpecifiesBlockBTransfer<AlgorithmType>)
     {
         constexpr auto& TCL                = ALGORITHM.block_transfer.thread_cluster_dims_b;
         block_transfer.thread_cluster_dims = {TCL.k0, TCL.n, TCL.k1};
@@ -204,7 +204,7 @@ constexpr CBlockTransfer SetCBlockTransfer()
         .scaler_per_vector          = 8,
     };
     using AlgorithmType = decltype(ALGORITHM);
-    if constexpr(HasCBlockTransferInfo<AlgorithmType>)
+    if constexpr(SpecifiesBlockCTransfer<AlgorithmType>)
     {
         constexpr auto& TCL                = ALGORITHM.block_transfer.thread_cluster_dims_c;
         block_transfer.thread_cluster_dims = {

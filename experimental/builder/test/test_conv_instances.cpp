@@ -24,18 +24,18 @@ struct FwdConvAlgorithm
     ckb::ConvTuningParams tuning_params;
     struct BlockTransfer
     {
-        ckb::BlockATransferLengthsInfo thread_cluster_dims_a;
-        ckb::BlockBTransferLengthsInfo thread_cluster_dims_b;
-        ckb::BlockCTransferLengthsInfo thread_cluster_dims_c;
+        ckb::BlockATransferLengths thread_cluster_dims_a;
+        ckb::BlockBTransferLengths thread_cluster_dims_b;
+        ckb::BlockCTransferLengths thread_cluster_dims_c;
     } block_transfer;
     ckb::BlockGemmPipelineVersion pipeline_version;
 };
 static_assert(ckb::ConvAlgorithm<FwdConvAlgorithm>);
-static_assert(ckb::HasThreadBlockInfo<FwdConvAlgorithm>);
-static_assert(ckb::HasConvTuningInfo<FwdConvAlgorithm>);
-static_assert(ckb::HasABlockTransferInfo<FwdConvAlgorithm>);
-static_assert(ckb::HasBBlockTransferInfo<FwdConvAlgorithm>);
-static_assert(ckb::HasCBlockTransferInfo<FwdConvAlgorithm>);
+static_assert(ckb::SpecifiesThreadBlock<FwdConvAlgorithm>);
+static_assert(ckb::SpecifiesConvTuning<FwdConvAlgorithm>);
+static_assert(ckb::SpecifiesBlockATransfer<FwdConvAlgorithm>);
+static_assert(ckb::SpecifiesBlockBTransfer<FwdConvAlgorithm>);
+static_assert(ckb::SpecifiesBlockCTransfer<FwdConvAlgorithm>);
 static_assert(ckb::ProvidesBlockGemmPipelineVersion<FwdConvAlgorithm>);
 
 struct TestCase

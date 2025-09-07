@@ -15,16 +15,16 @@ struct MNK
     T k{};
 };
 
-// Concept for thread block info for a GEMM problem.
+// Concept for thread block dimensions for a GEMM problem.
 template <typename T>
-concept ThreadBlockInfo = requires(T t) {
+concept ThreadBlockDescriptor = requires(T t) {
     { t.block_size } -> std::convertible_to<int>;
     { t.submatrix.m } -> std::convertible_to<int>;
     { t.submatrix.n } -> std::convertible_to<int>;
     { t.submatrix.k } -> std::convertible_to<int>;
 };
 
-// Describe a thread block for a GEMM.
+// Specifiy thread block dimensions for a GEMM.
 struct ThreadBlock
 {
     // Thread block size.
@@ -32,17 +32,17 @@ struct ThreadBlock
     // Size of the submatrix problem in a thread block.
     MNK<int> submatrix;
 };
-static_assert(ThreadBlockInfo<ThreadBlock>);
+static_assert(ThreadBlockDescriptor<ThreadBlock>);
 
-// Concept to check if struct provides thread block info.
+// Concept to check if struct specifies thread block info.
 template <typename T>
-concept HasThreadBlockInfo = requires {
-    { T::thread_block } -> ThreadBlockInfo;
+concept SpecifiesThreadBlock = requires {
+    { T::thread_block } -> ThreadBlockDescriptor;
 };
 
 // Concept for tuning parameters for a convolution problem.
 template <typename T>
-concept ConvTuningInfo = requires(T t) {
+concept ConvTuningDescriptor = requires(T t) {
     { t.ak1 } -> std::convertible_to<int>;
     { t.bk1 } -> std::convertible_to<int>;
     { t.m_xdl_per_wave } -> std::convertible_to<int>;
@@ -58,51 +58,51 @@ struct ConvTuningParams
     int m_xdl_per_wave = 0;
     int n_xdl_per_wave = 0;
 };
-static_assert(ConvTuningInfo<ConvTuningParams>);
+static_assert(ConvTuningDescriptor<ConvTuningParams>);
 
-// Concept to check if a struct provides convolution tuning info.
+// Concept to check if a struct specifies convolution tuning info.
 template <typename T>
-concept HasConvTuningInfo = requires {
-    { T::tuning_params } -> ConvTuningInfo;
+concept SpecifiesConvTuning = requires {
+    { T::tuning_params } -> ConvTuningDescriptor;
 };
 
 // Concept for A block transfer thread cluster lengths.
 template <typename T>
-concept BlockATransferLengths = requires(T t) {
+concept BlockATransferDescriptor = requires(T t) {
     { t.k0 } -> std::convertible_to<int>;
     { t.m } -> std::convertible_to<int>;
     { t.k1 } -> std::convertible_to<int>;
 };
 
 // Describe A block transfer thread cluster lengths.
-struct BlockATransferLengthsInfo
+struct BlockATransferLengths
 {
     int k0;
     int m;
     int k1;
 };
-static_assert(BlockATransferLengths<BlockATransferLengthsInfo>);
+static_assert(BlockATransferDescriptor<BlockATransferLengths>);
 
 // Concept for B block transfer thread cluster lengths.
 template <typename T>
-concept BlockBTransferLengths = requires(T t) {
+concept BlockBTransferDescriptor = requires(T t) {
     { t.k0 } -> std::convertible_to<int>;
     { t.n } -> std::convertible_to<int>;
     { t.k1 } -> std::convertible_to<int>;
 };
 
 // Describe B block transfer thread cluster lengths.
-struct BlockBTransferLengthsInfo
+struct BlockBTransferLengths
 {
     int k0;
     int n;
     int k1;
 };
-static_assert(BlockBTransferLengths<BlockBTransferLengthsInfo>);
+static_assert(BlockBTransferDescriptor<BlockBTransferLengths>);
 
 // Concept for C block transfer thread cluster lengths.
 template <typename T>
-concept BlockCTransferLengths = requires(T t) {
+concept BlockCTransferDescriptor = requires(T t) {
     { t.m_block } -> std::convertible_to<int>;
     { t.m_wave_per_xdl } -> std::convertible_to<int>;
     { t.n_block } -> std::convertible_to<int>;
@@ -110,33 +110,34 @@ concept BlockCTransferLengths = requires(T t) {
 };
 
 // Describe C block transfer thread cluster lengths.
-struct BlockCTransferLengthsInfo
+struct BlockCTransferLengths
 {
     int m_block;
     int m_wave_per_xdl;
     int n_block;
     int n_wave_per_xdl;
 };
-static_assert(BlockCTransferLengths<BlockCTransferLengthsInfo>);
+static_assert(BlockCTransferDescriptor<BlockCTransferLengths>);
 
-// Concept to check if a struct provides A Block tranfer info.
+// Concept to check if a struct specifies A Block tranfer info.
 template <typename T>
-concept HasABlockTransferInfo = requires(T t) {
-    { T::block_transfer.thread_cluster_dims_a } -> BlockATransferLengths;
+concept SpecifiesBlockATransfer = requires(T t) {
+    { T::block_transfer.thread_cluster_dims_a } -> BlockATransferDescriptor;
 };
 
-// Concept to check if a struct provides B Block tranfer info.
+// Concept to check if a struct specifies B Block tranfer info.
 template <typename T>
-concept HasBBlockTransferInfo = requires(T t) {
-    { T::block_transfer.thread_cluster_dims_b } -> BlockBTransferLengths;
+concept SpecifiesBlockBTransfer = requires(T t) {
+    { T::block_transfer.thread_cluster_dims_b } -> BlockBTransferDescriptor;
 };
 
-// Concept to check if a struct provides C Block tranfer info.
+// Concept to check if a struct specifies C Block tranfer info.
 template <typename T>
-concept HasCBlockTransferInfo = requires(T t) {
-    { T::block_transfer.thread_cluster_dims_c } -> BlockCTransferLengths;
+concept SpecifiesBlockCTransfer = requires(T t) {
+    { T::block_transfer.thread_cluster_dims_c } -> BlockCTransferDescriptor;
 };
 
+// Enums for the current block GEMM pipeline versions.
 enum class BlockGemmPipelineVersion
 {
     V1,
@@ -145,7 +146,7 @@ enum class BlockGemmPipelineVersion
     V5
 };
 
-// Concept to check if struct provides block_gemm_pipeline_version.
+// Concept to check if struct specifies block_gemm_pipeline_version.
 template <typename T>
 concept ProvidesBlockGemmPipelineVersion = requires {
     { T::pipeline_version } -> std::convertible_to<BlockGemmPipelineVersion>;
