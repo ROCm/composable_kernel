@@ -175,6 +175,9 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
         return PipelinePolicy::template GetSmemSize<Problem>();
     }
 
+    // dsread_perM: how many LDS reads want to issue in this M-iter
+    // dswrite_perM: how many LDS writes you want to do this M-iter
+    // load_perM: how many global loads VMEM want to do in this M-iter
     CK_TILE_HOST_DEVICE static constexpr auto
     SchedulerPerM(index_t dsread_perM, index_t dswrite_perM, index_t load_perM)
     {
@@ -184,16 +187,15 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                                       ? (dsread_perM > dswrite_perM ? dsread_perM : dswrite_perM)
                                       : (load_perM > dswrite_perM ? load_perM : dswrite_perM);
         index_t sum_data_inst   = dsread_perM + load_perM + dswrite_perM;
-        index_t round_data_inst = (sum_data_inst + mfma_perM_perK - 1) / mfma_perM_perK;
+        index_t round_data_inst = ck_tile::integer_divide_ceil(sum_data_inst, mfma_perM_perK);
 
-        index_t inst_order[NIterPerWarp * 10];
+        constexpr int kOrderCap       = NIterPerWarp * 10;
+        index_t inst_order[kOrderCap] = {};
+        index_t index                 = 0;
 #pragma unroll
-        for(int idx = 0; idx < NIterPerWarp * 10; idx++)
-        {
-            inst_order[idx] = 0;
-        }
-        index_t index = 0;
-#pragma unroll
+        // round-robin
+        // Index:   0 1 2 3 4 5 ...
+        // Value:   1 2 3 1 2 3 ...
         for(int j = 0; j < max_data_inst; j++)
         {
             if(dswrite_perM > j)
