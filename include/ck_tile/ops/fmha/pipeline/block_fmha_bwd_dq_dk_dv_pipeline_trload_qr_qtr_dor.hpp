@@ -363,38 +363,38 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
                       "BiasDataType and BiasGradDataType should be the same!");
 
         // LSE: HBM -> LDS ->Reg
-        auto lse_dram_window = make_tile_window(
-            lse_dram_block_window_tmp.get_bottom_tensor_view(),
-            lse_dram_block_window_tmp.get_window_lengths(),
-            {0},
-            Policy::template MakeLSEDDramTileDistribution<Problem, decltype(gemm_0)>());
+        auto lse_dram_window =
+            make_tile_window(lse_dram_block_window_tmp.get_bottom_tensor_view(),
+                             lse_dram_block_window_tmp.get_window_lengths(),
+                             {0},
+                             Policy::template MakeLSEDDramTileDistribution<Problem>());
 
         auto lse_lds = make_tensor_view<address_space_enum::lds>(
             lse_lds_ptr, Policy::template MakeLSEDLdsWriteBlockDescriptor<Problem>());
 
         auto lse_lds_write_window = make_tile_window(lse_lds, make_tuple(number<kM0>{}), {0});
 
-        auto lse_lds_read_window = make_tile_window(
-            lse_lds,
-            make_tuple(number<kM0>{}),
-            {0},
-            Policy::template MakeLSEDLdsReadBlockDescriptor<Problem, decltype(gemm_0)>());
+        auto lse_lds_read_window =
+            make_tile_window(lse_lds,
+                             make_tuple(number<kM0>{}),
+                             {0},
+                             Policy::template MakeLSEDLdsReadBlockDescriptor<Problem>());
 
         // D: HBM ->Reg
-        auto d_dram_window = make_tile_window(
-            d_dram_block_window_tmp.get_bottom_tensor_view(),
-            d_dram_block_window_tmp.get_window_lengths(),
-            {0},
-            Policy::template MakeLSEDDramTileDistribution<Problem, decltype(gemm_0)>());
+        auto d_dram_window =
+            make_tile_window(d_dram_block_window_tmp.get_bottom_tensor_view(),
+                             d_dram_block_window_tmp.get_window_lengths(),
+                             {0},
+                             Policy::template MakeLSEDDramTileDistribution<Problem>());
 
         auto d_lds = make_tensor_view<address_space_enum::lds>(
             d_lds_ptr, Policy::template MakeLSEDLdsWriteBlockDescriptor<Problem>());
         auto d_lds_write_window = make_tile_window(d_lds, make_tuple(number<kM0>{}), {0});
-        auto d_lds_read_window  = make_tile_window(
-            d_lds,
-            make_tuple(number<kM0>{}),
-            {0},
-            Policy::template MakeLSEDLdsReadBlockDescriptor<Problem, decltype(gemm_0)>());
+        auto d_lds_read_window =
+            make_tile_window(d_lds,
+                             make_tuple(number<kM0>{}),
+                             {0},
+                             Policy::template MakeLSEDLdsReadBlockDescriptor<Problem>());
 
         // RandVal: HBM ->Reg
         auto randval_dram_window = dropout.template MakeRandvalDramWindow<decltype(gemm_0), true>(
