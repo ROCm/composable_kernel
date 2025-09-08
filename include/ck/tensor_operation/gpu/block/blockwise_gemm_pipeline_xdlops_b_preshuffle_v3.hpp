@@ -322,7 +322,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
 
     template <bool HasMainLoop,
               TailNumber TailNum,
-              bool PreLoadDs,
               typename AGridDesc,
               typename ABlockDesc,
               typename ABlockTransfer,
@@ -370,17 +369,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                     ) const
     {
         ignore = b_block_buf;
-        if constexpr(PreLoadDs == false)
-        {
-            ignore = d0_grid_desc;
-            ignore = d0_grid_buf;
-            ignore = d0_blockwise_copy;
-
-            ignore = d1_grid_desc;
-            ignore = d1_grid_buf;
-            ignore = d1_blockwise_copy;
-        }
-   
         __builtin_amdgcn_sched_barrier(0);
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeDataType>(
             a_thread_desc_.GetElementSpaceSize());
@@ -582,18 +570,17 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                                  b_block_desc_n0_n1_k0_k1,
                                  b_block_origin_idx,
                                  b_thread_bufs(I1));
-            if constexpr(PreLoadDs)
-            {
-                d0_blockwise_copy.Run( d0_grid_desc, 
-                                        d0_grid_buf, 
-                                        make_tuple(I0, I0, I0, I0),
-                                        d0_thread_buf);
+
+            d0_blockwise_copy.Run(d0_grid_desc, 
+                                  d0_grid_buf, 
+                                  make_tuple(I0, I0, I0, I0),
+                                  d0_thread_buf);
                 
-                d1_blockwise_copy.Run(d1_grid_desc, 
-                                        d1_grid_buf, 
-                                        make_tuple(I0, I0, I0, I0),
-                                        d1_thread_buf);
-            }
+            d1_blockwise_copy.Run(d1_grid_desc, 
+                                  d1_grid_buf, 
+                                  make_tuple(I0, I0, I0, I0),
+                                  d1_thread_buf);
+
             a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(I1));
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
@@ -738,18 +725,16 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
         }
         else if constexpr(TailNum == TailNumber::Odd)
         {
-            if constexpr(PreLoadDs)
-            {
-                d0_blockwise_copy.Run( d0_grid_desc, 
-                                        d0_grid_buf, 
-                                        make_tuple(I0, I0, I0, I0),
-                                        d0_thread_buf);
+            d0_blockwise_copy.Run(d0_grid_desc, 
+                                  d0_grid_buf, 
+                                  make_tuple(I0, I0, I0, I0),
+                                  d0_thread_buf);
                 
-                d1_blockwise_copy.Run(d1_grid_desc, 
-                                        d1_grid_buf, 
-                                        make_tuple(I0, I0, I0, I0),
-                                        d1_thread_buf);
-            }
+            d1_blockwise_copy.Run(d1_grid_desc, 
+                                  d1_grid_buf, 
+                                  make_tuple(I0, I0, I0, I0),
+                                  d1_thread_buf);
+
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, KRepeat, 1>{}([&](auto k0) {
                     static_for<0, NRepeat, 1>{}([&](auto n0) {

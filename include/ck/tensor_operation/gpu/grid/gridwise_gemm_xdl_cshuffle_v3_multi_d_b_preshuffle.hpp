@@ -661,7 +661,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             {
                   d_buffer_transfer_.SetSrcSliceOrigin(d_grid_desc,
                                 make_multi_index(src_origin[I0], 
-                                    get_thread_local_1d_id() * 8 / 64,
+                                    get_thread_local_1d_id() * ThreadSliceLengths[I3] / MPerBlock,
                                     src_origin[I2], 
                                     0));
             }
@@ -1895,7 +1895,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         auto blockwise_gemm_pipeline = BlockwiseGemmPipe{};
         auto c_thread_buf            = blockwise_gemm_pipeline.GetCThreadBuffer();
 
-        /////////////// ds
+        // Ds
         using D0BlockTransfer = DsBlockTransfer<0,
                                       decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock[I0])>;
         using D1BlockTransfer = DsBlockTransfer<1,
@@ -1915,13 +1915,12 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             KPerBlock);
             
-        blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum, true>(a_grid_desc_ak0_m_ak1,
+        blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(a_grid_desc_ak0_m_ak1,
                                                                          a_block_desc_ak0_m_ak1,
                                                                          a_blockwise_copy,
                                                                          a_grid_buf,
                                                                          a_block_bufs,
                                                                          a_block_slice_copy_step,
-
                                                                          b_grid_desc_bpreshuffled,
                                                                          b_blockwise_copy,
                                                                          b_grid_buf,
@@ -1936,46 +1935,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                                                                          ds_grid_desc_mblock_mperblock_nblock_nperblock[I1],
                                                                          ds_grid_buf[I1],
                                                                          d1_block_copy_to_vgpr,
-                                                                         d1_thread_buf
-                                                                         );
-       #if 0
-            if (blockIdx.x == 0)
-            {
-                block_sync_lds();
+                                                                         d1_thread_buf);
 
-                size_t M = 1;
-                size_t N = 256;
-                float* lds_d = static_cast<float*>(p_shared);
-
-                for(size_t i = 0; i < M*N; i++)
-                {
-                    lds_d[i] = 0;
-                }
-                block_sync_lds();
-
-                static_for<0, 1, 1>{}([&](auto i) {
-                    size_t idx = get_thread_local_1d_id() + i.value;
-                    lds_d[idx] = d1_thread_buf[i];
-                });
-
-                block_sync_lds();
-                if (threadIdx.x == 0)
-                {
-                    for (size_t i = 0; i < M; i++)
-                    {
-                        printf("[lds %zu] ", i);
-                        for (size_t j = 0; j < N; j++)
-                        {
-                        /* code */
-                        printf(" %0.2f ", lds_d[i*M + j]);
-
-                        }
-                        printf(" \n ");
-
-                    }
-                }
-            }
-        #endif
         // shuffle C and write out
         {
             static_assert(MXdlPerWave % CShuffleMXdlPerWavePerShuffle == 0 &&
@@ -2002,16 +1963,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
 
             constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
                 GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
-            #if 0
-            static_assert(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetLength(I0) ==
-                          1);
-            static_assert(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetLength(I1) ==
-                          32);
-            static_assert(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetLength(I2) ==
-                          1);
-            static_assert(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetLength(I3) ==
-                          64);
-         #endif
+
             auto c_shuffle_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
                 static_cast<CShuffleDataType*>(p_shared),
                 c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
@@ -2123,8 +2075,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             using CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock =
                  CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
-          //  static_assert(CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl == 32);
-           // static_assert(CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl == 64);
             using EDataType = CDataType;
             auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v6r4<
                 ThisThreadBlock,
@@ -2181,7 +2131,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                                            CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>>{};
 
             static_assert(num_access == sfc_cde_block.GetNumOfAccess(), "wrong!");
-            static_assert(num_access == 2);
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to write to LDS
                 block_sync_lds();
