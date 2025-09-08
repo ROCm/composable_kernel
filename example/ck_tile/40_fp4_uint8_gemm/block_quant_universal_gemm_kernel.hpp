@@ -696,7 +696,6 @@ struct Block_quant_UniversalGemmKernel
                         }
                         else
                         {
-                            //printf("kernel tensorview splitted_k=%d\n", splitk_batch_offset.splitted_k);
                             return make_naive_tensor_view<address_space_enum::global>(
                                 bs_ptr[i],
                                 make_tuple(kargs.N, splitk_batch_offset.splitted_k/2),
@@ -1055,10 +1054,6 @@ struct Block_quant_UniversalGemmKernel
                                        const index_t block_idx_m,
                                        const index_t block_idx_n)
     {
-        // const uint8_t* b_per_block_scale = b_scale_ptr+(block_idx_n)/128*((kargs.K+127)/128);
-        // auto b_scale = (*(b_per_block_scale));
-        // auto b_scale_fp4 = type_convert<float>(type_convert<uint32_t>(b_scale));
-        // printf("b_scale_fp4=%f\n", b_scale_fp4); 
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
             MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
