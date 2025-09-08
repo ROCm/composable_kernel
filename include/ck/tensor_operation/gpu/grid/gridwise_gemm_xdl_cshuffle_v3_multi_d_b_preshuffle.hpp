@@ -304,8 +304,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             make_tuple(make_merge_transform_v3_division_mod(make_tuple(Number<K0>{}, Number<K1>{})),
                        make_unmerge_transform(make_tuple(
                            Number<MNXdlPerWave>{}, Number<MNWaves>{}, Number<MNPerXdl>{}))),
-            make_tuple(Sequence<0, 2>{}, Sequence<1>{}),     // old 0 2 1
-            make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{})); // new 3 0 1 2
+            make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
+            make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
     }
 
     __host__ __device__ static auto MakeAGridDescriptor_AK0_M_AK1(
@@ -783,7 +783,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
               MBlock{CalculateMBlock(M_)},
               NBlock{CalculateNBlock(N_)}
         {
-            Print();
         }
 
         __host__ void Print() const
