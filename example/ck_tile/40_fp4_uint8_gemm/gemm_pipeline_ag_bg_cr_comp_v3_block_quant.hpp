@@ -706,6 +706,7 @@ struct GemmPipelineAgBgCrCompV3_block_quant : public BaseGemmPipelineAgBgCrCompV
                 block_sync_lds();
               
             }          
+            __builtin_amdgcn_sched_barrier(0);
             return c_block_tile;
         }
     };

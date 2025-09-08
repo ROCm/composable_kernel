@@ -489,24 +489,24 @@ CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
         // Tile: MPerBlock X KPerBlock
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
-            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
+            using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
                                                                           MPerBlock,
                                                                           KPerBlock,
                                                                           VecLoadSize,
                                                                           ATileAccessPattern,
                                                                           NumWaveGroups>;
-            return TileEncodingPattern::Make2DStaticTileDistribution();
+            return TileEncodingPattern::make_2d_static_tile_distribution();
         }
         // Tile: KPerBlock X MPerBlock
         else
         {
-            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
+            using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
                                                                           KPerBlock,
                                                                           MPerBlock,
                                                                           VecLoadSize,
                                                                           ATileAccessPattern,
                                                                           NumWaveGroups>;
-            return TileEncodingPattern::Make2DStaticTileDistribution();
+            return TileEncodingPattern::make_2d_static_tile_distribution();
         }
     }
 
@@ -523,24 +523,24 @@ CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
         // Tile: KPerBlock X NPerBlock
         if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
-            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
+            using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
                                                                           KPerBlock,
                                                                           NPerBlock,
                                                                           VecLoadSize,
                                                                           BTileAccessPattern,
                                                                           NumWaveGroups>;
-            return TileEncodingPattern::Make2DStaticTileDistribution();
+            return TileEncodingPattern::make_2d_static_tile_distribution();
         }
         // Tile: NPerBlock X KPerBlock
         else
         {
-            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
+            using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
                                                                           NPerBlock,
                                                                           KPerBlock,
                                                                           VecLoadSize,
                                                                           BTileAccessPattern,
                                                                           NumWaveGroups>;
-            return TileEncodingPattern::Make2DStaticTileDistribution();
+            return TileEncodingPattern::make_2d_static_tile_distribution();
         }
     }
 
@@ -587,24 +587,24 @@ CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
         // Tile: KPerBlock X NPerBlock
         if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
-            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
+            using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
                                                                           KPerBlock,
                                                                           NPerBlock,
                                                                           VecLoadSize,
                                                                           BTileAccessPattern,
                                                                           NumWaveGroups>;
-            return TileEncodingPattern::Make2DStaticTileDistribution();
+            return TileEncodingPattern::make_2d_static_tile_distribution();
         }
         // Tile: NPerBlock X KPerBlock
         else
         {
-            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
+            using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
                                                                           NPerBlock,
                                                                           KPerBlock,
                                                                           VecLoadSize,
                                                                           BTileAccessPattern,
                                                                           NumWaveGroups>;
-            return TileEncodingPattern::Make2DStaticTileDistribution();
+            return TileEncodingPattern::make_2d_static_tile_distribution();
         }
     }
 
@@ -619,13 +619,13 @@ CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
         constexpr index_t VecLoadSize   = GetVectorSizeA<Problem>();
         constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
 
-        using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
+        using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
                                                                       KPerBlock,
                                                                       MPerBlock,
                                                                       VecLoadSize,
                                                                       ATileAccessPattern,
                                                                       NumWaveGroups>;
-        return TileEncodingPattern::MakeShuffled2DStaticTileDistribution();
+        return TileEncodingPattern::make_shuffled_2d_static_tile_distribution();
     }
 
     template <typename Problem>
@@ -639,13 +639,13 @@ CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
         constexpr index_t VecLoadSize   = GetVectorSizeB<Problem, DType::TypeB_Dequant>();
         constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
 
-        using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
+        using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
                                                                       KPerBlock,
                                                                       NPerBlock,
                                                                       VecLoadSize,
                                                                       BTileAccessPattern,
                                                                       NumWaveGroups>;
-        return TileEncodingPattern::MakeShuffled2DStaticTileDistribution();
+        return TileEncodingPattern::make_shuffled_2d_static_tile_distribution();
     }
 
     template <typename Problem>
@@ -749,7 +749,7 @@ struct UniversalGemmPipelineAgBgCrPolicy_block_quant
             : vector_size * 4 == thread_elements              ? WGAttrNumAccessEnum::Quad
                                                               : WGAttrNumAccessEnum::Invalid;
 
-        using WarpGemm        = WarpGemmMfmaDispatcher<typename Problem::ComputeDataType,
+        using WarpGemm        = WarpGemmDispatcher<typename Problem::ComputeDataType,
                                                        typename Problem::ComputeDataType,
                                                        typename Problem::CDataType,
                                                        //float,

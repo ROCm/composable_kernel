@@ -147,22 +147,7 @@ void permute_vectors_i4x4_b(Tensor& tensor)
 }
 
 template <typename GemmConfig,
-          typename ADataType,
-          typename BDataType,
-          typename BInDataType,
-          typename DsDataType,
-          typename AccDataType,
-          typename ScaleDataType,
-          typename CDataType,
-          typename ALayout,
-          typename BLayout,
-          typename DsLayout,
-          typename CLayout,
-          bool Persistent,
-          typename CDEElementWise = ck_tile::element_wise::PassThrough>
-float gemm(const ck_tile::Block_quant_GemmHostArgs& args, const ck_tile::stream_config& s);
-
-template <typename GemmConfig,
+          typename Invoker,
           typename ADataType,
           typename BDataType,
           typename BInDataType,
@@ -213,7 +198,7 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     float ave_time;
     if(persistent)
     {
-        ave_time = gemm<GemmConfig,
+        ave_time = Invoker::template gemm<GemmConfig,
                         ADataType,
                         BDataType,
                         BInDataType,
@@ -229,11 +214,11 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                         CDEElementWise>(
             args,
             ck_tile::stream_config{
-                nullptr, true, 0, n_warmup, n_repeat, true, flush_cache, rotating_count});
+                nullptr, true, 1, n_warmup, n_repeat, true, flush_cache, rotating_count});
     }
     else
     {
-        ave_time = gemm<GemmConfig,
+        ave_time = Invoker::template gemm<GemmConfig,
                         ADataType,
                         BDataType,
                         BInDataType,
@@ -249,27 +234,9 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                         CDEElementWise>(
             args,
             ck_tile::stream_config{
-                nullptr, true, 0, n_warmup, n_repeat, true, flush_cache, rotating_count});
+                nullptr, true, 1, n_warmup, n_repeat, true, flush_cache, rotating_count});
     }
 
-    std::size_t flop = std::size_t(2) * M * N * K;
-    std::size_t num_byte =
-        sizeof(ADataType) * M * K + sizeof(BDataType) * N * K + sizeof(CDataType) * M * N;
-    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
-    float gb_per_sec = num_byte / 1.E6 / ave_time;
-
-    std::cout << "Run Gemm kernel with \n M=" << M << " N=" << N << " K=" << K
-              << " StrideA=" << stride_A << " StrideB=" << stride_B << " StrideC=" << stride_C
-              << " A_Layout=" << ALayout::name << " B_Layout =" << BLayout::name
-              << " C_Layout=" << CLayout::name << " A_Type=" << DataTypeTraits<ADataType>::name
-              << " B_Type=" << DataTypeTraits<BDataType>::name
-              << " C_Type=" << DataTypeTraits<CDataType>::name
-              << " StructuredSparsity=" << (GemmConfig::UseStructuredSparsity ? "on" : "off")
-              << " Persistent=" << (persistent ? "on" : "off") << " : \n"
-              << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << std::endl;
-    float ave_time_us = ave_time * 1000;
-    std::cout << "M=" << M << " N=" << N << " K=" << K << " "<< ave_time_us << " us" << std::endl;
     return ave_time;
 }
 
@@ -289,23 +256,38 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t)
     return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
 }
 
+template <typename CDataType>
+bool do_verify(const ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
+               const ck_tile::HostTensor<CDataType>& c_m_n_ref,
+               const ck_tile::tuple<double, double>& rtol_atol,
+               const char* variant)
+{
+    bool pass = ck_tile::check_err(c_m_n_dev_result,
+                                   c_m_n_ref,
+                                   "Error: Incorrect results!",
+                                   rtol_atol.at(ck_tile::number<0>{}),
+                                   rtol_atol.at(ck_tile::number<1>{}));
+
+    std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
+              << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{}) << std::endl;
+    std::cout << "The " << variant << " verification result is:" << (pass ? "correct" : "fail")
+              << std::endl;
+    return pass;
+}
+
 template <typename GemmConfig,
+          typename Invoker,
           typename ADataType,
           typename BInDataType = ADataType,
           typename CDataType   = ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-int run_gemm_example_with_layouts(int argc,
-                                  char* argv[],
+int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
                                   const ALayout a_layout                  = ALayout{},
                                   const BLayout b_layout                  = BLayout{},
                                   [[maybe_unused]] const CLayout c_layout = CLayout{})
 {
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
-        return -1;
-
     using AccDataType   = typename GemmTypeConfig<ADataType, BInDataType, CDataType>::AccDataType;
     using BDataType     = typename GemmTypeConfig<ADataType, BInDataType, CDataType>::BDataType;
     using ScaleDataType = typename GemmTypeConfig<ADataType, BInDataType, CDataType>::ScaleDataType;
@@ -376,8 +358,8 @@ int run_gemm_example_with_layouts(int argc,
     {
         ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_m_k);
         ck_tile::FillUniformDistribution<BInDataType>{-1.f, 1.f}(b_k_n);
-        ck_tile::FillUniformDistribution<ScaleDataType>{-0.01f, 0.01f}(bias);
-        ck_tile::FillUniformDistribution<ScaleDataType>{0.01f,0.01f}(b_k_n_scale);
+        ck_tile::FillUniformDistribution<ScaleDataType>{-1.f, 1.f}(bias);
+        ck_tile::FillUniformDistribution<ScaleDataType>{125.f, 130.f}(b_k_n_scale);
     }
     else
     {
@@ -445,64 +427,76 @@ int run_gemm_example_with_layouts(int argc,
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
-    invoke_gemm<GemmConfig,
-                ADataType,
-                BDataType,
-                BInDataType,
-                ck_tile::tuple<>,
-                AccDataType,
-                CDataType,
-                ScaleDataType,
-                ALayout,
-                BLayout,
-                ck_tile::tuple<>,
-                CLayout>(a_m_k_dev_buf,
-                         b_k_n_dev_buf,
-                         c_m_n_dev_buf,
-                         bias_dev_buf,
-                         b_k_n_scale_dev_buf,
-                         M,
-                         N,
-                         K,
-                         stride_A,
-                         stride_B,
-                         stride_C,
-                         stride_B_scale,
-                         ScaleBlockSize,
-                         kbatch,
-                         n_warmup,
-                         n_repeat,
-                         persistent,
-                         flush_cache,
-                         rotating_count);
-    // ck_tile::ignore = n_warmup;
-    // ck_tile::ignore = n_repeat;
-    // ck_tile::ignore = persistent;
-    // ck_tile::ignore = flush_cache;
-    // ck_tile::ignore = rotating_count;
+    float ave_time = invoke_gemm<GemmConfig,
+                                Invoker,
+                                ADataType,
+                                BDataType,
+                                BInDataType,
+                                ck_tile::tuple<>,
+                                AccDataType,
+                                CDataType,
+                                ScaleDataType,
+                                ALayout,
+                                BLayout,
+                                ck_tile::tuple<>,
+                                CLayout>(a_m_k_dev_buf,
+                                        b_k_n_dev_buf,
+                                        c_m_n_dev_buf,
+                                        bias_dev_buf,
+                                        b_k_n_scale_dev_buf,
+                                        M,
+                                        N,
+                                        K,
+                                        stride_A,
+                                        stride_B,
+                                        stride_C,
+                                        stride_B_scale,
+                                        ScaleBlockSize,
+                                        kbatch,
+                                        n_warmup,
+                                        n_repeat,
+                                        persistent,
+                                        flush_cache,
+                                        rotating_count);
+
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
+
+    std::size_t flop = std::size_t(2) * M * N * K;
+    std::size_t num_byte =
+        sizeof(ADataType) * M * K + sizeof(BDataType) * N * K + sizeof(CDataType) * M * N;
+    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
+    float gb_per_sec = num_byte / 1.E6 / ave_time;
+
+    std::cout << "Run Gemm kernel with M=" << M << " N=" << N << " K=" << K
+              << " StrideA=" << stride_A << " StrideB=" << stride_B << " StrideC=" << stride_C
+              << " A_Layout=" << ALayout::name << " B_Layout =" << BLayout::name
+              << " C_Layout=" << CLayout::name << " A_Type=" << DataTypeTraits<ADataType>::name
+              << " B_Type=" << DataTypeTraits<BDataType>::name
+              << " C_Type=" << DataTypeTraits<CDataType>::name
+              << " StructuredSparsity=" << (GemmConfig::UseStructuredSparsity ? "on" : "off")
+              << " Persistent=" << (persistent ? "on" : "off") << " : " << (ave_time * 1000) << " us, "
+              << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
+
     bool pass = true;
+
+    // memory on host to store gpu reference result
+    ck_tile::HostTensor<CDataType> c_m_n_ref(
+        ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
+    c_m_n_ref.SetZero();
 
     if(arg_parser.get_int("v") == 1)
     {
-        ck_tile::HostTensor<CDataType> c_m_n_host_ref(
-            ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
-        c_m_n_host_ref.SetZero();
-
         if constexpr(std::is_same_v<BInDataType, uint8_t>)
         {
-            ck_tile::reference_gemm_block_quant_fp4<ADataType, BInDataType, AccDataType, CDataType>(
-                a_m_k, b_k_n, c_m_n_host_ref,bias,b_k_n_scale);
-                      
+            ck_tile::reference_gemm_block_quant_fp4<ADataType, BInDataType, AccDataType, CDataType>(a_m_k, b_k_n, c_m_n_ref,bias,b_k_n_scale);
+            const float max_accumulated_value =
+            *std::max_element(c_m_n_ref.mData.begin(), c_m_n_ref.mData.end());
+            const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+            K, kbatch, max_accumulated_value);
+            pass = do_verify(c_m_n_dev_result, c_m_n_ref, rtol_atol, "CPU");        
         }
          
-        pass = ck_tile::check_err(c_m_n_dev_result,
-                                  c_m_n_host_ref,
-                                  "Error: Incorrect results!",
-                                  0.01,
-                                  0.01);
 
-        std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
     }
     return pass;
 }
