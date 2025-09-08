@@ -700,6 +700,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         }
 
         static constexpr auto d_buff_desc = MakeDBufferDescriptor();
+
         private:
 
         using DBufferTransfer = ThreadwiseTensorSliceTransfer_v2<
@@ -2034,7 +2035,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                 c_grid_desc_mblock_mperblock_nblock_nperblock;
 
             using CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock =
-                  CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
+                CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
             using EDataType = CDataType;
             auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v6r4<
