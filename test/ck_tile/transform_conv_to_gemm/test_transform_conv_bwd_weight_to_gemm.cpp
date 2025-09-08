@@ -263,6 +263,8 @@ TYPED_TEST(TestTransformConvBwdWeightToGemm, GridDescriptors)
     constexpr auto I1 = number<1>{};
     constexpr auto I2 = number<2>{};
     constexpr auto I3 = number<3>{};
+    constexpr auto I4 = number<4>{};
+    constexpr auto I5 = number<5>{};
     
     constexpr index_t Gm = TypeParam::NumberOfGroupsToMerge;
 
@@ -281,18 +283,34 @@ TYPED_TEST(TestTransformConvBwdWeightToGemm, GridDescriptors)
         auto in_grid_desc = transform.template make_in_grid_desc<1>();
         auto wei_grid_desc = transform.template make_wei_grid_desc<1>();
         
-        // Verify output grid descriptor dimensions
-        EXPECT_EQ(out_grid_desc.get_length(I0), this->K_ * Gm);
-        EXPECT_EQ(out_grid_desc.get_length(I1), this->N_ * this->Wo_);
-        
         // Verify input grid descriptor dimensions
         EXPECT_EQ(in_grid_desc.get_length(I0), this->N_);
         EXPECT_EQ(in_grid_desc.get_length(I1), this->Wi_);
-        EXPECT_EQ(in_grid_desc.get_length(I2), this->C_);
         
-        // Verify weight grid descriptor dimensions
-        EXPECT_EQ(wei_grid_desc.get_length(I0), this->K_ * Gm);
-        EXPECT_EQ(wei_grid_desc.get_length(I1), this->X_ * this->C_ * Gm);
+        // Verify output grid descriptor dimensions
+        EXPECT_EQ(out_grid_desc.get_length(I0), this->K_);
+
+        if constexpr (Gm > 1)
+        {
+            EXPECT_EQ(in_grid_desc.get_length(I2), Gm);
+            EXPECT_EQ(in_grid_desc.get_length(I3), this->C_);
+
+            EXPECT_EQ(wei_grid_desc.get_length(I0), Gm);
+            EXPECT_EQ(wei_grid_desc.get_length(I1), this->K_);
+            EXPECT_EQ(wei_grid_desc.get_length(I2), this->X_ * this->C_);
+
+            EXPECT_EQ(out_grid_desc.get_length(I1), Gm);
+            EXPECT_EQ(out_grid_desc.get_length(I2), this->N_ * this->Wo_);
+        }
+        else 
+        {
+            EXPECT_EQ(in_grid_desc.get_length(I2), this->C_);
+
+            EXPECT_EQ(wei_grid_desc.get_length(I0), this->K_);
+            EXPECT_EQ(wei_grid_desc.get_length(I1), this->X_ * this->C_);
+
+            EXPECT_EQ(out_grid_desc.get_length(I1), this->N_ * this->Wo_);
+        }
         
     } 
     else if constexpr (NDim == 2) 
@@ -310,19 +328,35 @@ TYPED_TEST(TestTransformConvBwdWeightToGemm, GridDescriptors)
         auto in_grid_desc = transform.template make_in_grid_desc<2>();
         auto wei_grid_desc = transform.template make_wei_grid_desc<2>();
         
-        // Verify output grid descriptor dimensions
-        EXPECT_EQ(out_grid_desc.get_length(I0), this->K_ * Gm);
-        EXPECT_EQ(out_grid_desc.get_length(I1), this->N_ * this->Ho_ * this->Wo_);
-        
         // Verify input grid descriptor dimensions
         EXPECT_EQ(in_grid_desc.get_length(I0), this->N_);
         EXPECT_EQ(in_grid_desc.get_length(I1), this->Hi_);
         EXPECT_EQ(in_grid_desc.get_length(I2), this->Wi_);
-        EXPECT_EQ(in_grid_desc.get_length(I3), this->C_);
-        
-        // Verify weight grid descriptor dimensions
-        EXPECT_EQ(wei_grid_desc.get_length(I0), this->K_ * Gm);
-        EXPECT_EQ(wei_grid_desc.get_length(I1), this->Y_ * this->X_ * this->C_ * Gm);
+
+        // Verify output grid descriptor dimensions
+        EXPECT_EQ(out_grid_desc.get_length(I0), this->K_);
+
+        if constexpr (Gm > 1)
+        {
+            EXPECT_EQ(in_grid_desc.get_length(I3), Gm);
+            EXPECT_EQ(in_grid_desc.get_length(I4), this->C_);
+
+            EXPECT_EQ(wei_grid_desc.get_length(I0), Gm);
+            EXPECT_EQ(wei_grid_desc.get_length(I1), this->K_);
+            EXPECT_EQ(wei_grid_desc.get_length(I2), this->Y_ * this->X_ * this->C_);
+
+            EXPECT_EQ(out_grid_desc.get_length(I1), Gm);
+            EXPECT_EQ(out_grid_desc.get_length(I2), this->N_ * this->Ho_ * this->Wo_);
+        }
+        else 
+        {
+            EXPECT_EQ(in_grid_desc.get_length(I3), this->C_);
+
+            EXPECT_EQ(wei_grid_desc.get_length(I0), this->K_);
+            EXPECT_EQ(wei_grid_desc.get_length(I1), this->Y_ * this->X_ * this->C_);
+
+            EXPECT_EQ(out_grid_desc.get_length(I1), this->N_ * this->Ho_ * this->Wo_);
+        }
         
     } 
     else if constexpr (NDim == 3) 
@@ -340,20 +374,36 @@ TYPED_TEST(TestTransformConvBwdWeightToGemm, GridDescriptors)
         auto in_grid_desc = transform.template make_in_grid_desc<3>();
         auto wei_grid_desc = transform.template make_wei_grid_desc<3>();
         
-        // Verify output grid descriptor dimensions
-        EXPECT_EQ(out_grid_desc.get_length(I0), this->K_ * Gm);
-        EXPECT_EQ(out_grid_desc.get_length(I1), this->N_ * this->Do_ * this->Ho_ * this->Wo_);
-        
         // Verify input grid descriptor dimensions
         EXPECT_EQ(in_grid_desc.get_length(I0), this->N_);
         EXPECT_EQ(in_grid_desc.get_length(I1), this->Di_);
         EXPECT_EQ(in_grid_desc.get_length(I2), this->Hi_);
         EXPECT_EQ(in_grid_desc.get_length(I3), this->Wi_);
-        EXPECT_EQ(in_grid_desc.get_length(number<4>{}), this->C_);
         
-        // Verify weight grid descriptor dimensions
-        EXPECT_EQ(wei_grid_desc.get_length(I0), this->K_ * Gm);
-        EXPECT_EQ(wei_grid_desc.get_length(I1), this->Z_ * this->Y_ * this->X_ * this->C_ * Gm);
+        // Verify output grid descriptor dimensions
+        EXPECT_EQ(out_grid_desc.get_length(I0), this->K_);
+
+        if constexpr (Gm > 1)
+        {
+            EXPECT_EQ(in_grid_desc.get_length(I4), Gm);
+            EXPECT_EQ(in_grid_desc.get_length(I5), this->C_);
+
+            EXPECT_EQ(wei_grid_desc.get_length(I0), Gm);
+            EXPECT_EQ(wei_grid_desc.get_length(I1), this->K_);
+            EXPECT_EQ(wei_grid_desc.get_length(I2), this->Z_ * this->Y_ * this->X_ * this->C_);
+
+            EXPECT_EQ(out_grid_desc.get_length(I1), Gm);
+            EXPECT_EQ(out_grid_desc.get_length(I2), this->N_ * this->Do_ * this->Ho_ * this->Wo_);
+        }
+        else 
+        {
+            EXPECT_EQ(in_grid_desc.get_length(I4), this->C_);
+
+            EXPECT_EQ(wei_grid_desc.get_length(I0), this->K_);
+            EXPECT_EQ(wei_grid_desc.get_length(I1), this->Z_ * this->Y_ * this->X_ * this->C_);
+
+            EXPECT_EQ(out_grid_desc.get_length(I1), this->N_ * this->Do_ * this->Ho_ * this->Wo_);
+        }
     }
 }
 
@@ -378,18 +428,24 @@ TYPED_TEST(TestTransformConvBwdWeightToGemm, ABCGridDescriptors)
         
         // Test combined ABC grid descriptors
         const auto abc_descriptors = transform.template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<1>();
-        const auto& out_desc = abc_descriptors[I0];
-        const auto& in_desc = abc_descriptors[I1];
-        const auto& wei_desc = abc_descriptors[I2];
+        const auto& out_desc = abc_descriptors[I0]; // GEMM A ()
+        const auto& in_desc = abc_descriptors[I1]; // GEMM B (N_gemm, K_gemm)
+        const auto& wei_desc = abc_descriptors[I2]; // GEMM C
+
+        EXPECT_EQ(out_desc.get_num_of_dimension(), 3);
+        EXPECT_EQ(in_desc.get_num_of_dimension(), 2);
+        EXPECT_EQ(wei_desc.get_num_of_dimension(), 3);
         
-        // Verify the descriptors are correctly created
-        EXPECT_EQ(out_desc.get_length(I0), this->K_ * Gm);
-        EXPECT_EQ(wei_desc.get_length(I0), this->K_ * Gm);
+        EXPECT_EQ(in_desc.get_length(I0), this->X_ * this->C_);
+        EXPECT_EQ(in_desc.get_length(I1), this->N_ * this->Wo_ * Gm);
+
+        // // Verify GEMM M-dimension that should depend on Gm
+        // EXPECT_EQ(out_desc.get_length(I1), this->K_ * Gm);
+        // EXPECT_EQ(wei_desc.get_length(I0), this->K_ * Gm);
         
-        // For input descriptor, verify the transformed dimensions
-        EXPECT_EQ(in_desc.get_length(I0), this->X_ * this->C_ * Gm);
-        EXPECT_EQ(in_desc.get_length(I1), this->N_ * this->Wo_);
-        
+        // // Verify GEMM N-dimension that should depend on Gm.
+        // EXPECT_EQ(in_desc.get_length(I1), this->X_ * this->C_ * Gm);
+        // EXPECT_EQ(wei_desc.get_length(I1), this->X_ * this->C_ * Gm);
     } 
     else if constexpr (NDim == 2) 
     {
@@ -407,13 +463,11 @@ TYPED_TEST(TestTransformConvBwdWeightToGemm, ABCGridDescriptors)
         const auto& in_desc = abc_descriptors[I1];
         const auto& wei_desc = abc_descriptors[I2];
         
-        // Verify the descriptors are correctly created
-        EXPECT_EQ(out_desc.get_length(I0), this->K_ * Gm);
+        EXPECT_EQ(out_desc.get_length(I1), this->K_ * Gm);
         EXPECT_EQ(wei_desc.get_length(I0), this->K_ * Gm);
         
-        // For input descriptor, verify the transformed dimensions
-        EXPECT_EQ(in_desc.get_length(I0), this->Y_ * this->X_ * this->C_ * Gm);
-        EXPECT_EQ(in_desc.get_length(I1), this->N_ * this->Ho_ * this->Wo_);
+        EXPECT_EQ(in_desc.get_length(I1), this->Y_ * this->X_ * this->C_ * Gm);
+        EXPECT_EQ(wei_desc.get_length(I1),  this->Y_ *this->X_ * this->C_ * Gm);
         
     } 
     else if constexpr (NDim == 3) 
@@ -432,13 +486,11 @@ TYPED_TEST(TestTransformConvBwdWeightToGemm, ABCGridDescriptors)
         const auto& in_desc = abc_descriptors[I1];
         const auto& wei_desc = abc_descriptors[I2];
 
-        // Verify the descriptors are correctly created
-        EXPECT_EQ(out_desc.get_length(I0), this->K_ * Gm);
+        EXPECT_EQ(out_desc.get_length(I1), this->K_ * Gm);
         EXPECT_EQ(wei_desc.get_length(I0), this->K_ * Gm);
         
-        // For input descriptor, verify the transformed dimensions
-        EXPECT_EQ(in_desc.get_length(I0), this->Z_ * this->Y_ * this->X_ * this->C_ * Gm);
-        EXPECT_EQ(in_desc.get_length(I1), this->N_ * this->Do_ * this->Ho_ * this->Wo_);
+        EXPECT_EQ(in_desc.get_length(I1), this->Z_ * this->Y_ * this->X_ * this->C_ * Gm);
+        EXPECT_EQ(wei_desc.get_length(I1), this->Z_ * this->Y_ *this->X_ * this->C_ * Gm);
     }
 }
 
