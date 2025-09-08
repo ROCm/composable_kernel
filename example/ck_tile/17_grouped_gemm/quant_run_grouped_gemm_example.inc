@@ -234,7 +234,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
         AQK = 1; // Row quantization: tensor shape [M, 1]. Only for NT
         BQK = N; // Column quantization: tensor shape [1, N]. Only for NT
 
-        stride_As[i]  = ck_tile::get_default_stride(M, N, stride_As[i], is_row_major(a_layout));
+        stride_As[i]  = ck_tile::get_default_stride(M, K, stride_As[i], is_row_major(a_layout));
         stride_Bs[i]  = ck_tile::get_default_stride(K, N, stride_Bs[i], is_row_major(b_layout));
         stride_Cs[i]  = ck_tile::get_default_stride(M, N, stride_Cs[i], is_row_major(CLayout{}));
         stride_AQs[i] = ck_tile::get_default_stride(M, AQK, stride_AQs[i], is_row_major(aq_layout));
