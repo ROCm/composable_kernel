@@ -45,18 +45,18 @@ enum class ElementwiseOperation
 
 // Operational signature of a convolution.
 template <typename T>
-concept ConvSignature = requires {
-    // Dimensionality of the convolution (e.g., 1, 2, or 3).
-    requires ConvSpatialDim<T::spatial_dim>;
+concept ConvSignatureDescriptor = requires(T t) {
+    { t.spatial_dim } -> std::convertible_to<int>;
+    { t.direction } -> std::convertible_to<ConvDirection>;
+    { t.layout } -> std::convertible_to<GroupConvLayout>;
+    { t.data_type } -> std::convertible_to<DataType>;
+};
 
-    // Direction of the convolition (fwd, bwd, or weights).
-    { T::direction } -> std::same_as<const ConvDirection&>;
-
-    // Memory layout of the tensors.
-    { T::layout } -> std::same_as<const GroupConvLayout&>;
-
-    // Tensor datatype for input and output.
-    requires ConvDataType<T::data_type>;
+// Valid values for a convolution signature.
+template <auto Sig>
+concept ValidConvSignature = requires {
+    requires ConvSpatialDim<Sig.spatial_dim>;
+    requires ConvDataType<Sig.data_type>;
 };
 
 } // namespace ck_tile::builder
