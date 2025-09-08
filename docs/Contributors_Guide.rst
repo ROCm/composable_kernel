@@ -8,7 +8,7 @@
 Contributing to Composable Kernel
 ********************************************************************
 
-Please read the `Composable Kernel User Guide <https://rocm.docs.amd.com/projects/composable_kernel/en/latest/>`_ before contributing to the Composable Kernel project. The user provides information on core concepts and configurations, as well as providing :doc:`steps for building Composable Kernel <docs/install/Composable-Kernel-install>`. Some of this information is also available in the `Composable Kernel README file <https://github.com/ROCm/composable_kernel/blob/develop/README.md>`_.
+Please read the `Composable Kernel documentation <https://rocm.docs.amd.com/projects/composable_kernel/en/latest/>`_ before contributing to the Composable Kernel project. The Composable Kernel documentation provides information on core concepts and configurations, as well as providing :doc:`steps for building Composable Kernel <install/Composable-Kernel-install>`. Some of this information is also available in the `Composable Kernel README file <https://github.com/ROCm/composable_kernel/blob/develop/README.md>`_.
 
 Consult the `AMD Developer Central portal <https://www.amd.com/en/developer.html>`_ for more information about AMD products.
 
