@@ -398,18 +398,19 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                 [&, &i_page_block_v_ = i_page_block_v, &v_dram_window_ = v_dram_window](auto i_k0) {
                     store_tile(k_lds_window,
                                tile_elementwise_in(k_element_func, k_tiles[number<i_k0 % 2>{}]));
+
+                    __builtin_amdgcn_sched_barrier(0);
+
                     if constexpr(i_k0 < k0_loops - 2)
                     {
                         k_tiles[number<(i_k0 + 2) % 2>{}] = load_tile(k_dram_window);
-                        move_tile_window(k_dram_window, {0, kK0});
                     }
                     else
                     {
                         v_tiles[number<i_k0 - (k0_loops - 2)>{}] = load_tile(v_dram_window_);
-
-                        i_page_block_v_ = v_page_block_navigator.move_tile_window(
-                            i_page_block_v_, v_dram_window_, {0, kK1});
                     }
+
+                    __builtin_amdgcn_sched_barrier(0);
 
                     block_sync_lds();
                     gemm_0(s_acc,
@@ -417,6 +418,18 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                                           sequence<0, i_k0 * kK0>{},
                                           sequence<kM0, (i_k0 + 1) * kK0>{}),
                            k_lds_window);
+
+                    if constexpr(i_k0 < k0_loops - 2)
+                    {
+                        move_tile_window(k_dram_window, {0, kK0});
+                    }
+                    else
+                    {
+                        i_page_block_v_ = v_page_block_navigator.move_tile_window(
+                            i_page_block_v_, v_dram_window_, {0, kK1});
+                    }
+
+                    __builtin_amdgcn_sched_barrier(0);
 
                     if constexpr(i_k0 < k0_loops - 1)
                         block_sync_lds();
@@ -539,7 +552,13 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
 
             __builtin_amdgcn_sched_barrier(0);
 
-            // load the first tile for next iteration
+            const auto s = cast_tile<SMPLComputeDataType>(s_acc); // S{j}
+
+            // shuffle through LDS so that the tile layout is consistent with required by Gemm1
+            store_tile(s_write_lds_window, s);
+
+            __builtin_amdgcn_sched_barrier(0);
+
             if(i_total_loops < num_total_loop - 1)
             {
                 // move K tile windows
@@ -553,10 +572,6 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
 
             __builtin_amdgcn_sched_barrier(0);
 
-            const auto s = cast_tile<SMPLComputeDataType>(s_acc); // S{j}
-
-            // shuffle through LDS so that the tile layout is consistent with required by Gemm1
-            store_tile(s_write_lds_window, s);
             // at this point, all LDS operations are done including ds_read for k and ds_write for s
             block_sync_lds();
             auto s_new = load_tile(s_read_lds_window);
