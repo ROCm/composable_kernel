@@ -11,6 +11,7 @@ repos:
         entry: script/check_copyright.sh
         verbose: true
         language: script
+        exclude: rapidjson/*
         types_or: [c++, inc, python]
     -   id: remove-exec-bit
         name: Remove executable bit from non-executable files

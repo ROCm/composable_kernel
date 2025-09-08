@@ -2,7 +2,6 @@
 # Copyright © Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
-
 # Test script for tile engine GEMM benchmarks
 # This script demonstrates how to run the new individual benchmark executables
 
