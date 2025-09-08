@@ -2,12 +2,5 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
-#include <stdint.h>
 
-namespace ck_tile {
-
-struct null_type
-{
-};
-
-} // namespace ck_tile
+#include "ck_tile/utility/json_dump.hpp"
