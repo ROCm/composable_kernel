@@ -937,6 +937,9 @@ struct BlockFmhaFwdV3Pipeline
                     __builtin_amdgcn_s_barrier();
                     __builtin_amdgcn_sched_barrier(0);
                     cl_load(memK, K_w0_lds_wr_idx, V_w0_lds_rd_idx);
+                    __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
+                    __builtin_amdgcn_sched_group_barrier(0x004, 4, 0); // SALU
+                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
                     fmha_mask(xdl_SP_p01_reg_idx);
 
                     Scheduler::schedule(cl_p, number<1>{});
@@ -946,6 +949,8 @@ struct BlockFmhaFwdV3Pipeline
                     s_waitcnt_lgkmcnt<0>();
                     __builtin_amdgcn_sched_barrier(0);
                     __builtin_amdgcn_s_barrier();
+                    __builtin_amdgcn_sched_barrier(0);
+                    asm volatile("s_nop 0");
                     __builtin_amdgcn_sched_barrier(0);
                     cl_calc(xdl_SP_p23_reg_idx, gemm1);
 
@@ -961,6 +966,9 @@ struct BlockFmhaFwdV3Pipeline
                     __builtin_amdgcn_s_barrier();
                     __builtin_amdgcn_sched_barrier(0);
                     cl_load(memV, V_w0_lds_wr_idx, K_w0_lds_rd_idx);
+                    __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
+                    __builtin_amdgcn_sched_group_barrier(0x004, 4, 0); // SALU
+                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
 
                     Scheduler::schedule(cl_p, number<3>{});
                     kv_token_start += kN0;
@@ -986,6 +994,9 @@ struct BlockFmhaFwdV3Pipeline
                         ASM_MARKER("phase0 Wave4-7 (pi=1)");
                     }
                     cl_load(memV, V_w4_lds_wr_idx, K_w4_lds_rd_idx);
+                    __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
+                    __builtin_amdgcn_sched_group_barrier(0x004, 4, 0); // SALU
+                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
 
                     Scheduler::schedule(cl_p, number<0>{});
                     __builtin_amdgcn_sched_barrier(0);
@@ -995,7 +1006,7 @@ struct BlockFmhaFwdV3Pipeline
                     __builtin_amdgcn_sched_barrier(0);
                     __builtin_amdgcn_s_barrier();
                     __builtin_amdgcn_sched_barrier(0);
-                    asm volatile("s_nop 0");
+                    asm volatile("s_nop 1");
                     __builtin_amdgcn_sched_barrier(0);
                     cl_calc(xdl_SP_p01_reg_idx, gemm0);
                     fmha_alu1(xdl_SP_p23_reg_idx);
@@ -1007,6 +1018,9 @@ struct BlockFmhaFwdV3Pipeline
                     __builtin_amdgcn_s_barrier();
                     __builtin_amdgcn_sched_barrier(0);
                     cl_load(memK, K_w4_lds_wr_idx, V_w4_lds_rd_idx);
+                    __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
+                    __builtin_amdgcn_sched_group_barrier(0x004, 4, 0); // SALU
+                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
                     fmha_mask(xdl_SP_p01_reg_idx);
 
                     Scheduler::schedule(cl_p, number<2>{});
