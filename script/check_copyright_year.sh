@@ -2,23 +2,27 @@
 # Copyright © Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
-current_year=$(date +%Y)
 exit_code=0
 
-# print names of files that are being checked
-echo "Checking copyright year for the following files:"
 for file in $@; do
-    echo $file
-done
-
-for file in $@; do
-    if grep -q "Copyright (c)" $file
+    # Check if file has any copyright notice
+    if grep -q "Copyright.*Advanced Micro Devices" "$file"
     then
-        if ! grep -q "Copyright (c).*$current_year" $file
+        # Check for the exact template
+        if ! grep -q "Copyright © Advanced Micro Devices, Inc., or its affiliates." "$file"
         then
-            echo "ERROR: File $file has a copyright notice without the current year ($current_year)."
+            echo "ERROR: File $file has incorrect copyright format. Expected: 'Copyright © Advanced Micro Devices, Inc., or its affiliates.'"
             exit_code=1
         fi
+        
+        if ! grep -q "SPDX-License-Identifier: MIT" "$file"
+        then
+            echo "ERROR: File $file missing SPDX-License-Identifier: MIT"
+            exit_code=1
+        fi
+    else
+        echo "ERROR: File $file missing copyright header"
+        exit_code=1
     fi
 done
 
