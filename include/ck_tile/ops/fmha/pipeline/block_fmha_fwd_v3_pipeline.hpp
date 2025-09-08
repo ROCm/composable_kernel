@@ -631,8 +631,8 @@ struct BlockFmhaFwdV3Pipeline
 
         // K_mem_su_ld_insts = 1 for 32 x 128
         // V_mem_su_ld_insts = 1 for 128 x 32
-        static constexpr int K_mem_su_ld_insts = 1;
-        static constexpr int V_mem_su_ld_insts = 1;
+        constexpr int K_mem_su_ld_insts = k_dram_window.get_num_of_access();
+        constexpr int V_mem_su_ld_insts = v_dram_window.get_num_of_access();
 
         auto K_mem_load = [&](auto k_lds_write_idx) {
             async_load_tile_raw(k_lds_window_store(k_lds_write_idx), k_dram_window);
@@ -1167,14 +1167,13 @@ struct BlockFmhaFwdV3Pipeline
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
               typename LSEDramBlockWindowTmp>
-    CK_TILE_HOST_DEVICE auto
-    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
-               const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
-               const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
-               LSEDramBlockWindowTmp& lse_dram_block_window_tmp,   // M0*1 tile
-               FmhaMask mask,
-               float scale_s,
-               void* smem_ptr) const
+    CK_TILE_DEVICE auto operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
+                                   const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
+                                   const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
+                                   LSEDramBlockWindowTmp& lse_dram_block_window_tmp,   // M0*1 tile
+                                   FmhaMask mask,
+                                   float scale_s,
+                                   void* smem_ptr) const
     {
         using namespace ck_tile;
 
