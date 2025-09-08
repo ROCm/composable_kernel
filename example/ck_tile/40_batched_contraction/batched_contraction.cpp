@@ -9,23 +9,104 @@
 #include <string>
 #include <tuple>
 
+#include "ck_tile/core.hpp"
+#include "ck_tile/ops/epilogue.hpp"
+#include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/host.hpp"
-#include "ck_tile/ops/batched_contraction/kernel/batched_contraction_kernel.hpp"
-#include "contraction_utils.hpp"
-#include "run_batched_contraction_example.inc"
 
-// Core kernel launcher function - this is the main kernel interface
-template <typename ADataType, typename BDataType, typename EDataType>
-float batched_contraction(const ck_tile::index_t M,
-                          const ck_tile::index_t N,
-                          const ck_tile::index_t K,
-                          const ck_tile::index_t batch_count,
-                          const void* a_ptr,
-                          const void* b_ptr,
-                          void* e_ptr,
+#include "ck_tile/ops/batched_contraction.hpp"
+#include "contraction_utils.hpp"
+
+template <typename ADataType,
+          typename BDataType,
+          typename DsDataType,
+          typename AccDataType,
+          typename EDataType,
+          typename ALayout,
+          typename BLayout,
+          typename DsLayout,
+          typename ELayout,
+          typename CDEElementWise = ck_tile::element_wise::PassThrough>
+
+float batched_contraction(const ck_tile::BatchedContractionHostArgs<0>& args,
                           const ck_tile::stream_config& s)
 {
-    // Define problem
+#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
+    // Memory friendly for Interwave scheduler
+    constexpr ck_tile::index_t M_Tile = 128;
+    constexpr ck_tile::index_t N_Tile = 128;
+    constexpr ck_tile::index_t K_Tile = 64;
+
+    constexpr ck_tile::index_t M_Warp = 2;
+    constexpr ck_tile::index_t N_Warp = 2;
+    constexpr ck_tile::index_t K_Warp = 1;
+
+    constexpr ck_tile::index_t M_Warp_Tile = 16;
+    constexpr ck_tile::index_t N_Warp_Tile = 16;
+    constexpr ck_tile::index_t K_Warp_Tile = 16;
+
+    constexpr bool DoubleSmemBuffer = false;
+#endif
+#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
+    // Compute friendly for Intrawave scheduler
+    constexpr ck_tile::index_t M_Tile = 128;
+    constexpr ck_tile::index_t N_Tile = 128;
+    constexpr ck_tile::index_t K_Tile = 32;
+
+    constexpr ck_tile::index_t M_Warp = 2;
+    constexpr ck_tile::index_t N_Warp = 2;
+    constexpr ck_tile::index_t K_Warp = 1;
+
+    constexpr ck_tile::index_t M_Warp_Tile = 32;
+    constexpr ck_tile::index_t N_Warp_Tile = 32;
+    constexpr ck_tile::index_t K_Warp_Tile = 8;
+
+    constexpr bool DoubleSmemBuffer = false;
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V4)
+    // Compute friendly for Intrawave scheduler
+    // Using the ping pong reader in the lds level
+    constexpr ck_tile::index_t M_Tile = 256;
+    constexpr ck_tile::index_t N_Tile = 256;
+    constexpr ck_tile::index_t K_Tile = 32;
+
+    constexpr ck_tile::index_t M_Warp = 2;
+    constexpr ck_tile::index_t N_Warp = 2;
+    constexpr ck_tile::index_t K_Warp = 1;
+
+    constexpr ck_tile::index_t M_Warp_Tile = 32;
+    constexpr ck_tile::index_t N_Warp_Tile = 32;
+    constexpr ck_tile::index_t K_Warp_Tile = 16;
+
+    constexpr bool DoubleSmemBuffer = true;
+#endif
+
+    constexpr bool kPadM = false;
+    constexpr bool kPadN = false;
+    constexpr bool kPadK = false;
+
+    constexpr bool TransposeC = false;
+
+    constexpr int kBlockPerCu                         = 1;
+    constexpr ck_tile::index_t TileParitionerGroupNum = 8;
+    constexpr ck_tile::index_t TileParitionerM01      = 4;
+
+    using GemmShape =
+        ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
+                               ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
+                               ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
+    using TilePartitioner = ck_tile::
+        GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
+
+    using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, ELayout>;
+    using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
+                                                                 kPadN,
+                                                                 kPadK,
+                                                                 DoubleSmemBuffer,
+                                                                 ALayout,
+                                                                 BLayout,
+                                                                 ELayout,
+                                                                 TransposeC>;
+
     using Problem = ck_tile::BatchedContractionProblem<ADataType,
                                                        BDataType,
                                                        EDataType,
@@ -35,89 +116,99 @@ float batched_contraction(const ck_tile::index_t M,
                                                        1  // NumDimK
                                                        >;
 
-    using Kernel = ck_tile::BatchedContractionKernel<Problem>;
+    using GemmPipelineProblem =
+        ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
-    // Prepare kernel arguments
-    typename Kernel::Kargs kargs;
-    kargs.p_a            = static_cast<const ADataType*>(a_ptr);
-    kargs.p_b            = static_cast<const BDataType*>(b_ptr);
-    kargs.p_e            = static_cast<EDataType*>(e_ptr);
-    kargs.M              = M;
-    kargs.N              = N;
-    kargs.K              = K;
-    kargs.batch_count    = batch_count;
-    kargs.stride_a_batch = M * K;
-    kargs.stride_b_batch = N * K;
-    kargs.stride_e_batch = M * N;
+    using BaseGemmPipeline = UNIVERSAL_GEMM_PIPELINE<GemmPipelineProblem>;
 
-    // Calculate grid and block dimensions
-    const auto grids  = Kernel::GridSize(M, N, batch_count);
-    const auto blocks = Kernel::BlockSize();
+    const ck_tile::index_t k_batch     = 1;
+    const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(args.K);
+    const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
+    const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
 
-    // Check if arguments are supported
-    if(!Kernel::IsSupportedArguments())
-    {
-        throw std::runtime_error("Arguments not supported! Skipping batched contraction!");
-    }
+    float ave_time{0};
 
-    // Logging
-    if(s.log_level_ > 0)
-    {
-        std::cout << "Launching BatchedContractionKernel:" << " M=" << M << " N=" << N << " K=" << K
-                  << " batch=" << batch_count << " grid=(" << grids.x << "," << grids.y << ","
-                  << grids.z << ")" << " block=(" << blocks.x << "," << blocks.y << "," << blocks.z
-                  << ")" << std::endl;
-    }
+    const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
+        constexpr bool has_hot_loop_v = has_hot_loop_.value;
+        constexpr auto tail_number_v  = tail_number_.value;
+        constexpr auto scheduler      = GEMM_PIPELINE_SCHEDULER;
+        constexpr auto memory_operation =
+            ck_tile::memory_operation_enum::set; // Always set (no atomic_add)
 
-    // Launch kernel
-    float ave_time =
-        ck_tile::launch_kernel(s, ck_tile::make_kernel(Kernel{}, grids, blocks, 0, kargs));
+        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                                           BDataType,
+                                                                           AccDataType,
+                                                                           GemmShape,
+                                                                           GemmUniversalTraits,
+                                                                           scheduler,
+                                                                           has_hot_loop_v,
+                                                                           tail_number_v>;
+
+        using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
+
+        using GemmEpilogue = ck_tile::CShuffleEpilogue<
+            ck_tile::CShuffleEpilogueProblem<ADataType,
+                                             BDataType,
+                                             DsDataType,
+                                             AccDataType,
+                                             EDataType,
+                                             DsLayout,
+                                             ELayout,
+                                             CDEElementWise,
+                                             TilePartitioner::MPerBlock,
+                                             TilePartitioner::NPerBlock,
+                                             M_Warp,
+                                             N_Warp,
+                                             M_Warp_Tile,
+                                             N_Warp_Tile,
+                                             K_Warp_Tile,
+                                             UniversalGemmProblem::TransposeC,
+                                             memory_operation>>;
+
+        using Kernel =
+            ck_tile::BatchedContractionKernel<Problem, TilePartitioner, GemmPipeline, GemmEpilogue>;
+        auto kargs = Kernel::MakeKernelArgs(args);
+
+        const dim3 grids  = Kernel::GridSize(args.M, args.N, k_batch, args.G);
+        const dim3 blocks = Kernel::GetBlockSize();
+
+        if(!Kernel::IsSupportedArguments(kargs))
+        {
+            throw std::runtime_error("Wrong! Arguments not supported! Skipping contraction!\n");
+        }
+
+        if(s.log_level_ > 0)
+        {
+            std::cout << "Launching kernel with args: " << Kernel::GetKernelName() << '\n'
+                      << "shape: " << GemmShape::GetName() << '\n'
+                      << "problem: " << GemmPipelineProblem::GetName() << '\n'
+                      << "pipeline: " << GemmPipeline::GetName() << '\n'
+                      << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
+                      << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
+                      << std::endl;
+        }
+
+        ave_time = ck_tile::launch_kernel(
+            s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+        return ave_time;
+    };
+
+    BaseGemmPipeline::TailHandler(Run, has_hot_loop, tail_num);
 
     return ave_time;
 }
 
-// Function to handle different data types
-template <typename DataType>
-int run_batched_contraction_example_prec_type(ck_tile::ArgParser& arg_parser)
-{
-    // Use type config to get proper accumulation type
-    using TypeConfig = BatchedContractionTypeConfig<DataType>;
-    return run_batched_contraction_example<typename TypeConfig::ADataType,
-                                           typename TypeConfig::BDataType,
-                                           typename TypeConfig::EDataType>(arg_parser);
-}
+#include "run_batched_contraction_example.inc"
 
-// Main function
 int main(int argc, char* argv[])
 {
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
-        return -1;
-
     try
     {
-        std::string data_type = arg_parser.get_str("prec");
-
-        if(data_type == "fp32")
-        {
-            return !run_batched_contraction_example_prec_type<float>(arg_parser);
-        }
-        else if(data_type == "fp16")
-        {
-            return !run_batched_contraction_example_prec_type<ck_tile::half_t>(arg_parser);
-        }
-        else if(data_type == "bf16")
-        {
-            return !run_batched_contraction_example_prec_type<ck_tile::bf16_t>(arg_parser);
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported data type: " + data_type);
-        }
+        return !run_batched_contraction_example(argc, argv);
     }
     catch(const std::runtime_error& e)
     {
-        std::cerr << "Error: " << e.what() << std::endl;
+        std::cerr << "Runtime error: " << e.what() << '\n';
         return EXIT_FAILURE;
     }
 }

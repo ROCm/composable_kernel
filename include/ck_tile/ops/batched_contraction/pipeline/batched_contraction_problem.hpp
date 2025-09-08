@@ -25,6 +25,15 @@ struct BatchedContractionProblem
     static constexpr ck_tile::index_t NumDimK = NumDimK_;
 
     static constexpr ck_tile::index_t NumDTensor = 0;
+
+    static constexpr bool IsSimpleBatchedGemm()
+    {
+        return NumDimG == 1 && NumDimM == 1 && NumDimN == 1 && NumDimK == 1;
+    }
 };
+
+template <typename ADataType, typename BDataType, typename EDataType>
+using SimpleBatchedGemmProblem =
+    BatchedContractionProblem<ADataType, BDataType, EDataType, 1, 1, 1, 1>;
 
 } // namespace ck_tile
