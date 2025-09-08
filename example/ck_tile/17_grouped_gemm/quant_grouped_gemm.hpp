@@ -29,12 +29,10 @@ constexpr ck_tile::index_t get_k_warp_tile()
     else
         return is_8bit_float ? 128 : 32;
 #else
-    constexpr bool is_8bit_float =
-        std::is_same_v<PrecType, ck_tile::fp8_t> || std::is_same_v<PrecType, ck_tile::bf8_t>;
     if constexpr(M_Warp_Tile == 32)
-        return is_8bit_float ? 32 : 16;
+        return 16;
     else
-        return is_8bit_float ? 64 : 32;
+        return 32;
 #endif
 }
 
@@ -74,8 +72,8 @@ struct GemmConfigBase
 template <typename PrecType>
 struct GemmConfigComputeV3_2 : public GemmConfigBase
 {
-    static constexpr ck_tile::index_t M_Tile = 256;
-    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
     static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
 
     static constexpr ck_tile::index_t M_Warp = 2;

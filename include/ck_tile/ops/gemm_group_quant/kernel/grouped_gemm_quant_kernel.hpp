@@ -123,16 +123,15 @@ struct QuantGroupedGemmKernel
     using GemmPipeline     = remove_cvref_t<GemmPipeline_>;
     using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
 
-
     //// @brief Specify the layout configurations for A, B, C/E
     using ALayout = remove_cvref_t<typename GemmPipeline::ALayout>;
     using BLayout = remove_cvref_t<typename GemmPipeline::BLayout>;
     using CLayout = remove_cvref_t<typename GemmPipeline::CLayout>;
 
     /// @brief Specify the data type configurations for A, B, C/E
-    using ADataType = remove_cvref_t<typename GemmPipeline::ADataType>;
-    using BDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
-    using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
+    using ADataType   = remove_cvref_t<typename GemmPipeline::ADataType>;
+    using BDataType   = remove_cvref_t<typename GemmPipeline::BDataType>;
+    using CDataType   = remove_cvref_t<typename EpiloguePipeline::ODataType>;
     using AccDataType = remove_cvref_t<typename EpiloguePipeline::AccDataType>;
 
     using AQDataType =
@@ -158,12 +157,13 @@ struct QuantGroupedGemmKernel
                   "C/ELayout and C/EDataType must be scalars.");
 
     using OffsetTile1DPartitioner = OffsettedTile1DPartitioner<TilePartitioner>;
-    using Kernel = QuantGroupedGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline, kQuantType>;
+    using Kernel =
+        QuantGroupedGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline, kQuantType>;
 
     static constexpr index_t kBlockSize       = GemmPipeline::BlockSize;
     static constexpr bool UsePersistentKernel = GemmPipeline::UsePersistentKernel;
     static_assert(UsePersistentKernel == true, "UsePersistentKernel must be true");
-    
+
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
@@ -208,7 +208,7 @@ struct QuantGroupedGemmKernel
      */
     CK_TILE_HOST static auto MaxOccupancyGridSize(const stream_config& s) -> dim3
     {
-        using ConstantPointer = const void CK_CONSTANT_ADDRESS_SPACE*;
+        using ConstantPointer  = const void CK_CONSTANT_ADDRESS_SPACE*;
         const auto kernel_func = kentry<1, Kernel, ConstantPointer, index_t>;
         int occupancy;
         HIP_CHECK_ERROR(
@@ -228,8 +228,8 @@ struct QuantGroupedGemmKernel
         return dim3(grid_size, 1, 1);
     }
 
-    CK_TILE_HOST static auto
-    MakeKargs(const std::vector<QuantGroupedGemmHostArgs>& gemm_descs) -> std::vector<QuantGemmTransKernelArg>
+    CK_TILE_HOST static auto MakeKargs(const std::vector<QuantGroupedGemmHostArgs>& gemm_descs)
+        -> std::vector<QuantGemmTransKernelArg>
     {
         std::vector<QuantGemmTransKernelArg> gemm_kernel_args_;
         index_t group_count = ck_tile::type_convert<ck_tile::index_t>(gemm_descs.size());
@@ -259,24 +259,22 @@ struct QuantGroupedGemmKernel
             grid_size += grid_size_grp;
 
             auto karg =
-                QuantGroupedGemmKernelArgs{
-                    type_convert<const ADataType*>(gemm_descs[i].a_ptr),
-                                          type_convert<const BDataType*>(gemm_descs[i].b_ptr),
-                                          type_convert<CDataType*>(gemm_descs[i].e_ptr),
-                                          type_convert<const AQDataType*>(gemm_descs[i].aq_ptr),
-                                          type_convert<const BQDataType*>(gemm_descs[i].bq_ptr),
-                                          gemm_descs[i].k_batch,
-                                          M,
-                                          N,
-                                          K,
-                                          gemm_descs[i].QK_A,
-                                          gemm_descs[i].QK_B,
-                                          stride_a,
-                                          stride_b,
-                                          stride_e,
-                                          gemm_descs[i].stride_AQ,
-                                          gemm_descs[i].stride_BQ
-                                          };
+                QuantGroupedGemmKernelArgs{type_convert<const ADataType*>(gemm_descs[i].a_ptr),
+                                           type_convert<const BDataType*>(gemm_descs[i].b_ptr),
+                                           type_convert<CDataType*>(gemm_descs[i].e_ptr),
+                                           type_convert<const AQDataType*>(gemm_descs[i].aq_ptr),
+                                           type_convert<const BQDataType*>(gemm_descs[i].bq_ptr),
+                                           gemm_descs[i].k_batch,
+                                           M,
+                                           N,
+                                           K,
+                                           gemm_descs[i].QK_A,
+                                           gemm_descs[i].QK_B,
+                                           stride_a,
+                                           stride_b,
+                                           stride_e,
+                                           gemm_descs[i].stride_AQ,
+                                           gemm_descs[i].stride_BQ};
 
             gemm_kernel_args_.emplace_back(std::move(karg), block_start, block_end);
         }
@@ -317,15 +315,15 @@ struct QuantGroupedGemmKernel
         const BDataType* b_ptr   = static_cast<const BDataType*>(kargs.b_ptr);
         const AQDataType* aq_ptr = static_cast<const AQDataType*>(kargs.aq_ptr);
         const BQDataType* bq_ptr = static_cast<const BQDataType*>(kargs.bq_ptr);
-        CDataType* c_ptr = static_cast<CDataType*>(kargs.c_ptr);
+        CDataType* c_ptr         = static_cast<CDataType*>(kargs.c_ptr);
 
-        static_assert(GemmPipeline::DoubleSmemBuffer == false, "DoubleSmemBuffer needs to be false");
+        static_assert(GemmPipeline::DoubleSmemBuffer == false,
+                      "DoubleSmemBuffer needs to be false");
         // allocate LDS
-        __shared__ char smem_ptr_0[GetSmemSize()];        
-        
+        __shared__ char smem_ptr_0[GetSmemSize()];
+
         RunGemmWithPipelineSelection(
             a_ptr, b_ptr, aq_ptr, bq_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
-        
     }
 
     /**
@@ -378,12 +376,8 @@ struct QuantGroupedGemmKernel
         const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
 
         // Run GEMM pipeline
-        const auto& c_block_tile = GemmPipeline{}.template operator()(a_block_window,
-                                                                      b_block_window,
-                                                                      num_loop,
-                                                                      has_hot_loop,
-                                                                      tail_num,
-                                                                      smem_ptr_0);
+        const auto& c_block_tile = GemmPipeline{}.template operator()(
+            a_block_window, b_block_window, num_loop, has_hot_loop, tail_num, smem_ptr_0);
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(Base::I4);
         if constexpr(kQuantType == QuantType::RowColQuant)
@@ -399,7 +393,6 @@ struct QuantGroupedGemmKernel
                 aq_block_window,
                 bq_block_window);
         }
-       
     }
 
     // For persistent kernels

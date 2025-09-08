@@ -178,9 +178,9 @@ int run_grouped_gemm_example_with_layouts(int argc,
             Ns.push_back(256 + 512 * i);
             Ks.push_back(512 + 384 * i);
 
-            stride_As.push_back(0);
-            stride_Bs.push_back(0);
-            stride_Cs.push_back(0);
+            stride_As.push_back(Ks[i]);
+            stride_Bs.push_back(Ks[i]);
+            stride_Cs.push_back(Ns[i]);
         }
     }
 

@@ -66,14 +66,14 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
         constexpr bool transpose_c      = false;
 
         using QuantGemmProblem = ck_tile::GemmRowColQuantPipelineProblem<ADataType,
-                                                                             BDataType,
-                                                                             AccDataType,
-                                                                             AccDataType,
-                                                                             GemmShape,
-                                                                             GemmUniversalTraits,
-                                                                             transpose_c,
-                                                                             BDataType,
-                                                                             scheduler>;
+                                                                         BDataType,
+                                                                         AccDataType,
+                                                                         AccDataType,
+                                                                         GemmShape,
+                                                                         GemmUniversalTraits,
+                                                                         transpose_c,
+                                                                         BDataType,
+                                                                         scheduler>;
 
         using GemmPipeline = typename PipelineTypeTraits<
             GemmConfig::Pipeline>::template GemmPipeline<QuantGemmProblem>;
@@ -123,8 +123,8 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
     };
 
     Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                       ck_tile::memory_operation_enum::set>{});
-    
+                                   ck_tile::memory_operation_enum::set>{});
+
     return ave_time;
 }
 
