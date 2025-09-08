@@ -179,10 +179,10 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                           kN0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
 
-        constexpr index_t k0_loops = kQKHeaddim / kK0;
-        constexpr index_t k1_loops = kN0 / kK1;
+        constexpr index_t kGemm0SingleRepN = Policy::template GetQKBlockGemmSingleRepN<Problem>();
+        constexpr index_t n0_loops         = kN0 / kGemm0SingleRepN;
+        constexpr index_t k1_loops         = kN0 / kK1;
 
-        static_assert(2 <= k0_loops);
         static_assert(2 <= k1_loops);
 
         auto q_dram_window =
@@ -207,8 +207,8 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                                                Policy::template GetSmemSizeS<Problem>()));
         auto k_lds = make_tensor_view<address_space_enum::lds>(
             k_lds_ptr, Policy::template MakeKLdsBlockDescriptor<Problem>());
-        auto k_lds_window =
-            make_tile_window(k_lds, make_tuple(number<kN0>{}, number<kK0>{}), {0, 0});
+        auto k_lds_window = make_tile_window(
+            k_lds, make_tuple(number<kGemm0SingleRepN>{}, number<kSubQKHeaddim>{}), {0, 0});
 
         // S tile in LDS
         SaccDataType* s_lds_ptr = static_cast<SaccDataType*>(smem_ptr);
@@ -232,11 +232,16 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
             v_lds, Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
 
         // Block GEMM
-        constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
-        constexpr auto gemm_1 = Policy::template GetKVBlockGemm<Problem>();
+        constexpr auto gemm_0     = Policy::template GetQKBlockGemmForCompleteNTile<Problem>();
+        constexpr auto gemm_0_rep = Policy::template GetQKBlockGemmForSingleNRep<Problem>();
+        constexpr auto gemm_1     = Policy::template GetKVBlockGemm<Problem>();
 
-        using SaccBlockTileType = decltype(gemm_0.MakeCBlockTile());
-        auto s_acc              = SaccBlockTileType{};
+        using SaccSingleRepBlockTileType = decltype(gemm_0_rep.MakeCBlockTile());
+        using SaccCompleteBlockTileType  = decltype(gemm_0.MakeCBlockTile());
+
+        statically_indexed_array<SaccSingleRepBlockTileType, n0_loops> s_rep_acc_tiles;
+
+        auto s_acc = SaccCompleteBlockTileType{};
 
         // reduction function for softmax
         const auto f_max = [](auto e0, auto e1) { return max(e0, e1); };
@@ -312,27 +317,28 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
             integer_divide_ceil(physical_seqlen_k_end - aligned_physical_seqlen_k_start, kN0);
 
         auto [i_page_block_k, k_dram_block_window] = k_page_block_navigator.make_tile_window(
-            k_dram_block_window_lengths, {aligned_physical_seqlen_k_start, 0});
+            make_tuple(number<kN0>{}, number<kSubQKHeaddim>{}),
+            {aligned_physical_seqlen_k_start, 0});
+
+        auto [_, k_dram_window_tmp] = k_page_block_navigator.make_tile_window(
+            make_tuple(number<kGemm0SingleRepN>{}, number<kSubQKHeaddim>{}),
+            {aligned_physical_seqlen_k_start, 0});
 
         auto k_dram_window = make_tile_window(
-            k_dram_block_window,
+            k_dram_window_tmp,
             Policy::template MakeKDramTileDistribution<Problem>()); // K DRAM tile window for
 
         using k_tile_type = decltype(load_tile(k_dram_window));
 
-        statically_indexed_array<k_tile_type, 2> k_tiles;
+        statically_indexed_array<k_tile_type, n0_loops> k_tiles;
 
         __builtin_amdgcn_sched_barrier(0);
 
         k_tiles[number<0>{}] = load_tile(k_dram_window);
 
-        // moving k_dram_window is an in-page-block operation, so there is
-        // no need to invoke k_page_block_navigator.move_tile_window() here.
-        move_tile_window(k_dram_window, {0, kK0});
-
-        k_tiles[number<1>{}] = load_tile(k_dram_window);
-
-        move_tile_window(k_dram_window, {0, kK0});
+        // move K tile windows
+        i_page_block_k = k_page_block_navigator.move_tile_window(
+            i_page_block_k, k_dram_window, {kGemm0SingleRepN, 0});
 
         __builtin_amdgcn_sched_barrier(0);
 
@@ -376,7 +382,6 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
         do
         {
             // STAGE 1, QK gemm
-            clear_tile(s_acc); // initialize C
 
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
@@ -394,33 +399,49 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
 
             statically_indexed_array<v_tile_type, 2> v_tiles;
 
-            static_for<0, k0_loops, 1>{}(
-                [&, &i_page_block_v_ = i_page_block_v, &v_dram_window_ = v_dram_window](auto i_k0) {
-                    store_tile(k_lds_window,
-                               tile_elementwise_in(k_element_func, k_tiles[number<i_k0 % 2>{}]));
-                    if constexpr(i_k0 < k0_loops - 2)
-                    {
-                        k_tiles[number<(i_k0 + 2) % 2>{}] = load_tile(k_dram_window);
-                        move_tile_window(k_dram_window, {0, kK0});
-                    }
-                    else
-                    {
-                        v_tiles[number<i_k0 - (k0_loops - 2)>{}] = load_tile(v_dram_window_);
+            clear_tile(s_rep_acc_tiles[number<0>{}]);
 
-                        i_page_block_v_ = v_page_block_navigator.move_tile_window(
-                            i_page_block_v_, v_dram_window_, {0, kK1});
-                    }
+            static_for<0, n0_loops, 1>{}([&,
+                                          &i_page_block_k_ = i_page_block_k,
+                                          &i_page_block_v_ = i_page_block_v,
+                                          &v_dram_window_  = v_dram_window](auto i_n0) {
+                store_tile(k_lds_window,
+                           tile_elementwise_in(k_element_func, k_tiles[number<i_n0>{}]));
+                if constexpr(i_n0 < n0_loops - 1)
+                {
+                    k_tiles[number<i_n0 + 1>{}] = load_tile(k_dram_window);
+                    i_page_block_k_             = k_page_block_navigator.move_tile_window(
+                        i_page_block_k_, k_dram_window, {kGemm0SingleRepN, 0});
+                }
+                else
+                {
+                    v_tiles[number<i_n0 - (n0_loops - 1)>{}] = load_tile(v_dram_window_);
 
-                    block_sync_lds();
-                    gemm_0(s_acc,
-                           get_slice_tile(q_tile,
-                                          sequence<0, i_k0 * kK0>{},
-                                          sequence<kM0, (i_k0 + 1) * kK0>{}),
+                    i_page_block_v_ = v_page_block_navigator.move_tile_window(
+                        i_page_block_v_, v_dram_window_, {0, kK1});
+                }
+
+                block_sync_lds();
+
+                gemm_0_rep(s_rep_acc_tiles[number<i_n0>{}],
+                           get_slice_tile(q_tile, sequence<0, 0>{}, sequence<kM0, kSubQKHeaddim>{}),
                            k_lds_window);
 
-                    if constexpr(i_k0 < k0_loops - 1)
-                        block_sync_lds();
-                });
+                set_slice_tile(s_acc,
+                               s_rep_acc_tiles[number<i_n0>{}],
+                               sequence<0, i_n0 * kGemm0SingleRepN>{},
+                               sequence<kM0, (i_n0 + 1) * kGemm0SingleRepN>{});
+
+                if constexpr(i_n0 < n0_loops - 1)
+                {
+                    clear_tile(s_rep_acc_tiles[number<i_n0 + 1>{}]);
+                    block_sync_lds();
+                };
+            });
+
+            v_tiles[number<1>{}] = load_tile(v_dram_window);
+            i_page_block_v =
+                v_page_block_navigator.move_tile_window(i_page_block_v, v_dram_window, {0, kK1});
 
             // STAGE 2, scale_s, add bias, mask, softmax
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
@@ -545,10 +566,6 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                 // move K tile windows
                 i_page_block_k = k_page_block_navigator.move_tile_window(
                     i_page_block_k, k_dram_block_window, {kN0, 0});
-
-                k_dram_window = make_tile_window(
-                    k_dram_block_window,
-                    Policy::template MakeKDramTileDistribution<Problem>()); // K DRAM tile window
             }
 
             __builtin_amdgcn_sched_barrier(0);
@@ -672,37 +689,41 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
             shuffle_tile(v_shuffle_tmp, v_tiles[number<0>{}]);
 
             // STAGE 3, KV gemm
-            static_for<0, k1_loops, 1>{}(
-                [&, &i_page_block_v_ = i_page_block_v, &v_dram_window_ = v_dram_window](auto i_k1) {
-                    store_tile(v_lds_window,
-                               tile_elementwise_in(v_element_func,
-                                                   v_shuffle_tmp)); // store the prefetch
+            static_for<0, k1_loops, 1>{}([&,
+                                          &i_page_block_k_ = i_page_block_k,
+                                          &i_page_block_v_ = i_page_block_v,
+                                          &v_dram_window_  = v_dram_window](auto i_k1) {
+                store_tile(v_lds_window,
+                           tile_elementwise_in(v_element_func,
+                                               v_shuffle_tmp)); // store the prefetch
 
-                    if constexpr(i_k1 < k1_loops - 2)
-                    {
-                        v_tiles[number<(i_k1 + 2) % 2>{}] = load_tile(v_dram_window_);
-                        i_page_block_v_                   = v_page_block_navigator.move_tile_window(
-                            i_page_block_v_, v_dram_window_, {0, kK1});
-                    }
-                    else
-                    {
-                        k_tiles[number<(i_k1 - (k1_loops - 2)) % 2>{}] = load_tile(k_dram_window);
-                        move_tile_window(k_dram_window, {0, kK0});
-                    };
+                if constexpr(i_k1 < k1_loops - 2)
+                {
+                    v_tiles[number<(i_k1 + 2) % 2>{}] = load_tile(v_dram_window_);
+                    i_page_block_v_                   = v_page_block_navigator.move_tile_window(
+                        i_page_block_v_, v_dram_window_, {0, kK1});
+                }
+
+                if constexpr(i_k1 == k1_loops - 2)
+                {
+                    k_tiles[number<0>{}] = load_tile(k_dram_window);
+                    i_page_block_k_      = k_page_block_navigator.move_tile_window(
+                        i_page_block_k_, k_dram_window, {kGemm0SingleRepN, 0});
+                };
+
+                block_sync_lds();
+                gemm_1(
+                    o_acc,
+                    get_slice_tile(p, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}),
+                    v_lds_window);
+
+                if constexpr(i_k1 < k1_loops - 1)
+                {
+                    shuffle_tile(v_shuffle_tmp, v_tiles[number<(i_k1 + 1) % 2>{}]);
 
                     block_sync_lds();
-                    gemm_1(o_acc,
-                           get_slice_tile(
-                               p, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}),
-                           v_lds_window);
-
-                    if constexpr(i_k1 < k1_loops - 1)
-                    {
-                        shuffle_tile(v_shuffle_tmp, v_tiles[number<(i_k1 + 1) % 2>{}]);
-
-                        block_sync_lds();
-                    };
-                });
+                };
+            });
 
             block_sync_lds();
         } while(++i_total_loops < num_total_loop);
