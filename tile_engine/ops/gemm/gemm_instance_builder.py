@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 
 import os
 import json

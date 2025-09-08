@@ -1,5 +1,5 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 # -*- coding: utf-8 -*-
 
@@ -170,11 +170,11 @@ warp_tile_supported_combinations = {
             [16, 16, 128],
             [32, 32, 64],
         ],
-        "fp8_bf8_fp16":  [
+        "fp8_bf8_fp16": [
             [16, 16, 128],
             [32, 32, 64],
         ],
-        "bf8_fp8_fp16":  [
+        "bf8_fp8_fp16": [
             [16, 16, 128],
             [32, 32, 64],
         ],

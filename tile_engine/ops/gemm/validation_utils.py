@@ -1,6 +1,6 @@
 #!/usr/bin/env python
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 """
 Validation utilities for GEMM kernel generation.
