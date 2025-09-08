@@ -179,9 +179,14 @@ warp_tile_supported_combinations = {
             [32, 32, 64],
         ],
     },
+    "gfx1201": {
+        "fp16_fp16_fp16": [
+            [16, 16, 16],
+        ],
+    },
 }
 
-# To Do: remove some unsupported combinations
+# To Do: remove some unsupp£orted combinations
 trait_unsupported_combinations = {
     ("compv3", "cshuffle", "interwave"),
     ("compv3", "default", "interwave"),
