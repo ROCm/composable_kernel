@@ -338,12 +338,10 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
               typename D0GridBuffer,
               typename D0BlockTransfer,
               typename D0ThreadBuffer,
-
               typename D1GridDesc,
               typename D1GridBuffer,
               typename D1BlockTransfer,
-              typename D1ThreadBuffer
->
+              typename D1ThreadBuffer>
     __device__ void Run(const AGridDesc& a_grid_desc,
                         const ABlockDesc& a_block_desc,
                         ABlockTransfer& a_blockwise_copy,

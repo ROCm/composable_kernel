@@ -1706,7 +1706,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             block_2_ctile_map);
     }
 
-      template <typename Block2CTileMap,
+    template <typename Block2CTileMap,
               bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
               TailNumber TailNum = TailNumber::Odd>
@@ -1875,7 +1875,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             KPerBlock);
-            
+
         blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(a_grid_desc_ak0_m_ak1,
                                                                          a_block_desc_ak0_m_ak1,
                                                                          a_blockwise_copy,
@@ -1930,8 +1930,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                 c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
             constexpr auto c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2 = transform_tensor_descriptor(
-                c_shuffle_block_desc_mblock_mperblock_nblock_nperblock, // old_tensor_desc
-                make_tuple(                                             // new_transforms
+                c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
+                make_tuple(
                     make_freeze_transform(I0),
                     make_unmerge_transform(make_tuple(
                         Number<CShuffleMXdlPerWavePerShuffle>{}, // M0 (MXdlPerWave) per shuffle
@@ -2034,7 +2034,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                 c_grid_desc_mblock_mperblock_nblock_nperblock;
 
             using CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock =
-                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
+                  CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
             using EDataType = CDataType;
             auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v6r4<
@@ -2083,10 +2083,9 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
 
             // space filling curve for shuffled blockwise C/D/E
             constexpr auto sfc_cde_block =
-                SpaceFillingCurve<Sequence<1, MPerBlock, 1, NPerBlock>, // TensorLengths 1, 64, 1, 64
-                                                                        // 64
-                                  Sequence<0, 2, 1, 3>,                 // DimAccessOrder
-                                  Sequence<1, // ScalarsPerAccess 1, 32, 1, 64
+                SpaceFillingCurve<Sequence<1, MPerBlock, 1, NPerBlock>,
+                                  Sequence<0, 2, 1, 3>,
+                                  Sequence<1,
                                            CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
                                            1,
                                            CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>>{};
@@ -2096,27 +2095,26 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                 // make sure it's safe to write to LDS
                 block_sync_lds();
 
-                // each block copy its data from LDS to global
                 // each thread write its data from VGPR to LDS
                 c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                                               sfc_c_vgpr.GetIndexTupleOfNumber(access_id),
                                               c_thread_buf,
                                               c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                                               c_shuffle_block_buf);
+
                 // make sure it's safe to read from LDS
                 block_sync_lds();
+
+                // each block copy its data from LDS to global
                 cde_block_copy_lds_and_global.Run(
                     c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
                     c_shuffle_block_buf,
-
                     D0BlockTransfer::d_buff_desc,
                     make_tuple(I0, I0, I0, I0),
                     d0_thread_buf,
-
                     D1BlockTransfer::d_buff_desc,
                     make_tuple(I0, access_id, I0, I0),
                     d1_thread_buf,
-
                     e_grid_desc_mblock_mperblock_nblock_nperblock,
                     c_grid_buf);
                 if constexpr(access_id < num_access - 1)
