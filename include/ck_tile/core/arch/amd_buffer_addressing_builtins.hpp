@@ -1451,66 +1451,18 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
                                                    src_wave_addr_offset,
                                                    static_cast<index_t>(coherence)));
         }
-        else if constexpr(N == 8)
-        {
-            // use fp32 load to mimic fp16 load
-            fp32x4_t tmp = llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
-                                                              src_thread_addr_offset,
-                                                              src_wave_addr_offset,
-                                                              static_cast<index_t>(coherence));
+        else {
+            // N >= 8: build from fp32x4 chunks
+            thread_buffer<float, N> tmp;
 
-            return bit_cast<rtn_type>(tmp);
-        }
-        else if constexpr(N == 16)
-        {
-
-            // use fp32 load to mimic fp16 load
-            thread_buffer<float, 8> tmp;
-
-            tmp.template get_as<fp32x4_t>()(number<0>{}) =
-                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
-                                                   src_thread_addr_offset,
-                                                   src_wave_addr_offset,
-                                                   static_cast<index_t>(coherence));
-
-            tmp.template get_as<fp32x4_t>()(number<1>{}) =
-                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
-                                                   src_thread_addr_offset,
-                                                   src_wave_addr_offset + 4 * sizeof(float),
-                                                   static_cast<index_t>(coherence));
-
-            return bit_cast<rtn_type>(tmp);
-        }
-        else if constexpr(N == 32)
-        {
-
-            // use fp32 load to mimic fp16 load
-            thread_buffer<float, 16> tmp;
-
-            tmp.template get_as<fp32x4_t>()(number<0>{}) =
-                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
-                                                   src_thread_addr_offset,
-                                                   src_wave_addr_offset,
-                                                   static_cast<index_t>(coherence));
-
-            tmp.template get_as<fp32x4_t>()(number<1>{}) =
-                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
-                                                   src_thread_addr_offset,
-                                                   src_wave_addr_offset + 4 * sizeof(float),
-                                                   static_cast<index_t>(coherence));
-
-            tmp.template get_as<fp32x4_t>()(number<2>{}) =
-                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
-                                                   src_thread_addr_offset,
-                                                   src_wave_addr_offset + 8 * sizeof(float),
-                                                   static_cast<index_t>(coherence));
-
-            tmp.template get_as<fp32x4_t>()(number<3>{}) =
-                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
-                                                   src_thread_addr_offset,
-                                                   src_wave_addr_offset + 12 * sizeof(float),
-                                                   static_cast<index_t>(coherence));
-
+            static_for<0, (N / 4), 1>{}([&](auto i) {
+                constexpr index_t chunk = i;
+                tmp.template get_as<fp32x4_t>()(i) =
+                    llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
+                                                    src_thread_addr_offset,
+                                                    src_wave_addr_offset + (chunk * 4) * sizeof(float),
+                                                    static_cast<index_t>(coherence));
+            });
             return bit_cast<rtn_type>(tmp);
         }
     }
