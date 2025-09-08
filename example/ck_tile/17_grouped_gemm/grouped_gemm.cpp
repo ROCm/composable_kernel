@@ -321,6 +321,36 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
         throw std::runtime_error("Unsupported data layout configuration for A and B tensors!");
     }
 }
+
+template <template <typename PrecType> typename GemmConfig>
+int run_grouped_gemm_example(int argc, char* argv[])
+{
+    auto [result, arg_parser] = create_args(argc, argv);
+    if(!result)
+    {
+        return -1;
+    }
+
+    const std::string a_layout  = arg_parser.get_str("a_layout");
+    const std::string b_layout  = arg_parser.get_str("b_layout");
+    const std::string data_type = arg_parser.get_str("prec");
+
+    if(data_type == "fp16")
+    {
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::half_t>(
+            a_layout, b_layout, argc, argv);
+    }
+    else if(data_type == "fp8")
+    {
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>, ck_tile::fp8_t>(
+            a_layout, b_layout, argc, argv);
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data type configuration.");
+    }
+}
+
 int main(int argc, char* argv[])
 {
     return !run_grouped_gemm_example<GemmConfigComputeV4>(argc, argv);

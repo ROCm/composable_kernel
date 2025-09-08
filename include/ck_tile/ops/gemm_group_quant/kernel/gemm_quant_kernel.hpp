@@ -769,12 +769,11 @@ struct QuantGemmKernel
     CK_TILE_DEVICE static auto
     MakeGemmTileWindows(const PadView& views, const index_t i_m, const index_t i_n)
     {
-        const auto& a_pad_view  = views.at(I0);
-        const auto& aq_pad_view = views.at(I1);
-        const auto& b_pad_view  = views.at(I2);
-        const auto& bq_pad_view = views.at(I3);
-        const auto& c_pad_view  = views.at(I4);
-
+        const auto& a_pad_view     = views.at(I0);
+        const auto& aq_pad_view    = views.at(I1);
+        const auto& b_pad_view     = views.at(I2);
+        const auto& bq_pad_view    = views.at(I3);
+        const auto& c_pad_view     = views.at(I4);
         const auto& a_block_window = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
             {
