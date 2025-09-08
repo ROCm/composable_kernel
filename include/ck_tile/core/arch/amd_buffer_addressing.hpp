@@ -1276,26 +1276,46 @@ llvm_amdgcn_raw_buffer_load_lds(int32x4_t rsrc,
                                 index_t offset,
                                 index_t aux) __asm("llvm.amdgcn.raw.buffer.load.lds");
 
-template <bool pre_nop = false>
-CK_TILE_DEVICE void async_buffer_load_dword_v(void* smem,
-                                              int32x4_t rsrc,
-                                              index_t voffset,
-                                              index_t /*soffset*/,
-                                              index_t ioffset /*max 0xFFF*/,
-                                              index_t /*flag*/       = 0,
-                                              bool_constant<pre_nop> = {})
+template <unsigned num_dwords, bool pre_nop = false>
+CK_TILE_DEVICE void async_buffer_load_dwordxn_v(void* smem,
+                                                int32x4_t rsrc,
+                                                index_t voffset,
+                                                index_t /*soffset*/,
+                                                index_t ioffset /*max 0xFFF*/,
+                                                index_t /*flag*/       = 0,
+                                                bool_constant<pre_nop> = {})
 {
-    if constexpr(pre_nop)
-        asm volatile("s_nop 4\n"
-                     "buffer_load_dword %1, %2, 0 offen offset:%3 lds"
-                     : "=r"(smem) /*dummy dependency for smem*/
-                     : "v"(voffset), "s"(rsrc), "n"(ioffset)
+#define CK_TILE_ASYNC_LOAD_WITH_INSTR(instr)                            \
+    if constexpr(pre_nop)                                               \
+        asm volatile("s_nop 4\n" instr " %1, %2, 0 offen offset:%3 lds" \
+                     : "=r"(smem) /*dummy dependency for smem*/         \
+                     : "v"(voffset), "s"(rsrc), "n"(ioffset)            \
+                     : "memory");                                       \
+    else                                                                \
+        asm volatile(instr " %1, %2, 0 offen offset:%3 lds"             \
+                     : "=r"(smem) /*dummy dependency for smem*/         \
+                     : "v"(voffset), "s"(rsrc), "n"(ioffset)            \
                      : "memory");
+
+    if constexpr(num_dwords == 1)
+    {
+        CK_TILE_ASYNC_LOAD_WITH_INSTR("buffer_load_dword");
+    }
+#if defined(__gfx950__)
+    else if constexpr(num_dwords == 3)
+    {
+        CK_TILE_ASYNC_LOAD_WITH_INSTR("buffer_load_dwordx3");
+    }
+    else if constexpr(num_dwords == 4)
+    {
+        CK_TILE_ASYNC_LOAD_WITH_INSTR("buffer_load_dwordx4");
+    }
+#endif
     else
-        asm volatile("buffer_load_dword %1, %2, 0 offen offset:%3 lds"
-                     : "=r"(smem) /*dummy dependency for smem*/
-                     : "v"(voffset), "s"(rsrc), "n"(ioffset)
-                     : "memory");
+    {
+        static_assert(false, "wrong! not implemented data width");
+    }
+#undef CK_TILE_ASYNC_LOAD_WITH_INSTR
 }
 
 CK_TILE_DEVICE void async_buffer_load_fence(index_t cnt = 0)
@@ -1766,15 +1786,18 @@ CK_TILE_DEVICE void amd_async_buffer_load_impl(CK_TILE_LDS_ADDR T* smem,
                                                index_t src_immediate_addr_offset = 0,
                                                bool_constant<pre_nop>            = {})
 {
-    static_assert(sizeof(T) * N == 4, "wrong! not implemented vector size");
+    constexpr index_t num_bytes = sizeof(T) * N;
+    constexpr index_t num_words = num_bytes / 4;
+    static_assert(num_bytes % 4 == 0 && (num_words == 1 || num_words == 3 || num_words == 4),
+                  "wrong! only support in dword, dwordx3, dwordx4");
 
-    async_buffer_load_dword_v(smem,
-                              src_wave_buffer_resource,
-                              src_thread_addr_offset,
-                              src_wave_addr_offset,
-                              src_immediate_addr_offset,
-                              0,
-                              bool_constant<pre_nop>{});
+    async_buffer_load_dwordxn_v<num_words>(smem,
+                                           src_wave_buffer_resource,
+                                           src_thread_addr_offset,
+                                           src_wave_addr_offset,
+                                           src_immediate_addr_offset,
+                                           0,
+                                           bool_constant<pre_nop>{});
 }
 
 template <typename T,
@@ -1810,14 +1833,17 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
     if constexpr(oob_conditional_check)
         v_offset = flag ? v_offset : src_wave_buffer_resource[2];
 
-    llvm_amdgcn_raw_buffer_load_lds(
-        src_wave_buffer_resource,
-        reinterpret_cast<as3_uint32_ptr>(reinterpret_cast<uintptr_t>(smem)),
-        bytes,
-        v_offset,
-        src_wave_addr_offset,
-        /*src_immediate_addr_offset*/ 0,
-        static_cast<index_t>(coherence));
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wold-style-cast"
+    // Use C-style cast to change address space without dropping llvm noalias attribute
+    llvm_amdgcn_raw_buffer_load_lds(src_wave_buffer_resource,
+                                    (as3_uint32_ptr)(smem),
+                                    bytes,
+                                    v_offset,
+                                    src_wave_addr_offset,
+                                    /*src_immediate_addr_offset*/ 0,
+                                    static_cast<index_t>(coherence));
+#pragma clang diagnostic pop
 }
 
 template <index_t N,
@@ -2765,23 +2791,26 @@ CK_TILE_DEVICE void amd_buffer_atomic_max(const thread_buffer<T, N>& src_thread_
 template <typename T, index_t N, address_space_enum BufferAddressSpace>
 __device__ auto amd_transpose_load_to_vgpr(const T* __restrict__ in_ptr)
 {
+#define __LDS_ADDR __attribute__((address_space(3)))
 
     static_assert(__has_builtin(__builtin_amdgcn_raw_buffer_load_b32),
                   "We need to have the compatible compiler version to build this instruction");
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wold-style-cast"
+    // Use C-style cast to change address space without dropping llvm noalias attribute
+    const auto in_ptr_ = (__LDS_ADDR T*)(const_cast<T*>(in_ptr));
+#pragma clang diagnostic pop
     if constexpr(std::is_same_v<remove_cvref_t<T>, ck_tile::half_t>)
     {
         typedef __attribute__((__vector_size__(4 * sizeof(__fp16)))) __fp16 llvm_fp16x4_t;
-        __attribute__((address_space(3))) llvm_fp16x4_t* lds_ptr =
-            reinterpret_cast<__attribute__((address_space(3))) llvm_fp16x4_t*>(
-                reinterpret_cast<uintptr_t>(in_ptr));
+        auto lds_ptr = reinterpret_cast<__LDS_ADDR llvm_fp16x4_t*>(in_ptr_);
         return bit_cast<thread_buffer<T, N>>(__builtin_amdgcn_ds_read_tr16_b64_v4f16(lds_ptr));
     }
     else if constexpr(std::is_same_v<remove_cvref_t<T>, ck_tile::bf16_t>)
     {
         typedef __attribute__((__vector_size__(4 * sizeof(__bf16)))) __bf16 llvm_bf16x4_t;
-        __attribute__((address_space(3))) llvm_bf16x4_t* lds_ptr =
-            reinterpret_cast<__attribute__((address_space(3))) llvm_bf16x4_t*>(
-                reinterpret_cast<uintptr_t>(in_ptr));
+        auto lds_ptr = reinterpret_cast<__LDS_ADDR llvm_bf16x4_t*>(in_ptr_);
         return bit_cast<thread_buffer<T, N>>(__builtin_amdgcn_ds_read_tr16_b64_v4bf16(lds_ptr));
     }
     else if constexpr(std::is_same_v<remove_cvref_t<T>, ck_tile::fp8_t> ||
@@ -2789,15 +2818,14 @@ __device__ auto amd_transpose_load_to_vgpr(const T* __restrict__ in_ptr)
                       std::is_same_v<remove_cvref_t<T>, ck_tile::int8_t>)
     {
         typedef __attribute__((__vector_size__(2 * sizeof(index_t)))) index_t llvm_i32x2_t;
-        __attribute__((address_space(3))) llvm_i32x2_t* lds_ptr =
-            reinterpret_cast<__attribute__((address_space(3))) llvm_i32x2_t*>(
-                reinterpret_cast<uintptr_t>(in_ptr));
+        auto lds_ptr = reinterpret_cast<__LDS_ADDR llvm_i32x2_t*>(in_ptr_);
         return bit_cast<thread_buffer<T, N>>(__builtin_amdgcn_ds_read_tr8_b64_v2i32(lds_ptr));
     }
     else
     {
         static_assert(false, "not implemented");
     }
+#undef __LDS_ADDR
 }
 #endif
 

@@ -649,8 +649,12 @@ struct FmhaFwdAppendKVKernel
                              {0, i_n0});
 
         // If kApplyRoPe is false, we set the rotary_dim to 0
-        auto rotary_dim = kApplyRoPE ? kargs.rotary_dim : 0;
-
+        auto rotary_dim = [&]() {
+            if constexpr(kApplyRoPE)
+                return kargs.rotary_dim;
+            else
+                return 0;
+        }();
         FmhaPipeline{}(q_dram_window,
                        k_dram_window,
                        i_page_block_k,

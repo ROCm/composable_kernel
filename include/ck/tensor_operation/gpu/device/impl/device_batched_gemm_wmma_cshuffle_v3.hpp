@@ -40,7 +40,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #if(defined(__gfx11__) || defined(__gfx12__))
 #if defined(__gfx11__)
     // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
-    using c_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_c_grid)>>;
+    using c_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_e_grid)>>;
     if constexpr(!(CGlobalMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd &&
                    (std::is_same_v<c_data_type, ck::half_t> ||
                     std::is_same_v<c_data_type, ck::bhalf_t>)))
@@ -62,14 +62,18 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-        auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
+        auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
         GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
             karg.p_a_grid + splitk_batch_offset.a_k_split_offset + a_batch_offset,
             karg.p_b_grid + splitk_batch_offset.b_k_split_offset + b_batch_offset,
-            karg.p_c_grid + splitk_batch_offset.c_reduce_offset + c_batch_offset,
+            karg.p_ds_grid,
+            karg.p_e_grid + splitk_batch_offset.c_reduce_offset + c_batch_offset,
             p_shared,
-            karg);
+            karg,
+            karg.a_element_op,
+            karg.b_element_op,
+            karg.cde_element_op);
 #if defined(__gfx11__)
     }
 #endif
@@ -272,11 +276,13 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
     using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3<
         ALayout,
         BLayout,
+        Tuple<>, // DsLayout
         CLayout,
         ADataType,
         BDataType,
         AccDataType,
         CShuffleDataType,
+        Tuple<>, // DsDataType
         CDataType,
         AElementwiseOperation,
         BElementwiseOperation,
@@ -311,7 +317,7 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
         CShuffleMRepeatPerShuffle,
         CShuffleNRepeatPerShuffle,
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        CShuffleBlockTransferScalarPerVector_NPerBlock,
+        Sequence<CShuffleBlockTransferScalarPerVector_NPerBlock>,
         BlkGemmPipeSched,
         BlkGemmPipelineVer,
         ComputeTypeA,
@@ -336,17 +342,25 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                           index_t BatchStrideC_,
                           index_t Batch_,
                           index_t k_batch_,
+                          AElementwiseOperation a_element_op_,
+                          BElementwiseOperation b_element_op_,
+                          CElementwiseOperation cde_element_op_,
                           bool is_reduce_ = false)
             : GridwiseGemm::Argument(p_a_grid_,
                                      p_b_grid_,
+                                     std::array<const void*, 0>{}, // p_ds_grid_
                                      p_c_grid_,
                                      M_,
                                      N_,
                                      K_,
                                      StrideA_,
                                      StrideB_,
+                                     std::array<index_t, 0>{}, // StrideDs_
                                      StrideC_,
                                      k_batch_,
+                                     a_element_op_,
+                                     b_element_op_,
+                                     cde_element_op_,
                                      is_reduce_),
               Batch(Batch_),
               compute_ptr_offset_of_batch{BatchStrideA_, BatchStrideB_, BatchStrideC_}
@@ -443,7 +457,7 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                             // Note: This seems incorrect for non-contiguous memory layouts for C
                             // (padding, gaps).
                             HIP_CHECK_ERROR(
-                                hipMemsetAsync(arg_.p_c_grid,
+                                hipMemsetAsync(arg_.p_e_grid,
                                                0,
                                                arg_.Batch * arg_.M * arg_.N * sizeof(CDataType),
                                                stream_config.stream_id_));
@@ -469,7 +483,7 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                             // Note: This seems incorrect for non-contiguous memory layouts for C
                             // (padding, gaps).
                             HIP_CHECK_ERROR(
-                                hipMemsetAsync(arg.p_c_grid,
+                                hipMemsetAsync(arg.p_e_grid,
                                                0,
                                                arg.Batch * arg.M * arg.N * sizeof(CDataType),
                                                stream_config.stream_id_));
@@ -658,7 +672,10 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                         BatchStrideB,
                         BatchStrideC,
                         Batch,
-                        1 /* KBatch */};
+                        1, /* KBatch */
+                        AElementwiseOperation{},
+                        BElementwiseOperation{},
+                        CElementwiseOperation{}};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -694,7 +711,10 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                                           BatchStrideB,
                                           BatchStrideC,
                                           Batch,
-                                          1); // KBatch
+                                          1,
+                                          AElementwiseOperation{},
+                                          BElementwiseOperation{},
+                                          CElementwiseOperation{}); // KBatch
     }
 
     // polymorphic
