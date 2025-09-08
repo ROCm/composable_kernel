@@ -9,9 +9,9 @@ repos:
     -   id: copyright-year-checker
         name: copyright-year-checker
         entry: script/check_copyright_year.sh
-        verbose: false
+        verbose: true
         language: script
-        types: [c++, inc, python]
+        types_or: [c++, inc, python]
     -   id: remove-exec-bit
         name: Remove executable bit from non-executable files
         entry: script/remove_exec_bit.sh
