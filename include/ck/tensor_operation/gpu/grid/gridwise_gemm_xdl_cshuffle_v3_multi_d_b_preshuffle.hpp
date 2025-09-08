@@ -16,7 +16,6 @@
 
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v7r3.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r4.hpp"
-#include "ck/utility/ignore.hpp"
 
 #define DEBUG_LOG 0
 
@@ -154,8 +153,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
     static constexpr auto I5 = Number<5>{};
     static constexpr auto I6 = Number<6>{};
     static constexpr auto I7 = Number<7>{};
-    static constexpr auto I8 = Number<8>{};
-    static constexpr auto I16 = Number<16>{};
 
     static constexpr auto CShuffleBlockTransferScalarPerVector_NPerBlock =
         CDEShuffleBlockTransferScalarPerVectors{}[I0];
@@ -167,12 +164,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
     static constexpr auto BlockSizeNumber = Number<BlockSize>{};
 
     static constexpr index_t NumDTensor = DsDataType::Size();
-    static constexpr auto DsBufferTransferScalarPerVectors = 
-                                generate_tuple(
-                                    [](auto i) {
-                                        return CDEShuffleBlockTransferScalarPerVectors{}[I1 + i];
-                                    },
-                                    Number<NumDTensor>{});
 
     static constexpr auto lcm_AK1_BK1 = math::lcm(AK1Number, BK1Number);
     static constexpr bool is_single_rate_mfma =
@@ -225,13 +216,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
 
     __host__ static auto CalculateGridSize(index_t M, index_t N, index_t KBatch)
     {
-#if 1
         return std::make_tuple(Block2CTileMapDefault::CalculateGridSize(M, N), 1, KBatch);
-#else
-        ignore = M;
-        ignore = N;
-        return std::make_tuple(Block2CTileMapDefault::CalculateGridSize(1, 1), 1, KBatch);
-#endif
     }
 
     __host__ __device__ static auto CalculateMPadded(index_t M)
@@ -582,36 +567,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             Number<NumDTensor>{});
     }
 
-    template <typename CShullfeThreadSliceLengths>
-    __device__ static constexpr auto MakeDsBufferDescriptor(
-        const CShullfeThreadSliceLengths&)
-    {
-        constexpr auto slice_lenghts = CShullfeThreadSliceLengths{};
-
-        return generate_tuple(
-            [&](auto i) {
-                using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
-                if constexpr(is_same<tensor_layout::gemm::RowMajor, DLayout>::value)
-                {
-                   return make_naive_tensor_descriptor_packed(
-                    make_tuple(I1, 
-                               Number<slice_lenghts[I3] / DsBufferTransferScalarPerVectors[i]>{}, 
-                               I1, 
-                               Number<slice_lenghts[I3]>{}
-                            ));
-                }
-                else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, DLayout>::value)
-                {
-                    return make_naive_tensor_descriptor_packed(
-                        make_tuple(I1,
-                                   Number<BlockSize / slice_lenghts[I1]>{},
-                                   I1,
-                                   I1));
-                }
-            },
-            Number<NumDTensor>{});
-    }
-
     using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N(0, 0, 0, 0, {}))>;
 
     template <index_t idx,
@@ -630,6 +585,12 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                                         1,
                                         CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>{}
                                 / CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock{};
+        static constexpr auto DsBufferTransferScalarPerVectors = 
+                                generate_tuple(
+                                    [](auto i) {
+                                        return CDEShuffleBlockTransferScalarPerVectors{}[I1 + i];
+                                    },
+                                    Number<NumDTensor>{});
 
          __device__ static constexpr auto GetBuffSize()
         {

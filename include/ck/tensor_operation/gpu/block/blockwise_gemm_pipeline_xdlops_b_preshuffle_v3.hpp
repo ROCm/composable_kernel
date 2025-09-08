@@ -361,12 +361,10 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                         const D0GridBuffer& d0_grid_buf,
                         D0BlockTransfer&    d0_blockwise_copy,
                         D0ThreadBuffer&     d0_thread_buf,
-
                         const D1GridDesc&   d1_grid_desc,
                         const D1GridBuffer& d1_grid_buf,
                         D1BlockTransfer&    d1_blockwise_copy,
-                        D1ThreadBuffer&     d1_thread_buf
-                    ) const
+                        D1ThreadBuffer&     d1_thread_buf) const
     {
         ignore = b_block_buf;
         __builtin_amdgcn_sched_barrier(0);
