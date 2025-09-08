@@ -1,3 +1,5 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
 
 EXE=build/bin/tile_example_moe_smoothquant
 
