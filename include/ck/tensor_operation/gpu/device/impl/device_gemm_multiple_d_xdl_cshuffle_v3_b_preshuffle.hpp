@@ -324,6 +324,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                             Run(kernel);
                         }
                     }
+                    else
                     {
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                         {
@@ -336,6 +337,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                                     TailNumber::Odd>;
                             Run(kernel);
                         }
+                        else
                         {
                             const auto kernel =
                                 kernel_gemm_xdl_cshuffle_v3_multi_d_b_preshuffle_2lds<
@@ -353,10 +355,12 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                     throw std::runtime_error("todo: only v1 v2 and v3 support now");
                 }
             }
+#if 0
             else
             {
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
+#if 0
                     if(arg.KBatch > 1)
                     {
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
@@ -403,6 +407,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                             Run(kernel);
                         }
                     }
+#endif
                     if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                     {
                         const auto kernel = kernel_gemm_xdl_cshuffle_v3_multi_d_b_preshuffle<
@@ -482,7 +487,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                     throw std::runtime_error("todo: only v3 support now");
                 }
             }
-
+#endif
             return ave_time;
         }
 
