@@ -218,7 +218,9 @@ struct Block_quant_UniversalGemmKernel
     using ScaleDataType = remove_cvref_t<typename GemmPipeline::ScaleDataType>;
     using CDataType     = remove_cvref_t<typename GemmPipeline::CDataType>;
 
-    static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
+    static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
+    static constexpr index_t ScaleBlockSize = GemmPipeline::ScaleBlockSize;
+
     // Get the persistent kernel if the pipeline has it available
     struct has_persistent_kernel
     {
@@ -281,15 +283,26 @@ struct Block_quant_UniversalGemmKernel
     CK_TILE_HOST static auto MaxOccupancyGridSize(const stream_config& s) -> dim3
     {
         using Kernel      = Block_quant_UniversalGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline>;
-        const auto kernel = kentry<KernelBlockSize, 1, Kernel, KernelArgs>;
+        const auto kernel = kentry<1, Kernel, KernelArgs>;
         int occupancy;
         hip_check_error(
-            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, KernelBlockSize, 0));
+            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize().x, 0));
+
         const int grid_size = get_available_compute_units(s) * occupancy;
         return dim3(grid_size, 1, 1);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
+    CK_TILE_HOST static auto BlockSize()
+    {
+        if(ck_tile::is_wave32())
+        {
+            return dim3(kBlockSize / 2);
+        }
+        else
+        {
+            return dim3(kBlockSize);
+        }
+    }
 
     CK_TILE_HOST static constexpr KernelArgs
     MakeKernelArgs(const Block_quant_UniversalGemmHostArgs<NumATensor, NumBTensor, NumDTensor>& hostArgs)
@@ -876,7 +889,7 @@ struct Block_quant_UniversalGemmKernel
             if constexpr(std::is_same_v<AsLayout, tensor_layout::gemm::RowMajor>)
             {
                 return pad_tensor_view(b_scale_tensor_view,
-                                       make_tuple(number<TilePartitioner::KPerBlock>{},
+                                       make_tuple(number<(TilePartitioner::KPerBlock + ScaleBlockSize -1) / ScaleBlockSize>{},
                                                   number<TilePartitioner::NPerBlock>{}),
                                        sequence<false, false>{});
             }
@@ -884,7 +897,7 @@ struct Block_quant_UniversalGemmKernel
             {
                 return pad_tensor_view(b_scale_tensor_view,
                                        make_tuple(number<TilePartitioner::NPerBlock>{},
-                                                  number<TilePartitioner::KPerBlock>{}),
+                                                  number<(TilePartitioner::KPerBlock + ScaleBlockSize -1) / ScaleBlockSize>{}),
                                        sequence<false, false>{});
             }
         }();
@@ -999,7 +1012,7 @@ struct Block_quant_UniversalGemmKernel
             if constexpr(std::is_same_v<AsLayout, tensor_layout::gemm::RowMajor>)
             {
                 return make_tile_window(b_scale_pad_view,
-                                        make_tuple(number<1>{},
+                                        make_tuple(number<(TilePartitioner::KPerBlock + ScaleBlockSize -1) / ScaleBlockSize>{},
                                                    number<TilePartitioner::NPerBlock>{}),
                                         {0, i_n});
             }
@@ -1007,7 +1020,7 @@ struct Block_quant_UniversalGemmKernel
             {
                 return make_tile_window(b_scale_pad_view,
                                         make_tuple(number<TilePartitioner::NPerBlock>{},
-                                                   number<1>{}),
+                                                   number<(TilePartitioner::KPerBlock + ScaleBlockSize -1) / ScaleBlockSize>{}),
                                         {i_n, 0});
             }
         }();
