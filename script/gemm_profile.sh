@@ -36,8 +36,13 @@ ARGS_LIST=(
   "14 5120 1024"
   "15 2048 5120"
   "15 5120 1024"
+  "16 64 128"
+  "16 64 256"
   "16 2048 5120"
   "16 5120 1024"
+  "512 768 640"
+  "1024 1792 896"
+  "1536 2816 1152"
   "2048 5120 1024"
   "2048 5120 8192"
   "2048 7168 8192"
@@ -68,8 +73,8 @@ for args in "${ARGS_LIST[@]}"; do
   PERF_LINE=$(echo "$OUTPUT" | grep "TFlops")
 
   # Extract verification result
-  # Format: "The GPU verification result is: correct"
-  VERIFICATION=$(echo "$OUTPUT" | grep "The GPU verification result is:" | sed -n 's/.*The GPU verification result is: \(.*\)/\1/p')
+  # Format: "The GPU verification result is:correct" (note: no space after colon)
+  VERIFICATION=$(echo "$OUTPUT" | grep "The GPU verification result is:" | sed -n 's/.*The GPU verification result is:\(.*\)/\1/p')
 
   if [ -n "$PERF_LINE" ]; then
     # Extract execution time in ms
@@ -89,6 +94,7 @@ for args in "${ARGS_LIST[@]}"; do
     echo "  Time: ${TIME_MS} ms"
     echo "  TFlops: ${TFLOPS}"
     echo "  GB/s: ${GBPS}"
+    echo "  Verification: ${VERIFICATION:-N/A}"
 
     
     # Save to CSV file
