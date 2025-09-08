@@ -2,7 +2,6 @@
 # Copyright © Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
-
 # Get list of staged files
 STAGED_FILES=$(git diff --cached --name-only)
 

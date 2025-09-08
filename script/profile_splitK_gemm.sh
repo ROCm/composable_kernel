@@ -2,7 +2,6 @@
 # Copyright © Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
-
 ## GPU visibility
 export HIP_VISIBLE_DEVICES=0
 DRIVER="../build/bin/ckProfiler"
