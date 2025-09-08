@@ -17,18 +17,19 @@ namespace ck_tile {
  * @tparam BlockWaves Number of waves along seq<M, N>
  * @tparam BlockTile Block size, seq<M, N>
  * @tparam WaveTile Wave size, seq<M, N>
- * @tparam Vector Contiguous elements (vector size) along seq<M, N>
+ * @tparam ThreadTile Contiguous elements per thread along seq<M, N>
  */
-template <typename BlockWaves, typename BlockTile, typename WaveTile, typename Vector>
+template <typename BlockWaves, typename BlockTile, typename WaveTile, typename ThreadTile>
 struct TileCopyShape
 {
-    // Vector dimensions for memory operations
-    static constexpr index_t Vector_M = Vector::at(number<0>{});
-    static constexpr index_t Vector_N = Vector::at(number<1>{});
+    // ThreadTile dimensions for memory operations
+    static constexpr index_t ThreadTile_M = ThreadTile::at(number<0>{});
+    static constexpr index_t ThreadTile_N = ThreadTile::at(number<1>{});
 
     // Wave tile dimensions
-    static constexpr index_t Wave_Tile_M = WaveTile::at(number<0>{});
+    static constexpr index_t WaveSize    = get_warp_size();
     static constexpr index_t Wave_Tile_N = WaveTile::at(number<1>{});
+    static constexpr index_t Wave_Tile_M = ThreadTile_M * ThreadTile_N * WaveSize / Wave_Tile_N;
 
     // Block tile dimensions
     static constexpr index_t Block_Tile_M = BlockTile::at(number<0>{});
@@ -45,13 +46,12 @@ struct TileCopyShape
         Block_Tile_N / (Waves_Per_Block_N * Wave_Tile_N);
 
     // Hardware configuration
-    static constexpr index_t WaveSize  = get_warp_size();
     static constexpr index_t BlockSize = Waves_Per_Block_M * Waves_Per_Block_N * WaveSize;
 
     // Configuration validation
     static_assert(Block_Tile_M > 0 && Block_Tile_N > 0, "Block tile dimensions must be positive");
     static_assert(Wave_Tile_M > 0 && Wave_Tile_N > 0, "Wave tile dimensions must be positive");
-    static_assert(Vector_M > 0 && Vector_N > 0, "Vector dimensions must be positive");
+    static_assert(ThreadTile_M > 0 && ThreadTile_N > 0, "ThreadTile dimensions must be positive");
     static_assert(Waves_Per_Block_M > 0 && Waves_Per_Block_N > 0,
                   "Waves per block must be positive");
     static_assert(Waves_Per_Block_M * Wave_Tile_M > 0,
@@ -60,8 +60,10 @@ struct TileCopyShape
                   "Invalid wave configuration for N dimension");
 
     // Ensure wave tile dimensions align with wave size
-    static_assert(Wave_Tile_M / Vector_M * Wave_Tile_N / Vector_N == WaveSize,
-                  "(Wave_Tile_M/Vector_M) * (Wave_Tile_N/Vector_N) != WaveSize");
+#if defined(__HIP_DEVICE_COMPILE__)
+    static_assert(Wave_Tile_M / ThreadTile_M * Wave_Tile_N / ThreadTile_N == WaveSize,
+                  "(Wave_Tile_M/ThreadTile_M) * (Wave_Tile_N/ThreadTile_N) != WaveSize");
+#endif
 };
 
 /**
@@ -95,7 +97,7 @@ struct TileCopyPolicy
         constexpr index_t block_size = S::BlockSize;
 
         // Distribution calculation to ensure all threads participate
-        constexpr index_t N1 = S::Vector_N;          // Elements per thread along N
+        constexpr index_t N1 = S::ThreadTile_N;      // Elements per thread along N
         constexpr index_t N0 = S::Block_Tile_N / N1; // Threads needed along N
 
         constexpr index_t M2 = wave_size / N0;              // Threads per wave along M
@@ -143,23 +145,21 @@ struct TileCopyKernel
 
         // Create tensor views for input and output
         const auto x_m_n = make_naive_tensor_view<address_space_enum::global>(
-            p_x, make_tuple(M, N), make_tuple(N, 1), number<S::Vector_N>{}, number<1>{});
+            p_x, make_tuple(M, N), make_tuple(N, 1), number<S::ThreadTile_N>{}, number<1>{});
 
         const auto y_m_n = make_naive_tensor_view<address_space_enum::global>(
-            p_y, make_tuple(M, N), make_tuple(N, 1), number<S::Vector_N>{}, number<1>{});
+            p_y, make_tuple(M, N), make_tuple(N, 1), number<S::ThreadTile_N>{}, number<1>{});
 
         // Create tile windows with DRAM distribution
-        auto x_window =
-            make_tile_window(x_m_n,
-                             make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                             {tile_block_origin_m, 0},
-                             Policy::template MakeDRAMDistribution<Problem>());
+        auto x_window = make_tile_window(x_m_n,
+                                         make_tuple(S::Block_Tile_M, S::Block_Tile_N),
+                                         {tile_block_origin_m, 0},
+                                         Policy::template MakeDRAMDistribution<Problem>());
 
-        auto y_window =
-            make_tile_window(y_m_n,
-                             make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                             {tile_block_origin_m, 0},
-                             Policy::template MakeDRAMDistribution<Problem>());
+        auto y_window = make_tile_window(y_m_n,
+                                         make_tuple(S::Block_Tile_M, S::Block_Tile_N),
+                                         {tile_block_origin_m, 0},
+                                         Policy::template MakeDRAMDistribution<Problem>());
 
         // Calculate iterations needed to cover N dimension
         // Note: This kernel uses data parallelism only in the M dimension.
@@ -202,6 +202,19 @@ struct ElementWiseTileCopyKernel
     using XDataType = typename Problem::XDataType;
     using Policy    = ck_tile::remove_cvref_t<Policy_>;
 
+    static constexpr index_t kBlockSize = Problem::BlockShape::BlockSize;
+
+    CK_TILE_HOST static auto BlockSize()
+    {
+        if(ck_tile::is_wave32())
+        {
+            return kBlockSize / 2;
+        }
+        else
+        {
+            return kBlockSize;
+        }
+    }
     CK_TILE_DEVICE void operator()(const XDataType* p_x, XDataType* p_y, index_t M, index_t N) const
     {
         using S = typename Problem::BlockShape;
@@ -218,23 +231,21 @@ struct ElementWiseTileCopyKernel
 
         // Create tensor views for input and output
         const auto x_m_n = make_naive_tensor_view<address_space_enum::global>(
-            p_x, make_tuple(M, N), make_tuple(N, 1), number<S::Vector_N>{}, number<1>{});
+            p_x, make_tuple(M, N), make_tuple(N, 1), number<S::ThreadTile_N>{}, number<1>{});
 
         const auto y_m_n = make_naive_tensor_view<address_space_enum::global>(
-            p_y, make_tuple(M, N), make_tuple(N, 1), number<S::Vector_N>{}, number<1>{});
+            p_y, make_tuple(M, N), make_tuple(N, 1), number<S::ThreadTile_N>{}, number<1>{});
 
         // Create tile windows with DRAM distribution
-        auto x_window =
-            make_tile_window(x_m_n,
-                             make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                             {tile_block_origin_m, 0},
-                             Policy::template MakeDRAMDistribution<Problem>());
+        auto x_window = make_tile_window(x_m_n,
+                                         make_tuple(S::Block_Tile_M, S::Block_Tile_N),
+                                         {tile_block_origin_m, 0},
+                                         Policy::template MakeDRAMDistribution<Problem>());
 
-        auto y_window =
-            make_tile_window(y_m_n,
-                             make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                             {tile_block_origin_m, 0},
-                             Policy::template MakeDRAMDistribution<Problem>());
+        auto y_window = make_tile_window(y_m_n,
+                                         make_tuple(S::Block_Tile_M, S::Block_Tile_N),
+                                         {tile_block_origin_m, 0},
+                                         Policy::template MakeDRAMDistribution<Problem>());
 
         // Calculate iterations needed to cover N dimension
         // Note: This kernel uses data parallelism only in the M dimension.
@@ -297,45 +308,41 @@ struct TileCopyKernel_LDS
         }
 
         // LDS buffer allocation
-        __shared__ XDataType x_lds_buffer[S::Block_Tile_M * S::Block_Tile_N];
+        __shared__ XDataType x_lds_buffer[S::Block_Tile_Mmake * S::Block_Tile_N];
 
         // LDS tensor descriptor and view
         const auto x_lds_descriptor =
             make_naive_tensor_descriptor(make_tuple(S::Block_Tile_M, S::Block_Tile_N),
                                          make_tuple(S::Block_Tile_N, 1),
-                                         number<S::Vector_N>{},
+                                         number<S::ThreadTile_N>{},
                                          number<1>{});
 
         auto x_lds_view = make_tensor_view<address_space_enum::lds>(x_lds_buffer, x_lds_descriptor);
 
         // LDS windows with different distributions for optimal access patterns
-        auto x_lds_write_window = make_tile_window(
-            x_lds_view, make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}), {0, 0});
+        auto x_lds_write_window =
+            make_tile_window(x_lds_view, make_tuple(S::Block_Tile_M, S::Block_Tile_N), {0, 0});
 
-        auto x_lds_read_window =
-            make_tile_window(x_lds_view,
-                             make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                             {0, 0},
-                             Policy::template MakeDRAMDistribution<Problem>());
+        auto x_lds_read_window = make_tile_window(x_lds_view,
+                                                  make_tuple(S::Block_Tile_M, S::Block_Tile_N),
+                                                  {0, 0},
+                                                  Policy::template MakeDRAMDistribution<Problem>());
 
         // Global memory tensor views
         const auto x_m_n = make_naive_tensor_view<address_space_enum::global>(
-            p_x, make_tuple(M, N), make_tuple(N, 1), number<S::Vector_N>{}, number<1>{});
+            p_x, make_tuple(M, N), make_tuple(N, 1), number<S::ThreadTile_N>{}, number<1>{});
 
         const auto y_m_n = make_naive_tensor_view<address_space_enum::global>(
-            p_y, make_tuple(M, N), make_tuple(N, 1), number<S::Vector_N>{}, number<1>{});
+            p_y, make_tuple(M, N), make_tuple(N, 1), number<S::ThreadTile_N>{}, number<1>{});
 
         // Global memory tile windows
-        auto x_window =
-            make_tile_window(x_m_n,
-                             make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                             {tile_block_origin_m, 0},
-                             Policy::template MakeDRAMDistribution<Problem>());
+        auto x_window = make_tile_window(x_m_n,
+                                         make_tuple(S::Block_Tile_M, S::Block_Tile_N),
+                                         {tile_block_origin_m, 0},
+                                         Policy::template MakeDRAMDistribution<Problem>());
 
-        auto y_window =
-            make_tile_window(y_m_n,
-                             make_tuple(number<S::Block_Tile_M>{}, number<S::Block_Tile_N>{}),
-                             {tile_block_origin_m, 0});
+        auto y_window = make_tile_window(
+            y_m_n, make_tuple(S::Block_Tile_M, S::Block_Tile_N), {tile_block_origin_m, 0});
 
         // Calculate iterations needed to cover N dimension
         // Note: This kernel uses data parallelism only in the M dimension.

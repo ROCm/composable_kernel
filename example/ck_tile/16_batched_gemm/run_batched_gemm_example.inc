@@ -2,7 +2,6 @@
 // Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-
 auto calculate_rtol_atol(const ck_tile::index_t K,
                          const ck_tile::index_t kbatch,
                          const float max_accumulated_value)
@@ -76,21 +75,6 @@ float invoke_batched_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                   CLayout,
                                   CDEElementWise>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
-
-    std::string op_name{"Batched Gemm"};
-    std::size_t flop     = std::size_t(2) * batch_count * M * N * K;
-    std::size_t num_byte = sizeof(ADataType) * batch_count * M * K +
-                           sizeof(BDataType) * batch_count * N * K +
-                           sizeof(CDataType) * batch_count * M * N;
-    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
-    float gb_per_sec = num_byte / 1.E6 / ave_time;
-
-    std::cout << "Run " << op_name << "kernel with M =" << M << " N =" << N << " K =" << K
-              << " StrideA =" << stride_A << " StrideB =" << stride_B << " StrideC =" << stride_C
-              << " batch_stride_A =" << batch_stride_A << " batch_stride_B =" << batch_stride_B
-              << " batch_stride_C =" << batch_stride_C << " batch_count =" << batch_count << " : "
-              << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << std::endl;
 
     return ave_time;
 }
@@ -186,31 +170,47 @@ int run_batched_gemm_example_with_layouts(int argc,
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
-    invoke_batched_gemm<ADataType,
-                        BDataType,
-                        ck_tile::tuple<>,
-                        AccDataType,
-                        CDataType,
-                        ALayout,
-                        BLayout,
-                        ck_tile::tuple<>,
-                        CLayout>(a_m_k_dev_buf,
-                                 b_k_n_dev_buf,
-                                 c_m_n_dev_buf,
-                                 M,
-                                 N,
-                                 K,
-                                 stride_A,
-                                 stride_B,
-                                 stride_C,
-                                 batch_stride_A,
-                                 batch_stride_B,
-                                 batch_stride_C,
-                                 batch_count,
-                                 kbatch,
-                                 n_warmup,
-                                 n_repeat);
+    float ave_time = invoke_batched_gemm<ADataType,
+                                         BDataType,
+                                         ck_tile::tuple<>,
+                                         AccDataType,
+                                         CDataType,
+                                         ALayout,
+                                         BLayout,
+                                         ck_tile::tuple<>,
+                                         CLayout>(a_m_k_dev_buf,
+                                                  b_k_n_dev_buf,
+                                                  c_m_n_dev_buf,
+                                                  M,
+                                                  N,
+                                                  K,
+                                                  stride_A,
+                                                  stride_B,
+                                                  stride_C,
+                                                  batch_stride_A,
+                                                  batch_stride_B,
+                                                  batch_stride_C,
+                                                  batch_count,
+                                                  kbatch,
+                                                  n_warmup,
+                                                  n_repeat);
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
+
+    std::string op_name{"Batched Gemm"};
+    std::size_t flop     = std::size_t(2) * batch_count * M * N * K;
+    std::size_t num_byte = sizeof(ADataType) * batch_count * M * K +
+                           sizeof(BDataType) * batch_count * N * K +
+                           sizeof(CDataType) * batch_count * M * N;
+    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
+    float gb_per_sec = num_byte / 1.E6 / ave_time;
+
+    std::cout << "Run " << op_name << "kernel with M =" << M << " N =" << N << " K =" << K
+              << " StrideA =" << stride_A << " StrideB =" << stride_B << " StrideC =" << stride_C
+              << " batch_stride_A =" << batch_stride_A << " batch_stride_B =" << batch_stride_B
+              << " batch_stride_C =" << batch_stride_C << " batch_count =" << batch_count << " : "
+              << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
+              << std::endl;
+
     bool pass = true;
 
     if(arg_parser.get_int("v") == 1)
@@ -308,6 +308,27 @@ int run_batched_gemm_example_with_layouts(int argc,
                   << std::endl;
 
         std::cout << "The GPU verification result is: " << (pass ? "correct" : "fail") << std::endl;
+    }
+
+    if(arg_parser.get_int("json") == 1)
+    {
+        dump_batched_gemm_json_results(arg_parser.get_str("jsonfile"),
+                                       op_name,
+                                       M,
+                                       N,
+                                       K,
+                                       stride_A,
+                                       stride_B,
+                                       stride_C,
+                                       batch_stride_A,
+                                       batch_stride_B,
+                                       batch_stride_C,
+                                       batch_count,
+                                       pass,
+                                       ave_time,
+                                       tflops,
+                                       gb_per_sec,
+                                       "batched_gemm");
     }
 
     return pass;

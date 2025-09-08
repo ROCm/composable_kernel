@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/elementwise.hpp"
 #include "ck_tile/host/reference/reference_elementwise.hpp"
+#include "ck_tile/utility/json_dump.hpp"
+#include "elementwise_common.hpp"
 
 auto create_args(int argc, char* argv[])
 {
@@ -13,15 +14,21 @@ auto create_args(int argc, char* argv[])
         .insert("n", "1024", "n dimension")
         .insert("stride", "-1", "stride per row, if -1 then equal to n")
         .insert("v", "1", "cpu validation or not")
-        .insert("prec", "fp16", "precision")
+        .insert("x_prec", "fp16", "input precision, fp16/bf16/fp32")
+        .insert("y_prec", "fp16", "output precision, fp16/bf16/fp32")
         .insert("warmup", "10", "cold iter")
-        .insert("repeat", "50", "hot iter");
+        .insert("repeat", "50", "hot iter")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "elementwise.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
 
-template <typename DataType>
+// XDataType: Data type of the input tensors.
+// ComputeDataType: Data type used for intermediate computations (often float for precision).
+// YDataType: Data type of the output tensor.
+template <typename XDataType, typename YDataType>
 bool run(const ck_tile::ArgParser& arg_parser)
 {
     ck_tile::index_t M      = arg_parser.get_int("m");
@@ -31,25 +38,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // If stride is negative (default -1), set it to N, assuming a dense row-major layout.
     if(stride < 0)
         stride = N;
-    std::string data_type = arg_parser.get_str("prec");
-    int do_validation     = arg_parser.get_int("v");
-    int warmup            = arg_parser.get_int("warmup");
-    int repeat            = arg_parser.get_int("repeat");
+    int do_validation = arg_parser.get_int("v");
+    int warmup        = arg_parser.get_int("warmup");
+    int repeat        = arg_parser.get_int("repeat");
 
     if(stride < N)
     {
         throw std::runtime_error("stride must be >= N");
     }
 
-    // Define type aliases for clarity.
-    // XDataType: Data type of the input tensors.
-    // ComputeDataType: Data type used for intermediate computations (often float for precision).
-    // YDataType: Data type of the output tensor.
     // XElementwiseOperation: The specific elementwise operation to perform (e.g., Add, Mul).
-    using XDataType = DataType;
     using ComputeDataType =
         float; // Using float for intermediate calculations can improve numerical stability.
-    using YDataType             = DataType;
     using XElementwiseOperation = ck_tile::element_wise::Add;
 
     // 1. Initialize the input data on the host (CPU).
@@ -113,7 +113,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // ElementWiseShape bundles these tiling parameters.
     // It calculates derived properties like threads per wavefront, repeats, vectorization and total
     // block size.
-    using Shape = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, ComputeDataType>;
+    using Shape = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, XDataType>;
 
     // ElementWisePipelineProblem encapsulates all necessary information for the elementwise kernel:
     // - Data types (input, compute, output).
@@ -167,17 +167,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     // 4. Run the kernel
-    float ave_time = launch_kernel(ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
-                                   ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
-                                       Kernel{},
-                                       kGridSize,
-                                       kBlockSize,
-                                       0,
-                                       input_size,
-                                       ck_tile::make_tuple(N, 1), // Input Stride
-                                       ck_tile::make_tuple(N, 1), // Output Stride
-                                       input_tensors,
-                                       static_cast<YDataType*>(y_buf.GetDeviceBuffer())));
+    float ave_time = launch_kernel(
+        ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
+        ck_tile::make_kernel<kBlockPerCu>(Kernel{},
+                                          kGridSize,
+                                          kBlockSize,
+                                          0,
+                                          input_size,
+                                          ck_tile::make_tuple(N, 1), // Input Stride
+                                          ck_tile::make_tuple(N, 1), // Output Stride
+                                          input_tensors,
+                                          static_cast<YDataType*>(y_buf.GetDeviceBuffer())));
 
     std::cout << "Average time: " << ave_time << " ms" << std::endl;
 
@@ -195,6 +195,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
             y_validation, y_host, "Elementwise Add Error: Incorrect results!", 0.01, 0.01);
     }
 
+    if(arg_parser.get_int("json") == 1)
+    {
+        dump_elementwise_json_results(arg_parser.get_str("jsonfile"),
+                                      arg_parser.get_str("prec"),
+                                      kGridSize,
+                                      kBlockSize,
+                                      ave_time,
+                                      0,
+                                      0,
+                                      "elementwise_add");
+    }
+
     return pass;
 }
 
@@ -204,11 +216,22 @@ int main(int argc, char* argv[])
     if(!result)
         return -1;
 
-    const std::string data_type = arg_parser.get_str("prec");
-    if(data_type == "fp16")
+    try
     {
-        return run<ck_tile::half_t>(arg_parser) ? 0 : -2;
+        const auto x_prec_variant = string_to_datatype(arg_parser.get_str("x_prec"));
+        const auto y_prec_variant = string_to_datatype(arg_parser.get_str("y_prec"));
+        return std::visit(
+            [&](auto&& x_dt, auto&& y_dt) -> int {
+                using XDataType = std::decay_t<decltype(x_dt)>;
+                using YDataType = std::decay_t<decltype(y_dt)>;
+                return run<XDataType, YDataType>(arg_parser);
+            },
+            x_prec_variant,
+            y_prec_variant);
     }
-
-    return -3;
+    catch(const std::exception& e)
+    {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return -3;
+    }
 }

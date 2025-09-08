@@ -93,7 +93,8 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
               typename BiasGradDramBlockWindowTmp,
               typename PositionEncoding>
     CK_TILE_HOST_DEVICE auto
-    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,
+    operator()(void* smem_ptr,
+               const QDramBlockWindowTmp& q_dram_block_window_tmp,
                const KDramBlockWindowTmp& k_dram_block_window_tmp,
                const VDramBlockWindowTmp& v_dram_block_window_tmp,
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp,
@@ -109,7 +110,6 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                float scale,
                float rp_undrop,
                float scale_rp_undrop,
-               void* smem_ptr,
                FmhaDropout& dropout) const
     {
         static_assert(

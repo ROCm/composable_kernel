@@ -1,5 +1,5 @@
-// Copyright © Advanced Micro Devices, Inc., or its affiliates.
-// SPDX-License-Identifier:  MIT
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -115,11 +115,12 @@ struct matrix_core_swizzle_kernel
 
     __host__ void operator()(const ck_tile::stream_config& s) const
     {
-        ck_tile::kentry<BLOCK_SIZE, 1, kernel><<<grids, BLOCK_SIZE, 0, s.stream_id_>>>(a);
+        ck_tile::kentry<1, kernel><<<grids, BLOCK_SIZE, 0, s.stream_id_>>>(a);
     }
 
     struct kernel
     {
+        static constexpr ck_tile::index_t kBlockSize = BLOCK_SIZE;
         __device__ static constexpr auto get_src_dist()
         {
             using namespace ck_tile;

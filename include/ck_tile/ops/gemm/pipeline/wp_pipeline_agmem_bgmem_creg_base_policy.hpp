@@ -280,13 +280,13 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
     {
         using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
-        using WarpGemm   = WarpGemmMfmaDispatcher<typename Problem::ADataType,
-                                                  typename Problem::BDataType,
-                                                  typename Problem::CDataType,
-                                                  WarpTile::at(I0),
-                                                  WarpTile::at(I1),
-                                                  WarpTile::at(I2),
-                                                  Problem::TransposeC>;
+        using WarpGemm   = WarpGemmDispatcher<typename Problem::ADataType,
+                                              typename Problem::BDataType,
+                                              typename Problem::CDataType,
+                                              WarpTile::at(I0),
+                                              WarpTile::at(I1),
+                                              WarpTile::at(I2),
+                                              Problem::TransposeC>;
 
         using BlockWeightPreshufflePolicy =
             BlockWeightPreshuffleASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
@@ -295,6 +295,73 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
                                                               BlockWarps,
                                                               WarpGemm>;
         return BlockWeightPreshuffleASmemBSmemCRegV1<Problem, BlockWeightPreshufflePolicy>{};
+    }
+    /**
+     * @brief Get the vector store size for C tensor.
+     *
+     * @tparam Problem - Gemm pipeline problem class.
+     *
+     * @note The vector store size for output C tensor would depend on multiple factors
+     *       like its data layout and warp gemm C transposition. In general it would
+     *       be the number of consecutive elements in contiguous C dimension hold by
+     *       single thread.
+     *
+     * @return The vector store size for C tensor.
+     */
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeC()
+    {
+        using BlockGemm = remove_cvref_t<decltype(GetBlockWeightPreshuffle<Problem>())>;
+        using WG_       = typename BlockGemm::WG;
+
+        constexpr bool TransposeC = Problem::TransposeC;
+        using CLayout             = typename Problem::CLayout;
+        using CWarpDstr           = typename WG_::CWarpDstr;
+
+        // N is contiguous dimension
+        if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+        {
+            if constexpr(TransposeC)
+            {
+                // In this case each thread has multiple consecutive elements in
+                // N dimension, however consecutive threads' elements have stride.
+                constexpr index_t NDimY = CWarpDstr::NDimY;
+                constexpr auto c_warp_y_lengths =
+                    CWarpDstr{}.get_ys_to_d_descriptor().get_lengths();
+                static_assert(WG_::WarpGemmAttribute::Impl::kCM1PerLane ==
+                              c_warp_y_lengths.get(number<NDimY - 1>{}));
+                return c_warp_y_lengths.get(number<NDimY - 1>{});
+            }
+            else
+            {
+                // In this case each thread has just a single item in Ndim
+                return WG_::WarpGemmAttribute::Impl::kCNLane / WG_::kN;
+            }
+        }
+        // M is contiguous dimension
+        else if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::ColumnMajor>)
+        {
+            if constexpr(TransposeC)
+            {
+                // In this case each thread has just a single item in Mdim
+                return WG_::WarpGemmAttribute::Impl::kCNLane / WG_::kN;
+            }
+            else
+            {
+                // In this case each thread has multiple consecutive elements in
+                // M dimension, however consecutive threads' elements have stride.
+                constexpr index_t NDimY = CWarpDstr::NDimY;
+                constexpr auto c_warp_y_lengths =
+                    CWarpDstr{}.get_ys_to_d_descriptor().get_lengths();
+                static_assert(WG_::WarpGemmAttribute::Impl::kCM1PerLane ==
+                              c_warp_y_lengths.get(number<NDimY - 1>{}));
+                return c_warp_y_lengths.get(number<NDimY - 1>{});
+            }
+        }
+        else
+        {
+            static_assert(false, "Unsupported CLayout!");
+        }
     }
 };
 

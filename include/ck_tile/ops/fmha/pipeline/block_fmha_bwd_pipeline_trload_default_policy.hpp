@@ -25,7 +25,7 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
 
         constexpr auto SwizzleA = false;
-        using WarpGemm          = WarpGemmMfmaDispatcher< //
+        using WarpGemm          = WarpGemmDispatcher< //
             typename Problem::QDataType,
             typename Problem::KDataType,
             typename Problem::AccDataType,
@@ -66,7 +66,7 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm2WarpTile>>;
 
         constexpr auto SwizzleA = false;
-        using WarpGemm          = WarpGemmMfmaDispatcher< //
+        using WarpGemm          = WarpGemmDispatcher< //
             typename Problem::OGradDataType,
             typename Problem::VDataType,
             typename Problem::AccDataType,
@@ -106,7 +106,7 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
                    typename BlockFmhaShape::Gemm4BlockWarps,
                    typename BlockFmhaShape::Gemm4WarpTile>>;
 
-        using WarpGemm = WarpGemmMfmaDispatcher< //
+        using WarpGemm = WarpGemmDispatcher< //
             typename Problem::GemmDataType,
             typename Problem::KDataType,
             typename Problem::AccDataType,
@@ -551,11 +551,9 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
                                             Problem::BlockFmhaShape::kQKHeaddim>();
     }
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeBiasLdsWriteBlockDescriptor()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeBiasLdsBlockDescriptor()
     {
-        return MakeXLdsWriteBlockDescriptor<typename Problem::BiasDataType,
-                                            Problem::BlockFmhaShape::kM0,
-                                            Problem::BlockFmhaShape::kN0>();
+        return BlockFmhaBwdPipelineDefaultPolicy::MakeBiasLdsBlockDescriptor<Problem>();
     }
 
     template <typename Problem, bool Transposed = false>
@@ -683,13 +681,6 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
         return MakeXLdsReadBlockDescriptor<typename Problem::OGradDataType,
                                            Problem::BlockFmhaShape::kM0,
                                            Problem::BlockFmhaShape::kQKHeaddim>();
-    }
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeBiasLdsReadBlockDescriptor()
-    {
-        return MakeXLdsReadBlockDescriptor<typename Problem::BiasDataType,
-                                           Problem::BlockFmhaShape::kM0,
-                                           Problem::BlockFmhaShape::kN0>();
     }
 
     template <typename Problem>
@@ -966,25 +957,7 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledBiasTileDistribution()
     {
-        constexpr index_t kBlockSize = Problem::kBlockSize;
-
-        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-
-        constexpr index_t N1 = min(static_cast<index_t>(GetAlignmentBias<Problem>()),
-                                   kMPerBlock * kNPerBlock / kBlockSize);
-        constexpr index_t N0 = kNPerBlock / N1;
-        constexpr index_t M0 = kBlockSize / get_warp_size();
-        constexpr index_t M1 = get_warp_size() / N0;
-        constexpr index_t M2 = kMPerBlock / M1 / M0;
-
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<M0, M1, M2>, sequence<N0, N1>>,
-                                       tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<0>, sequence<1, 0>>,
-                                       sequence<2, 1>,
-                                       sequence<1, 2>>{});
+        return BlockFmhaBwdPipelineDefaultPolicy::MakeShuffledBiasTileDistribution<Problem>();
     }
 
     template <typename BlockGemm>
@@ -1048,7 +1021,7 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
     {
         if constexpr(Problem::BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             return sizeof(typename Problem::BiasDataType) *
-                   MakeBiasLdsWriteBlockDescriptor<Problem>().get_element_space_size();
+                   MakeBiasLdsBlockDescriptor<Problem>().get_element_space_size();
         else
             return 0;
     }

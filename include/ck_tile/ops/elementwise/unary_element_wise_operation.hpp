@@ -262,223 +262,70 @@ struct PassThroughPack2
 
 struct PassThrough
 {
-    template <typename Y, typename X>
-    CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const;
+    template <class T>
+    using raw_t = std::remove_cv_t<std::remove_reference_t<T>>;
 
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<double, double>(double& y, const double& x) const
+    template <class Y, class X>
+    CK_TILE_HOST_DEVICE void operator()(Y&& y, const X& x) const
     {
-        y = x;
+        /*  Only do the assignment when
+            - y is an *l-value*   and
+            - y is *not* const     */
+        if constexpr(std::is_lvalue_reference_v<Y&&> && !std::is_const_v<raw_t<Y>>)
+        {
+            y = ck_tile::type_convert<raw_t<Y>>(x);
+        }
+        /*  otherwise (r-value or const)     → do nothing  */
     }
 
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<float, double>(float& y, const double& x) const
+    template <typename E, typename C, typename... Ds>
+    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const Ds&... ds) const -> void
     {
-        y = type_convert<float>(x);
-    }
+        // Suppress unused parameter warning for ds
+        ((void)ds, ...);
 
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<double, float>(double& y, const float& x) const
-    {
-        y = type_convert<double>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<float, float>(float& y, const float& x) const
-    {
-        y = x;
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::fp16_t, ck_tile::fp16_t>(ck_tile::fp16_t& y, const ck_tile::fp16_t& x) const
-    {
-        y = x;
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<ck_tile::fp16_t, float>(ck_tile::fp16_t& y,
-                                                                const float& x) const
-    {
-        y = type_convert<ck_tile::fp16_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::bf16_t, ck_tile::bf16_t>(ck_tile::bf16_t& y, const ck_tile::bf16_t& x) const
-    {
-        y = x;
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<int32_t, int32_t>(int32_t& y, const int32_t& x) const
-    {
-        y = x;
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<ck_tile::bf16_t, float>(ck_tile::bf16_t& y,
-                                                                const float& x) const
-    {
-        y = type_convert<ck_tile::bf16_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<float, ck_tile::bf16_t>(float& y,
-                                                                const ck_tile::bf16_t& x) const
-    {
-        y = type_convert<float>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::bf16_t, ck_tile::fp16_t>(ck_tile::bf16_t& y, const ck_tile::fp16_t& x) const
-    {
-        y = type_convert<ck_tile::bf16_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<float, ck_tile::fp16_t>(float& y,
-                                                                const ck_tile::fp16_t& x) const
-    {
-        y = type_convert<float>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<int8_t, int8_t>(int8_t& y, const int8_t& x) const
-    {
-        y = x;
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<ck_tile::fp16_t, int8_t>(ck_tile::fp16_t& y,
-                                                                 const int8_t& x) const
-    {
-        y = type_convert<ck_tile::fp16_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<ck_tile::bf16_t, int8_t>(ck_tile::bf16_t& y,
-                                                                 const int8_t& x) const
-    {
-        y = type_convert<ck_tile::bf16_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<uint8_t, uint8_t>(uint8_t& y, const uint8_t& x) const
-    {
-        y = x;
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<int8_t, int32_t>(int8_t& y, const int32_t& x) const
-    {
-        y = type_convert<int8_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<int32_t, int8_t>(int32_t& y, const int8_t& x) const
-    {
-        y = type_convert<int32_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<int8_t, float>(int8_t& y, const float& x) const
-    {
-        y = type_convert<int8_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<float, int8_t>(float& y, const int8_t& x) const
-    {
-        y = type_convert<float>(x);
-    }
-
-#ifdef CK_TILE_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<int4_t, int4_t>(int4_t& y, const int4_t& x) const
-    {
-        y = x;
-    }
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<int4_t, int>(int4_t& y, const int& x) const
-    {
-        y = type_convert<int4_t>(x);
-    }
-#endif
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::fp8_t, ck_tile::fp8_t>(ck_tile::fp8_t& y, const ck_tile::fp8_t& x) const
-    {
-        y = x;
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<float, ck_tile::fp8_t>(float& y,
-                                                               const ck_tile::fp8_t& x) const
-    {
-        y = type_convert<float>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<ck_tile::fp8_t, float>(ck_tile::fp8_t& y,
-                                                               const float& x) const
-    {
-        y = type_convert<ck_tile::fp8_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::fp16_t, ck_tile::fp8_t>(ck_tile::fp16_t& y, const ck_tile::fp8_t& x) const
-    {
-        y = type_convert<ck_tile::fp16_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::fp8_t, ck_tile::fp16_t>(ck_tile::fp8_t& y, const ck_tile::fp16_t& x) const
-    {
-        y = type_convert<ck_tile::fp8_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::bf8_t, ck_tile::bf8_t>(ck_tile::bf8_t& y, const ck_tile::bf8_t& x) const
-    {
-        y = x;
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<float, ck_tile::bf8_t>(float& y,
-                                                               const ck_tile::bf8_t& x) const
-    {
-        y = type_convert<float>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<ck_tile::bf8_t, float>(ck_tile::bf8_t& y,
-                                                               const float& x) const
-    {
-        y = type_convert<ck_tile::bf8_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::fp16_t, ck_tile::bf8_t>(ck_tile::fp16_t& y, const ck_tile::bf8_t& x) const
-    {
-        y = type_convert<ck_tile::fp16_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::bf8_t, ck_tile::fp16_t>(ck_tile::bf8_t& y, const ck_tile::fp16_t& x) const
-    {
-        y = ck_tile::type_convert<ck_tile::bf8_t>(x);
+        // Just assign e with c
+        if constexpr(std::is_same_v<E, C>)
+        {
+            e = c;
+        }
+        else
+        {
+            e = ck_tile::type_convert<E>(c);
+        }
     }
 };
 
-#if 0
+struct MultiDMultiply
+{
+    template <typename E, typename C, typename... Ds>
+    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const Ds&... ds) const -> void
+    {
+        // Start with the base value c
+        float result = ck_tile::type_convert<float>(c);
+
+        // Multiply by each D parameter using fold expression
+        ((result *= ck_tile::type_convert<float>(ds)), ...);
+
+        e = ck_tile::type_convert<E>(result);
+    }
+};
+
+struct MultiDAdd
+{
+    template <typename E, typename C, typename... Ds>
+    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const Ds&... ds) const -> void
+    {
+        // Start with the base value c
+        float result = ck_tile::type_convert<float>(c);
+
+        // Add by each D parameter using fold expression
+        ((result += ck_tile::type_convert<float>(ds)), ...);
+
+        e = ck_tile::type_convert<E>(result);
+    }
+};
+
 struct UnaryConvert
 {
     template <typename Y, typename X>
@@ -488,6 +335,7 @@ struct UnaryConvert
     }
 };
 
+#if 0
 struct ConvertBF16RTN
 {
     // convert to bf16 using round to nearest (rtn)
@@ -624,14 +472,14 @@ struct UnaryDivide
 
 struct UnarySquare
 {
-    template <typename T>
-    CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
+    template <typename Y, typename X>
+    CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
     {
-        static_assert(std::is_same_v<T, float> || std::is_same_v<T, ck_tile::fp16_t> ||
-                          std::is_same_v<T, double> || std::is_same_v<T, int32_t> ||
-                          std::is_same_v<T, int8_t>
+        static_assert(std::is_same_v<X, float> || std::is_same_v<X, ck_tile::fp16_t> ||
+                          std::is_same_v<X, double> || std::is_same_v<X, int32_t> ||
+                          std::is_same_v<X, int8_t>
 #ifdef CK_TILE_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-                          || std::is_same_v<T, int4_t>
+                          || std::is_same_v<X, int4_t>
 #endif
                       ,
                       "Data type is not supported by this operation!");

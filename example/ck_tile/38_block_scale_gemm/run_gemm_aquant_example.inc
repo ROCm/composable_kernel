@@ -1,9 +1,10 @@
+
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-#include <bit>
 #include <random>
+#include <stdexcept>
 
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
@@ -12,7 +13,26 @@ static constexpr inline auto is_row_major(Layout layout_)
                                                  ck_tile::tensor_layout::gemm::RowMajor>>{};
 }
 
-template <typename ADataType,
+template <typename T>
+auto shuffle_aq(const ck_tile::HostTensor<T>& t, int block_aq_k)
+{
+    if(t.get_lengths().size() != 2)
+    {
+        throw std::runtime_error("Host tensor is not rank 2 tensor.");
+    }
+    int m_   = t.get_lengths()[0];
+    int aqk_ = t.get_lengths()[1];
+    if(aqk_ % block_aq_k != 0)
+    {
+        throw std::runtime_error("shuffle_aq needs a aqk of multiple times of block_aq_k.");
+    }
+    ck_tile::HostTensor<T> t_view({m_, aqk_ / block_aq_k, block_aq_k});
+    std::copy(t.begin(), t.end(), t_view.begin());
+    return ck_tile::reference_permute(t_view, {1, 0, 2});
+}
+
+template <typename GemmConfig,
+          typename ADataType,
           typename AQDataType,
           typename BDataType,
           typename AccDataType,
@@ -38,7 +58,7 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   int n_warmup,
                   int n_repeat)
 {
-    ck_tile::AQuantGemmHostArgs args;
+    ck_tile::QuantGemmHostArgs args;
     args.a_ptr     = a_m_k_dev_buf.GetDeviceBuffer();
     args.aq_ptr    = aq_m_aqk_dev_buf.GetDeviceBuffer();
     args.b_ptr     = b_k_n_dev_buf.GetDeviceBuffer();
@@ -47,13 +67,14 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     args.M         = M;
     args.N         = N;
     args.K         = K;
-    args.QK        = AQK;
+    args.QK_A      = AQK;
     args.stride_A  = stride_A;
     args.stride_B  = stride_B;
     args.stride_C  = stride_C;
     args.stride_AQ = stride_AQ;
 
-    float ave_time = gemm_calc_aquant<ADataType,
+    float ave_time = gemm_calc_aquant<GemmConfig,
+                                      ADataType,
                                       AQDataType,
                                       BDataType,
                                       AccDataType,
@@ -85,7 +106,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     return ave_time;
 }
 
-template <typename TypeConfig,
+template <typename GemmConfig,
+          typename TypeConfig,
           uint32_t QuantGroupSize,
           typename ALayout,
           typename AQLayout,
@@ -184,13 +206,24 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
 
+    if constexpr(GemmConfig::PreshuffleQuant)
+    {
+        ck_tile::HostTensor<AQDataType> aq_shuffle_host =
+            shuffle_aq(aq_m_aqk, GemmConfig::K_Tile / QuantGroupSize);
+        aq_m_aqk_dev_buf.ToDevice(aq_shuffle_host.data());
+    }
+    else
+    {
+        aq_m_aqk_dev_buf.ToDevice(aq_m_aqk.data());
+    }
+
     a_m_k_dev_buf.ToDevice(a_m_k.data());
-    aq_m_aqk_dev_buf.ToDevice(aq_m_aqk.data());
     b_k_n_dev_buf.ToDevice(b_k_n.data());
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
-    invoke_gemm<ADataType,
+    invoke_gemm<GemmConfig,
+                ADataType,
                 AQDataType,
                 BDataType,
                 AccDataType,
