@@ -186,7 +186,7 @@ warp_tile_supported_combinations = {
     },
 }
 
-# To Do: remove some unsupp£orted combinations
+# To Do: remove some unsupported combinations
 trait_unsupported_combinations = {
     ("compv3", "cshuffle", "interwave"),
     ("compv3", "default", "interwave"),
