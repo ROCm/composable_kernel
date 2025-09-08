@@ -20,7 +20,7 @@ fi
 GPU_TARGETS="gfx908;gfx90a;gfx942"
 
 if [ $# -ge 1 ]; then
-    case "$1" in 
+    case "$1" in
         gfx*)
             GPU_TARGETS=$1
             shift 1
@@ -38,7 +38,7 @@ fi
 cmake                                                                                             \
 -D CMAKE_PREFIX_PATH=/opt/rocm/                                                                   \
 -D CMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++                                                  \
--D CMAKE_CXX_FLAGS="-ftemplate-backtrace-limit=0  -fPIE  -Wno-gnu-line-marker"                    \
+-D CMAKE_CXX_FLAGS="-ftemplate-backtrace-limit=0  -fPIE  -Wno-gnu-line-marker -fbracket-depth=512" \
 -D CMAKE_BUILD_TYPE=Release                                                                       \
 -D BUILD_DEV=ON                                                                                   \
 -D GPU_TARGETS=$GPU_TARGETS                                                                       \
