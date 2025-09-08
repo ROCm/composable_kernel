@@ -488,6 +488,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                 }
             }
 #endif
+
             return ave_time;
         }
 
