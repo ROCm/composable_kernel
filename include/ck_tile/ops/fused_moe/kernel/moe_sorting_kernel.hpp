@@ -20,7 +20,7 @@ namespace ck_tile {
 #endif
 
 #ifndef MOE_SORTING_FUSE_MP_01
-#define MOE_SORTING_FUSE_MP_01 0
+#define MOE_SORTING_FUSE_MP_01 1
 #endif
 
 // weather use 2d buffer indexing for fmoe ws or 1d
