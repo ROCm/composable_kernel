@@ -236,7 +236,7 @@ constexpr ck::BlockGemmPipelineVersion SetBlockGemmPipelineVersion()
 }
 
 // Factory builds an instance of a grouped convolution kernel.
-template <ConvSignature auto SIGNATURE, ConvAlgorithmDescriptor auto ALGORITHM, auto Version>
+template <ConvSignatureDescriptor auto SIGNATURE, ConvAlgorithmDescriptor auto ALGORITHM, auto Version>
     requires SupportedVersion<Version>
 struct GroupedConvForwardXldCShuffleFactoryV3
 {

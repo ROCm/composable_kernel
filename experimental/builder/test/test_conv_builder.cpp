@@ -13,7 +13,7 @@ struct FwdConvSignature
     static constexpr auto layout     = ckb::GroupConvLayout::NHWGC_GKYXC_NHWGK;
     static constexpr auto data_type  = ckb::DataType::FP16;
 };
-static_assert(ckb::ConvSignature<FwdConvSignature>);
+static_assert(ckb::ConvSignatureDescriptor<FwdConvSignature>);
 
 struct DefaultFwdConvAlgorithm
 {

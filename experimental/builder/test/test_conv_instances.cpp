@@ -22,7 +22,7 @@ struct FwdConvSignature
     static constexpr auto layout     = ckb::GroupConvLayout::NHWGC_GKYXC_NHWGK;
     static constexpr auto data_type  = ckb::DataType::FP16;
 };
-static_assert(ckb::ConvSignature<FwdConvSignature>);
+static_assert(ckb::ConvSignatureDescriptor<FwdConvSignature>);
 
 constexpr char API_VERSION[] = "0.1.0";
 static_assert(ckb::SupportedVersion<API_VERSION>);
