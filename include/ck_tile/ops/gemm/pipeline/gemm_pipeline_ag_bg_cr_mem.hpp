@@ -307,7 +307,7 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
             // A LDS tile for block GEMM
             auto a_windows =
                 Base::GetAWindows(a_dram_block_window_tmp, a_lds_block, a_lds_load_tile_distr);
-            auto& a_copy_dram_window = a_windows.at(I0{})[number<0>{}];
+            auto& a_copy_dram_window = a_windows.at(I0{});
             auto& a_copy_lds_window  = a_windows.at(I1{});
             auto& a_lds_gemm_window  = a_windows.at(I2{});
 
@@ -316,7 +316,7 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
             // B LDS tile for block GEMM
             auto b_windows =
                 Base::GetBWindows(b_dram_block_window_tmp, b_lds_block, b_lds_load_tile_distr);
-            auto& b_copy_dram_window = b_windows.at(I0{})[number<0>{}];
+            auto& b_copy_dram_window = b_windows.at(I0{});
             auto& b_copy_lds_window  = b_windows.at(I1{});
             auto& b_lds_gemm_window  = b_windows.at(I2{});
 
@@ -324,8 +324,10 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
             auto block_gemm   = BlockGemm();
             auto c_block_tile = block_gemm.MakeCBlockTile();
 
-            using ABlockTileDistr = decltype(a_copy_dram_window.get_tile_distribution());
-            using BBlockTileDistr = decltype(b_copy_dram_window.get_tile_distribution());
+            using ABlockTileDistr =
+                decltype(a_copy_dram_window[number<0>{}].get_tile_distribution());
+            using BBlockTileDistr =
+                decltype(b_copy_dram_window[number<0>{}].get_tile_distribution());
 
             using ABlockTile =
                 decltype(make_static_distributed_tensor<ADataType>(ABlockTileDistr{}));
