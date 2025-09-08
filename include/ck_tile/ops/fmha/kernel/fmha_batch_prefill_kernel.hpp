@@ -132,13 +132,11 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         ck_tile::index_t nhead_ratio_qk;
 
         int32_t num_total_pages;
+        ck_tile::index_t page_block_size;
         const int32_t* kv_indptr;
         const int32_t* kv_page_indices;
 #if 0 // we assume page_block_size=1 for now
         const int32_t* kv_last_page_lens;
-        ck_tile::index_t page_block_size;
-#else
-        static constexpr ck_tile::index_t page_block_size = 1;
 #endif
 
         float scale_s;
@@ -330,11 +328,11 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               ck_tile::index_t num_head_q,
               ck_tile::index_t nhead_ratio_qk,
               int32_t num_total_pages,
+              ck_tile::index_t page_block_size,
               const void* kv_indptr,
               const void* kv_page_indices,
 #if 0 // we assume page_block_size=1 for now
               const void* kv_last_page_lens,
-              ck_tile::index_t page_block_size,
 #endif
               float scale_s,
               float scale_p,
@@ -379,11 +377,11 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                      num_head_q,
                      nhead_ratio_qk,
                      num_total_pages,
+                     page_block_size,
                      reinterpret_cast<const int32_t*>(kv_indptr),
                      reinterpret_cast<const int32_t*>(kv_page_indices),
 #if 0 // we assume page_block_size=1 for now
                      reinterpret_cast<const int32_t*>(kv_last_page_lens),
-                     page_block_size,
 #endif
 #if CK_TILE_FMHA_FWD_FAST_EXP2
                      static_cast<float>(scale_s * ck_tile::log2e_v<>),
@@ -482,11 +480,11 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               ck_tile::index_t num_head_q,
               ck_tile::index_t nhead_ratio_qk,
               int32_t num_total_pages,
+              ck_tile::index_t page_block_size,
               const void* kv_indptr,
               const void* kv_page_indices,
 #if 0 // we assume page_block_size=1 for now
               const void* kv_last_page_lens,
-              ck_tile::index_t page_block_size,
 #endif
               float scale_s,
               float scale_p,
@@ -526,11 +524,11 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                      num_head_q,
                      nhead_ratio_qk,
                      num_total_pages,
+                     page_block_size,
                      reinterpret_cast<const int32_t*>(kv_indptr),
                      reinterpret_cast<const int32_t*>(kv_page_indices),
 #if 0 // we assume page_block_size=1 for now
                      reinterpret_cast<const int32_t*>(kv_last_page_lens),
-                     page_block_size,
 #endif
 #if CK_TILE_FMHA_FWD_FAST_EXP2
                      static_cast<float>(scale_s * ck_tile::log2e_v<>),
@@ -756,7 +754,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
 #if 0 // we assume page_block_size=1 for now
             kargs.seqlen_k = (num_page_blocks - 1) * kargs.page_block_size + last_page_len;
 #else
-            kargs.seqlen_k = num_page_blocks;
+            //Fix:
+            kargs.seqlen_k = num_page_blocks * kargs.page_block_size;
 #endif
         }
         else
@@ -783,7 +782,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
 #if 0 // we assume page_block_size=1 for now
             kargs.seqlen_k = (num_page_blocks - 1) * kargs.page_block_size + last_page_len;
 #else
-            kargs.seqlen_k = num_page_blocks;
+            //Fix:
+            kargs.seqlen_k = num_page_blocks * kargs.page_block_size;
 #endif
         }
 
