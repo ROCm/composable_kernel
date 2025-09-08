@@ -247,7 +247,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
         auto o_acc = OaccBlockTileType{};
 
         // infer Sacc, S, P, M, L, Oacc type
-        using SBlockTileType = decltype(cast_tile<SMPLComputeDataType>(o_acc));
+        using SBlockTileType = decltype(cast_tile<SMPLComputeDataType>(s_acc));
 
         using MLBlockTileType = decltype(block_tile_reduce<SMPLComputeDataType>(
             SBlockTileType{}, sequence<1>{}, f_max, SMPLComputeDataType{0}));
