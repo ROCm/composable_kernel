@@ -6,9 +6,9 @@ repos:
         entry: clang-format-18 -i --style=file
         language: system
         types_or: [c++, inc]
-    -   id: copyright-year-checker
-        name: copyright-year-checker
-        entry: script/check_copyright_year.sh
+    -   id: copyright-checker
+        name: copyright-checker
+        entry: script/check_copyright.sh
         verbose: true
         language: script
         types_or: [c++, inc, python]
