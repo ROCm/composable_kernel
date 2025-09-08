@@ -91,7 +91,7 @@ struct Default2DEpilogue
     CK_TILE_DEVICE auto operator()(ODramWindowTmp& o_dram_window_tmp,
                                    const OAccTile& o_acc_tile,
                                    const DsDramWindows& ds_dram_windows,
-                                   void* = nullptr)
+                                   void* = nullptr) const
     {
         const auto storeOrUpdateTile = [&](const auto& o_tile) {
             // TODO: this is ugly
