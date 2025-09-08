@@ -1,6 +1,6 @@
 #include "ck_tile/host.hpp"
 #include "layernorm2d_fwd.hpp"
-#include "json_dump.hpp"
+#include "ck_tile/utility/json_dump.hpp"
 #include <algorithm>
 #include <cstring>
 

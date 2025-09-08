@@ -83,14 +83,13 @@ struct GemmConfigBase
 
     static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
     static constexpr ck_tile::index_t TileParitionerM01      = 4;
-    static constexpr auto Scheduler = ck_tile::GemmPipelineScheduler::Intrawave;
 
     static constexpr bool PreshuffleQuant  = false;
     static constexpr bool DoubleSmemBuffer = false;
 };
 
 template <typename PrecType>
-struct GemmConfigDecode : public GemmConfigBase
+struct GemmConfigQuant : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 16;
     static constexpr ck_tile::index_t N_Tile = 64;
@@ -105,29 +104,6 @@ struct GemmConfigDecode : public GemmConfigBase
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
 
     static constexpr int kBlockPerCu = 1;
-
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_DECODE;
-};
-
-template <typename PrecType>
-struct GemmConfigPrefill : public GemmConfigBase
-{
-    static constexpr ck_tile::index_t M_Tile = 128;
-    static constexpr ck_tile::index_t N_Tile = 128;
-    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
-
-    static constexpr ck_tile::index_t M_Warp = 1;
-    static constexpr ck_tile::index_t N_Warp = 4;
-    static constexpr ck_tile::index_t K_Warp = 1;
-
-    static constexpr ck_tile::index_t M_Warp_Tile = 16;
-    static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
-
-    static constexpr int kBlockPerCu           = 2;
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PREFILL;
 };
 
 template <typename PrecType>
@@ -148,9 +124,7 @@ struct GemmConfigPreshuffleQuant : public GemmConfigBase
 
     static constexpr int kBlockPerCu = 1;
 
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLEQUANT;
-    static constexpr bool PreshuffleQuant      = true;
+    static constexpr bool PreshuffleQuant = true;
 };
 
 template <typename ADataType_,
@@ -237,19 +211,20 @@ auto create_args(int argc, char* argv[])
         .insert("stride_q", "0", "Tensor AQ stride")
         .insert("stride_b", "0", "Tensor B stride")
         .insert("stride_c", "0", "Tensor C stride")
-        .insert("v", "2", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
-        .insert("prec", "i4fp8", "data type. fp8/bf8/i4fp8/i4bf8/i4f32fp8/i4f32bf8")
+        .insert("v", "1", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
+        .insert("prec", "fp8", "data type. fp8/bf8/i4fp8/i4bf8/i4f32fp8/i4f32bf8")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "1000", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("split_k", "1", "splitK value")
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
         .insert("persistent", "0", "0:non-persistent, 1:persistent")
-        .insert("as_br_cr", "false", "Choose between as_br_cr and as_bs_cr");
+        .insert("as_br_cr", "false", "Choose between as_br_cr and as_bs_cr")
+        .insert("quant_mode", "aquant", "Choose aquant (default) or rowcol");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
 
 // host API
-float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::stream_config& s);
+float gemm_calc_aquant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s);

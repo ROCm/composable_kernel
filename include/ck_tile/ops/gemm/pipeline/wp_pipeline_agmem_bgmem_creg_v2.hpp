@@ -24,7 +24,7 @@ struct BaseWeightPreshufflePipelineAGmemBGmemCRegV2
         return num_loop > PrefetchStages;
     }
 
-    CK_TILE_HOST static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
+    CK_TILE_HOST_DEVICE static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
     {
         return num_loop % 2 == 0 ? TailNumber::Even : TailNumber::Odd;
     }
@@ -35,11 +35,13 @@ struct BaseWeightPreshufflePipelineAGmemBGmemCRegV2
     {
         if(tail_number == TailNumber::Odd)
         {
-            run_func(bool_constant<true>{}, integral_constant<TailNumber, TailNumber::Odd>{});
+            return run_func(bool_constant<true>{},
+                            integral_constant<TailNumber, TailNumber::Odd>{});
         }
-        else if(tail_number == TailNumber::Even)
+        else // Even tail number
         {
-            run_func(bool_constant<true>{}, integral_constant<TailNumber, TailNumber::Even>{});
+            return run_func(bool_constant<true>{},
+                            integral_constant<TailNumber, TailNumber::Even>{});
         }
     }
 };
@@ -73,6 +75,11 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
 
+    // bogus variables to compile grouped gemm (to be removed)
+    static constexpr index_t MPerBlock = BlockGemmShape::kM;
+    static constexpr index_t NPerBlock = BlockGemmShape::kN;
+    static constexpr index_t KPerBlock = BlockGemmShape::kK;
+
     static constexpr index_t flatKPerWarp = BlockGemmShape::flatKPerWarp;
     static constexpr index_t flatNPerWarp = BlockGemmShape::flatNPerWarp;
 
@@ -85,6 +92,11 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
     static constexpr index_t GetVectorSizeB()
     {
         return PipelinePolicy::template GetVectorSizeB<Problem, IsWave32Host>();
+    }
+
+    static constexpr index_t GetVectorSizeC()
+    {
+        return PipelinePolicy::template GetVectorSizeC<Problem>();
     }
 
     static constexpr bool kPadM = Problem::kPadM;
@@ -555,7 +567,10 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
         }
     }
 
-    template <typename ADramBlockWindowTmp, typename BFlatBlockWindowTmp, typename AElementFunction>
+    template <TailNumber TailNum,
+              typename ADramBlockWindowTmp,
+              typename BFlatBlockWindowTmp,
+              typename AElementFunction>
     CK_TILE_HOST_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                         const AElementFunction& a_element_func,
                                         const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
@@ -1052,6 +1067,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
         return c_block_tile;
     }
 
+    // called from general gemm kernel
     template <typename ADramBlockWindowTmp, typename BFlatBlockWindowTmp>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
@@ -1059,13 +1075,36 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                                    void* p_smem_ping,
                                    void* p_smem_pong) const
     {
-        return operator()(
+        return operator()<TailNum>(
             a_dram_block_window_tmp,
-            [](const ADataType & a) { return a; },
+            [](const ADataType& a) { return a; },
             b_flat_dram_block_window_tmp,
             num_loop,
             p_smem_ping,
             p_smem_pong);
+    }
+
+    // called from grouped gemm kernel
+    template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const BDramBlockWindowTmp& b_flat_dram_block_window_tmp,
+                                   index_t num_loop,
+                                   TailNumber tail_number,
+                                   void* __restrict__ p_smem_0,
+                                   void* __restrict__ p_smem_1) const
+    {
+        const auto RunPipeline = [&](auto bool_val, auto tail_num_) {
+            (void)bool_val; // Suppress unused parameter warning
+            constexpr auto tail_num    = tail_num_.value;
+            constexpr auto PassThrough = [](const auto& x) { return x; };
+            return operator()<tail_num>(a_dram_block_window_tmp,
+                                        PassThrough,
+                                        b_flat_dram_block_window_tmp,
+                                        num_loop,
+                                        p_smem_0,
+                                        p_smem_1);
+        };
+        return Base::TailHandler(RunPipeline, true, tail_number);
     }
 };
 
