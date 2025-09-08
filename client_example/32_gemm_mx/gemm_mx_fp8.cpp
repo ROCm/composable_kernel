@@ -1,5 +1,6 @@
+// Copyright © Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+
 #include <iomanip>
 #include <vector>
 #include <iostream>
