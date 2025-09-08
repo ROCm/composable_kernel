@@ -55,44 +55,43 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
         if constexpr(PreshuffleQuant)
         {
-            using TileEncodingPattern =
-                TileDistributionEncodingPatternAQ<BlockGemmShape,
-                                                  WarpGemm,
-                                                  BlockSize,
-                                                  MPerBlock / WarpGemm::kM,
-                                                  ck_tile::integer_least_multiple(
-                                                      WarpGemm::kM * KPerBlockAQ, get_warp_size()),
-                                                  KPerBlockAQ,
-                                                  VecLoadSize,
-                                                  PreshuffleQuant>;
+            using TileEncodingPattern = tile_distribution_encoding_pattern_aq<
+                BlockGemmShape,
+                WarpGemm,
+                BlockSize,
+                MPerBlock / WarpGemm::kM,
+                ck_tile::integer_least_multiple(WarpGemm::kM * KPerBlockAQ, get_warp_size()),
+                KPerBlockAQ,
+                VecLoadSize,
+                PreshuffleQuant>;
 
-            return TileEncodingPattern::Make2DStaticTileDistribution();
+            return TileEncodingPattern::make_2d_static_tile_distribution();
         }
         else
         {
             if constexpr(Problem::TransposeC)
             {
                 using TileEncodingPatternTransposeC =
-                    TileDistributionEncodingPatternAQTransposedC<BlockGemmShape,
-                                                                 WarpGemm,
-                                                                 BlockSize,
-                                                                 MPerBlock,
-                                                                 KPerBlockAQ,
-                                                                 VecLoadSize>;
-                return TileEncodingPatternTransposeC::Make2DStaticTileDistribution();
+                    tile_distribution_encoding_pattern_aq_transposed_c<BlockGemmShape,
+                                                                       WarpGemm,
+                                                                       BlockSize,
+                                                                       MPerBlock,
+                                                                       KPerBlockAQ,
+                                                                       VecLoadSize>;
+                return TileEncodingPatternTransposeC::make_2d_static_tile_distribution();
             }
             else
             {
-                using TileEncodingPattern = TileDistributionEncodingPatternAQ<BlockGemmShape,
-                                                                              WarpGemm,
-                                                                              BlockSize,
-                                                                              MPerBlock,
-                                                                              KPerBlockAQ,
-                                                                              KPerBlockAQ,
-                                                                              VecLoadSize,
-                                                                              PreshuffleQuant>;
+                using TileEncodingPattern = tile_distribution_encoding_pattern_aq<BlockGemmShape,
+                                                                                  WarpGemm,
+                                                                                  BlockSize,
+                                                                                  MPerBlock,
+                                                                                  KPerBlockAQ,
+                                                                                  KPerBlockAQ,
+                                                                                  VecLoadSize,
+                                                                                  PreshuffleQuant>;
 
-                return TileEncodingPattern::Make2DStaticTileDistribution();
+                return TileEncodingPattern::make_2d_static_tile_distribution();
             }
         }
     }

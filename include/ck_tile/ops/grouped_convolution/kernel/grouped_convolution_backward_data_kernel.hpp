@@ -384,9 +384,8 @@ struct GroupedConvBwdDataKernelArgs
 
     static constexpr index_t MaxGroupedGemmGroupsNum = 128;
 
-    using ABCGridDescs =
-        remove_cvref_t<decltype(ConvToGemmTransformer{}
-                                    .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(1))>;
+    using ABCGridDescs = remove_cvref_t<
+        decltype(ConvToGemmTransformer{}.MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(1))>;
 
     using AGridDescMK = remove_cvref_t<decltype(ABCGridDescs{}[number<0>{}])>;
     using BGridDescNK = remove_cvref_t<decltype(ABCGridDescs{}[number<1>{}])>;

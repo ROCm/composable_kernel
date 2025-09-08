@@ -2,7 +2,6 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-#include <bit>
 #include <random>
 
 template <typename Layout>
@@ -60,7 +59,7 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   int n_warmup,
                   int n_repeat)
 {
-    ck_tile::BQuantGemmHostArgs args;
+    ck_tile::QuantGemmHostArgs args;
     args.a_ptr     = a_m_k_dev_buf.GetDeviceBuffer();
     args.b_ptr     = b_k_n_dev_buf.GetDeviceBuffer();
     args.bq_ptr    = bq_bqk_n_dev_buf.GetDeviceBuffer();
@@ -69,7 +68,7 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     args.M         = M;
     args.N         = N;
     args.K         = K;
-    args.QK        = BQK;
+    args.QK_B      = BQK;
     args.stride_A  = stride_A;
     args.stride_B  = stride_B;
     args.stride_C  = stride_C;

@@ -33,9 +33,6 @@ def nthreads() {
     def nproc = sh(returnStdout: true, script: 'nproc')
     echo "Number of cores: ${nproc}"
     def n = nproc.toInteger()
-    if (n > 32){
-        n /= 2
-    }
     if (n > 64){
         n = 64
     }
@@ -855,13 +852,20 @@ def run_aiter_tests(Map conf=[:]){
     }
 
     withDockerContainer(image: image, args: dockerOpts) {
-        timeout(time: 45, unit: 'MINUTES'){
+        timeout(time: 2, unit: 'HOURS'){
             try{
                 sh "rocminfo"
                 sh "python3 --version"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_2stage.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_blockscale.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_ep.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_sorting.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_sorting_mxfp4.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_tkw1.py"
             }
             catch(e){
                 echo "Throwing error exception while running AITER tests"
@@ -906,7 +910,7 @@ def run_pytorch_tests(Map conf=[:]){
     }
 
     withDockerContainer(image: image, args: dockerOpts) {
-        timeout(time: 45, unit: 'MINUTES'){
+        timeout(time: 2, unit: 'HOURS'){
             try{
                 sh "rocminfo"
                 sh "python3 --version"
@@ -1129,6 +1133,7 @@ pipeline {
                                 -o -iname \'*.cpp.in\' \
                                 -o -iname \'*.cl\' \
                                 | grep -v 'build/' \
+                                | grep -v 'include/rapidjson' \
                                 | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-18 -style=file {} | diff - {}\' && \
                                 /cppcheck/build/bin/cppcheck ../* -v -j \$(nproc) -I ../include -I ../profiler/include -I ../library/include \
                                 -D CK_ENABLE_FP64 -D CK_ENABLE_FP32 -D CK_ENABLE_FP16 -D CK_ENABLE_FP8 -D CK_ENABLE_BF16 -D CK_ENABLE_BF8 -D CK_ENABLE_INT8 \
@@ -1158,6 +1163,7 @@ pipeline {
                                 -o -iname \'*.cpp.in\' \
                                 -o -iname \'*.cl\' \
                                 | grep -v 'build/' \
+                                | grep -v 'include/rapidjson' \
                                 | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-18 -style=file {} | diff - {}\'"
                     }
                     steps{
@@ -1348,22 +1354,9 @@ pipeline {
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
-                                           ninja -j64 benchmark_gemm_fp8_rcr && \
-                                           ./bin/benchmark_gemm_fp8_rcr && \
-                                           ninja -j64 benchmark_gemm_fp16_rcr && \
-                                           ./bin/benchmark_gemm_fp16_rcr && \
-                                           ninja -j64 benchmark_gemm_fp8_crr && \
-                                           ./bin/benchmark_gemm_fp8_crr && \
-                                           ninja -j64 benchmark_gemm_fp16_crr && \
-                                           ./bin/benchmark_gemm_fp16_crr && \
-                                           ninja -j64 benchmark_gemm_fp8_ccr && \
-                                           ./bin/benchmark_gemm_fp8_ccr && \
-                                           ninja -j64 benchmark_gemm_fp16_ccr && \
-                                           ./bin/benchmark_gemm_fp16_ccr && \
-                                           ninja -j64 benchmark_gemm_fp8_rrr && \
-                                           ./bin/benchmark_gemm_fp8_rrr && \
-                                           ninja -j64 benchmark_gemm_fp16_rrr && \
-                                           ./bin/benchmark_gemm_fp16_rrr && \
+                                           ninja -j64 benchmark_gemm_all && \
+                                           python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" \
+                                           --warmup 5 --repeat 5 --verbose --json results.json && \
                                            ninja -j64 benchmark_gemm_multi_d_fp16_rrrr && \
                                            ./bin/benchmark_gemm_multi_d_fp16_rrrr && \
                                            ninja -j64 benchmark_gemm_multi_d_fp16_ccrr && \
@@ -1396,22 +1389,9 @@ pipeline {
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
-                                           ninja -j64 benchmark_gemm_fp8_rcr && \
-                                           ./bin/benchmark_gemm_fp8_rcr && \
-                                           ninja -j64 benchmark_gemm_fp16_rcr && \
-                                           ./bin/benchmark_gemm_fp16_rcr && \
-                                           ninja -j64 benchmark_gemm_fp8_crr && \
-                                           ./bin/benchmark_gemm_fp8_crr && \
-                                           ninja -j64 benchmark_gemm_fp16_crr && \
-                                           ./bin/benchmark_gemm_fp16_crr && \
-                                           ninja -j64 benchmark_gemm_fp8_ccr && \
-                                           ./bin/benchmark_gemm_fp8_ccr && \
-                                           ninja -j64 benchmark_gemm_fp16_ccr && \
-                                           ./bin/benchmark_gemm_fp16_ccr && \
-                                           ninja -j64 benchmark_gemm_fp8_rrr && \
-                                           ./bin/benchmark_gemm_fp8_rrr && \
-                                           ninja -j64 benchmark_gemm_fp16_rrr && \
-                                           ./bin/benchmark_gemm_fp16_rrr && \
+                                           ninja -j64 benchmark_gemm_all && \
+                                           python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" \
+                                           --warmup 5 --repeat 5 --verbose --json results.json && \
                                            ninja -j64 benchmark_gemm_multi_d_fp16_rrrr && \
                                            ./bin/benchmark_gemm_multi_d_fp16_rrrr && \
                                            ninja -j64 benchmark_gemm_multi_d_fp16_ccrr && \
