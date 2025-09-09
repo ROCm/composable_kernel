@@ -70,6 +70,38 @@ struct GemmPipelineTypeSelector<GemmPipelineType::CompV4, Problem>
     static constexpr auto GetName() { return "GemmPipelineAgBgCrCompV4"; }
 };
 
+template <bool v>
+struct PersistenceType
+{
+    static constexpr bool value = v;
+};
+
+template <bool v>
+struct UseLDSType
+{
+    static constexpr bool value = v;
+};
+
+// Trait to check if a type T is an instance of the PersistenceType template
+template <typename T>
+struct is_persistence_type : std::false_type
+{
+};
+template <bool v>
+struct is_persistence_type<PersistenceType<v>> : std::true_type
+{
+};
+
+// Trait to check if a type T is an instance of the UseLDSType template
+template <typename T>
+struct is_use_lds_type : std::false_type
+{
+};
+template <bool v>
+struct is_use_lds_type<UseLDSType<v>> : std::true_type
+{
+};
+
 template <typename Tuple, typename Derived>
 class TestCkTileGemmPipeline : public ::testing::Test
 {
@@ -95,13 +127,17 @@ class TestCkTileGemmPipeline : public ::testing::Test
     using DsLayout   = ck_tile::tuple<>;
     using DsDataType = ck_tile::tuple<>;
 
+    template <ck_tile::index_t I>
+    using type_at = ck_tile::tuple_element_or_default_t<Tuple, I, void>;
+
     static constexpr bool Persistent =
-        ck_tile::tuple_element_or_default_t<Tuple, 15, std::false_type>::value;
+        is_persistence_type<type_at<15>>::value ? type_at<15>::value : false;
 
     static constexpr bool SkipALds =
-        Persistent ? false : ck_tile::tuple_element_or_default_t<Tuple, 15, std::false_type>::value;
+        is_use_lds_type<type_at<15>>::value ? !type_at<15>::value : false;
+
     static constexpr bool SkipBLds =
-        Persistent ? false : ck_tile::tuple_element_or_default_t<Tuple, 16, std::false_type>::value;
+        is_use_lds_type<type_at<16>>::value ? !type_at<16>::value : false;
 
     template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
     void invoke_gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
