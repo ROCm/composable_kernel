@@ -275,7 +275,6 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale : public DeviceBatchedGemmV2BSca
             return g_idx * static_cast<long_index_t>(BatchStrideC_);
         }
         __host__ __device__ constexpr long_index_t GetScaleBPtrOffset(index_t g_idx) const
-
         {
             return g_idx * static_cast<long_index_t>(BatchStrideScaleB_);
         }
@@ -560,7 +559,7 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale : public DeviceBatchedGemmV2BSca
                 }
                 else
                 {
-                    // TODO: Implement
+                    throw std::runtime_error("Pipeline not implemented");
                 }
             }
             else
@@ -651,9 +650,8 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale : public DeviceBatchedGemmV2BSca
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
-     index_t GetKPerBlock() override { return KPerBlock; }
-   //  bool GetPermuteA() override { return PermuteA; }
-     bool GetPermuteB() override { return PermuteB; }
+    index_t GetKPerBlock() override { return KPerBlock; }
+    bool GetPermuteB() override { return PermuteB; }
 
     static auto MakeArgument(const ADataType* p_a,
                              const BDataType* p_b,
@@ -673,7 +671,8 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale : public DeviceBatchedGemmV2BSca
                              index_t Batch,
                              AElementwiseOperation,
                              BElementwiseOperation,
-                             CElementwiseOperation)
+                             CElementwiseOperation,
+                             index_t KBatch = 1)
     {
         return Argument{p_a,
                         p_b,
@@ -691,7 +690,7 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale : public DeviceBatchedGemmV2BSca
                         BatchStrideScaleB,
                         p_b_scale,
                         Batch,
-                        1 /* KBatch */};
+                        KBatch};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
