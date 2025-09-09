@@ -18,4 +18,3 @@ repos:
         language: script
         types_or: [c++, text]
         verbose: true
-
