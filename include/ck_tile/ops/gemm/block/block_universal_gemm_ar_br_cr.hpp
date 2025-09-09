@@ -105,54 +105,8 @@ struct BlockUniversalGemmArBrCr : public BlockUniversalGemmBase<Problem_, Policy
 
     template <typename GemmTraits_>
     struct BlockGemmImpl<GemmPipelineScheduler::Intrawave, GemmTraits_>
+        : BlockGemmImpl<GemmPipelineScheduler::Default, GemmTraits_>
     {
-        // C += A * B
-        template <typename CBlockTensor, typename ARegBlockTensor, typename BRegBlockTensor>
-        CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
-                                       ARegBlockTensor& a_block_tensor,
-                                       BRegBlockTensor& b_block_tensor)
-        {
-            static_assert(std::is_same_v<CDataType, typename CBlockTensor::DataType>,
-                          "The CDataType as defined in traits should be the same as correspoinding "
-                          "C block tensor data type!");
-
-            // hot loop:
-            static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
-                static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-                    // read A warp tensor from A block tensor
-                    AWarpTensor a_warp_tensor;
-
-                    a_warp_tensor.get_thread_buffer() = a_block_tensor.get_y_sliced_thread_data(
-                        merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
-                        merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
-
-                    static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-                        // read B warp tensor from B block tensor
-                        BWarpTensor b_warp_tensor;
-
-                        b_warp_tensor.get_thread_buffer() = b_block_tensor.get_y_sliced_thread_data(
-                            merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
-                            merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
-
-                        // read C warp tensor from C block tensor
-                        CWarpTensor c_warp_tensor;
-
-                        c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
-                            merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
-                            merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
-
-                        // warp GEMM
-                        WarpGemm{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
-
-                        // write C warp tensor into C block tensor
-                        c_block_tensor.set_y_sliced_thread_data(
-                            merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
-                            merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
-                            c_warp_tensor.get_thread_buffer());
-                    });
-                });
-            });
-        }
     };
 
     template <typename GemmTraits_>
