@@ -390,12 +390,8 @@ struct GroupedGemmKernel
         const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
 
         // Run GEMM pipeline
-        const auto& c_block_tile = GemmPipeline{}.template operator()(a_block_window[Base::I0],
-                                                                      b_block_window[Base::I0],
-                                                                      num_loop,
-                                                                      has_hot_loop,
-                                                                      tail_num,
-                                                                      smem_ptr_0);
+        const auto& c_block_tile = GemmPipeline{}.template operator()(
+            a_block_window, b_block_window, num_loop, has_hot_loop, tail_num, smem_ptr_0);
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(Base::I3);
         EpiloguePipeline{}.template
