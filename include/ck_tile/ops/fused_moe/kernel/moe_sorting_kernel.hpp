@@ -1713,7 +1713,7 @@ struct MoeSortingMultiPhaseKernel_P0
 
             int loops = (mesh_stride / index_pack + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
-            if(problem::LocalToken && mask == 0)
+            if(Problem::LocalToken && mask == 0)
                 return; // skip
             index_t cnt = 0; // per-wave cnt
             for(int i = 0; i < loops; i++)
@@ -1721,7 +1721,7 @@ struct MoeSortingMultiPhaseKernel_P0
                 int position = i * BLOCK_SIZE + threadIdx.x;
                 r_t v{0};
                 if(position < (mesh_stride / index_pack))
-                    v = p_expert_mesh[position];
+                    v = p_expert_mesh_r[position];
                 index_t local_sum = 0;
                 static_for<0, index_pack, 1>{}(
                     [&](auto i_vec) { local_sum += v[i_vec.value] != 0 ? 1 : 0; });
