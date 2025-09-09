@@ -403,7 +403,7 @@ CK_TILE_DEVICE auto
 load_tile_transpose(const tile_window_with_static_distribution<BottomTensorView_,
                                                                WindowLengths_,
                                                                TileDistribution_,
-                                                               NumCoord>& tile_window)
+                                                               NumCoord>& __restrict__ tile_window)
 {
     using OutTileDstrEncode = typename OutputTileDistributionTraits<
         typename TileDistribution_::DstrEncode,

@@ -28,7 +28,7 @@ struct __attribute__((packed)) buffer_resource
     uint32_t config;
 };
 
-CK_TILE_DEVICE int32x4_t make_wave_buffer_resource(const void* ptr, uint32_t size = 0xffffffff)
+CK_TILE_DEVICE int32x4_t make_wave_buffer_resource(const void* __restrict__  ptr, uint32_t size = 0xffffffff)
 {
     buffer_resource res{ptr, size, CK_TILE_BUFFER_RESOURCE_3RD_DWORD};
     int32x4_t r = __builtin_bit_cast(int32x4_t, res);

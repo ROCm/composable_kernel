@@ -12,7 +12,7 @@ namespace ck {
 template <typename PY,
           typename PX,
           typename enable_if<is_pointer_v<PY> && is_pointer_v<PX>, bool>::type = false>
-__host__ __device__ PY c_style_pointer_cast(PX p_x)
+__host__ __device__ PY c_style_pointer_cast(PX __restrict__ p_x)
 {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wold-style-cast"
