@@ -91,7 +91,7 @@ int main(int argc, char* argv[])
 
     try
     {
-        return !run_gemm_example<GemmConfigPreshuffleDecode>(arg_parser);
+        return !run_gemm_example<GemmConfigPreshufflePrefill>(arg_parser);
     }
     catch(const std::runtime_error& e)
     {

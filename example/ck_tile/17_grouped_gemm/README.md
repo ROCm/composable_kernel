@@ -175,6 +175,8 @@ mkdir build && cd build
 make tile_example_grouped_gemm -j
 # The preshuffle example
 make tile_example_grouped_gemm_preshuffle -j
+# The quant grouped gemm fp8 example
+make tile_example_quant_grouped_gemm -j
 ```
 This will result in an executable `build/bin/tile_example_grouped_gemm`
 
