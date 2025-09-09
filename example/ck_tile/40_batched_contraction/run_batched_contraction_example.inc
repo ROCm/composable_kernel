@@ -6,7 +6,7 @@
 #include <iostream>
 #include <algorithm>
 #include <cmath>
-#include "contraction_utils.hpp" // ✅ ADD: Include the utils header
+#include "contraction_utils.hpp"
 
 template <typename ADataType, typename BDataType, typename EDataType, typename AccDataType>
 auto calculate_rtol_atol(const ck_tile::index_t K,
@@ -45,13 +45,13 @@ float invoke_batched_contraction(ck_tile::DeviceMem& a_m_k_dev_buf,
                                  ck_tile::index_t M,
                                  ck_tile::index_t N,
                                  ck_tile::index_t K,
+                                 ck_tile::index_t G,
                                  ck_tile::index_t stride_A,
                                  ck_tile::index_t stride_B,
                                  ck_tile::index_t stride_E,
                                  ck_tile::index_t batch_stride_A,
                                  ck_tile::index_t batch_stride_B,
                                  ck_tile::index_t batch_stride_E,
-                                 ck_tile::index_t batch_count,
                                  ck_tile::index_t kbatch,
                                  int n_warmup,
                                  int n_repeat)
@@ -65,7 +65,7 @@ float invoke_batched_contraction(ck_tile::DeviceMem& a_m_k_dev_buf,
         M,                               // M
         N,                               // N
         K,                               // K
-        batch_count,                     // G (batch dimension)
+        G,                               // G (batch dimension)
         stride_A,                        // stride_A
         stride_B,                        // stride_B
         {},                              // stride_Ds (empty)
@@ -106,6 +106,7 @@ int run_batched_contraction_example_with_layouts(
     ck_tile::index_t M = arg_parser.get_int("m");
     ck_tile::index_t N = arg_parser.get_int("n");
     ck_tile::index_t K = arg_parser.get_int("k");
+    ck_tile::index_t G = arg_parser.get_int("g");
 
     ck_tile::index_t stride_A = arg_parser.get_int("stride_a");
     ck_tile::index_t stride_B = arg_parser.get_int("stride_b");
@@ -114,15 +115,15 @@ int run_batched_contraction_example_with_layouts(
     ck_tile::index_t batch_stride_A = arg_parser.get_int("batch_stride_a");
     ck_tile::index_t batch_stride_B = arg_parser.get_int("batch_stride_b");
     ck_tile::index_t batch_stride_E = arg_parser.get_int("batch_stride_e");
-    ck_tile::index_t batch_count    = arg_parser.get_int("batch_count");
-    ck_tile::index_t kbatch         = arg_parser.get_int("split_k");
+
+    ck_tile::index_t kbatch = arg_parser.get_int("split_k");
 
     int n_warmup = arg_parser.get_int("warmup");
     int n_repeat = arg_parser.get_int("repeat");
 
     using namespace ck_tile::literals;
 
-    auto f_host_tensor_descriptor = [](std::size_t batch_count_,
+    auto f_host_tensor_descriptor = [](std::size_t g,
                                        std::size_t row,
                                        std::size_t col,
                                        std::size_t stride,
@@ -130,13 +131,11 @@ int run_batched_contraction_example_with_layouts(
                                        auto layout) {
         if constexpr(std::is_same_v<decltype(layout), ck_tile::tensor_layout::gemm::RowMajor>)
         {
-            return ck_tile::HostTensorDescriptor({batch_count_, row, col},
-                                                 {batch_stride, stride, 1_uz});
+            return ck_tile::HostTensorDescriptor({g, row, col}, {batch_stride, stride, 1_uz});
         }
         else
         {
-            return ck_tile::HostTensorDescriptor({batch_count_, row, col},
-                                                 {batch_stride, 1_uz, stride});
+            return ck_tile::HostTensorDescriptor({g, row, col}, {batch_stride, 1_uz, stride});
         }
     };
 
@@ -163,15 +162,12 @@ int run_batched_contraction_example_with_layouts(
     stride_B = f_get_default_stride(K, N, stride_B, b_layout);
     stride_E = f_get_default_stride(M, N, stride_E, e_layout);
 
-    // ✅ FIXED: Use global types from contraction_utils.hpp (NO local declarations!)
-    // No local type aliases - use the ones from contraction_utils.hpp directly
-
     ck_tile::HostTensor<::ADataType> a_m_k(
-        f_host_tensor_descriptor(batch_count, M, K, stride_A, batch_stride_A, a_layout));
+        f_host_tensor_descriptor(G, M, K, stride_A, batch_stride_A, a_layout));
     ck_tile::HostTensor<::BDataType> b_k_n(
-        f_host_tensor_descriptor(batch_count, K, N, stride_B, batch_stride_B, b_layout));
+        f_host_tensor_descriptor(G, K, N, stride_B, batch_stride_B, b_layout));
     ck_tile::HostTensor<::EDataType> e_m_n_dev_result(
-        f_host_tensor_descriptor(batch_count, M, N, stride_E, batch_stride_E, e_layout));
+        f_host_tensor_descriptor(G, M, N, stride_E, batch_stride_E, e_layout));
 
     ck_tile::FillUniformDistribution<::ADataType>{-5.f, 5.f}(a_m_k);
     ck_tile::FillUniformDistribution<::BDataType>{-5.f, 5.f}(b_k_n);
@@ -202,13 +198,13 @@ int run_batched_contraction_example_with_layouts(
                                                          M,
                                                          N,
                                                          K,
+                                                         G,
                                                          stride_A,
                                                          stride_B,
                                                          stride_E,
                                                          batch_stride_A,
                                                          batch_stride_B,
                                                          batch_stride_E,
-                                                         batch_count,
                                                          kbatch,
                                                          n_warmup,
                                                          n_repeat);
@@ -216,29 +212,29 @@ int run_batched_contraction_example_with_layouts(
     e_m_n_dev_buf.FromDevice(e_m_n_dev_result.data());
 
     std::string op_name{"Batched Contraction"};
-    std::size_t flop     = std::size_t(2) * batch_count * M * N * K;
-    std::size_t num_byte = sizeof(::ADataType) * batch_count * M * K +
-                           sizeof(::BDataType) * batch_count * N * K +
-                           sizeof(::EDataType) * batch_count * M * N;
+    std::size_t flop     = std::size_t(2) * G * M * N * K;
+    std::size_t num_byte = sizeof(::ADataType) * G * M * K + sizeof(::BDataType) * G * N * K +
+                           sizeof(::EDataType) * G * M * N;
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_byte / 1.E6 / ave_time;
 
     std::cout << "Run " << op_name << " kernel with M=" << M << " N=" << N << " K=" << K
-              << " StrideA=" << stride_A << " StrideB=" << stride_B << " StrideE=" << stride_E
-              << " batch_stride_A=" << batch_stride_A << " batch_stride_B=" << batch_stride_B
-              << " batch_stride_E=" << batch_stride_E << " batch_count=" << batch_count << " : "
-              << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s" << std::endl;
+              << " G=" << G << " StrideA=" << stride_A << " StrideB=" << stride_B
+              << " StrideE=" << stride_E << " batch_stride_A=" << batch_stride_A
+              << " batch_stride_B=" << batch_stride_B << " batch_stride_E=" << batch_stride_E
+              << " : " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
+              << std::endl;
 
     bool pass = true;
 
     if(arg_parser.get_int("v") == 1)
     {
         ck_tile::HostTensor<::EDataType> e_m_n_host_ref(
-            f_host_tensor_descriptor(batch_count, M, N, stride_E, batch_stride_E, ELayout{}));
+            f_host_tensor_descriptor(G, M, N, stride_E, batch_stride_E, ELayout{}));
         e_m_n_host_ref.SetZero();
 
         // Simple matrix multiplication reference
-        for(ck_tile::index_t b = 0; b < batch_count; ++b)
+        for(ck_tile::index_t b = 0; b < G; ++b)
         {
             for(ck_tile::index_t m = 0; m < M; ++m)
             {
