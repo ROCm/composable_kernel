@@ -20,7 +20,8 @@ template <typename GemmConfig,
           typename ALayout,
           typename BLayout,
           typename CLayout,
-          uint32_t QuantGroupSize>
+          uint32_t QuantGroupSize,
+          typename CDEElementWise>
 float gemm_calc_aquant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s)
 {
     constexpr bool kPadM = false;
@@ -100,7 +101,7 @@ float gemm_calc_aquant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::st
                                                     CDataType,
                                                     ck_tile::tuple<>,
                                                     CLayout,
-                                                    ck_tile::element_wise::PassThrough,
+                                                    CDEElementWise,
                                                     TilePartitioner::MPerBlock,
                                                     TilePartitioner::NPerBlock,
                                                     M_Warp,
