@@ -31,6 +31,52 @@ struct MoeFlatmmHostArgs : ScaleFlatmmHostArgs<ScaleM, ScaleN, 0>
     ExpertBias exp_bias;
 
     CK_TILE_HOST MoeFlatmmHostArgs() noexcept = default;
+
+    CK_TILE_HOST MoeFlatmmHostArgs(const ck_tile::index_t* p_sorted_token_ids_,
+                                   const void* p_sorted_expert_weights_,
+                                   const ck_tile::index_t* p_sorted_expert_ids_,
+                                   const ck_tile::index_t* p_max_token_id_,
+                                   const void* a_ptr_,
+                                   const void* b_ptr_,
+                                   void* c_ptr_,
+                                   ck_tile::index_t NumTokens_,
+                                   ck_tile::index_t NumExperts_,
+                                   ck_tile::index_t TopK_,
+                                   ck_tile::index_t k_batch_,
+                                   ck_tile::index_t M_,
+                                   ck_tile::index_t N_,
+                                   ck_tile::index_t K_,
+                                   ck_tile::index_t stride_A_,
+                                   ck_tile::index_t stride_B_,
+                                   ck_tile::index_t stride_C_,
+                                   ScaleM scale_m_      = {},
+                                   ScaleN scale_n_      = {},
+                                   ExpertBias exp_bias_ = {})
+        : MoeFlatmmHostArgs(p_sorted_token_ids_,
+                            p_sorted_expert_weights_,
+                            p_sorted_expert_ids_,
+                            p_max_token_id_,
+                            a_ptr_,
+                            b_ptr_,
+                            c_ptr_,
+                            NumTokens_,
+                            NumExperts_,
+                            TopK_,
+                            k_batch_,
+                            M_,
+                            N_,
+                            K_,
+                            stride_A_,
+                            stride_B_,
+                            stride_C_,
+                            0, // n_padded_zeros_
+                            0, // k_padded_zeros_
+                            scale_m_,
+                            scale_n_,
+                            exp_bias_)
+    {
+    }
+
     CK_TILE_HOST MoeFlatmmHostArgs(const ck_tile::index_t* p_sorted_token_ids_,
                                    const void* p_sorted_expert_weights_,
                                    const ck_tile::index_t* p_sorted_expert_ids_,
