@@ -1,3 +1,4 @@
 add_subdirectory(gemm)
 add_subdirectory(gemm_multi_d)
 add_subdirectory(gemm_preshuffle)
+add_subdirectory(gemm_streamk)
