@@ -5,10 +5,11 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/hip_check_error.hpp"
-#include "ck_tile/ops/epilogue/cshuffle_epilogue.hpp"
 #include "ck_tile/ops/elementwise.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
+#include "ck_tile/ops/epilogue/epilogue_chainer.hpp"
+#include "ck_tile/ops/epilogue/cshuffle_chained_epilogues.hpp"
 
 #include <iostream>
 #include <memory>
@@ -19,13 +20,31 @@
 
 namespace ck_tile {
 
-// Simple test kernel to invoke the CShuffleEpilogue
+// Simple test kernel to invoke the EpilogueChainer
 template <typename Problem, index_t M, index_t N, bool UseScale>
-__global__ void test_cshuffle_epilogue_kernel(typename Problem::ODataType* __restrict__ output_data,
-                                              float* m_scale,
-                                              float* n_scale)
+__global__ void test_epilogue_chainer_kernel(typename Problem::ODataType* __restrict__ output_data,
+                                             float* m_scale,
+                                             float* n_scale)
 {
-    using Epilogue = CShuffleEpilogue<Problem>;
+    // Define epilogue stages for chainer
+    using InitEpilogue = CShuffleEpilogueStageBase<Problem>;
+
+    using MainEpilogues = std::conditional_t<UseScale,
+                                             ck_tile::tuple<SliceEpilogue<Problem>,
+                                                            ScaleEpilogue<Problem>,
+                                                            CastLdsEpilogue<Problem>,
+                                                            PrepCTensorEpilogue<Problem>,
+                                                            ApplyDEpilogue<Problem>,
+                                                            StoreToDramEpilogue<Problem>,
+                                                            MoveWindowsEpilogue<Problem>>,
+                                             ck_tile::tuple<SliceEpilogue<Problem>,
+                                                            CastLdsEpilogue<Problem>,
+                                                            PrepCTensorEpilogue<Problem>,
+                                                            ApplyDEpilogue<Problem>,
+                                                            StoreToDramEpilogue<Problem>,
+                                                            MoveWindowsEpilogue<Problem>>>;
+
+    using Epilogue = EpilogueChainer<InitEpilogue, MainEpilogues>;
 
     static_assert(Problem::kMPerBlock <= M && Problem::kNPerBlock <= N,
                   "Block size must fit in tensor dimensions");
@@ -57,10 +76,10 @@ __global__ void test_cshuffle_epilogue_kernel(typename Problem::ODataType* __res
                          make_tuple(number<Problem::kMPerBlock>{}, number<Problem::kNPerBlock>{}),
                          {0, 0});
 
-    // Create empty D tensors tuple (we're ignoring ds_dram_windows for this test)
+    // Create empty D tensors tuple
     auto empty_ds = make_tuple();
 
-    // Call the epilogue
+    // Call the epilogue chainer
     if constexpr(UseScale)
     {
         const auto m_scale_window = make_tile_window(
@@ -73,15 +92,35 @@ __global__ void test_cshuffle_epilogue_kernel(typename Problem::ODataType* __res
                 n_scale, make_tuple(M, N), make_tuple(0, 1), number<1>{}, number<1>{}),
             make_tuple(number<Problem::kMPerBlock>{}, number<Problem::kNPerBlock>{}),
             {0, 0});
-        Epilogue{}(output_tile_window, acc_tile, empty_ds, smem, m_scale_window, n_scale_window);
+
+        auto init_args = make_tuple();
+        auto main_args =
+            make_tuple(make_tuple(),                               // SliceEpilogue args
+                       make_tuple(m_scale_window, n_scale_window), // ScaleEpilogue args
+                       make_tuple(),                               // CastLdsEpilogue args
+                       make_tuple(),                               // PrepCTensorEpilogue args
+                       make_tuple(),                               // ApplyDEpilogue args
+                       make_tuple(),                               // StoreToDramEpilogue args
+                       make_tuple()                                // MoveWindowsEpilogue args
+            );
+        auto final_args = make_tuple();
+
+        Epilogue{}(output_tile_window,
+                   acc_tile,
+                   empty_ds,
+                   smem,
+                   init_args,
+                   main_args,
+                   final_args,
+                   std::true_type{});
     }
     else
     {
-        Epilogue{}(output_tile_window, acc_tile, empty_ds, smem);
+        Epilogue{}(output_tile_window, acc_tile, empty_ds, smem, std::true_type{});
     }
 }
 
-// Test configuration helper
+// Test configuration helper - reuse the same problem type
 template <typename ADataType,
           typename BDataType,
           typename AccDataType,
@@ -93,27 +132,27 @@ template <typename ADataType,
           index_t MPerXdl,
           index_t NPerXdl,
           index_t KPerXdl>
-using SimpleCShuffleEpilogueProblem =
-    CShuffleEpilogueProblem<ADataType,
-                            BDataType,
-                            ck_tile::tuple<>, // Empty Ds datatype tuple
-                            AccDataType,
-                            ODataType,
-                            ck_tile::tuple<>,                   // Empty Ds layout
-                            tensor_layout::gemm::RowMajor,      // ELayout
-                            ck_tile::element_wise::PassThrough, // CDElementwise
-                            kM,
-                            kN,
-                            MWave,
-                            NWave,
-                            MPerXdl,
-                            NPerXdl,
-                            KPerXdl,
-                            false, // isCTransposed,
-                            memory_operation_enum::set>;
+using SimpleEpilogueChainerProblem =
+    CShuffleEpilogueStageProblem<ADataType,
+                                 BDataType,
+                                 ck_tile::tuple<>, // Empty Ds datatype tuple
+                                 AccDataType,
+                                 ODataType,
+                                 ck_tile::tuple<>,                   // Empty Ds layout
+                                 tensor_layout::gemm::RowMajor,      // ELayout
+                                 ck_tile::element_wise::PassThrough, // CDElementwise
+                                 kM,
+                                 kN,
+                                 MWave,
+                                 NWave,
+                                 MPerXdl,
+                                 NPerXdl,
+                                 KPerXdl,
+                                 false, // isCTransposed,
+                                 memory_operation_enum::set>;
 
 template <typename Problem, index_t M, index_t N>
-bool run_cshuffle_epilogue_test(bool use_scale = false)
+bool run_epilogue_chainer_test(bool use_scale = false)
 {
     using ODataType = typename Problem::ODataType;
 
@@ -121,20 +160,17 @@ bool run_cshuffle_epilogue_test(bool use_scale = false)
     constexpr index_t kNPerBlock = Problem::kNPerBlock;
     constexpr index_t kBlockSize = Problem::kBlockSize;
 
-    std::cout << "Running CShuffleEpilogue test with M=" << M << ", N=" << N
+    std::cout << "Running EpilogueChainer test with M=" << M << ", N=" << N
               << ", MPerBlock=" << kMPerBlock << ", NPerBlock=" << kNPerBlock
               << ", BlockSize=" << kBlockSize << std::endl;
 
     // Allocate host memory
     const size_t output_size = M * N;
-
     std::vector<ODataType> host_output(output_size, static_cast<ODataType>(0));
 
     // Allocate device memory
     ODataType* device_output;
-
     HIP_CHECK_ERROR(hipMalloc(&device_output, output_size * sizeof(ODataType)));
-
     HIP_CHECK_ERROR(hipMemcpy(
         device_output, host_output.data(), output_size * sizeof(ODataType), hipMemcpyHostToDevice));
 
@@ -155,12 +191,16 @@ bool run_cshuffle_epilogue_test(bool use_scale = false)
             hipMemcpy(m_scale, h_m_scale.data(), M * sizeof(float), hipMemcpyHostToDevice));
         HIP_CHECK_ERROR(
             hipMemcpy(n_scale, h_n_scale.data(), N * sizeof(float), hipMemcpyHostToDevice));
-        test_cshuffle_epilogue_kernel<Problem, M, N, true>
+
+        test_epilogue_chainer_kernel<Problem, M, N, true>
             <<<gridSize, blockSize>>>(device_output, m_scale, n_scale);
+
+        HIP_CHECK_ERROR(hipFree(m_scale));
+        HIP_CHECK_ERROR(hipFree(n_scale));
     }
     else
     {
-        test_cshuffle_epilogue_kernel<Problem, M, N, false>
+        test_epilogue_chainer_kernel<Problem, M, N, false>
             <<<gridSize, blockSize>>>(device_output, nullptr, nullptr);
     }
 
