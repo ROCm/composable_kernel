@@ -290,20 +290,30 @@ TYPED_TEST(TestTransformConvBwdWeightToGemm, GridDescriptors)
         // Verify output grid descriptor dimensions
         EXPECT_EQ(out_grid_desc.get_length(I0), this->K_);
 
+
         if constexpr (Gm > 1)
         {
+            EXPECT_EQ(out_grid_desc.get_num_of_dimension(), 3);
+            EXPECT_EQ(in_grid_desc.get_num_of_dimension(), NDim + 3);
+            EXPECT_EQ(wei_grid_desc.get_num_of_dimension(), 4);
+
             EXPECT_EQ(in_grid_desc.get_length(I2), Gm);
             EXPECT_EQ(in_grid_desc.get_length(I3), this->C_);
 
-            EXPECT_EQ(wei_grid_desc.get_length(I0), Gm);
-            EXPECT_EQ(wei_grid_desc.get_length(I1), this->K_);
-            EXPECT_EQ(wei_grid_desc.get_length(I2), this->X_ * this->C_);
+            EXPECT_EQ(wei_grid_desc.get_length(I0), 1); // Padding dimension
+            EXPECT_EQ(wei_grid_desc.get_length(I1), Gm);
+            EXPECT_EQ(wei_grid_desc.get_length(I2), this->K_);
+            EXPECT_EQ(wei_grid_desc.get_length(I3), this->X_ * this->C_);
 
             EXPECT_EQ(out_grid_desc.get_length(I1), Gm);
             EXPECT_EQ(out_grid_desc.get_length(I2), this->N_ * this->Wo_);
         }
         else 
         {
+            EXPECT_EQ(out_grid_desc.get_num_of_dimension(), 2);
+            EXPECT_EQ(in_grid_desc.get_num_of_dimension(), NDim + 2);
+            EXPECT_EQ(wei_grid_desc.get_num_of_dimension(), 2);
+
             EXPECT_EQ(in_grid_desc.get_length(I2), this->C_);
 
             EXPECT_EQ(wei_grid_desc.get_length(I0), this->K_);
@@ -338,18 +348,27 @@ TYPED_TEST(TestTransformConvBwdWeightToGemm, GridDescriptors)
 
         if constexpr (Gm > 1)
         {
+            EXPECT_EQ(out_grid_desc.get_num_of_dimension(), 3);
+            EXPECT_EQ(in_grid_desc.get_num_of_dimension(), NDim + 3);
+            EXPECT_EQ(wei_grid_desc.get_num_of_dimension(), 4);
+
             EXPECT_EQ(in_grid_desc.get_length(I3), Gm);
             EXPECT_EQ(in_grid_desc.get_length(I4), this->C_);
 
-            EXPECT_EQ(wei_grid_desc.get_length(I0), Gm);
-            EXPECT_EQ(wei_grid_desc.get_length(I1), this->K_);
-            EXPECT_EQ(wei_grid_desc.get_length(I2), this->Y_ * this->X_ * this->C_);
+            EXPECT_EQ(wei_grid_desc.get_length(I0), 1); // Padding dimension
+            EXPECT_EQ(wei_grid_desc.get_length(I1), Gm);
+            EXPECT_EQ(wei_grid_desc.get_length(I2), this->K_);
+            EXPECT_EQ(wei_grid_desc.get_length(I3), this->Y_ * this->X_ * this->C_);
 
             EXPECT_EQ(out_grid_desc.get_length(I1), Gm);
             EXPECT_EQ(out_grid_desc.get_length(I2), this->N_ * this->Ho_ * this->Wo_);
         }
         else 
         {
+            EXPECT_EQ(out_grid_desc.get_num_of_dimension(), 2);
+            EXPECT_EQ(in_grid_desc.get_num_of_dimension(), NDim + 2);
+            EXPECT_EQ(wei_grid_desc.get_num_of_dimension(), 2);
+
             EXPECT_EQ(in_grid_desc.get_length(I3), this->C_);
 
             EXPECT_EQ(wei_grid_desc.get_length(I0), this->K_);
@@ -385,18 +404,27 @@ TYPED_TEST(TestTransformConvBwdWeightToGemm, GridDescriptors)
 
         if constexpr (Gm > 1)
         {
+            EXPECT_EQ(out_grid_desc.get_num_of_dimension(), 3);
+            EXPECT_EQ(in_grid_desc.get_num_of_dimension(), NDim + 3);
+            EXPECT_EQ(wei_grid_desc.get_num_of_dimension(), 4);
+
             EXPECT_EQ(in_grid_desc.get_length(I4), Gm);
             EXPECT_EQ(in_grid_desc.get_length(I5), this->C_);
 
-            EXPECT_EQ(wei_grid_desc.get_length(I0), Gm);
-            EXPECT_EQ(wei_grid_desc.get_length(I1), this->K_);
-            EXPECT_EQ(wei_grid_desc.get_length(I2), this->Z_ * this->Y_ * this->X_ * this->C_);
+            EXPECT_EQ(wei_grid_desc.get_length(I0), 1); // Padding dimension
+            EXPECT_EQ(wei_grid_desc.get_length(I1), Gm);
+            EXPECT_EQ(wei_grid_desc.get_length(I2), this->K_);
+            EXPECT_EQ(wei_grid_desc.get_length(I3), this->Z_ * this->Y_ * this->X_ * this->C_);
 
             EXPECT_EQ(out_grid_desc.get_length(I1), Gm);
             EXPECT_EQ(out_grid_desc.get_length(I2), this->N_ * this->Do_ * this->Ho_ * this->Wo_);
         }
         else 
         {
+            EXPECT_EQ(out_grid_desc.get_num_of_dimension(), 2);
+            EXPECT_EQ(in_grid_desc.get_num_of_dimension(), NDim + 2);
+            EXPECT_EQ(wei_grid_desc.get_num_of_dimension(), 2);
+            
             EXPECT_EQ(in_grid_desc.get_length(I4), this->C_);
 
             EXPECT_EQ(wei_grid_desc.get_length(I0), this->K_);
@@ -428,24 +456,35 @@ TYPED_TEST(TestTransformConvBwdWeightToGemm, ABCGridDescriptors)
         
         // Test combined ABC grid descriptors
         const auto abc_descriptors = transform.template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<1>();
-        const auto& out_desc = abc_descriptors[I0]; // GEMM A ()
-        const auto& in_desc = abc_descriptors[I1]; // GEMM B (N_gemm, K_gemm)
+        const auto& out_desc = abc_descriptors[I0]; // GEMM A 
+        const auto& in_desc = abc_descriptors[I1];  // GEMM B
         const auto& wei_desc = abc_descriptors[I2]; // GEMM C
 
-        EXPECT_EQ(out_desc.get_num_of_dimension(), 3);
+        // The GEMM descriptors should be 2D.
+        EXPECT_EQ(out_desc.get_num_of_dimension(), 2);
         EXPECT_EQ(in_desc.get_num_of_dimension(), 2);
-        EXPECT_EQ(wei_desc.get_num_of_dimension(), 3);
+        EXPECT_EQ(wei_desc.get_num_of_dimension(), 2);
         
-        EXPECT_EQ(in_desc.get_length(I0), this->X_ * this->C_);
-        EXPECT_EQ(in_desc.get_length(I1), this->N_ * this->Wo_ * Gm);
+        // Expected GEMM shapes:
+        // M_gemm = K * Gm
+        // N_gemm = X * C * Gm
+        // K_gemm = N * Wo
+        const auto M_gemm = this->K_ * Gm;
+        const auto N_gemm = this->X_ * this->C_ * Gm;
+        const auto K_gemm = this->N_ * this->Wo_;
 
-        // // Verify GEMM M-dimension that should depend on Gm
-        // EXPECT_EQ(out_desc.get_length(I1), this->K_ * Gm);
-        // EXPECT_EQ(wei_desc.get_length(I0), this->K_ * Gm);
-        
-        // // Verify GEMM N-dimension that should depend on Gm.
-        // EXPECT_EQ(in_desc.get_length(I1), this->X_ * this->C_ * Gm);
-        // EXPECT_EQ(wei_desc.get_length(I1), this->X_ * this->C_ * Gm);
+        // Output matrix ("A" matrix of the GEMM problem) should have shape (M_gemm, K_gemm).
+        EXPECT_EQ(out_desc.get_length(I0), M_gemm);
+        EXPECT_EQ(out_desc.get_length(I1), K_gemm);
+
+        // For reason XXX, we must have in-matrix ("B" matrix of the GEMM problem)
+        // in form (N_gemm, K_gemm) instead of the (K_gemm, N_gemm) form.
+        EXPECT_EQ(in_desc.get_length(I0), N_gemm);
+        EXPECT_EQ(in_desc.get_length(I1), K_gemm);
+
+        // Weights matrix ("C" matrix of the GEMM problem) should have shape (M_gemm, N_gemm).
+        EXPECT_EQ(wei_desc.get_length(I0), M_gemm);
+        EXPECT_EQ(wei_desc.get_length(I1), N_gemm);
     } 
     else if constexpr (NDim == 2) 
     {
@@ -459,16 +498,35 @@ TYPED_TEST(TestTransformConvBwdWeightToGemm, ABCGridDescriptors)
         
         // Test combined ABC grid descriptors
         auto abc_descriptors = transform.template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<2>();
-        const auto& out_desc = abc_descriptors[I0];
-        const auto& in_desc = abc_descriptors[I1];
-        const auto& wei_desc = abc_descriptors[I2];
+        const auto& out_desc = abc_descriptors[I0]; // GEMM A
+        const auto& in_desc = abc_descriptors[I1];  // GEMM B
+        const auto& wei_desc = abc_descriptors[I2]; // GEMM C
         
-        EXPECT_EQ(out_desc.get_length(I1), this->K_ * Gm);
-        EXPECT_EQ(wei_desc.get_length(I0), this->K_ * Gm);
-        
-        EXPECT_EQ(in_desc.get_length(I1), this->Y_ * this->X_ * this->C_ * Gm);
-        EXPECT_EQ(wei_desc.get_length(I1),  this->Y_ *this->X_ * this->C_ * Gm);
-        
+        // The GEMM descriptors should be 2D.
+        EXPECT_EQ(out_desc.get_num_of_dimension(), 2);
+        EXPECT_EQ(in_desc.get_num_of_dimension(), 2);
+        EXPECT_EQ(wei_desc.get_num_of_dimension(), 2);
+
+        // Expected GEMM shapes:
+        // M_gemm = K * Gm
+        // N_gemm = Y * X * C * Gm
+        // K_gemm = N * Ho * Wo
+        const auto M_gemm = this->K_ * Gm;
+        const auto N_gemm = this->Y_ * this->X_ * this->C_ * Gm;
+        const auto K_gemm = this->N_ * this->Ho_ * this->Wo_;
+
+        // Output matrix ("A" matrix of the GEMM problem) should have shape (M_gemm, K_gemm).
+        EXPECT_EQ(out_desc.get_length(I0), M_gemm);
+        EXPECT_EQ(out_desc.get_length(I1), K_gemm);
+
+        // For reason XXX, we must have in-matrix ("B" matrix of the GEMM problem)
+        // in form (N_gemm, K_gemm) instead of the (K_gemm, N_gemm) form.
+        EXPECT_EQ(in_desc.get_length(I0), N_gemm);
+        EXPECT_EQ(in_desc.get_length(I1), K_gemm);
+
+        // Weights matrix ("C" matrix of the GEMM problem) should have shape (M_gemm, N_gemm).
+        EXPECT_EQ(wei_desc.get_length(I0), M_gemm);
+        EXPECT_EQ(wei_desc.get_length(I1), N_gemm);
     } 
     else if constexpr (NDim == 3) 
     {
@@ -482,15 +540,35 @@ TYPED_TEST(TestTransformConvBwdWeightToGemm, ABCGridDescriptors)
         
         // Test combined ABC grid descriptors
         auto abc_descriptors = transform.template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<3>();
-        const auto& out_desc = abc_descriptors[I0];
-        const auto& in_desc = abc_descriptors[I1];
-        const auto& wei_desc = abc_descriptors[I2];
+        const auto& out_desc = abc_descriptors[I0]; // GEMM A
+        const auto& in_desc = abc_descriptors[I1];  // GEMM B
+        const auto& wei_desc = abc_descriptors[I2]; // GEMM C
 
-        EXPECT_EQ(out_desc.get_length(I1), this->K_ * Gm);
-        EXPECT_EQ(wei_desc.get_length(I0), this->K_ * Gm);
-        
-        EXPECT_EQ(in_desc.get_length(I1), this->Z_ * this->Y_ * this->X_ * this->C_ * Gm);
-        EXPECT_EQ(wei_desc.get_length(I1), this->Z_ * this->Y_ *this->X_ * this->C_ * Gm);
+        // The GEMM descriptors should be 2D.
+        EXPECT_EQ(out_desc.get_num_of_dimension(), 2);
+        EXPECT_EQ(in_desc.get_num_of_dimension(), 2);
+        EXPECT_EQ(wei_desc.get_num_of_dimension(), 2);
+
+        // Expected GEMM shapes:
+        // M_gemm = K * Gm
+        // N_gemm = Z * Y * X * C * Gm
+        // K_gemm = N * Do * Ho * Wo
+        const auto M_gemm = this->K_ * Gm;
+        const auto N_gemm = this->Z_ * this->Y_ * this->X_ * this->C_ * Gm;
+        const auto K_gemm = this->N_ * this->Do_ * this->Ho_ * this->Wo_;
+
+        // Output matrix ("A" matrix of the GEMM problem) should have shape (M_gemm, K_gemm).
+        EXPECT_EQ(out_desc.get_length(I0), M_gemm);
+        EXPECT_EQ(out_desc.get_length(I1), K_gemm);
+
+        // For reason XXX, we must have in-matrix ("B" matrix of the GEMM problem)
+        // in form (N_gemm, K_gemm) instead of the (K_gemm, N_gemm) form.
+        EXPECT_EQ(in_desc.get_length(I0), N_gemm);
+        EXPECT_EQ(in_desc.get_length(I1), K_gemm);
+
+        // Weights matrix ("C" matrix of the GEMM problem) should have shape (M_gemm, N_gemm).
+        EXPECT_EQ(wei_desc.get_length(I0), M_gemm);
+        EXPECT_EQ(wei_desc.get_length(I1), N_gemm);
     }
 }
 
