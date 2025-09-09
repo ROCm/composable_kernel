@@ -82,9 +82,11 @@ struct GroupedConvBwdWeightKernelArgs
         b_grid_desc_n_k = grid_descs.at(number<1>{});
         c_grid_desc_m_n = grid_descs.at(number<2>{});
 
-        group_stride_a = args.K_;            // A: Out NWGK
-        group_stride_b = args.C_;            // B: In  NWGC
-        group_stride_c = args.K_ * args.C_ * // C: Wei GKXC
+        using Gm = GroupedConvTraitsType_::NumGroupsToMerge;
+
+        group_stride_a = args.K_ * Gm;            // A: Out NWGK
+        group_stride_b = args.C_ * Gm;            // B: In  NWGC
+        group_stride_c = args.K_ * args.C_ * Gm * // C: Wei GKXC
                          std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
@@ -93,7 +95,7 @@ struct GroupedConvBwdWeightKernelArgs
         GemmM     = a_grid_desc_m_k.get_length(number<0>{});
         GemmN     = b_grid_desc_n_k.get_length(number<0>{});
         GemmK     = a_grid_desc_m_k.get_length(number<1>{});
-        GemmBatch = args.G_;
+        GemmBatch = args.G_ / Gm;
     }
 
     template <
@@ -158,9 +160,11 @@ struct GroupedConvBwdWeightKernelArgs
         b_grid_desc_n_k = grid_descs.at(number<1>{});
         c_grid_desc_m_n = grid_descs.at(number<2>{});
 
-        group_stride_a = args.K_;            // A: Out NHWGK
-        group_stride_b = args.C_;            // B: In  NHWGC
-        group_stride_c = args.K_ * args.C_ * // C: Wei GKYXC
+        using Gm = GroupedConvTraitsType_::NumGroupsToMerge;
+
+        group_stride_a = args.K_ * Gm;            // A: Out NHWGK
+        group_stride_b = args.C_ * Gm;            // B: In  NHWGC
+        group_stride_c = args.K_ * args.C_ * Gm * // C: Wei GKYXC
                          std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
@@ -169,7 +173,7 @@ struct GroupedConvBwdWeightKernelArgs
         GemmM     = a_grid_desc_m_k.get_length(number<0>{});
         GemmN     = b_grid_desc_n_k.get_length(number<0>{});
         GemmK     = a_grid_desc_m_k.get_length(number<1>{});
-        GemmBatch = args.G_;
+        GemmBatch = args.G_ / Gm;
     }
 
     template <
@@ -241,9 +245,11 @@ struct GroupedConvBwdWeightKernelArgs
         b_grid_desc_n_k = grid_descs.at(number<1>{});
         c_grid_desc_m_n = grid_descs.at(number<2>{});
 
-        group_stride_a = args.K_;            // A: Out NDHWGK
-        group_stride_b = args.C_;            // B: In  NDHWGC
-        group_stride_c = args.K_ * args.C_ * // C: wEI GKZYXC
+        using Gm = GroupedConvTraitsType_::NumGroupsToMerge;
+
+        group_stride_a = args.K_ * Gm;            // A: Out NDHWGK
+        group_stride_b = args.C_ * Gm;            // B: In  NDHWGC
+        group_stride_c = args.K_ * args.C_ * Gm * // C: wEI GKZYXC
                          std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
@@ -252,7 +258,7 @@ struct GroupedConvBwdWeightKernelArgs
         GemmM     = a_grid_desc_m_k.get_length(number<0>{});
         GemmN     = b_grid_desc_n_k.get_length(number<0>{});
         GemmK     = a_grid_desc_m_k.get_length(number<1>{});
-        GemmBatch = args.G_;
+        GemmBatch = args.G_ / Gm;
     }
 
     using ABCGridDescs = remove_cvref_t<
