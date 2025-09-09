@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -130,7 +130,7 @@ struct FusedMoeGemmKernel
     // static_assert(kBlockPerCu > 0);
 
     using BlockShape = typename Pipeline::BlockShape; // this is FusedMoeGemmShape
-    static constexpr index_t BlockSize_ = BlockShape::BlockSize;
+    static constexpr index_t kBlockSize = BlockShape::BlockSize;
 
     using ADataType            = typename Pipeline::Problem::ADataType;
     using GDataType            = typename Pipeline::Problem::GDataType;
@@ -231,7 +231,7 @@ struct FusedMoeGemmKernel
         return Partitioner::GridSize(max_num_tokens_padded, hargs.intermediate_size);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(BlockSize_); }
+    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() { return Pipeline::GetSmemSize(); }
 
@@ -385,7 +385,7 @@ struct FusedMoeGemmKernel
             auto o_window = [&]() {
                 ODataType* o_ptr = reinterpret_cast<ODataType*>(kargs.o_ptr);
                 auto o_view_     = make_naive_tensor_view<address_space_enum::global,
-                                                      memory_operation_enum::atomic_add>(
+                                                          memory_operation_enum::atomic_add>(
                     o_ptr,
                     make_tuple(kargs.num_tokens, kargs.hidden_size),
                     make_tuple(kargs.stride_token, 1),

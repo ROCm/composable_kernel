@@ -21,7 +21,7 @@ namespace ck_tile {
 using fp32_t   = float;
 using fp32x2_t = float __attribute__((ext_vector_type(2)));
 using fp16x2_t = _Float16 __attribute__((ext_vector_type(2)));
-using bf16x2_t = bf16_raw_t __attribute__((ext_vector_type(2)));
+using bf16x2_t = bfloat16_t __attribute__((ext_vector_type(2)));
 
 CK_TILE_HOST_DEVICE constexpr uint8_t float_to_e2m1(float x, float scale = 1.f);
 
@@ -61,8 +61,8 @@ struct pk_float4_e2m1_t
     CK_TILE_HOST_DEVICE constexpr operator bf16x2_t() const { return to_bf16x2(); }
 
     template <index_t I>
-    CK_TILE_HOST_DEVICE raw_type unpack(number<I>) const;
-    CK_TILE_HOST_DEVICE static pk_float4_e2m1_t pack(const type x0, const type x1)
+    CK_TILE_HOST_DEVICE constexpr raw_type unpack(number<I>) const;
+    CK_TILE_HOST_DEVICE constexpr static pk_float4_e2m1_t pack(const type x0, const type x1)
     {
         return (x1 << 4) | (x0 & 0b00001111);
     }
@@ -136,7 +136,7 @@ struct numeric<pk_fp4_t>
 };
 
 template <index_t I>
-CK_TILE_HOST_DEVICE pk_fp4_raw_t pk_fp4_t::unpack(number<I>) const
+CK_TILE_HOST_DEVICE constexpr pk_fp4_raw_t pk_fp4_t::unpack(number<I>) const
 {
     static_assert(I < 2, "Index is out of range.");
     if constexpr(I == 1)
@@ -153,7 +153,6 @@ namespace impl {
 template <typename T>
 CK_TILE_DEVICE T _from_f4(pk_fp4_raw_t src, float scale = 1.0f)
 {
-    // TODO: check the order
     if constexpr(std::is_same_v<T, fp32_t>)
         return fp32x2_t(__builtin_amdgcn_cvt_scalef32_pk_f32_fp4(src, scale, 0))[0];
     else if constexpr(std::is_same_v<T, fp32x2_t>)
@@ -173,7 +172,6 @@ CK_TILE_DEVICE T _from_f4(pk_fp4_raw_t src, float scale = 1.0f)
 template <typename T>
 CK_TILE_DEVICE pk_fp4_raw_t _to_f4(T src, float scale = 1.0f)
 {
-    // TODO: check the order
     union
     {
         uint32_t u32;

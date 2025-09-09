@@ -12,6 +12,7 @@
 
 #include "batched_transpose_example.hpp"
 
+#include "ck_tile/utility/json_dump.hpp"
 #if 0
 template <typename T>
 void dump_host_tensor_4d(const ck_tile::HostTensor<T>& x)
@@ -102,7 +103,10 @@ auto create_args(int argc, char* argv[])
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("seed", "-1", "seed to be used, -1 means random every time")
-        .insert("kname", "0", "t to 1 will print kernel name");
+        .insert("kname", "0", "t to 1 will print kernel name")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "batched_transpose.json", "json file name to dump results")
+        .insert("pipeline", "0", "0: no LDS usage, 1: LDS-accelerated (gfx950)");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -121,6 +125,7 @@ bool run_batched_transpose(ck_tile::ArgParser args)
     int n_repeat           = args.get_int("repeat");
     std::string layout_in  = args.get_str("layout_in");
     std::string layout_out = args.get_str("layout_out");
+    std::string pipeline   = args.get_str("pipeline");
     int seed               = args.get_int("seed");
 
     int dim_in[4], dim_out[4];
@@ -166,7 +171,7 @@ bool run_batched_transpose(ck_tile::ArgParser args)
 
     x_dev.ToDevice(x_host.data());
 
-    auto trait = batched_transpose_trait{prec, layout_in};
+    auto trait = batched_transpose_trait{prec, layout_in, pipeline};
 
     uint32_t height = nchw2nhwc ? C : H * W;
     uint32_t width  = nchw2nhwc ? H * W : C;
@@ -185,17 +190,15 @@ bool run_batched_transpose(ck_tile::ArgParser args)
 
     auto ms = batched_transpose(trait, karg, sc);
 
-    std::size_t num_operations = N * C * H * (W - 1);
-    std::size_t num_bytes      = N * C * H * W * sizeof(Type);
+    std::size_t num_bytes = N * C * H * W * sizeof(Type) * 2; // read + written
 
-    float ave_time   = ms * 1E-3;
     float gb_per_sec = num_bytes / ms * 1.E-6;
-    float tflops     = static_cast<float>(num_operations) / ms * 1.E-6;
 
     std::cout << "Run Batched Transpose kernel with N=" << N << ", C=" << C << ", H=" << H
               << ", W=" << W << ", layout_in=" << layout_in << ", layout_out=" << layout_out
-              << " : " << ms << " ms (" << ave_time << " ave_time), " << tflops << " TFlops"
-              << gb_per_sec << " GB/s, " << std::endl;
+              << " : " << std::endl
+              << ms << " ms " << std::endl
+              << gb_per_sec << " GB/s " << std::endl;
 
     printf("[%s]N:%d, C:%d, H:%d, W:%d, layout_in:%s, %f\n",
            prec.c_str(),
@@ -236,6 +239,23 @@ bool run_batched_transpose(ck_tile::ArgParser args)
            "--------------------------------------------------------------------\n",
            rtn ? "y" : "n");
     fflush(stdout);
+
+    if(args.get_int("json") == 1)
+    {
+        dump_batched_transpose_json(args.get_str("jsonfile"),
+                                    N,
+                                    C,
+                                    H,
+                                    W,
+                                    layout_in,
+                                    layout_out,
+                                    prec,
+                                    ms,
+                                    0,
+                                    gb_per_sec,
+                                    rtn);
+    }
+
     return rtn;
 }
 

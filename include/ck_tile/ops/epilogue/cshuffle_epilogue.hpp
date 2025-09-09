@@ -6,6 +6,9 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
+#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
+
+#include <optional>
 
 namespace ck_tile {
 
@@ -17,7 +20,6 @@ template <typename ADataType_,
           typename DsLayout_,
           typename ELayout_,
           typename CDElementwise_,
-          index_t kBlockSize_,
           index_t kM_,
           index_t kN_,
           index_t MWave_,
@@ -42,7 +44,7 @@ struct CShuffleEpilogueProblem
     using DsLayout                                         = remove_cvref_t<DsLayout_>;
     using ELayout                                          = remove_cvref_t<ELayout_>;
     using CDElementwise                                    = remove_cvref_t<CDElementwise_>;
-    static constexpr index_t kBlockSize                    = kBlockSize_;
+    static constexpr index_t kBlockSize                    = MWave_ * NWave_ * get_warp_size();
     static constexpr index_t kMPerBlock                    = kM_;
     static constexpr index_t kNPerBlock                    = kN_;
     static constexpr index_t MWave                         = MWave_;
@@ -73,6 +75,8 @@ struct CShuffleEpilogue
     using ODataType   = remove_cvref_t<typename Problem::ODataType>;
     using DsDataType  = remove_cvref_t<typename Problem::DsDataType>;
     using DsLayout    = remove_cvref_t<typename Problem::DsLayout>;
+    using ATypeToUse =
+        std::conditional_t<std::is_same_v<ADataType, pk_int4_t>, BDataType, ADataType>;
     // Used for weight-only quantization kernel, B would be dequantized to the same data type as A
     using BTypeToUse =
         std::conditional_t<std::is_same_v<BDataType, pk_int4_t>, ADataType, BDataType>;
@@ -212,16 +216,20 @@ struct CShuffleEpilogue
     static constexpr index_t MPerIterationShuffle = std::get<0>(MNPerIterationShuffle);
     static constexpr index_t NPerIterationShuffle = std::get<1>(MNPerIterationShuffle);
 
-    using WG = WarpGemmMfmaDispatcher<ADataType,
-                                      BTypeToUse,
-                                      AccDataType,
-                                      MPerXdl,
-                                      NPerXdl,
-                                      KPerXdl,
-                                      isCTransposed>;
+    using WG = WarpGemmDispatcher<ATypeToUse,
+                                  BTypeToUse,
+                                  AccDataType,
+                                  MPerXdl,
+                                  NPerXdl,
+                                  KPerXdl,
+                                  isCTransposed>;
 
-    using CWarpDstr   = typename WG::CWarpDstr;
-    using CWarpTensor = typename WG::CWarpTensor;
+    using CWarpDstr         = typename WG::CWarpDstr;
+    using CWarpTensor       = typename WG::CWarpTensor;
+    using CWarpDstrEncoding = typename WG::CWarpDstrEncoding;
+    using SFC               = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
+                                                  sequence<0, 1>,
+                                                  sequence<MPerIterationShuffle, NPerIterationShuffle>>;
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsBlockDescriptor()
@@ -368,7 +376,9 @@ struct CShuffleEpilogue
     CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window,
                                    const OAccTile& o_acc_tile,
                                    const DsDramWindows& ds_dram_windows,
-                                   void* p_smem)
+                                   void* p_smem,
+                                   const ScaleM& scale_m = {},
+                                   const ScaleN& scale_n = {})
     {
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
 
@@ -398,13 +408,14 @@ struct CShuffleEpilogue
                       "Currently, the CShuffle Epilogue only supports the Row Major Output layout");
 
         using TileEncodingPattern =
-            TileDistributionEncodingPattern2D<kBlockSize,
-                                              MPerIterationShuffle,
-                                              NPerIterationShuffle,
-                                              GetVectorSizeC(),
-                                              tile_distribution_pattern::thread_raked,
-                                              Problem::kNumWaveGroups>;
-        constexpr auto dram_tile_distribution = TileEncodingPattern::Make2DStaticTileDistribution();
+            tile_distribution_encoding_pattern_2d<kBlockSize,
+                                                  MPerIterationShuffle,
+                                                  NPerIterationShuffle,
+                                                  GetVectorSizeC(),
+                                                  tile_distribution_pattern::thread_raked,
+                                                  Problem::kNumWaveGroups>;
+        constexpr auto dram_tile_distribution =
+            TileEncodingPattern::make_2d_static_tile_distribution();
 
         auto d_dram_windows = generate_tuple(
             [&](auto idx) {
@@ -412,27 +423,39 @@ struct CShuffleEpilogue
             },
             number<NumDTensor>{});
 
-        constexpr auto c_warp_y_lengths =
-            to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
-        constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
+        constexpr bool has_scales =
+            !std::is_same<ScaleM, EmptyScale>::value && !std::is_same<ScaleN, EmptyScale>::value;
+        auto scale_m_window = [&]() {
+            if constexpr(has_scales)
+            {
+                return make_tile_window(scale_m, lds_tile.get_tile_distribution());
+            }
+            else
+            {
+                return EmptyScale{};
+            }
+        }();
+        auto scale_n_window = [&]() {
+            if constexpr(has_scales)
+            {
+                return make_tile_window(scale_n, lds_tile.get_tile_distribution());
+            }
+            else
+            {
+                return EmptyScale{};
+            }
+        }();
 
         static_for<0, num_access, 1>{}([&](auto iAccess) {
             block_sync_lds();
-            constexpr auto idx_y_start = SFC::get_index(iAccess);
+            slice_acc_tile<iAccess>(o_acc_tile, lds_tile);
 
-            constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (MPerIterationShuffle)>{};
-            constexpr auto nIter = number<idx_y_start.at(number<1>{}) / (NPerIterationShuffle)>{};
+            if constexpr(has_scales)
+            {
+                scale_tile<iAccess>(lds_tile, scale_m_window, scale_n_window);
+            }
 
-            lds_tile.get_thread_buffer() = o_acc_tile.get_y_sliced_thread_data(
-                merge_sequences(
-                    sequence<mIter * NumMXdlPerWavePerShuffle, nIter * NumNXdlPerWavePerShuffle>{},
-                    c_warp_y_index_zeros),
-                merge_sequences(sequence<NumMXdlPerWavePerShuffle, NumNXdlPerWavePerShuffle>{},
-                                c_warp_y_lengths));
-
-            const auto c_warptile_in_tensor_casted = cast_tile<ODataType>(lds_tile);
-
-            store_tile(in_lds_window, c_warptile_in_tensor_casted);
+            cast_lds_tile(lds_tile, in_lds_window);
             block_sync_lds();
 
             auto c_out_tensor = load_tile(make_tile_window(out_lds_window, dram_tile_distribution));

@@ -5,7 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/concat.hpp"
-#include "ck_tile/ops/gemm/pipeline/wp_pipeline_agmem_bgmem_creg_v1_policy.hpp"
+#include "ck_tile/ops/gemm/pipeline/wp_pipeline_agmem_bgmem_creg_base_policy.hpp"
 
 namespace ck_tile {
 
@@ -59,13 +59,15 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
     static constexpr index_t flatKPerWarp = BlockGemmShape::flatKPerWarp;
     static constexpr index_t flatNPerWarp = BlockGemmShape::flatNPerWarp;
 
+    template <bool IsWave32Host = false>
     static constexpr index_t GetVectorSizeA()
     {
-        return PipelinePolicy::template GetVectorSizeA<Problem>();
+        return PipelinePolicy::template GetVectorSizeA<Problem, IsWave32Host>();
     }
+    template <bool IsWave32Host = false>
     static constexpr index_t GetVectorSizeB()
     {
-        return PipelinePolicy::template GetVectorSizeB<Problem>();
+        return PipelinePolicy::template GetVectorSizeB<Problem, IsWave32Host>();
     }
 
     static constexpr bool kPadM = Problem::kPadM;
@@ -84,7 +86,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
     using WarpTile   = remove_cvref_t<typename BlockGemmShape::WarpTile>;
 
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
-    static constexpr index_t Preshuffle    = Problem::Preshuffle;
+    static constexpr bool Preshuffle       = Problem::Preshuffle;
     using Base::UsePersistentKernel;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
@@ -276,12 +278,11 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
         // B flat DRAM window for load
         auto b_flat_distribution =
             PipelinePolicy::template MakeBFlatDramTileDistribution<Problem>();
-        auto b_flat_dram_window = // tile_window_with_static_distribution
-            make_tile_window(
-                b_flat_dram_block_window_tmp.get_bottom_tensor_view(), // from kernel gemm_pad_views
-                make_tuple(number<flatNPerWarp>{}, number<flatKPerWarp>{}),
-                b_flat_dram_block_window_tmp.get_window_origin(),
-                b_flat_distribution);
+        auto b_flat_dram_window =
+            make_tile_window(b_flat_dram_block_window_tmp.get_bottom_tensor_view(),
+                             make_tuple(number<flatNPerWarp>{}, number<flatKPerWarp>{}),
+                             b_flat_dram_block_window_tmp.get_window_origin(),
+                             b_flat_distribution);
 
         // Acc register tile
         auto c_block_tile = block_flatmm.MakeCBlockTile();
@@ -462,11 +463,10 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
     {
         return operator()(
             a_dram_block_window_tmp,
-            [](const ADataType& a) { return a; },
+            [](const ADataType & a) { return a; },
             b_flat_dram_block_window_tmp,
             num_loop,
             p_smem);
     }
 };
-
 } // namespace ck_tile

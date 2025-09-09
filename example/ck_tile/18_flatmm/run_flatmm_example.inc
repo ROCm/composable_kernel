@@ -77,6 +77,16 @@ int run_flatmm_example_with_layouts(int argc,
         ck_tile::FillUniformDistribution<AccDataType>{1.f, 1.f}(per_token_scale);
         ck_tile::FillUniformDistribution<AccDataType>{1.f, 1.f}(per_channel_scale);
     }
+    else if(init_method == 3)
+    {
+        ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_host);
+        ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_origin_host);
+    }
+    else if(init_method == 4)
+    {
+        ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_host);
+        ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_origin_host);
+    }
     else
     {
         a_host.SetZero();
@@ -256,6 +266,23 @@ int run_flatmm_example_with_layouts(int argc,
                   << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
                   << std::endl;
         std::cout << "The GPU veification result is: " << (pass ? "correct" : "fail") << std::endl;
+    }
+
+    if(arg_parser.get_int("json") == 1)
+    {
+        dump_flatmm_json_results(arg_parser.get_str("jsonfile"),
+                                 DataTypeToString<ADataType>(),
+                                 M,
+                                 N,
+                                 K,
+                                 stride_A,
+                                 stride_B,
+                                 stride_C,
+                                 kbatch,
+                                 pass,
+                                 ave_time,
+                                 tflops,
+                                 gb_per_sec);
     }
 
     return pass;

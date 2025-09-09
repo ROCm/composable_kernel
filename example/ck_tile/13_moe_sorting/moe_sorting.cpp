@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <set>
 #include <vector>
@@ -14,6 +14,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/reduce.hpp"
 #include "moe_sorting_api.hpp"
+#include "ck_tile/utility/json_dump.hpp"
 
 auto create_args(int argc, char* argv[])
 {
@@ -59,7 +60,9 @@ auto create_args(int argc, char* argv[])
                 "invoking this example")
         .insert("kname", "0", "prints the kernel name when set to 1")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
-        .insert("repeat", "20", "number of iterations to benchmark the kernel");
+        .insert("repeat", "20", "number of iterations to benchmark the kernel")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "moe_sorting.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -228,20 +231,26 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     moe_sorting_trait trait{
         index_prec, weight_prec, local_expert_masking, clear_inside, dispatch_policy};
 
-    moe_sorting_args karg
-    {
-        topk_ids_dev.GetDeviceBuffer(), weights_dev.GetDeviceBuffer(),
-            local_expert_masking ? local_expert_masking_dev.GetDeviceBuffer() : nullptr,
-            is_local_token ? local_tokens_dev.GetDeviceBuffer() : nullptr,
-            sorted_ids_dev.GetDeviceBuffer(), sorted_weights_dev.GetDeviceBuffer(),
-            sorted_expert_ids_dev.GetDeviceBuffer(), sorted_id_cnt_dev.GetDeviceBuffer(),
-            moe_buf_bytes > 0 ? moe_buf_dev.GetDeviceBuffer() : nullptr,
-            workspace_size != 0 ? moe_sorting_ws.GetDeviceBuffer() : nullptr, tokens, unit_size,
-            num_experts, topk,
+    moe_sorting_args karg{topk_ids_dev.GetDeviceBuffer(),
+                          weights_dev.GetDeviceBuffer(),
+                          local_expert_masking ? local_expert_masking_dev.GetDeviceBuffer()
+                                               : nullptr,
+                          is_local_token ? local_tokens_dev.GetDeviceBuffer() : nullptr,
+                          sorted_ids_dev.GetDeviceBuffer(),
+                          sorted_weights_dev.GetDeviceBuffer(),
+                          sorted_expert_ids_dev.GetDeviceBuffer(),
+                          sorted_id_cnt_dev.GetDeviceBuffer(),
+                          moe_buf_bytes > 0 ? moe_buf_dev.GetDeviceBuffer() : nullptr,
+                          workspace_size != 0 ? moe_sorting_ws.GetDeviceBuffer() : nullptr,
+                          tokens,
+                          unit_size,
+                          num_experts,
+                          topk,
 #if MOE_SORTING_FMOE_2D_BUF
-            moe_buf_interm_dim, moe_buf_elem_bytes
+                          moe_buf_interm_dim,
+                          moe_buf_elem_bytes
 #else
-            static_cast<ck_tile::long_index_t>(moe_buf_size * sizeof(float))
+                          static_cast<ck_tile::long_index_t>(moe_buf_size * sizeof(float))
 #endif
     };
 
@@ -431,6 +440,23 @@ bool test_moe_sorting(ck_tile::ArgParser args)
         printf(", (%d)", seed);
     printf("\n");
     fflush(stdout);
+
+    if(args.get_int("json") == 1)
+    {
+        dump_moe_sorting_json(args.get_str("jsonfile"),
+                              index_prec,
+                              weight_prec,
+                              workspace_size == 0 ? "cx" : (clear_inside ? "ci" : "co"),
+                              dispatch_policy,
+                              tokens,
+                              num_experts,
+                              topk,
+                              ms,
+                              0,
+                              0,
+                              rtn);
+    }
+
     return rtn;
 }
 

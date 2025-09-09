@@ -7,8 +7,14 @@
 #include <string>
 #include <fstream>
 #include <stdexcept>
+#include <iomanip>
 
-#include "gemm_host_api.hpp"
+#include "ck_tile/core.hpp"
+#include "ck_tile/host.hpp"
+#include "gemm_common.hpp"
+
+// Data types and Layouts are defined by the generated kernel headers
+// No hardcoded type definitions here to avoid conflicts
 
 enum class Metric
 {
@@ -55,8 +61,9 @@ struct GemmProblem
            << "   \"dtype_c\":\"" << problem.dtype_c_ << "\",\n"
            << "   \"layout_a\":\"" << problem.layout_a_ << "\",\n"
            << "   \"layout_b\":\"" << problem.layout_b_ << "\",\n"
-           << "   \"layout_c\":\"" << problem.layout_c_ << "\"\n"
-           << "   \"structured_sparsity\":\"" << problem.structured_sparsity_ << "\"\n"
+           << "   \"layout_c\":\"" << problem.layout_c_ << "\",\n"
+           << "   \"structured_sparsity\":" << (problem.structured_sparsity_ ? "true" : "false")
+           << "\n"
            << "}";
         return os;
     }
@@ -105,11 +112,8 @@ struct KernelInstance
     friend std::ostream& operator<<(std::ostream& os, const KernelInstance& obj)
     {
         os << "{\n"
-           << " \"name\": \""
-           << "{\n"
-           << obj.name_ << "\n}"
-           << "\",\n"
-           << " \"problem\": \"" << obj.problem_ << "\",\n"
+           << " \"name\": \"" << obj.name_ << "\",\n"
+           << " \"problem\": " << obj.problem_ << ",\n"
            << " \"perf_result\": " << obj.perf_result_ << "\n"
            << "}";
         return os;
@@ -127,6 +131,7 @@ struct Setting
     std::string csv_filename_;
     bool flush_cache_;
     int rotating_count_;
+    bool json_output_;
 };
 
 inline std::string get_rocm_version()

@@ -34,7 +34,7 @@ template <bool Use2LDS,
           TailNumber TailNum       = TailNumber::Full>
 __global__ enable_if_t<!Use2LDS, void>
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3_mx(typename GridwiseGemm::Argument karg)
@@ -66,7 +66,7 @@ template <bool Use2LDS,
           TailNumber TailNum       = TailNumber::Full>
 __global__ enable_if_t<Use2LDS, void>
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3_mx(typename GridwiseGemm::Argument karg)
@@ -422,8 +422,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         static_assert(!((is_same_v<remove_cvref_t<ADataType>, f6x16_pk_t> ||
                          is_same_v<remove_cvref_t<ADataType>, bf6x16_pk_t> ||
                          is_same_v<remove_cvref_t<ADataType>, f6x32_pk_t> ||
-                         is_same_v<remove_cvref_t<ADataType>, bf6x32_pk_t>)&&GemmSpec !=
-                        GemmSpecialization::Default),
+                         is_same_v<remove_cvref_t<ADataType>, bf6x32_pk_t>) &&
+                        GemmSpec != GemmSpecialization::Default),
                       "Packed F6 types do not support padding");
 
         if constexpr(GemmSpec == GemmSpecialization::NKPadding ||
@@ -648,23 +648,13 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
         __host__ void Print() const
         {
-            std::cout << "problem {"
-                      << "M:" << M << ", "
-                      << "N:" << N << ", "
-                      << "K:" << K << ", "
-                      << "SA:" << StrideA << ", "
-                      << "SScaleA:" << StrideScaleA << ", "
-                      << "SB:" << StrideB << ", "
-                      << "SScaleB:" << StrideScaleB << ", "
-                      << "SC:" << StrideC << ", "
-                      << "MP:" << MPadded << ", "
-                      << "NP:" << NPadded << ", "
-                      << "KRead:" << KRead << ", "
-                      << "KP:" << KPadded << ", "
-                      << "AK0:" << AK0 << ", "
-                      << "BK0:" << BK0 << ", "
-                      << "MBlock: " << MBlock << ", "
-                      << "NBlock: " << NBlock << "}" << std::endl;
+            std::cout << "problem {" << "M:" << M << ", " << "N:" << N << ", " << "K:" << K << ", "
+                      << "SA:" << StrideA << ", " << "SScaleA:" << StrideScaleA << ", "
+                      << "SB:" << StrideB << ", " << "SScaleB:" << StrideScaleB << ", "
+                      << "SC:" << StrideC << ", " << "MP:" << MPadded << ", " << "NP:" << NPadded
+                      << ", " << "KRead:" << KRead << ", " << "KP:" << KPadded << ", "
+                      << "AK0:" << AK0 << ", " << "BK0:" << BK0 << ", " << "MBlock: " << MBlock
+                      << ", " << "NBlock: " << NBlock << "}" << std::endl;
         }
 
         index_t M;
@@ -817,6 +807,10 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
     __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
+        constexpr index_t MWave    = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t NWave    = NPerBlock / (NXdlPerWave * NPerXdl);
+        constexpr index_t WaveSize = BlockSize / (MWave * NWave);
+
         // A matrix in LDS memory, dst of blockwise copy
         if constexpr(ABlockLdsExtraM || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
         {
@@ -848,9 +842,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             // kfold and mpair dimension is not always required.
             // more dimension in merge_transform increase the difficulty of generating immarg offset
             // for compiler.
-            constexpr auto WaveSize = 64;
-            constexpr auto M0       = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I1);
-            constexpr auto M1       = MPerBlock / M0;
+            constexpr auto M0 = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I1);
+            constexpr auto M1 = MPerBlock / M0;
 
             constexpr auto KThreadWrite     = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I0);
             constexpr auto K0PerThreadWrite = AK0Number / KThreadWrite;
@@ -935,6 +928,9 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
     __device__ static constexpr auto GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()
     {
+        constexpr index_t MWave    = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t NWave    = NPerBlock / (NXdlPerWave * NPerXdl);
+        constexpr index_t WaveSize = BlockSize / (MWave * NWave);
         // B matrix in LDS memory, dst of blockwise copy
         if constexpr(BBlockLdsExtraN || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
         {
@@ -962,9 +958,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         }
         else // RowMajor B
         {
-            constexpr auto WaveSize = 64;
-            constexpr auto N0       = BBlockTransferThreadClusterLengths_BK0_N_BK1{}.At(I1);
-            constexpr auto N1       = NPerBlock / N0;
+            constexpr auto N0 = BBlockTransferThreadClusterLengths_BK0_N_BK1{}.At(I1);
+            constexpr auto N1 = NPerBlock / N0;
 
             constexpr auto KThreadWrite     = BBlockTransferThreadClusterLengths_BK0_N_BK1{}.At(I0);
             constexpr auto K0PerThreadWrite = BK0Number / KThreadWrite;
