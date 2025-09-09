@@ -276,6 +276,8 @@ struct GemmConfigPreshuffleDecode : public GemmConfigBase
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V2;
     static constexpr bool Preshuffle           = true;
     static constexpr bool DoubleSmemBuffer     = true;
+    static constexpr int N_Repeat              = N_Tile / N_Warp_Tile / N_Warp;
+    static constexpr bool TiledMMAPermuteN     = N_Repeat % 2 == 0;
 };
 
 template <typename PrecType>
@@ -298,6 +300,8 @@ struct GemmConfigPreshufflePrefill : public GemmConfigBase
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V2;
     static constexpr bool Preshuffle           = true;
     static constexpr bool DoubleSmemBuffer     = true;
+    static constexpr int N_Repeat              = N_Tile / N_Warp_Tile / N_Warp;
+    static constexpr bool TiledMMAPermuteN     = N_Repeat % 2 == 0;
 };
 
 template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>
