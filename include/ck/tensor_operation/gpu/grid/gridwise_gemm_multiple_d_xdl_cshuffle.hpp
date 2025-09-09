@@ -322,6 +322,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         return true;
     }
 
+    IS_VALID_COMPILATION_PARAMETER_IMPL(EDataType)
+
     template <typename AGridDesc_M_K,
               typename BGridDesc_N_K,
               typename DsGridDesc_M_N,
@@ -337,6 +339,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
+
         static_assert(KPerBlock % AK1Value == 0 && KPerBlock % BK1Value == 0,
                       "KPerBlock must be divisible by AK1Value and BK1Value!");
 
