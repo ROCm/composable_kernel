@@ -404,6 +404,77 @@ struct tile_scatter_gather
         });
     }
 
+    template <typename DistributedTensor,
+              typename Ys2PageIdxMap,
+              index_t i_access_unsupport_ = -1,
+              bool oob_conditional_check  = true>
+    CK_TILE_DEVICE auto load(DistributedTensor& dst_tensor,
+                             const Ys2PageIdxMap& ys_to_page_idx_map,
+                             number<i_access_unsupport_>          = {},
+                             bool_constant<oob_conditional_check> = {}) const
+    {
+        using Traits   = load_store_traits;
+        using vector_t = typename Traits::vector_t;
+        using SFC_Ys   = typename Traits::SFC_Ys;
+
+        constexpr auto tile_dstr = TileDstr{};
+
+        // loop over thread tensor space [y0, y1, ...]
+        static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+            /// TODO: use structure binding (to be captured later) if compiled in C++20
+            auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
+            auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
+
+            static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
+                constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+
+                // data index [y0, y1, ...]
+                constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
+                const auto idx_gather       = ys_to_page_idx_map(idx_ys_start);
+                const auto page_offset      = page_idx_[idx_gather];
+
+                // read from bottom tensor
+                const vector_t vec_value = [&]() {
+                    if constexpr(std::is_same_v<ValidArray, std::nullptr_t>)
+                    {
+                        return get_bottom_tensor_view().template get_vectorized_elements<vector_t>(
+                            bottom_tensor_thread_coord,
+                            page_offset,
+                            bool_constant<oob_conditional_check>{});
+                    }
+                    else
+                    {
+                        return get_bottom_tensor_view().template get_vectorized_elements<vector_t>(
+                            bottom_tensor_thread_coord,
+                            page_offset,
+                            valids_[idx_gather],
+                            bool_constant<oob_conditional_check>{});
+                    }
+                }();
+
+                // write into distributed tensor
+                static_for<0, Traits::ScalarPerVector, Traits::PackedSize>{}([&](auto j) {
+                    constexpr auto idx_ys = generate_tuple(
+                        [&](auto jj) {
+                            return jj == Traits::VectorDimY ? (idx_ys_start[jj] + j)
+                                                            : idx_ys_start[jj];
+                        },
+                        number<NDimY>{});
+
+                    constexpr index_t d =
+                        tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
+                        Traits::PackedSize;
+
+                    dst_tensor.get_thread_buffer().template at<d>() =
+                        vec_value.template get_as<DataType>()[j / Traits::PackedSize];
+                });
+
+                // ys_to_page_idx_map handles all offset calculation.
+                // So ther is no need to move thread coordinate redundantly.
+            });
+        });
+    }
+
     // TODO: currently async load only implemented in inline asm
     template <typename LdsTileWindow_,
               index_t i_access_unsupport_ = -1,
