@@ -298,7 +298,6 @@ float fused_moesorting(fused_moesorting_trait t, fused_moesorting_args a, ck_til
             float ave_time =                                                                       \
                 ck_tile::launch_kernel(s,                                                          \
                                        MOE_SORTING_MP_0(mesh_type_, token_vec_0_, true, true),     \
-                                       MOE_SORTING_MP_1(mesh_type_, token_vec_1_, true, true),     \
                                        MOE_SORTING_MP_23(mesh_type_, token_vec_23_, true, true));  \
             return ave_time;                                                                       \
         }                                                                                          \
@@ -307,7 +306,6 @@ float fused_moesorting(fused_moesorting_trait t, fused_moesorting_args a, ck_til
             float ave_time =                                                                       \
                 ck_tile::launch_kernel(s,                                                          \
                                        MOE_SORTING_MP_0(mesh_type_, token_vec_0_, true, false),    \
-                                       MOE_SORTING_MP_1(mesh_type_, token_vec_1_, true, false),    \
                                        MOE_SORTING_MP_23(mesh_type_, token_vec_23_, true, false)); \
             return ave_time;                                                                       \
         }                                                                                          \
@@ -319,7 +317,6 @@ float fused_moesorting(fused_moesorting_trait t, fused_moesorting_args a, ck_til
             float ave_time =                                                                       \
                 ck_tile::launch_kernel(s,                                                          \
                                        MOE_SORTING_MP_0(mesh_type_, token_vec_0_, false, true),    \
-                                       MOE_SORTING_MP_1(mesh_type_, token_vec_1_, false, true),    \
                                        MOE_SORTING_MP_23(mesh_type_, token_vec_23_, false, true)); \
             return ave_time;                                                                       \
         }                                                                                          \
@@ -328,7 +325,6 @@ float fused_moesorting(fused_moesorting_trait t, fused_moesorting_args a, ck_til
             float ave_time = ck_tile::launch_kernel(                                               \
                 s,                                                                                 \
                 MOE_SORTING_MP_0(mesh_type_, token_vec_0_, false, false),                          \
-                MOE_SORTING_MP_1(mesh_type_, token_vec_1_, false, false),                          \
                 MOE_SORTING_MP_23(mesh_type_, token_vec_23_, false, false));                       \
             return ave_time;                                                                       \
         }                                                                                          \
@@ -352,7 +348,6 @@ float fused_moesorting_mp(fused_moesorting_trait t,
             {
                 float ave_time = ck_tile::launch_kernel(s,
                                                         MOE_SORTING_MP_0(ms_index_t, 1, true),
-                                                        MOE_SORTING_MP_1(ms_index_t, 1, true),
                                                         MOE_SORTING_MP_2(ms_index_t, 1, true),
                                                         MOE_SORTING_MP_3(ms_index_t, 1, true));
                 return ave_time;
@@ -361,7 +356,6 @@ float fused_moesorting_mp(fused_moesorting_trait t,
             {
                 float ave_time = ck_tile::launch_kernel(s,
                                                         MOE_SORTING_MP_0(ms_index_t, 1, false),
-                                                        MOE_SORTING_MP_1(ms_index_t, 1, false),
                                                         MOE_SORTING_MP_2(ms_index_t, 1, false),
                                                         MOE_SORTING_MP_3(ms_index_t, 1, false));
                 return ave_time;
