@@ -15,123 +15,48 @@ Consult the `AMD Developer Central portal <https://www.amd.com/en/developer.html
 Reporting issues
 =================
 
-Use `Github issues <https://github.com/ROCm/composable_kernel/issues>`_
-to track public bugs and enhancement requests.
+Use `Github issues <https://github.com/ROCm/composable_kernel/issues>`_ to log and track issues and enhancement requests.
 
-If you encounter an issue with the library, please check if the problem has already been
-reported by searching existing issues on GitHub. If your issue seems unique, please submit a new
-issue. All reported issues must include:
+If you encounter an issue with the Composable Kernel library, search the existing GitHub issues to determined whether the problem has already been
+reported. If it hasn't, submit a new issue that includes:
 
-* A comprehensive description of the problem, including:
+* A description of the problem, including what you observed, what you were expecting, and why this was an issue.
+ 
+* Your configuration details, including the GPU, OS, and ROCm version, and any Docker image you used.
 
-  * What did you observe?
-  * Why do you think it is a bug (if it seems like one)?
-  * What did you expect to happen? What would indicate the resolution of the problem?
-  * Are there any known workarounds?
+* The steps to reproduce the issue, including any CMake command you used to build the library as well as the frequency of the issue.
 
-* Your configuration details, including:
+* Any workarounds you've found and what you expect in a resolution. 
 
-  * Which GPU are you using?
-  * Which OS version are you on?
-  * Which ROCm version are you using?
-  * Are you using a Docker image? If so, which one?
 
-* Steps to reproduce the issue, including:
+Contributing to the codebase
+=============================
 
-  * What actions trigger the issue? What are the reproduction steps?
+All external contributors to the Composable Kernel codebase must follow these guidelines:
 
-    * If you build the library from scratch, what CMake command did you use?
+* Use the correct branch: Use you own branch for your changes. Create your branch from the develop branch. 
 
-  * How frequently does this issue happen? Does it reproduce every time? Or is it a sporadic issue?
+* Describe your changes: Provide the motivation for the changes and a general description of all code changes.
 
-Before submitting any issue, ensure you have addressed all relevant questions from the checklist.
+* Add design documents for major changes: Major architectural changes must be accompanied by comprehensive design documents uploaded with your pull request. 
 
-Creating Pull Requests
-=======================
+* Add inline documentation: Include relevant documentation and inline comments with your code changes.
 
-You can submit `Pull Requests (PR) on GitHub
-<https://github.com/ROCm/composable_kernel/pulls>`_.
+* Link your pull request to related issues: Add links to any issues resolved by your changes in your pull request description.
 
-All contributors are required to develop their changes on a separate branch and then create a
-pull request to merge their changes into the `develop` branch, which is the default
-development branch in the Composable Kernel project. All external contributors must use their own
-forks of the project to develop their changes.
+* Verify and test the changes: Run all relevant existing tests and write new tests for any new functionality that isn't covered by existing tests.
 
-External Contributor Guidelines
--------------------------------
+* Provide performance numbers: Include documentation showing before and after performance numbers for any changes that potentially impact build times or run times. 
 
-As an external contributor to this open source project with dozens of active developers, please
-follow these essential guidelines to ensure a smooth review and approval process:
+* Keep your branch up to date: Regularly rebase or merge the develop branch back into your feature branch. This should be done both prior to creating your pull request and during the review process.
 
-**Code Quality and Formatting**
+* Ensure a manageable pull request size: Pull requests should be limited to approximately one thousand lines. If your changes significantly exceed one thousand lines, break them into smaller pull requests that can be reviewed independently.
 
-* **Use pre-commit hooks:** Install and use the provided pre-commit hooks that perform clang
-  formatting and linting. These can be installed using the ``install_precommit.sh`` script
-  located in the ``script/`` folder. This ensures consistent code formatting and catches
-  common issues before submission.
+* Use pre-commit hooks to adhere to the coding style: Composable Kernel's coding style is defined in `.clang-format <https://github.com/ROCm/composable_kernel/blob/develop/.clang-format>`_. Use the provided pre-commit hooks to run clang formatting and linting. Instructions on installing pre-commit hooks are available in the `README file <https://github.com/ROCm/composable_kernel/blob/develop/.clang-format>`_. 
 
-* **Keep branches up to date:** Regularly rebase or merge the ``develop`` branch onto your
-  feature branch to resolve conflicts properly. This should be done both prior to creating
-  your PR and during the review process to maintain compatibility.
+Forks require an approver from AMD to trigger continuous integration (CI) testing. This approval process is necessary for security and resource management.
 
-**Pull Request Size and Complexity**
+Depending on the complexity of your changes, an internal AMD developer might need to pull your changes and perform additional fixes or modifications prior to merge. This collaborative approach ensures compatibility with internal systems and standards.
 
-* **Maintain manageable PR size:** Keep pull requests to a maximum of approximately 1,000 lines
-  of changes to facilitate streamlined review and approval. For larger changes, break them into
-  smaller, focused pull requests that can be reviewed independently.
+You can see a complete list of pull requests `on the Composable Kernel GitHub page <https://github.com/ROCm/composable_kernel/pulls>`_.
 
-* **Add inline documentation:** Include relevant documentation and comments inline with your
-  code changes to help reviewers understand the purpose and implementation details.
-
-**Architectural Changes and Performance**
-
-* **Design documents for major changes:** Major architectural changes must be accompanied by
-  comprehensive design documents uploaded with the PR. This helps reviewers understand the
-  broader impact and rationale for significant modifications.
-
-* **Performance monitoring:** For changes that may impact build times or runtime performance,
-  provide documentation showing before and after performance numbers. This is essential for
-  large changes and helps maintain the project's performance standards.
-
-**Review Process for External Contributors**
-
-* **AMD approval for CI:** Forks will require an approver from AMD to trigger continuous
-  integration (CI) testing. Please be patient as this approval process is necessary for
-  security and resource management.
-
-* **Potential internal collaboration:** Depending on the complexity of your changes, an
-  internal AMD developer may need to pull your changes and perform additional fixes or
-  modifications prior to merge. This collaborative approach ensures compatibility with
-  internal systems and standards.
-
-General Pull Request Requirements
----------------------------------
-
-When submitting a Pull Request you should:
-
-* Describe the change providing information about the motivation for the change and a general
-  description of all code modifications.
-
-* Verify and test the change:
-
-  * Run any relevant existing tests.
-  * Write new tests if added functionality is not covered by current tests.
-
-* Ensure your changes align with the coding style defined in the ``.clang-format`` file located in
-  the project's root directory. We leverage `pre-commit` to run `clang-format` automatically. We
-  highly recommend contributors utilize this method to maintain consistent code formatting.
-  Instructions on setting up `pre-commit` can be found in the project's
-  `README file <https://github.com/ROCm/composable_kernel/blob/develop/README.md>`_
-
-* Link your PR to any related issues:
-
-  * If there is an issue that is resolved by your change, please provide a link to the issue in
-    the description of your pull request.
-
-* For larger contributions, structure your change into a sequence of smaller, focused commits, each
-  addressing a particular aspect or fix.
-
-Following the above guidelines ensures a seamless review process and faster assistance from our
-end.
-
-Thank you for your commitment to enhancing the Composable Kernel project!
