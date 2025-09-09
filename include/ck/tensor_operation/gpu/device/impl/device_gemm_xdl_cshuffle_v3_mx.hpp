@@ -164,116 +164,131 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
                                                          BElementwiseOperation,
                                                          CElementwiseOperation>
 {
-    // GridwiseGemm
-    using GridwiseGemm = conditional_t< //
-        !is_same_v<BLayout, tensor_layout::gemm::MFMA>,
-        GridwiseGemmMX_xdl_cshuffle_v3<
-            ALayout,
-            BLayout,
-            CLayout,
-            ADataType,
-            AScaleDataType,
-            BDataType,
-            BScaleDataType,
-            GemmAccDataType,
-            CShuffleDataType,
-            CDataType,
-            AElementwiseOperation,
-            BElementwiseOperation,
-            CElementwiseOperation,
-            GemmSpec,
-            ScaleBlockSize,
-            BlockSize,
-            MPerBlock,
-            NPerBlock,
-            KPerBlock,
-            AK1,
-            BK1,
-            MPerXDL,
-            NPerXDL,
-            MXdlPerWave,
-            NXdlPerWave,
-            ABlockTransferThreadClusterLengths_AK0_M_AK1,
-            ABlockTransferThreadClusterArrangeOrder,
-            ABlockTransferSrcAccessOrder,
-            ABlockTransferSrcVectorDim,
-            ABlockTransferSrcScalarPerVector,
-            ABlockTransferDstScalarPerVector_AK1,
-            false,
-            ABlockLdsExtraM,
-            BBlockTransferThreadClusterLengths_BK0_N_BK1,
-            BBlockTransferThreadClusterArrangeOrder,
-            BBlockTransferSrcAccessOrder,
-            BBlockTransferSrcVectorDim,
-            BBlockTransferSrcScalarPerVector,
-            BBlockTransferDstScalarPerVector_BK1,
-            false,
-            BBlockLdsExtraN,
-            CShuffleMXdlPerWavePerShuffle,
-            CShuffleNXdlPerWavePerShuffle,
-            CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-            CShuffleBlockTransferScalarPerVector_NPerBlock,
-            BlkGemmPipeSched,
-            BlkGemmPipelineVer,
-            ComputeTypeA,
-            ComputeTypeB>,
-        GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle<
-            ALayout,
-            BLayout,
-            CLayout,
-            ADataType,
-            AScaleDataType,
-            BDataType,
-            BScaleDataType,
-            GemmAccDataType,
-            CShuffleDataType,
-            CDataType,
-            AElementwiseOperation,
-            BElementwiseOperation,
-            CElementwiseOperation,
-            GemmSpec,
-            ScaleBlockSize,
-            BlockSize,
-            MPerBlock,
-            NPerBlock,
-            KPerBlock,
-            AK1,
-            BK1,
-            MPerXDL,
-            NPerXDL,
-            MXdlPerWave,
-            NXdlPerWave,
-            ABlockTransferThreadClusterLengths_AK0_M_AK1,
-            ABlockTransferThreadClusterArrangeOrder,
-            ABlockTransferSrcAccessOrder,
-            ABlockTransferSrcVectorDim,
-            ABlockTransferSrcScalarPerVector,
-            ABlockTransferDstScalarPerVector_AK1,
-            false,
-            ABlockLdsExtraM,
-            BBlockTransferThreadClusterLengths_BK0_N_BK1,
-            BBlockTransferThreadClusterArrangeOrder,
-            BBlockTransferSrcAccessOrder,
-            BBlockTransferSrcVectorDim,
-            BBlockTransferSrcScalarPerVector,
-            BBlockTransferDstScalarPerVector_BK1,
-            false,
-            BBlockLdsExtraN,
-            CShuffleMXdlPerWavePerShuffle,
-            CShuffleNXdlPerWavePerShuffle,
-            CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-            CShuffleBlockTransferScalarPerVector_NPerBlock,
-            BlkGemmPipeSched,
-            BlkGemmPipelineVer,
-            ComputeTypeA,
-            ComputeTypeB>>;
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
 
-    using Argument = typename GridwiseGemm::Argument;
+    // GridwiseGemm
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmMXBase = GridwiseGemmMX_xdl_cshuffle_v3<
+        ALayout,
+        BLayout,
+        CLayout,
+        ADataType,
+        AScaleDataType,
+        BDataType,
+        BScaleDataType,
+        GemmAccDataType,
+        CShuffleDataType,
+        CDataType,
+        AElementwiseOperation,
+        BElementwiseOperation,
+        CElementwiseOperation,
+        GemmSpec,
+        ScaleBlockSize,
+        BlockSize,
+        MPerBlock,
+        NPerBlock,
+        KPerBlock,
+        AK1,
+        BK1,
+        MPerXDL,
+        NPerXDL,
+        MXdlPerWave,
+        NXdlPerWave_,
+        ABlockTransferThreadClusterLengths_AK0_M_AK1,
+        ABlockTransferThreadClusterArrangeOrder,
+        ABlockTransferSrcAccessOrder,
+        ABlockTransferSrcVectorDim,
+        ABlockTransferSrcScalarPerVector,
+        ABlockTransferDstScalarPerVector_AK1,
+        false,
+        ABlockLdsExtraM,
+        BBlockTransferThreadClusterLengths_BK0_N_BK1,
+        BBlockTransferThreadClusterArrangeOrder,
+        BBlockTransferSrcAccessOrder,
+        BBlockTransferSrcVectorDim,
+        BBlockTransferSrcScalarPerVector,
+        BBlockTransferDstScalarPerVector_BK1,
+        false,
+        BBlockLdsExtraN,
+        CShuffleMXdlPerWavePerShuffle,
+        CShuffleNXdlPerWavePerShuffle,
+        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        CShuffleBlockTransferScalarPerVector_NPerBlock,
+        BlkGemmPipeSched,
+        BlkGemmPipelineVer,
+        ComputeTypeA,
+        ComputeTypeB>;
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmMXBPreshuffleBase = GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle<
+        ALayout,
+        BLayout,
+        CLayout,
+        ADataType,
+        AScaleDataType,
+        BDataType,
+        BScaleDataType,
+        GemmAccDataType,
+        CShuffleDataType,
+        CDataType,
+        AElementwiseOperation,
+        BElementwiseOperation,
+        CElementwiseOperation,
+        GemmSpec,
+        ScaleBlockSize,
+        BlockSize,
+        MPerBlock,
+        NPerBlock,
+        KPerBlock,
+        AK1,
+        BK1,
+        MPerXDL,
+        NPerXDL,
+        MXdlPerWave,
+        NXdlPerWave_,
+        ABlockTransferThreadClusterLengths_AK0_M_AK1,
+        ABlockTransferThreadClusterArrangeOrder,
+        ABlockTransferSrcAccessOrder,
+        ABlockTransferSrcVectorDim,
+        ABlockTransferSrcScalarPerVector,
+        ABlockTransferDstScalarPerVector_AK1,
+        false,
+        ABlockLdsExtraM,
+        BBlockTransferThreadClusterLengths_BK0_N_BK1,
+        BBlockTransferThreadClusterArrangeOrder,
+        BBlockTransferSrcAccessOrder,
+        BBlockTransferSrcVectorDim,
+        BBlockTransferSrcScalarPerVector,
+        BBlockTransferDstScalarPerVector_BK1,
+        false,
+        BBlockLdsExtraN,
+        CShuffleMXdlPerWavePerShuffle,
+        CShuffleNXdlPerWavePerShuffle,
+        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        CShuffleBlockTransferScalarPerVector_NPerBlock,
+        BlkGemmPipeSched,
+        BlkGemmPipelineVer,
+        ComputeTypeA,
+        ComputeTypeB>;
+
+    using GridwiseGemm64 = conditional_t< //
+        !is_same_v<BLayout, tensor_layout::gemm::MFMA>,
+        GridwiseGemmMXBase<math::max(NXdlPerWave64, 1)>,
+        GridwiseGemmMXBPreshuffleBase<math::max(NXdlPerWave64, 1)>>;
+    using GridwiseGemm32 = conditional_t< //
+        !is_same_v<BLayout, tensor_layout::gemm::MFMA>,
+        GridwiseGemmMXBase<NXdlPerWave32>,
+        GridwiseGemmMXBPreshuffleBase<NXdlPerWave32>>;
+
+    using Argument = typename GridwiseGemm64::Argument;
 
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
             {
@@ -299,7 +314,7 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
             const auto Run = [&](const auto& kernel) {
                 if(stream_config.flush_cache)
                 {
-                    Argument arg_ = arg;
+                    auto arg_ = arg;
 
                     const auto a_grid_desc_ak0_m_ak1 = GridwiseGemm::MakeAGridDescriptor_AK0_M_AK1(
                         arg_.M, arg_.MPadded, arg_.K, arg_.KPadded, arg_.StrideA, arg_.AK0);
@@ -311,7 +326,7 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
                     auto size_b_buffer =
                         b_grid_desc_bk0_n_bk1.GetElementSpaceSize() * sizeof(BDataType);
 
-                    ck::utility::RotatingMemWrapper<Argument> rotating_mem(
+                    ck::utility::RotatingMemWrapper<typename GridwiseGemm::Argument> rotating_mem(
                         arg_, stream_config.rotating_count, size_a_buffer, size_b_buffer);
                     rotating_mem.Print();
 
@@ -401,6 +416,7 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
             return ave_time;
         }
 
+        INVOKER_RUN3_IMPL
         // polymorphic
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override
@@ -447,7 +463,22 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
             return false;
         }
 
-        return GridwiseGemm::CheckValidity(arg);
+        if(get_warp_size() == 64)
+        {
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                return GridwiseGemm64::CheckValidity(arg);
+            }
+        }
+        else
+        {
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                return GridwiseGemm32::CheckValidity(
+                    reinterpret_cast<const typename GridwiseGemm32::Argument&>(arg));
+            }
+        }
+        return false;
     }
 
     // polymorphic
@@ -578,9 +609,9 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
             << "BlkGemmPipelineVersion: "
             << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
             << "BlkGemmPipelinePrefetchStages: "
-            << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages << ", "
+            << GridwiseGemm64::BlockwiseGemmPipe::PrefetchStages << ", "
             << "Kpack: "
-            << GridwiseGemm::BlockwiseGemmPipe::AMmaKStride << ", "
+            << GridwiseGemm64::BlockwiseGemmPipe::AMmaKStride << ", "
             << "ScaleBlockSize: "
             << ScaleBlockSize;
         // clang-format on
