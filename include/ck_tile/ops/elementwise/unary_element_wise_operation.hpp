@@ -953,7 +953,14 @@ struct Silu
                           std::is_same_v<T, int32_t>,
                       "Data type is not supported by this operation!");
         constexpr T one = type_convert<T>(1);
-        y               = x * (one / (one + ck_tile::exp(-x)));
+        if constexpr(std::is_same_v<T, float>)
+        {
+            y = x * __builtin_amdgcn_rcpf(one + ck_tile::exp(-x));
+        }
+        else
+        {
+            y = x * (one / (one + ck_tile::exp(-x)));
+        }
     };
 
     template <>
@@ -1308,7 +1315,7 @@ struct Swish
 
 struct SoftRelu
 {
-    SoftRelu(float alpha = 1.f) : alpha_(alpha){};
+    SoftRelu(float alpha = 1.f) : alpha_(alpha) {};
 
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
@@ -1327,7 +1334,7 @@ struct SoftRelu
 struct Power
 {
     Power(float alpha = 0.f, float beta = 1.f, float gamma = 2.f)
-        : alpha_(alpha), beta_(beta), gamma_(gamma){};
+        : alpha_(alpha), beta_(beta), gamma_(gamma) {};
 
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
@@ -1349,7 +1356,7 @@ struct Power
 
 struct ClippedRelu
 {
-    ClippedRelu(float alpha = 0.f, float beta = 1.f) : alpha_(alpha), beta_(beta){};
+    ClippedRelu(float alpha = 0.f, float beta = 1.f) : alpha_(alpha), beta_(beta) {};
 
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
@@ -1368,7 +1375,7 @@ struct ClippedRelu
 
 struct LeakyRelu
 {
-    LeakyRelu(float alpha = 0.01f) : alpha_(alpha){};
+    LeakyRelu(float alpha = 0.01f) : alpha_(alpha) {};
 
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
@@ -1385,7 +1392,7 @@ struct LeakyRelu
 
 struct Elu
 {
-    Elu(float alpha = 1.f) : alpha_(alpha){};
+    Elu(float alpha = 1.f) : alpha_(alpha) {};
 
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
@@ -1402,7 +1409,7 @@ struct Elu
 
 struct Logistic
 {
-    Logistic(float alpha = 1.f) : alpha_(alpha){};
+    Logistic(float alpha = 1.f) : alpha_(alpha) {};
 
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const

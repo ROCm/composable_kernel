@@ -154,6 +154,9 @@ float invoke_flatmm(ck_tile::DeviceMem& a_dev_buf,
 
 template <typename PrecType,
           typename FlatmmConfig,
+          int ScaleGranularityM    = -1,
+          int ScaleGranularityN    = -1,
+          bool UsePersistentKernel = false,
           typename ALayout,
           typename BLayout,
           typename CLayout>
@@ -197,21 +200,32 @@ int run_flatmm_example_with_layouts(int argc,
     ck_tile::HostTensor<CDataType> c_rslt_host(
         ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
+    ck_tile::HostTensor<AccDataType> per_token_scale(ck_tile::HostTensorDescriptor({M}, {1}));
+    ck_tile::HostTensor<AccDataType> per_channel_scale(ck_tile::HostTensorDescriptor({N}, {1}));
+
     // TODO: add different init types
     if(init_method == 0)
     {
-        ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_host);
+        // ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_host);
+        // ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_origin_host);
+        ck_tile::FillUniformDistribution<ADataType>{0.0f, 1.0f}(a_host);
         ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_origin_host);
+        ck_tile::FillUniformDistribution<AccDataType>{-1.f, 1.f}(per_token_scale);
+        ck_tile::FillUniformDistribution<AccDataType>{-1.f, 1.f}(per_channel_scale);
     }
     else if(init_method == 1)
     {
         ck_tile::FillMonotonicSeq<ADataType>{}(a_host);
         ck_tile::FillMonotonicSeq<BDataType>{}(b_origin_host);
+        ck_tile::FillUniformDistribution<AccDataType>{1.f, 1.f}(per_token_scale);
+        ck_tile::FillUniformDistribution<AccDataType>{1.f, 1.f}(per_channel_scale);
     }
     else if(init_method == 2)
     {
         ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_host);
         ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_origin_host);
+        ck_tile::FillUniformDistribution<AccDataType>{1.f, 1.f}(per_token_scale);
+        ck_tile::FillUniformDistribution<AccDataType>{1.f, 1.f}(per_channel_scale);
     }
     else
     {
@@ -222,13 +236,33 @@ int run_flatmm_example_with_layouts(int argc,
     ck_tile::DeviceMem a_dev_buf(a_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_dev_buf(c_rslt_host.get_element_space_size_in_bytes());
 
+    ck_tile::DeviceMem per_token_scale_dev_buf(per_token_scale.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem per_channel_scale_dev_buf(
+        per_channel_scale.get_element_space_size_in_bytes());
+
     a_dev_buf.ToDevice(a_host.data());
     c_rslt_host.SetZero();
+    per_token_scale_dev_buf.ToDevice(per_token_scale.data());
+    per_channel_scale_dev_buf.ToDevice(per_channel_scale.data());
 
     // do pre-shuffle
-    ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<FlatmmConfig>(b_origin_host);
+    ck_tile::HostTensor<BDataType> b_shuffle_host = [&]() {
+        if constexpr(FlatmmConfig::TiledMMAPermuteN)
+        {
+            return shuffle_b_v1<FlatmmConfig>(b_origin_host);
+        }
+        else
+        {
+            return shuffle_b<FlatmmConfig>(b_origin_host);
+        }
+    }();
     ck_tile::DeviceMem b_shuffle_dev_buf(b_shuffle_host.get_element_space_size_in_bytes());
     b_shuffle_dev_buf.ToDevice(b_shuffle_host.data());
+
+    auto per_token_scale_dev_ptr = ck_tile::FlatmmScalePointer<ScaleGranularityM>{
+        static_cast<float*>(per_token_scale_dev_buf.GetDeviceBuffer())};
+    auto per_channel_scale_dev_ptr = ck_tile::FlatmmScalePointer<ScaleGranularityN>{
+        static_cast<float*>(per_channel_scale_dev_buf.GetDeviceBuffer())};
 
     invoke_flatmm<FlatmmConfig,
                   ADataType,
@@ -239,24 +273,32 @@ int run_flatmm_example_with_layouts(int argc,
                   ALayout,
                   BLayout,
                   ck_tile::tuple<>,
-                  CLayout>(a_dev_buf,
-                           b_shuffle_dev_buf,
-                           c_dev_buf,
-                           M,
-                           N,
-                           K,
-                           stride_A,
-                           stride_B,
-                           stride_C,
-                           kbatch,
-                           n_warmup,
-                           n_repeat);
+                  CLayout,
+                  decltype(per_token_scale_dev_ptr),
+                  decltype(per_channel_scale_dev_ptr),
+                  UsePersistentKernel>(a_dev_buf,
+                                       b_shuffle_dev_buf,
+                                       c_dev_buf,
+                                       M,
+                                       N,
+                                       K,
+                                       stride_A,
+                                       stride_B,
+                                       stride_C,
+                                       kbatch,
+                                       per_token_scale_dev_ptr,
+                                       per_channel_scale_dev_ptr,
+                                       n_warmup,
+                                       n_repeat);
 
     c_dev_buf.FromDevice(c_rslt_host.data());
+
     bool pass = true;
 
     if(arg_parser.get_int("v") == 1)
     {
+        if(ScaleGranularityM != -1 || ScaleGranularityN != -1)
+            throw std::runtime_error("ScaleAB is not supported for CPU verification!\n");
         ck_tile::HostTensor<CDataType> c_ref_host(
             ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
         c_ref_host.SetZero();
@@ -304,13 +346,41 @@ int run_flatmm_example_with_layouts(int argc,
                                            N * K * sizeof(BDataType),
                                            hipMemcpyHostToDevice));
 
-        ck_tile::reference_gemm_gpu<ADataType,
-                                    BDataType,
-                                    AccDataType,
-                                    CDataType,
-                                    ALayout,
-                                    BLayout,
-                                    CLayout>(d_A, d_B, d_C, M, N, K, stride_A, stride_B, stride_C);
+        if constexpr(ScaleGranularityM == -1 && ScaleGranularityN == -1)
+        {
+            ck_tile::reference_gemm_gpu<ADataType,
+                                        BDataType,
+                                        AccDataType,
+                                        CDataType,
+                                        ALayout,
+                                        BLayout,
+                                        CLayout>(
+                d_A, d_B, d_C, M, N, K, stride_A, stride_B, stride_C);
+        }
+        else
+        {
+            ck_tile::reference_blockwise_gemm_gpu<ADataType,
+                                                  BDataType,
+                                                  AccDataType,
+                                                  CDataType,
+                                                  ALayout,
+                                                  BLayout,
+                                                  CLayout>(
+                d_A,
+                d_B,
+                d_C,
+                M,
+                N,
+                K,
+                stride_A,
+                stride_B,
+                stride_C,
+                ScaleGranularityM,
+                ScaleGranularityN,
+                K,
+                static_cast<float*>(per_token_scale_dev_buf.GetDeviceBuffer()),
+                static_cast<float*>(per_channel_scale_dev_buf.GetDeviceBuffer()));
+        }
 
         ck_tile::hip_check_error(hipMemcpy(c_gpu_ref_dev_buf.GetDeviceBuffer(),
                                            d_C,

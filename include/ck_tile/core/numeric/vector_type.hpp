@@ -11,6 +11,7 @@
 #include "ck_tile/core/numeric/half.hpp"
 #include "ck_tile/core/numeric/bfloat16.hpp"
 #include "ck_tile/core/numeric/pk_int4.hpp"
+#include "ck_tile/core/numeric/e8m0.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 
 namespace ck_tile {
@@ -88,7 +89,13 @@ template <typename T, typename>
 struct vector_traits
 {
     using scalar_type =
-        std::conditional_t<std::is_same_v<remove_cvref_t<T>, pk_int4_t>, int8_t, remove_cvref_t<T>>;
+        std::conditional_t<std::is_same_v<remove_cvref_t<T>, pk_int4_t>,
+                           int8_t,
+                           std::conditional_t<std::is_same_v<remove_cvref_t<T>, pk_fp4_t> ||
+                                                  std::is_same_v<remove_cvref_t<T>, e8m0_t>,
+                                              uint8_t,
+                                              remove_cvref_t<T>>>;
+
     static constexpr index_t vector_size = 1;
 };
 
@@ -96,7 +103,13 @@ struct vector_traits
 template <typename T, index_t N>
 struct vector_traits<T __attribute__((ext_vector_type(N)))>
 {
-    using scalar_type = std::conditional_t<std::is_same_v<T, pk_int4_t>, int8_t, T>;
+    using scalar_type = std::conditional_t<
+        std::is_same_v<T, pk_int4_t>,
+        int8_t,
+        std::conditional_t<std::is_same_v<T, pk_fp4_t> || std::is_same_v<remove_cvref_t<T>, e8m0_t>,
+                           uint8_t,
+                           T>>;
+
     static constexpr index_t vector_size = N;
 };
 
@@ -137,6 +150,9 @@ using bf16x8_t  = bf16_raw_t __attribute__((ext_vector_type(8)));
 using bf16x16_t = bf16_raw_t __attribute__((ext_vector_type(16)));
 using bf16x32_t = bf16_raw_t __attribute__((ext_vector_type(32)));
 using bf16x64_t = bf16_raw_t __attribute__((ext_vector_type(64)));
+
+using cktile_llvm_bf16x2_t = __bf16 __attribute__((ext_vector_type(2)));
+using cktile_llvm_bf16x4_t = __bf16 __attribute__((ext_vector_type(4)));
 
 // i32
 // using int32_t = ...
@@ -237,4 +253,13 @@ using pk_int4x4_t  = int8_t __attribute((ext_vector_type(4)));
 using pk_int4x8_t  = int8_t __attribute((ext_vector_type(8)));
 using pk_int4x16_t = int8_t __attribute((ext_vector_type(16)));
 using pk_int4x32_t = int8_t __attribute((ext_vector_type(32)));
+
+// pk_fp4_t
+// using pk_fp4_t
+using pk_fp4x2_t  = uint8_t __attribute((ext_vector_type(2)));
+using pk_fp4x4_t  = uint8_t __attribute((ext_vector_type(4)));
+using pk_fp4x8_t  = uint8_t __attribute((ext_vector_type(8)));
+using pk_fp4x16_t = uint8_t __attribute((ext_vector_type(16)));
+using pk_fp4x32_t = uint8_t __attribute((ext_vector_type(32)));
+
 } // namespace ck_tile

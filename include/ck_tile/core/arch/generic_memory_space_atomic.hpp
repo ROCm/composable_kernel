@@ -14,6 +14,14 @@ CK_TILE_HOST_DEVICE T add(const T& a, const T& b)
     return type_convert<T>(type_convert<ComputeType>(a) + type_convert<ComputeType>(b));
 }
 
+CK_TILE_HOST_DEVICE fp16x2_t add_fp16x2_t(const fp16x2_t& a, const fp16x2_t& b)
+{
+    fp16x2_t rtn;
+    rtn[0] = add<fp16_t, float>(a[0], b[0]);
+    rtn[1] = add<fp16_t, float>(a[1], b[1]);
+    return rtn;
+}
+
 CK_TILE_HOST_DEVICE bf16x2_t add_bf16x2_t(const bf16x2_t& a, const bf16x2_t& b)
 {
     bf16x2_t rtn;
@@ -86,6 +94,37 @@ CK_TILE_HOST_DEVICE bf8x8_t add_bf8x8_t(const bf8x8_t& a, const bf8x8_t& b)
 // each datatype.
 template <typename X>
 CK_TILE_DEVICE void atomic_add(X* p_dst, const X& x);
+
+template <>
+CK_TILE_DEVICE void atomic_add<fp16x2_t>(fp16x2_t* p_dst, const fp16x2_t& x)
+{
+    union U32FP162_ADDR
+    {
+        uint32_t* u32_a;
+        fp16x2_t* fp162_a;
+    };
+
+    union U32FP162
+    {
+        uint32_t u32;
+        fp16x2_t fp162;
+    };
+
+    U32FP162_ADDR dword_addr;
+    U32FP162 cur_v;
+    U32FP162 new_;
+    uint32_t old_v, new_v;
+    dword_addr.fp162_a = p_dst;
+    cur_v.u32          = *dword_addr.u32_a;
+
+    do
+    {
+        old_v      = cur_v.u32;
+        new_.fp162 = add_fp16x2_t(cur_v.fp162, x);
+        new_v      = new_.u32;
+        cur_v.u32  = atomicCAS(dword_addr.u32_a, old_v, new_v);
+    } while(cur_v.u32 != old_v);
+}
 
 template <>
 CK_TILE_DEVICE void atomic_add<bf16x2_t>(bf16x2_t* p_dst, const bf16x2_t& x)

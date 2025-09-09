@@ -8,98 +8,16 @@
 #include <ostream>
 #include <string>
 #include <tuple>
-
-#include "ck_tile/host.hpp"
-#include "flatmm_basic.hpp"
 #include <type_traits>
 
-template <typename T>
-constexpr const char* DataTypeToString()
-{
-    if constexpr(std::is_same_v<T, ck_tile::half_t>)
-    {
-        return "fp16";
-    }
-    else if constexpr(std::is_same_v<T, ck_tile::fp8_t>)
-    {
-        return "fp8";
-    }
-    else if constexpr(std::is_same_v<T, ck_tile::bf8_t>)
-    {
-        return "bf8";
-    }
-    else if constexpr(std::is_same_v<T, ck_tile::bf16_t>)
-    {
-        return "bf16";
-    }
-    else
-    {
-        return "unknown";
-    }
-}
+#include "ck_tile/host.hpp"
+#include "mixed_prec_flatmm.hpp"
 
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
 {
     return ck_tile::bool_constant<std::is_same_v<ck_tile::remove_cvref_t<decltype(layout_)>,
                                                  ck_tile::tensor_layout::gemm::RowMajor>>{};
-}
-
-// mfma_type, 0:32x32, 1:16x16
-template <typename FlatmmConfig, typename T>
-auto shuffle_b(const ck_tile::HostTensor<T>& t)
-{
-    assert(t.get_lengths().size() == 2);
-    int n_                = t.get_lengths()[1];
-    int k_                = t.get_lengths()[0];
-    constexpr int divisor = FlatmmConfig::N_Warp_Tile == 32 ? 2 : 4;
-    ck_tile::HostTensor<T> t_view({n_ / FlatmmConfig::N_Warp_Tile,
-                                   FlatmmConfig::N_Warp_Tile,
-                                   k_ / FlatmmConfig::K_Warp_Tile,
-                                   divisor,
-                                   FlatmmConfig::K_Warp_Tile / divisor});
-    std::copy(t.begin(), t.end(), t_view.begin());
-    return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
-}
-
-template <typename FlatmmConfig, typename T>
-auto shuffle_b_v1(const ck_tile::HostTensor<T>& t)
-{
-    assert(t.get_lengths().size() == 2);
-    int n_                = t.get_lengths()[1];
-    int k_                = t.get_lengths()[0];
-    constexpr int divisor = FlatmmConfig::N_Warp_Tile == 32 ? 2 : 4;
-    constexpr int NRepeat = FlatmmConfig::N_Tile / FlatmmConfig::N_Warp_Tile / FlatmmConfig::N_Warp;
-    ck_tile::HostTensor<T> t_view({n_ / FlatmmConfig::N_Tile,
-                                   FlatmmConfig::N_Warp,
-                                   FlatmmConfig::N_Warp_Tile,
-                                   NRepeat,
-                                   k_ / FlatmmConfig::K_Warp_Tile,
-                                   divisor,
-                                   FlatmmConfig::K_Warp_Tile / divisor});
-    std::copy(t.begin(), t.end(), t_view.begin());
-    return ck_tile::reference_permute(t_view, {0, 3, 1, 4, 5, 2, 6});
-}
-
-template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
-auto calculate_rtol_atol(const ck_tile::index_t K,
-                         const ck_tile::index_t kbatch,
-                         const float max_accumulated_value)
-{
-    using ComputeType =
-        std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
-    // Calculate thresholds
-    const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType, AccDataType>(
-        ck_tile::integer_divide_ceil(K, kbatch));
-    const auto atol = ck_tile::get_absolute_threshold<ComputeType, CDataType, AccDataType>(
-        max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
-    // Calculate error due to split_k accumulation
-    const auto rtol_split_k =
-        ck_tile::get_relative_threshold<CDataType, CDataType, CDataType>(kbatch);
-    const auto atol_split_k = ck_tile::get_absolute_threshold<CDataType, CDataType, CDataType>(
-        max_accumulated_value, kbatch);
-    // Use higher threshold
-    return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
 template <typename FlatmmConfig,
@@ -116,8 +34,8 @@ template <typename FlatmmConfig,
           typename ScaleN,
           bool persistent,
           typename CDEElementWise>
-float flatmm_calc(const ck_tile::ScaleFlatmmHostArgs<ScaleM, ScaleN>& args,
-                  const ck_tile::stream_config& s)
+float mixed_prec_flatmm_calc(const ck_tile::ScaleFlatmmHostArgs<ScaleM, ScaleN>& args,
+                             const ck_tile::stream_config& s)
 {
     using CodegenFlatmmShape = ck_tile::TileGemmShape<
         ck_tile::sequence<FlatmmConfig::M_Tile, FlatmmConfig::N_Tile, FlatmmConfig::K_Tile>,
@@ -152,8 +70,15 @@ float flatmm_calc(const ck_tile::ScaleFlatmmHostArgs<ScaleM, ScaleN>& args,
                                                                FlatmmConfig::NumWaveGroups,
                                                                true>;
 
-    using GemmPipelineProblem =
-        ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenFlatmmShape, Traits>;
+    using ComputeDataType = ADataType;
+    static_assert(sizeof(ComputeDataType) >= sizeof(BDataType),
+                  "mixed_prec_flatmm requires ADataType is a wider type than BDataType");
+
+    using GemmPipelineProblem = ck_tile::GemmPipelineProblem<ComputeDataType,
+                                                             ComputeDataType,
+                                                             AccDataType,
+                                                             CodegenFlatmmShape,
+                                                             Traits>;
 
     using BaseGemmPipeline = ck_tile::BaseFlatmmPipelineAGmemBGmemCRegV1<GemmPipelineProblem>;
 
@@ -172,21 +97,23 @@ float flatmm_calc(const ck_tile::ScaleFlatmmHostArgs<ScaleM, ScaleN>& args,
         constexpr auto scheduler        = FlatmmConfig::Scheduler;
         constexpr auto memory_operation = memory_operation_.value;
 
-        using CodegenPipelineProblem = ck_tile::FlatmmPipelineProblem<ADataType,
-                                                                      BDataType,
-                                                                      AccDataType,
-                                                                      CodegenFlatmmShape,
-                                                                      CodegenGemmTraits,
-                                                                      scheduler,
-                                                                      has_hot_loop_v,
-                                                                      tail_number_v>;
+        constexpr int BlockedXDLN_PerWarp = 2; // determined by scale shuffle pattern
+
+        using CodegenPipelineProblem = ck_tile::F16xMXF4FlatmmPipelineProblem<ADataType,
+                                                                              BDataType,
+                                                                              AccDataType,
+                                                                              CodegenFlatmmShape,
+                                                                              CodegenGemmTraits,
+                                                                              scheduler,
+                                                                              has_hot_loop_v,
+                                                                              tail_number_v>;
 
         using CodegenFlatmmPipeline =
-            ck_tile::FlatmmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
+            ck_tile::F16xMXF4FlatmmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<ADataType,
-                                             BDataType,
+            ck_tile::CShuffleEpilogueProblem<ComputeDataType,
+                                             ComputeDataType,
                                              DsDatatype,
                                              AccDataType,
                                              CDataType,
@@ -204,13 +131,13 @@ float flatmm_calc(const ck_tile::ScaleFlatmmHostArgs<ScaleM, ScaleN>& args,
                                              CodegenPipelineProblem::TransposeC,
                                              memory_operation,
                                              FlatmmConfig::NumWaveGroups,
-                                             false,
-                                             1,
-                                             FlatmmConfig::TiledMMAPermuteN>>;
+                                             false, // FixedVectorSize
+                                             1,     // VectorSizeC
+                                             FlatmmConfig::TiledMMAPermuteN,
+                                             BlockedXDLN_PerWarp>>;
 
-        // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
-        // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
-        using Kernel = ck_tile::FlatmmKernel<TilePartitioner, CodegenFlatmmPipeline, GemmEpilogue>;
+        using Kernel =
+            ck_tile::F16xMXF4FlatmmKernel<TilePartitioner, CodegenFlatmmPipeline, GemmEpilogue>;
 
         auto kargs = Kernel::MakeKernelArgs(args);
 
@@ -236,10 +163,8 @@ float flatmm_calc(const ck_tile::ScaleFlatmmHostArgs<ScaleM, ScaleN>& args,
         if(s.flush_cache_)
         {
             std::cout << "Flushing cache..." << std::endl;
-            static constexpr ck_tile::index_t APackedSize =
-                std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
-            static constexpr ck_tile::index_t BPackedSize =
-                std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
+            constexpr ck_tile::index_t APackedSize = ck_tile::numeric_traits<ADataType>::PackedSize;
+            constexpr ck_tile::index_t BPackedSize = ck_tile::numeric_traits<BDataType>::PackedSize;
 
             ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
                 args.M, args.K, args.stride_A, is_row_major(ALayout{})));
@@ -309,63 +234,66 @@ template <typename FlatmmConfig,
           typename BLayout,
           typename DsLayout,
           typename CLayout,
-          typename ScaleM,
           typename ScaleN,
           bool UsePersistentKernel = false,
           typename CDEElementWise  = ck_tile::element_wise::PassThrough>
-float invoke_flatmm(ck_tile::DeviceMem& a_dev_buf,
-                    ck_tile::DeviceMem& b_shuffle_dev_buf,
-                    ck_tile::DeviceMem& c_dev_buf,
-                    ck_tile::index_t M,
-                    ck_tile::index_t N,
-                    ck_tile::index_t K,
-                    ck_tile::index_t stride_A,
-                    ck_tile::index_t stride_B,
-                    ck_tile::index_t stride_C,
-                    ck_tile::index_t kbatch,
-                    ScaleM scale_m,
-                    ScaleN scale_n,
-                    int n_warmup,
-                    int n_repeat)
+float invoke_mixed_prec_flatmm(ck_tile::DeviceMem& a_dev_buf,
+                               ck_tile::DeviceMem& b_shuffle_dev_buf,
+                               ck_tile::DeviceMem& c_dev_buf,
+                               ck_tile::index_t M,
+                               ck_tile::index_t N,
+                               ck_tile::index_t K,
+                               ck_tile::index_t stride_A,
+                               ck_tile::index_t stride_B,
+                               ck_tile::index_t stride_C,
+                               ck_tile::index_t kbatch,
+                               ScaleN dequant_scale_n,
+                               int n_warmup,
+                               int n_repeat)
 {
-    ck_tile::ScaleFlatmmHostArgs<ScaleM, ScaleN> args = {a_dev_buf.GetDeviceBuffer(),
-                                                         b_shuffle_dev_buf.GetDeviceBuffer(),
-                                                         {},
-                                                         c_dev_buf.GetDeviceBuffer(),
-                                                         kbatch,
-                                                         M,
-                                                         N,
-                                                         K,
-                                                         stride_A,
-                                                         stride_B,
-                                                         {},
-                                                         stride_C,
-                                                         scale_m,
-                                                         scale_n};
+    // Activation has no scale
+    using ActScaleType = ck_tile::FlatmmScalePointer<-1>;
 
-    float ave_time = flatmm_calc<FlatmmConfig,
-                                 ADataType,
-                                 BDataType,
-                                 DsDatatype,
-                                 AccDataType,
-                                 CDataType,
-                                 ALayout,
-                                 BLayout,
-                                 DsLayout,
-                                 CLayout,
-                                 ScaleM,
-                                 ScaleN,
-                                 UsePersistentKernel,
-                                 CDEElementWise>(
+    ck_tile::ScaleFlatmmHostArgs<ActScaleType, ScaleN> args = {a_dev_buf.GetDeviceBuffer(),
+                                                               b_shuffle_dev_buf.GetDeviceBuffer(),
+                                                               {},
+                                                               c_dev_buf.GetDeviceBuffer(),
+                                                               kbatch,
+                                                               M,
+                                                               N,
+                                                               K,
+                                                               stride_A,
+                                                               stride_B,
+                                                               {},
+                                                               stride_C,
+                                                               {},
+                                                               dequant_scale_n};
+
+    float ave_time = mixed_prec_flatmm_calc<FlatmmConfig,
+                                            ADataType,
+                                            BDataType,
+                                            DsDatatype,
+                                            AccDataType,
+                                            CDataType,
+                                            ALayout,
+                                            BLayout,
+                                            DsLayout,
+                                            CLayout,
+                                            ActScaleType,
+                                            ScaleN,
+                                            UsePersistentKernel,
+                                            CDEElementWise>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
 
-    std::size_t flop = std::size_t(2) * M * N * K;
-    std::size_t num_byte =
-        sizeof(ADataType) * M * K + sizeof(BDataType) * N * K + sizeof(CDataType) * M * N;
+    constexpr int PackedSize = ck_tile::numeric_traits<BDataType>::PackedSize;
+
+    std::size_t flop     = std::size_t(2) * M * N * K;
+    std::size_t num_byte = sizeof(ADataType) * M * K + sizeof(BDataType) * N * K / PackedSize +
+                           sizeof(CDataType) * M * N;
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_byte / 1.E6 / ave_time;
 
-    std::cout << "Run Flatmm kernel with DataType = " << DataTypeToString<ADataType>()
+    std::cout << "Run A16W4_Flatmm kernel "
               << " M =" << M << " N =" << N << " K =" << K << " StrideA =" << stride_A
               << " StrideB =" << stride_B << " StrideC =" << stride_C << " : " << ave_time
               << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
@@ -378,22 +306,22 @@ auto create_args(int argc, char* argv[])
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("m", "256", "m dimension")
         .insert("n", "256", "n dimension")
-        .insert("k", "128", "k dimension")
+        .insert("k", "512", "k dimension")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
         .insert("b_layout", "C", "B tensor data layout - Row by default")
         .insert("c_layout", "R", "C tensor data layout - Row by default")
         .insert("stride_a", "0", "Tensor A stride")
         .insert("stride_b", "0", "Tensor B stride")
         .insert("stride_c", "0", "Tensor C stride")
-        .insert("v", "1", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
-        .insert("prec", "fp8", "data type. fp16/bf16/fp8/bf8")
-        .insert("wave_tile", "16", "only support 16(16x16) or 32(32x32)")
+        .insert("v", "1", "0. No validation, 1. Validation on GPU")
+        .insert("mixed_prec",
+                "bf16xfp4",
+                "data type for activation and weight, support: bf16xfp4, fp16xfp4")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("split_k", "1", "splitK value")
-        .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
-        .insert("scale", "0", "0:without scale, 1:per-token/channel scale, only for fp8/bf8")
+        .insert("init", "0", "0:random, 1:constant(1)")
         .insert("persistent", "0", "0: no persistent, 1: persistent kernel")
         .insert("warp_tile",
                 "0",
@@ -402,10 +330,71 @@ auto create_args(int argc, char* argv[])
     return std::make_tuple(result, arg_parser);
 }
 
-#include "run_flatmm_example.inc"
+template <class FlatmmConfig, class IterSrc, class IterDst>
+void preShuffleWeight(const IterSrc src, IterDst dst, int N, int K)
+{
+    int KPack = 16;
+    int NLane = FlatmmConfig::N_Warp_Tile;
+    int KLane = 64 / NLane;
+    int K_pk  = K / 2;
+    int K0    = K_pk / (KLane * KPack);
+    // K -> K0 KLane KPack
+    // N -> N0 NLane
+    // N, K -> N0 K0 KLane NLane KPack
+    int tempk;
+    for(int n = 0; n < N; ++n)
+    {
+        for(int k = 0; k < K_pk; ++k)
+        {
+            int n0 = n / NLane;
+            int n1 = n % NLane;
 
-template <template <typename PreType> typename FlatmmConfig>
-int run_flatmm_example(int argc, char* argv[])
+            int k0 = k / (KLane * KPack);
+            tempk  = k % (KLane * KPack);
+            int k1 = tempk / KPack;
+            int k2 = tempk % KPack;
+
+            int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
+                              k1 * KPack * NLane + n1 * KPack + k2;
+
+            dst[outputIndex] = src[n * K_pk + k];
+        }
+    }
+}
+
+template <class FlatmmConfig, class T>
+auto preShuffleScale(const ck_tile::HostTensor<T>& scale)
+{
+    assert(scale.get_lengths().size() == 2);
+    int n_ = scale.get_lengths()[1];
+    int k_ = scale.get_lengths()[0];
+
+    constexpr int K_Pack       = 2;  // fixed for mxfp4
+    constexpr int N_Pack       = 2;  // fixed for mxfp4
+    constexpr int GranularityK = 32; // fixed for mxfp4
+
+    constexpr int K_Lane = 64 / FlatmmConfig::N_Warp_Tile; // 4
+
+    static_assert(FlatmmConfig::N_Warp_Tile == 16, "only support XDL_N == 16");
+    static_assert(FlatmmConfig::N_Repeat % N_Pack == 0);
+    static_assert(FlatmmConfig::K_Tile % (K_Pack * K_Lane * GranularityK) == 0);
+
+    ck_tile::HostTensor<T> shfl_scale({
+        k_ / K_Pack / K_Lane,
+        K_Pack,
+        K_Lane,
+        n_ / FlatmmConfig::N_Warp_Tile / N_Pack,
+        N_Pack,
+        FlatmmConfig::N_Warp_Tile,
+    });
+    std::copy(scale.begin(), scale.end(), shfl_scale.begin());
+    return ck_tile::reference_permute(shfl_scale, {3, 0, 2, 5, 1, 4});
+}
+
+#include "run_mixed_prec_flatmm.inc"
+
+template <typename FlatmmConfig>
+int run_mixed_prec_flatmm_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
     if(!result)
@@ -414,71 +403,45 @@ int run_flatmm_example(int argc, char* argv[])
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
-    std::string data_type = arg_parser.get_str("prec");
-    std::string a_layout  = arg_parser.get_str("a_layout");
-    std::string b_layout  = arg_parser.get_str("b_layout");
-    int scale_opt         = arg_parser.get_int("scale");
-    int persistent_opt    = arg_parser.get_int("persistent");
+    std::string mixed_prec = arg_parser.get_str("mixed_prec");
+    std::string a_layout   = arg_parser.get_str("a_layout");
+    std::string b_layout   = arg_parser.get_str("b_layout");
+    int persistent_opt     = arg_parser.get_int("persistent");
+
     if(a_layout == "R" && b_layout == "C")
     {
-        if(data_type == "fp16")
+        if(mixed_prec == "bf16xfp4")
         {
-            run_flatmm_example_with_layouts<ck_tile::half_t, FlatmmConfig<ck_tile::half_t>>(
-                argc, argv, Row{}, Col{}, Row{});
-        }
-        else if(data_type == "bf16")
-        {
-            run_flatmm_example_with_layouts<ck_tile::bf16_t, FlatmmConfig<ck_tile::bf16_t>>(
-                argc, argv, Row{}, Col{}, Row{});
-        }
-        else if(data_type == "fp8")
-        {
-            if(scale_opt == 0)
+            if(persistent_opt == 0)
             {
-                if(persistent_opt == 0)
-                {
-                    run_flatmm_example_with_layouts<ck_tile::fp8_t, FlatmmConfig<ck_tile::fp8_t>>(
-                        argc, argv, Row{}, Col{}, Row{});
-                }
-                else
-                {
-                    run_flatmm_example_with_layouts<ck_tile::fp8_t,
-                                                    FlatmmConfig<ck_tile::fp8_t>,
-                                                    -1,
-                                                    -1,
-                                                    true>(argc, argv, Row{}, Col{}, Row{});
-                }
+                run_mixed_prec_flatmm_with_layouts<ck_tile::bf16_t,
+                                                   ck_tile::pk_fp4_t,
+                                                   FlatmmConfig,
+                                                   false>(argc, argv, Row{}, Col{}, Row{});
             }
             else
             {
-                if(persistent_opt == 0)
-                {
-                    run_flatmm_example_with_layouts<ck_tile::fp8_t,
-                                                    FlatmmConfig<ck_tile::fp8_t>,
-                                                    1,
-                                                    1>(argc, argv, Row{}, Col{}, Row{});
-                }
-                else
-                {
-                    run_flatmm_example_with_layouts<ck_tile::fp8_t,
-                                                    FlatmmConfig<ck_tile::fp8_t>,
-                                                    1,
-                                                    1,
-                                                    true>(argc, argv, Row{}, Col{}, Row{});
-                }
+                run_mixed_prec_flatmm_with_layouts<ck_tile::bf16_t,
+                                                   ck_tile::pk_fp4_t,
+                                                   FlatmmConfig,
+                                                   true>(argc, argv, Row{}, Col{}, Row{});
             }
         }
-        else if(data_type == "bf8")
+        else if(mixed_prec == "fp16xfp4")
         {
-            if(scale_opt == 0)
+            if(persistent_opt == 0)
             {
-                run_flatmm_example_with_layouts<ck_tile::bf8_t, FlatmmConfig<ck_tile::bf8_t>>(
-                    argc, argv, Row{}, Col{}, Row{});
+                run_mixed_prec_flatmm_with_layouts<ck_tile::fp16_t,
+                                                   ck_tile::pk_fp4_t,
+                                                   FlatmmConfig,
+                                                   false>(argc, argv, Row{}, Col{}, Row{});
             }
             else
             {
-                run_flatmm_example_with_layouts<ck_tile::bf8_t, FlatmmConfig<ck_tile::bf8_t>, 1, 1>(
-                    argc, argv, Row{}, Col{}, Row{});
+                run_mixed_prec_flatmm_with_layouts<ck_tile::fp16_t,
+                                                   ck_tile::pk_fp4_t,
+                                                   FlatmmConfig,
+                                                   true>(argc, argv, Row{}, Col{}, Row{});
             }
         }
         else
@@ -498,25 +461,20 @@ int main(int argc, char* argv[])
     auto [result, arg_parser] = create_args(argc, argv);
     if(!result)
         return EXIT_FAILURE;
-
     try
     {
         int warp_tile = arg_parser.get_int("warp_tile");
         if(warp_tile == 0)
         {
-            return !run_flatmm_example<FlatmmConfig16>(argc, argv);
+            return !run_mixed_prec_flatmm_example<A16W4_FlatmmConfig16>(argc, argv);
         }
         else if(warp_tile == 1)
         {
-            return !run_flatmm_example<FlatmmConfig32>(argc, argv);
-        }
-        else if(warp_tile == 2)
-        {
-            return !run_flatmm_example<FlatmmConfig16_950>(argc, argv);
+            return !run_mixed_prec_flatmm_example<A16W4_FlatmmConfig16_950>(argc, argv);
         }
         else
         {
-            return !run_flatmm_example<FlatmmConfig32_950>(argc, argv);
+            throw std::runtime_error("Unsupported warp_tile!");
         }
     }
     catch(const std::runtime_error& e)

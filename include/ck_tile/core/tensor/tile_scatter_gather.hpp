@@ -599,6 +599,88 @@ struct tile_scatter_gather
         });
     }
 
+    template <index_t i_access_unsupport_ = -1, bool oob_conditional_check = true>
+    CK_TILE_DEVICE void update(const static_distributed_tensor<DataType, TileDstr>& dstr_tensor,
+                               number<i_access_unsupport_>          = {},
+                               bool_constant<oob_conditional_check> = {}) const
+    {
+        using Traits = load_store_traits;
+
+        // using vector_type_t = typename Traits::vector_type_t;
+        using vector_t = typename Traits::vector_t;
+        using SFC_Ys   = typename Traits::SFC_Ys;
+
+        constexpr auto tile_dstr = TileDstr{};
+
+        static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+            auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
+            auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
+
+            static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
+                constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+
+                // data index [y0, y1, ...]
+                constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
+                constexpr auto idx_gather   = idx_ys_start[number<0>{}];
+                const auto page_offset      = page_idx_[idx_gather];
+
+                // read from distributed tensor
+                vector_t vec_value;
+
+                static_for<0, Traits::ScalarPerVector, Traits::PackedSize>{}([&](auto j) {
+                    constexpr auto idx_ys = generate_tuple(
+                        [&](auto jj) {
+                            return jj == Traits::VectorDimY ? (idx_ys_start[jj] + j)
+                                                            : idx_ys_start[jj];
+                        },
+                        number<NDimY>{});
+
+                    constexpr index_t d =
+                        tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
+                        Traits::PackedSize;
+
+                    vec_value.template get_as<DataType>()(j / Traits::PackedSize) =
+                        dstr_tensor.get_thread_buffer().template at<d>();
+                });
+
+                // write into bottom tensor
+                if constexpr(std::is_same_v<ValidArray, std::nullptr_t>)
+                {
+                    get_bottom_tensor_view().template update_vectorized_elements<vector_t>(
+                        bottom_tensor_thread_coord,
+                        page_offset,
+                        vec_value,
+                        bool_constant<oob_conditional_check>{});
+                }
+                else
+                {
+                    get_bottom_tensor_view().template update_vectorized_elements<vector_t>(
+                        bottom_tensor_thread_coord,
+                        page_offset,
+                        valids_[idx_gather],
+                        vec_value,
+                        bool_constant<oob_conditional_check>{});
+                }
+
+                if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
+                {
+                    constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
+
+                    constexpr auto forward_step_scatter = generate_tuple(
+                        [&](auto i) { return i == YsGatherDim ? 0 : idx_diff_ys[i]; },
+                        number<NDimY>{});
+
+                    constexpr auto idx_diff_ps_ys = container_concat(
+                        generate_tuple([&](auto) { return number<0>{}; }, number<NDimP>{}),
+                        forward_step_scatter);
+
+                    move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                        window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
+                }
+            });
+        });
+    }
+
     // move thread's botom tensor coordiante
     // [x0', x1', ... ] ==> [offset]
     // also move window-origin
