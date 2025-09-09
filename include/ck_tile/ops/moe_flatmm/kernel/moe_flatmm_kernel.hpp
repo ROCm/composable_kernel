@@ -569,8 +569,7 @@ struct MoeFlatmmKernel
                                                    const AccDataType* exp_weight_ptr,
                                                    const int expert_id,
                                                    const KernelArgs& kargs,
-                                                   const SplitKBatchOffset& splitk_batch_offset,
-                                                   const int n_pad_zeros = 12)
+                                                   const SplitKBatchOffset& splitk_batch_offset)
     {
         const auto& a_tensor_view = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
@@ -614,7 +613,7 @@ struct MoeFlatmmKernel
                 return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
                     e_ptr,
                     make_tuple(IsInputGemm ? kargs.NumTokens * kargs.TopK : kargs.NumTokens,
-                               IsGateUp ? kargs.stride_C / 2 : kargs.stride_C),
+                               IsGateUp ? kargs.N / 2 : kargs.N),
                     make_tuple(kargs.stride_C, 1),
                     number<EpiloguePipeline::GetVectorSizeC()>{},
                     number<1>{});
@@ -624,7 +623,7 @@ struct MoeFlatmmKernel
                 return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
                     e_ptr,
                     make_tuple(IsInputGemm ? kargs.NumTokens * kargs.TopK : kargs.NumToken,
-                               IsGateUp ? kargs.stride_C / 2 : kargs.stride_C),
+                               IsGateUp ? kargs.N / 2 : kargs.N),
                     make_tuple(1, kargs.stride_C),
                     number<1>{},
                     number<1>{});
@@ -931,16 +930,17 @@ struct MoeFlatmmKernel
             constexpr index_t ScaleMRepeat = MRepeat * kM0 * kM2;
             statically_indexed_array<index_t, ScaleMRepeat> scale_m_offsets;
 
-            static_for<0, MRepeat, 1>{}([&](auto mIter) {
-                static_for<0, kM0, 1>{}([&](auto m0) {
-                    static_for<0, kM2, 1>{}([&](auto m2) {
-                        const auto row_idx =
-                            coord_m + mIter * MPerXdl + m0 * kM1 * kM2 + m2 + scale_m_coord[I0];
-                        scale_m_offsets[mIter * number<kM0 * kM2>{} + m0 * number<kM2>{} + m2] =
-                            row_to_token_idx(row_idx);
+            if constexpr(!MXFP4_Pipeline)
+                static_for<0, MRepeat, 1>{}([&](auto mIter) {
+                    static_for<0, kM0, 1>{}([&](auto m0) {
+                        static_for<0, kM2, 1>{}([&](auto m2) {
+                            const auto row_idx =
+                                coord_m + mIter * MPerXdl + m0 * kM1 * kM2 + m2 + scale_m_coord[I0];
+                            scale_m_offsets[mIter * number<kM0 * kM2>{} + m0 * number<kM2>{} + m2] =
+                                row_to_token_idx(row_idx);
+                        });
                     });
                 });
-            });
 
             constexpr int DynamicTileOffsetFlag = 0;
 
