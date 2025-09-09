@@ -1030,7 +1030,8 @@ template <ck_tile::index_t HDim_,
           bool kPadD_,
           bool kPadDv_,
           bool kUseTrLoad_,
-          bool kSkipMinSeqlenQ_ = false>
+          bool kSkipMinSeqlenQ_ = false,
+          bool kIsSglangLayout_ = false>
 struct fmha_fwd_traits_
 {
     static constexpr ck_tile::index_t HDim           = HDim_;
@@ -1056,6 +1057,7 @@ struct fmha_fwd_traits_
     static constexpr bool kPadDv                     = kPadDv_;
     static constexpr bool kUseTrLoad                 = kUseTrLoad_;
     static constexpr bool kSkipMinSeqlenQ            = kSkipMinSeqlenQ_;
+    static constexpr bool kIsSglangLayout            = kIsSglangLayout_;
 };
 
 template <typename Traits_>
@@ -1297,7 +1299,11 @@ float fmha_fwd_appendkv(fmha_fwd_appendkv_traits,
                         fmha_fwd_appendkv_args,
                         const ck_tile::stream_config&);
 
-using fmha_batch_prefill_traits = fmha_fwd_traits;
+struct fmha_batch_prefill_traits: public fmha_fwd_traits
+{
+    bool is_sglang_layout = true;
+};
+
 float fmha_batch_prefill(fmha_batch_prefill_traits,
                          fmha_batch_prefill_args,
                          const ck_tile::stream_config&);
