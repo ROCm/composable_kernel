@@ -772,7 +772,7 @@ class FmhaBwdApiPool:
             per_tr_load += FMHA_BWD_API_COND_STATEMENT(F_cond=tr_load_cond_map[tr_load], F_body=per_max_seq_q, indent=4)
         if not per_tr_load:
             # empty string we add some ignore to suppress warning in api
-            per_tr_load += '    (void)t ; (void)s ; (void)a;'
+            per_tr_load += '    (void)t ; (void)s ; (void)a; (void)has_load_tr;'
         result = FMHA_BWD_KERNEL_HEADER + FMHA_BWD_API.format(F_dispatch = per_tr_load)
         return result.replace('\n\n', '\n')
 
