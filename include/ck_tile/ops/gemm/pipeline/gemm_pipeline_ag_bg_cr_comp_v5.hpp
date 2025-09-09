@@ -40,7 +40,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
 
     using AsDataType      = remove_cvref_t<typename Problem::AsDataTypeTuple>;
     using BsDataType      = remove_cvref_t<typename Problem::BsDataTypeTuple>;
-    using EDataType       = remove_cvref_t<typename Problem::EDataType>;
+    using CDataType       = remove_cvref_t<typename Problem::CDataType>;
     using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
     using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
 
@@ -49,7 +49,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
 
     using AsLayout = remove_cvref_t<typename Problem::AsLayoutTuple>;
     using BsLayout = remove_cvref_t<typename Problem::BsLayoutTuple>;
-    using ELayout  = remove_cvref_t<typename Problem::ELayout>;
+    using CLayout  = remove_cvref_t<typename Problem::CLayout>;
 
     using ALayout = remove_cvref_t<std::tuple_element_t<0, AsLayout>>;
     using BLayout = remove_cvref_t<std::tuple_element_t<0, BsLayout>>;
@@ -236,7 +236,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             auto c_block_tile_0 = block_gemm.MakeCBlockTile();
             auto c_block_tile_1 = block_gemm.MakeCBlockTile();
 
-            EDataType* __restrict__ p_c_lds = static_cast<EDataType*>(p_smem_0);
+            CDataType* __restrict__ p_c_lds = static_cast<CDataType*>(p_smem_0);
             auto c_lds_block_0 =
                 make_naive_tensor_view<address_space_enum::lds>(p_c_lds,
                                                                 make_tuple(MPerBlock, NPerBlock),

@@ -97,7 +97,7 @@ struct GemmKernelMultiABD
     /// @brief  Specify the layout configurations for A, B, E and D
     using AsLayout = remove_cvref_t<typename GemmPipeline::AsLayout>;
     using BsLayout = remove_cvref_t<typename GemmPipeline::BsLayout>;
-    using ELayout  = remove_cvref_t<typename GemmPipeline::ELayout>;
+    using CLayout  = remove_cvref_t<typename GemmPipeline::CLayout>;
     using DsLayout = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
 
     /// @brief  Specify the data type configurations for A, B, E and D
@@ -116,10 +116,10 @@ struct GemmKernelMultiABD
                       is_detected<is_tuple, BsDataType>::value,
                   "BLayout and BDataType must be a tuple.");
 
-    /// @brief  ELayout and EDataType are expected to be scalars, not a tuple.
-    static_assert(!is_detected<is_tuple, ELayout>::value &&
+    /// @brief  CLayout and EDataType are expected to be scalars, not a tuple.
+    static_assert(!is_detected<is_tuple, CLayout>::value &&
                       !is_detected<is_tuple, EDataType>::value,
-                  "ELayout and EDataType must be a scalar.");
+                  "CLayout and EDataType must be a scalar.");
 
     /// @brief  DsLayout and DsDataType are expected to be tuple, not a scalar.
     static_assert(is_detected<is_tuple, DsLayout>::value &&

@@ -10,7 +10,7 @@ namespace ck_tile {
 // Problem Description for BlockGemm
 template <typename ADataType_,
           typename BDataType_,
-          typename EDataType_,
+          typename CDataType_,
           index_t kBlockSize_,
           typename BlockGemmShape_,
           index_t NumWaveGroups_ = 1>
@@ -18,7 +18,7 @@ struct BlockGemmProblem
 {
     using ADataType      = remove_cvref_t<ADataType_>;
     using BDataType      = remove_cvref_t<BDataType_>;
-    using EDataType      = remove_cvref_t<EDataType_>;
+    using CDataType      = remove_cvref_t<CDataType_>;
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
     static constexpr index_t kBlockSize    = kBlockSize_;

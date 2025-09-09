@@ -31,7 +31,7 @@ struct BlockGemmASmemBSmemCRegV1DefaultPolicy
 
         if constexpr(std::is_same_v<typename Problem::ADataType, half_t> &&
                      std::is_same_v<typename Problem::BDataType, half_t> &&
-                     std::is_same_v<typename Problem::EDataType, float>)
+                     std::is_same_v<typename Problem::CDataType, float>)
         {
 #if 0
             constexpr index_t kBlockSize = Problem::kBlockSize;
@@ -69,7 +69,7 @@ struct BlockGemmASmemBSmemCRegV1DefaultPolicy
         }
         else if constexpr(std::is_same_v<typename Problem::ADataType, bf16_t> &&
                           std::is_same_v<typename Problem::BDataType, bf16_t> &&
-                          std::is_same_v<typename Problem::EDataType, float>)
+                          std::is_same_v<typename Problem::CDataType, float>)
         {
             using WG = WarpGemmDispatcher<ck_tile::bf16_t,
                                           ck_tile::bf16_t,

@@ -430,7 +430,7 @@ struct UniversalGemmBasePolicy
         using WG        = typename BlockGemm::WarpGemm;
 
         constexpr bool TransposeC = Problem::TransposeC;
-        using CLayout             = typename Problem::ELayout;
+        using CLayout             = typename Problem::CLayout;
         using CWarpDstr           = typename WG::CWarpDstr;
 
         // N is contiguous dimension
@@ -665,7 +665,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
 
         using WarpGemm = WarpGemmDispatcher<typename Problem::ComputeDataType,
                                             typename Problem::ComputeDataType,
-                                            typename Problem::EDataType,
+                                            typename Problem::CDataType,
                                             WarpTile::at(I0),
                                             WarpTile::at(I1),
                                             WarpTile::at(I2),
@@ -676,7 +676,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
 
         using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
                                                                       typename Problem::BDataType,
-                                                                      typename Problem::EDataType,
+                                                                      typename Problem::CDataType,
                                                                       BlockWarps,
                                                                       WarpGemm>;
         return BlockUniversalGemmAsBsCr<Problem, BlockGemmPolicy>{};

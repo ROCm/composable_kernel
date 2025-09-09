@@ -24,7 +24,7 @@ struct BlockGemmARegBRegCRegV1
         using Policy         = remove_cvref_t<GemmPolicy_>;
         using ADataType      = remove_cvref_t<typename Problem::ADataType>;
         using BDataType      = remove_cvref_t<typename Problem::BDataType>;
-        using EDataType      = remove_cvref_t<typename Problem::EDataType>;
+        using CDataType      = remove_cvref_t<typename Problem::CDataType>;
         using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
         static constexpr index_t kBlockSize = Problem::kBlockSize;
@@ -57,7 +57,7 @@ struct BlockGemmARegBRegCRegV1
 
     using ADataType = remove_cvref_t<typename Traits::ADataType>;
     using BDataType = remove_cvref_t<typename Traits::BDataType>;
-    using EDataType = remove_cvref_t<typename Traits::EDataType>;
+    using CDataType = remove_cvref_t<typename Traits::CDataType>;
 
     static constexpr index_t KIterPerWarp = Traits::KIterPerWarp;
     static constexpr index_t MIterPerWarp = Traits::MIterPerWarp;
@@ -173,7 +173,7 @@ struct BlockGemmARegBRegCRegV1
     {
         static_assert(std::is_same_v<ADataType, remove_cv_t<typename ABlockTensor::DataType>> &&
                           std::is_same_v<BDataType, remove_cv_t<typename BBlockTensor::DataType>> &&
-                          std::is_same_v<EDataType, remove_cv_t<typename CBlockTensor::DataType>>,
+                          std::is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
                       "wrong!");
 
         // check ABC-block-distribution
@@ -265,7 +265,7 @@ struct BlockGemmARegBRegCRegV1
             constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
                 c_block_outer_dstr_encoding, typename WarpGemm::CWarpDstrEncoding{});
             constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
-            auto c_block_tensor         = make_static_distributed_tensor<EDataType>(c_block_dstr);
+            auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
             return c_block_tensor;
         }
         else
@@ -281,7 +281,7 @@ struct BlockGemmARegBRegCRegV1
             constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
                 c_block_outer_dstr_encoding, typename WarpGemm::CWarpDstrEncoding{});
             constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
-            auto c_block_tensor         = make_static_distributed_tensor<EDataType>(c_block_dstr);
+            auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
             return c_block_tensor;
         }
     }

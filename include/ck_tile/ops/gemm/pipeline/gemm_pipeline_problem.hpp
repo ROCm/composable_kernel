@@ -27,7 +27,7 @@ struct GemmPipelineProblemBase
 
     using AsDataType = remove_cvref_t<AsDataType_>;
     using BsDataType = remove_cvref_t<BsDataType_>;
-    using EDataType  = remove_cvref_t<EDataType_>; // actually AccDataType
+    using CDataType  = remove_cvref_t<EDataType_>; // actually AccDataType
 
     static constexpr bool FixedVectorSize = FixedVectorSize_;
 
@@ -38,7 +38,7 @@ struct GemmPipelineProblemBase
 
     using AsLayout = remove_cvref_t<typename Traits::AsLayout>;
     using BsLayout = remove_cvref_t<typename Traits::BsLayout>;
-    using ELayout  = remove_cvref_t<typename Traits::ELayout>;
+    using CLayout  = remove_cvref_t<typename Traits::CLayout>;
 
     static constexpr bool ComputeDataTypeIsTuple = is_detected<is_tuple, ComputeDataType_>::value;
     static constexpr bool ADataTypeIsTuple       = is_detected<is_tuple, AsDataType>::value;
@@ -134,14 +134,14 @@ struct GemmPipelineProblemBase
 
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentC()
     {
-        if constexpr(std::is_same_v<ELayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
+        if constexpr(std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
         {
             constexpr index_t N1 = kBlockSize / get_warp_size();
             constexpr index_t N2 = std::min(BlockGemmShape::kN / N1, get_warp_size());
             constexpr index_t M0 = get_warp_size() / N2;
             constexpr index_t M1 = BlockGemmShape::kM / M0;
 
-            return std::min(M1, static_cast<index_t>(VectorLoadSize / sizeof(EDataType)));
+            return std::min(M1, static_cast<index_t>(VectorLoadSize / sizeof(CDataType)));
         }
         else
         {
@@ -150,7 +150,7 @@ struct GemmPipelineProblemBase
             constexpr index_t N0 = get_warp_size() / M2;
             constexpr index_t N1 = BlockGemmShape::kN / N0;
 
-            return std::min(N1, static_cast<index_t>(VectorLoadSize / sizeof(EDataType)));
+            return std::min(N1, static_cast<index_t>(VectorLoadSize / sizeof(CDataType)));
         }
     }
 
@@ -184,7 +184,7 @@ struct GemmPipelineProblemBase
         }
     }();
     static constexpr index_t VectorSizeC = []() {
-        if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
+        if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
         {
             return kPadN ? 1 : GetAlignmentC();
         }
@@ -238,7 +238,7 @@ struct UniversalGemmPipelineProblem
 
     using AsDataType   = remove_cvref_t<AsDataType_>;
     using BsDataType   = remove_cvref_t<BsDataType_>;
-    using EDataType    = remove_cvref_t<EDataType_>; // actually AccDataType
+    using CDataType    = remove_cvref_t<EDataType_>; // actually AccDataType
     using AElementWise = remove_cvref_t<AElementWise_>;
     using BElementWise = remove_cvref_t<BElementWise_>;
 
@@ -248,7 +248,7 @@ struct UniversalGemmPipelineProblem
 
     using AsLayout = remove_cvref_t<typename Traits::AsLayout>;
     using BsLayout = remove_cvref_t<typename Traits::BsLayout>;
-    using ELayout  = remove_cvref_t<typename Traits::ELayout>;
+    using CLayout  = remove_cvref_t<typename Traits::CLayout>;
 
     static constexpr bool ComputeDataTypeIsTuple = is_detected<is_tuple, ComputeDataType_>::value;
     static constexpr bool ADataTypeIsTuple       = is_detected<is_tuple, AsDataType>::value;

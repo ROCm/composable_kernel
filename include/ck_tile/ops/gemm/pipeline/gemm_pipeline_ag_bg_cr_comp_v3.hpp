@@ -109,7 +109,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
     using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
     using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
-    using EDataType  = remove_cvref_t<typename Problem::EDataType>;
+    using CDataType  = remove_cvref_t<typename Problem::CDataType>;
 
     using AElementWise   = remove_cvref_t<typename Problem::AElementWise>;
     using BElementWise   = remove_cvref_t<typename Problem::BElementWise>;
@@ -117,7 +117,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
     using AsLayout = remove_cvref_t<typename Problem::AsLayoutTuple>;
     using BsLayout = remove_cvref_t<typename Problem::BsLayoutTuple>;
-    using ELayout  = remove_cvref_t<typename Problem::ELayout>;
+    using CLayout  = remove_cvref_t<typename Problem::CLayout>;
 
     using ALayout = remove_cvref_t<std::tuple_element_t<0, AsLayout>>;
     using BLayout = remove_cvref_t<std::tuple_element_t<0, BsLayout>>;
@@ -506,7 +506,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             {
                 Base::LocalPrefill(a_copy_lds_window, elementwise_As_res);
             }
-            if constexpr(is_b_row_major)
+            if constexpr(is_b_row_major && !is_b_load_tr_v())
             {
                 auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
                     Policy::template MakeShuffledBRegTileDistribution<Problem>());

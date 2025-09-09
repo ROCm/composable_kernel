@@ -193,7 +193,7 @@ struct UniversalGemmKernel
                            remove_cvref_t<typename EpiloguePipeline::DsDataType>,
                            remove_cvref_t<tuple<typename EpiloguePipeline::DsDataType>>>;
 
-    using ELayout   = remove_cvref_t<typename GemmPipeline::ELayout>;
+    using CLayout   = remove_cvref_t<typename GemmPipeline::CLayout>;
     using EDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
     using AElementWise = remove_cvref_t<typename GemmPipeline::AElementWise>;
@@ -486,7 +486,7 @@ struct UniversalGemmKernel
         bool DTesnorIsValid = {true};
         static_for<0, NumDTensor, 1>{}([&](auto index) {
             using DiLayout = remove_cvref_t<std::tuple_element_t<index.value, DsLayout>>;
-            if(std::is_same_v<DiLayout, ELayout> == false)
+            if(std::is_same_v<DiLayout, CLayout> == false)
             {
                 DTesnorIsValid = false;
             }
@@ -532,7 +532,7 @@ struct UniversalGemmKernel
             }
         });
 
-        if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
+        if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
         {
             if(kargs.N % TilePartitioner::NPerBlock != 0 && GemmPipeline::kPadN == false)
             {
@@ -727,7 +727,7 @@ struct UniversalGemmKernel
 
         // TODO: enable vector write for C in ColMajor
         const auto& e_tensor_view = [&]() {
-            if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
+            if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
             {
                 return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
                     e_ptr,
@@ -821,7 +821,7 @@ struct UniversalGemmKernel
         // TODO vector write in for C in ColMajor
         const auto& e_pad_view = [&]() {
             const auto& e_tensor_view = views.at(I3);
-            if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
+            if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
             {
                 return pad_tensor_view(e_tensor_view,
                                        make_tuple(number<TilePartitioner::MPerBlock>{},

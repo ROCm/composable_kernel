@@ -12,7 +12,7 @@ template <bool kPadM_,
           bool kPadK_,
           typename AsLayout_,
           typename BsLayout_,
-          typename ELayout_,
+          typename CLayout_,
           index_t NumWaveGroups_ = 1>
 struct TileGemmTraits
 {
@@ -25,7 +25,7 @@ struct TileGemmTraits
 
     using AsLayout = AsLayout_;
     using BsLayout = BsLayout_;
-    using ELayout  = ELayout_;
+    using CLayout  = CLayout_;
 
     static constexpr bool TransposeC            = false;
     static constexpr bool UseStructuredSparsity = false;
@@ -38,7 +38,7 @@ template <bool kPadM_,
           bool DoubleSmemBuffer_,
           typename AsLayout_,
           typename BsLayout_,
-          typename ELayout_,
+          typename CLayout_,
           bool TransposeC_            = false,
           bool UseStructuredSparsity_ = false,
           bool UsePersistentKernel_   = false,
@@ -54,7 +54,7 @@ struct TileGemmUniversalTraits
 
     using AsLayout = AsLayout_;
     using BsLayout = BsLayout_;
-    using ELayout  = ELayout_;
+    using CLayout  = CLayout_;
 
     static constexpr bool TransposeC            = TransposeC_;
     static constexpr bool UseStructuredSparsity = UseStructuredSparsity_;
@@ -69,7 +69,7 @@ template <bool kPadM_,
           bool DoubleSmemBuffer_,
           typename AsLayout_,
           typename BsLayout_,
-          typename ELayout_,
+          typename CLayout_,
           bool TransposeC_            = false,
           bool UseStructuredSparsity_ = false>
 using PersistentTileGemmUniversalTraits = TileGemmUniversalTraits<kPadM_,
@@ -78,7 +78,7 @@ using PersistentTileGemmUniversalTraits = TileGemmUniversalTraits<kPadM_,
                                                                   DoubleSmemBuffer_,
                                                                   AsLayout_,
                                                                   BsLayout_,
-                                                                  ELayout_,
+                                                                  CLayout_,
                                                                   TransposeC_,
                                                                   UseStructuredSparsity_,
                                                                   true>;

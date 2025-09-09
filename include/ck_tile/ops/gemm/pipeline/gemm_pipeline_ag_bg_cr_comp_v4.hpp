@@ -99,12 +99,12 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
 
     using AsDataType     = remove_cvref_t<typename Problem::AsDataTypeTuple>;
     using BsDataType     = remove_cvref_t<typename Problem::BsDataTypeTuple>;
-    using EDataType      = remove_cvref_t<typename Problem::EDataType>;
+    using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
     using AsLayout = remove_cvref_t<typename Problem::AsLayoutTuple>;
     using BsLayout = remove_cvref_t<typename Problem::BsLayoutTuple>;
-    using ELayout  = remove_cvref_t<typename Problem::ELayout>;
+    using CLayout  = remove_cvref_t<typename Problem::CLayout>;
 
     using AElementWise = remove_cvref_t<typename Problem::AElementWise>;
     using BElementWise = remove_cvref_t<typename Problem::BElementWise>;
