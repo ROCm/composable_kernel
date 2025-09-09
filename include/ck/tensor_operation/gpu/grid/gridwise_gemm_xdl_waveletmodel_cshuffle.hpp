@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -77,6 +77,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
     static constexpr auto BK1         = Number<BK1Value>{};
     static constexpr auto AK0PerBlock = Number<KPerBlock / AK1Value>{};
     static constexpr auto BK0PerBlock = Number<KPerBlock / BK1Value>{};
+    static constexpr auto BlockSize   = math::max(TileLoadThreadGroupSize, TileMathThreadGroupSize);
 
     struct TileLoadThreadGroup
     {
@@ -169,6 +170,22 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
         return math::max((a_block_space_size_aligned + b_block_space_size_aligned) *
                              sizeof(ABDataType),
                          c_block_size * sizeof(EDataTypeShuffle));
+    }
+
+    template <
+        InMemoryDataOperationEnum CGlobalMemoryDataOperation_ = InMemoryDataOperationEnum::Set>
+    __device__ static bool constexpr IsValidCompilationParameter()
+    {
+        return ck::tensor_operation::device::IsValidGemmCompilationParameter<
+            BlockSize,
+            MPerBlock,
+            NPerBlock,
+            MPerXdl,
+            NPerXdl,
+            MXdlPerWave,
+            NXdlPerWave,
+            EDataType,
+            CGlobalMemoryDataOperation>();
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
