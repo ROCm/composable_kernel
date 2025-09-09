@@ -60,6 +60,11 @@ struct WarpGemmAttributeWmmaImpl
     using kCYs2RHsMajor  = typename Traits::kCYs2RHsMajor;
     using kCYs2RHsMinor  = typename Traits::kCYs2RHsMinor;
 
+    using kCTPs2RHssMajor = typename Traits::kCTPs2RHssMajor;
+    using kCTPs2RHssMinor = typename Traits::kCTPs2RHssMinor;
+    using kCTYs2RHsMajor  = typename Traits::kCTYs2RHsMajor;
+    using kCTYs2RHsMinor  = typename Traits::kCTYs2RHsMinor;
+
     // c_vec += a_vec * b_vec
     template <bool clamp = false, bool post_nop_ = false>
     CK_TILE_DEVICE void operator()(CVecType& c_vec,
