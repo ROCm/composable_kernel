@@ -93,7 +93,7 @@ constexpr bool is_row_major()
     return std::is_same_v<Layout, ck_tile::tensor_layout::gemm::RowMajor>;
 }
 
-using ContractionTypes = BatchedContractionTypeConfig<float>;
+using ContractionTypes = BatchedContractionTypeConfig<ck_tile::half_t>;
 
 using ADataType   = ContractionTypes::ADataType;
 using BDataType   = ContractionTypes::BDataType;
@@ -118,7 +118,7 @@ auto create_args(int argc, char* argv[])
         .insert("batch_stride_e", "524288", "Batch E stride")
         .insert("batch_count", "8", "Batch count")
         .insert("v", "1", "0. No validation, 1. Validation on CPU")
-        .insert("prec", "fp32", "data type. fp32/fp16/bf16")
+        .insert("prec", "fp16", "data type. fp32/fp16/bf16")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "10", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")

@@ -136,7 +136,7 @@ struct BatchedContractionKernel
                                                             kargs.stride_E,
                                                             kargs.k_batch};
 
-        return UniversalGemmKernel::IsSupportedArguments(gemm_kargs) && kargs.G > 0;
+        return UniversalGemmKernel::IsSupportedArgument(gemm_kargs) && kargs.G > 0;
     }
 
     CK_TILE_HOST static constexpr ck_tile::index_t GetSmemSize()
@@ -146,7 +146,7 @@ struct BatchedContractionKernel
 
     CK_TILE_HOST static constexpr auto GetBlockSize()
     {
-        return UniversalGemmKernel::GetBlockSize();
+        return dim3(UniversalGemmKernel::kBlockSize);
     }
 
     CK_TILE_HOST static constexpr auto
@@ -179,9 +179,11 @@ struct BatchedContractionKernel
 
     CK_TILE_DEVICE void operator()(const KernelArgs& kargs) const
     {
-        const auto tile_coord      = TilePartitioner::GetTileIndex(blockIdx.x, kargs.M, kargs.N);
-        const ck_tile::index_t i_m = tile_coord.m_tile_idx * TilePartitioner::kMPerBlock;
-        const ck_tile::index_t i_n = tile_coord.n_tile_idx * TilePartitioner::kNPerBlock;
+        const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockIdx.x);
+        const ck_tile::index_t i_m =
+            __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
+        const ck_tile::index_t i_n =
+            __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
 
         const auto i_batch  = __builtin_amdgcn_readfirstlane(blockIdx.y);
         const auto i_splitk = __builtin_amdgcn_readfirstlane(blockIdx.z);
