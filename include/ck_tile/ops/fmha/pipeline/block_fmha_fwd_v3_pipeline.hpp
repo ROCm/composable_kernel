@@ -762,6 +762,10 @@ struct BlockFmhaFwdV3Pipeline
                 [&](auto idx) { o_acc.thread_buf_[idx] *= o_acc_scale; });
 
             // l{j}
+            /// Note: The compiler keeps moving the following instructions elsewhere because 'l'
+            /// is first consumed later. To anchor them here, we rewrite the final addition in
+            /// inline assembly to create a dependency, forcing the dependent instructions to
+            /// be emitted at this point.
             constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
             sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
@@ -774,9 +778,10 @@ struct BlockFmhaFwdV3Pipeline
             static_for<2, ck_tile::max(2, fmha_alu_D_reg_cnt), 1>{}(
                 [&](auto idx) { o_acc.thread_buf_[idx] *= o_acc_scale; });
 
-            /// NOTICE: Compiler keep moving the conversion instructions to other places. We rewite
-            /// the cast_tile() call into inline asm to force the conversion instructions to be
-            /// generated here. The fmha_alu1() call should be placed at the end of a phase.
+            /// Note: The compiler keeps sinking the conversion instructions because the
+            /// result 'p' is only consumed later. To anchor them here, we rewrite
+            /// the cast_tile() call as inline assembly, forcing the conversions to be
+            /// emitted at this point.
             static_assert(sp(sp_reg_idx).p.thread_buf_.size() % 2 == 0);
             static_for<0, sp(sp_reg_idx).p.thread_buf_.size(), 2>{}([&](auto idx) {
                 float x = p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx]);
@@ -794,6 +799,10 @@ struct BlockFmhaFwdV3Pipeline
                     sp(sp_reg_idx).p.thread_buf_[idx + 1] = casted.y;
                 }
             });
+
+            /// Note: Place fmha_alu1() at the end of the phase. The surrounding inline assembly
+            /// can interfere with the behavior of sched_group_barrier(), so ending the phase here
+            /// avoids unintended reordering.
         };
 
         auto gemm = [&](auto sp_reg_idx, auto gemm_idx) {
