@@ -1139,14 +1139,14 @@ struct BlockFmhaFwdV3Pipeline
                 V_mem_load(number<1>{}); // V1
                 K_lds_load(number<1>{}); // K1
 
-                asm volatile("s_setprio 0");
+                __builtin_amdgcn_s_setprio(0);
                 __builtin_amdgcn_s_barrier();
                 while(core_loop(number<0>{}))
                     ;
             }
             if(warp_group_id != 0)
             {
-                asm volatile("s_setprio 1");
+                __builtin_amdgcn_s_setprio(1);
                 __builtin_amdgcn_s_barrier();
                 while(core_loop(number<1>{}))
                     ;
