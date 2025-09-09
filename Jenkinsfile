@@ -189,11 +189,11 @@ def buildDocker(install_prefix){
         dockerArgs = dockerArgs + " --no-cache --build-arg BASE_DOCKER='${base_image_name}' -f Dockerfile.compiler . "
     }
     else if(params.RUN_AITER_TESTS){
-        image_name = "rocm/composable_kernel:ck_aiter"
+        image_name = "${env.CK_DOCKERHUB_PRIVATE}:ck_aiter"
         dockerArgs = dockerArgs + " --no-cache -f Dockerfile.aiter --build-arg AITER_BRANCH='${params.aiter_branch}' --build-arg CK_AITER_BRANCH='${params.ck_aiter_branch}' . "
     }
      else if(params.RUN_PYTORCH_TESTS){
-        image_name = "rocm/composable_kernel:ck_pytorch"
+        image_name = "${env.CK_DOCKERHUB}:ck_pytorch"
         dockerArgs = dockerArgs + " --no-cache -f Dockerfile.pytorch --build-arg CK_PYTORCH_BRANCH='${params.ck_pytorch_branch}' . "
     }
    else{
@@ -719,7 +719,7 @@ def process_results(Map conf=[:]){
     env.HSA_ENABLE_SDMA=0
     checkout scm
     //use older image that has user jenkins
-    def image = "rocm/composable_kernel:ck_ub22.04_rocm6.3"
+    def image = "${env.CK_DOCKERHUB}:ck_ub22.04_rocm6.3"
     def prefixpath = "/opt/rocm"
 
     // Jenkins is complaining about the render group 
@@ -830,7 +830,7 @@ def run_aiter_tests(Map conf=[:]){
     env.HSA_ENABLE_SDMA=0
     checkout scm
     //use the latest pytorch image
-    def image = "rocm/composable_kernel:ck_aiter"
+    def image = "${env.CK_DOCKERHUB_PRIVATE}:ck_aiter"
     def dockerOpts="--network=host --device=/dev/kfd --device=/dev/dri --group-add video --group-add render --group-add irc --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --user=jenkins -v=/var/jenkins/:/var/jenkins"
     def variant = env.STAGE_NAME
     def retimage
@@ -888,7 +888,7 @@ def run_pytorch_tests(Map conf=[:]){
     env.HSA_ENABLE_SDMA=0
     checkout scm
     //use the latest pytorch-nightly image
-    def image = "rocm/composable_kernel:ck_pytorch"
+    def image = "${env.CK_DOCKERHUB}:ck_pytorch"
     def dockerOpts="--network=host --device=/dev/kfd --device=/dev/dri --group-add video --group-add render --group-add irc --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --user=jenkins -v=/var/jenkins/:/var/jenkins"
     def variant = env.STAGE_NAME
     def retimage

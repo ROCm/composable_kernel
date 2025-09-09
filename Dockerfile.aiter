@@ -1,4 +1,4 @@
-ARG BASE_DOCKER="rocm/7.0-preview:rocm7.0_preview_ubuntu_22.04_vllm_0.9.1_mi35X_prealpha2"
+ARG BASE_DOCKER="rocm/composable_kernel-private:ck_aiter"
 FROM $BASE_DOCKER
 ARG AITER_BRANCH="main"
 ARG CK_AITER_BRANCH="develop"
