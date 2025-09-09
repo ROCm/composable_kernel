@@ -5,7 +5,8 @@
 #include <cstddef>
 #include "ck_tile/utility/json_dump.hpp"
 
-template <typename ADataType,
+template <typename GemmConfig,
+          typename ADataType,
           typename BDataType,
           typename DsDataType,
           typename AccDataType,
@@ -43,7 +44,8 @@ float invoke_gemm_multi_d(const void* a_m_k_dev_buf,
                                    StrideDs,
                                    StrideE});
 
-    float ave_time = gemm_multi_d<ADataType,
+    float ave_time = gemm_multi_d<GemmConfig,
+                                  ADataType,
                                   BDataType,
                                   DsDataType,
                                   AccDataType,
@@ -58,7 +60,8 @@ float invoke_gemm_multi_d(const void* a_m_k_dev_buf,
     return ave_time;
 }
 
-template <typename ALayout,
+template <typename GemmConfig,
+          typename ALayout,
           typename BLayout,
           typename D0Layout,
           typename D1Layout,
@@ -136,7 +139,8 @@ int run_multiple_d_gemm_example_with_layouts(int argc,
 
     std::array<ck_tile::index_t, DsDataType::size()> stridesDs = {StrideD0, StrideD1};
 
-    float ave_time = invoke_gemm_multi_d<ADataType,
+    float ave_time = invoke_gemm_multi_d<GemmConfig,
+                                         ADataType,
                                          BDataType,
                                          DsDataType,
                                          AccDataType,
@@ -239,6 +243,7 @@ int run_multiple_d_gemm_example_with_layouts(int argc,
     return pass;
 }
 
+template <typename GemmConfig>
 int run_multiple_d_gemm_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -256,7 +261,7 @@ int run_multiple_d_gemm_example(int argc, char* argv[])
 
     if(a_layout == "R" && b_layout == "C" && ds_layout == "R")
     {
-        return run_multiple_d_gemm_example_with_layouts(
+        return run_multiple_d_gemm_example_with_layouts<GemmConfig>(
             argc, argv, Row{}, Col{}, Row{}, Row{}, Row{});
     }
     else
