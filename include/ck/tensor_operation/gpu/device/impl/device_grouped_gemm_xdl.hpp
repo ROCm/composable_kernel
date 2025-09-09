@@ -39,46 +39,49 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                             const BElementwiseOperation b_element_op,
                             const CDEElementwiseOperation c_element_op)
 {
-#if defined(__gfx9__)
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-
-    const index_t block_id = get_block_1d_id();
-
-    const auto gemm_desc_ptr =
-        reinterpret_cast<const GemmDesc*>(cast_pointer_to_generic_address_space(gemm_descs_const));
-
-    index_t left     = 0;
-    index_t right    = group_count;
-    index_t group_id = index_t((left + right) / 2);
-    while((!(block_id >= gemm_desc_ptr[group_id].BlockStart_ &&
-             block_id < gemm_desc_ptr[group_id].BlockEnd_)) &&
-          left <= right)
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
     {
-        if(block_id < gemm_desc_ptr[group_id].BlockStart_)
-        {
-            right = group_id;
-        }
-        else
-        {
-            left = group_id;
-        }
-        group_id = index_t((left + right) / 2);
-    }
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop, InMemoryDataOperationEnum::Set>(
-        gemm_desc_ptr[group_id].a_ptr_,
-        gemm_desc_ptr[group_id].b_ptr_,
-        gemm_desc_ptr[group_id].ds_ptr_,
-        gemm_desc_ptr[group_id].e_ptr_,
-        p_shared,
-        a_element_op,
-        b_element_op,
-        c_element_op,
-        gemm_desc_ptr[group_id].a_grid_desc_ak0_m_ak1_,
-        gemm_desc_ptr[group_id].b_grid_desc_bk0_n_bk1_,
-        gemm_desc_ptr[group_id].ds_grid_desc_mblock_mperblock_nblock_nperblock_,
-        gemm_desc_ptr[group_id].e_grid_desc_mblock_mperblock_nblock_nperblock_,
-        gemm_desc_ptr[group_id].block_2_etile_map_);
+        const index_t block_id = get_block_1d_id();
+
+        const auto gemm_desc_ptr = reinterpret_cast<const GemmDesc*>(
+            cast_pointer_to_generic_address_space(gemm_descs_const));
+
+        index_t left     = 0;
+        index_t right    = group_count;
+        index_t group_id = index_t((left + right) / 2);
+        while((!(block_id >= gemm_desc_ptr[group_id].BlockStart_ &&
+                 block_id < gemm_desc_ptr[group_id].BlockEnd_)) &&
+              left <= right)
+        {
+            if(block_id < gemm_desc_ptr[group_id].BlockStart_)
+            {
+                right = group_id;
+            }
+            else
+            {
+                left = group_id;
+            }
+            group_id = index_t((left + right) / 2);
+        }
+
+        GridwiseGemm::template Run<HasMainKBlockLoop, InMemoryDataOperationEnum::Set>(
+            gemm_desc_ptr[group_id].a_ptr_,
+            gemm_desc_ptr[group_id].b_ptr_,
+            gemm_desc_ptr[group_id].ds_ptr_,
+            gemm_desc_ptr[group_id].e_ptr_,
+            p_shared,
+            a_element_op,
+            b_element_op,
+            c_element_op,
+            gemm_desc_ptr[group_id].a_grid_desc_ak0_m_ak1_,
+            gemm_desc_ptr[group_id].b_grid_desc_bk0_n_bk1_,
+            gemm_desc_ptr[group_id].ds_grid_desc_mblock_mperblock_nblock_nperblock_,
+            gemm_desc_ptr[group_id].e_grid_desc_mblock_mperblock_nblock_nperblock_,
+            gemm_desc_ptr[group_id].block_2_etile_map_);
+    }
 #else
     ignore = gemm_descs_const;
     ignore = group_count;
@@ -145,7 +148,9 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                                                         CDEElementwiseOperation>
 {
     using DeviceOp = DeviceGroupedGemm_Xdl;
-
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
     static constexpr index_t NumDTensor = DsDataType::Size();
 
     static constexpr auto I0 = Number<0>{};
@@ -231,7 +236,8 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
     using ComputeDataType = ADataType;
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = GridwiseGemmMultipleD_xdl_cshuffle<
         ADataType, // TODO: distinguish A/B datatype
         BDataType,
         ComputeDataType,
@@ -252,7 +258,7 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
         MPerXDL,
         NPerXDL,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWave_,
         ABlockTransferThreadClusterLengths_K0_M_K1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -274,34 +280,36 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CDEBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     using AGridDesc_AK0_M_AK1 =
-        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(
+        remove_cvref_t<decltype(GridwiseGemm64::MakeDefaultAGridDescriptor_AK0_M_AK1(
             AGridDesc_M_K{}))>;
     using BGridDesc_BK0_N_BK1 =
-        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(
+        remove_cvref_t<decltype(GridwiseGemm64::MakeDefaultBGridDescriptor_BK0_N_BK1(
             BGridDesc_N_K{}))>;
     using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<
-        decltype(GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+        decltype(GridwiseGemm64::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
             DsGridDesc_M_N{}))>;
-    using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
-        remove_cvref_t<decltype(GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+    using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<
+        decltype(GridwiseGemm64::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
             EGridDesc_M_N{}))>;
 
     struct GroupedGemmBlock2ETileMap
     {
         using Block2ETileMap =
-            remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
+            remove_cvref_t<decltype(GridwiseGemm64::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
 
         GroupedGemmBlock2ETileMap()
         {
-            block_2_etile_map_ = GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{});
+            block_2_etile_map_ = GridwiseGemm64::MakeDefaultBlock2ETileMap(EGridDesc_M_N{});
             BlockStart_        = -1;
         }
 
         GroupedGemmBlock2ETileMap(const EGridDesc_M_N& e_grid_desc_m_n, ck::index_t BlockStart)
         {
-            block_2_etile_map_ = GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n);
+            block_2_etile_map_ = GridwiseGemm64::MakeDefaultBlock2ETileMap(e_grid_desc_m_n);
             BlockStart_        = BlockStart;
         }
 
@@ -334,7 +342,7 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
         // pointers
         const ADataType* a_ptr_;
         const BDataType* b_ptr_;
-        typename GridwiseGemm::DsGridPointer ds_ptr_;
+        typename GridwiseGemm64::DsGridPointer ds_ptr_;
         EDataType* e_ptr_;
 
         // tensor descriptors for problem definiton
@@ -358,6 +366,64 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
     // Argument
     struct Argument : public BaseArgument
     {
+        template <typename GridwiseGemm, typename DsPointer, typename Block2ETileMap>
+        void init_gridwise_gemm_desc(const ADataType* a_ptr,
+                                     const BDataType* b_ptr,
+                                     DsPointer ds_ptr,
+                                     EDataType* e_ptr,
+                                     const AGridDesc_M_K& a_grid_desc_m_k,
+                                     const BGridDesc_N_K& b_grid_desc_n_k,
+                                     const DsGridDesc_M_N& ds_grid_desc_m_n,
+                                     const EGridDesc_M_N& e_grid_desc_m_n,
+                                     const Block2ETileMap& block_2_etile_map,
+                                     index_t BlockStart,
+                                     index_t BlockEnd)
+        {
+            // tensor descriptors for block/thread-wise copy
+            const auto a_grid_desc_ak0_m_ak1 =
+                GridwiseGemm64::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k);
+
+            const auto b_grid_desc_bk0_n_bk1 =
+                GridwiseGemm64::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k);
+
+            if(GridwiseGemm::CheckValidity(a_grid_desc_m_k,
+                                           b_grid_desc_n_k,
+                                           ds_grid_desc_m_n,
+                                           e_grid_desc_m_n,
+                                           block_2_etile_map))
+            {
+                // tensor descriptors for block/thread-wise copy
+                DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+                    ds_grid_desc_mblock_mperblock_nblock_nperblock;
+
+                static_for<0, NumDTensor, 1>{}([&](auto j) {
+                    ds_grid_desc_mblock_mperblock_nblock_nperblock(j) =
+                        GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                            ds_grid_desc_m_n[j]);
+                });
+
+                const auto e_grid_desc_mblock_mperblock_nblock_nperblock =
+                    GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                        e_grid_desc_m_n);
+
+                gemm_desc_kernel_arg_.push_back(
+                    GemmBiasTransKernelArg{a_ptr,
+                                           b_ptr,
+                                           ds_ptr,
+                                           e_ptr,
+                                           a_grid_desc_m_k,
+                                           b_grid_desc_n_k,
+                                           ds_grid_desc_m_n,
+                                           e_grid_desc_m_n,
+                                           a_grid_desc_ak0_m_ak1,
+                                           b_grid_desc_bk0_n_bk1,
+                                           ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                           e_grid_desc_mblock_mperblock_nblock_nperblock,
+                                           block_2_etile_map,
+                                           BlockStart,
+                                           BlockEnd});
+            }
+        };
         Argument(std::vector<const void*>& p_As,
                  std::vector<const void*>& p_Bs,
                  std::vector<std::array<const void*, NumDTensor>>& p_Ds,
@@ -403,7 +469,7 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                 const index_t StrideC = gemm_descs[i].stride_C_;
 
                 // pointer
-                typename GridwiseGemm::DsGridPointer p_ds_grid{};
+                typename GridwiseGemm64::DsGridPointer p_ds_grid{};
 
                 static_for<0, NumDTensor, 1>{}([&](auto j) {
                     using DDataType = remove_cvref_t<tuple_element_t<j.value, DsDataType>>;
@@ -427,13 +493,6 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                 const auto e_grid_desc_m_n =
                     DeviceOp::MakeEGridDescriptor_M_N<ELayout>(M, N, StrideC);
 
-                // tensor descriptors for block/thread-wise copy
-                const auto a_grid_desc_ak0_m_ak1 =
-                    GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k);
-
-                const auto b_grid_desc_bk0_n_bk1 =
-                    GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k);
-
                 const index_t grid_size_grp =
                     GroupedGemmBlock2ETileMap(e_grid_desc_m_n, 0)
                         .block_2_etile_map_.CalculateGridSize(e_grid_desc_m_n);
@@ -447,42 +506,41 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                 const auto block_2_etile_map =
                     GroupedGemmBlock2ETileMap(e_grid_desc_m_n, BlockStart);
 
-                if(GridwiseGemm::CheckValidity(a_grid_desc_m_k,
-                                               b_grid_desc_n_k,
-                                               ds_grid_desc_m_n,
-                                               e_grid_desc_m_n,
-                                               block_2_etile_map))
+                if(get_warp_size() == 64)
                 {
-                    // tensor descriptors for block/thread-wise copy
-                    DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-                        ds_grid_desc_mblock_mperblock_nblock_nperblock;
-
-                    static_for<0, NumDTensor, 1>{}([&](auto j) {
-                        ds_grid_desc_mblock_mperblock_nblock_nperblock(j) =
-                            GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                ds_grid_desc_m_n[j]);
-                    });
-
-                    const auto e_grid_desc_mblock_mperblock_nblock_nperblock =
-                        GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                            e_grid_desc_m_n);
-
-                    gemm_desc_kernel_arg_.push_back(
-                        GemmBiasTransKernelArg{static_cast<const ADataType*>(p_As[i]),
-                                               static_cast<const BDataType*>(p_Bs[i]),
-                                               p_ds_grid,
-                                               static_cast<EDataType*>(p_Es[i]),
-                                               a_grid_desc_m_k,
-                                               b_grid_desc_n_k,
-                                               ds_grid_desc_m_n,
-                                               e_grid_desc_m_n,
-                                               a_grid_desc_ak0_m_ak1,
-                                               b_grid_desc_bk0_n_bk1,
-                                               ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                                               e_grid_desc_mblock_mperblock_nblock_nperblock,
-                                               block_2_etile_map,
-                                               BlockStart,
-                                               BlockEnd});
+                    if constexpr(NXdlPerWave64 > 0)
+                    {
+                        init_gridwise_gemm_desc<GridwiseGemm64>(
+                            static_cast<const ADataType*>(p_As[i]),
+                            static_cast<const BDataType*>(p_Bs[i]),
+                            p_ds_grid,
+                            static_cast<EDataType*>(p_Es[i]),
+                            a_grid_desc_m_k,
+                            b_grid_desc_n_k,
+                            ds_grid_desc_m_n,
+                            e_grid_desc_m_n,
+                            block_2_etile_map,
+                            BlockStart,
+                            BlockEnd);
+                    }
+                }
+                else
+                {
+                    if constexpr(NXdlPerWave32 > 0)
+                    {
+                        init_gridwise_gemm_desc<GridwiseGemm32>(
+                            static_cast<const ADataType*>(p_As[i]),
+                            static_cast<const BDataType*>(p_Bs[i]),
+                            p_ds_grid,
+                            static_cast<EDataType*>(p_Es[i]),
+                            a_grid_desc_m_k,
+                            b_grid_desc_n_k,
+                            ds_grid_desc_m_n,
+                            e_grid_desc_m_n,
+                            block_2_etile_map,
+                            BlockStart,
+                            BlockEnd);
+                    }
                 }
             }
         }
@@ -508,10 +566,11 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg,
-                  const StreamConfig& stream_config = StreamConfig{},
-                  hipStream_t cpy_stream            = nullptr,
-                  hipEvent_t cpy_event              = nullptr)
+        template <typename GridwiseGemm>
+        float RunImp(const Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{},
+                     hipStream_t cpy_stream            = nullptr,
+                     hipEvent_t cpy_event              = nullptr)
         {
             bool has_main_k_block_loop = true;
 
@@ -626,6 +685,28 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
             return ave_time;
         }
 
+        float Run(const Argument& arg,
+                  const StreamConfig& stream_config = StreamConfig{},
+                  hipStream_t cpy_stream            = nullptr,
+                  hipEvent_t cpy_event              = nullptr)
+        {
+            if(get_warp_size() == 64)
+            {
+                if constexpr(NXdlPerWave64 > 0)
+                {
+                    return RunImp<GridwiseGemm64>(arg, stream_config, cpy_stream, cpy_event);
+                }
+            }
+            else
+            {
+                if constexpr(NXdlPerWave32 > 0)
+                {
+                    return RunImp<GridwiseGemm32>(arg, stream_config, cpy_stream, cpy_event);
+                }
+            }
+            return 0;
+        }
+
         // polymorphic
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override
@@ -636,11 +717,10 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!ck::is_xdl_supported())
+        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
         {
             return false;
         }
-
         if((ck::type_convert<ck::index_t>(arg.gemm_desc_kernel_arg_.size()) +
             arg.skipped_group_count_) != arg.group_count_)
         {
@@ -649,12 +729,12 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
 
         bool supported = true;
 
-        // If we use padding we do not support vector loads for dimensions not divisible by vector
-        // load size.
+        // If we use padding we do not support vector loads for dimensions not divisible by
+        // vector load size.
         if constexpr(GemmSpec != GemmSpecialization::Default)
         {
-            // [A|B]BlockTransferSrcVectorDim value define dimension in the block {K0,M,K1} layout,
-            // thus we have to adapt it to the {M,K} or {N,K} layout.
+            // [A|B]BlockTransferSrcVectorDim value define dimension in the block {K0,M,K1}
+            // layout, thus we have to adapt it to the {M,K} or {N,K} layout.
             const auto a_raw_vector_dim = ABlockTransferSrcVectorDim != 1 ? 1 : 0;
             const auto b_raw_vector_dim = BBlockTransferSrcVectorDim != 1 ? 1 : 0;
 
@@ -767,7 +847,8 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
     size_t GetHostKernelArgSize(const BaseArgument* p_arg) const { return GetWorkSpaceSize(p_arg); }
 
     //----------------------------------------------------------------------------------------------
-    /// @brief      Sets the host kernel arguments pointer and copies that data on the host side.
+    /// @brief      Sets the host kernel arguments pointer and copies that data on the host
+    /// side.
     ///             This function can be utilised to use pinned memory for the host args and
     ///             achieve fully async data copy.
     ///
