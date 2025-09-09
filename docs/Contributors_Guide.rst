@@ -34,7 +34,7 @@ Contributing to the codebase
 
 All external contributors to the Composable Kernel codebase must follow these guidelines:
 
-* Use the correct branch: Use you own branch for your changes. Create your branch from the develop branch. 
+* Use the correct branch: Use your own branch for your changes. Create your branch from the develop branch. 
 
 * Describe your changes: Provide the motivation for the changes and a general description of all code changes.
 
