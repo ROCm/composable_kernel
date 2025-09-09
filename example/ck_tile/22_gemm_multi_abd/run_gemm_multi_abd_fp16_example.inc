@@ -4,7 +4,8 @@
 #pragma once
 #include <cstddef>
 
-template <typename AsDataType,
+template <typename GemmConfig,
+          typename AsDataType,
           typename BsDataType,
           typename DsDataType,
           typename AccDataType,
@@ -44,7 +45,8 @@ float invoke_gemm_multi_abd(const std::array<const void*, AsDataType::size()>& a
                                      StrideDs,
                                      StrideE});
 
-    float ave_time = gemm_multi_abd<AsDataType,
+    float ave_time = gemm_multi_abd<GemmConfig,
+                                    AsDataType,
                                     BsDataType,
                                     DsDataType,
                                     AccDataType,
@@ -80,7 +82,8 @@ float invoke_gemm_multi_abd(const std::array<const void*, AsDataType::size()>& a
     return ave_time;
 }
 
-template <typename A0Layout,
+template <typename GemmConfig,
+          typename A0Layout,
           typename A1Layout,
           typename B0Layout,
           typename B1Layout,
@@ -205,7 +208,8 @@ int run_gemm_multi_abd_example_with_layouts(int argc,
     std::array<ck_tile::index_t, BsDataType::size()> strideBs = {StrideB0, StrideB1};
     std::array<ck_tile::index_t, DsDataType::size()> strideDs = {StrideD0, StrideD1};
 
-    invoke_gemm_multi_abd<AsDataType,
+    invoke_gemm_multi_abd<GemmConfig,
+                          AsDataType,
                           BsDataType,
                           DsDataType,
                           AccDataType,
@@ -280,6 +284,7 @@ int run_gemm_multi_abd_example_with_layouts(int argc,
     return pass;
 }
 
+template <typename GemmConfig>
 int run_multiple_abd_gemm_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -296,7 +301,7 @@ int run_multiple_abd_gemm_example(int argc, char* argv[])
 
     if(as_layout == "R" && bs_layout == "C")
     {
-        return run_gemm_multi_abd_example_with_layouts(
+        return run_gemm_multi_abd_example_with_layouts<GemmConfig>(
             argc, argv, Row{}, Row{}, Col{}, Col{}, Row{}, Row{}, Row{});
     }
     else
