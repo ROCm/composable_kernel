@@ -5,6 +5,7 @@
 #pragma once
 #include <random>
 #include <stdexcept>
+#include "../00_shared/host_tensor_utils.hpp"
 
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
@@ -217,7 +218,16 @@ int run_gemm_example_with_layouts(int argc,
         aq_m_aqk_dev_buf.ToDevice(aq_m_aqk.data());
     }
 
-    a_m_k_dev_buf.ToDevice(a_m_k.data());
+    if constexpr(std::is_same_v<ADataType, ck_tile::pk_int4_t>)
+    {
+        ck_tile::HostTensor<ADataType> a_m_k_dev = a_m_k;
+        ck_tile::permute_vectors_i4x4_b(a_m_k_dev);
+        a_m_k_dev_buf.ToDevice(a_m_k_dev.data());
+    }
+    else
+    {
+        a_m_k_dev_buf.ToDevice(a_m_k.data());
+    }
     b_k_n_dev_buf.ToDevice(b_k_n.data());
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
