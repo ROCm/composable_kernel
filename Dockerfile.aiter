@@ -2,7 +2,8 @@ ARG BASE_DOCKER="rocm/composable_kernel-private:ck_aiter"
 FROM $BASE_DOCKER
 ARG AITER_BRANCH="main"
 ARG CK_AITER_BRANCH="develop"
-RUN usermod -u 1001 jenkins && \
+RUN groupadd -g 39 irc && \
+    usermod -u 1001 jenkins && \
     groupmod -g 1001 jenkins && \
     pip install pandas zmq einops && \
     pip install numpy==1.26.2 && \
