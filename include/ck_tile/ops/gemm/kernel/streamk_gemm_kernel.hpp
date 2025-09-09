@@ -204,9 +204,18 @@ struct StreamKKernel
         const auto& bs_block_window = gemm_tile_windows.at(UniversalGemmKernel::I1);
         const auto& ds_block_window = gemm_tile_windows.at(UniversalGemmKernel::I2);
 
+        // Since num_loop can vary per WG and per iteration of the Stream-K while loop, we compute
+        // has_hot_loop and tail_num here. This is a similar pattern used by grouped GEMM. In this
+        // case, we call the GemmPipeline's operator() function that takes both has_hot_loop and
+        // tail_num.
+        const bool has_hot_loop   = GemmPipeline::BlockHasHotloop(num_loop);
+        const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
+
         const auto& c_block_tile = GemmPipeline{}(as_block_window[UniversalGemmKernel::I0],
                                                   bs_block_window[UniversalGemmKernel::I0],
                                                   num_loop,
+                                                  has_hot_loop,
+                                                  tail_num,
                                                   smem_ptr_0);
 
         if(UseDefaultScheduler || (get_warp_id() == 0))

@@ -92,8 +92,6 @@ class TestCkTileStreamK : public ::testing::Test
 
         using TilePartitioner = ck_tile::StreamKTilePartitioner<GemmShape, ReductionStrategy>;
 
-        using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
-
         using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
                                                                      kPadN,
                                                                      kPadK,
@@ -106,36 +104,23 @@ class TestCkTileStreamK : public ::testing::Test
                                                                      false,
                                                                      NumWaveGroup,
                                                                      preshuffle>;
-        // For initial testing, we will just test with one pipeline
-        // More extensive testing is coming later and will test other pipelines
-        using GemmPipelineProblem =
-            ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
-        using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrMem<GemmPipelineProblem>;
-
-        const ck_tile::index_t k_grain     = args.k_batch * K_Tile;
-        const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * K_Tile;
-        const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
-        const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
-        const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
-
-        const auto Run = [&](const auto has_hot_loop_,
-                             const auto tail_number_,
-                             const auto memory_operation_) {
-            constexpr bool has_hot_loop_v   = has_hot_loop_.value;
-            constexpr auto tail_number_v    = tail_number_.value;
+        const auto Run = [&](const auto memory_operation_) {
             constexpr auto memory_operation = memory_operation_.value;
             constexpr auto scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;
 
+            // We create the GEMM pipeline without specifying has_hot_loop or tail_num.
+            // This is because num_loop can vary (a) per WG and (b) per iteration of the Stream-K
+            // while loop. Instead, has_hot_loop and tail_num are determined in the Stream-K
+            // Kernel's RunGemm function. This is a similar pattern used by grouped GEMM.
             using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
                                                                                BDataType,
                                                                                AccDataType,
                                                                                GemmShape,
                                                                                GemmUniversalTraits,
-                                                                               scheduler,
-                                                                               has_hot_loop_v,
-                                                                               tail_number_v>;
-
+                                                                               scheduler>;
+            // For initial testing, we will just test with one pipeline.
+            // More extensive testing is coming later and will test other pipelines.
             using GemmPipeline = ck_tile::GemmPipelineAgBgCrMem<UniversalGemmProblem>;
 
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
@@ -173,26 +158,12 @@ class TestCkTileStreamK : public ::testing::Test
                 s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grid_dims, block_dims, 0, kargs));
         };
 
-        const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
-            if(args.k_batch == 1)
-            {
-                Run(has_hot_loop_,
-                    tail_number_,
-                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                               // Since we are doing stream K, in the case of
-                                               // atomics, multiple workgroups may write to the same
-                                               // output tile in the C tensor, so we must atomic add
-                                               // the results (not set)
-                                               ck_tile::memory_operation_enum::atomic_add>{});
-            }
-            else
-            {
-                std::cout << "Stream K is only run with k_batch of 1" << std::endl;
-                EXPECT_TRUE(false);
-            }
-        };
-
-        BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
+        Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                       // Since we are doing stream K, in the case of
+                                       // atomics, multiple workgroups may write to the same
+                                       // output tile in the C tensor, so we must atomic add
+                                       // the results (not set)
+                                       ck_tile::memory_operation_enum::atomic_add>{});
     }
 
     public:
