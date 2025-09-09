@@ -298,6 +298,8 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
             e_grid_desc_m_n);
     }
 
+    IS_VALID_COMPILATION_PARAMETER_IMPL(EDataType)
+
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename AsGridDesc_M_K,
               typename BsGridDesc_N_K,
@@ -313,6 +315,7 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
+
         static_assert(KPerBlock % AK1Value == 0 && KPerBlock % BK1Value == 0,
                       "KPerBlock must be divisible by AK1Value and BK1Value!");
 
