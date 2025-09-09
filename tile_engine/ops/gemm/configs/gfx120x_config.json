@@ -9,14 +9,16 @@
             ]
         },
         "tile_n": {
-            "max": 256,
-            "min": 64,
-            "step": 64
+            "values": [
+                256,
+                128
+            ]
         },
         "tile_k": {
-            "max": 256,
-            "min": 64,
-            "step": 64
+            "values": [
+                256,
+                128
+            ]
         },
         "warp_m": {
             "values": [
@@ -57,7 +59,6 @@
         "pipeline": {
             "values": [
                 "compv3",
-                "compv4",
                 "mem"
             ]
         },
