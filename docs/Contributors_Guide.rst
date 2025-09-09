@@ -17,7 +17,7 @@ Reporting issues
 
 Use `Github issues <https://github.com/ROCm/composable_kernel/issues>`_ to log and track issues and enhancement requests.
 
-If you encounter an issue with the Composable Kernel library, search the existing GitHub issues to determined whether the problem has already been
+If you encounter an issue with the Composable Kernel library, search the existing GitHub issues to determine whether the problem has already been
 reported. If it hasn't, submit a new issue that includes:
 
 * A description of the problem, including what you observed, what you were expecting, and why this was an issue.
