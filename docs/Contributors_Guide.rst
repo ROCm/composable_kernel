@@ -56,7 +56,7 @@ All external contributors to the Composable Kernel codebase must follow these gu
 
 Forks require an approver from AMD to trigger continuous integration (CI) testing. This approval process is necessary for security and resource management.
 
-Depending on the complexity of your changes, an internal AMD developer might need to pull your changes and perform additional fixes or modifications prior to merge. This collaborative approach ensures compatibility with internal systems and standards.
+Depending on the complexity of your changes, an  AMD developer might need to pull your changes and perform additional fixes or modifications before merging. This collaborative approach ensures compatibility with internal systems and standards.
 
 You can see a complete list of pull requests `on the Composable Kernel GitHub page <https://github.com/ROCm/composable_kernel/pulls>`_.
 
