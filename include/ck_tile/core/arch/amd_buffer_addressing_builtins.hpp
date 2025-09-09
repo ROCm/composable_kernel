@@ -1451,17 +1451,18 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
                                                    src_wave_addr_offset,
                                                    static_cast<index_t>(coherence)));
         }
-        else {
+        else
+        {
             // N >= 8: build from fp32x4 chunks
             thread_buffer<float, N> tmp;
 
             static_for<0, (N / 4), 1>{}([&](auto i) {
-                constexpr index_t chunk = i;
-                tmp.template get_as<fp32x4_t>()(i) =
-                    llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
-                                                    src_thread_addr_offset,
-                                                    src_wave_addr_offset + (chunk * 4) * sizeof(float),
-                                                    static_cast<index_t>(coherence));
+                constexpr index_t chunk            = i;
+                tmp.template get_as<fp32x4_t>()(i) = llvm_amdgcn_raw_buffer_load_fp32x4(
+                    src_wave_buffer_resource,
+                    src_thread_addr_offset,
+                    src_wave_addr_offset + (chunk * 4) * sizeof(float),
+                    static_cast<index_t>(coherence));
             });
             return bit_cast<rtn_type>(tmp);
         }
