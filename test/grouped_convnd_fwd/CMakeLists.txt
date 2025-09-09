@@ -1,4 +1,4 @@
-if(GPU_TARGETS MATCHES "gfx9" OR GPU_TARGETS MATCHES "gfx1[12]")
+if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
     add_gtest_executable(test_grouped_convnd_fwd test_grouped_convnd_fwd.cpp)
     target_link_libraries(test_grouped_convnd_fwd PRIVATE utility device_grouped_conv1d_fwd_instance device_grouped_conv2d_fwd_instance device_grouped_conv3d_fwd_instance)
 
