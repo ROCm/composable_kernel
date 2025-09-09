@@ -57,7 +57,11 @@ struct CoreLoopScheduler<PipelineProblem, /*kIsMasking=*/true>
                     __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
                 });
             }
-            else if constexpr(Phase == 1) {}
+            else if constexpr(Phase == 1)
+            {
+                __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
+                __builtin_amdgcn_sched_group_barrier(0x004, 4, 0); // SALU
+            }
             else if constexpr(Phase == 2)
             {
 #if !CK_TILE_DISABLE_PACKED_FP32
@@ -68,11 +72,19 @@ struct CoreLoopScheduler<PipelineProblem, /*kIsMasking=*/true>
                     __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
                 });
             }
-            else if constexpr(Phase == 3) {}
+            else if constexpr(Phase == 3)
+            {
+                __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
+                __builtin_amdgcn_sched_group_barrier(0x004, 4, 0); // SALU
+            }
         }
         else
         {
-            if constexpr(Phase == 0) {}
+            if constexpr(Phase == 0)
+            {
+                __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
+                __builtin_amdgcn_sched_group_barrier(0x004, 4, 0); // SALU
+            }
             else if constexpr(Phase == 1)
             {
                 static_for<0, 8, 1>{}([&](auto) {
@@ -81,7 +93,11 @@ struct CoreLoopScheduler<PipelineProblem, /*kIsMasking=*/true>
                     __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
                 });
             }
-            else if constexpr(Phase == 2) {}
+            else if constexpr(Phase == 2)
+            {
+                __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
+                __builtin_amdgcn_sched_group_barrier(0x004, 4, 0); // SALU
+            }
             else if constexpr(Phase == 3)
             {
 #if !CK_TILE_DISABLE_PACKED_FP32
@@ -115,7 +131,11 @@ struct CoreLoopScheduler<PipelineProblem, /*kIsMasking=*/false>
                     __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
                 });
             }
-            else if constexpr(Phase == 1) {}
+            else if constexpr(Phase == 1)
+            {
+                __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
+                __builtin_amdgcn_sched_group_barrier(0x004, 4, 0); // SALU
+            }
             else if constexpr(Phase == 2)
             {
 #if !CK_TILE_DISABLE_PACKED_FP32
@@ -126,11 +146,19 @@ struct CoreLoopScheduler<PipelineProblem, /*kIsMasking=*/false>
                     __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
                 });
             }
-            else if constexpr(Phase == 3) {}
+            else if constexpr(Phase == 3)
+            {
+                __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
+                __builtin_amdgcn_sched_group_barrier(0x004, 4, 0); // SALU
+            }
         }
         else
         {
-            if constexpr(Phase == 0) {}
+            if constexpr(Phase == 0)
+            {
+                __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
+                __builtin_amdgcn_sched_group_barrier(0x004, 4, 0); // SALU
+            }
             else if constexpr(Phase == 1)
             {
                 static_for<0, 8, 1>{}([&](auto) {
@@ -139,7 +167,11 @@ struct CoreLoopScheduler<PipelineProblem, /*kIsMasking=*/false>
                     __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
                 });
             }
-            else if constexpr(Phase == 2) {}
+            else if constexpr(Phase == 2)
+            {
+                __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
+                __builtin_amdgcn_sched_group_barrier(0x004, 4, 0); // SALU
+            }
             else if constexpr(Phase == 3)
             {
 #if !CK_TILE_DISABLE_PACKED_FP32
@@ -936,11 +968,9 @@ struct BlockFmhaFwdV3Pipeline
                     __builtin_amdgcn_s_barrier();
                     __builtin_amdgcn_sched_barrier(0);
                     cl_load(memK, K_w0_lds_wr_idx, V_w0_lds_rd_idx);
-                    __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
-                    __builtin_amdgcn_sched_group_barrier(0x004, 4, 0); // SALU
+                    Scheduler::schedule(cl_p, number<1>{});
                     fmha_mask(xdl_SP_p01_reg_idx);
 
-                    Scheduler::schedule(cl_p, number<1>{});
                     __builtin_amdgcn_sched_barrier(0);
                     // phase2
                     ASM_MARKER("phase2 Wave0-3");
@@ -964,8 +994,6 @@ struct BlockFmhaFwdV3Pipeline
                     __builtin_amdgcn_s_barrier();
                     __builtin_amdgcn_sched_barrier(0);
                     cl_load(memV, V_w0_lds_wr_idx, K_w0_lds_rd_idx);
-                    __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
-                    __builtin_amdgcn_sched_group_barrier(0x004, 4, 0); // SALU
 
                     Scheduler::schedule(cl_p, number<3>{});
                     kv_token_start += kN0;
@@ -991,8 +1019,6 @@ struct BlockFmhaFwdV3Pipeline
                         ASM_MARKER("phase0 Wave4-7 (pi=1)");
                     }
                     cl_load(memV, V_w4_lds_wr_idx, K_w4_lds_rd_idx);
-                    __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
-                    __builtin_amdgcn_sched_group_barrier(0x004, 4, 0); // SALU
 
                     Scheduler::schedule(cl_p, number<0>{});
                     __builtin_amdgcn_sched_barrier(0);
@@ -1014,11 +1040,9 @@ struct BlockFmhaFwdV3Pipeline
                     __builtin_amdgcn_s_barrier();
                     __builtin_amdgcn_sched_barrier(0);
                     cl_load(memK, K_w4_lds_wr_idx, V_w4_lds_rd_idx);
-                    __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
-                    __builtin_amdgcn_sched_group_barrier(0x004, 4, 0); // SALU
+                    Scheduler::schedule(cl_p, number<2>{});
                     fmha_mask(xdl_SP_p01_reg_idx);
 
-                    Scheduler::schedule(cl_p, number<2>{});
                     kv_token_start += kN0;
                     if(num_total_loop <= ++i_total_loops)
                     {
