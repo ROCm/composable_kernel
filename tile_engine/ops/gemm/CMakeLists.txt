@@ -158,6 +158,13 @@ function(build_individual_gemm_targets datatype layout)
     # Create working directory first
     file(MAKE_DIRECTORY ${working_path})
 
+    message(STATUS "COMMAND: ${Python3_EXECUTABLE} -u ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
+                --working_path ${working_path}
+                --datatype ${datatype}
+                --layout ${layout}
+                --config_json ${json_blob}
+                --list_kernels")
+
     # First, just list the kernels (fast operation)
     message(STATUS "  Listing kernel configurations...")
     execute_process(

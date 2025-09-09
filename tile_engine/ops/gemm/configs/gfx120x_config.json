@@ -3,9 +3,10 @@
     },
     "tile_config": {
         "tile_m": {
-            "max": 256,
-            "min": 64,
-            "step": 64
+            "values": [
+                256,
+                128
+            ]
         },
         "tile_n": {
             "max": 256,
