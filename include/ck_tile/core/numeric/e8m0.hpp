@@ -31,10 +31,9 @@ struct e8m0_bexp_t
     raw_type data;
 
     CK_TILE_HOST_DEVICE constexpr e8m0_bexp_t() : data{type{0b11111111}} {}
-    CK_TILE_HOST_DEVICE explicit constexpr e8m0_bexp_t(type init) : data{init} {}
-    CK_TILE_HOST_DEVICE explicit constexpr e8m0_bexp_t(float scale)
-        : e8m0_bexp_t(static_cast<type>(numeric_utils<float>::get_exponent(scale)))
+    CK_TILE_HOST_DEVICE explicit constexpr e8m0_bexp_t(float scale) : data(0)
     {
+        data = numeric_utils<float>::get_exponent(scale);
     }
     CK_TILE_HOST_DEVICE constexpr operator type() const { return data; }
     CK_TILE_HOST_DEVICE constexpr raw_type& get() { return data; }

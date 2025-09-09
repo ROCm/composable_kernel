@@ -13,7 +13,7 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     static constexpr auto I1 = number<1>{};
     static constexpr auto I2 = number<2>{};
 
-    // static constexpr index_t KBPerLoad = 32;
+    static constexpr index_t KBPerLoad = 32;
     // static constexpr index_t N_Pack    = 2; // it's fixed for fp4
     // static constexpr index_t K_Pack    = 2; // it's fixed for fp4
 
@@ -35,10 +35,10 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         static_assert(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>);
 
         /*reduce transform layers,compare with old ck*/
-        constexpr index_t MPerBlock          = Problem::BlockGemmShape::kM;
-        constexpr index_t KPerBlock          = Problem::BlockGemmShape::kK;
-        static constexpr index_t APackedSize = numeric_traits<ADataType>::PackedSize;
-        constexpr index_t KPack              = GetSmemPackA<Problem>() * APackedSize;
+        constexpr index_t MPerBlock   = Problem::BlockGemmShape::kM;
+        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
+        constexpr index_t APackedSize = numeric_traits<ADataType>::PackedSize;
+        constexpr index_t KPack       = GetSmemPackA<Problem>() * APackedSize;
 
         constexpr auto a_lds_block_desc = make_naive_tensor_descriptor(
             make_tuple(number<KPerBlock / KPack>{}, number<MPerBlock>{}, number<KPack>{}),
@@ -117,9 +117,8 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         static_assert(TileShape::WarpTile::at(I1) == 16, "requires XDL_N == 16");
         static_assert(TileShape::BlockWarps::at(I0) == 1, "requires Wave_M == 1");
 
-        constexpr index_t MXdlPack = Problm::MXdlPack;
-        constexpr int NWaves       = TileShape::BlockWarps::at(number<1>{});
-        constexpr int M0           = TileShape::WarpTile::at(I0);
+        constexpr int NWaves = TileShape::BlockWarps::at(number<1>{});
+        constexpr int M0     = TileShape::WarpTile::at(I0);
 
         constexpr int K_Lane = 64 / TileShape::WarpTile::at(I1); // 4
 
@@ -209,24 +208,24 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         constexpr index_t WaveSize  = get_warp_size();
         constexpr index_t WaveNum   = BlockSize / WaveSize;
 
-        constexpr index_t kMPerBlock = tileShape::BlockTile::at(I0);
+        constexpr index_t kMPerBlock = TileShape::BlockTile::at(I0);
 
         constexpr index_t M_Warps = TileShape::BlockWarps::at(I0);
         constexpr index_t N_Warps = TileShape::BlockWarps::at(I1);
 
-        static_assert(num_warps == M_Warps * N_Warps, "Block warps do not match block size");
+        static_assert(WaveNum == M_Warps * N_Warps, "Block warps do not match block size");
 
         constexpr index_t M_Lanes = TileShape::WarpTile::at(I0);
         constexpr index_t K_Lanes = 64 / M_Lanes;
 
         // Y dimension (M) decomposition
-        static constexpr index_t Y2 = M_Lanes;
-        static constexpr index_t Y1 = M_Warps;
-        static constexpr index_t Y0 = kMPerBlock / (MXdlPack * Y1 * Y2);
+        constexpr index_t Y2 = M_Lanes;
+        constexpr index_t Y1 = M_Warps;
+        constexpr index_t Y0 = kMPerBlock / (MXdlPack * Y1 * Y2);
 
         // X dimension (K) decomposition
-        static constexpr index_t X0 = K_Lanes;
-        static constexpr index_t X1 = 1; // packed 2x2 E8M0 data into 1 int32_t for load
+        constexpr index_t X0 = K_Lanes;
+        constexpr index_t X1 = 1; // packed 2x2 E8M0 data into 1 int32_t for load
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<N_Warps>, // repeat N_warps
@@ -246,24 +245,24 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         constexpr index_t WaveSize  = get_warp_size();
         constexpr index_t WaveNum   = BlockSize / WaveSize;
 
-        constexpr index_t kNPerBlock = tileShape::BlockTile::at(I1);
+        constexpr index_t kNPerBlock = TileShape::BlockTile::at(I1);
 
         constexpr index_t M_Warps = TileShape::BlockWarps::at(I0);
         constexpr index_t N_Warps = TileShape::BlockWarps::at(I1);
 
-        static_assert(num_warps == M_Warps * N_Warps, "Block warps do not match block size");
+        static_assert(WaveNum == M_Warps * N_Warps, "Block warps do not match block size");
 
         constexpr index_t N_Lanes = TileShape::WarpTile::at(I1);
         constexpr index_t K_Lanes = 64 / N_Lanes;
 
         // Y dimension (M) decomposition
-        static constexpr index_t Y2 = N_Lanes;
-        static constexpr index_t Y1 = N_Warps;
-        static constexpr index_t Y0 = kNPerBlock / (NXdlPack * Y1 * Y2);
+        constexpr index_t Y2 = N_Lanes;
+        constexpr index_t Y1 = N_Warps;
+        constexpr index_t Y0 = kNPerBlock / (NXdlPack * Y1 * Y2);
 
         // X dimension (K) decomposition
-        static constexpr index_t X0 = K_Lanes;
-        static constexpr index_t X1 = 1; // packed 2x2 E8M0 data into 1 int32_t for load
+        constexpr index_t X0 = K_Lanes;
+        constexpr index_t X1 = 1; // packed 2x2 E8M0 data into 1 int32_t for load
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<M_Warps>, // ?
@@ -284,19 +283,19 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 
         constexpr index_t M_Warp = TileShape::BlockWarps::at(number<0>{});
         constexpr index_t K_Lane = 64 / TileShape::WarpTile::at(I0);
-        constexpr index_t N_Lane = TileShape::WarpTile::at(I0);
+        constexpr index_t M_Lane = TileShape::WarpTile::at(I0);
 
         constexpr index_t MWavePerBlk = M_Warp;
 
         return make_static_tile_distribution(
-            tile_distributed_encoding<sequence<>,                          // ?
-                                      tuple<sequence<MWavePerBlk, M_Lane>, // second direction
-                                            sequence<K_Lane, 1>>,          // first direction
-                                      tuple<sequence<1>, sequence<2, 1>>,  // which direction
-                                      tuple<sequence<0>, sequence<0, 1>>,  // which index
-                                      // <repeat, vec_load>
-                                      sequence<2>,
-                                      sequence<1>>{});
+            tile_distribution_encoding<sequence<>,                          // ?
+                                       tuple<sequence<MWavePerBlk, M_Lane>, // second direction
+                                             sequence<K_Lane, 1>>,          // first direction
+                                       tuple<sequence<1>, sequence<2, 1>>,  // which direction
+                                       tuple<sequence<0>, sequence<0, 1>>,  // which index
+                                       // <repeat, vec_load>
+                                       sequence<2>,
+                                       sequence<1>>{});
     }
 
     template <typename Problem>
@@ -314,14 +313,14 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         constexpr index_t NWavePerBlk = N_Warp;
 
         return make_static_tile_distribution(
-            tile_distributed_encoding<sequence<>,                          // ?
-                                      tuple<sequence<NWavePerBlk, N_Lane>, // second direction
-                                            sequence<K_Lane, 1>>,          // first direction
-                                      tuple<sequence<1>, sequence<2, 1>>,  // which direction
-                                      tuple<sequence<0>, sequence<0, 1>>,  // which index
-                                      // <repeat, vec_load>
-                                      sequence<2>,
-                                      sequence<1>>{});
+            tile_distribution_encoding<sequence<>,                          // ?
+                                       tuple<sequence<NWavePerBlk, N_Lane>, // second direction
+                                             sequence<K_Lane, 1>>,          // first direction
+                                       tuple<sequence<1>, sequence<2, 1>>,  // which direction
+                                       tuple<sequence<0>, sequence<0, 1>>,  // which index
+                                       // <repeat, vec_load>
+                                       sequence<2>,
+                                       sequence<1>>{});
     }
 };
 

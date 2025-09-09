@@ -6,9 +6,6 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
-#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
-
-#include <optional>
 
 namespace ck_tile {
 
@@ -76,8 +73,6 @@ struct CShuffleEpilogue
     using ODataType   = remove_cvref_t<typename Problem::ODataType>;
     using DsDataType  = remove_cvref_t<typename Problem::DsDataType>;
     using DsLayout    = remove_cvref_t<typename Problem::DsLayout>;
-    using ATypeToUse =
-        std::conditional_t<std::is_same_v<ADataType, pk_int4_t>, BDataType, ADataType>;
     // Used for weight-only quantization kernel, B would be dequantized to the same data type as A
     using BTypeToUse =
         std::conditional_t<std::is_same_v<BDataType, pk_int4_t>, ADataType, BDataType>;
@@ -217,20 +212,16 @@ struct CShuffleEpilogue
     static constexpr index_t MPerIterationShuffle = std::get<0>(MNPerIterationShuffle);
     static constexpr index_t NPerIterationShuffle = std::get<1>(MNPerIterationShuffle);
 
-    using WG = WarpGemmDispatcher<ATypeToUse,
-                                  BTypeToUse,
-                                  AccDataType,
-                                  MPerXdl,
-                                  NPerXdl,
-                                  KPerXdl,
-                                  isCTransposed>;
+    using WG = WarpGemmMfmaDispatcher<ADataType,
+                                      BTypeToUse,
+                                      AccDataType,
+                                      MPerXdl,
+                                      NPerXdl,
+                                      KPerXdl,
+                                      isCTransposed>;
 
-    using CWarpDstr         = typename WG::CWarpDstr;
-    using CWarpTensor       = typename WG::CWarpTensor;
-    using CWarpDstrEncoding = typename WG::CWarpDstrEncoding;
-    using SFC               = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
-                                    sequence<0, 1>,
-                                    sequence<MPerIterationShuffle, NPerIterationShuffle>>;
+    using CWarpDstr   = typename WG::CWarpDstr;
+    using CWarpTensor = typename WG::CWarpTensor;
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsBlockDescriptor()
@@ -318,6 +309,8 @@ struct CShuffleEpilogue
                                        tuple<sequence<0, 0>, sequence<1, 1>>,
                                        sequence<1, 2>,
                                        sequence<2, 2>>;
+        static_assert(GetVectorSizeC() % kN2 == 0);
+
         constexpr auto dram_tile_distribution =
             make_static_tile_distribution(IntrThreadShuffleEncode{});
 
@@ -333,7 +326,6 @@ struct CShuffleEpilogue
 
         auto shuffle_acc  = make_static_distributed_tensor<AccDataType>(dram_tile_distribution);
         auto c_out_tensor = make_static_distributed_tensor<ODataType>(dram_tile_distribution);
-        // auto c_out_tensor = make_static_distributed_tensor<ODataType>(dram_tile_distribution);
 
         static_for<0, MRepeat, 1>{}([&](auto mIter) {
             shuffle_acc.get_thread_buffer() = o_acc_tile.get_y_sliced_thread_data(
@@ -341,6 +333,7 @@ struct CShuffleEpilogue
                 merge_sequences(sequence<1, NRepeat>{}, c_warp_y_lengths));
 
             static_for<0, NRepeat, 1>{}([&](auto n_idx) {
+                // transpose <kM2 x NRepeat> thread matrix
                 c_out_tensor.get_thread_buffer()[n_idx + 0 * NRepeat] = type_convert<ODataType>(
                     shuffle_acc.get_thread_buffer()[n_idx * c_warp_y_lengths.product() + 0]);
                 c_out_tensor.get_thread_buffer()[n_idx + 1 * NRepeat] = type_convert<ODataType>(
@@ -350,8 +343,6 @@ struct CShuffleEpilogue
                 c_out_tensor.get_thread_buffer()[n_idx + 3 * NRepeat] = type_convert<ODataType>(
                     shuffle_acc.get_thread_buffer()[n_idx * c_warp_y_lengths.product() + 3]);
             });
-
-            // c_out_tensor = cast_tile<ODataType>(c_out_tensor_fp32);
 
             if constexpr(MemoryOperation == memory_operation_enum::set)
             {
@@ -398,22 +389,21 @@ struct CShuffleEpilogue
             make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
             {0, 0});
 
-        // using SFC                    = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
-        //                                                    sequence<0, 1>,
-        //                                                    sequence<MPerIterationShuffle,
-        //                                                    NPerIterationShuffle>>;
+        using SFC                    = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
+                                        sequence<0, 1>,
+                                        sequence<MPerIterationShuffle, NPerIterationShuffle>>;
         constexpr index_t num_access = SFC::get_num_of_access();
 
         static_assert(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
                       "Currently, the CShuffle Epilogue only supports the Row Major Output layout");
 
         using TileEncodingPattern =
-            tile_distribution_encoding_pattern_2d<kBlockSize,
-                                                  MPerIterationShuffle,
-                                                  NPerIterationShuffle,
-                                                  GetVectorSizeC(),
-                                                  tile_distribution_pattern::thread_raked,
-                                                  Problem::kNumWaveGroups>;
+            TileDistributionEncodingPattern2D<kBlockSize,
+                                              MPerIterationShuffle,
+                                              NPerIterationShuffle,
+                                              GetVectorSizeC(),
+                                              tile_distribution_pattern::thread_raked,
+                                              Problem::kNumWaveGroups>;
         constexpr auto dram_tile_distribution = TileEncodingPattern::Make2DStaticTileDistribution();
 
         auto d_dram_windows = generate_tuple(
@@ -650,18 +640,21 @@ struct CShuffleEpilogue
             make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
             {0, 0});
 
+        using SFC                    = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
+                                        sequence<0, 1>,
+                                        sequence<MPerIterationShuffle, NPerIterationShuffle>>;
         constexpr index_t num_access = SFC::get_num_of_access();
 
         static_assert(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
                       "Currently, the CShuffle Epilogue only supports the Row Major Output layout");
 
         using TileEncodingPattern =
-            tile_distribution_encoding_pattern_2d<kBlockSize,
-                                                  MPerIterationShuffle,
-                                                  NPerIterationShuffle,
-                                                  GetVectorSizeC(),
-                                                  tile_distribution_pattern::thread_raked,
-                                                  Problem::kNumWaveGroups>;
+            TileDistributionEncodingPattern2D<kBlockSize,
+                                              MPerIterationShuffle,
+                                              NPerIterationShuffle,
+                                              GetVectorSizeC(),
+                                              tile_distribution_pattern::thread_raked,
+                                              Problem::kNumWaveGroups>;
         constexpr auto dram_tile_distribution = TileEncodingPattern::Make2DStaticTileDistribution();
 
         auto d_dram_windows = generate_tuple(
