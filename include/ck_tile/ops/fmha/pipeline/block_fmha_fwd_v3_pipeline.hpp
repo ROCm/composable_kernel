@@ -209,6 +209,15 @@ CK_TILE_DEVICE float add_impl_vv(float lhs, float rhs)
     return result;
 }
 
+CK_TILE_DEVICE float mul_impl_vv(float lhs, float rhs)
+{
+    float result;
+    asm volatile("v_mul_f32_e32 %[result], %[lhs], %[rhs]"
+                 : [result] "=v"(result)
+                 : [lhs] "v"(lhs), [rhs] "v"(rhs));
+    return result;
+}
+
 CK_TILE_DEVICE fp16x2_t cvt_pk_fp16_f32(float a, float b)
 {
     fp16x2_t result;
@@ -498,7 +507,7 @@ struct BlockFmhaFwdV3Pipeline
         statically_indexed_array<sp_compute_type, 2> sp;
 
         decltype(gemm_1.MakeCBlockTile()) o_acc;
-        constexpr index_t fmha_alu_D_reg_cnt = 0; // threshold to decide how many fmha_alu_D_upd()
+        constexpr index_t fmha_alu_D_reg_cnt = 6; // threshold to decide how many fmha_alu_D_upd()
                                                   // instructions should we move to fmha_alu1()
         static_assert(fmha_alu_D_reg_cnt <= o_acc.thread_buf_.size());
 
@@ -757,9 +766,6 @@ struct BlockFmhaFwdV3Pipeline
 #else
             block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
 #endif
-            // update partial o_acc [0, 2)
-            static_for<0, ck_tile::min(2, fmha_alu_D_reg_cnt), 1>{}(
-                [&](auto idx) { o_acc.thread_buf_[idx] *= o_acc_scale; });
 
             // l{j}
             /// Note: The compiler keeps moving the following instructions elsewhere because 'l'
@@ -774,9 +780,10 @@ struct BlockFmhaFwdV3Pipeline
                 l(i_idx) = detail::add_impl_vv(tmp * l[i_idx], rowsum_p[i_idx]);
             });
 
-            // update partial o_acc [2, fmha_alu_D_reg_cnt)
-            static_for<2, ck_tile::max(2, fmha_alu_D_reg_cnt), 1>{}(
-                [&](auto idx) { o_acc.thread_buf_[idx] *= o_acc_scale; });
+            // update partial o_acc [0, fmha_alu_D_reg_cnt)
+            static_for<0, fmha_alu_D_reg_cnt, 1>{}([&](auto idx) {
+                o_acc.thread_buf_[idx] = detail::mul_impl_vv(o_acc.thread_buf_[idx], o_acc_scale);
+            });
 
             /// Note: The compiler keeps sinking the conversion instructions because the
             /// result 'p' is only consumed later. To anchor them here, we rewrite
