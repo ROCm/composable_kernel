@@ -157,7 +157,8 @@ def is_trait_combination_valid(pipeline: str, epilogue: str, scheduler: str) -> 
 
 def validate_warp_configuration(warp_m: int, warp_n: int, warp_k: int) -> bool:
     """Validate warp configuration."""
-    return (warp_m, warp_n, warp_k) in [(1, 4, 1), (2, 2, 1), (4, 1, 1)]
+    # return (warp_m, warp_n, warp_k) in [(1, 4, 1), (2, 2, 1), (4, 1, 1)]
+    return (warp_m, warp_n, warp_k) in [(2, 4, 1), (1, 8, 1), (8, 1, 1), (4, 2, 1)]
 
 
 def validate_dimension_alignment(
