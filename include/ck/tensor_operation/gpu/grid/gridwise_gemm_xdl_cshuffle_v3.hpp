@@ -1187,74 +1187,23 @@ struct GridwiseGemm_xdl_cshuffle_v3
             return false;
         }
 
-        // Check tile size
-#if defined(__gfx11__) || defined(__gfx12__)
-        if constexpr(MPerXdl != 16 || NPerXdl != 16)
-        {
-            return false;
-        }
-#endif
-        // Check atomic caps
-#if defined(__gfx11__)
-        constexpr bool SupportMemOp = CGlobalMemoryDataOperation == InMemoryDataOperationEnum::Set;
-#else
-        constexpr bool SupportMemOp = sizeof(CDataType) >= 2 || (CGlobalMemoryDataOperation ==
-                                                                 InMemoryDataOperationEnum::Set);
-#endif
-        if constexpr(SupportMemOp == false)
-        {
-            return false;
-        }
-
-        // Check tile size
-        if constexpr(MXdlPerWave > 0 && NXdlPerWave > 0)
-        {
-            constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);
-            constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl);
-            if constexpr(MWaves > 0 && NWaves > 0)
-            {
-                constexpr index_t WaveSize = BlockSize / (MWaves * NWaves);
-                if constexpr(WaveSize == get_warp_size())
-                {
-                    return true;
-                }
-                else
-                {
-                    return false;
-                }
-            }
-            else
-            {
-                return false;
-            }
-        }
-        else
-        {
-            return false;
-        }
+        return ck::tensor_operation::device::IsValidGemmCompilationParameter<
+                   BlockSize,
+                   MPerBlock,
+                   NPerBlock,
+                   MPerXdl,
+                   NPerXdl,
+                   MXdlPerWave,
+                   NXdlPerWave,
+                   CDataType,
+                   CGlobalMemoryDataOperation>();
     }
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     __host__ static constexpr bool CheckValidity(const Argument& karg)
     {
-        if constexpr((MPerXdl * MXdlPerWave) == 0 || (NXdlPerWave * NPerXdl) == 0)
-        {
-            return false;
-        }
-        else
-        {
-            if constexpr((MPerBlock % (MPerXdl * MXdlPerWave) != 0) ||
-                         (NPerBlock % (NXdlPerWave * NPerXdl) != 0))
-            {
-                return false;
-            }
-            else
-            {
-                if(BlockwiseGemmPipe::WaveSize != get_warp_size())
-                {
-                    return false;
-                }
-            }
-        }
+        static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
+                          (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
+                      "Invalid tuning param!");
 
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
