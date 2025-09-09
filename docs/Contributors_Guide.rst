@@ -24,7 +24,7 @@ reported. If it hasn't, submit a new issue that includes:
  
 * Your configuration details, including the GPU, OS, and ROCm version, and any Docker image you used.
 
-* The steps to reproduce the issue, including any CMake command you used to build the library as well as the frequency of the issue.
+* The steps to reproduce the issue, including any CMake command you used to build the library, as well as the frequency of the issue.
 
 * Any workarounds you've found and what you expect in a resolution. 
 
