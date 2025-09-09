@@ -354,19 +354,20 @@ float moe_sorting_mp(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_co
         using ms_weight_type = float;
 
         auto maybe_clear_workspace = [=](const ck_tile::stream_config& s_) {
-            if(t.clear_workspace_inside_api)
-            {
-                if(is_local_token)
-                {
-                    auto k = MOR_SORTING_CLEAR_WS_DISPATCH_(true, 1024, 1);
-                    k(s_);
-                }
-                else
-                {
-                    auto k = MOR_SORTING_CLEAR_WS_DISPATCH_(false, 1024, 1);
-                    k(s_);
-                }
-            }
+            (void)s_;
+            // if(t.clear_workspace_inside_api)
+            // {
+            //     if(is_local_token)
+            //     {
+            //         auto k = MOR_SORTING_CLEAR_WS_DISPATCH_(true, 1024, 1);
+            //         k(s_);
+            //     }
+            //     else
+            //     {
+            //         auto k = MOR_SORTING_CLEAR_WS_DISPATCH_(false, 1024, 1);
+            //         k(s_);
+            //     }
+            // }
         };
 
         if(ck_tile::impl::moe_sorting_get_smem_size_p23(a.num_experts) >

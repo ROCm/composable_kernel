@@ -1560,8 +1560,8 @@ struct MoeSortingMultiPhaseKernel_P0
     using WeightType = typename Problem::WeightType;
     using MeshType   = typename Problem::MeshType;
 
-    static constexpr index_t BLOCK_SIZE = 256;
-    static constexpr index_t OCCUPANCY  = 2; // hard coded
+    static constexpr index_t BLOCK_SIZE = 1024;
+    static constexpr index_t OCCUPANCY  = 1; // hard coded
 
     typedef MoeSortingHostArgs MoeSortingKargs;
 
@@ -1602,7 +1602,7 @@ struct MoeSortingMultiPhaseKernel_P0
         return k;
     }
 
-    CK_TILE_HOST static constexpr auto GridSize(const Hargs&) { return get_num_cu() * OCCUPANCY; }
+    CK_TILE_HOST static constexpr auto GridSize(const Hargs&) { return 1; }
 
     CK_TILE_HOST static constexpr auto BlockSize(const Hargs&) { return dim3(BLOCK_SIZE); }
 
@@ -1644,8 +1644,27 @@ struct MoeSortingMultiPhaseKernel_P0
                 return kargs.mesh_stride;
             }
         }();
+        
+        const index_t pixels      = 128 * mesh_stride;
+        const index_t total_bytes = pixels * 4;
+
+        using vector_type          = ext_vector_t<index_t, 4>;
+        auto zero_                 = vector_type{0};
+
+        vector_type* p_expert_mesh_clear = reinterpret_cast<vector_type*>(kargs.p_expert_mesh);
+        for(index_t i = blockIdx.x * BLOCK_SIZE + threadIdx.x; i < total_bytes / 16;
+            i += gridDim.x * BLOCK_SIZE)
+        {
+            p_expert_mesh_clear[i] = zero_;
+        }
+        __syncthreads();
+
         index_t total_elem = rounded_tokens * kargs.topk_mdiv.divisor / Problem::SubTokenTile;
 
+        // if(threadIdx.x == 0 && blockIdx.x == 0)
+        // {
+        //     printf("k2 rounded_tokens %d mes %d %d, total_elems=%d\n", rounded_tokens, mesh_stride, Problem::SubTokenTile, total_elem);
+        // }
 #pragma unroll Problem::SubTokenTile
         for(index_t i = blockIdx.x * BLOCK_SIZE + threadIdx.x; i < total_elem;
             i += gridDim.x * BLOCK_SIZE)
