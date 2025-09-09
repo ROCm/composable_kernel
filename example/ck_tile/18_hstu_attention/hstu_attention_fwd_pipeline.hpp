@@ -329,10 +329,10 @@ struct HstuAttentionFwdPipelineQRKSVS
                 __builtin_amdgcn_s_waitcnt(0xc07f);
 
                 // the following codes will not generate actual instructions by the compiler
-                static_for<0, splitted_tile_thread_buf_size, 1>{}([&](auto i_buf) {
-                    q_tile.get_thread_buffer()[i_rep * splitted_tile_thread_buf_size + i_buf] =
-                        q_reg_tiles[i_rep].get_thread_buffer()[i_buf];
-                });
+                set_slice_tile(q_tile,
+                               q_reg_tiles[i_rep],
+                               sequence<i_rep * kGemmSingleRepM, 0>{},
+                               sequence<(i_rep + 1) * kGemmSingleRepM, kQKHeaddim>{});
 
                 // no need to call __builtin_amdgcn_s_barrier() since the tile-slice read
                 // by each wavefront is over-written by itself
