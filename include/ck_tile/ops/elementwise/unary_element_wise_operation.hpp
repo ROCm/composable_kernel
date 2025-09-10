@@ -227,18 +227,6 @@ CK_TILE_DEVICE fp8x8_t amd_assembly_i4_to_fp8x8(int a)
 #elif 0
 CK_TILE_DEVICE fp8x4_t i4_to_fp8x4(int q)
 {
-    // This approach is likely substantially less performant than a lookup table based one.
-    fp16x4_t src = i4_to_half4(q);
-    return fp8x4_t{
-        ck_tile::type_convert<fp8_t>(ck_tile::type_convert<float>(src[0])),
-        ck_tile::type_convert<fp8_t>(ck_tile::type_convert<float>(src[1])),
-        ck_tile::type_convert<fp8_t>(ck_tile::type_convert<float>(src[2])),
-        ck_tile::type_convert<fp8_t>(ck_tile::type_convert<float>(src[3])),
-    };
-}
-#elif 0
-CK_TILE_DEVICE fp8x4_t i4_to_fp8x4(int q)
-{
     // The approach below can be used once this compiler issue is resolved:
     // "constexpr bit cast involving type 'unsigned _BitInt(8)' is not yet supported"
     // Lookup table for fp8_t values corresponding to int4 values -8 to 7
@@ -316,18 +304,6 @@ CK_TILE_DEVICE bf8x8_t amd_assembly_i4_to_bf8x8(uint32_t a)
     auto tmp_res_high = __builtin_amdgcn_perm(tmp_res_odd, tmp_res_even, 0x07050301);
 
     return bit_cast<bf8x8_t>((static_cast<uint64_t>(tmp_res_high) << 32) | tmp_res_low);
-}
-#elif 0
-CK_TILE_DEVICE bf8x4_t i4_to_bf8x4(int q)
-{
-    // This approach is likely substantially less performant than a lookup table based one.
-    fp16x4_t src = i4_to_half4(q);
-    return bf8x4_t{
-        ck_tile::type_convert<bf8_t>(ck_tile::type_convert<float>(src[0])),
-        ck_tile::type_convert<bf8_t>(ck_tile::type_convert<float>(src[1])),
-        ck_tile::type_convert<bf8_t>(ck_tile::type_convert<float>(src[2])),
-        ck_tile::type_convert<bf8_t>(ck_tile::type_convert<float>(src[3])),
-    };
 }
 #elif 0
 CK_TILE_DEVICE bf8x4_t i4_to_bf8x4(int q)
