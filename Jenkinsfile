@@ -321,7 +321,7 @@ def cmake_build(Map conf=[:]){
                     ${redis_pre_setup_cmd}
                 """)
             sh cmd1
-            setup_args = " -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_C_COMPILER_LAUNCHER=sccache " + setup_args
+            setup_args = " -DCMAKE_HIP_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_C_COMPILER_LAUNCHER=sccache " + setup_args
         }
         catch(Exception err){
             echo "could not connect to redis server: ${err.getMessage()}. will not use sccache."

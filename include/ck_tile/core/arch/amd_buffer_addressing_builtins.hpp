@@ -1335,8 +1335,10 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
     static_assert(
         (std::is_same<T, double>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (std::is_same<T, float>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
-            (std::is_same<T, fp16_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
-            (std::is_same<T, bf16_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
+            (std::is_same<T, fp16_t>::value &&
+             (N == 1 || N == 2 || N == 4 || N == 8 || N == 16 || N == 32)) ||
+            (std::is_same<T, bf16_t>::value &&
+             (N == 1 || N == 2 || N == 4 || N == 8 || N == 16 || N == 32)) ||
             (std::is_same<T, int32_t>::value &&
              (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same<T, fp8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
@@ -1449,14 +1451,19 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
                                                    src_wave_addr_offset,
                                                    static_cast<index_t>(coherence)));
         }
-        else if constexpr(N == 8)
+        else
         {
-            // use fp32 load to mimic fp16 load
-            fp32x4_t tmp = llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
-                                                              src_thread_addr_offset,
-                                                              src_wave_addr_offset,
-                                                              static_cast<index_t>(coherence));
+            // N >= 8: build from fp32x4 chunks
+            thread_buffer<float, N> tmp;
 
+            static_for<0, (N / 4), 1>{}([&](auto i) {
+                constexpr index_t chunk            = i;
+                tmp.template get_as<fp32x4_t>()(i) = llvm_amdgcn_raw_buffer_load_fp32x4(
+                    src_wave_buffer_resource,
+                    src_thread_addr_offset,
+                    src_wave_addr_offset + (chunk * 4) * sizeof(float),
+                    static_cast<index_t>(coherence));
+            });
             return bit_cast<rtn_type>(tmp);
         }
     }
@@ -1492,6 +1499,56 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
                                                               src_thread_addr_offset,
                                                               src_wave_addr_offset,
                                                               static_cast<index_t>(coherence));
+
+            return bit_cast<rtn_type>(tmp);
+        }
+        else if constexpr(N == 16)
+        {
+            // use fp32 load to mimic bfp16 load
+            thread_buffer<float, 8> tmp;
+
+            tmp.template get_as<fp32x4_t>()(number<0>{}) =
+                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
+                                                   src_thread_addr_offset,
+                                                   src_wave_addr_offset,
+                                                   static_cast<index_t>(coherence));
+
+            tmp.template get_as<fp32x4_t>()(number<1>{}) =
+                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
+                                                   src_thread_addr_offset,
+                                                   src_wave_addr_offset + 4 * sizeof(float),
+                                                   static_cast<index_t>(coherence));
+
+            return bit_cast<rtn_type>(tmp);
+        }
+        else if constexpr(N == 32)
+        {
+            // use fp32 load to mimic bfp16 load
+            thread_buffer<float, 16> tmp;
+
+            tmp.template get_as<fp32x4_t>()(number<0>{}) =
+                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
+                                                   src_thread_addr_offset,
+                                                   src_wave_addr_offset,
+                                                   static_cast<index_t>(coherence));
+
+            tmp.template get_as<fp32x4_t>()(number<1>{}) =
+                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
+                                                   src_thread_addr_offset,
+                                                   src_wave_addr_offset + 4 * sizeof(float),
+                                                   static_cast<index_t>(coherence));
+
+            tmp.template get_as<fp32x4_t>()(number<2>{}) =
+                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
+                                                   src_thread_addr_offset,
+                                                   src_wave_addr_offset + 8 * sizeof(float),
+                                                   static_cast<index_t>(coherence));
+
+            tmp.template get_as<fp32x4_t>()(number<3>{}) =
+                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
+                                                   src_thread_addr_offset,
+                                                   src_wave_addr_offset + 12 * sizeof(float),
+                                                   static_cast<index_t>(coherence));
 
             return bit_cast<rtn_type>(tmp);
         }
