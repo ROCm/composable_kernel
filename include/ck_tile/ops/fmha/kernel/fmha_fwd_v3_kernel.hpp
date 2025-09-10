@@ -294,7 +294,7 @@ struct FmhaFwdV3Kernel
         else
         { // normal remapping
             int32_t cus_per_xdim_per_xcc = gridDim.x >> 3;
-            int32_t tgs_cu_id            = remapped_tg_idx >> 8;
+            int32_t tgs_cu_id            = remapped_tg_idx >> 3;
 
             if(tgs_cu_id < cus_per_xdim_per_xcc)
             {
