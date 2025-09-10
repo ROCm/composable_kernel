@@ -173,7 +173,7 @@ CK_TILE_DEVICE bf16x4_t i4_to_bhalf4(int q)
 #endif
 }
 
-#if 0
+#if 1
 /**
  * @brief This function converts 8 packed 4-bit integers into 8 fp8 values.
  *
@@ -224,7 +224,7 @@ CK_TILE_DEVICE fp8x8_t amd_assembly_i4_to_fp8x8(int a)
 
     return bit_cast<fp8x8_t>((static_cast<uint64_t>(tmp_res_high) << 32) | tmp_res_low);
 }
-#elif 1
+#elif 0
 CK_TILE_DEVICE fp8x4_t i4_to_fp8x4(int q)
 {
     // This approach is likely substantially less performant than a lookup table based one.
@@ -364,7 +364,7 @@ struct PassThroughPack8
 
     CK_TILE_HOST_DEVICE constexpr void operator()(fp8x8_t& y, const pk_int4x4_t& x) const
     {
-#if 0
+#if 1
         y = amd_assembly_i4_to_fp8x8(bit_cast<uint32_t>(x));
 #else
         y.lo = i4_to_fp8x4(bit_cast<int>(x));
