@@ -754,12 +754,12 @@ struct MoeFlatmmKernel
     CK_TILE_DEVICE void operator()(MoeFlatmmKernelArgs kargs) const
     {
         int partition_idx       = blockIdx.x;
-        auto max_token_num = kargs.p_max_token_id[0];
-        int total_work_tile_cnt = TilePartitioner::GridSize(max_token_num, kargs.N);
-        auto tilePartitioner = TilePartitioner{max_token_num, kargs.N};
+        auto valid_token_cnt = kargs.p_max_token_id[0];
+        int total_work_tile_cnt = TilePartitioner::GridSize(valid_token_cnt, kargs.N);
+        auto tilePartitioner = TilePartitioner{valid_token_cnt, kargs.N};
         do
         {
-            if (partition_idx >= max_token_num) {
+            if (partition_idx >= valid_token_cnt) {
                 return;
             }
             partition_idx = tilePartitioner.RemapXCD(partition_idx, total_work_tile_cnt);
