@@ -753,16 +753,18 @@ struct MoeFlatmmKernel
     template <class MoeFlatmmKernelArgs>
     CK_TILE_DEVICE void operator()(MoeFlatmmKernelArgs kargs) const
     {
+        // total number of tokens: sorted tokens + delimiter tokens + trailing padding tokens
+        // we launch the grid based on the total number of tokens which needs to be static
         int partition_idx       = blockIdx.x;
-        auto valid_token_cnt = kargs.p_max_token_id[0];
-        int total_work_tile_cnt = TilePartitioner::GridSize(valid_token_cnt, kargs.N);
+        auto valid_token_cnt = kargs.p_max_token_id[0]; // sorted tokens + delimiter tokens
+        int total_valid_tile_cnt = TilePartitioner::GridSize(valid_token_cnt, kargs.N);
         auto tilePartitioner = TilePartitioner{valid_token_cnt, kargs.N};
         do
         {
-            if (partition_idx >= valid_token_cnt) {
-                return;
+            if (partition_idx >= total_valid_tile_cnt) {
+                return; // early exit for trailing padding tokens
             }
-            partition_idx = tilePartitioner.RemapXCD(partition_idx, total_work_tile_cnt);
+            partition_idx = tilePartitioner.RemapXCD(partition_idx, total_valid_tile_cnt);
             const auto [block_offset_m, block_offset_n] =
                 tilePartitioner.GetOutputTileIndex(partition_idx);
 
