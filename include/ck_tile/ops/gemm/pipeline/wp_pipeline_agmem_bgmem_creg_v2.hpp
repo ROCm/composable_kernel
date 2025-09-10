@@ -155,10 +155,14 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
     static constexpr index_t mfma_per_wg = 1;
 #endif
     static constexpr index_t dsread_per_wg =
-        WG::kM * WG::kK * sizeof(ADataType) / WaveSize / Problem::VectorLoadSize;
-    static_assert((WG::kM * WG::kK * sizeof(ADataType) / WaveSize) % Problem::VectorLoadSize == 0);
-
-    static constexpr index_t dsread_num_perK  = dsread_per_wg * MIterPerWarp;
+        max(index_t(WG::kM * WG::kK * sizeof(ADataType) / WaveSize / Problem::VectorLoadSize), 1);
+#if defined(__HIP_DEVICE_COMPILE__)
+    static_assert((WG::kM * WG::kK * sizeof(ADataType) * MIterPerWarp / WaveSize) %
+                      Problem::VectorLoadSize ==
+                  0);
+#endif
+    static constexpr index_t dsread_num_perK =
+        WG::kM * WG::kK * sizeof(ADataType) * MIterPerWarp / WaveSize / Problem::VectorLoadSize;
     static constexpr index_t dswrite_num_perK = dsread_num_perK / (MWarp * NWarp);
     static constexpr index_t dswrite_rep    = (dswrite_num_perK + MIterPerWarp - 1) / MIterPerWarp;
     static constexpr index_t Aload_num_perK = dswrite_num_perK;
@@ -508,12 +512,12 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
               typename AsDramBlockWindowTmp,
               typename BsFlatBlockWindowTmp,
               typename AElementFunction>
-    CK_TILE_HOST_DEVICE auto operator()(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
-                                        const AElementFunction& a_element_func,
-                                        const BsFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
-                                        index_t num_loop,
-                                        void* p_smem_ping,
-                                        void* p_smem_pong) const
+    CK_TILE_DEVICE auto operator()(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const AElementFunction& a_element_func,
+                                   const BsFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
+                                   index_t num_loop,
+                                   void* p_smem_ping,
+                                   void* p_smem_pong) const
     {
         static_assert(AsDramBlockWindowTmp::size() == 1 && BsFlatBlockWindowTmp::size() == 1,
                       "The A/B DRAM block window should have a size of 1 "

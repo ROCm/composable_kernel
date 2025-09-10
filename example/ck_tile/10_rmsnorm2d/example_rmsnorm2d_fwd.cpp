@@ -71,11 +71,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     constexpr bool kTwoPass = true;
 
-    using BlockWarps = ck_tile::sequence<2, 2>;
-    using BlockTile  = ck_tile::sequence<2, 128>;
-    using WarpTile   = ck_tile::sequence<1, 64>;
-    using Vector     = ck_tile::sequence<1, 1>;
-    using Shape      = ck_tile::Generic2dBlockShape<BlockTile, BlockWarps, WarpTile, Vector>;
+    using BlockTile      = ck_tile::sequence<2, 128>;
+    using Vector         = ck_tile::sequence<1, 1>;
+    using ThreadPerBlock = ck_tile::sequence<2, 128>;
+
+    using Shape = ck_tile::Generic2dBlockShape<BlockTile, ThreadPerBlock, Vector>;
 
     using PipelineTraits =
         ck_tile::Rmsnorm2dFwdTraits<true,  // kPadN

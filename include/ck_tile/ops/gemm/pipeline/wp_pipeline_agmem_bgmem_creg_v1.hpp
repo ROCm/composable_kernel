@@ -197,14 +197,12 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
         }
     }
 
-    template <typename AsDramBlockWindowTmp,
-              typename BsFlatBlockWindowTmp,
-              typename AElementFunction>
-    CK_TILE_HOST_DEVICE auto operator()(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
-                                        const AElementFunction& a_element_func,
-                                        const BsFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
-                                        index_t num_loop,
-                                        void* p_smem) const
+    template <typename AsDramBlockWindowTmp, typename BsFlatBlockWindowTmp, typename AElementFunction>
+    CK_TILE_DEVICE auto operator()(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const AElementFunction& a_element_func,
+                                   const BsFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
+                                   index_t num_loop,
+                                   void* p_smem) const
     {
         static_assert(AsDramBlockWindowTmp::size() == 1 && BsFlatBlockWindowTmp::size() == 1,
                       "The A/B DRAM block window should have a size of 1 "
