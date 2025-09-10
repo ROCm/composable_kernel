@@ -1,4 +1,4 @@
-ARG BASE_DOCKER="rocm/composable_kernel-private:ck_aiter"
+ARG BASE_DOCKER="rocm/composable_kernel-private:ck_aiter_base"
 FROM $BASE_DOCKER
 ARG AITER_BRANCH="main"
 ARG CK_AITER_BRANCH="develop"
