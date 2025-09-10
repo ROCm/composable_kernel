@@ -14,4 +14,4 @@ RUN pip install pandas zmq einops && \
     git clone -b "$CK_AITER_BRANCH" https://github.com/ROCm/composable_kernel.git 3rdparty/composable_kernel/ && \
     python3 setup.py develop && \
     chown -R jenkins:jenkins /home/jenkins/workspace && \
-    chmod -R a+rwx /home/jenkins/workspace && \
+    chmod -R a+rwx /home/jenkins/workspace
