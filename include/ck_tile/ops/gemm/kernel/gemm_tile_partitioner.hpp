@@ -265,7 +265,7 @@ struct GemmSpatiallyLocalTilePartitioner
         return integer_divide_ceil(K, KPerBlock);
     }
 
-    CK_TILE_HOST_DEVICE static auto RemapXCD(int pid, index_t int, int NUM_XCDS = 8) {
+    CK_TILE_HOST_DEVICE static auto RemapXCD(int pid, int GRID_MN, int NUM_XCDS = 8) {
         // Number of pids per XCD in the new arrangement
         int pids_per_xcd = (GRID_MN + NUM_XCDS - 1) / NUM_XCDS;
 

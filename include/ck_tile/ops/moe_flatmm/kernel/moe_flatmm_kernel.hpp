@@ -756,10 +756,12 @@ struct MoeFlatmmKernel
         int partition_idx       = blockIdx.x;
         auto max_token_num = kargs.p_max_token_id[0];
         int total_work_tile_cnt = TilePartitioner::GridSize(max_token_num, kargs.N);
-        const auto tilePartitioner = TilePartitioner{max_token_num, kargs.N}
+        auto tilePartitioner = TilePartitioner{max_token_num, kargs.N};
         do
         {
-            partition_idx = tilePartitioner.RemapXCD(partition_idx, total_work_tile_cnt)
+            if (partition_idx < max_token_num) {
+                partition_idx = tilePartitioner.RemapXCD(partition_idx, total_work_tile_cnt);
+            }
             const auto [block_offset_m, block_offset_n] =
                 tilePartitioner.GetOutputTileIndex(partition_idx);
 
