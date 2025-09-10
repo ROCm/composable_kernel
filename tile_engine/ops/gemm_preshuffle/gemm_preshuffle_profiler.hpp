@@ -19,8 +19,6 @@ class GemmProfiler
                        kernel_func,
                    const std::tuple<int, int, int>& warp_tile_dims)
     {
-        printf("[DELETE] in first benchmark\n");
-
         // Create a vector with a single callable that returns both name and time
         std::vector<std::function<std::tuple<std::string, float>(ck_tile::GemmHostArgs&,
                                                                  const ck_tile::stream_config&)>>
@@ -40,8 +38,6 @@ class GemmProfiler
                        ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>& callables,
                    const std::tuple<int, int, int>& warp_tile_dims)
     {
-        printf("[DELETE] in second benchmark\n");
-
         const ALayout layout_a = ALayout{};
         const BLayout layout_b = BLayout{};
         const CLayout layout_c = CLayout{};
@@ -114,11 +110,6 @@ class GemmProfiler
 
         for(const auto& callable : callables)
         {
-            printf("[DELETE] warp_tile_dims: (%d,%d,%d)\n",
-                   std::get<0>(warp_tile_dims),
-                   std::get<1>(warp_tile_dims),
-                   std::get<2>(warp_tile_dims));
-
             ck_tile::index_t N_Warp_Tile = std::get<1>(warp_tile_dims);
             ck_tile::index_t K_Warp_Tile = std::get<2>(warp_tile_dims);
 
