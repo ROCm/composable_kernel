@@ -3,6 +3,8 @@ import os
 import json
 import itertools
 import logging
+import multiprocessing
+import concurrent.futures
 
 from pathlib import Path
 
@@ -104,9 +106,9 @@ class GemmPreshuffleKernelBuilder:
         return {
             "tile_configs": tile_configs,
             "traits": {
-                "pipelines": ["mem", "compv3", "compv4"],
+                "pipelines": ["preshufflev1", "preshufflev2"],
                 "epilogues": ["default", "cshuffle"],
-                "schedulers": ["intrawave", "interwave"],
+                "schedulers": ["intrawave", "interwave", "default"],
             },
             "structured_sparsity": ["false"],
             "padding": {"pad_m": ["false"], "pad_n": ["false"], "pad_k": ["false"]},
@@ -280,9 +282,9 @@ class GemmPreshuffleKernelBuilder:
             # New format
             trait_config = self.config["trait_config"]
 
-            pipelines = trait_config.get("pipeline", {}).get("values", ["mem"])
+            pipelines = trait_config.get("pipeline", {}).get("values", ["preshufflev2"])
             epilogues = trait_config.get("epilogue", {}).get("values", ["default"])
-            schedulers = trait_config.get("scheduler", {}).get("values", ["intrawave"])
+            schedulers = trait_config.get("scheduler", {}).get("values", ["default"])
             pad_m_values = trait_config.get("pad_m", {}).get("values", [False])
             pad_n_values = trait_config.get("pad_n", {}).get("values", [False])
             pad_k_values = trait_config.get("pad_k", {}).get("values", [False])
@@ -315,7 +317,7 @@ class GemmPreshuffleKernelBuilder:
         else:
             # Fallback to minimal default
             combinations = [
-                ("preshufflev2", "default", "intrawave", False, False, False, False)
+                ("preshufflev2", "default", "default", False, False, False, False)
             ]
 
         return combinations
@@ -331,7 +333,7 @@ class GemmPreshuffleKernelBuilder:
         warp_tile_m,
         warp_tile_n,
         warp_tile_k,
-        pipeline="mem",  # Default pipeline for validation
+        pipeline="preshufflev2",  # Default pipeline for validation
         fast_mode=False,  # Add fast mode option
     ):
         """Validate that tile configuration is reasonable"""
@@ -652,6 +654,146 @@ struct SelectedKernel {{
 
         return kernel_name, instance_code
 
+    def run(self, num_workers=None):
+        """Run the builder to generate individual kernel files"""
+        # Generate individual kernel files
+        self.generate_individual(num_workers)
+
+    def generate_individual(self, num_workers=None):
+        """Generate individual kernel files for separate compilation with parallel processing"""
+        if num_workers is None:
+            num_workers = min(
+                multiprocessing.cpu_count(), 8
+            )  # Limit to avoid memory issues
+
+        tile_configs = self._get_tile_configs()
+        trait_combos = self._generate_trait_combinations()
+
+        # Prepare work items for parallel processing
+        work_items = []
+        for tile_config in tile_configs:
+            for trait_combo in trait_combos:
+                work_items.append(
+                    (
+                        tile_config,
+                        trait_combo,
+                        self.working_path,
+                        self.datatype,
+                        self.layout,
+                    )
+                )
+
+        print(
+            f"Generating {len(work_items)} individual kernel files using {num_workers} workers..."
+        )
+        print(f"  Tile configs: {len(tile_configs)}")
+        print(f"  Trait combinations: {len(trait_combos)}")
+        print(f"  Total kernels: {len(work_items)}")
+
+        # Show first few work items for debugging
+        if work_items:
+            print("  First work item example:")
+            tile_config, trait_combo = work_items[0][:2]
+            print(f"    Tile config: {tile_config}")
+            print(f"    Trait combo: {trait_combo[:3]}")  # Show first 3 traits
+
+        # Process work items in parallel
+        kernel_list = []
+        completed = 0
+
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=num_workers
+        ) as executor:
+            # Submit all work items
+            print(f"  Submitting {len(work_items)} tasks to executor...")
+            future_to_item = {
+                executor.submit(_generate_single_kernel_individual, item): item
+                for item in work_items
+            }
+            print("  All tasks submitted, waiting for completion...")
+
+            # Collect results with progress reporting
+            for future in concurrent.futures.as_completed(future_to_item):
+                completed += 1
+                if completed % 100 == 0 or completed == len(work_items):
+                    print(
+                        f"  Progress: {completed}/{len(work_items)} kernels generated"
+                    )
+
+                try:
+                    result = future.result()
+                    if result:
+                        kernel_list.append(result)
+                except Exception as exc:
+                    item = future_to_item[future]
+                    print(f"Kernel generation failed for {item}: {exc}")
+
+        # Sort kernel list for consistent ordering
+        kernel_list.sort(key=lambda x: x[0])  # Sort by kernel name
+
+        # Generate CMake include file for individual targets
+        self._generate_cmake_individual_targets(kernel_list)
+
+        print(
+            f"Generated {len(kernel_list)} individual kernel files in {self.working_path}"
+        )
+
+    def _generate_cmake_individual_targets(self, kernel_list):
+        """Generate CMake include file that creates individual targets"""
+        cmake_code = f"""# Generated CMake file for individual GEMM Preshuffle targets
+# Datatype: {self.datatype}, Layout: {self.layout}
+
+"""
+
+        for kernel_name, trait_combo, tile_config in kernel_list:
+            pipeline, epilogue, scheduler = trait_combo[:3]
+
+            # Format tile config for CMake function
+            tile_str = f"{tile_config['tile_m']}x{tile_config['tile_n']}x{tile_config['tile_k']}_"
+            tile_str += f"{tile_config['warp_m']}x{tile_config['warp_n']}x{tile_config['warp_k']}_"
+            tile_str += f"{tile_config['warp_tile_m']}x{tile_config['warp_tile_n']}x{tile_config['warp_tile_k']}"
+
+            trait_str = f"{pipeline}_{epilogue}_{scheduler}_" + "_".join(
+                str(x) for x in trait_combo[3:]
+            )
+
+            cmake_code += f'create_individual_gemm_preshuffle_target("{self.datatype}" "{self.layout}" "{trait_str}" "{tile_str}")\n'
+
+        # Write CMake include file
+        with open(
+            self.working_path / "gemm_preshuffle_individual_targets.cmake", "w"
+        ) as f:
+            f.write(cmake_code)
+
+
+def _generate_single_kernel_individual(work_item):
+    """Worker function to generate a single individual kernel file"""
+    tile_config, trait_combo, working_path, datatype, layout = work_item
+
+    # Create a temporary builder instance for this worker
+    builder = GemmPreshuffleKernelBuilder(working_path, datatype, layout)
+
+    try:
+        kernel_name, instance_code = builder._generate_kernel_instance(
+            tile_config, trait_combo
+        )
+
+        # Create simplified filename without the "gemm_" prefix
+        # Remove "gemm_" from the beginning of kernel_name for the filename
+        simplified_name = kernel_name
+        if simplified_name.startswith("gemm_"):
+            simplified_name = simplified_name[5:]  # Remove "gemm_" prefix
+
+        # Write individual header file
+        header_file = working_path / f"gemm_single_{simplified_name}.hpp"
+        with open(header_file, "w") as f:
+            f.write(instance_code)
+
+        return (kernel_name, trait_combo, tile_config)
+    except Exception as e:
+        print(f"Error generating individual kernel: {e}")
+        return None
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -766,7 +908,7 @@ def main():
 
     elif args.gen_individual:
         # Generate all individual kernel files
-        # builder.run(args.num_workers)
+        builder.run(args.num_workers)
         pass
     else:
         parser.error(
