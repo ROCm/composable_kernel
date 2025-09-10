@@ -124,7 +124,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                       ? "AQuantGrouped"
                       : (QuantMode == ck_tile::QuantType::BQuantGrouped ? "BQuantGrouped"
                                                                         : "RowColQuant"))
-              << " : " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
+              << " PreshuffleQuant = " << (GemmConfig::PreshuffleQuant ? "true" : "false") << " : "
+              << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << std::endl;
 
     return ave_time;
