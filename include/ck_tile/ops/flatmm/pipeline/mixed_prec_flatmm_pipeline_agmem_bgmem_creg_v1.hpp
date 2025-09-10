@@ -184,6 +184,11 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
     CK_TILE_HOST_DEVICE static constexpr auto
     SchedulerPerM(index_t dsread_perM, index_t dswrite_perM, index_t load_perM)
     {
+#if defined(__gfx950__)
+        // GFX950 use BUFFER_LOAD_LDS to fill lds_buffer_A.
+        // There is no separate DS_WRITE instruction at all.
+        dswrite_perM = 0;
+#endif
         // Init inst order
         index_t max_data_inst   = dsread_perM > load_perM
                                       ? (dsread_perM > dswrite_perM ? dsread_perM : dswrite_perM)
@@ -488,7 +493,7 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
               typename AElementFunction,
               typename BFlatBlockWindowTmp,
               typename DequantBFlatWindow>
-    CK_TILE_HOST_DEVICE auto operator()(ADramBlockWindowTmp a_copy_dram_window,
+    CK_TILE_HOST_DEVICE auto operator()(ADramBlockWindowTmp a_copy_dram_window_,
                                         const AElementFunction& a_element_func,
                                         const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                         const DequantBFlatWindow& scale_b_flat_window,
@@ -516,39 +521,50 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
             to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
 
-        __builtin_amdgcn_sched_barrier(0);
+        auto a_dram_view        = a_copy_dram_window_.get_bottom_tensor_view();
+        auto a_copy_dram_window = make_tile_window(
+            PipelinePolicy::template TransformF16xF4_ATensorView<Problem>(a_dram_view),
+            a_copy_dram_window_.get_window_lengths(),
+            a_copy_dram_window_.get_window_origin(),
+            a_copy_dram_window_.get_tile_distribution());
 
         // A tile in LDS
         ADataType* p_a_lds_ping = static_cast<ADataType*>(p_smem_ping);
         ADataType* p_a_lds_pong = static_cast<ADataType*>(p_smem_pong);
 
-        constexpr auto a_lds_block_desc =
-            PipelinePolicy::template MakeF16xF4_ALdsBlockDescriptor<Problem>();
+        constexpr auto write_a_lds_block_desc =
+            PipelinePolicy::template MakeF16xF4_WriteALdsBlockDescriptor<Problem>();
+        constexpr auto read_a_lds_block_desc =
+            PipelinePolicy::template MakeF16xF4_ReadALdsBlockDescriptor<Problem>();
 
-        auto a_lds_block_ping =
-            make_tensor_view<address_space_enum::lds>(p_a_lds_ping, a_lds_block_desc);
-        auto a_lds_block_pong =
-            make_tensor_view<address_space_enum::lds>(p_a_lds_pong, a_lds_block_desc);
+        auto write_a_lds_block_ping =
+            make_tensor_view<address_space_enum::lds>(p_a_lds_ping, write_a_lds_block_desc);
+        auto write_a_lds_block_pong =
+            make_tensor_view<address_space_enum::lds>(p_a_lds_pong, write_a_lds_block_desc);
+        auto read_a_lds_block_ping =
+            make_tensor_view<address_space_enum::lds>(p_a_lds_ping, read_a_lds_block_desc);
+        auto read_a_lds_block_pong =
+            make_tensor_view<address_space_enum::lds>(p_a_lds_pong, read_a_lds_block_desc);
 
         auto a_copy_lds_window_ping =
-            make_tile_window(a_lds_block_ping,
+            make_tile_window(write_a_lds_block_ping,
                              make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
                              {0, 0},
                              PipelinePolicy::template MakeADramTileDistribution<Problem>());
         auto a_copy_lds_window_pong =
-            make_tile_window(a_lds_block_pong,
+            make_tile_window(write_a_lds_block_pong,
                              make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
                              {0, 0},
                              PipelinePolicy::template MakeADramTileDistribution<Problem>());
 
         // ping-pong window for A LDS
         auto a_warp_window_ping_tmp =
-            make_tile_window(a_lds_block_ping,
+            make_tile_window(read_a_lds_block_ping,
                              make_tuple(number<WG::kM>{}, number<WG::kK>{}),
                              {iMWarp * WG::kM, 0},
                              PipelinePolicy::template MakeF16xF4_ALDS_TileDistribution<Problem>());
         auto a_warp_window_pong_tmp =
-            make_tile_window(a_lds_block_pong,
+            make_tile_window(read_a_lds_block_pong,
                              make_tuple(number<WG::kM>{}, number<WG::kK>{}),
                              {iMWarp * WG::kM, 0},
                              PipelinePolicy::template MakeF16xF4_ALDS_TileDistribution<Problem>());
@@ -642,26 +658,27 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
         using ABlockTile = decltype(load_tile(a_copy_dram_window));
         ABlockTile a_block_tile;
 
-        auto prefill_lds_a_stage1 = [&](auto lds_tile_a, auto dram_tile_a) {
 #if defined(__gfx950__)
+        auto prefill_lds_a_stage1 = [&](auto lds_tile_a, auto dram_tile_a) {
             // global -> lds
             async_load_tile(lds_tile_a, dram_tile_a);
-#else
-            // global -> vgpr
-            a_block_tile = load_tile(dram_tile_a);
-#endif
         };
         auto prefill_lds_a_stage2 = [&](auto lds_tile_a) {
-#if defined(__gfx950__)
             // data has been stored in lds, no need more operation.
             static_assert(std::is_same_v<AElementFunction, identity>,
                           "buffer_load_lds don't support element func fot A before mfma");
+        };
 #else
+        auto prefill_lds_a_stage1 = [&](auto lds_tile_a, auto dram_tile_a) {
+            // global -> vgpr
+            a_block_tile = load_tile(dram_tile_a);
+        };
+        auto prefill_lds_a_stage2 = [&](auto lds_tile_a) {
             // vgpr -> lds
             auto a_block_tile_transformed = tile_elementwise_in(a_element_func, a_block_tile);
             store_tile(lds_tile_a, a_block_tile_transformed);
-#endif
         };
+#endif
 
         // HEAD
         // Prefetch A0
@@ -841,14 +858,6 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
                 });
             });
 
-            // Prefill A(2i+1)
-            prefill_lds_a_stage2(a_copy_lds_window_pong);
-
-            // Prefetch A(2i+2)
-            prefill_lds_a_stage1(a_copy_lds_window_ping, a_copy_dram_window);
-            // move A window to next k
-            move_tile_window(a_copy_dram_window, {0, kKPerBlock});
-
             // GEMM 2i
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
@@ -900,6 +909,14 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
             move_tile_window(b_flat_dram_window, {0, MXFP4KPerWarp * KFlatPerBlockPerIter});
             move_tile_window(scale_b_flat_dram_window, {0, ScaleKPerWarp * ScaleKFlatPerWarp});
 
+            // Prefill A(2i+1)
+            prefill_lds_a_stage2(a_copy_lds_window_pong);
+
+            // Prefetch A(2i+2)
+            prefill_lds_a_stage1(a_copy_lds_window_ping, a_copy_dram_window);
+            // move A window to next k
+            move_tile_window(a_copy_dram_window, {0, kKPerBlock});
+
             static_for<0, m_preload, 1>{}([&](auto loadIter) {
                 constexpr auto mIter = loadIter % MIterPerWarp;
                 constexpr auto kIter = loadIter / MIterPerWarp;
@@ -943,14 +960,6 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
                     b_warp_tensor_ping(nIter)(kIter) = ub.u;
                 });
             });
-            // Prefill A(2i+2)
-            prefill_lds_a_stage2(a_copy_lds_window_ping);
-
-            // Prefetch A(2i+3)
-            prefill_lds_a_stage1(a_copy_lds_window_pong, a_copy_dram_window);
-            // move A window to next k
-            move_tile_window(a_copy_dram_window, {0, kKPerBlock});
-
             // GEMM 2i+1
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
@@ -996,6 +1005,14 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
                     }
                 });
             });
+
+            // Prefill A(2i+2)
+            prefill_lds_a_stage2(a_copy_lds_window_ping);
+
+            // Prefetch A(2i+3)
+            prefill_lds_a_stage1(a_copy_lds_window_pong, a_copy_dram_window);
+            // move A window to next k
+            move_tile_window(a_copy_dram_window, {0, kKPerBlock});
 
             // move B window to next flat K
             move_tile_window(b_flat_dram_window, {0, MXFP4KPerWarp * KFlatPerBlockPerIter});
@@ -1058,9 +1075,6 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
                 }
             });
 
-            // Prefill A(loopK)
-            prefill_lds_a_stage2(a_copy_lds_window_pong);
-
             // GEMM loopK-1
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
@@ -1107,6 +1121,9 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
                     }
                 });
             });
+
+            // Prefill A(loopK)
+            prefill_lds_a_stage2(a_copy_lds_window_pong);
 
             static_for<0, m_preload, 1>{}([&](auto loadIter) {
                 constexpr auto mIter = loadIter % MIterPerWarp;
@@ -1240,6 +1257,26 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
                           scale_b_flat_window,
                           num_loop,
                           k_padded_zeros,
+                          p_smem_ping,
+                          p_smem_pong);
+    }
+
+    template <typename ADramBlockWindowTmp,
+              typename BFlatBlockWindowTmp,
+              typename DequantBFlatWindow>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
+                                   const DequantBFlatWindow& scale_b_flat_window,
+                                   const index_t num_loop,
+                                   void* p_smem_ping,
+                                   void* p_smem_pong) const
+    {
+        return operator()(a_dram_block_window_tmp,
+                          identity{},
+                          b_flat_dram_block_window_tmp,
+                          scale_b_flat_window,
+                          num_loop,
+                          0,
                           p_smem_ping,
                           p_smem_pong);
     }
