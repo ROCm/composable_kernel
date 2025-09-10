@@ -29,12 +29,10 @@ inline auto create_args(int argc, char* argv[])
         .insert("stride_b", "0", "The stride value for tensor B. Default is 0.")
         .insert("stride_c", "0", "The stride value for tensor C. Default is 0.")
         .insert("split_k", "1", "The split value for k dimension. Default is 1.")
-        .insert(
-            "verify",
-            "0",
-            "The type of validation. Set to 0 for no validation, 1 for validation on CPU, or 2 "
-            "for validation on GPU. Default is 0, no validation.") //[DELETE] it was 2 before is
-                                                                   // there a reason to have it as 0
+        .insert("verify",
+                "0",
+                "The type of validation. Set to 0 for no validation, 1 for validation on CPU, or 2 "
+                "for validation on GPU. Default is 0, no validation.")
         .insert("log",
                 "false",
                 "Whether output kernel instance information or not. Possible values are true or "
@@ -55,21 +53,14 @@ inline auto create_args(int argc, char* argv[])
                 "true",
                 "To flush cache, possible values are true or false. "
                 "Default is false.")
-        .insert(
-            "rotating_count",
-            "1000",
-            "number of iterations to rotate the cache. default is 5.") //[DELETE] it was 5 before is
-                                                                       // there a reason to have it
-                                                                       // as 1000
+        .insert("rotating_count", "1000", "number of iterations to rotate the cache. default is 5.")
         .insert("metric",
                 "0",
                 "Metric with which to measure kernel performance. Set to 0 for latency, 1 for "
                 "tflops, or 2 for bandwidth. Default is 0, latency.")
-        .insert(
-            "csv_filename",
-            "",
-            "The filename of benchmark result. Default is empty (no CSV output).") //[DELETE] it is
-                                                                                   // not specified
+        .insert("csv_filename",
+                "",
+                "The filename of benchmark result. Default is empty (no CSV output).")
         .insert("structured_sparsity",
                 "false",
                 "Whether use sparsity kernel or not. Possible values are true or false. Default is "

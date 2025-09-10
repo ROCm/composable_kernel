@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
-# [DELETE] CLEANUP THE ORDER OF THIS FILE
 """
 Validation utilities for GEMM kernel generation.
 Extracted from tile_engine_develop for consistency.
@@ -27,7 +26,7 @@ ELEMENT_SIZE_MAP = {
     "fp64": 8,
 }
 
-# [DELETE] Make sure no additional combinations are eligible
+# [TODO] Handle this while moving code to commons
 # Supported warp tile combinations for different GPU architectures and data types
 WARP_TILE_SUPPORTED_COMBINATIONS = {
     "gfx90a": {
@@ -345,7 +344,7 @@ def is_tile_config_valid(
     return True
 
 
-# [DELETE] Add more datatype to this function if needed
+# [TODO] Handle this while moving code to commons Add more datatype to this function if needed
 def get_dtype_string(datatype: str) -> str:
     """Get C++ type string for datatype"""
     dtype_map = {

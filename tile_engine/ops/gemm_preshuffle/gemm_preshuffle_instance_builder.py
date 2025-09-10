@@ -36,8 +36,8 @@ class GemmPreshuffleKernelBuilder:
             )
             self.config = self._get_default_config()
 
-    # [DELETE] Currently only support fp16 and fp8 needs to add more
-    # [DELETE] Add this into commons
+    # [TODO] Currently only support fp16 and fp8 needs to add more datatype support
+    # [TODO] Add this into commons
     def _get_default_config(self):
         """Return default configuration if no config file is provided"""
         # Define base tile configurations that work for all layouts
@@ -114,7 +114,7 @@ class GemmPreshuffleKernelBuilder:
             "padding": {"pad_m": ["false"], "pad_n": ["false"], "pad_k": ["false"]},
             "persistent": ["false"],
             "tunable_params": {
-                "kBlockPerCu": 2,  # [DELETE] Address this later
+                "kBlockPerCu": 2,
             },
         }
 
@@ -243,7 +243,7 @@ class GemmPreshuffleKernelBuilder:
             # Fallback to default
             return []
 
-    def _generate_trait_combinations(self):  # [DELETE] Look into the function name
+    def _generate_trait_combinations(self):
         """Generate all combinations of traits"""
         if "traits" in self.config:
             # Old format
@@ -409,21 +409,18 @@ class GemmPreshuffleKernelBuilder:
 
         kernel_name += f"_{tile_str}"
 
-        # [DELETE] Update this
         # Map pipeline names to the correct pipeline implementation
         pipeline_impl_map = {
             "preshufflev1": "ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV1",
             "preshufflev2": "ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2",
         }
 
-        # [DELETE] Update this
         # Map pipeline names to base pipeline for hot loop detection
         base_pipeline_map = {
             "preshufflev1": "ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV1",
             "preshufflev2": "ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2",
         }
 
-        # [DELETE] Update this
         # Map scheduler names to the correct enum values
         scheduler_type_map = {
             "intrawave": "ck_tile::GemmPipelineScheduler::Intrawave",
@@ -433,9 +430,6 @@ class GemmPreshuffleKernelBuilder:
 
         # Determine accumulator type based on datatype
         acc_type = "float"
-        # [DELETE] This this if statement as we are not supporting it in Preshuffle check if type is correct in GEMM
-        if self.datatype in ["int8", "int4"]:
-            acc_type = "ck_tile::int32_t"
 
         # Determine output type
         c_type = get_dtype_string(self.datatype)
@@ -624,7 +618,7 @@ struct SelectedKernel {{
             }}
             
             // Launch kernel
-            constexpr int kBlockPerCu = 1; //[DELETE] Make this tunable later
+            constexpr int kBlockPerCu = 1;
             ave_time = ck_tile::launch_kernel(
                 stream,
                 ck_tile::make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
@@ -837,8 +831,20 @@ def main():
 
     args = parser.parse_args()
 
-    # [DELETE] Add Validation for datatype and layout here for supported types if no values are given default it to values
-    # validation()
+    assert args.datatype in ["fp16", "bf16", "fp8", "bf8"], (
+        f"Invalid datatype string: {args.datatype} (supported datatypes are [fp16, bf16, fp8, and bf8])"
+    )
+
+    layout_parts = args.layout.lower()
+    assert len(layout_parts) == 3, (
+        f"Invalid layout string: {args.layout} (must be 3 characters like 'rcr' where r stands for row major and c stands for column major)"
+    )
+    assert layout_parts[0] == "r" and layout_parts[1] == "c", (
+        f"Invalid matrix_a layout : {layout_parts[0]} or matrix_b layout: {layout_parts[1]} (matrix_a must be 'r' for row major and matrix_b must be 'c' for column major as it is the only supported layout for preshuffle)"
+    )
+    assert layout_parts[2] == "r", (
+        f"Invalid matrix_c layout: {layout_parts[2]} (must be 'r' only as currently we are supporting only row major)"
+    )
 
     # Create builder
     builder = GemmPreshuffleKernelBuilder(
@@ -850,9 +856,6 @@ def main():
         builder.write_kernel_list()
         pass
     elif args.gen_single:
-        # [DELETE] Add how to run this in read me and in GEMM operator
-        # [DELETE] Add validation that config file should not be given
-        # [DELETE] See how you can give tunable parameter
         # Generate a single kernel file
         if not args.kernel_name or not args.tile_config or not args.trait_combo:
             parser.error(

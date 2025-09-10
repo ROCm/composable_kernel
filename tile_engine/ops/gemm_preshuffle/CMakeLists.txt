@@ -272,7 +272,7 @@ else()
     # These are common trait components used across all GEMM kernels
     set(GEMM_PRESHUFFLE_PIPELINES "preshufflev1;preshufflev2")
     set(GEMM_PRESHUFFLE_EPILOGUES "default;cshuffle")
-    set(GEMM_PRESHUFFLE_SCHEDULERS "intrawave;interwave") #[DELETE] if default is added it creates an error due to naming convention
+    set(GEMM_PRESHUFFLE_SCHEDULERS "intrawave;interwave") 
 
     foreach(pipeline IN LISTS GEMM_PRESHUFFLE_PIPELINES)
         add_custom_target(benchmark_gemm_preshuffle_${pipeline})

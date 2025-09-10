@@ -9,7 +9,7 @@
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/pk_int4.hpp"
 
-//[DELETE] This can be moved to commons
+//[TODO] This can be moved to commons
 // DataTypeTraits for all supported types
 template <typename T>
 struct DataTypeTraits;

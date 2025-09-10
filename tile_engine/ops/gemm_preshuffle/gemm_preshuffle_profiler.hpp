@@ -2,7 +2,7 @@
 
 #include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "benchmark_gemm_preshuffle.hpp" //[DELETE] rename this file, follow a naming convention
+#include "benchmark_gemm_preshuffle.hpp"
 
 class GemmProfiler
 {

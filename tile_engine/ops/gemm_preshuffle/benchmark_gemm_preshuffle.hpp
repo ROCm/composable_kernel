@@ -4,7 +4,7 @@
 #include "ck_tile/host.hpp"
 #include "gemm_preshuffle_common.hpp"
 
-//[DELETE] A lot of parts of this code can be moved to commons.hpp
+//[TODO] Move parts of this File to commons
 enum class Metric
 {
     LATENCY   = 0,
