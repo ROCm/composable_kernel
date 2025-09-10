@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "fmha_bwd.hpp"
+#pragma once
+
 #include "ck_tile/host.hpp"
-#include "mask.hpp"
+#include "fmha_bwd.hpp"
 #include "utils.hpp"
 #include "ck_tile/utility/json_dump.hpp"
 
@@ -17,91 +18,13 @@
 #include <utility>
 #include <vector>
 
-template <typename T>
-std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
+enum class bwd_result
 {
-    using size_type = typename std::vector<T>::size_type;
-
-    os << "[";
-    for(size_type idx = 0; idx < v.size(); ++idx)
-    {
-        if(0 < idx)
-        {
-            os << ", ";
-        }
-        os << v[idx];
-    }
-    return os << "]";
-}
-
-auto create_args(int argc, char* argv[])
-{
-    ck_tile::ArgParser arg_parser;
-    arg_parser.insert("v", "1", "weather do CPU validation or not")
-        .insert("mode", "0", "kernel mode. 0:batch, 1:group")
-        .insert("b", "2", "batch size")
-        .insert("h", "8", "num of head, for q")
-        .insert("h_k",
-                "-1",
-                "num of head, for k/v, -1 means equal to h\n"
-                "if not equal to h, then this is GQA/MQA case")
-        .insert("s",
-                "3328",
-                "seqlen_q. if group-mode, means the average value of seqlen_q\n"
-                "total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary")
-        .insert("s_k", "-1", "seqlen_k, -1 means equal to s")
-        .insert("d", "128", "head dim for q, k")
-        .insert("d_v", "-1", "head dim for v, -1 means equal to d")
-        .insert("scale", "0", "scale factor. 0 means equal to 1/sqrt(hdim)")
-        .insert("iperm",
-                "1",
-                "permute input\n"
-                "if true, will be b*h*s*d, else b*s*h*d")
-        .insert("operm", "1", "permute output")
-        .insert("bias",
-                "n",
-                "n or 0, no bias\n"
-                "e(lementwise) or 1, elementwise bias with 1*1*s*s. e:1, 1*h*s*s. e:2, b*h*s*s\n"
-                "a(libi) or 2, alibi with 1*h. a:1, b*h")
-        .insert("dbias", "0", "output bias gradient or not")
-        .insert("prec", "fp16", "data type. fp16 or bf16")
-        .insert("mask",
-                "0",
-                "0: no mask, 1: top-left(same as 't'), 2:bottom-right(same as 'b')\n"
-                "'t', top-left causal mask, 'b', bottom-r causal mask\n"
-                "'t:l,r', top-left sliding window attn(swa) with FA style left right size\n"
-                "'b:l,r', bottom-r sliding window attn(swa) with FA style left right size\n"
-                "'xt:window_size', xformer style masking from top-left, window_size negative is "
-                "causal, positive is swa\n"
-                "'xb:window_size', xformer style masking from bottom-r, window_size negative is "
-                "causal, positive is swa\n"
-                "'g:y,x', generic attention mask coordinate with y/x size (only debug purpose for "
-                "now)")
-        .insert("kname", "0", "if set to 1 will print kernel name")
-        .insert("init", "1", "init method. 0:random int, 1:random float, 2:trig float")
-        .insert("seed",
-                "11939",
-                "random seed used for initializing input tensors. 0 for "
-                "non-deterministic seed")
-        .insert("p_drop", "0", "0~1 probability of dropout")
-        .insert("drop_seed", "1", "seed for random number generator")
-        .insert("drop_offset", "0", "offset for random number generator")
-        .insert("drop_prefs",
-                "0",
-                "seed and offset values are present on GPU; 0 - host, 1 - device/GPU")
-        .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
-        .insert("warmup", "5", "number of iterations before benchmark the kernel")
-        .insert("repeat", "20", "number of iterations to benchmark the kernel")
-        .insert("deterministic",
-                "0",
-                "if set to 1 will use multi-buffer reduction strategy for dq, atomic opeartion "
-                "will not be used")
-        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
-        .insert("jsonfile", "fmha_bwd.json", "json file name to dump results");
-
-    bool result = arg_parser.parse(argc, argv);
-    return std::make_tuple(result, arg_parser);
-}
+    success,
+    failure,
+    invalid_args,
+    no_instance,
+};
 
 // different threshold for different dtype
 template <typename DataTypeConfig>
@@ -125,57 +48,82 @@ auto get_elimit<FmhaBwdBf16>(ck_tile::index_t hdim_q, ck_tile::index_t hdim_v)
     return ck_tile::make_tuple(rtol, atol);
 }
 
+extern template float fmha_bwd<2>(fmha_bwd_traits, fmha_bwd_args, const ck_tile::stream_config&);
+
 template <typename DataTypeConfig>
-bool run(const ck_tile::ArgParser& arg_parser)
+bwd_result fmha_bwd_run(mode_enum mode,
+                        ck_tile::index_t batch,
+                        ck_tile::index_t nhead,
+                        ck_tile::index_t nhead_k,
+                        std::vector<ck_tile::index_t> seqlen_qs,
+                        std::vector<ck_tile::index_t> seqlen_ks,
+                        ck_tile::index_t hdim_q,
+                        ck_tile::index_t hdim_v,
+                        bool i_perm,
+                        bool o_perm,
+                        float scale,
+                        std::string bias_str,
+                        bool use_dbias,
+                        float p_drop,
+                        uint64_t drop_seed,
+                        uint64_t drop_offset,
+                        bool drop_prefs,
+                        std::string mask_str,
+                        bool deterministic,
+                        std::string init_method,
+                        uint32_t seed,
+                        int do_validation,
+                        const ck_tile::stream_config& stream_config,
+                        std::optional<std::string> json = std::nullopt)
 {
-    std::string data_type    = arg_parser.get_str("prec");
-    int do_validation        = arg_parser.get_int("v");
-    auto mode                = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
-    ck_tile::index_t batch   = arg_parser.get_int("b");
-    ck_tile::index_t nhead   = arg_parser.get_int("h");
-    ck_tile::index_t nhead_k = arg_parser.get_int("h_k");
+    const std::string data_type = []() {
+        if constexpr(std::is_same_v<DataTypeConfig, FmhaBwdFp16>)
+            return "fp16";
+        else if constexpr(std::is_same_v<DataTypeConfig, FmhaBwdBf16>)
+            return "bf16";
+        else
+            static_assert(false);
+    }();
+
     if(nhead_k < 0)
         nhead_k = nhead;
-
     if(nhead % nhead_k != 0)
     {
         std::cerr << "nhead:" << nhead << " must be multiple of nhead_k:" << nhead_k << std::endl;
-        return false;
+        return bwd_result::invalid_args;
     }
 
-    ck_tile::index_t seqlen_q = arg_parser.get_int("s");
-    ck_tile::index_t seqlen_k = arg_parser.get_int("s_k");
-    if(seqlen_k < 0)
-        seqlen_k = seqlen_q;
-    ck_tile::index_t hdim_q = arg_parser.get_int("d");
-    ck_tile::index_t hdim_v = arg_parser.get_int("d_v");
+    std::mt19937 random_engine(seed != 0 ? seed : std::random_device{}());
+    auto next_seed = [&random_engine]() { return static_cast<unsigned int>(random_engine()); };
+
     if(hdim_v < 0)
         hdim_v = hdim_q;
 
-    bool i_perm = arg_parser.get_bool("iperm"); // if true, will be batch * nhead * seqlen * hdim
-    bool o_perm = arg_parser.get_bool("operm"); // if false, will be batch * seqlen * nhead * hdim
-
-    float scale = arg_parser.get_float("scale");
     if(scale == .0f)
         scale = 1.0 / ck_tile::sqrt(static_cast<float>(hdim_q));
 
-    bias_info bias       = bias_info::decode(arg_parser.get_str("bias"));
-    bool use_dbias       = arg_parser.get_bool("dbias");
-    float p_drop         = arg_parser.get_float("p_drop");
-    uint64_t drop_seed   = arg_parser.get_uint64("drop_seed");
-    uint64_t drop_offset = arg_parser.get_uint64("drop_offset");
-    bool drop_prefs      = arg_parser.get_bool("drop_prefs");
+    bias_info bias = bias_info::decode(bias_str);
 
     if(use_dbias && bias.type != bias_enum::elementwise_bias)
     {
         std::cerr << "dbias only exists when bias type is elementwise" << std::endl;
-        return false;
+        return bwd_result::invalid_args;
     }
+    std::vector<ck_tile::index_t> seqlen_kpads;
+    std::tie(seqlen_qs, seqlen_ks, seqlen_kpads) =
+        generate_missing_seqlens(mode, batch, seqlen_qs, seqlen_ks, {}, 0, false, random_engine);
+    ck_tile::ignore = seqlen_kpads;
+#if 0
+    std::cout << "seqlen_qs: " << seqlen_qs << std::endl;
+    std::cout << "seqlen_ks: " << seqlen_ks << std::endl;
+#endif
+
+    mask_info mask = mask_info::decode(mask_str, seqlen_qs[0], seqlen_ks[0]);
 
     if(p_drop < 0.0f || p_drop > 1.0f)
     {
         std::cerr << "The value of p_drop should be 0~1" << std::endl;
-        return false;
+        return bwd_result::invalid_args;
     }
     float p_undrop = 1.0 - p_drop;
     uint8_t p_undrop_in_uint8_t =
@@ -188,29 +136,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         s_randval = true;
     }
 
-    mask_info mask = mask_info::decode(arg_parser.get_str("mask"), seqlen_q, seqlen_k);
-
-    int init_method              = arg_parser.get_int("init");
-    std::optional<uint32_t> seed = arg_parser.get_uint32("seed");
-    if(*seed == 0)
-    {
-        seed.reset();
-    }
-
-    int stream_warmup  = arg_parser.get_int("warmup");
-    int stream_repeat  = arg_parser.get_int("repeat");
-    bool kname         = arg_parser.get_bool("kname");
-    bool deterministic = arg_parser.get_bool("deterministic");
-
-    ck_tile::stream_config stream_config{nullptr,
-                                         true,
-                                         /* log_level = */ (kname ? 1 : 0),
-                                         stream_warmup,
-                                         stream_repeat,
-                                         arg_parser.get_str("timer") == std::string("gpu")};
-
-    const auto seqstart_q_host = generate_seqstarts(mode, batch, seqlen_q);
-    const auto seqstart_k_host = generate_seqstarts(mode, batch, seqlen_k);
+    const auto seqstart_q_host = to_seqstarts(seqlen_qs);
+    const auto seqstart_k_host = to_seqstarts(seqlen_ks);
 
     using TypeConfig = FmhaBwdTypeConfig<DataTypeConfig>;
 
@@ -283,10 +210,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // host memory for storing all the tensor elements
     const ck_tile::index_t shape_batch = (mode == mode_enum::batch ? batch : 1);
     const ck_tile::index_t shape_seqlen_q =
-        (mode == mode_enum::batch ? seqlen_q : seqstart_q_host.back());
+        (mode == mode_enum::batch ? seqlen_qs[0] : seqstart_q_host.back());
     const ck_tile::index_t shape_seqlen_k =
-        (mode == mode_enum::batch ? seqlen_k : seqstart_k_host.back());
-    const ck_tile::index_t kN0 = (hdim_q <= 128) ? 128 : 64;
+        (mode == mode_enum::batch ? seqlen_ks[0] : seqstart_k_host.back());
+    // Keep it equal to or smaller than minimal bn0 of all tiles in fmha_bwd.py
+    // TODO: add API for requesting kN0/nsplits/workspace_size? It is not safe to rely on internal
+    // implementation details in client code.
+    const ck_tile::index_t kN0 = 16;
     const ck_tile::index_t nsplits =
         deterministic ? ck_tile::integer_divide_ceil(max_seqlen_k, kN0) : 1;
 
@@ -331,23 +261,25 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ? std::array<ck_tile::index_t, 5>{nsplits, shape_batch, nhead, shape_seqlen_q, hdim_q}
             : std::array<ck_tile::index_t, 5>{nsplits, shape_batch, shape_seqlen_q, nhead, hdim_q});
 
-    if(init_method == 0)
+    if(init_method == "ui" || init_method == "0")
     {
-        ck_tile::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f, seed}(q_host);
-        ck_tile::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f, seed}(k_host);
-        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f, seed}(v_host);
-        ck_tile::FillUniformDistributionIntegerValue<BiasDataType>{-2.f, 2.f, seed}(bias_host);
-        ck_tile::FillUniformDistributionIntegerValue<OGradDataType>{-2.f, 2.f, seed}(do_host);
+        ck_tile::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f, next_seed()}(q_host);
+        ck_tile::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f, next_seed()}(k_host);
+        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f, next_seed()}(v_host);
+        ck_tile::FillUniformDistributionIntegerValue<BiasDataType>{-2.f, 2.f, next_seed()}(
+            bias_host);
+        ck_tile::FillUniformDistributionIntegerValue<OGradDataType>{-2.f, 2.f, next_seed()}(
+            do_host);
     }
-    else if(init_method == 1)
+    else if(init_method == "uf" || init_method == "1")
     {
-        ck_tile::FillUniformDistribution<QDataType>{0.f, 1.f, seed}(q_host);
-        ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(k_host);
-        ck_tile::FillUniformDistribution<VDataType>{0.f, 1.f, seed}(v_host);
-        ck_tile::FillUniformDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
-        ck_tile::FillUniformDistribution<OGradDataType>{0.f, 1.f, seed}(do_host);
+        ck_tile::FillUniformDistribution<QDataType>{0.f, 1.f, next_seed()}(q_host);
+        ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, next_seed()}(k_host);
+        ck_tile::FillUniformDistribution<VDataType>{0.f, 1.f, next_seed()}(v_host);
+        ck_tile::FillUniformDistribution<BiasDataType>{0.f, 1.f, next_seed()}(bias_host);
+        ck_tile::FillUniformDistribution<OGradDataType>{0.f, 1.f, next_seed()}(do_host);
     }
-    else if(init_method == 2)
+    else if(init_method == "tf" || init_method == "2")
     {
         ck_tile::FillTrigValue<QDataType>{}(q_host);
         ck_tile::FillTrigValue<KDataType>{}(k_host);
@@ -355,6 +287,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::FillTrigValue<BiasDataType>{}(bias_host);
         ck_tile::FillTrigValue<OGradDataType>{}(do_host);
     }
+    else
+    {
+        std::cerr << "Unknown value for init argument: " << init_method << std::endl;
+        return bwd_result::invalid_args;
+    }
+
     if(bias.type == bias_enum::alibi)
     {
         auto slopes = ck_tile::get_alibi_slopes<AccDataType>(nhead);
@@ -415,22 +353,19 @@ bool run(const ck_tile::ArgParser& arg_parser)
         else return layout_str(iperm_) + std::string("-") + layout_str(operm_);
     };
     // clang-format on
-    const std::string prec = arg_parser.get_str("prec");
 
-    std::cout << "[" << prec << "|" << mode << "|" << io_layout(i_perm, o_perm) << "] b:" << batch
-              << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_q << "/" << seqlen_k
-              << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale << ", bias:" << bias
-              << ", dbias:" << use_dbias << ", p_drop:" << p_drop << ", s_randval:" << s_randval
-              << ", deterministic:" << deterministic << ", mask:" << mask << std::flush;
+    const std::size_t workspace_size_in_megabytes =
+        ck_tile::integer_divide_ceil(dq_acc_host.get_element_space_size_in_bytes(), 1024 * 1024);
 
-    std::size_t workspace_size =
-        dq_acc_host.get_element_space_size_in_bytes() * sizeof(AccDataType) / (1024 * 1024);
-
-    if(deterministic == 1)
-    {
-        std::cout << "\nDeterministic mode ON: " << workspace_size
-                  << " MByte memory workspace allocated" << std::endl;
-    }
+    std::cout << "[" << data_type << "|" << mode << "|" << io_layout(i_perm, o_perm)
+              << "] b:" << batch << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_qs[0]
+              << "/" << seqlen_ks[0] << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale
+              << ", bias:" << bias << ", dbias:" << use_dbias << ", p_drop:" << p_drop
+              << ", s_randval:" << s_randval << ", deterministic:" << deterministic
+              << (deterministic ? std::string(", workspace:") +
+                                      std::to_string(workspace_size_in_megabytes) + "MiB"
+                                : "")
+              << ", mask:" << mask << std::flush;
 
     auto fmha_traits = fmha_bwd_traits{hdim_q,
                                        hdim_v,
@@ -443,7 +378,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        s_randval,
                                        deterministic};
     auto fmha_args   = [&]() {
-        assert(nhead % nhead_k == 0);
         /// NOTE: we broadcast bias from [1, 1, seqlen_q, seqlen_k] to [batch, nhead, seqlen_q,
         ///       seqlen_k] in this example, hence both the 'batch_stride_bias' &
         ///       'nhead_stride_bias' are 0.
@@ -572,20 +506,21 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              drop_seed_offset};
     }();
 
-    float ave_time = fmha_bwd(fmha_traits, fmha_args, stream_config);
+    const float ave_time = fmha_bwd(fmha_traits, fmha_args, stream_config);
     if(ave_time < 0)
     {
         std::cout << ", not supported yet" << std::flush << std::endl;
-        return false;
+        return bwd_result::no_instance;
     }
 
-    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
-
-    float gb_per_sec = num_byte / 1.E6 / ave_time;
-
-    std::cout << std::fixed << ", " << std::setprecision(3) << ave_time << " ms, "
-              << std::setprecision(2) << tflops << " TFlops, " << std::setprecision(2) << gb_per_sec
-              << " GB/s" << std::flush;
+    const float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
+    const float gb_per_sec = num_byte / 1.E6 / ave_time;
+    if(stream_config.time_kernel_)
+    {
+        std::cout << std::fixed << ", " << std::setprecision(3) << ave_time << " ms, "
+                  << std::setprecision(2) << tflops << " TFlops, " << std::setprecision(2)
+                  << gb_per_sec << " GB/s" << std::flush;
+    }
 
     bool pass = true;
     if(!do_validation)
@@ -635,17 +570,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ck_tile::index_t nr = nhead / nhead_k;
 
             // clang-format off
-        // permute
-        if(i_perm) q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b, i[0], i[1] + query_offset, i[2]); });
-        else       q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b, i[1] + query_offset, i[0], i[2]); });
+            // permute
+            if(i_perm) q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b, i[0], i[1] + query_offset, i[2]); });
+            else       q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b, i[1] + query_offset, i[0], i[2]); });
 
-        if(i_perm) k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b, i[0] / nr, i[1] + key_offset, i[2]); });
-        else       k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b, i[1] + key_offset, i[0] / nr, i[2]); });
+            if(i_perm) k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b, i[0] / nr, i[1] + key_offset, i[2]); });
+            else       k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b, i[1] + key_offset, i[0] / nr, i[2]); });
 
-        // v_host_ref: [nhead, hdim, seq], v_host: [b, h_k, s, d]
-        if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b, i[0] / nr, i[2] + key_offset, i[1]); });
-        // v_host_ref: [nhead, hdim, seq], v_host: [b, s, h_k, d]
-        else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b, i[2] + key_offset, i[0] / nr, i[1]); });
+            // v_host_ref: [nhead, hdim, seq], v_host: [b, h_k, s, d]
+            if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b, i[0] / nr, i[2] + key_offset, i[1]); });
+            // v_host_ref: [nhead, hdim, seq], v_host: [b, s, h_k, d]
+            else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b, i[2] + key_offset, i[0] / nr, i[1]); });
             // clang-format on
 
             // reference
@@ -760,18 +695,40 @@ bool run(const ck_tile::ArgParser& arg_parser)
                             real_seqlen_k,
                             mask.type == mask_enum::mask_top_left));
             }
+            const ck_tile::HostTensor<AccDataType> masked_s_host_ref = s_host_ref;
             ck_tile::reference_batched_softmax<AccDataType, LSEDataType, AccDataType>(
                 s_host_ref, p_hp_host_ref, ck_tile::identity{}, lse_host_ref);
 
             if(p_drop > 0)
             {
                 p_dropped_hp_host_ref = p_hp_host_ref;
-                randval_host_ref.ForEach([&](auto& self, auto idx) {
-                    self(idx) = randval_host(b, idx[0], idx[1] + query_offset, idx[2]);
-                });
+                ck_tile::reference_batched_dropout_randval(
+                    randval_host_ref, wb, drop_seed, drop_offset);
                 ck_tile::reference_batched_dropout(
                     p_dropped_hp_host_ref, randval_host_ref, p_undrop_in_uint8_t, rp_undrop);
                 p_lp_host_ref = p_dropped_hp_host_ref.template CopyAsType<GemmDataType>();
+
+                ck_tile::HostTensor<RandValOutputDataType> randval_host_result(
+                    {nhead, real_seqlen_q, real_seqlen_k});
+                randval_host_result.ForEach([&](auto& self, const auto& idx) {
+                    self(idx) = randval_host(b, idx[0], idx[1] + query_offset, idx[2]);
+                });
+                masked_s_host_ref.ForEach([&](const auto& self, const auto& idx) {
+                    // Ignore all masked values in validation check
+                    if(std::isinf(self(idx)))
+                    {
+                        randval_host_ref(idx)    = 0;
+                        randval_host_result(idx) = 0;
+                    }
+                });
+                bool cur_pass = ck_tile::check_err(randval_host_result,
+                                                   randval_host_ref,
+                                                   "DROPOUT RANDVAL Error: Incorrect results!");
+                pass &= cur_pass;
+                if(!cur_pass)
+                {
+                    break;
+                }
             }
             else
             {
@@ -783,11 +740,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 p_lp_host_ref, v_host_ref, o_host_ref); // o_g_m_o = p_lp_g_m_n@v_g_o_n
 
             // clang-format off
-        // permute
-        if(o_perm) o_host_ref.ForEach([&](auto& self, auto idx) { o_host(b, idx[0], idx[1] + query_offset, idx[2]) = self(idx); });
-        else       o_host_ref.ForEach([&](auto& self, auto idx) { o_host(b, idx[1] + query_offset, idx[0], idx[2]) = self(idx); });
+            // permute
+            if(o_perm) o_host_ref.ForEach([&](auto& self, auto idx) { o_host(b, idx[0], idx[1] + query_offset, idx[2]) = self(idx); });
+            else       o_host_ref.ForEach([&](auto& self, auto idx) { o_host(b, idx[1] + query_offset, idx[0], idx[2]) = self(idx); });
 
-        lse_host_ref.ForEach([&](auto& self, auto idx) { lse_host(b, idx[0], idx[1] + query_offset) = self(idx); });
+            lse_host_ref.ForEach([&](auto& self, auto idx) { lse_host(b, idx[0], idx[1] + query_offset) = self(idx); });
             // clang-format on
 
             q_host_refs.push_back(q_host_ref);
@@ -816,8 +773,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         dbias_buf.SetZero();
         dq_acc_buf.SetZero();
 
-        ck_tile::stream_config stream_config_v{
-            nullptr, true, 0, 0, 1, arg_parser.get_str("timer") == std::string("gpu")};
+        ck_tile::stream_config stream_config_v{nullptr, true, 0, 0, 1};
         fmha_bwd(fmha_traits, fmha_args, stream_config_v);
 
         dq_buf.FromDevice(dq_host.data());
@@ -855,8 +811,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 {nhead, real_seqlen_k, hdim_v}); // dv_g_n_o
 
             // clang-format off
-        if(o_perm) do_host_ref.ForEach([&](auto& self, auto i) { self(i) = do_host(b, i[0], i[1] + query_offset, i[2]); });
-        else       do_host_ref.ForEach([&](auto& self, auto i) { self(i) = do_host(b, i[1] + query_offset, i[0], i[2]); });
+            if(o_perm) do_host_ref.ForEach([&](auto& self, auto i) { self(i) = do_host(b, i[0], i[1] + query_offset, i[2]); });
+            else       do_host_ref.ForEach([&](auto& self, auto i) { self(i) = do_host(b, i[1] + query_offset, i[0], i[2]); });
             // clang-format on
 
             // dP = dO@V x Z w/  dropout
@@ -934,21 +890,21 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 {nhead, real_seqlen_q, real_seqlen_k}); // dbias_g_m_n
 
             // clang-format off
-        // permute
-        if(i_perm) dq_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dq_host(b, idx[0], idx[1] + query_offset, idx[2]); });
-        else       dq_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dq_host(b, idx[1] + query_offset, idx[0], idx[2]); });
+            // permute
+            if(i_perm) dq_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dq_host(b, idx[0], idx[1] + query_offset, idx[2]); });
+            else       dq_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dq_host(b, idx[1] + query_offset, idx[0], idx[2]); });
 
-        if(i_perm) dk_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dk_host(b, idx[0], idx[1] + key_offset, idx[2]); });
-        else       dk_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dk_host(b, idx[1] + key_offset, idx[0], idx[2]); });
+            if(i_perm) dk_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dk_host(b, idx[0], idx[1] + key_offset, idx[2]); });
+            else       dk_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dk_host(b, idx[1] + key_offset, idx[0], idx[2]); });
 
-        if(i_perm) dv_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dv_host(b, idx[0], idx[1] + key_offset, idx[2]); });
-        else       dv_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dv_host(b, idx[1] + key_offset, idx[0], idx[2]); });
+            if(i_perm) dv_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dv_host(b, idx[0], idx[1] + key_offset, idx[2]); });
+            else       dv_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dv_host(b, idx[1] + key_offset, idx[0], idx[2]); });
 
-        if(use_dbias)
-        {
-            if(i_perm) dbias_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dbias_host(b, idx[0], idx[1] + query_offset, idx[2]); });
-            else       dbias_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dbias_host(b, idx[1] + query_offset, idx[0], idx[2]); });
-        }
+            if(use_dbias)
+            {
+                if(i_perm) dbias_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dbias_host(b, idx[0], idx[1] + query_offset, idx[2]); });
+                else       dbias_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dbias_host(b, idx[1] + query_offset, idx[0], idx[2]); });
+            }
             // clang-format on
 
             auto [rtol, atol] = get_elimit<DataTypeConfig>(hdim_q, hdim_v);
@@ -994,10 +950,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
         std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
     }
 
-    if(arg_parser.get_int("json") == 1)
+    if(json)
     {
         dump_fmha_bwd_json_results(
-            arg_parser.get_str("jsonfile"),
+            *json,
             data_type,
             mode == mode_enum::batch ? "batch" : "group",
             i_perm ? "true" : "false",
@@ -1005,8 +961,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
             batch,
             nhead,
             nhead_k,
-            seqlen_q,
-            seqlen_k,
+            seqlen_qs[0],
+            seqlen_ks[0],
             hdim_q,
             hdim_v,
             scale,
@@ -1027,30 +983,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                                            : "mask_generic"))),
             mask.left,
             mask.right,
-            workspace_size,
+            workspace_size_in_megabytes,
             pass,
             ave_time,
             tflops,
             gb_per_sec);
     }
-    return pass;
-}
 
-int main(int argc, char* argv[])
-{
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
-        return -1;
-
-    const std::string data_type = arg_parser.get_str("prec");
-    if(data_type == "fp16")
-    {
-        return run<FmhaBwdFp16>(arg_parser) ? 0 : -2;
-    }
-    else if(data_type == "bf16")
-    {
-        return run<FmhaBwdBf16>(arg_parser) ? 0 : -2;
-    }
-
-    return -3;
+    return pass ? bwd_result::success : bwd_result::failure;
 }

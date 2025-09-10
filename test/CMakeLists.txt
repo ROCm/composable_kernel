@@ -38,6 +38,11 @@ set(REGRESSION_TESTS
     test_conv_tensor_rearrange
     test_gemm_mx
     test_ck_tile_batched_transpose
+    test_ck_tile_fmha_bwd_bf16
+    test_ck_tile_fmha_bwd_fp16
+    test_ck_tile_fmha_fwd_bf16
+    test_ck_tile_fmha_fwd_fp16
+    test_ck_tile_fmha_fwd_fp8
 )
 
 function(add_test_executable TEST_NAME)
