@@ -197,7 +197,9 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
         }
     }
 
-    template <typename AsDramBlockWindowTmp, typename BsFlatBlockWindowTmp, typename AElementFunction>
+    template <typename AsDramBlockWindowTmp,
+              typename BsFlatBlockWindowTmp,
+              typename AElementFunction>
     CK_TILE_DEVICE auto operator()(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
                                    const AElementFunction& a_element_func,
                                    const BsFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
