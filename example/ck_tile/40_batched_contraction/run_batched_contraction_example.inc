@@ -45,13 +45,13 @@ float invoke_batched_contraction(ck_tile::DeviceMem& a_m_k_dev_buf,
                                  ck_tile::index_t M,
                                  ck_tile::index_t N,
                                  ck_tile::index_t K,
-                                 ck_tile::index_t G,
+                                 const std::vector<ck_tile::index_t>& G_lengths,
                                  ck_tile::index_t stride_A,
                                  ck_tile::index_t stride_B,
                                  ck_tile::index_t stride_E,
-                                 ck_tile::index_t batch_stride_A,
-                                 ck_tile::index_t batch_stride_B,
-                                 ck_tile::index_t batch_stride_E,
+                                 const std::vector<ck_tile::index_t>& batch_strides_A,
+                                 const std::vector<ck_tile::index_t>& batch_strides_B,
+                                 const std::vector<ck_tile::index_t>& batch_strides_E,
                                  ck_tile::index_t kbatch,
                                  int n_warmup,
                                  int n_repeat)
@@ -65,15 +65,15 @@ float invoke_batched_contraction(ck_tile::DeviceMem& a_m_k_dev_buf,
         M,                               // M
         N,                               // N
         K,                               // K
-        G,                               // G (batch dimension)
+        G_lengths,                       // G (G dimensions)
         stride_A,                        // stride_A
         stride_B,                        // stride_B
         {},                              // stride_Ds (empty)
         stride_E,                        // stride_E
-        batch_stride_A,                  // batch_stride_A
-        batch_stride_B,                  // batch_stride_B
-        {},                              // batch_stride_Ds (empty)
-        batch_stride_E                   // batch_stride_E
+        batch_strides_A,                 // batch_strides_A
+        batch_strides_B,                 // batch_strides_B
+        {},                              // batch_strides_Ds (empty)
+        batch_strides_E                  // batch_strides_E
     };
 
     float ave_time = batched_contraction<ADataType,
@@ -106,15 +106,14 @@ int run_batched_contraction_example_with_layouts(
     ck_tile::index_t M = arg_parser.get_int("m");
     ck_tile::index_t N = arg_parser.get_int("n");
     ck_tile::index_t K = arg_parser.get_int("k");
-    ck_tile::index_t G = arg_parser.get_int("g");
+
+    std::string g_dims_str               = arg_parser.get_str("g_dims");
+    std::vector<ck_tile::index_t> G_dims = parse_g_dimensions(g_dims_str);
+    ck_tile::index_t total_G             = calculate_total_g(G_dims);
 
     ck_tile::index_t stride_A = arg_parser.get_int("stride_a");
     ck_tile::index_t stride_B = arg_parser.get_int("stride_b");
     ck_tile::index_t stride_E = arg_parser.get_int("stride_e");
-
-    ck_tile::index_t batch_stride_A = arg_parser.get_int("batch_stride_a");
-    ck_tile::index_t batch_stride_B = arg_parser.get_int("batch_stride_b");
-    ck_tile::index_t batch_stride_E = arg_parser.get_int("batch_stride_e");
 
     ck_tile::index_t kbatch = arg_parser.get_int("split_k");
 
@@ -123,21 +122,21 @@ int run_batched_contraction_example_with_layouts(
 
     using namespace ck_tile::literals;
 
-    auto f_host_tensor_descriptor = [](std::size_t g,
-                                       std::size_t row,
-                                       std::size_t col,
-                                       std::size_t stride,
-                                       std::size_t batch_stride,
-                                       auto layout) {
-        if constexpr(std::is_same_v<decltype(layout), ck_tile::tensor_layout::gemm::RowMajor>)
-        {
-            return ck_tile::HostTensorDescriptor({g, row, col}, {batch_stride, stride, 1_uz});
-        }
-        else
-        {
-            return ck_tile::HostTensorDescriptor({g, row, col}, {batch_stride, 1_uz, stride});
-        }
-    };
+    // auto f_host_tensor_descriptor = [](std::size_t g,
+    //                                    std::size_t row,
+    //                                    std::size_t col,
+    //                                    std::size_t stride,
+    //                                    std::size_t batch_stride,
+    //                                    auto layout) {
+    //     if constexpr(std::is_same_v<decltype(layout), ck_tile::tensor_layout::gemm::RowMajor>)
+    //     {
+    //         return ck_tile::HostTensorDescriptor({g, row, col}, {batch_stride, stride, 1_uz});
+    //     }
+    //     else
+    //     {
+    //         return ck_tile::HostTensorDescriptor({g, row, col}, {batch_stride, 1_uz, stride});
+    //     }
+    // };
 
     auto f_get_default_stride = [](std::size_t row,
                                    std::size_t col,
@@ -162,12 +161,61 @@ int run_batched_contraction_example_with_layouts(
     stride_B = f_get_default_stride(K, N, stride_B, b_layout);
     stride_E = f_get_default_stride(M, N, stride_E, e_layout);
 
-    ck_tile::HostTensor<::ADataType> a_m_k(
-        f_host_tensor_descriptor(G, M, K, stride_A, batch_stride_A, a_layout));
-    ck_tile::HostTensor<::BDataType> b_k_n(
-        f_host_tensor_descriptor(G, K, N, stride_B, batch_stride_B, b_layout));
-    ck_tile::HostTensor<::EDataType> e_m_n_dev_result(
-        f_host_tensor_descriptor(G, M, N, stride_E, batch_stride_E, e_layout));
+    std::vector<ck_tile::index_t> G_strides_A = calculate_g_strides(G_dims, M * K);
+    std::vector<ck_tile::index_t> G_strides_B = calculate_g_strides(G_dims, K * N);
+    std::vector<ck_tile::index_t> G_strides_E = calculate_g_strides(G_dims, M * N);
+
+    std::cout << "Debug Info:" << std::endl;
+    std::cout << "G_dims: [";
+    for(size_t i = 0; i < G_dims.size(); ++i)
+    {
+        std::cout << G_dims[i];
+        if(i < G_dims.size() - 1)
+            std::cout << ",";
+    }
+    std::cout << "]" << std::endl;
+    std::cout << "total_G: " << total_G << std::endl;
+    std::cout << "M=" << M << ", N=" << N << ", K=" << K << std::endl;
+    std::cout << "stride_A=" << stride_A << ", stride_B=" << stride_B << ", stride_E=" << stride_E
+              << std::endl;
+
+    std::cout << "G_strides_A: [";
+    for(size_t i = 0; i < G_strides_A.size(); ++i)
+    {
+        std::cout << G_strides_A[i];
+        if(i < G_strides_A.size() - 1)
+            std::cout << ",";
+    }
+    std::cout << "]" << std::endl;
+
+    std::cout << "G_strides_B: [";
+    for(size_t i = 0; i < G_strides_B.size(); ++i)
+    {
+        std::cout << G_strides_B[i];
+        if(i < G_strides_B.size() - 1)
+            std::cout << ",";
+    }
+    std::cout << "]" << std::endl;
+
+    std::cout << "G_strides_E: [";
+    for(size_t i = 0; i < G_strides_E.size(); ++i)
+    {
+        std::cout << G_strides_E[i];
+        if(i < G_strides_E.size() - 1)
+            std::cout << ",";
+    }
+    std::cout << "]" << std::endl;
+
+    ck_tile::HostTensor<::ADataType> a_m_k({total_G, M, K});
+    ck_tile::HostTensor<::BDataType> b_k_n({total_G, K, N});
+    ck_tile::HostTensor<::EDataType> e_m_n_dev_result({total_G, M, N});
+
+    // ck_tile::HostTensor<::ADataType> a_m_k(
+    //     f_host_tensor_descriptor(G, M, K, stride_A, batch_stride_A, a_layout));
+    // ck_tile::HostTensor<::BDataType> b_k_n(
+    //     f_host_tensor_descriptor(G, K, N, stride_B, batch_stride_B, b_layout));
+    // ck_tile::HostTensor<::EDataType> e_m_n_dev_result(
+    //     f_host_tensor_descriptor(G, M, N, stride_E, batch_stride_E, e_layout));
 
     ck_tile::FillUniformDistribution<::ADataType>{-5.f, 5.f}(a_m_k);
     ck_tile::FillUniformDistribution<::BDataType>{-5.f, 5.f}(b_k_n);
@@ -198,43 +246,52 @@ int run_batched_contraction_example_with_layouts(
                                                          M,
                                                          N,
                                                          K,
-                                                         G,
+                                                         G_dims,
                                                          stride_A,
                                                          stride_B,
                                                          stride_E,
-                                                         batch_stride_A,
-                                                         batch_stride_B,
-                                                         batch_stride_E,
+                                                         G_strides_A,
+                                                         G_strides_B,
+                                                         G_strides_E,
                                                          kbatch,
                                                          n_warmup,
                                                          n_repeat);
 
     e_m_n_dev_buf.FromDevice(e_m_n_dev_result.data());
 
-    std::string op_name{"Batched Contraction"};
-    std::size_t flop     = std::size_t(2) * G * M * N * K;
-    std::size_t num_byte = sizeof(::ADataType) * G * M * K + sizeof(::BDataType) * G * N * K +
-                           sizeof(::EDataType) * G * M * N;
+    // Print G dimensions info
+    std::string g_info = "G_dims=[";
+    for(size_t i = 0; i < G_dims.size(); ++i)
+    {
+        g_info += std::to_string(G_dims[i]);
+        if(i < G_dims.size() - 1)
+            g_info += ",";
+    }
+    g_info += "] (total=" + std::to_string(total_G) + ")";
+
+    std::string op_name{"Batched Contraction : G: " + std::to_string(G_dims.size()) + "D"};
+    std::size_t flop     = std::size_t(2) * total_G * M * N * K;
+    std::size_t num_byte = sizeof(::ADataType) * total_G * M * K +
+                           sizeof(::BDataType) * total_G * N * K +
+                           sizeof(::EDataType) * total_G * M * N;
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_byte / 1.E6 / ave_time;
 
-    std::cout << "Run " << op_name << " kernel with M=" << M << " N=" << N << " K=" << K
-              << " G=" << G << " StrideA=" << stride_A << " StrideB=" << stride_B
-              << " StrideE=" << stride_E << " batch_stride_A=" << batch_stride_A
-              << " batch_stride_B=" << batch_stride_B << " batch_stride_E=" << batch_stride_E
-              << " : " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
-              << std::endl;
+    std::cout << "Run " << op_name << " kernel with M=" << M << " N=" << N << " K=" << K << " "
+              << g_info << " : " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
+              << " GB/s" << std::endl;
 
     bool pass = true;
 
     if(arg_parser.get_int("v") == 1)
     {
-        ck_tile::HostTensor<::EDataType> e_m_n_host_ref(
-            f_host_tensor_descriptor(G, M, N, stride_E, batch_stride_E, ELayout{}));
+        // ck_tile::HostTensor<::EDataType> e_m_n_host_ref(
+        //     f_host_tensor_descriptor(G, M, N, stride_E, batch_stride_E, ELayout{}));
+        ck_tile::HostTensor<::EDataType> e_m_n_host_ref({total_G, M, N});
         e_m_n_host_ref.SetZero();
 
         // Simple matrix multiplication reference
-        for(ck_tile::index_t b = 0; b < G; ++b)
+        for(ck_tile::index_t flat_g = 0; flat_g < total_G; ++flat_g)
         {
             for(ck_tile::index_t m = 0; m < M; ++m)
             {
@@ -243,10 +300,10 @@ int run_batched_contraction_example_with_layouts(
                     ::AccDataType sum = 0;
                     for(ck_tile::index_t k = 0; k < K; ++k)
                     {
-                        sum += static_cast<::AccDataType>(a_m_k(b, m, k)) *
-                               static_cast<::AccDataType>(b_k_n(b, k, n));
+                        sum += static_cast<::AccDataType>(a_m_k(flat_g, m, k)) *
+                               static_cast<::AccDataType>(b_k_n(flat_g, k, n));
                     }
-                    e_m_n_host_ref(b, m, n) = static_cast<::EDataType>(sum);
+                    e_m_n_host_ref(flat_g, m, n) = static_cast<::EDataType>(sum);
                 }
             }
         }

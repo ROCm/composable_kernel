@@ -26,10 +26,11 @@ template <typename ADataType,
           typename BLayout,
           typename DsLayout,
           typename ELayout,
+          ck_tile::index_t NumDimG,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
 
-float batched_contraction(const ck_tile::BatchedContractionHostArgs<0>& args,
-                          const ck_tile::stream_config& s)
+float batched_contraction_impl(const ck_tile::BatchedContractionHostArgs<0>& args,
+                               const ck_tile::stream_config& s)
 {
     constexpr ck_tile::index_t M_Tile = 256;
     constexpr ck_tile::index_t N_Tile = 256;
@@ -75,11 +76,11 @@ float batched_contraction(const ck_tile::BatchedContractionHostArgs<0>& args,
     using Problem = ck_tile::BatchedContractionProblem<ADataType,
                                                        BDataType,
                                                        EDataType,
-                                                       1, // NumDimG
-                                                       1, // NumDimM
-                                                       1, // NumDimN
-                                                       1, // NumDimK
-                                                       0  // NumDTensor
+                                                       NumDimG, // NumDimG
+                                                       1,       // NumDimM
+                                                       1,       // NumDimN
+                                                       1,       // NumDimK
+                                                       0        // NumDTensor
                                                        >;
 
     using GemmPipelineProblem =
@@ -135,8 +136,28 @@ float batched_contraction(const ck_tile::BatchedContractionHostArgs<0>& args,
             ck_tile::BatchedContractionKernel<Problem, TilePartitioner, GemmPipeline, GemmEpilogue>;
         auto kargs = Kernel::MakeKernelArgs(args);
 
-        const dim3 grids  = Kernel::GridSize(args.M, args.N, k_batch, args.G);
+        std::cout << "Debug KernelArgs:" << std::endl;
+        std::cout << "kargs.M=" << kargs.M << ", kargs.N=" << kargs.N << ", kargs.K=" << kargs.K
+                  << std::endl;
+        std::cout << "kargs.G_lengths size=" << NumDimG << std::endl;
+
+        const dim3 grids  = Kernel::GridSize(args.M, args.N, k_batch, args.G_lengths);
         const dim3 blocks = Kernel::GetBlockSize();
+
+        std::cout << "Debug GridSize calculation:" << std::endl;
+        std::cout << "args.M=" << args.M << ", args.N=" << args.N << std::endl;
+        std::cout << "k_batch=" << k_batch << std::endl;
+        std::cout << "args.G_lengths size=" << args.G_lengths.size() << std::endl;
+        std::cout << "Total G elements: ";
+        ck_tile::index_t total_calc = 1;
+        for(auto g : args.G_lengths)
+        {
+            std::cout << g << " ";
+            total_calc *= g;
+        }
+        std::cout << "= " << total_calc << std::endl;
+        std::cout << "Calculated grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
+                  << std::endl;
 
         if(!Kernel::IsSupportedArguments(kargs))
         {
@@ -154,14 +175,93 @@ float batched_contraction(const ck_tile::BatchedContractionHostArgs<0>& args,
                       << std::endl;
         }
 
-        ave_time = ck_tile::launch_kernel(
-            s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+        std::cout << "About to call make_kernel..." << std::endl;
+        auto kernel = ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs);
+
+        std::cout << "make_kernel completed successfully!" << std::endl;
+        std::cout << "About to call launch_kernel..." << std::endl;
+
+        ave_time = ck_tile::launch_kernel(s, kernel);
+
+        std::cout << "launch_kernel completed successfully!" << std::endl;
         return ave_time;
     };
 
     BaseGemmPipeline::TailHandler(Run, has_hot_loop, tail_num);
 
     return ave_time;
+}
+
+template <typename ADataType,
+          typename BDataType,
+          typename DsDataType,
+          typename AccDataType,
+          typename EDataType,
+          typename ALayout,
+          typename BLayout,
+          typename DsLayout,
+          typename ELayout,
+          typename CDEElementWise = ck_tile::element_wise::PassThrough>
+float batched_contraction(const ck_tile::BatchedContractionHostArgs<0>& args,
+                          const ck_tile::stream_config& s)
+{
+    ck_tile::index_t num_g_dims = args.G_lengths.size();
+    std::cout << "G Dimension is : " << num_g_dims << std::endl;
+
+    switch(num_g_dims)
+    {
+    case 1:
+        return batched_contraction_impl<ADataType,
+                                        BDataType,
+                                        DsDataType,
+                                        AccDataType,
+                                        EDataType,
+                                        ALayout,
+                                        BLayout,
+                                        DsLayout,
+                                        ELayout,
+                                        1,
+                                        CDEElementWise>(args, s);
+    case 2:
+        return batched_contraction_impl<ADataType,
+                                        BDataType,
+                                        DsDataType,
+                                        AccDataType,
+                                        EDataType,
+                                        ALayout,
+                                        BLayout,
+                                        DsLayout,
+                                        ELayout,
+                                        2,
+                                        CDEElementWise>(args, s);
+    case 3:
+        return batched_contraction_impl<ADataType,
+                                        BDataType,
+                                        DsDataType,
+                                        AccDataType,
+                                        EDataType,
+                                        ALayout,
+                                        BLayout,
+                                        DsLayout,
+                                        ELayout,
+                                        3,
+                                        CDEElementWise>(args, s);
+    case 4:
+        return batched_contraction_impl<ADataType,
+                                        BDataType,
+                                        DsDataType,
+                                        AccDataType,
+                                        EDataType,
+                                        ALayout,
+                                        BLayout,
+                                        DsLayout,
+                                        ELayout,
+                                        4,
+                                        CDEElementWise>(args, s);
+    default:
+        throw std::runtime_error("Unsupported number of G dimensions: " +
+                                 std::to_string(num_g_dims) + ". Supported: 1-4 dimensions.");
+    }
 }
 
 #include "run_batched_contraction_example.inc"
