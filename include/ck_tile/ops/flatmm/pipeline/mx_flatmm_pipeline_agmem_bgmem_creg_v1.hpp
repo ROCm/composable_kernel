@@ -39,10 +39,10 @@ struct MXFlatmmPipelineProblem : FlatmmPipelineProblem<ADataType_,
     static constexpr int ScaleGranularityK = 32;
 
     // static constexpr int ContinuousKPerThread      = 32; // it's fixed for fp4
-    static constexpr int MXdlPack = 2; // it's fixed for fp4
-    static constexpr int NXdlPack = 2; // it's fixed for fp4
-    static constexpr int KXdlPack = 2;
-    // static constexpr index_t flatKPerWarp          = 64 * ContinuousKPerThread;
+    static constexpr int MXdlPack         = 2; // it's fixed for fp4
+    static constexpr int NXdlPack         = 2; // it's fixed for fp4
+    static constexpr int KXdlPack         = 2;
+    static constexpr index_t flatKPerWarp = BlockGemmShape::flatKPerWarp * KXdlPack;
 };
 
 template <typename Problem, typename PipelinePolicy = MXF4FlatmmPipelineAgBgCrPolicy>
@@ -51,7 +51,7 @@ struct MXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Probl
     using Underlying = FlatmmPipelineAGmemBGmemCRegV1<Problem, PipelinePolicy>;
 
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType      = remove_cvref_t<typename Problem::BuantType>;
+    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>; // TileFlatmmShape
 

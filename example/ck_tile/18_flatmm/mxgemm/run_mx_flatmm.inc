@@ -19,12 +19,12 @@ int run_mx_flatmm_with_layouts(int argc,
     if(!result)
         return -1;
 
-    using ADataType   = PrecActType;
-    using BDataType   = PrecWeightType;
-    using CDataType   = CDataType;
+    using ADataType = PrecActType;
+    using BDataType = PrecWeightType;
+    // using CDataType   = CDataType;
     using AccDataType = float;
 
-    using ScaleType = ck_tile::e8m0_t;
+    using ScaleDataType = ck_tile::e8m0_t;
 
     constexpr int ScaleGranularityM = 1;
     constexpr int ScaleGranularityN = 1;
@@ -52,11 +52,12 @@ int run_mx_flatmm_with_layouts(int argc,
     auto scale_stride_B = ck_tile::get_default_stride(
         K / ScaleGranularityK, N / ScaleGranularityN, 0, is_row_major(b_layout));
 
-    if(K % DequantGranularityK != 0)
+    if(K % ScaleGranularityK != 0)
     {
-        thow std::runtime_error("wrong! K must be multiple of ScaleGranularityK.");
+        throw std::runtime_error("wrong! K must be multiple of ScaleGranularityK.");
     }
-    if(K % ck_tile::packed_size_v<ADataType> != 0 || K % ck_tile::packed_size_v<BDataType> != 0)
+    if(K % ck_tile::numeric_traits<ADataType>::PackedSize != 0 ||
+       K % ck_tile::numeric_traits<BDataType>::PackedSize != 0)
     {
         throw std::runtime_error("wrong! K must be multiple of packed size.");
     }
@@ -68,31 +69,31 @@ int run_mx_flatmm_with_layouts(int argc,
     ck_tile::HostTensor<CDataType> c_rslt_host(
         ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
-    ck_tile::HostTensor<ScaleType> scale_a(ck_tile::host_tensor_descriptor(
+    ck_tile::HostTensor<ScaleDataType> scale_a(ck_tile::host_tensor_descriptor(
         M / ScaleGranularityM, K / ScaleGranularityK, scale_stride_A, is_row_major(a_layout)));
-    ck_tile::HostTensor<ScaleType> scale_b(ck_tile::host_tensor_descriptor(
+    ck_tile::HostTensor<ScaleDataType> scale_b(ck_tile::host_tensor_descriptor(
         K / ScaleGranularityK, N / ScaleGranularityN, scale_stride_B, is_row_major(b_layout)));
 
     if(init_method == 0)
     {
         ck_tile::FillUniformDistribution<ADataType>{0.0f, 1.0f}(a_host);
         ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_origin_host);
-        ck_tile::FillUniformDistribution<ScaleType>{-2.f, 2.f}(scale_a);
-        ck_tile::FillUniformDistribution<ScaleType>{-2.f, 2.f}(scale_b);
+        ck_tile::FillUniformDistribution<ScaleDataType>{-2.f, 2.f}(scale_a);
+        ck_tile::FillUniformDistribution<ScaleDataType>{-2.f, 2.f}(scale_b);
     }
     else if(init_method == 1)
     {
         ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_host);
         ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_origin_host);
-        ck_tile::FillUniformDistribution<ScaleType>{1.f, 1.f}(scale_a);
-        ck_tile::FillUniformDistribution<ScaleType>{1.f, 1.f}(scale_b);
+        ck_tile::FillUniformDistribution<ScaleDataType>{1.f, 1.f}(scale_a);
+        ck_tile::FillUniformDistribution<ScaleDataType>{1.f, 1.f}(scale_b);
     }
     else if(init_method == 2)
     {
         ck_tile::FillUniformDistribution<ADataType>{0.0f, 1.0f}(a_host);
         ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_origin_host);
-        ck_tile::FillUniformDistribution<ScaleType>{-2.f, 2.f}(scale_a);
-        ck_tile::FillUniformDistribution<ScaleType>{-2.f, 2.f}(scale_b);
+        ck_tile::FillUniformDistribution<ScaleDataType>{-2.f, 2.f}(scale_a);
+        ck_tile::FillUniformDistribution<ScaleDataType>{-2.f, 2.f}(scale_b);
     }
 
 #if 0
@@ -186,8 +187,8 @@ int run_mx_flatmm_with_layouts(int argc,
         ck_tile::host_tensor_descriptor(K, N, stride_B, is_row_major(b_layout)));
     preShuffleWeight<FlatmmConfig>(b_origin_host.begin(), b_shuffled_host.begin(), N, K);
 
-    ck_tile::HostTensor<ScaleType> scale_a_shuffled = preShuffleScale<FlatmmConfig>(scale_a);
-    ck_tile::HostTensor<ScaleType> scale_b_shuffled = preShuffleScale<FlatmmConfig>(scale_b);
+    ck_tile::HostTensor<ScaleDataType> scale_a_shuffled = preShuffleScale<FlatmmConfig>(scale_a);
+    ck_tile::HostTensor<ScaleDataType> scale_b_shuffled = preShuffleScale<FlatmmConfig>(scale_b);
 
     ck_tile::DeviceMem a_dev_buf(a_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_shuffled_dev_buf(b_shuffled_host.get_element_space_size_in_bytes());
@@ -197,15 +198,15 @@ int run_mx_flatmm_with_layouts(int argc,
     ck_tile::DeviceMem scale_b_dev_buf(scale_b_shuffled.get_element_space_size_in_bytes());
 
     a_dev_buf.ToDevice(a_host.data());
-    b_shuffle_dev_buf.ToDevice(b_shuffled_host.data());
+    b_shuffled_dev_buf.ToDevice(b_shuffled_host.data());
     c_rslt_host.SetZero();
     scale_a_dev_buf.ToDevice(scale_a_shuffled.data());
     scale_b_dev_buf.ToDevice(scale_b_shuffled.data());
 
-    auto scale_a_dev_ptr = ck_tile::FlatmmScalePointer<DequantGranularityM, DequantGranularityK>{
-        static_cast<float*>(scale_a_dev_buf.GetDeviceBuffer()), M / DequantGranularityM};
-    auto scale_b_dev_ptr = ck_tile::FlatmmScalePointer<DequantGranularityN, DequantGranularityK>{
-        static_cast<float*>(scale_b_dev_buf.GetDeviceBuffer()), N / DequantGranularityN};
+    auto scale_a_dev_ptr = ck_tile::FlatmmScalePointer<ScaleGranularityM, ScaleGranularityK>{
+        static_cast<float*>(scale_a_dev_buf.GetDeviceBuffer()), M / ScaleGranularityM};
+    auto scale_b_dev_ptr = ck_tile::FlatmmScalePointer<ScaleGranularityN, ScaleGranularityK>{
+        static_cast<float*>(scale_b_dev_buf.GetDeviceBuffer()), N / ScaleGranularityN};
 
     invoke_mx_flatmm<FlatmmConfig,
                      ADataType,
@@ -220,7 +221,7 @@ int run_mx_flatmm_with_layouts(int argc,
                      decltype(scale_a_dev_ptr),
                      decltype(scale_b_dev_ptr),
                      UsePersistentKernel>(a_dev_buf,
-                                          b_shuffle_dev_buf,
+                                          b_shuffled_dev_buf,
                                           c_dev_buf,
                                           M,
                                           N,
@@ -244,11 +245,7 @@ int run_mx_flatmm_with_layouts(int argc,
         c_m_n_host_ref.SetZero();
 
         ck_tile::reference_mx_gemm<ADataType, BDataType, ScaleDataType, AccDataType, CDataType>(
-            a_host.data(),
-            b_origin_host.data(),
-            c_m_n_host_ref.data(),
-            scale_a.data(),
-            scale_b.data());
+            a_host, b_origin_host, c_m_n_host_ref, scale_a, scale_b);
 
         const float max_accumulated_value =
             *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());

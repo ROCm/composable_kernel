@@ -22,13 +22,13 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
     using FlatmmPipeline  = remove_cvref_t<MXFlatmmPipeline_>;
     using BlockGemmShape =
         remove_cvref_t<typename MXFlatmmPipeline_::BlockGemmShape>; // TileFlatmmShape
-    using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
-    using ALayout          = remove_cvref_t<typename FlatmmPipeline::ALayout>;
-    using BLayout          = remove_cvref_t<typename FlatmmPipeline::BLayout>;
-    using ELayout          = remove_cvref_t<typename FlatmmPipeline::CLayout>;
-    using DsLayout         = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
-    using DsDataType       = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
-    static constexpr index_t KernelBlockSize  = FlatmmPipeline::BlockSize;
+    using EpiloguePipeline              = remove_cvref_t<EpiloguePipeline_>;
+    using ALayout                       = remove_cvref_t<typename FlatmmPipeline::ALayout>;
+    using BLayout                       = remove_cvref_t<typename FlatmmPipeline::BLayout>;
+    using ELayout                       = remove_cvref_t<typename FlatmmPipeline::CLayout>;
+    using DsLayout                      = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
+    using DsDataType                    = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
+    static constexpr index_t kBlockSize = FlatmmPipeline::BlockSize;
     static constexpr bool UsePersistentKernel = FlatmmPipeline::UsePersistentKernel;
 
     using ADataType = remove_cvref_t<typename FlatmmPipeline::ADataType>;
@@ -36,9 +36,8 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
     // Below type is actually accumulation data type - the output of block GEMM.
     using EDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
-    using BlockGemm                    = remove_cvref_t<typename MXFlatmmPipeline_::BlockGemm>;
-    static constexpr int MThreadPerXdl = BlockGemm::WarpGemm::kM;
-    static constexpr int NThreadPerXdl = BlockGemm::WarpGemm::kN;
+    static constexpr int MThreadPerXdl = BlockGemmShape::WarpTile::at(number<0>{});
+    static constexpr int NThreadPerXdl = BlockGemmShape::WarpTile::at(number<1>{});
     static constexpr int KThreadPerXdl = 64 / MThreadPerXdl;
 
     static constexpr int APackedSize = numeric_traits<ADataType>::PackedSize;

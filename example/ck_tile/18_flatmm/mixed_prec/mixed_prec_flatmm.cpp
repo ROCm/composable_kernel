@@ -160,6 +160,16 @@ float mixed_prec_flatmm_calc(const ck_tile::ScaleFlatmmHostArgs<ScaleM, ScaleN>&
                       << std::endl;
         }
 
+        // Declare rotating_mem_ptr here so it stays in scope until it is needed
+        std::unique_ptr<ck_tile::RotatingMemWrapper<ADataType, BDataType>> rotating_mem_ptr;
+        std::function<void()> preprocess;
+
+        auto clear_gemm_output = [&]() {
+            if(args.k_batch > 1)
+                hipGetErrorString(hipMemsetAsync(
+                    args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
+        };
+
         if(s.flush_cache_)
         {
             std::cout << "Flushing cache..." << std::endl;
@@ -174,34 +184,25 @@ float mixed_prec_flatmm_calc(const ck_tile::ScaleFlatmmHostArgs<ScaleM, ScaleN>&
             auto size_a_buffer = a_m.get_element_space_size_in_bytes() / APackedSize;
             auto size_b_buffer = b_n.get_element_space_size_in_bytes() / BPackedSize;
 
-            ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
+            rotating_mem_ptr = std::make_unique<ck_tile::RotatingMemWrapper<ADataType, BDataType>>(
                 kargs.a_ptr, kargs.b_ptr, s.rotating_count_, size_a_buffer, size_b_buffer);
-            rotating_mem.Print();
+            rotating_mem_ptr->Print();
 
-            auto run_flush_cache = [&]() {
-                // flush icache
+            preprocess = [&]() {
                 ck_tile::flush_icache();
-                // rotating mem
-                rotating_mem.Next();
-                // clear c mem
-                if(args.k_batch > 1)
-                    hipGetErrorString(hipMemsetAsync(
-                        args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
+                rotating_mem_ptr->Next();
+                clear_gemm_output();
             };
-            ave_time = ck_tile::launch_kernel_preprocess(
-                s,
-                run_flush_cache,
-                ck_tile::make_kernel<blocks.x, FlatmmConfig::kBlockPerCu>(
-                    Kernel{}, grids, blocks, 0, kargs));
         }
         else
         {
-            ave_time =
-                ck_tile::launch_kernel(s,
-                                       ck_tile::make_kernel<blocks.x, FlatmmConfig::kBlockPerCu>(
-                                           Kernel{}, grids, blocks, 0, kargs));
+            preprocess = clear_gemm_output;
         }
-        return ave_time;
+
+        return ck_tile::launch_kernel_time_mask(
+            s,
+            preprocess,
+            ck_tile::make_kernel<FlatmmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
     };
 
     const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
