@@ -295,7 +295,6 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_confi
                 ck_tile::launch_kernel(s,                                                          \
                                        maybe_clear_workspace,                                      \
                                        MOE_SORTING_MP_0(mesh_type_, token_vec_0_, true, true),     \
-                                       MOE_SORTING_MP_1(mesh_type_, token_vec_1_, true, true),     \
                                        MOE_SORTING_MP_23(mesh_type_, token_vec_23_, true, true));  \
             return ave_time;                                                                       \
         }                                                                                          \
@@ -305,7 +304,6 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_confi
                 ck_tile::launch_kernel(s,                                                          \
                                        maybe_clear_workspace,                                      \
                                        MOE_SORTING_MP_0(mesh_type_, token_vec_0_, true, false),    \
-                                       MOE_SORTING_MP_1(mesh_type_, token_vec_1_, true, false),    \
                                        MOE_SORTING_MP_23(mesh_type_, token_vec_23_, true, false)); \
             return ave_time;                                                                       \
         }                                                                                          \
@@ -318,7 +316,6 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_confi
                 ck_tile::launch_kernel(s,                                                          \
                                        maybe_clear_workspace,                                      \
                                        MOE_SORTING_MP_0(mesh_type_, token_vec_0_, false, true),    \
-                                       MOE_SORTING_MP_1(mesh_type_, token_vec_1_, false, true),    \
                                        MOE_SORTING_MP_23(mesh_type_, token_vec_23_, false, true)); \
             return ave_time;                                                                       \
         }                                                                                          \
@@ -328,7 +325,6 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_confi
                 s,                                                                                 \
                 maybe_clear_workspace,                                                             \
                 MOE_SORTING_MP_0(mesh_type_, token_vec_0_, false, false),                          \
-                MOE_SORTING_MP_1(mesh_type_, token_vec_1_, false, false),                          \
                 MOE_SORTING_MP_23(mesh_type_, token_vec_23_, false, false));                       \
             return ave_time;                                                                       \
         }                                                                                          \
@@ -378,7 +374,6 @@ float moe_sorting_mp(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_co
                 float ave_time = ck_tile::launch_kernel(s,
                                                         maybe_clear_workspace,
                                                         MOE_SORTING_MP_0(ms_index_t, 1, true),
-                                                        MOE_SORTING_MP_1(ms_index_t, 1, true),
                                                         MOE_SORTING_MP_2(ms_index_t, 1, true),
                                                         MOE_SORTING_MP_3(ms_index_t, 1, true));
                 return ave_time;
@@ -388,7 +383,6 @@ float moe_sorting_mp(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_co
                 float ave_time = ck_tile::launch_kernel(s,
                                                         maybe_clear_workspace,
                                                         MOE_SORTING_MP_0(ms_index_t, 1, false),
-                                                        MOE_SORTING_MP_1(ms_index_t, 1, false),
                                                         MOE_SORTING_MP_2(ms_index_t, 1, false),
                                                         MOE_SORTING_MP_3(ms_index_t, 1, false));
                 return ave_time;
