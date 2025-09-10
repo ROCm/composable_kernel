@@ -50,14 +50,12 @@ bool profile_gemm_multiply_add_impl(int do_verification,
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             using namespace ck::literals;
 
-            if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
-            {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
-            }
-            else
-            {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
-            }
+            auto strides = is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value
+                               ? std::vector<std::size_t>({stride, 1_uz})
+                               : std::vector<std::size_t>({1_uz, stride});
+
+            return HostTensorDescriptor({row, col}, strides, layout);
+
         };
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
@@ -117,6 +115,11 @@ bool profile_gemm_multiply_add_impl(int do_verification,
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
 
+    if(op_ptrs.size() == 0)
+    {
+        std::cout << "No device operation instances found." << std::endl;
+        return false;
+    }
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
     // run reference
@@ -141,7 +144,7 @@ bool profile_gemm_multiply_add_impl(int do_verification,
         ref_invoker.Run(ref_argument);
 
         for(int m = 0; m < M; ++m)
-        {
+        {    
             for(int n = 0; n < N; ++n)
             {
                 cde_element_op(e_m_n_host_result(m, n), c_m_n(m, n), d0_m_n(m, n), d1_m_n(m, n));
@@ -229,6 +232,7 @@ bool profile_gemm_multiply_add_impl(int do_verification,
         else
         {
             std::cout << op_name << " does not support this problem" << std::endl;
+            pass = false;
         }
     }
 

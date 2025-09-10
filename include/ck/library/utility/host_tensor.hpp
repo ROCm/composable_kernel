@@ -21,6 +21,8 @@
 #include "ck/library/utility/ranges.hpp"
 #include "ck/library/utility/thread.hpp"
 
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+
 template <typename Range>
 std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)
 {
@@ -99,56 +101,128 @@ auto construct_f_unpack_args(F, T args)
 
 struct HostTensorDescriptor
 {
-    HostTensorDescriptor() = default;
+    using DefaultLayout = ck::tensor_layout::BaseTensorLayout;
+
+    // Master constructor
+    template <typename Layout>
+    HostTensorDescriptor(std::vector<std::size_t> lens,
+                        std::vector<std::size_t> strides,
+                        const Layout& layout = DefaultLayout() // only to propagate the
+                    )
+        : mLens(std::move(lens)), mStrides(std::move(strides))
+    {
+        if(mStrides.empty())
+        {
+            this->CalculateStrides();
+        }
+        
+        this->ValidateStrides(layout);
+    }
+
+    HostTensorDescriptor() : HostTensorDescriptor({}, {}, DefaultLayout()) {};
 
     void CalculateStrides();
 
-    template <typename X, typename = std::enable_if_t<std::is_convertible_v<X, std::size_t>>>
-    HostTensorDescriptor(const std::initializer_list<X>& lens) : mLens(lens.begin(), lens.end())
+    template <typename Layout>
+    void ValidateStrides(const Layout& layout) const
     {
-        this->CalculateStrides();
+        assert(mLens.size() == mStrides.size());
+
+        if(mLens.empty())
+            return;
+
+        if constexpr (std::is_same_v<ck::tensor_layout::BaseTensorLayout, Layout>)
+        {
+            static_cast<void>(layout);
+            std::cerr << "Warning: Tensor layout is undefined." << std::endl;
+            return;
+        }
+        if constexpr (std::is_same_v<ck::tensor_layout::gemm::RowMajor, Layout>)
+        {
+            std::cout << "Row" << std::endl;
+            if(mStrides[0] < mLens[1])
+            {
+                std::ostringstream oss;
+                oss << "Invalid strides for " << layout.name << ": "
+                    << "mLens: " << mLens << ", mStrides: " << mStrides;
+                throw std::runtime_error(oss.str());
+            }
+        }
+        else
+        {
+            std::cout << "Col" << std::endl;
+        }    
     }
 
-    HostTensorDescriptor(const std::initializer_list<ck::long_index_t>& lens)
-        : mLens(lens.begin(), lens.end())
+    template <typename X, typename = std::enable_if_t<std::is_convertible_v<X, std::size_t>>, 
+            typename Layout = DefaultLayout>
+    HostTensorDescriptor(const std::initializer_list<X>& lens, const Layout& layout = Layout())
+        : HostTensorDescriptor(std::vector<std::size_t>(lens.begin(), lens.end()), {}, layout)
     {
-        this->CalculateStrides();
+    }
+
+    template <typename Layout = DefaultLayout>
+    HostTensorDescriptor(const std::initializer_list<ck::long_index_t>& lens, const Layout& layout = Layout())
+        : HostTensorDescriptor(
+              std::vector<std::size_t>(lens.begin(), lens.end()), {}, layout)
+    {
     }
 
     template <typename Lengths,
+              typename Layout = DefaultLayout,
               typename = std::enable_if_t<
-                  std::is_convertible_v<ck::ranges::range_value_t<Lengths>, std::size_t> ||
-                  std::is_convertible_v<ck::ranges::range_value_t<Lengths>, ck::long_index_t>>>
-    HostTensorDescriptor(const Lengths& lens) : mLens(lens.begin(), lens.end())
+                  (
+                      std::is_convertible_v<ck::ranges::range_value_t<Lengths>, std::size_t> ||
+                      std::is_convertible_v<ck::ranges::range_value_t<Lengths>, ck::long_index_t>
+                  ) && std::is_convertible_v<Layout, DefaultLayout>
+              >
+    >
+    HostTensorDescriptor(const Lengths& lens, const Layout& layout = Layout())
+        : HostTensorDescriptor(std::vector<std::size_t>(lens.begin(), lens.end()), {}, layout)
     {
-        this->CalculateStrides();
     }
 
     template <typename X,
               typename Y,
               typename = std::enable_if_t<std::is_convertible_v<X, std::size_t> &&
-                                          std::is_convertible_v<Y, std::size_t>>>
+                                          std::is_convertible_v<Y, std::size_t>>,
+              typename Layout = DefaultLayout>
     HostTensorDescriptor(const std::initializer_list<X>& lens,
-                         const std::initializer_list<Y>& strides)
-        : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end())
+                         const std::initializer_list<Y>& strides,
+                         const Layout& layout = Layout())
+        : HostTensorDescriptor(std::vector<std::size_t>(lens.begin(), lens.end()),
+                              std::vector<std::size_t>(strides.begin(), strides.end()),
+                              layout)
     {
     }
 
+    template <typename Layout = DefaultLayout>
     HostTensorDescriptor(const std::initializer_list<ck::long_index_t>& lens,
-                         const std::initializer_list<ck::long_index_t>& strides)
-        : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end())
+                         const std::initializer_list<ck::long_index_t>& strides,
+                         const Layout& layout = Layout())
+        : HostTensorDescriptor(std::vector<std::size_t>(lens.begin(), lens.end()),
+                               std::vector<std::size_t>(strides.begin(), strides.end()),
+                               layout)
     {
     }
 
     template <typename Lengths,
               typename Strides,
+              typename Layout = DefaultLayout,
               typename = std::enable_if_t<
-                  (std::is_convertible_v<ck::ranges::range_value_t<Lengths>, std::size_t> &&
-                   std::is_convertible_v<ck::ranges::range_value_t<Strides>, std::size_t>) ||
-                  (std::is_convertible_v<ck::ranges::range_value_t<Lengths>, ck::long_index_t> &&
-                   std::is_convertible_v<ck::ranges::range_value_t<Strides>, ck::long_index_t>)>>
-    HostTensorDescriptor(const Lengths& lens, const Strides& strides)
-        : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end())
+                  (
+                      (std::is_convertible_v<ck::ranges::range_value_t<Lengths>, std::size_t> &&
+                       std::is_convertible_v<ck::ranges::range_value_t<Strides>, std::size_t>) ||
+                      (std::is_convertible_v<ck::ranges::range_value_t<Lengths>, ck::long_index_t> &&
+                       std::is_convertible_v<ck::ranges::range_value_t<Strides>, ck::long_index_t>)
+                  )
+                  && std::is_convertible_v<Layout, DefaultLayout>
+              >
+    >
+    HostTensorDescriptor(const Lengths& lens, const Strides& strides, const Layout& layout = Layout())
+        : HostTensorDescriptor(std::vector<std::size_t>(lens.begin(), lens.end()),
+                              std::vector<std::size_t>(strides.begin(), strides.end()),
+                              layout)
     {
     }
 
@@ -174,7 +248,7 @@ struct HostTensorDescriptor
 
     friend std::ostream& operator<<(std::ostream& os, const HostTensorDescriptor& desc);
 
-    private:
+private:
     std::vector<std::size_t> mLens;
     std::vector<std::size_t> mStrides;
 };
@@ -192,7 +266,7 @@ HostTensorDescriptor transpose_host_tensor_descriptor_given_new2old(const HostTe
         new_strides[i] = a.GetStrides()[new2old[i]];
     }
 
-    return HostTensorDescriptor(new_lengths, new_strides);
+    return HostTensorDescriptor(new_lengths, new_strides, HostTensorDescriptor::DefaultLayout());
 }
 
 struct joinable_thread : std::thread
@@ -364,10 +438,13 @@ struct Tensor
     {
         if constexpr(ck::is_packed_type_v<ck::remove_cvref_t<T>>)
         {
+            std::cout << "packed_size_v<T>:" << ck::packed_size_v<ck::remove_cvref_t<T>>
+                      << std::endl;
             return (mDesc.GetElementSpaceSize() + 1) / ck::packed_size_v<ck::remove_cvref_t<T>>;
         }
         else
         {
+            std::cout << "not packed " << std::endl;
             return mDesc.GetElementSpaceSize();
         }
     }
