@@ -3,6 +3,7 @@
 
 #pragma once
 #include <random>
+#include "ck_tile/host/permute_pk_int4.hpp"
 
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
@@ -208,7 +209,17 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
 
     a_m_k_dev_buf.ToDevice(a_m_k.data());
-    b_k_n_dev_buf.ToDevice(b_k_n.data());
+    if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+    {
+        // Permute vector pk_i4x4 data for device implementation
+        ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
+        ck_tile::permute_vectors_i4x4_b(b_k_n_dev);
+        b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
+    }
+    else
+    {
+        b_k_n_dev_buf.ToDevice(b_k_n.data());
+    }
     bq_bqk_n_dev_buf.ToDevice(bq_bqk_n.data());
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
