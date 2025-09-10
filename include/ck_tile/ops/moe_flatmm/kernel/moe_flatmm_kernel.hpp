@@ -772,7 +772,7 @@ struct MoeFlatmmKernel
         // const auto [iM, iN]   = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockIdx.x);
         const index_t coord_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
         const index_t coord_n = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
-
+        const index_t max_token_id = kargs.p_max_token_id[0];
         // allocate LDS
         __shared__ char smem_ptr_ping[GetSmemPingSize()];
         __shared__ char smem_ptr_pong[GetSmemPongSize()];
@@ -799,7 +799,9 @@ struct MoeFlatmmKernel
             }
             return gather_token_id;
         };
-
+        
+        if(coord_m >= max_token_id)
+            return;
         static_for<0, DramMRepeat, 1>{}([&](auto m0) {
             const auto row_idx =
                 coord_m + m0 * (TilePartitioner::MPerBlock / DramMRepeat) + a_coord[I0];
