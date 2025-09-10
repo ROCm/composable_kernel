@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "fmha_fwd.hpp"
+#pragma once
+
 #include "ck_tile/host.hpp"
 #include "ck_tile/ref/naive_attention.hpp"
-#include "mask.hpp"
-#include "rotary.hpp"
+#include "fmha_fwd.hpp"
 #include "utils.hpp"
 #include "ck_tile/utility/json_dump.hpp"
 
@@ -24,128 +24,13 @@
 #error "we should enable fmha_fwd_splitkv() api in order to cooperate with fmha_fwd_appendkv()"
 #endif
 
-template <typename T>
-std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
+enum class fwd_result
 {
-    using size_type = typename std::vector<T>::size_type;
-
-    os << "[";
-    for(size_type idx = 0; idx < v.size(); ++idx)
-    {
-        if(0 < idx)
-        {
-            os << ", ";
-        }
-        os << v[idx];
-    }
-    return os << "]";
-}
-
-auto create_args(int argc, char* argv[])
-{
-    ck_tile::ArgParser arg_parser;
-    arg_parser.insert("v", "1", "0:no validation, 2:cpu validation, 2:gpu validation(experimental)")
-        .insert("mode", "0", "kernel mode. 0:batch, 1:group")
-        .insert("b", "2", "batch size")
-        .insert("h", "8", "num of head, for q")
-        .insert("h_k",
-                "-1",
-                "num of head, for k/v, -1 means equal to h\n"
-                "if not equal to h, then this is GQA/MQA case")
-        .insert(
-            "s",
-            "3328",
-            "seqlen_q. if group-mode, means the average value of seqlen_q\n"
-            "total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary\n"
-            "also with \"-s=s0,s1,s2...\" comma seperated int to set per batch seqlen(group-mode)")
-        .insert("s_k", "-1", "seqlen_k (including new key/value), -1 means equal to s")
-        .insert("s_knew",
-                "0",
-                "seqlen_k for new key/value, 0 means not to use this at all; "
-                "-1 to choose s_knew in [1, s] randomly.")
-        .insert("s_kpad",
-                "-1",
-                "seqlen_k stride between 2 batches, currently used in group-mode only\n"
-                "for kv-cache case, each batch [1,s,h,d]/[1,h,s,d] can have a stride\n"
-                "along seqlen, instead of packed. same as xformer kv_padding")
-        .insert("d", "128", "head dim for q, k")
-        .insert("d_v", "-1", "head dim for v, -1 means equal to d")
-        .insert("scale_s",
-                "0",
-                "scale factor of S. 0 means equal to 1/sqrt(hdim).\n"
-                "note when squant=1, this value will be modified by range_q/k")
-        .insert("logits_soft_cap", "0", "attention logits soft capping value.")
-        .insert("range_q", "16", "per-tensor quantization range of q. used if squant=1.")
-        .insert("range_k", "16", "per-tensor quantization range of k. used if squant=1.")
-        .insert("range_v", "16", "per-tensor quantization range of v. used if squant=1.")
-        .insert("range_p", "1", "per-tensor quantization range of p [e^(s-m)]. used if squant=1.")
-        .insert("range_o", "16", "per-tensor quantization range of o (p*v). used if squant=1.")
-        .insert("squant",
-                "auto",
-                "if using static quantization fusion or not. auto: fp8 will default use squant, "
-                "other will not\n"
-                "0: no static quant(not implemented) 1: apply scale_p and scale_o with respect to "
-                "P and O.\n"
-                "calculate scale_s, scale_p, scale_o according to range_q, range_k, range_v, "
-                "range_p, range_o")
-        .insert("iperm",
-                "1",
-                "permute input\n"
-                "if true, will be b*h*s*d, else b*s*h*d")
-        .insert("operm", "1", "permute output")
-        .insert("bias",
-                "n",
-                "n or 0, no bias\n"
-                "e(lementwise) or 1, elementwise bias with 1*1*s*s. e:1, 1*h*s*s. e:2, b*h*s*s\n"
-                "a(libi) or 2, alibi with 1*h. a:1, b*h")
-        .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
-        .insert("mask",
-                "0",
-                "0: no mask, 1: top-left(same as 't'), 2:bottom-right(same as 'b')\n"
-                "'t', top-left causal mask, 'b', bottom-r causal mask\n"
-                "'t:l,r', top-left sliding window attn(swa) with FA style left right size\n"
-                "'b:l,r', bottom-r sliding window attn(swa) with FA style left right size\n"
-                "'xt:window_size', xformer style masking from top-left, window_size negative is "
-                "causal, positive is swa\n"
-                "'xb:window_size', xformer style masking from bottom-r, window_size negative is "
-                "causal, positive is swa\n"
-                "'g:y,x', generic attention mask coordinate with y/x size (only debug purpose for "
-                "now)")
-        .insert("vlayout", "r", "r for row-major(seqlen*hdim), c for col-major(hdim*seqlen)")
-        .insert("lse", "0", "0 not store lse, 1 store lse")
-        .insert("kname", "0", "if set to 1 will print kernel name")
-        .insert("init",
-                "uf",
-                "init method. ui, uniform random int, ni, normalized random int\n"
-                "uf, uniform random float, nf, normalized random float, tf, trig float, uf:q, "
-                "quantization")
-        .insert("seed",
-                "11939",
-                "random seed used for initializing input tensors. 0 for "
-                "non-deterministic seed")
-        .insert("p_drop", "0", "0~1 probability of dropout")
-        .insert("drop_seed", "1", "seed for random number generator")
-        .insert("drop_offset", "0", "offset for random number generator")
-        .insert("drop_prefs",
-                "0",
-                "seed and offset values are present on GPU; 0 - host, 1 - device/GPU")
-        .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
-        .insert(
-            "rotary_dim", "0", "RoPE rotary dimension. rotary_dim <= 0 means not apply RoPE at all")
-        .insert("rotary_interleaved", "1", "whether to apply interleaved RoPE")
-        .insert("num_splits",
-                "1",
-                "# of splits for key/value. 0 to determine actual number by heuristic")
-        .insert("page_block_size", "0", "paged-kvcache block size. 0 means not use paged-kvcahe")
-        .insert("cache_batch_idx", "0", "whether to use index map to the kvcache")
-        .insert("warmup", "5", "number of iterations before benchmark the kernel")
-        .insert("repeat", "20", "number of iterations to benchmark the kernel")
-        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
-        .insert("jsonfile", "fmha_fwd.json", "json file name to dump results");
-
-    bool result = arg_parser.parse(argc, argv);
-    return std::make_tuple(result, arg_parser);
-}
+    success,
+    failure,
+    invalid_args,
+    no_instance,
+};
 
 // different threshold for different dtype
 template <typename DataTypeConfig>
@@ -247,35 +132,72 @@ int override_num_splits_if_necessary(
 }
 
 template <typename DataTypeConfig>
-bool run(const ck_tile::ArgParser& arg_parser)
+fwd_result fmha_fwd_run(mode_enum mode,
+                        ck_tile::index_t batch,
+                        ck_tile::index_t nhead,
+                        ck_tile::index_t nhead_k,
+                        std::vector<ck_tile::index_t> seqlen_qs,
+                        std::vector<ck_tile::index_t> seqlen_ks,
+                        ck_tile::index_t hdim_q,
+                        ck_tile::index_t hdim_v,
+                        ck_tile::index_t seqlen_knew,
+                        std::vector<ck_tile::index_t> seqlen_kpads,
+                        ck_tile::index_t rotary_dim,
+                        bool i_perm,
+                        bool o_perm,
+                        float scale_s,
+                        float logits_soft_cap,
+                        bool is_v_rowmajor,
+                        bool lse,
+                        ck_tile::index_t page_block_size,
+                        bool use_cache_batch_idx,
+                        std::string bias_str,
+                        float p_drop,
+                        uint64_t drop_seed,
+                        uint64_t drop_offset,
+                        bool drop_prefs,
+                        std::string mask_str,
+                        float range_q,
+                        float range_k,
+                        float range_v,
+                        float range_p,
+                        float range_o,
+                        bool squant,
+                        bool is_rotary_interleaved,
+                        ck_tile::index_t num_splits,
+                        std::string init_method,
+                        uint32_t seed,
+                        int do_validation,
+                        const ck_tile::stream_config& stream_config,
+                        std::optional<std::string> json = std::nullopt)
 {
-    std::string data_type    = arg_parser.get_str("prec");
-    int do_validation        = arg_parser.get_int("v");
-    auto mode                = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
-    ck_tile::index_t batch   = arg_parser.get_int("b");
-    ck_tile::index_t nhead   = arg_parser.get_int("h");
-    ck_tile::index_t nhead_k = arg_parser.get_int("h_k");
+    const std::string data_type = []() {
+        if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp16>)
+            return "fp16";
+        else if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdBf16>)
+            return "bf16";
+        else if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8>)
+            return "fp8";
+        else if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdBf8>)
+            return "bf8";
+        else
+            static_assert(false);
+    }();
+
     if(nhead_k < 0)
         nhead_k = nhead;
-
     if(nhead % nhead_k != 0)
     {
         std::cerr << "nhead:" << nhead << " must be multiple of nhead_k:" << nhead_k << std::endl;
-        return false;
+        return fwd_result::invalid_args;
     }
 
-    std::optional<uint32_t> seed = arg_parser.get_uint32("seed");
-    if(*seed == 0)
-    {
-        seed.reset();
-    }
+    std::mt19937 random_engine(seed != 0 ? seed : std::random_device{}());
+    auto next_seed = [&random_engine]() { return static_cast<unsigned int>(random_engine()); };
 
-    ck_tile::index_t hdim_q = arg_parser.get_int("d");
-    ck_tile::index_t hdim_v = arg_parser.get_int("d_v");
     if(hdim_v < 0)
         hdim_v = hdim_q;
 
-    ck_tile::index_t seqlen_knew = arg_parser.get_int("s_knew");
 #if !CK_TILE_FMHA_FWD_APPENDKV_API
     if(seqlen_knew != 0)
     {
@@ -286,17 +208,16 @@ bool run(const ck_tile::ArgParser& arg_parser)
 #endif
     if(seqlen_knew < 0)
     {
-        seqlen_knew = randint<ck_tile::index_t>(1, arg_parser.get_int("s"), seed);
+        seqlen_knew = randint<ck_tile::index_t>(1, seqlen_qs[0], random_engine);
     }
 
-    ck_tile::index_t rotary_dim = arg_parser.get_int("rotary_dim");
     if constexpr(!(std::is_same_v<DataTypeConfig, FmhaFwdFp16> ||
                    std::is_same_v<DataTypeConfig, FmhaFwdBf16>))
     {
         if(0 < rotary_dim)
         {
             std::cerr << "rotary embedding is only available for data type=fp16|bf16" << std::endl;
-            return false;
+            return fwd_result::invalid_args;
         }
     }
 #if !CK_TILE_FMHA_FWD_APPENDKV_API
@@ -317,15 +238,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(!(rotary_dim <= hdim_q))
     {
         std::cerr << "rotary_dim should be less than or equal to head dim for q" << std::endl;
-        return false;
+        return fwd_result::invalid_args;
     }
     else if(!(rotary_dim % 16 == 0))
     {
         std::cerr << "only rotary dimensions divisible by 16 are currently supported" << std::endl;
-        return false;
+        return fwd_result::invalid_args;
     }
 
-    ck_tile::index_t page_block_size = arg_parser.get_int("page_block_size");
 #if(!(CK_TILE_FMHA_FWD_APPENDKV_API || CK_TILE_FMHA_FWD_SPLITKV_API || \
       CK_TILE_FMHA_FWD_PAGEDKV_API))
     if(0 < page_block_size)
@@ -339,10 +259,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     {
         std::cerr << "only paged-kvcache block size divisible by 128 are currently supported"
                   << std::endl;
-        return false;
+        return fwd_result::invalid_args;
     }
 
-    bool use_cache_batch_idx = arg_parser.get_bool("cache_batch_idx");
 #if !(CK_TILE_FMHA_FWD_APPENDKV_API || CK_TILE_FMHA_FWD_SPLITKV_API || CK_TILE_FMHA_FWD_PAGEDKV_API)
     if(use_cache_batch_idx)
     {
@@ -371,14 +290,23 @@ bool run(const ck_tile::ArgParser& arg_parser)
 #endif
     const bool use_kvcache = (need_append_kvcache || use_cache_batch_idx || 0 < page_block_size);
 
-    auto [seqlen_qs, seqlen_ks, seqlen_kpads] =
-        decode_seqlen(mode,
-                      batch,
-                      arg_parser.get_str("s"),
-                      arg_parser.get_str("s_k"),
-                      arg_parser.get_str("s_kpad"),
-                      /*seqlen_k_min=*/0 < seqlen_knew ? seqlen_knew : 0,
-                      need_append_kvcache);
+    std::tie(seqlen_qs, seqlen_ks, seqlen_kpads) =
+        generate_missing_seqlens(mode,
+                                 batch,
+                                 seqlen_qs,
+                                 seqlen_ks,
+                                 seqlen_kpads,
+                                 /*seqlen_k_min=*/0 < seqlen_knew ? seqlen_knew : 0,
+                                 need_append_kvcache,
+                                 random_engine);
+    for(ck_tile::index_t wb = 0; wb < batch; ++wb)
+    {
+        if(seqlen_kpads[wb] > 0 && seqlen_kpads[wb] < seqlen_ks[wb])
+        {
+            std::cerr << "kpad must be greater than or equal to seqlen for k" << std::endl;
+            return fwd_result::invalid_args;
+        }
+    }
     // compute kvcache seqlen_k (before appending knew/vnew)
     auto cache_seqlen_ks = seqlen_ks;
     std::transform(cache_seqlen_ks.begin(),
@@ -387,64 +315,32 @@ bool run(const ck_tile::ArgParser& arg_parser)
                    [&](auto seqlen_k) { return seqlen_k - seqlen_knew; });
 
 #if 0
-    // clang-format off
-    std::cout << "seqlen_qs:"; for(auto xx : seqlen_qs) { std::cout << xx << ","; } std::cout << std::endl;
-    std::cout << "seqlen_ks:"; for(auto xx : seqlen_ks) { std::cout << xx << ","; } std::cout << std::endl;
-    std::cout << "seqlen_kpads:"; for(auto xx : seqlen_kpads) { std::cout << xx << ","; } std::cout << std::endl;
-    // clang-format on
+    std::cout << "seqlen_qs: " << seqlen_qs << std::endl;
+    std::cout << "seqlen_ks: " << seqlen_ks << std::endl;
+    std::cout << "seqlen_kpads: " << seqlen_kpads << std::endl;
+    std::cout << "cache_seqlen_ks: " << cache_seqlen_ks << std::endl;
 #endif
 
-    bool i_perm = arg_parser.get_bool("iperm"); // if true, will be batch * nhead * seqlen * hdim
-    bool o_perm = arg_parser.get_bool("operm"); // if false, will be batch * seqlen * nhead * hdim
-
-    float scale_s = arg_parser.get_float("scale_s");
     if(scale_s == .0f)
         scale_s = 1.0 / ck_tile::sqrt(static_cast<float>(hdim_q)); // TODO: q ? v ?
 
-    const float logits_soft_cap = arg_parser.get_float("logits_soft_cap");
+    bias_info bias = bias_info::decode(bias_str);
 
-    std::string squant_str = arg_parser.get_str("squant");
-    bool squant            = [&]() {
-        if(squant_str == "auto")
-        {
-            if(data_type == "fp8")
-                return true;
-            else
-                return false;
-        }
-        else
-            return atoi(squant_str.c_str()) != 0 ? true : false;
-    }();
-
-    std::string vlayout = arg_parser.get_str("vlayout");
-    bool lse            = arg_parser.get_bool("lse");
-
-    bias_info bias = bias_info::decode(arg_parser.get_str("bias"));
-    mask_info mask = mask_info::decode(
-        arg_parser.get_str("mask"), seqlen_qs[0], seqlen_ks[0]); // TODO: we don't need x/y anymore
-
-    float p_drop         = arg_parser.get_float("p_drop");
-    uint64_t drop_seed   = arg_parser.get_uint64("drop_seed");
-    uint64_t drop_offset = arg_parser.get_uint64("drop_offset");
-    bool drop_prefs      = arg_parser.get_bool("drop_prefs");
+    mask_info mask =
+        mask_info::decode(mask_str, seqlen_qs[0], seqlen_ks[0]); // TODO: we don't need x/y anymore
 
     if(p_drop < 0.0f || p_drop > 1.0f)
     {
         std::cerr << "The value of p_drop should be 0~1" << std::endl;
-        return false;
+        return fwd_result::invalid_args;
     }
 
     bool s_randval = false;
-    if(p_drop > 0.0f && do_validation != 0)
+    if(p_drop > 0.0f && do_validation)
     {
         s_randval = true;
     }
 
-    std::string init_method = arg_parser.get_str("init");
-
-    const bool is_rotary_interleaved = arg_parser.get_bool("rotary_interleaved");
-
-    ck_tile::index_t num_splits = arg_parser.get_int("num_splits");
 #if !CK_TILE_FMHA_FWD_SPLITKV_API
     if(num_splits != 1)
     {
@@ -452,17 +348,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
         num_splits = 1;
     }
 #endif
-
-    int stream_warmup = arg_parser.get_int("warmup");
-    int stream_repeat = arg_parser.get_int("repeat");
-    bool kname        = arg_parser.get_bool("kname");
-
-    ck_tile::stream_config stream_config{nullptr,
-                                         true,
-                                         /* log_level = */ (kname ? 1 : 0),
-                                         stream_warmup,
-                                         stream_repeat,
-                                         arg_parser.get_str("timer") == std::string("gpu")};
 
     const auto seqstart_q_host              = to_seqstarts(seqlen_qs);
     const auto seqstart_k_host              = to_seqstarts(seqlen_ks);
@@ -481,12 +366,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using PDataType             = typename TypeConfig::PDataType;
     using OaccDataType          = typename TypeConfig::OaccDataType;
     using ODataType             = typename TypeConfig::ODataType;
-
-    float range_q = arg_parser.get_float("range_q");
-    float range_k = arg_parser.get_float("range_k");
-    float range_v = arg_parser.get_float("range_v");
-    float range_p = arg_parser.get_float("range_p");
-    float range_o = arg_parser.get_float("range_o");
 
     float q_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<QDataType>::max());
     float k_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<KDataType>::max());
@@ -549,12 +428,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(128 < num_splits)
     {
         std::cerr << "num_splits greater than 128 is not supported" << std::endl;
-        return false;
+        return fwd_result::invalid_args;
     }
 #if CK_TILE_FMHA_FWD_SPLITKV_API || CK_TILE_FMHA_FWD_PAGEDKV_API
     if(0 < p_drop && (1 < num_splits || use_kvcache))
     {
-        std::cerr << "dropout is not supoprted by split-kv kernels. ignoring the 'p_drop' option"
+        std::cerr << "dropout is not supported by split-kv kernels. ignoring the 'p_drop' option"
                   << std::endl;
         p_drop = 0.0f;
     }
@@ -570,8 +449,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
         else
             return std::array<ck_tile::index_t, 4>{b, s, h, d};
     };
-
-    bool is_v_rowmajor = vlayout == std::string("r");
 
     // host memory for storing all the tensor elements
     const ck_tile::index_t shape_batch = (mode == mode_enum::batch ? batch : 1);
@@ -617,7 +494,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             : std::array<ck_tile::index_t, 2>{1, 1});
 
     auto [rotary_cos_host, rotary_sin_host] = generate_rotary_cos_sin<KDataType>(
-        std::max(shape_seqlen_q, shape_seqlen_k), rotary_dim, seed);
+        std::max(shape_seqlen_q, shape_seqlen_k), rotary_dim, next_seed());
 
     ck_tile::HostTensor<LSEDataType> lse_acc_host(
         1 < num_splits || use_kvcache
@@ -654,39 +531,41 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(init_method == "ui" || init_method == "0")
     {
-        ck_tile::FillUniformDistributionIntegerValue<QDataType>{-3.f, 3.f, seed}(q_host);
-        ck_tile::FillUniformDistributionIntegerValue<KDataType>{-3.f, 3.f, seed}(k_host);
-        ck_tile::FillUniformDistributionIntegerValue<KDataType>{-3.f, 3.f, seed}(knew_host);
-        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-3.f, 3.f, seed}(v_host);
-        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-3.f, 3.f, seed}(vnew_host);
-        ck_tile::FillUniformDistributionIntegerValue<BiasDataType>{-3.f, 3.f, seed}(bias_host);
+        ck_tile::FillUniformDistributionIntegerValue<QDataType>{-3.f, 3.f, next_seed()}(q_host);
+        ck_tile::FillUniformDistributionIntegerValue<KDataType>{-3.f, 3.f, next_seed()}(k_host);
+        ck_tile::FillUniformDistributionIntegerValue<KDataType>{-3.f, 3.f, next_seed()}(knew_host);
+        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-3.f, 3.f, next_seed()}(v_host);
+        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-3.f, 3.f, next_seed()}(vnew_host);
+        ck_tile::FillUniformDistributionIntegerValue<BiasDataType>{-3.f, 3.f, next_seed()}(
+            bias_host);
     }
     else if(init_method == "ni")
     {
-        ck_tile::FillNormalDistributionIntegerValue<QDataType>{-3.f, 3.f, seed}(q_host);
-        ck_tile::FillNormalDistributionIntegerValue<KDataType>{-3.f, 3.f, seed}(k_host);
-        ck_tile::FillNormalDistributionIntegerValue<KDataType>{-3.f, 3.f, seed}(knew_host);
-        ck_tile::FillNormalDistributionIntegerValue<VDataType>{-3.f, 3.f, seed}(v_host);
-        ck_tile::FillNormalDistributionIntegerValue<VDataType>{-3.f, 3.f, seed}(vnew_host);
-        ck_tile::FillNormalDistributionIntegerValue<BiasDataType>{-3.f, 3.f, seed}(bias_host);
+        ck_tile::FillNormalDistributionIntegerValue<QDataType>{-3.f, 3.f, next_seed()}(q_host);
+        ck_tile::FillNormalDistributionIntegerValue<KDataType>{-3.f, 3.f, next_seed()}(k_host);
+        ck_tile::FillNormalDistributionIntegerValue<KDataType>{-3.f, 3.f, next_seed()}(knew_host);
+        ck_tile::FillNormalDistributionIntegerValue<VDataType>{-3.f, 3.f, next_seed()}(v_host);
+        ck_tile::FillNormalDistributionIntegerValue<VDataType>{-3.f, 3.f, next_seed()}(vnew_host);
+        ck_tile::FillNormalDistributionIntegerValue<BiasDataType>{-3.f, 3.f, next_seed()}(
+            bias_host);
     }
     else if(init_method == "uf" || init_method == "1")
     {
-        ck_tile::FillUniformDistribution<QDataType>{0.f, 1.f, seed}(q_host);
-        ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(k_host);
-        ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(knew_host);
-        ck_tile::FillUniformDistribution<VDataType>{0.f, 1.f, seed}(v_host);
-        ck_tile::FillUniformDistribution<VDataType>{0.f, 1.f, seed}(vnew_host);
-        ck_tile::FillUniformDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
+        ck_tile::FillUniformDistribution<QDataType>{0.f, 1.f, next_seed()}(q_host);
+        ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, next_seed()}(k_host);
+        ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, next_seed()}(knew_host);
+        ck_tile::FillUniformDistribution<VDataType>{0.f, 1.f, next_seed()}(v_host);
+        ck_tile::FillUniformDistribution<VDataType>{0.f, 1.f, next_seed()}(vnew_host);
+        ck_tile::FillUniformDistribution<BiasDataType>{0.f, 1.f, next_seed()}(bias_host);
     }
     else if(init_method == "nf")
     {
-        ck_tile::FillNormalDistribution<QDataType>{0.f, 3.f, seed}(q_host);
-        ck_tile::FillNormalDistribution<KDataType>{0.f, 3.f, seed}(k_host);
-        ck_tile::FillNormalDistribution<KDataType>{0.f, 3.f, seed}(knew_host);
-        ck_tile::FillNormalDistribution<VDataType>{0.f, 3.f, seed}(v_host);
-        ck_tile::FillNormalDistribution<VDataType>{0.f, 3.f, seed}(vnew_host);
-        ck_tile::FillNormalDistribution<BiasDataType>{0.f, 3.f, seed}(bias_host);
+        ck_tile::FillNormalDistribution<QDataType>{0.f, 3.f, next_seed()}(q_host);
+        ck_tile::FillNormalDistribution<KDataType>{0.f, 3.f, next_seed()}(k_host);
+        ck_tile::FillNormalDistribution<KDataType>{0.f, 3.f, next_seed()}(knew_host);
+        ck_tile::FillNormalDistribution<VDataType>{0.f, 3.f, next_seed()}(v_host);
+        ck_tile::FillNormalDistribution<VDataType>{0.f, 3.f, next_seed()}(vnew_host);
+        ck_tile::FillNormalDistribution<BiasDataType>{0.f, 3.f, next_seed()}(bias_host);
     }
     else if(init_method == "tf" || init_method == "2")
     {
@@ -697,20 +576,32 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::FillTrigValue<VDataType>{}(vnew_host);
         ck_tile::FillTrigValue<BiasDataType>{}(bias_host);
     }
-    else if(init_method == "ufq" || init_method == "uf:q" ||
-            init_method == "3") // suitable for fp8 quantization
+    else if(init_method == "ufq" || init_method == "uf:q" || init_method == "3")
     {
-        ck_tile::FillUniformDistribution<QDataType>{-q_dtype_max, q_dtype_max, seed}(q_host);
-        ck_tile::FillUniformDistribution<KDataType>{-k_dtype_max, k_dtype_max, seed}(k_host);
-        ck_tile::FillUniformDistribution<KDataType>{-k_dtype_max, k_dtype_max, seed}(knew_host);
-        ck_tile::FillUniformDistribution<VDataType>{-v_dtype_max, v_dtype_max, seed}(v_host);
-        ck_tile::FillUniformDistribution<VDataType>{-v_dtype_max, v_dtype_max, seed}(vnew_host);
+        // suitable for fp8 quantization
+        if(!squant)
+        {
+            std::cerr << "init method " << init_method << " can not be used without quantization"
+                      << std::endl;
+            return fwd_result::invalid_args;
+        }
+        ck_tile::FillUniformDistribution<QDataType>{0.f, q_dtype_max, next_seed()}(q_host);
+        ck_tile::FillUniformDistribution<KDataType>{0.f, k_dtype_max, next_seed()}(k_host);
+        ck_tile::FillUniformDistribution<KDataType>{0.f, k_dtype_max, next_seed()}(knew_host);
+        ck_tile::FillUniformDistribution<VDataType>{0.f, v_dtype_max, next_seed()}(v_host);
+        ck_tile::FillUniformDistribution<VDataType>{0.f, v_dtype_max, next_seed()}(vnew_host);
 
         // bias_fp8 = qscale_bias * bias_fp32
         float qscale_bias = (q_dtype_max / range_q) * (k_dtype_max / range_k);
-        // Assume bias is in [-1.f, 1.f] in original fp32
-        ck_tile::FillUniformDistribution<BiasDataType>{-qscale_bias, qscale_bias, seed}(bias_host);
+        // Assume bias is in [0.f, 1.f] in original fp32
+        ck_tile::FillUniformDistribution<BiasDataType>{0.f, qscale_bias, next_seed()}(bias_host);
     }
+    else
+    {
+        std::cerr << "Unknown value for init argument: " << init_method << std::endl;
+        return fwd_result::invalid_args;
+    }
+
     if(bias.type == bias_enum::alibi)
     {
         auto slopes = ck_tile::get_alibi_slopes<SaccDataType>(nhead);
@@ -729,8 +620,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
             }
         }
     }
-    iota_shuffle(block_table_host.begin(), block_table_host.end(), 0);
-    iota_shuffle(cache_batch_idx_host.begin(), cache_batch_idx_host.end(), 0);
+    iota_shuffle(block_table_host.begin(), block_table_host.end(), 0, random_engine);
+    iota_shuffle(cache_batch_idx_host.begin(), cache_batch_idx_host.end(), 0, random_engine);
 
     ck_tile::DeviceMem q_buf(q_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem k_buf(k_host.get_element_space_size_in_bytes());
@@ -790,15 +681,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
         else return layout_str(iperm_) + std::string("-") + layout_str(operm_);
     };
     // clang-format on
-    const std::string prec = arg_parser.get_str("prec");
 
-    std::cout << "[" << prec << "|" << mode << "|" << io_layout(i_perm, o_perm) << "] b:" << batch
-              << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_qs[0] << "/" << seqlen_ks[0]
+    std::cout << "[" << data_type << "|" << mode << "|" << io_layout(i_perm, o_perm)
+              << "] b:" << batch << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_qs[0]
+              << "/" << seqlen_ks[0]
               << (seqlen_kpads[0] < 0 ? ""
                                       : (std::string("(") + std::to_string(seqlen_kpads[0]) + ")"))
               << ", d:" << hdim_q << "/" << hdim_v << ", scale_s:" << scale_s << ", bias:" << bias
               << ", p_drop:" << p_drop << ", lse:" << lse << ", squant:" << squant
-              << ", mask:" << mask << ", v:" << vlayout;
+              << ", mask:" << mask << ", v:" << (is_v_rowmajor ? "r" : "c");
 #if CK_TILE_FMHA_FWD_APPENDKV_API
     if(0 < rotary_dim)
     {
@@ -850,13 +741,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
             else if constexpr(std::is_same_v<fmha_fwd_pagedkv_traits,
                                              std::decay_t<decltype(traits)>>)
             {
-                traits.use_pagedkv = use_kvcache;
+                traits.use_pagedkv = (0 < page_block_size);
             }
         }
     };
 
     const auto init_args = [&, k_paddings_ = seqlen_kpads](auto& args) {
-        assert(nhead % nhead_k == 0);
         /// NOTE: we broadcast bias from [1, 1, seqlen_q, seqlen_k] to [batch, nhead, seqlen_q,
         ///       seqlen_k] in this example, hence both the 'batch_stride_bias' &
         ///       'nhead_stride_bias' are 0.
@@ -1089,10 +979,35 @@ bool run(const ck_tile::ArgParser& arg_parser)
 #endif
         return 0.0f;
     }();
+    if(appendkv_ave_time < 0.0f)
+    {
+        std::cout << ", not supported yet" << std::flush << std::endl;
+        return fwd_result::no_instance;
+    }
 
     const float fwd_ave_time = [&] {
+#if CK_TILE_FMHA_FWD_PAGEDKV_API
+        if(1 == num_splits && use_kvcache)
+        {
+            fmha_fwd_pagedkv_traits fmha_pagedkv_traits;
+            init_traits(fmha_pagedkv_traits);
+
+            fmha_fwd_pagedkv_args fmha_pagedkv_args;
+            init_args(fmha_pagedkv_args);
+
+            const float ave_time =
+                fmha_fwd_pagedkv(fmha_pagedkv_traits, fmha_pagedkv_args, stream_config);
 #if CK_TILE_FMHA_FWD_SPLITKV_API
-        if(1 < num_splits && use_kvcache)
+            // If there is no instance for these args, fallback to fmha_fwd_splitkv
+            if(ave_time >= 0.0f)
+                return ave_time;
+#else
+            return ave_time;
+#endif
+        }
+#endif // CK_TILE_FMHA_FWD_PAGEDKV_API
+#if CK_TILE_FMHA_FWD_SPLITKV_API
+        if(1 < num_splits || use_kvcache)
         {
             fmha_fwd_splitkv_traits fmha_splitkv_traits;
             init_traits(fmha_splitkv_traits);
@@ -1102,19 +1017,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
             return fmha_fwd_splitkv(fmha_splitkv_traits, fmha_splitkv_args, stream_config);
         }
-#endif
-#if CK_TILE_FMHA_FWD_PAGEDKV_API
-        if(use_kvcache)
-        {
-            fmha_fwd_pagedkv_traits fmha_pagedkv_traits;
-            init_traits(fmha_pagedkv_traits);
-
-            fmha_fwd_pagedkv_args fmha_pagedkv_args;
-            init_args(fmha_pagedkv_args);
-
-            return fmha_fwd_pagedkv(fmha_pagedkv_traits, fmha_pagedkv_args, stream_config);
-        }
-#endif
+#endif // CK_TILE_FMHA_FWD_SPLITKV_API
         fmha_fwd_traits fmha_traits;
         init_traits(fmha_traits);
 
@@ -1123,22 +1026,21 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         return fmha_fwd(fmha_traits, fmha_args, stream_config);
     }();
-
-    if(appendkv_ave_time < 0.0f || fwd_ave_time < 0.0f)
+    if(fwd_ave_time < 0.0f)
     {
         std::cout << ", not supported yet" << std::flush << std::endl;
-        return false;
+        return fwd_result::no_instance;
     }
 
-    const float ave_time = (appendkv_ave_time + fwd_ave_time);
-
-    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
-
-    float gb_per_sec = num_byte / 1.E6 / ave_time;
-
-    std::cout << std::fixed << ", " << std::setprecision(3) << ave_time << " ms, "
-              << std::setprecision(2) << tflops << " TFlops, " << std::setprecision(2) << gb_per_sec
-              << " GB/s" << std::flush << std::endl;
+    const float ave_time   = appendkv_ave_time + fwd_ave_time;
+    const float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
+    const float gb_per_sec = num_byte / 1.E6 / ave_time;
+    if(stream_config.time_kernel_)
+    {
+        std::cout << std::fixed << ", " << std::setprecision(3) << ave_time << " ms, "
+                  << std::setprecision(2) << tflops << " TFlops, " << std::setprecision(2)
+                  << gb_per_sec << " GB/s" << std::flush;
+    }
 
     bool pass = true;
     if(do_validation == 0)
@@ -1197,20 +1099,21 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
     else
     {
-
         o_buf.FromDevice(o_host.data());
         lse_buf.FromDevice(lse_host.data());
         randval_buf.FromDevice(randval_host.data());
 
+        constexpr bool supports_squant = std::is_same_v<DataTypeConfig, FmhaFwdFp8>;
+
         auto p_compute_element_func = [&]() {
-            if constexpr(std::is_same_v<DataTypeConfig, ck_tile::fp8_t>)
+            if constexpr(supports_squant)
                 return ck_tile::scales{scale_p};
             else
                 return ck_tile::identity{};
         }();
 
         auto oacc_element_func = [&]() {
-            if constexpr(std::is_same_v<DataTypeConfig, ck_tile::fp8_t>)
+            if constexpr(supports_squant)
                 return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{},
                                          ck_tile::scales{scale_o});
             else
@@ -1252,140 +1155,146 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ck_tile::index_t nr = nhead / nhead_k;
 
             // clang-format off
-        // permute
-        if(i_perm) q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b_idx, i[0], i[1] + query_offset, i[2]); });
-        else       q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b_idx, i[1] + query_offset, i[0], i[2]); });
+            // permute
+            if(i_perm) q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b_idx, i[0], i[1] + query_offset, i[2]); });
+            else       q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b_idx, i[1] + query_offset, i[0], i[2]); });
+                // clang-format on
 
 #if CK_TILE_FMHA_FWD_APPENDKV_API
-        // optionally apply RoPE to the q_host_ref
-        if(0 < rotary_dim)
-        {
-            decltype(q_host_ref) q_host_ref_ro(q_host_ref.get_lengths());
-
-            auto [rotary_cos_slice, rotary_sin_slice] =
-                slice_rotary_cos_sin(rotary_cos_host, rotary_sin_host, cache_seqlen_ks[wb], real_seqlen_q);
-
-            ck_tile::reference_batched_rotary_position_embedding(
-                q_host_ref, rotary_cos_slice, rotary_sin_slice, is_rotary_interleaved, q_host_ref_ro,
-                /*use_1_row_sin_cos=*/mask.type == mask_enum::no_mask);
-
-            q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host_ref_ro(i); });
-        }
-#endif
-#if CK_TILE_FMHA_FWD_SPLITKV_API || CK_TILE_FMHA_FWD_PAGEDKV_API
-        if(0 < page_block_size) {
-            if(i_perm) {
-                k_host_ref.ForEach([&](auto& self, auto i) {
-                    self(i) = k_host(block_table_host(wb, i[1] / page_block_size), i[0] / nr, i[1] % page_block_size, i[2]);
-                });
-            } else {
-                k_host_ref.ForEach([&](auto& self, auto i) {
-                    self(i) = k_host(block_table_host(wb, i[1] / page_block_size), i[1] % page_block_size, i[0] / nr, i[2]);
-                });
-            }
-        } else
-#endif
-        {
-            if(i_perm) k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(cache_b_idx, i[0] / nr, i[1] + key_offset, i[2]); });
-            else       k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(cache_b_idx, i[1] + key_offset, i[0] / nr, i[2]); });
-        }
-
-#if CK_TILE_FMHA_FWD_APPENDKV_API
-        // copy Knew to the end of K
-        if(0 < seqlen_knew)
-        {
-            ck_tile::HostTensor<KDataType> knew_host_ref({nhead, seqlen_knew, hdim_q});
-            if(i_perm) knew_host_ref.ForEach([&](auto& self, auto i) { self(i) = knew_host(wb, i[0] / nr, i[1], i[2]); });
-            else       knew_host_ref.ForEach([&](auto& self, auto i) { self(i) = knew_host(wb, i[1], i[0] / nr, i[2]); });
-
-            // optionally apply RoPE to the knew_host_ref
-            auto* real_knew_host_ref = &knew_host_ref;
-            std::optional<decltype(knew_host_ref)> knew_host_ref_ro;
+            // optionally apply RoPE to the q_host_ref
             if(0 < rotary_dim)
             {
-                knew_host_ref_ro.emplace(knew_host_ref.get_lengths());
+                decltype(q_host_ref) q_host_ref_ro(q_host_ref.get_lengths());
 
-                auto [rotary_cos_slice, rotary_sin_slice] =
-                    slice_rotary_cos_sin(rotary_cos_host, rotary_sin_host, cache_seqlen_ks[wb], seqlen_knew);
+                auto [rotary_cos_slice, rotary_sin_slice] = slice_rotary_cos_sin(
+                    rotary_cos_host, rotary_sin_host, cache_seqlen_ks[wb], real_seqlen_q);
 
                 ck_tile::reference_batched_rotary_position_embedding(
-                    knew_host_ref,
+                    q_host_ref,
                     rotary_cos_slice,
                     rotary_sin_slice,
                     is_rotary_interleaved,
-                    knew_host_ref_ro.value());
+                    q_host_ref_ro,
+                    /*use_1_row_sin_cos=*/mask.type == mask_enum::no_mask);
 
-                real_knew_host_ref = &knew_host_ref_ro.value();
+                q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host_ref_ro(i); });
             }
-
-            (*real_knew_host_ref).ForEach([&](auto& self, auto i) {
-                k_host_ref(i[0], i[1] + cache_seqlen_ks[wb], i[2]) = self(i);
-            });
-        }
 #endif
 #if CK_TILE_FMHA_FWD_SPLITKV_API || CK_TILE_FMHA_FWD_PAGEDKV_API
-        if(0 < page_block_size) {
-            if(is_v_rowmajor) {
-                if(i_perm) {
-                    v_host_ref.ForEach([&](auto& self, auto i) {
-                        self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[0] / nr, i[2] % page_block_size, i[1]);
-                    });
-                } else {
-                    v_host_ref.ForEach([&](auto& self, auto i) {
-                        self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[2] % page_block_size, i[0] / nr, i[1]);
-                    });
-                }
+            if(0 < page_block_size)
+            {
+                // clang-format off
+                if(i_perm) k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(block_table_host(wb, i[1] / page_block_size), i[0] / nr, i[1] % page_block_size, i[2]); });
+                else       k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(block_table_host(wb, i[1] / page_block_size), i[1] % page_block_size, i[0] / nr, i[2]); });
+                // clang-format on
             }
             else
-            {
-                if(i_perm) {
-                    v_host_ref.ForEach([&](auto& self, auto i) {
-                        self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[0] / nr, i[1], i[2] % page_block_size);
-                    });
-                } else {
-                    v_host_ref.ForEach([&](auto& self, auto i) {
-                        self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[1], i[0] / nr, i[2] % page_block_size);
-                    });
-                }
-            }
-        } else
 #endif
-        {
-            if(is_v_rowmajor) {
-                //                                                             v_host_ref: [nhead, hdim, seq], v_host: [b, h_k, s, d]
-                if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(cache_b_idx, i[0] / nr, i[2] + key_offset, i[1]); });
-                //                                                             v_host_ref: [nhead, hdim, seq], v_host: [b, s, h_k, d]
-                else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(cache_b_idx, i[2] + key_offset, i[0] / nr, i[1]); });
-            }
-            else
             {
-                if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(cache_b_idx, i[0] / nr, i[1], i[2] + key_offset); });
-                else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(cache_b_idx, i[1], i[0] / nr, i[2] + key_offset); });
+                // clang-format off
+                if(i_perm) k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(cache_b_idx, i[0] / nr, i[1] + key_offset, i[2]); });
+                else       k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(cache_b_idx, i[1] + key_offset, i[0] / nr, i[2]); });
+                // clang-format on
             }
-        }
 
 #if CK_TILE_FMHA_FWD_APPENDKV_API
-        // copy Vnew to the end of V
-        if(0 < seqlen_knew)
-        {
-            ck_tile::HostTensor<VDataType> vnew_host_ref({nhead, hdim_v, seqlen_knew});
-            if(is_v_rowmajor)
+            // copy Knew to the end of K
+            if(0 < seqlen_knew)
             {
-                if(i_perm) vnew_host_ref.ForEach([&](auto& self, auto i) { self(i) = vnew_host(wb, i[0] / nr, i[2], i[1]); });
-                else       vnew_host_ref.ForEach([&](auto& self, auto i) { self(i) = vnew_host(wb, i[2], i[0] / nr, i[1]); });
+                ck_tile::HostTensor<KDataType> knew_host_ref({nhead, seqlen_knew, hdim_q});
+                // clang-format off
+                if(i_perm) knew_host_ref.ForEach([&](auto& self, auto i) { self(i) = knew_host(wb, i[0] / nr, i[1], i[2]); });
+                else       knew_host_ref.ForEach([&](auto& self, auto i) { self(i) = knew_host(wb, i[1], i[0] / nr, i[2]); });
+                // clang-format on
+
+                // optionally apply RoPE to the knew_host_ref
+                auto* real_knew_host_ref = &knew_host_ref;
+                std::optional<decltype(knew_host_ref)> knew_host_ref_ro;
+                if(0 < rotary_dim)
+                {
+                    knew_host_ref_ro.emplace(knew_host_ref.get_lengths());
+
+                    auto [rotary_cos_slice, rotary_sin_slice] = slice_rotary_cos_sin(
+                        rotary_cos_host, rotary_sin_host, cache_seqlen_ks[wb], seqlen_knew);
+
+                    ck_tile::reference_batched_rotary_position_embedding(knew_host_ref,
+                                                                         rotary_cos_slice,
+                                                                         rotary_sin_slice,
+                                                                         is_rotary_interleaved,
+                                                                         knew_host_ref_ro.value());
+
+                    real_knew_host_ref = &knew_host_ref_ro.value();
+                }
+
+                (*real_knew_host_ref).ForEach([&](auto& self, auto i) {
+                    k_host_ref(i[0], i[1] + cache_seqlen_ks[wb], i[2]) = self(i);
+                });
+            }
+#endif
+#if CK_TILE_FMHA_FWD_SPLITKV_API || CK_TILE_FMHA_FWD_PAGEDKV_API
+            if(0 < page_block_size)
+            {
+                if(is_v_rowmajor)
+                {
+                    // clang-format off
+                    if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[0] / nr, i[2] % page_block_size, i[1]); });
+                    else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[2] % page_block_size, i[0] / nr, i[1]); });
+                    // clang-format on
+                }
+                else
+                {
+                    // clang-format off
+                    if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[0] / nr, i[1], i[2] % page_block_size); });
+                    else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[1], i[0] / nr, i[2] % page_block_size); });
+                    // clang-format on
+                }
             }
             else
+#endif
             {
-                if(i_perm) vnew_host_ref.ForEach([&](auto& self, auto i) { self(i) = vnew_host(wb, i[0] / nr, i[1], i[2]); });
-                else       vnew_host_ref.ForEach([&](auto& self, auto i) { self(i) = vnew_host(wb, i[1], i[0] / nr, i[2]); });
+                if(is_v_rowmajor)
+                {
+                    // clang-format off
+                    //                                v_host_ref: [nhead, hdim, seq], v_host: [b, h_k, s, d]
+                    if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(cache_b_idx, i[0] / nr, i[2] + key_offset, i[1]); });
+                    //                                v_host_ref: [nhead, hdim, seq], v_host: [b, s, h_k, d]
+                    else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(cache_b_idx, i[2] + key_offset, i[0] / nr, i[1]); });
+                    // clang-format on
+                }
+                else
+                {
+                    // clang-format off
+                    if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(cache_b_idx, i[0] / nr, i[1], i[2] + key_offset); });
+                    else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(cache_b_idx, i[1], i[0] / nr, i[2] + key_offset); });
+                    // clang-format on
+                }
             }
 
-            vnew_host_ref.ForEach([&](auto& self, auto i) {
-                v_host_ref(i[0], i[1], i[2] + cache_seqlen_ks[wb]) = self(i);
-            });
-        }
+#if CK_TILE_FMHA_FWD_APPENDKV_API
+            // copy Vnew to the end of V
+            if(0 < seqlen_knew)
+            {
+                ck_tile::HostTensor<VDataType> vnew_host_ref({nhead, hdim_v, seqlen_knew});
+                if(is_v_rowmajor)
+                {
+                    // clang-format off
+                    if(i_perm) vnew_host_ref.ForEach([&](auto& self, auto i) { self(i) = vnew_host(wb, i[0] / nr, i[2], i[1]); });
+                    else       vnew_host_ref.ForEach([&](auto& self, auto i) { self(i) = vnew_host(wb, i[2], i[0] / nr, i[1]); });
+                    // clang-format on
+                }
+                else
+                {
+                    // clang-format off
+                    if(i_perm) vnew_host_ref.ForEach([&](auto& self, auto i) { self(i) = vnew_host(wb, i[0] / nr, i[1], i[2]); });
+                    else       vnew_host_ref.ForEach([&](auto& self, auto i) { self(i) = vnew_host(wb, i[1], i[0] / nr, i[2]); });
+                    // clang-format on
+                }
+
+                vnew_host_ref.ForEach([&](auto& self, auto i) {
+                    v_host_ref(i[0], i[1], i[2] + cache_seqlen_ks[wb]) = self(i);
+                });
+            }
 #endif
-            // clang-format on
 
             // reference
             ck_tile::
@@ -1412,10 +1321,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 // elementwise bias
                 ck_tile::HostTensor<BiasDataType> bias_host_ref({1, real_seqlen_q, real_seqlen_k});
                 // clang-format off
-                if(i_perm)
-                    bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, 0, i[1] + query_offset, i[2]); });
-                else
-                    bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, i[1] + query_offset, 0, i[2]); });
+                if(i_perm) bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, 0, i[1] + query_offset, i[2]); });
+                else       bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, i[1] + query_offset, 0, i[2]); });
                 // clang-format on
 
                 // broadcast from [1, real_seqlen_q, real_seqlen_k] to [nhead, real_seqlen_q,
@@ -1509,6 +1416,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                             real_seqlen_k,
                             mask.type == mask_enum::mask_top_left));
             }
+            const ck_tile::HostTensor<SaccDataType> masked_s_host_ref = s_host_ref;
             if(lse)
             {
                 ck_tile::
@@ -1526,11 +1434,32 @@ bool run(const ck_tile::ArgParser& arg_parser)
             {
                 ck_tile::HostTensor<RandValOutputDataType> randval_host_ref(
                     {nhead, real_seqlen_q, real_seqlen_k});
-                randval_host_ref.ForEach([&](auto& self, auto idx) {
-                    self(idx) = randval_host(b_idx, idx[0], idx[1] + query_offset, idx[2]);
-                });
+                ck_tile::reference_batched_dropout_randval(
+                    randval_host_ref, wb, drop_seed, drop_offset);
                 ck_tile::reference_batched_dropout(
                     p_host_ref, randval_host_ref, p_undrop_in_uint8_t, rp_undrop);
+
+                ck_tile::HostTensor<RandValOutputDataType> randval_host_result(
+                    {nhead, real_seqlen_q, real_seqlen_k});
+                randval_host_result.ForEach([&](auto& self, const auto& idx) {
+                    self(idx) = randval_host(b_idx, idx[0], idx[1] + query_offset, idx[2]);
+                });
+                masked_s_host_ref.ForEach([&](const auto& self, const auto& idx) {
+                    // Ignore all masked values in validation check
+                    if(std::isinf(self(idx)))
+                    {
+                        randval_host_ref(idx)    = 0;
+                        randval_host_result(idx) = 0;
+                    }
+                });
+                bool cur_pass = ck_tile::check_err(randval_host_result,
+                                                   randval_host_ref,
+                                                   "DROPOUT RANDVAL Error: Incorrect results!");
+                pass &= cur_pass;
+                if(!cur_pass)
+                {
+                    break;
+                }
             }
 
             ck_tile::reference_batched_gemm<PDataType, VDataType, OaccDataType, ODataType>(
@@ -1543,9 +1472,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
             ck_tile::HostTensor<ODataType> o_host_result({nhead, real_seqlen_q, hdim_v});
             // clang-format off
-        // permute
-        if(o_perm) o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host(b_idx, idx[0], idx[1] + query_offset, idx[2]); });
-        else       o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host(b_idx, idx[1] + query_offset, idx[0], idx[2]); });
+            // permute
+            if(o_perm) o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host(b_idx, idx[0], idx[1] + query_offset, idx[2]); });
+            else       o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host(b_idx, idx[1] + query_offset, idx[0], idx[2]); });
             // clang-format on
 
             auto [rtol, atol] = get_elimit<DataTypeConfig>(init_method);
@@ -1597,10 +1526,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
         std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
     }
 
-    if(arg_parser.get_int("json") == 1)
+    if(json)
     {
-        dump_fmha_fwd_json_results(arg_parser.get_str("jsonfile"),
-                                   prec,
+        dump_fmha_fwd_json_results(*json,
+                                   data_type,
                                    mode == mode_enum::batch ? "batch" : "group",
                                    io_layout(i_perm, o_perm),
                                    batch,
@@ -1618,35 +1547,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                    bias.type == bias_enum::elementwise_bias
                                        ? "elementwise_bias"
                                        : (bias.type == bias_enum::alibi ? "alibi" : "no_bias"),
-                                   vlayout,
+                                   is_v_rowmajor ? "r" : "c",
                                    pass,
                                    ave_time,
                                    tflops,
                                    gb_per_sec);
     }
 
-    return pass;
-}
-
-int main(int argc, char* argv[])
-{
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
-        return -1;
-
-    const std::string data_type = arg_parser.get_str("prec");
-    if(data_type == "fp16")
-    {
-        return run<FmhaFwdFp16>(arg_parser) ? 0 : -2;
-    }
-    else if(data_type == "bf16")
-    {
-        return run<FmhaFwdBf16>(arg_parser) ? 0 : -2;
-    }
-    else if(data_type == "fp8")
-    {
-        return run<FmhaFwdFp8>(arg_parser) ? 0 : -2;
-    }
-
-    return -3;
+    return pass ? fwd_result::success : fwd_result::failure;
 }
