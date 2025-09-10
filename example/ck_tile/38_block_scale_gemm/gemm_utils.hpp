@@ -111,7 +111,7 @@ struct GemmConfigQuant : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigRolColQuant : public GemmConfigBase
+struct GemmConfigRowColQuant : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 16;
     static constexpr ck_tile::index_t N_Tile = 64;

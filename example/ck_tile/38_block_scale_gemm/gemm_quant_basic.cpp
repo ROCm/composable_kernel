@@ -53,8 +53,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                                                  GemmTraits,
                                                                  ComputeDataType>;
 
-    using BaseGemmPipeline =
-        ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
+    using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
 
     const ck_tile::index_t K_split =
         (args.K + GemmConfig::K_Tile - 1) / GemmConfig::K_Tile * GemmConfig::K_Tile;
@@ -201,33 +200,9 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     return 0;
 }
 
-void print_help(const char* program_name)
-{
-    std::cout
-        << "Usage: " << program_name << " [OPTIONS]\n"
-        << "\n Parameters:\n"
-        << "  -quant_mode=MODE     aquant (A quantization) or rowcol (row/column quantization)\n"
-        << "  -v=LEVEL              0=No validation, 1=CPU validation, 2=GPU validation\n"
-        << "  -prec=TYPE           Data types: fp8, bf8, i4fp8, i4bf8, i4f32fp8, i4f32bf8\n"
-        << "  -m, -n, -k=SIZE       Matrix dimensions (M×K) @ (K×N) = (M×N)\n"
-        << "\nExample:\n"
-        << "  " << program_name << " -quant_mode=rowcol -v=1 -prec=fp8\n"
-        << std::endl;
-}
-
 template <template <typename PreType> typename GemmConfig>
 int run_gemm_example(int argc, char* argv[])
 {
-
-    for(int i = 1; i < argc; ++i)
-    {
-        if(strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0)
-        {
-            print_help(argv[0]);
-            return 0;
-        }
-    }
-
     auto [result, arg_parser] = create_args(argc, argv);
     if(!result)
         return -1;
@@ -269,7 +244,8 @@ int run_gemm_example(int argc, char* argv[])
         }
         else
         {
-            throw std::runtime_error("Unsupported quantization mode! Use 'aquant' or 'rowcol'");
+            throw std::runtime_error(
+                "Unsupported quantization mode! Use 'aquant', 'bquant' or 'rowcol'");
         }
     }
     else if(data_type == "bf8")
@@ -287,7 +263,7 @@ int run_gemm_example(int argc, char* argv[])
         }
         else if(quant_mode == "bquant")
         {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
                                               TypeConfig,
                                               128,
                                               ck_tile::QuantType::BQuantGrouped>(
@@ -303,7 +279,8 @@ int run_gemm_example(int argc, char* argv[])
         }
         else
         {
-            throw std::runtime_error("Unsupported quantization mode! Use 'aquant' or 'rowcol'");
+            throw std::runtime_error(
+                "Unsupported quantization mode! Use 'aquant', 'bquant' or 'rowcol'");
         }
     }
     else if(data_type == "i4fp8")

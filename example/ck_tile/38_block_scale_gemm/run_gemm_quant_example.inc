@@ -86,12 +86,15 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
 
     std::size_t flop     = std::size_t(2) * M * N * K;
     std::size_t num_byte = sizeof(typename TypeConfig::ADataType) * M * K +
-                           sizeof(typename TypeConfig::QDataType) * M * AQK +
                            sizeof(typename TypeConfig::BDataType) * N * K +
                            sizeof(typename TypeConfig::CDataType) * M * N;
+    if(aq_dev_buf != nullptr)
+    {
+        num_byte += sizeof(typename TypeConfig::QDataType) * M * AQK;
+    }                           
     if(bq_dev_buf != nullptr)
     {
-        num_byte += sizeof(typename TypeConfig::QDataType) * BQK;
+        num_byte += sizeof(typename TypeConfig::QDataType) * N * BQK;
     }
 
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
