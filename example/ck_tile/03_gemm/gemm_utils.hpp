@@ -304,6 +304,14 @@ struct GemmConfigPreshufflePrefill : public GemmConfigBase
     static constexpr bool TiledMMAPermuteN     = N_Repeat % 2 == 0;
 };
 
+template <typename PrecType>
+struct GemmConfigPreshufflePrefill_Wmma : public GemmConfigPreshufflePrefill<PrecType>
+{
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+};
+
 template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>
 struct GemmTypeConfig;
 
