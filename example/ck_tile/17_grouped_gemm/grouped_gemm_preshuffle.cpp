@@ -230,5 +230,9 @@ int run_grouped_gemm_example(int argc, char* argv[])
 }
 int main(int argc, char* argv[])
 {
+#if CK_TILE_USE_WMMA
+    return !run_grouped_gemm_example<GemmConfigPreshuffleDecode_Wmma>(argc, argv);
+#else
     return !run_grouped_gemm_example<GemmConfigPreshuffleDecode>(argc, argv);
+#endif
 }
