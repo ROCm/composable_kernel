@@ -4,6 +4,7 @@
 #pragma once
 #include <random>
 #include <stdexcept>
+#include "ck_tile/host/permute_pk_int4.hpp"
 
 template <typename T>
 auto shuffle_aq(const ck_tile::HostTensor<T>* t, int block_aq_k)
@@ -370,7 +371,17 @@ int run_gemm_example_with_layouts(int argc,
         }
     }
 
-    a_m_k_dev_buf.ToDevice(a_m_k.data());
+    if constexpr(std::is_same_v<ADataType, ck_tile::pk_int4_t>)
+    {
+        // Permute vector pk_i4x4 data for device implementation
+        ck_tile::HostTensor<ADataType> a_m_k_dev = a_m_k;
+        ck_tile::permute_vectors_i4x4_b(a_m_k_dev);
+        a_m_k_dev_buf.ToDevice(a_m_k_dev.data());
+    }
+    else
+    {
+        a_m_k_dev_buf.ToDevice(a_m_k.data());
+    }
     b_k_n_dev_buf.ToDevice(b_k_n.data());
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();

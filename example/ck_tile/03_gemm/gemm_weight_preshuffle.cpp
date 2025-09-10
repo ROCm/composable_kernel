@@ -91,7 +91,11 @@ int main(int argc, char* argv[])
 
     try
     {
+#if CK_TILE_USE_WMMA
+        return !run_gemm_example<GemmConfigPreshufflePrefill_Wmma>(arg_parser);
+#else
         return !run_gemm_example<GemmConfigPreshufflePrefill>(arg_parser);
+#endif
     }
     catch(const std::runtime_error& e)
     {
