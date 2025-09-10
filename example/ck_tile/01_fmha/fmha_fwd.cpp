@@ -175,6 +175,14 @@ auto get_elimit<FmhaFwdFp8Bf16>(std::string /*init_method*/)
     return ck_tile::make_tuple(rtol, atol);
 }
 
+template <>
+auto get_elimit<FmhaFwdFp8Fp32>(std::string /*init_method*/)
+{
+    double rtol = 1e-2;
+    double atol = 1.8e-1;
+    return ck_tile::make_tuple(rtol, atol);
+}
+
 int num_splits_heuristic(int batch_nhead_mblocks, int num_SMs, int max_splits)
 {
     // If we have enough to almost fill the SMs, then just use 1 split
@@ -811,7 +819,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8>)
         {
             float o_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<ODataType>::max());
-            scale_o           = scale_o * o_dtype_max / max_o;
+            std::cout << "o_dtype_max: " << o_dtype_max << std::endl;
+            scale_o = scale_o * o_dtype_max / max_o;
         }
     }
 
@@ -1259,18 +1268,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
         randval_buf.FromDevice(randval_host.data());
 
         auto p_compute_element_func = [&]() {
-            if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8> ||
-                         std::is_same_v<DataTypeConfig, FmhaFwdFp8Bf16>)
+            if constexpr(std::is_same_v<QDataType, ck_tile::fp8_t>)
                 return ck_tile::scales{scale_p};
             else
                 return ck_tile::identity{};
         }();
 
         auto oacc_element_func = [&]() {
-            if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8> ||
-                         std::is_same_v<DataTypeConfig, FmhaFwdFp8Bf16>)
+            if constexpr(std::is_same_v<ODataType, ck_tile::fp8_t>)
                 return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{},
                                          ck_tile::scales{scale_o});
+            else if constexpr(std::is_same_v<QDataType, ck_tile::fp8_t>)
+                return ck_tile::scales{scale_o};
             else
                 return ck_tile::identity{};
         }();
@@ -1708,6 +1717,10 @@ int main(int argc, char* argv[])
     else if(data_type == "fp8bf16")
     {
         return run<FmhaFwdFp8Bf16>(arg_parser) ? 0 : -2;
+    }
+    else if(data_type == "fp8fp32")
+    {
+        return run<FmhaFwdFp8Fp32>(arg_parser) ? 0 : -2;
     }
 
     return -3;

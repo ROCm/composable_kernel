@@ -556,6 +556,10 @@ class KernelComponentFactory:
                 (128,128) : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
                 (256,256) : [FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
             }
+        elif dtype == 'fp8fp32':
+            return {
+                (128,128) : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
+            }
         else:
             return None
 
@@ -567,9 +571,9 @@ class KernelComponentFactory:
         # TODO: the order of List matters! the later in this list will be also be checked later
         # TODO: currently for qr pipeline, let 't' padding to appear later!!
         # TODO: how to design this more generic?
-        squant = 't' if dtype in ['fp8', 'fp8bf16'] else 'f'
         pipelines = []
         if dtype in ['fp16', 'bf16']:
+            squant = 'f'
             for logits, mask, bias, lse, dropout, skip in itertools.product(["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], ["t", "f"], ["t", "f"]):
                 if hdim == 256 and hdim_v == 256:
                     pipelines.append(FmhaFwdPipeline('qr', 'row', 'f', 'f', 'f', 'f', logits, bias, lse, dropout, squant, mask, skip, 'f'))
@@ -589,13 +593,11 @@ class KernelComponentFactory:
                             pipelines.append(FmhaFwdPipeline('qr_async_trload', 'row', 'f', 'f', 't', 't', logits, bias, lse, dropout, squant, mask, skip, 't'))
                     if receipt == 1 and bias != "bias":
                         pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask, skip, 'f')) # TODO: cover arbitraty hdim
-        elif dtype in ['fp8', 'fp8bf16']:
+        elif dtype in ['fp8', 'fp8bf16', 'fp8fp32']:
             # no need lse/dropout kernels
-            for logits, mask, bias in itertools.product(["f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()):
+            for logits, squant, mask, bias in itertools.product(["f"], ["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()):
                 pipelines.append(FmhaFwdPipeline('qr', 'row', 'f', 'f', 'f', 'f', logits, bias, 'f', 'f', squant, mask, 'f', 'f'))
                 pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 'f', 'f', logits, bias, 'f', 'f', squant, mask, 'f', 'f'))
-                pipelines.append(FmhaFwdPipeline('qr', 'row', 'f', 'f', 'f', 'f', logits, bias, 'f', 'f', 'f', mask, 'f', 'f'))
-                pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 'f', 'f', logits, bias, 'f', 'f', 'f', mask, 'f', 'f'))
         elif dtype in ['fp8fp16', 'bf8']:
             # TODO
             None
@@ -702,7 +704,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
                     if not cond:
                         continue
                 elif receipt == 888:
-                    cond = dtype in ['fp8', 'fp8bf16']
+                    cond = dtype in ['fp8', 'fp8bf16', 'fp8fp32']
                     cond &= pipeline.F_vlayout == 'row'
                     cond &= hdim == 128
                     if not cond:
