@@ -1,10 +1,7 @@
 #pragma once
 
-#include "ck_tile/core.hpp"
-#include "ck_tile/host.hpp"
-#include "gemm_preshuffle_common.hpp"
+#include "gemm_preshuffle_host_api.hpp"
 
-//[DELETE] A lot of parts of this code can be moved to commons.hpp
 enum class Metric
 {
     LATENCY   = 0,
@@ -51,8 +48,7 @@ struct GemmProblem
            << "   \"layout_a\":\"" << problem.layout_a_ << "\",\n"
            << "   \"layout_b\":\"" << problem.layout_b_ << "\",\n"
            << "   \"layout_c\":\"" << problem.layout_c_ << "\"\n"
-           << "   \"structured_sparsity\":\"" << (problem.structured_sparsity_ ? "true" : "false")
-           << "\n"
+           << "   \"structured_sparsity\":\"" << problem.structured_sparsity_ << "\"\n"
            << "}";
         return os;
     }
@@ -101,8 +97,9 @@ struct KernelInstance
     friend std::ostream& operator<<(std::ostream& os, const KernelInstance& obj)
     {
         os << "{\n"
-           << " \"name\": \"" << obj.name_ << "\",\n"
-           << " \"problem\": " << obj.problem_ << ",\n"
+           << " \"name\": \"" << "{\n"
+           << obj.name_ << "\n}" << "\",\n"
+           << " \"problem\": \"" << obj.problem_ << "\",\n"
            << " \"perf_result\": " << obj.perf_result_ << "\n"
            << "}";
         return os;
@@ -120,7 +117,6 @@ struct Setting
     std::string csv_filename_;
     bool flush_cache_;
     int rotating_count_;
-    bool json_output_;
 };
 
 inline std::string get_rocm_version()

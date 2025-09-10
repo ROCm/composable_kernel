@@ -2,7 +2,7 @@
 
 #include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "benchmark_gemm_preshuffle.hpp" //[DELETE] rename this file, follow a naming convention
+#include "benchmark_gemm_preshuffle.hpp"
 
 class GemmProfiler
 {
@@ -13,35 +13,8 @@ class GemmProfiler
         return instance;
     }
 
-    // Overload for single kernel benchmarking
-    void benchmark(GemmProblem& gemm_problem,
-                   std::function<float(const ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>
-                       kernel_func,
-                   const std::tuple<int, int, int>& warp_tile_dims)
+    void benchmark(GemmProblem& gemm_problem, const KernelInfo& kernel_info)
     {
-        printf("[DELETE] in first benchmark\n");
-
-        // Create a vector with a single callable that returns both name and time
-        std::vector<std::function<std::tuple<std::string, float>(ck_tile::GemmHostArgs&,
-                                                                 const ck_tile::stream_config&)>>
-            callables;
-
-        callables.push_back(
-            [kernel_func](ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {
-                float time = kernel_func(args, stream);
-                return std::make_tuple(std::string(KERNEL_NAME), time);
-            });
-
-        benchmark(gemm_problem, callables, warp_tile_dims);
-    }
-
-    void benchmark(GemmProblem& gemm_problem,
-                   std::vector<std::function<std::tuple<std::string, float>(
-                       ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>& callables,
-                   const std::tuple<int, int, int>& warp_tile_dims)
-    {
-        printf("[DELETE] in second benchmark\n");
-
         const ALayout layout_a = ALayout{};
         const BLayout layout_b = BLayout{};
         const CLayout layout_c = CLayout{};
@@ -112,15 +85,10 @@ class GemmProfiler
         c_m_n_dev_buf.SetZero();
         c_m_n_dev_result.SetZero();
 
-        for(const auto& callable : callables)
+        for(const auto& [callable, warptilevalues] : kernel_info.callable_warptile)
         {
-            printf("[DELETE] warp_tile_dims: (%d,%d,%d)\n",
-                   std::get<0>(warp_tile_dims),
-                   std::get<1>(warp_tile_dims),
-                   std::get<2>(warp_tile_dims));
-
-            ck_tile::index_t N_Warp_Tile = std::get<1>(warp_tile_dims);
-            ck_tile::index_t K_Warp_Tile = std::get<2>(warp_tile_dims);
+            ck_tile::index_t N_Warp_Tile = std::get<1>(warptilevalues);
+            ck_tile::index_t K_Warp_Tile = std::get<2>(warptilevalues);
 
             ck_tile::HostTensor<BDataType> b_shuffle_host =
                 shuffle_b(b_k_n, N_Warp_Tile, K_Warp_Tile);
@@ -175,7 +143,7 @@ class GemmProfiler
         kernel_instance.perf_result_.tflops_    = static_cast<float>(flop) / 1.E9 / avg_time;
         kernel_instance.perf_result_.bandwidth_ = num_byte / 1.E6 / avg_time;
 
-        if(setting_.log_ > 0 && !setting_.json_output_)
+        if(setting_.log_ > 0)
         {
             std::cout << kernel_instance << std::endl;
         }
@@ -213,18 +181,10 @@ class GemmProfiler
                                                          b.perf_result_, a.perf_result_, metric);
                                                  });
 
-        if(setting_.json_output_)
-        {
-            // Output clean JSON only
-            std::cout << kernel_instance << std::endl;
-        }
-        else
-        {
-            std::cout << "**********************************" << std::endl;
-            std::cout << "According to given metrics: " << get_metric_name(metric) << "\n"
-                      << "Current kernel performance is: " << kernel_instance << std::endl;
-            std::cout << "**********************************" << std::endl;
-        }
+        std::cout << "**********************************" << std::endl;
+        std::cout << "According to given metrics: " << get_metric_name(metric) << "\n"
+                  << "The best kernel instance is: " << kernel_instance << std::endl;
+        std::cout << "**********************************" << std::endl;
 
         if(!setting_.csv_filename_.empty())
         {

@@ -1,503 +1,635 @@
 import argparse
-import logging
+import os
+import json
 import itertools
+import logging
+import multiprocessing
+import concurrent.futures
+
 from pathlib import Path
-from typing import List, Optional
-from gemm_preshuffle_config import JsonConfig, ArgumentConfig, RangeConfigParam
-from commons.common_utils import (
-    DATA_TYPE_MAP,
-    LAYOUT_MAP,
-    PIPELINE_MAP,
-    SCHEDULER_MAP,
-    EPILOGUE_MAP,
-    BOOL_MAP,
-    element_size,
-    get_gpu_name_by_id,
-    trait_unsupported_combinations,
-    warp_tile_supported_combinations,
+
+from commons.validation_utils import (
+    is_tile_config_valid,
+    is_trait_combination_valid,
+    get_dtype_string,
+    get_abc_layouts,
 )
 
 
-class GemmPreshuffleCodeGenerator:
-    def __init__(
-        self,
-        args: argparse.Namespace,
-        user_provided_config: Optional[JsonConfig] = None,
-    ):
-        self.output_dir = Path(args.working_path)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+class GemmPreshuffleKernelBuilder:
+    def __init__(self, working_path, datatype, layout, config_json=None):
+        self.working_path = Path(working_path)
+        self.datatype = datatype
+        self.layout = layout
+        self.config_json = config_json
 
-        if user_provided_config is not None:
-            self.config = user_provided_config
+        # Create working directory if it doesn't exist
+        self.working_path.mkdir(parents=True, exist_ok=True)
+
+        # Load configuration
+        if config_json and os.path.exists(config_json):
+            with open(config_json, "r") as f:
+                self.config = json.load(f)
         else:
-            config_path = (
-                Path(__file__).resolve().parent / "configs" / "default_config.json"
+            print(
+                "No config JSON provided or file does not exist. Using default configuration."
             )
-            self.config = JsonConfig.from_json(config_path)
+            self.config = self._get_default_config()
 
-        self.args = ArgumentConfig.from_args(args.datatype, args.layout)
-
-        self.valid_trait_names: List[str] = []
-        self.valid_trait_tile_combinations: map[str, list[tuple[int]]] = {}
-
-    def list_all_trait_names(self):
-        """List all possible kernel trait names into file."""
-        w_p = Path(self.output_dir)
-        file_path = w_p / "gemm_preshuffle_instance_blobs.txt"
-        self._generate_all_traits()
-        self._get_valid_trait_tile_combinations()
-        file_range_map = {}
-        # Write all file paths to the header file
-        files_listed = 0
-        with file_path.open("w") as f:
-            # Core files
-            core_files = [
-                "gemm_preshuffle_common.hpp",
-                "gemm_preshuffle_instances.hpp",
-                "gemm_preshuffle_dispatcher.hpp",
-            ]
-            for core_file in core_files:
-                f.write(str(w_p / core_file) + "\n")
-                files_listed += 1
-
-            # Trait header files
-            for trait in self.valid_trait_names:
-                trait_file = f"gemm_preshuffle_{trait}.hpp"
-                f.write(str(w_p / trait_file) + "\n")
-                files_listed += 1
-            file_name = set()
-            # Instance source files
-            for trait, tile_valid_params in self.valid_trait_tile_combinations.items():
-                start_idx = files_listed
-                for tile in tile_valid_params:
-                    for (
-                        tile_m,
-                        tile_n,
-                        tile_k,
-                        warp_m,
-                        warp_n,
-                        warp_k,
-                        _,
-                        _,
-                        _,
-                    ) in tile:
-                        instance_name = f"gemm_preshuffle_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}.cpp"
-
-                        if instance_name not in file_name:
-                            file_name.add(instance_name)
-                            f.write(str(w_p / instance_name) + "\n")
-                            files_listed += 1
-
-                file_range_map[trait] = (start_idx, files_listed)
-
-        file_path = w_p / "gemm_preshuffle_instance_blobs_range.txt"
-        with file_path.open("w") as f:
-            for name, ranges in file_range_map.items():
-                start, last = ranges
-                f.write(name + " " + f"{start}" + " " + f"{last}" + "\n")
-
-    def _generate_all_traits(self):
-        params = [
-            "pipeline",
-            "epilogue",
-            "scheduler",
-            "pad_m",
-            "pad_n",
-            "pad_k",
-            "persistent",
+    # [DELETE] Currently only support fp16 and fp8 needs to add more
+    # [DELETE] Add this into commons
+    def _get_default_config(self):
+        """Return default configuration if no config file is provided"""
+        # Define base tile configurations that work for all layouts
+        base_fp16_configs = [
+            {
+                "tile_m": 256,
+                "tile_n": 256,
+                "tile_k": 32,
+                "warp_m": 2,
+                "warp_n": 2,
+                "warp_k": 1,
+                "warp_tile_m": 32,
+                "warp_tile_n": 32,
+                "warp_tile_k": 32,
+            },
+            {
+                "tile_m": 256,
+                "tile_n": 128,
+                "tile_k": 32,
+                "warp_m": 2,
+                "warp_n": 2,
+                "warp_k": 1,
+                "warp_tile_m": 32,
+                "warp_tile_n": 32,
+                "warp_tile_k": 16,
+            },
         ]
 
-        # Generate all unique_combinations
-        _unique = set(
-            itertools.product(
-                *[getattr(self.config.trait_config, param).values for param in params]
-            )
-        )
+        base_fp8_configs = [
+            {
+                "tile_m": 256,
+                "tile_n": 256,
+                "tile_k": 32,
+                "warp_m": 4,
+                "warp_n": 1,
+                "warp_k": 1,
+                "warp_tile_m": 32,
+                "warp_tile_n": 32,
+                "warp_tile_k": 32,
+            },
+            {
+                "tile_m": 256,
+                "tile_n": 128,
+                "tile_k": 32,
+                "warp_m": 1,
+                "warp_n": 4,
+                "warp_k": 1,
+                "warp_tile_m": 16,
+                "warp_tile_n": 16,
+                "warp_tile_k": 32,
+            },
+        ]
 
-        for combo in _unique:
-            pipeline, epilogue, scheduler, pad_m, pad_n, pad_k, persistent = combo
-            current_combination = (pipeline, epilogue, scheduler)
+        # Create configurations for all supported layouts
+        all_layouts = ["rcr", "rrr", "ccr", "crr"]
+        tile_configs = {}
 
-            if current_combination not in trait_unsupported_combinations:
-                trait_name = (
-                    f"{pipeline}_{epilogue}_{scheduler}_"
-                    f"{BOOL_MAP(pad_m)}_{BOOL_MAP(pad_n)}_{BOOL_MAP(pad_k)}_"
-                    f"{BOOL_MAP(persistent)}"
-                )
-                self.valid_trait_names.append(trait_name)
-            else:
-                logging.debug(f"Invalid combination: {pipeline}-{epilogue}-{scheduler}")
+        for datatype, base_configs in [
+            ("fp16", base_fp16_configs),
+            ("fp8", base_fp8_configs),
+        ]:
+            tile_configs[datatype] = {}
+            for layout in all_layouts:
+                tile_configs[datatype][layout] = base_configs
 
-    def _get_valid_trait_tile_combinations(self):
-        def get_tile_value(tile_param):
-            return (
-                tile_param.generate_candidates()
-                if isinstance(tile_param, RangeConfigParam)
-                else tile_param.values
-            )
-
-        tile_group = list(
-            itertools.product(
-                get_tile_value(self.config.tile_config.tile_m),
-                get_tile_value(self.config.tile_config.tile_n),
-                get_tile_value(self.config.tile_config.tile_k),
-            )
-        )
-
-        warp_group = list(
-            itertools.product(
-                get_tile_value(self.config.tile_config.warp_m),
-                get_tile_value(self.config.tile_config.warp_n),
-                get_tile_value(self.config.tile_config.warp_k),
-            )
-        )
-
-        warp_tile_group = list(
-            itertools.product(
-                get_tile_value(self.config.tile_config.warp_tile_m),
-                get_tile_value(self.config.tile_config.warp_tile_n),
-                get_tile_value(self.config.tile_config.warp_tile_k),
-            )
-        )
-
-        tile_params = {
-            t + w + wt for t in tile_group for w in warp_group for wt in warp_tile_group
+        return {
+            "tile_configs": tile_configs,
+            "traits": {
+                "pipelines": ["preshufflev1", "preshufflev2"],
+                "epilogues": ["default", "cshuffle"],
+                "schedulers": ["intrawave", "interwave", "default"],
+            },
+            "structured_sparsity": ["false"],
+            "padding": {"pad_m": ["false"], "pad_n": ["false"], "pad_k": ["false"]},
+            "persistent": ["false"],
+            "tunable_params": {
+                "kBlockPerCu": 2,  # [DELETE] Address this later
+            },
         }
 
-        for trait in self.valid_trait_names:
-            tile_valid_params = [
-                tile for tile in tile_params if self.is_tile_valid(tile, trait)
+    def write_kernel_list(self):
+        """Write kernel list to file for CMake to read (with comprehensive validation)"""
+        # Get configurations using comprehensive validation
+        tile_configs = self._get_tile_configs(fast_mode=False)
+        trait_combos = self._generate_trait_combinations()
+
+        kernel_list = []
+        for tile_config in tile_configs:
+            for trait_combo in trait_combos:
+                (
+                    pipeline,
+                    epilogue,
+                    scheduler,
+                    pad_m,
+                    pad_n,
+                    pad_k,
+                    persistent,
+                ) = trait_combo
+
+                # Create kernel name with proper boolean capitalization
+                kernel_name = f"gemm_preshuffle_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_{str(persistent).capitalize()}"
+
+                # Create tile configuration string
+                tile_str = f"{tile_config['tile_m']}x{tile_config['tile_n']}x{tile_config['tile_k']}_"
+                tile_str += f"{tile_config['warp_m']}x{tile_config['warp_n']}x{tile_config['warp_k']}_"
+                tile_str += f"{tile_config['warp_tile_m']}x{tile_config['warp_tile_n']}x{tile_config['warp_tile_k']}"
+
+                kernel_name += f"_{tile_str}"
+
+                kernel_list.append(
+                    {
+                        "name": kernel_name,
+                        "tile_config": tile_config,
+                        "trait_combo": trait_combo,
+                    }
+                )
+
+        # Write kernel count
+        with open(self.working_path / "gemm_preshuffle_kernel_count.txt", "w") as f:
+            f.write(str(len(kernel_list)))
+
+        # Write kernel list
+        with open(self.working_path / "gemm_preshuffle_kernel_list.txt", "w") as f:
+            for kernel in kernel_list:
+                # Format: kernel_name|tile_config|trait_combo
+                tile_config = kernel["tile_config"]
+                trait_combo = kernel["trait_combo"]
+
+                tile_str = f"{tile_config['tile_m']}x{tile_config['tile_n']}x{tile_config['tile_k']}_"
+                tile_str += f"{tile_config['warp_m']}x{tile_config['warp_n']}x{tile_config['warp_k']}_"
+                tile_str += f"{tile_config['warp_tile_m']}x{tile_config['warp_tile_n']}x{tile_config['warp_tile_k']}"
+
+                trait_str = (
+                    f"{trait_combo[0]}_{trait_combo[1]}_{trait_combo[2]}_"
+                    + "_".join(str(x) for x in trait_combo[3:])
+                )
+
+                f.write(f"{kernel['name']}|{tile_str}|{trait_str}\n")
+
+        print(f"Listed {len(kernel_list)} kernel configurations")
+
+    def _get_tile_configs(self, fast_mode=False):
+        """Get tile configurations for the current datatype and layout"""
+        if "tile_configs" in self.config:
+            # Old format
+            return (
+                self.config["tile_configs"].get(self.datatype, {}).get(self.layout, [])
+            )
+        elif "tile_config" in self.config:
+            # New format - generate combinations from individual parameter values
+            tile_config = self.config["tile_config"]
+
+            # Get all possible values for each parameter
+            tile_m_values = tile_config.get("tile_m", {}).get("values", [256])
+            tile_n_values = tile_config.get("tile_n", {}).get("values", [256])
+            tile_k_values = tile_config.get("tile_k", {}).get("values", [32])
+            warp_m_values = tile_config.get("warp_m", {}).get("values", [2])
+            warp_n_values = tile_config.get("warp_n", {}).get("values", [2])
+            warp_k_values = tile_config.get("warp_k", {}).get("values", [1])
+            warp_tile_m_values = tile_config.get("warp_tile_m", {}).get("values", [32])
+            warp_tile_n_values = tile_config.get("warp_tile_n", {}).get("values", [32])
+            warp_tile_k_values = tile_config.get("warp_tile_k", {}).get("values", [32])
+
+            # Generate all combinations
+            configs = []
+            for tile_m in tile_m_values:
+                for tile_n in tile_n_values:
+                    for tile_k in tile_k_values:
+                        for warp_m in warp_m_values:
+                            for warp_n in warp_n_values:
+                                for warp_k in warp_k_values:
+                                    for warp_tile_m in warp_tile_m_values:
+                                        for warp_tile_n in warp_tile_n_values:
+                                            for warp_tile_k in warp_tile_k_values:
+                                                # Validate configuration
+                                                if self._validate_tile_config(
+                                                    tile_m,
+                                                    tile_n,
+                                                    tile_k,
+                                                    warp_m,
+                                                    warp_n,
+                                                    warp_k,
+                                                    warp_tile_m,
+                                                    warp_tile_n,
+                                                    warp_tile_k,
+                                                    fast_mode=fast_mode,
+                                                ):
+                                                    configs.append(
+                                                        {
+                                                            "tile_m": tile_m,
+                                                            "tile_n": tile_n,
+                                                            "tile_k": tile_k,
+                                                            "warp_m": warp_m,
+                                                            "warp_n": warp_n,
+                                                            "warp_k": warp_k,
+                                                            "warp_tile_m": warp_tile_m,
+                                                            "warp_tile_n": warp_tile_n,
+                                                            "warp_tile_k": warp_tile_k,
+                                                        }
+                                                    )
+            return configs
+        else:
+            # Fallback to default
+            return []
+
+    def _generate_trait_combinations(self):  # [DELETE] Look into the function name
+        """Generate all combinations of traits"""
+        if "traits" in self.config:
+            # Old format
+            traits = self.config["traits"]
+            pipelines = traits["pipelines"]
+            epilogues = traits["epilogues"]
+            schedulers = traits["schedulers"]
+
+            padding = self.config["padding"]
+            persistent = self.config["persistent"]
+
+            all_combinations = list(
+                itertools.product(
+                    pipelines,
+                    epilogues,
+                    schedulers,
+                    padding["pad_m"],
+                    padding["pad_n"],
+                    padding["pad_k"],
+                    persistent,
+                )
+            )
+
+            # Filter out unsupported trait combinations
+            combinations = []
+            for combo in all_combinations:
+                pipeline, epilogue, scheduler = combo[:3]
+                if is_trait_combination_valid(pipeline, epilogue, scheduler):
+                    combinations.append(combo)
+                else:
+                    logging.debug(
+                        f"Skipping unsupported trait combination: {pipeline}-{epilogue}-{scheduler}"
+                    )
+
+        elif "trait_config" in self.config:
+            # New format
+            trait_config = self.config["trait_config"]
+
+            pipelines = trait_config.get("pipeline", {}).get("values", ["preshufflev2"])
+            epilogues = trait_config.get("epilogue", {}).get("values", ["default"])
+            schedulers = trait_config.get("scheduler", {}).get("values", ["default"])
+            pad_m_values = trait_config.get("pad_m", {}).get("values", [False])
+            pad_n_values = trait_config.get("pad_n", {}).get("values", [False])
+            pad_k_values = trait_config.get("pad_k", {}).get("values", [False])
+            persistent_values = trait_config.get("persistent", {}).get(
+                "values", [False]
+            )
+
+            all_combinations = list(
+                itertools.product(
+                    pipelines,
+                    epilogues,
+                    schedulers,
+                    pad_m_values,
+                    pad_n_values,
+                    pad_k_values,
+                    persistent_values,
+                )
+            )
+
+            # Filter out unsupported trait combinations
+            combinations = []
+            for combo in all_combinations:
+                pipeline, epilogue, scheduler = combo[:3]
+                if is_trait_combination_valid(pipeline, epilogue, scheduler):
+                    combinations.append(combo)
+                else:
+                    logging.debug(
+                        f"Skipping unsupported trait combination: {pipeline}-{epilogue}-{scheduler}"
+                    )
+        else:
+            # Fallback to minimal default
+            combinations = [
+                ("preshufflev2", "default", "default", False, False, False, False)
             ]
 
-            if trait not in self.valid_trait_tile_combinations:
-                self.valid_trait_tile_combinations[trait] = []
-            self.valid_trait_tile_combinations[trait].append(tile_valid_params)
+        return combinations
 
-    def is_tile_valid(self, tile: tuple, trait: str) -> bool:
-        """Check if the tile configuration is valid for the given trait."""
-        (
-            tile_m,
-            tile_n,
-            tile_k,
-            warp_m,
-            warp_n,
-            warp_k,
-            warp_tile_m,
-            warp_tile_n,
-            warp_tile_k,
-        ) = tile
-        pipeline, *_ = trait.split("_")
-
-        invalid_params = []
-        if (warp_m, warp_n, warp_k) not in [(1, 4, 1), (2, 2, 1), (4, 1, 1)]:
-            invalid_params.append(
-                f"warp_m({warp_m}) * warp_n({warp_n}) * warp_k({warp_k})"
-            )
-        if (warp_m * warp_tile_m) == 0:
-            invalid_params.append(f"warp_m({warp_m}) * warp_tile_m({warp_tile_m})")
-        if (warp_n * warp_tile_n) == 0:
-            invalid_params.append(f"warp_n({warp_n}) * warp_tile_n({warp_tile_n})")
-        if (warp_k * warp_tile_k) == 0:
-            invalid_params.append(f"warp_k({warp_k}) * warp_tile_k({warp_tile_k})")
-
-        if invalid_params:
-            logging.debug(
-                f"Trait: [{trait}], Invalid warp configuration: {', '.join(invalid_params)}. "
-                f"Parameter combination: warp=({warp_m},{warp_n},{warp_k}), "
-                f"warp_tile=({warp_tile_m},{warp_tile_n},{warp_tile_k})"
-            )
-            return False
-
-        alignment_issues = []
-        if tile_m % (warp_m * warp_tile_m) != 0:
-            alignment_issues.append(
-                f"tile_m({tile_m}) % [{warp_m}x{warp_tile_m}] = {tile_m % (warp_m * warp_tile_m)}"
-            )
-        if tile_n % (warp_n * warp_tile_n) != 0:
-            alignment_issues.append(
-                f"tile_n({tile_n}) % [{warp_n}x{warp_tile_n}] = {tile_n % (warp_n * warp_tile_n)}"
-            )
-        if tile_k % (warp_k * warp_tile_k) != 0:
-            alignment_issues.append(
-                f"tile_k({tile_k}) % [{warp_k}x{warp_tile_k}] = {tile_k % (warp_k * warp_tile_k)}"
-            )
-
-        if alignment_issues:
-            logging.debug(
-                f"Trait: [{trait}], Dimension alignment failed: {', '.join(alignment_issues)}. "
-                f"Tile dimensions {tile_m}x{tile_n}x{tile_k} must be divisible by "
-                f"[warp]: {warp_m}x{warp_n}x{warp_k} x [warp_tile]: {warp_tile_m}x{warp_tile_n}x{warp_tile_k}"
-            )
-            return False
-
-        # LDS capacity verification
-        matrix_a_size = (tile_m * tile_k) * element_size(self.args.datatypes.a_datatype)
-        matrix_b_size = (tile_n * tile_k) * element_size(self.args.datatypes.b_datatype)
-        total_tile_in_lds = matrix_a_size + matrix_b_size
-
-        max_tile_size = 2**15 if pipeline == "preshufflev2" else 2**16
-
-        if total_tile_in_lds > max_tile_size:
-            logging.debug(
-                f"LDS capacity exceeded [{trait}]: Total required {total_tile_in_lds:,}B ({total_tile_in_lds / 1024:.1f}KB) > "
-                f"maximum allowed {max_tile_size:,}B ({max_tile_size / 1024}KB). Breakdown:\n"
-                f"- Matrix A ({self.args.datatypes.a_datatype}): {tile_m}x{tile_k} = {matrix_a_size:,}B\n"
-                f"- Matrix B ({self.args.datatypes.b_datatype}): {tile_n}x{tile_k} = {matrix_b_size:,}B"
-            )
-            return False
-
-        # Warp combination validation
-        warp_tile_key = f"{self.args.datatypes.a_datatype}_{self.args.datatypes.b_datatype}_{self.args.datatypes.c_datatype}"
-        current_combination = [warp_tile_m, warp_tile_n, warp_tile_k]
-
-        gpu_name = get_gpu_name_by_id(0)
-        gpu_warp_tile_key = warp_tile_supported_combinations.get(gpu_name, {})
-
-        if not gpu_warp_tile_key:
-            logging.debug(
-                f"Trait: [{trait}], No valid warp tile combinations found for {gpu_name}/{warp_tile_key}, skip this check."
-            )
-            return False
-
-        allowed_combinations = gpu_warp_tile_key.get(warp_tile_key, [])
-
-        if not allowed_combinations:
-            logging.debug(
-                f"Trait: [{trait}], No valid warp tile combinations found for {gpu_name}/{warp_tile_key}, skip this check."
-            )
-            return False
-
-        if current_combination not in allowed_combinations:
-            logging.debug(
-                f"Trait: [{trait}], Invalid warp combination: {current_combination} not in allowed list. "
-                f"Valid combinations for data type '{warp_tile_key}': {allowed_combinations}"
-            )
-            return False
-
-        return True
-
-    def generate_all_instance_files(self):
-        """Generate all kernel instances files."""
-        self._generate_common_header_file()
-        self._generate_all_trait_files()
-        self._generate_dispatcher_file()
-
-    def _generate_common_header_file(self):
-        """Generate common header file with datatypes and layout."""
-
-        acc_type = "float"
-
-        content = f"""
-#pragma once
-
-#include "ck_tile/core.hpp"
-#include "ck_tile/ops/common.hpp"
-
-// Data types
-using ADataType = {DATA_TYPE_MAP[self.args.datatypes.a_datatype]};
-using BDataType = {DATA_TYPE_MAP[self.args.datatypes.b_datatype]};
-using AccDataType = {acc_type};
-using CDataType = {DATA_TYPE_MAP[self.args.datatypes.c_datatype]};
-
-// Layout configurations
-using ALayout = {LAYOUT_MAP[self.args.layouts.a_layout]};
-using BLayout = {LAYOUT_MAP[self.args.layouts.b_layout]};
-using CLayout = {LAYOUT_MAP[self.args.layouts.c_layout]};
-"""
-
-        (self.output_dir / "gemm_preshuffle_common.hpp").write_text(content)
-
-    def _generate_all_trait_files(self):
-        """Generate all kernel traits into files."""
-        if not self.valid_trait_names:
-            self._generate_all_traits()
-            self._get_valid_trait_tile_combinations()
-        for trait in self.valid_trait_names:
-            self._generate_trait_file(trait)
-        self._generate_instantiation_source_files()
-        self._generate_common_instance_header_file()
-
-    def _generate_trait_file(self, trait: str):
-        """Generate a trait with all tile/warp combinations."""
-        pipeline, epilogue, scheduler, pad_m, pad_n, pad_k, persistent = trait.split(
-            "_"
-        )
-        filename = f"gemm_preshuffle_{trait}.hpp"
-
-        content = f"""
-#pragma once
-
-#include "gemm_preshuffle_common.hpp"
-#include "ck_tile/ops/gemm.hpp"
-#include "ck_tile/ops/epilogue.hpp"
-#include "ck_tile/host.hpp"
-
-namespace {trait} {{
-"""
-        content += self._generate_kernel_struct(
-            pipeline, epilogue, scheduler, pad_m, pad_n, pad_k, persistent
-        )
-
-        content += f"\n}} // namespace {trait}\n"
-        (self.output_dir / filename).write_text(content)
-
-    def _generate_kernel_struct(
+    def _validate_tile_config(
         self,
-        pipeline: str,
-        epilogue: str,
-        scheduler: str,
-        pad_m: str,
-        pad_n: str,
-        pad_k: str,
-        persistent: str,
-    ) -> str:
-        """Generate the code block of kernel struct"""
-        return f"""
+        tile_m,
+        tile_n,
+        tile_k,
+        warp_m,
+        warp_n,
+        warp_k,
+        warp_tile_m,
+        warp_tile_n,
+        warp_tile_k,
+        pipeline="preshufflev2",  # Default pipeline for validation
+        fast_mode=False,  # Add fast mode option
+    ):
+        """Validate that tile configuration is reasonable"""
+        if fast_mode:
+            # Fast validation for listing - only basic sanity checks
+            if tile_m <= 0 or tile_n <= 0 or tile_k <= 0:
+                return False
+            if warp_m <= 0 or warp_n <= 0 or warp_k <= 0:
+                return False
+            if warp_tile_m <= 0 or warp_tile_n <= 0 or warp_tile_k <= 0:
+                return False
 
-template <int TileM, int TileN, int TileK,
-          int WarpM, int WarpN, int WarpK,
-          int WarpTileM, int WarpTileN, int WarpTileK,
-          bool structured_sparsity>
-struct GemmKernel {{
-    static constexpr bool kPadM       = {pad_m};
-    static constexpr bool kPadN       = {pad_n};
-    static constexpr bool kPadK       = {pad_k};
-    static constexpr bool kPersistent = {persistent};
+            # Basic divisibility check
+            if tile_m % (warp_m * warp_tile_m) != 0:
+                return False
+            if tile_n % (warp_n * warp_tile_n) != 0:
+                return False
+            if tile_k % (warp_k * warp_tile_k) != 0:
+                return False
 
-    static float launch(ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {{
-        
-        //Variables from Common GEMM Config (Remove Unwanted Variables)
-        static constexpr bool permuteA = false;
-        static constexpr bool permuteB = false;
-        static constexpr bool TransposeC = false;
-        static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
-        static constexpr ck_tile::index_t TileParitionerM01      = 4;
-        static constexpr ck_tile::index_t NumWaveGroups = 1;
+            return True
+        else:
+            # Full validation for generation
+            # Determine data types for validation
+            a_datatype = self.datatype
+            b_datatype = self.datatype
+            c_datatype = self.datatype
 
-        // Variables overridden in Preshuffle Config
-        static constexpr int kBlockPerCu           = {self.config.tunable_params.kBlockPerCu};
-        static constexpr bool Preshuffle           = true;
+            # Special handling for certain data types
+            if self.datatype in ["fp8", "bf8"]:
+                c_datatype = "fp16"
 
-        static constexpr bool DoubleSmemBuffer ={"true" if pipeline == "preshufflev2" else "false"};
+            # Use the comprehensive validation function
+            return is_tile_config_valid(
+                tile_m,
+                tile_n,
+                tile_k,
+                warp_m,
+                warp_n,
+                warp_k,
+                warp_tile_m,
+                warp_tile_n,
+                warp_tile_k,
+                a_datatype,
+                b_datatype,
+                c_datatype,
+                pipeline,
+            )
 
-        using GemmShape =
-            ck_tile::TileGemmShape<ck_tile::sequence<TileM, TileN, TileK>,
-                                   ck_tile::sequence<WarpM, WarpN, WarpK>,
-                                   ck_tile::sequence<WarpTileM, WarpTileN, WarpTileK>,
-                                   permuteA,
-                                   permuteB>;
+    def _generate_kernel_instance(self, tile_config, trait_combo, is_header=True):
+        """Generate a single kernel instance"""
+        (
+            pipeline,
+            epilogue,
+            scheduler,
+            pad_m,
+            pad_n,
+            pad_k,
+            persistent,
+        ) = trait_combo
 
-        using TilePartitioner =
-            ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
-                                                      TileParitionerGroupNum,
-                                                      TileParitionerM01>;
+        # Create kernel name with proper boolean capitalization
+        kernel_name = f"gemm_preshuffle_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_{str(persistent).capitalize()}"
 
-        using Traits  =
-            ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout, NumWaveGroups>;
+        # Create tile configuration string
+        tile_str = (
+            f"{tile_config['tile_m']}x{tile_config['tile_n']}x{tile_config['tile_k']}_"
+        )
+        tile_str += (
+            f"{tile_config['warp_m']}x{tile_config['warp_n']}x{tile_config['warp_k']}_"
+        )
+        tile_str += f"{tile_config['warp_tile_m']}x{tile_config['warp_tile_n']}x{tile_config['warp_tile_k']}"
 
-        using GemmUniversalTraits =
-            ck_tile::TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
-                                             ALayout, BLayout, CLayout, TransposeC, 
-                                             structured_sparsity, kPersistent, NumWaveGroups, Preshuffle>;
+        kernel_name += f"_{tile_str}"
 
-        using GemmPipelineProblem =
-            ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
+        # [DELETE] Update this
+        # Map pipeline names to the correct pipeline implementation
+        pipeline_impl_map = {
+            "preshufflev1": "ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV1",
+            "preshufflev2": "ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2",
+        }
 
-        using BaseGemmPipeline = {PIPELINE_MAP[pipeline][0]}<GemmPipelineProblem>;
+        # [DELETE] Update this
+        # Map pipeline names to base pipeline for hot loop detection
+        base_pipeline_map = {
+            "preshufflev1": "ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV1",
+            "preshufflev2": "ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2",
+        }
 
-        const ck_tile::index_t k_grain     = args.k_batch * TileK;
-        const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * TileK;
-        const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
-        const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
+        # [DELETE] Update this
+        # Map scheduler names to the correct enum values
+        scheduler_type_map = {
+            "intrawave": "ck_tile::GemmPipelineScheduler::Intrawave",
+            "interwave": "ck_tile::GemmPipelineScheduler::Interwave",
+            "default": "ck_tile::GemmPipelineScheduler::Default",
+        }
+
+        # Determine accumulator type based on datatype
+        acc_type = "float"
+        # [DELETE] This this if statement as we are not supporting it in Preshuffle check if type is correct in GEMM
+        if self.datatype in ["int8", "int4"]:
+            acc_type = "ck_tile::int32_t"
+
+        # Determine output type
+        c_type = get_dtype_string(self.datatype)
+        if self.datatype in ["fp8", "bf8"]:
+            c_type = "ck_tile::fp16_t"
+
+        # Determine layouts based on self.layout
+        a_layout, b_layout, c_layout = get_abc_layouts(self.layout)
+
+        # Generate kernel instance code using the correct API
+        pragma_line = "#pragma once\n" if is_header else ""
+        instance_code = f"""// Generated kernel instance for {kernel_name}
+{pragma_line}
+#include <cstdint>
+#include <utility>
+#include <tuple>
+#include "ck_tile/core.hpp"
+#include "ck_tile/host/kernel_launch.hpp"
+#include "ck_tile/ops/gemm.hpp"
+#include "ck_tile/ops/gemm/kernel/gemm_kernel.hpp"
+#include "ck_tile/ops/common/tensor_layout.hpp"
+#include "ck_tile/ops/epilogue/default_2d_epilogue.hpp"
+#include "ck_tile/ops/epilogue/cshuffle_epilogue.hpp"
+
+using ADataType = {get_dtype_string(self.datatype)};
+using BDataType = {get_dtype_string(self.datatype)};
+using AccDataType = {acc_type};
+using CDataType = {c_type};
+
+using ALayout = {a_layout};
+using BLayout = {b_layout};
+using CLayout = {c_layout};
+
+// Kernel name for display
+constexpr const char* KERNEL_NAME = "{kernel_name}";
+
+// Wrapper for simplified launch interface
+struct SelectedKernel {{
+    // Tile configuration
+    static constexpr ck_tile::index_t BlockSize = 256;
+    static constexpr ck_tile::index_t TileM = {tile_config["tile_m"]};
+    static constexpr ck_tile::index_t TileN = {tile_config["tile_n"]};
+    static constexpr ck_tile::index_t TileK = {tile_config["tile_k"]};
+    static constexpr ck_tile::index_t WarpPerBlock_M = {tile_config["warp_m"]};
+    static constexpr ck_tile::index_t WarpPerBlock_N = {tile_config["warp_n"]};
+    static constexpr ck_tile::index_t WarpPerBlock_K = {tile_config["warp_k"]};
+    static constexpr ck_tile::index_t WarpTileM = {tile_config["warp_tile_m"]};
+    static constexpr ck_tile::index_t WarpTileN = {tile_config["warp_tile_n"]};
+    static constexpr ck_tile::index_t WarpTileK = {tile_config["warp_tile_k"]};
+
+    // Traits
+    static constexpr bool kPadM = {"true" if pad_m == "true" else "false"};
+    static constexpr bool kPadN = {"true" if pad_n == "true" else "false"};
+    static constexpr bool kPadK = {"true" if pad_k == "true" else "false"};
+    static constexpr bool TransposeC = false;
+    static constexpr bool UsePersistentKernel = {"true" if persistent == "true" else "false"};
+    static constexpr bool DoubleSmemBuffer = {"true" if pipeline == "preshufflev2" else "false"};
+    static constexpr bool UseStructuredSparsity = false;
+    static constexpr bool Preshuffle = true;
+    static constexpr ck_tile::index_t NumWaveGroups = 1;
+
+    // Tile shape
+    using TileShape = ck_tile::TileGemmShape<
+        ck_tile::sequence<TileM, TileN, TileK>,
+        ck_tile::sequence<WarpPerBlock_M, WarpPerBlock_N, WarpPerBlock_K>,
+        ck_tile::sequence<WarpTileM, WarpTileN, WarpTileK>,
+        false, false>;
+    
+    // Tile partitioner
+    using TilePartitioner = ck_tile::GemmSpatiallyLocalTilePartitioner<TileShape, 8, 4>;
+    
+    // Traits
+    using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout, NumWaveGroups>;
+    
+    // Pipeline problem
+    using GemmPipelineProblem = ck_tile::GemmPipelineProblem<
+        ADataType,
+        BDataType,
+        AccDataType,
+        TileShape,
+        Traits>;
+    
+    // Base pipeline for hot loop detection
+    using BaseGemmPipeline = {base_pipeline_map.get(pipeline, "ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2")}<GemmPipelineProblem>;
+
+    static float launch(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {{
+        const ck_tile::index_t k_grain = args.k_batch * TileK;
+        const ck_tile::index_t K_split = (args.K + k_grain - 1) / k_grain * TileK;
+        const ck_tile::index_t num_loop = TilePartitioner::GetLoopNum(K_split);
+        const bool has_hot_loop = BaseGemmPipeline::BlockHasHotloop(num_loop);
         const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
-
+        
         float ave_time{{0}};
 
         const auto Run = [&](const auto has_hot_loop_, const auto tail_number_, const auto memory_operation_) {{
             constexpr bool has_hot_loop_v = has_hot_loop_.value;
-            constexpr auto tail_number_v  = tail_number_.value;
-            constexpr auto scheduler      = {SCHEDULER_MAP[scheduler]};
-            constexpr auto memory_operation = memory_operation_.value;
+            constexpr auto tail_number_v = tail_number_.value;
+            constexpr auto scheduler = {scheduler_type_map.get(scheduler, "ck_tile::GemmPipelineScheduler::Default")};
+            [[maybe_unused]] constexpr auto memory_operation = memory_operation_.value;
 
-            using UniversalGemmProblem =
-                ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                      BDataType,
-                                                      AccDataType,
-                                                      GemmShape,
-                                                      GemmUniversalTraits,
-                                                      scheduler,
-                                                      has_hot_loop_v,
-                                                      tail_number_v>;
+            using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
+                ADataType,
+                BDataType,
+                AccDataType,
+                TileShape,
+                ck_tile::TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
+                                                ALayout, BLayout, CLayout, TransposeC,
+                                                UseStructuredSparsity, UsePersistentKernel,
+                                                NumWaveGroups, Preshuffle>,
+                scheduler,
+                has_hot_loop_v,
+                tail_number_v>;
+            
+            using GemmPipeline = {pipeline_impl_map.get(pipeline, "ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2")}<UniversalGemmProblem>;
+            
+            // Epilogue
+"""
 
-            using GemmPipeline = {PIPELINE_MAP[pipeline][1]}<UniversalGemmProblem>;
-            {EPILOGUE_MAP[epilogue]}
-            using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-            auto kargs   = Kernel::MakeKernelArgs(args);
+        # Add epilogue configuration based on type
+        if epilogue == "cshuffle":
+            instance_code += """            using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<
+                ADataType,
+                BDataType,
+                ck_tile::tuple<>,  // DsDataType
+                AccDataType,
+                CDataType,
+                ck_tile::tuple<>,  // DsLayout
+                CLayout,
+                ck_tile::element_wise::PassThrough,
+                TilePartitioner::MPerBlock,  // kM_
+                TilePartitioner::NPerBlock,  // kN_
+                WarpPerBlock_M,              // MWave_
+                WarpPerBlock_N,              // NWave_
+                WarpTileM,                   // MPerXdl_
+                WarpTileN,                   // NPerXdl_
+                WarpTileK,                   // KPerXdl_
+                TransposeC,                  // isCTransposed_
+                memory_operation,            // MemoryOperation_
+                NumWaveGroups>;              // kNumWaveGroups_
+            
+            using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;
+"""
+        else:  # default epilogue
+            instance_code += """            using EpilogueProblem = ck_tile::DefaultGemm2DEpilogueProblem<
+                ADataType,
+                BDataType,
+                ck_tile::tuple<>,  // DsDataType
+                AccDataType,
+                CDataType,
+                ck_tile::tuple<>,  // DsLayout
+                CLayout,
+                ck_tile::element_wise::PassThrough,
+                TilePartitioner::MPerBlock,  // kM_
+                TilePartitioner::NPerBlock,  // kN_
+                kPadM,
+                kPadN,
+                WarpTileM,  // kMPerXdl_
+                WarpTileN,  // kNPerXdl_
+                WarpTileK,  // kKPerXdl_
+                TransposeC>;  // isCTransposed_
+            
+            using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<EpilogueProblem>;
+"""
 
-            if(!Kernel::IsSupportedArgument(kargs))
-            {{
+        instance_code += f"""
+            
+            // Kernel type
+            using GemmKernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+            
+            // Make kernel arguments
+            auto kargs = GemmKernel::MakeKernelArgs(args);
+            
+            if (!GemmKernel::IsSupportedArgument(kargs)) {{
                 throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!");
             }}
-
-            constexpr dim3 blocks = Kernel::BlockSize();
-            const dim3 grids = {"Kernel::MaxOccupancyGridSize(stream)" if persistent == "true" else "Kernel::GridSize(args.M, args.N, args.k_batch)"};
-
-            if(stream.log_level_ > 0)
-            {{
-                std::cout << "Launching kernel with args:"
-                      << " grid: {{" << grids.x << ", " << grids.y << ", " << grids.z << "}}"
-                      << ", blocks: {{" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}}"
-                      << std::endl;
+            
+            // Get grid and block sizes
+            const dim3 grids = {"GemmKernel::MaxOccupancyGridSize(stream)" if persistent == "true" else "GemmKernel::GridSize(args.M, args.N, args.k_batch)"};
+            const dim3 blocks = GemmKernel::BlockSize();
+            
+            if(stream.log_level_ > 0) {{
+                std::cout << "Launching kernel with args: " << GemmKernel::GetName() << '\\n'
+                          << "grid: {{" << grids.x << ", " << grids.y << ", " << grids.z << "}}"
+                          << ", blocks: {{" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}}"
+                          << std::endl;
             }}
-
-            if(stream.flush_cache_)
-            {{
-                std::cout << "Flushing cache..." << std::endl;
-                static constexpr ck_tile::index_t APackedSize =
-                    std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
-                static constexpr ck_tile::index_t BPackedSize =
-                    std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
-                
-                auto is_row_major = [](auto layout_) {{
-                    return ck_tile::bool_constant<std::is_same_v<ck_tile::remove_cvref_t<decltype(layout_)>,
-                                                 ck_tile::tensor_layout::gemm::RowMajor>>{{}};
-                }};
-
-                ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
-                    args.M, args.K, args.stride_A, is_row_major(ALayout{{}})));
-                ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
-                    args.K, args.N, args.stride_B, is_row_major(BLayout{{}})));
-
-                auto size_a_buffer = a_m.get_element_space_size_in_bytes() / APackedSize;
-                auto size_b_buffer = b_n.get_element_space_size_in_bytes() / BPackedSize;
-
-                ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
-                    kargs.as_ptr[0], kargs.bs_ptr[0], stream.rotating_count_, size_a_buffer, size_b_buffer);
-                rotating_mem.Print();
-
-                auto run_flush_cache = [&]() {{
-                    // flush icache
-                    ck_tile::flush_icache();
-                    // rotating mem
-                    rotating_mem.Next();
-                    // clear c mem
-                    if(args.k_batch > 1)
-                        hipGetErrorString(hipMemsetAsync(
-                            args.e_ptr, 0, args.M * args.N * sizeof(CDataType), stream.stream_id_));
-                }};
-                ave_time = ck_tile::launch_kernel_time_mask(
-                    stream,
-                    run_flush_cache,
-                    ck_tile::make_kernel<blocks.x, kBlockPerCu>(
-                        Kernel{{}}, grids, blocks, 0, kargs));
-            }}
-            else{{
-                ave_time = ck_tile::launch_kernel(stream,
-                                          ck_tile::make_kernel<blocks.x, kBlockPerCu>(
-                                              Kernel{{}}, grids, blocks, 0, kargs));
-            }}
+            
+            // Launch kernel
+            constexpr int kBlockPerCu = 1; //[DELETE] Make this tunable later
+            ave_time = ck_tile::launch_kernel(
+                stream,
+                ck_tile::make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
+            
             return ave_time;
-
         }};
 
         const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {{
@@ -515,334 +647,274 @@ struct GemmKernel {{
         }};
 
         BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
-
         return ave_time;
-    }}
-
-    static std::string get_name() {{
-        return std::string("gemm_preshuffle") + std::to_string(TileM) + "x" + std::to_string(TileN) + "x" + std::to_string(TileK) +
-                "_" + std::to_string(WarpM) + "x" + std::to_string(WarpN) + "x" + std::to_string(WarpK) + "_" +
-                std::to_string(WarpTileM) + "x" + std::to_string(WarpTileN) + "x" + std::to_string(WarpTileK) + "_" +
-                "{pad_m}" + "_" +
-                "{pad_n}" + "_" +
-                "{pad_k}" + "_" +
-                "{pipeline}" + "_" +
-                "{epilogue}" + "_" +
-                "{scheduler}" + "_" +
-                "{persistent}";
     }}
 }};
 """
 
-    def _generate_instantiation_source_files(self):
-        """Generate kernel instance instantiation source files"""
-        tile_map = {}
-        for trait, tile_valid_params in self.valid_trait_tile_combinations.items():
-            for tile in tile_valid_params:
-                for (
-                    tile_m,
-                    tile_n,
-                    tile_k,
-                    warp_m,
-                    warp_n,
-                    warp_k,
-                    warp_tile_m,
-                    warp_tile_n,
-                    warp_tile_k,
-                ) in tile:
-                    key = f"{tile_m}x{tile_n}x{tile_k}x{warp_m}x{warp_n}x{warp_k}"
-                    value = f"{warp_tile_m}x{warp_tile_n}x{warp_tile_k}"
-                    if key not in tile_map:
-                        tile_map[key] = set()
-                    tile_map[key].add(value)
+        return kernel_name, instance_code
 
-        files_listed = 0
-        for trait, _ in self.valid_trait_tile_combinations.items():
-            for block_tile, warp_tiles in tile_map.items():
-                tile_m, tile_n, tile_k, warp_m, warp_n, warp_k = map(
-                    int, block_tile.split("x")
+    def run(self, num_workers=None):
+        """Run the builder to generate individual kernel files"""
+        # Generate individual kernel files
+        self.generate_individual(num_workers)
+
+    def generate_individual(self, num_workers=None):
+        """Generate individual kernel files for separate compilation with parallel processing"""
+        if num_workers is None:
+            num_workers = min(
+                multiprocessing.cpu_count(), 8
+            )  # Limit to avoid memory issues
+
+        tile_configs = self._get_tile_configs()
+        trait_combos = self._generate_trait_combinations()
+
+        # Prepare work items for parallel processing
+        work_items = []
+        for tile_config in tile_configs:
+            for trait_combo in trait_combos:
+                work_items.append(
+                    (
+                        tile_config,
+                        trait_combo,
+                        self.working_path,
+                        self.datatype,
+                        self.layout,
+                    )
                 )
 
-                content = f"""
-#include "gemm_preshuffle_{trait}.hpp" 
-
-"""
-                for warp_tile in warp_tiles:
-                    warp_tile_m, warp_tile_n, warp_tile_k = map(
-                        int, warp_tile.split("x")
-                    )
-
-                    sparse = (
-                        self.args.datatypes.a_datatype == "fp16"
-                        and self.args.datatypes.b_datatype == "fp16"
-                        and self.args.datatypes.c_datatype == "fp16"
-                        and (
-                            (
-                                warp_tile_m == 32
-                                and warp_tile_n == 32
-                                and warp_tile_k == 16
-                            )
-                            or (
-                                warp_tile_m == 16
-                                and warp_tile_n == 16
-                                and warp_tile_k == 32
-                            )
-                        )
-                    )
-                    if sparse:
-                        files_listed = files_listed + 1
-                        content = (
-                            content
-                            + f"""
-template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, true>;"""
-                        )
-                    files_listed = files_listed + 1
-                    content = (
-                        content
-                        + f"""
-template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, false>;"""
-                    )
-                content += """
-"""
-                (
-                    self.output_dir
-                    / f"gemm_preshuffle_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}.cpp"
-                ).write_text(content)
-        print(f"Generated {files_listed} kernel instances in total.")
-
-    def _generate_common_instance_header_file(self):
-        """Generate common instance header into file."""
-        content = """
-#pragma once
-"""
-        for trait in self.valid_trait_names:
-            content += f'#include "gemm_preshuffle_{trait}.hpp"\n'
-        (self.output_dir / "gemm_preshuffle_instances.hpp").write_text(content)
-
-    def _generate_dispatcher_file(self):
-        """Generate the code block of dispatch mechanism."""
-        content = """
-#pragma once
-
-#include <unordered_map>
-#include <functional>
-#include <vector>
-
-#include "gemm_preshuffle_common.hpp"
-#include "gemm_preshuffle_instances.hpp"
-
-struct KernelTraits
-{
-    /// @brief The name of the pipeline.
-    std::string pipeline;
-    /// @brief The name of the scheduler (e.g., "intrawave", "interwave").
-    std::string scheduler;
-    /// @brief The name of the epilogue (e.g., "cshuffle", "default").
-    std::string epilogue;
-    /// @brief Indicates whether padding is applied to the M dimension.
-    bool pad_m;
-    /// @brief Indicates whether padding is applied to the N dimension.
-    bool pad_n;
-    /// @brief Indicates whether padding is applied to the K dimension.
-    bool pad_k;
-    /// @brief Indicates whether the kernel is persistent.
-    bool persistent;
-};
-
-struct KernelInfo {
-    std::vector<std::pair<std::function<std::tuple<std::string, float>(ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>, std::tuple<int, int, int>>> callable_warptile;
-};
-
-struct GemmPreshuffleDispatcher {
-    static auto& get_kernel_map() {
-        // Use a static local variable
-        static std::unordered_map<std::string,KernelInfo> kernel_map;
-        return kernel_map;
-    }
-
-    static void init([[maybe_unused]]bool structured_sparsity) {
-        auto& kernel_map = get_kernel_map();
-        if(!kernel_map.empty()) return;
-        \n"""
-
-        for trait, tile_valid_params in self.valid_trait_tile_combinations.items():
-            content += f"""         kernel_map["{trait}"] = {{
-            {{"""
-            for _, tile in enumerate(tile_valid_params):
-                for j in range(len(tile)):
-                    (
-                        tile_m,
-                        tile_n,
-                        tile_k,
-                        warp_m,
-                        warp_n,
-                        warp_k,
-                        warp_tile_m,
-                        warp_tile_n,
-                        warp_tile_k,
-                    ) = tile[j]
-
-                    content += """
-                {"""
-
-                    content += """
-                    [=](ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) { """
-
-                    content += """ 
-                        if(structured_sparsity){ """
-                    sparse = (
-                        self.args.datatypes.a_datatype == "fp16"
-                        and self.args.datatypes.a_datatype == "fp16"
-                        and self.args.datatypes.a_datatype == "fp16"
-                        and (
-                            (
-                                warp_tile_m == 32
-                                and warp_tile_n == 32
-                                and warp_tile_k == 16
-                            )
-                            or (
-                                warp_tile_m == 16
-                                and warp_tile_n == 16
-                                and warp_tile_k == 32
-                            )
-                        )
-                    )
-                    content += f"""
-                                return run_kernel<{trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, {BOOL_MAP(sparse)}>>(args, stream);"""
-                    content += """
-                        } else {"""
-                    content += f"""
-                                return run_kernel<{trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, {BOOL_MAP(False)}>>(args, stream);"""
-                    content += """
-                        } """
-
-                    content += f"""
-                    }}, std::make_tuple({warp_tile_m},{warp_tile_n},{warp_tile_k})"""
-
-                    if j == len(tile) - 1:
-                        content += """
-                } """
-                    else:
-                        content += """
-                }, """
-
-            content += """
-            } """
-
-            content += """       
-        };\n """
-
-        content += """    }
-
-
-    template <typename Kernel>
-    static std::tuple<std::string, float> run_kernel(ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream)
-    {
-        std::string name = Kernel::get_name();
-        float avg_time = Kernel::launch(args, stream);
-        
-        return std::make_tuple(name, avg_time);
-    }
-
-    
-    static auto dispatch(bool structured_sparsity, const KernelTraits& trait) {
-        init(structured_sparsity);
-        const std::string key = assemble_key(trait);
-        auto& kernel_map = get_kernel_map();
-        if(auto it = kernel_map.find(key); it != kernel_map.end())
-        {
-            return it->second;
-        }
-        throw std::runtime_error("No suitable kernel found: " + key);
-    }
-
-private:
-    static std::string assemble_key(const KernelTraits &trait) {
-        return std::string(trait.pipeline) + "_" +
-               trait.epilogue + "_" +
-               trait.scheduler + "_" +
-               (trait.pad_m ? "true" : "false") + "_" +
-               (trait.pad_n ? "true" : "false") + "_" +
-               (trait.pad_k ? "true" : "false") + "_" +
-               (trait.persistent ? "true" : "false");
-    }
-};
-
-"""
-        (self.output_dir / "gemm_preshuffle_dispatcher.hpp").write_text(content)
-
-
-def do_list_blobs(
-    args: argparse.Namespace, user_provide_config: Optional[JsonConfig] = None
-):
-    generator = GemmPreshuffleCodeGenerator(args, user_provide_config)
-    generator.list_all_trait_names()
-
-
-def do_gen_blobs(
-    args: argparse.Namespace, user_provide_config: Optional[JsonConfig] = None
-):
-    generator = GemmPreshuffleCodeGenerator(args, user_provide_config)
-    generator.generate_all_instance_files()
-
-
-def main(args):
-    gemm_preshuffle_config = JsonConfig.from_json(args.config_json)
-
-    if args.list_blobs:
-        do_list_blobs(args, gemm_preshuffle_config)
-    elif args.gen_blobs:
-        do_gen_blobs(args, gemm_preshuffle_config)
-    else:
-        logging.warning(
-            "No mode specified (use --list_blobs or --gen_blobs). Generating by default..."
+        print(
+            f"Generating {len(work_items)} individual kernel files using {num_workers} workers..."
         )
-        do_gen_blobs(args, gemm_preshuffle_config)
+        print(f"  Tile configs: {len(tile_configs)}")
+        print(f"  Trait combinations: {len(trait_combos)}")
+        print(f"  Total kernels: {len(work_items)}")
+
+        # Show first few work items for debugging
+        if work_items:
+            print("  First work item example:")
+            tile_config, trait_combo = work_items[0][:2]
+            print(f"    Tile config: {tile_config}")
+            print(f"    Trait combo: {trait_combo[:3]}")  # Show first 3 traits
+
+        # Process work items in parallel
+        kernel_list = []
+        completed = 0
+
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=num_workers
+        ) as executor:
+            # Submit all work items
+            print(f"  Submitting {len(work_items)} tasks to executor...")
+            future_to_item = {
+                executor.submit(_generate_single_kernel_individual, item): item
+                for item in work_items
+            }
+            print("  All tasks submitted, waiting for completion...")
+
+            # Collect results with progress reporting
+            for future in concurrent.futures.as_completed(future_to_item):
+                completed += 1
+                if completed % 100 == 0 or completed == len(work_items):
+                    print(
+                        f"  Progress: {completed}/{len(work_items)} kernels generated"
+                    )
+
+                try:
+                    result = future.result()
+                    if result:
+                        kernel_list.append(result)
+                except Exception as exc:
+                    item = future_to_item[future]
+                    print(f"Kernel generation failed for {item}: {exc}")
+
+        # Sort kernel list for consistent ordering
+        kernel_list.sort(key=lambda x: x[0])  # Sort by kernel name
+
+        # Generate CMake include file for individual targets
+        self._generate_cmake_individual_targets(kernel_list)
+
+        print(
+            f"Generated {len(kernel_list)} individual kernel files in {self.working_path}"
+        )
+
+    def _generate_cmake_individual_targets(self, kernel_list):
+        """Generate CMake include file that creates individual targets"""
+        cmake_code = f"""# Generated CMake file for individual GEMM Preshuffle targets
+# Datatype: {self.datatype}, Layout: {self.layout}
+
+"""
+
+        for kernel_name, trait_combo, tile_config in kernel_list:
+            pipeline, epilogue, scheduler = trait_combo[:3]
+
+            # Format tile config for CMake function
+            tile_str = f"{tile_config['tile_m']}x{tile_config['tile_n']}x{tile_config['tile_k']}_"
+            tile_str += f"{tile_config['warp_m']}x{tile_config['warp_n']}x{tile_config['warp_k']}_"
+            tile_str += f"{tile_config['warp_tile_m']}x{tile_config['warp_tile_n']}x{tile_config['warp_tile_k']}"
+
+            trait_str = f"{pipeline}_{epilogue}_{scheduler}_" + "_".join(
+                str(x) for x in trait_combo[3:]
+            )
+
+            cmake_code += f'create_individual_gemm_preshuffle_target("{self.datatype}" "{self.layout}" "{trait_str}" "{tile_str}")\n'
+
+        # Write CMake include file
+        with open(
+            self.working_path / "gemm_preshuffle_individual_targets.cmake", "w"
+        ) as f:
+            f.write(cmake_code)
 
 
-if __name__ == "__main__":
+def _generate_single_kernel_individual(work_item):
+    """Worker function to generate a single individual kernel file"""
+    tile_config, trait_combo, working_path, datatype, layout = work_item
+
+    # Create a temporary builder instance for this worker
+    builder = GemmPreshuffleKernelBuilder(working_path, datatype, layout)
+
+    try:
+        kernel_name, instance_code = builder._generate_kernel_instance(
+            tile_config, trait_combo
+        )
+
+        # Create simplified filename without the "gemm_" prefix
+        # Remove "gemm_" from the beginning of kernel_name for the filename
+        simplified_name = kernel_name
+        if simplified_name.startswith("gemm_"):
+            simplified_name = simplified_name[5:]  # Remove "gemm_" prefix
+
+        # Write individual header file
+        header_file = working_path / f"gemm_single_{simplified_name}.hpp"
+        with open(header_file, "w") as f:
+            f.write(instance_code)
+
+        return (kernel_name, trait_combo, tile_config)
+    except Exception as e:
+        print(f"Error generating individual kernel: {e}")
+        return None
+
+
+def main():
     parser = argparse.ArgumentParser(
-        prog="generate",
-        description="gen API for CK GEMM Preshuffle kernel",
+        description="GEMM kernel instance builder with parallel support"
     )
+    parser.add_argument("--working_path", required=True, help="Working directory path")
     parser.add_argument(
-        "-w",
-        "--working_path",
-        default="./",
-        required=False,
-        help="The path where all the blobs are going to be generated",
-    )
-    parser.add_argument(
-        "-j",
-        "--config_json",
-        required=False,
-        help="Path to JSON file containing user-specified kernel configurations",
-    )
-    parser.add_argument(
-        "-d",
         "--datatype",
         required=True,
-        help="Data type for kernel generation (supported: fp16, bf16, fp8, bf8)",
+        choices=["fp16", "fp8", "bf16", "bf8"],
+        help="Data type",
     )
     parser.add_argument(
-        "-ly",
         "--layout",
         required=True,
-        help="Matrix layout configuration for kernel generation (e.g., rcr, rrr)",
+        choices=["rcr", "rrr", "ccr", "crr"],
+        help="Matrix layout",
+    )
+    parser.add_argument("--config_json", help="Configuration JSON file")
+    parser.add_argument(
+        "--num_workers", type=int, help="Number of parallel workers (default: auto)"
     )
     parser.add_argument(
-        "-l",
-        "--list_blobs",
-        action="store_true",
-        help="List all available kernel instances to a file",
+        "--gen_individual", action="store_true", help="Generate individual kernel files"
     )
     parser.add_argument(
-        "-g",
-        "--gen_blobs",
+        "--gen_single", action="store_true", help="Generate a single kernel file"
+    )
+    parser.add_argument("--kernel_name", help="Kernel name for single generation")
+    parser.add_argument(
+        "--tile_config", help="Tile configuration string for single generation"
+    )
+    parser.add_argument(
+        "--trait_combo", help="Trait combination string for single generation"
+    )
+    parser.add_argument(
+        "--list_kernels",
         action="store_true",
-        help="Generate all kernel instances into different files",
+        help="List kernel configurations without generating files",
     )
 
     args = parser.parse_args()
 
-    main(args)
+    # [DELETE] Add Validation for datatype and layout here for supported types if no values are given default it to values
+    # validation()
+
+    # Create builder
+    builder = GemmPreshuffleKernelBuilder(
+        args.working_path, args.datatype, args.layout, args.config_json
+    )
+
+    if args.list_kernels:
+        # Fast listing mode - just write kernel list without generating files
+        builder.write_kernel_list()
+        pass
+    elif args.gen_single:
+        # [DELETE] Add how to run this in read me and in GEMM operator
+        # [DELETE] Add validation that config file should not be given
+        # [DELETE] See how you can give tunable parameter
+        # Generate a single kernel file
+        if not args.kernel_name or not args.tile_config or not args.trait_combo:
+            parser.error(
+                "--gen_single requires --kernel_name, --tile_config, and --trait_combo"
+            )
+        # Parse tile config
+        tile_parts = args.tile_config.split("_")
+        tile_dims = tile_parts[0].split("x")
+        warp_dims = tile_parts[1].split("x")
+        warp_tile_dims = tile_parts[2].split("x")
+
+        tile_config = {
+            "tile_m": int(tile_dims[0]),
+            "tile_n": int(tile_dims[1]),
+            "tile_k": int(tile_dims[2]),
+            "warp_m": int(warp_dims[0]),
+            "warp_n": int(warp_dims[1]),
+            "warp_k": int(warp_dims[2]),
+            "warp_tile_m": int(warp_tile_dims[0]),
+            "warp_tile_n": int(warp_tile_dims[1]),
+            "warp_tile_k": int(warp_tile_dims[2]),
+        }
+
+        # Parse trait combo
+        trait_parts = args.trait_combo.split("_")
+        trait_combo = (
+            trait_parts[0],  # pipeline
+            trait_parts[1],  # epilogue
+            trait_parts[2],  # scheduler
+            trait_parts[3] == "True",  # pad_m
+            trait_parts[4] == "True",  # pad_n
+            trait_parts[5] == "True",  # pad_k
+            trait_parts[6] == "True",  # persistent
+        )
+
+        # Generate the kernel
+        kernel_name, instance_code = builder._generate_kernel_instance(
+            tile_config, trait_combo
+        )
+
+        # Write the file
+        simplified_name = kernel_name
+        if simplified_name.startswith("gemm_preshuffle_"):
+            simplified_name = simplified_name[16:]
+
+        header_file = (
+            builder.working_path / f"gemm_preshuffle_single_{simplified_name}.hpp"
+        )
+        with open(header_file, "w") as f:
+            f.write(instance_code)
+
+        print(f"Generated {header_file}")
+
+    elif args.gen_individual:
+        # Generate all individual kernel files
+        builder.run(args.num_workers)
+        pass
+    else:
+        parser.error(
+            "Must specify one of: --list_kernels, --gen_individual, or --gen_single"
+        )
+
+
+if __name__ == "__main__":
+    main()
