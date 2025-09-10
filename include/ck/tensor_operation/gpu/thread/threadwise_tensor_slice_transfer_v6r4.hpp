@@ -135,15 +135,10 @@ struct ThreadwiseTensorSliceTransfer_v6r4
             auto src0_vector_container = src0_vector_type{
                 src0_buf.template Get<src0_vector_t>(src0_coord_.GetOffset(), is_src0_valid)};
                // printf("T%d: src0_coord_.GetOffset()=%d \n", threadIdx.x, src0_coord_.GetOffset());
-            constexpr auto idx_md = SpaceFillingCurve::GetIndex(idx_1d);
             constexpr index_t src1_offset =
                     src1_desc.CalculateOffset(to_multi_index(src1_slice_origin_idx));
             constexpr index_t src2_offset =
                     src2_desc.CalculateOffset(to_multi_index(src2_slice_origin_idx));
-            #if 0
-            if (blockIdx.x == 0 && blockIdx.y == 0)
-            printf("T%03u: %d\n", threadIdx.x, src2_offset);
-            #endif
 
             auto dst_vector_container = dst_vector_type{};
 

@@ -620,26 +620,25 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                                              const Index& src_origin):
                                     d_buffer_transfer_(d_grid_desc, src_origin)
         {
-             if constexpr(is_same<tensor_layout::gemm::RowMajor, DLayout>::value)
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, DLayout>::value)
             {
                 d_buffer_transfer_.SetSrcSliceOrigin(d_grid_desc,
-                                         make_multi_index(
-                                                            src_origin[I0], 
-                                                                0,
-                                                                src_origin[I2], 
-                                                                get_thread_local_1d_id() * ThreadSliceLengths[I3]
-                                                                                        % Number<NPerBlock /NRepeat>{}));
+                                         make_multi_index(src_origin[I0], 
+                                                          0,
+                                                          src_origin[I2], 
+                                                          get_thread_local_1d_id() * ThreadSliceLengths[I3]
+                                                                                   % Number<NPerBlock /NRepeat>{}));
             }
             else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, DLayout>::value)
             {
                 constexpr auto  slice_lenght_n = CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl
                                 / CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock{}[I3];
                   d_buffer_transfer_.SetSrcSliceOrigin(d_grid_desc,
-                                make_multi_index(
-                                                    src_origin[I0], 
-                                                        get_thread_local_1d_id() / Number<NPerBlock /NRepeat/ slice_lenght_n>{} ,
-                                                        src_origin[I2], 
-                                                        0));
+                                            make_multi_index(src_origin[I0], 
+                                                             get_thread_local_1d_id() 
+                                                               / Number<NPerBlock /NRepeat/ slice_lenght_n>{},
+                                                             src_origin[I2],
+                                                             0));
             }
         }
 
@@ -651,23 +650,18 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, DLayout>::value)
             {
-                  auto dst_slice_origni = DstSliceOriginIdx{};
-                 // static_assert(d_buff_desc.CalculateOffset(
-                 //               to_multi_index(make_tuple(I0, I1, I0, I0))) ==0);
                   static_for<0, NRepeat, 1>{}([&](auto i) {
                         d_buffer_transfer_.Run(src_desc,
                         src_buf,
                         d_buff_desc,
                         make_tuple(I0, i, I0, I0),
                         dst_buf);
-                    #if 1
                         if constexpr(i < NRepeat - 1)
                         {
                             d_buffer_transfer_.MoveSrcSliceWindow(
                                                src_desc,  
                                                Index(I0, I0, I0, Number<NPerBlock / NRepeat>{}));
                         }
-                    #endif
                   });
 
                    #if 0
@@ -710,15 +704,12 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             }
             else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, DLayout>::value)
             {
-                #if 1
-                auto dst_slice_origni = DstSliceOriginIdx{};
                   static_for<0, MRepeat, 1>{}([&](auto i) {
                         d_buffer_transfer_.Run(src_desc,
                                                src_buf,
                                                d_buff_desc,
                                                make_tuple(I0, i, I0, I0),
                                             dst_buf);
-                        #if 1
                         if constexpr(i < MRepeat - 1)
                         {
                             d_buffer_transfer_.MoveSrcSliceWindow(
@@ -729,41 +720,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                                                      I0));
                             
                         }
-                    #endif
                   });
-                  #else
-                  constexpr index_t num_access = sfc_d_block.GetNumOfAccess();
-                  static_for<0, num_access, 1>{}([&](auto access_id) {
-                     constexpr auto idx_md = sfc_d_block.GetIndex(access_id);
-                     d_buffer_transfer_.Run(src_desc,
-                                               src_buf,
-                                               d_buff_desc,
-                                               make_tuple(I0,
-                                               // Number<idx_md[I2] / 16>{},
-                                                Number<2>{},
-                                                I0,
-                                                I0),
-                                               dst_buf);
-                        if constexpr(access_id < num_access - 1)
-                        {
-                            #if 0
-                            constexpr auto d_block_step =
-                                sfc_d_block.GetForwardStep(access_id);
-                            d_buffer_transfer_.MoveSrcSliceWindow(
-                                               src_desc,  
-                                               d_block_step);
-                            #endif
-                            d_buffer_transfer_.MoveSrcSliceWindow(
-                                               src_desc,  
-                                               Index(I0,
-                                                     //Number<CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl>{},
-                                                     Number<MPerBlock / MRepeat>{},
-                                                     I0,
-                                                     I0));
-                            
-                        }
-                  });
-                  #endif
                  #if 0
                         const size_t M = MPerThread;
                         const size_t N = 1;
@@ -808,7 +765,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         __device__ static constexpr auto GetOrignal(const Number<access_id>&)
         {
             constexpr auto idx_md = sfc_d_block.GetIndex(Number<access_id>{});
-            //static_assert(idx_md[I3] == 128);
             if constexpr(is_same<tensor_layout::gemm::RowMajor, DLayout>::value)
             {
                     return make_tuple(I0, 
@@ -825,7 +781,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             }
         }
 
-        // for write
         __device__ static constexpr auto MakeDBufferDescriptor()
         {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, DLayout>::value)
@@ -834,8 +789,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                         make_tuple(I1, 
                                    Number<NRepeat>{},
                                    I1, 
-                                   Number<ThreadSliceLengths[I3]>{}
-                                ));
+                                   Number<ThreadSliceLengths[I3]>{}));
                
             }
             else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, DLayout>::value)
@@ -901,6 +855,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         static constexpr auto d_buff_desc_mblock_mperblock_nblock_nperblock = 
                                 MakeDBufferDescriptor_mblock_mperblock_nblock_nperblock();
         static_assert(d_buff_desc_mblock_mperblock_nblock_nperblock.IsKnownAtCompileTime());
+
         private:
 
          __device__ static constexpr auto GetVectorDim()
@@ -2228,29 +2183,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                                        n_thread_data_on_block_idx[I2]),
                       ck::tensor_operation::element_wise::PassThrough{}};
 
-            // tuple of reference to C/Ds tensor descriptors
-            const auto c_ds_desc_refs = concat_tuple_of_reference(
-                tie(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
-                generate_tie([&](auto i) -> const auto& // return type should be reference
-                             { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
-                             Number<NumDTensor>{}));
-
-            // tuple of reference to C/Ds tensor descriptors
-            const auto c_ds_buf_refs = concat_tuple_of_reference(
-                tie(c_shuffle_block_buf),
-                generate_tie([&](auto i) -> const auto& // return type should be reference
-                             { return ds_grid_buf[i]; },
-                             Number<NumDTensor>{}));
-
-            // tuple of starting index of C/Ds blockwise copy
-            const auto idx_c_ds_block_begin = container_concat(
-                make_tuple(make_multi_index(0, 0, 0, 0)),
-                generate_tuple(
-                    [&](auto) {
-                        return make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0);
-                    },
-                    Number<NumDTensor>{}));
-
             const auto e_grid_desc_mblock_mperblock_nblock_nperblock =
                 c_grid_desc_mblock_mperblock_nblock_nperblock;
 
@@ -2320,7 +2252,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
 
                 // make sure it's safe to read from LDS
                 block_sync_lds();
-                constexpr auto idx_md = SfcCdeBlock::GetIndex(I1);
                 // each block copy its data from LDS to global
                 cde_block_copy_lds_and_global.Run(
                     c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
