@@ -44,8 +44,8 @@ User need to select correct mapping of config for each quant mode:
 
 |  | quant_mode as runtime argument | Config in cpp file |
 |:--------|:-----:|-------|
-| For selecting AQuant  | aquant  | GemmConfigAQuant    |
+| For selecting AQuant  | aquant  | GemmConfigQuant    |
 | For selecting Aquant with Preshuffle   | aquant  | GemmConfigPreshuffleQuant    |
-| For selecting BQuant  | bquant  | GemmConfigBQuant    |
+| For selecting BQuant  | bquant  | GemmConfigQuant    |
 | For selecting RowCol quant  | roqcolquant  | GemmConfigRolColQuant    |
 

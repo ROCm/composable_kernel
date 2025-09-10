@@ -11,9 +11,6 @@
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/gemm_group_quant.hpp"
 
-#define CK_TILE_AQUANT_PIPELINE 1
-#define CK_TILE_ROWCOL_PIPELINE 2
-
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile()
 {
@@ -98,7 +95,7 @@ struct GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigAQuant : public GemmConfigBase
+struct GemmConfigQuant : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 16;
     static constexpr ck_tile::index_t N_Tile = 64;
@@ -111,24 +108,6 @@ struct GemmConfigAQuant : public GemmConfigBase
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
-    // static constexpr ck_tile::index_t Pipeline      = CK_TILE_AQUANT_PIPELINE;
-};
-
-template <typename PrecType>
-struct GemmConfigBQuant : public GemmConfigBase
-{
-    static constexpr ck_tile::index_t M_Tile = 16;
-    static constexpr ck_tile::index_t N_Tile = 64;
-    static constexpr ck_tile::index_t K_Tile = 256 / sizeof(PrecType);
-
-    static constexpr ck_tile::index_t M_Warp = 1;
-    static constexpr ck_tile::index_t N_Warp = 4;
-    static constexpr ck_tile::index_t K_Warp = 1;
-
-    static constexpr ck_tile::index_t M_Warp_Tile = 16;
-    static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
-    // static constexpr ck_tile::index_t Pipeline      = CK_TILE_AQUANT_PIPELINE;
 };
 
 template <typename PrecType>
@@ -145,7 +124,6 @@ struct GemmConfigRolColQuant : public GemmConfigBase
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
-    // static constexpr ck_tile::index_t Pipeline      = CK_TILE_ROWCOL_PIPELINE;
 };
 
 template <typename PrecType>
@@ -166,27 +144,6 @@ struct GemmConfigPreshuffleQuant : public GemmConfigBase
 
     static constexpr bool PreshuffleQuant = true;
 };
-
-// template <ck_tile::index_t PipelineId>
-// struct PipelineTypeTraits;
-
-// template <>
-// struct PipelineTypeTraits<CK_TILE_AQUANT_PIPELINE>
-// {
-//     template <typename GemmPipelineProblem>
-//     using GemmPipeline = ck_tile::AQuantGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
-//     template <typename GemmPipelineProblem>
-//     using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
-// };
-
-// template <>
-// struct PipelineTypeTraits<CK_TILE_ROWCOL_PIPELINE>
-// {
-//     template <typename PipelineProblem>
-//     using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem>;
-//     template <typename PipelineProblem>
-//     using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<PipelineProblem>;
-// };
 
 template <typename ADataType_,
           typename BDataType_ = ADataType_,

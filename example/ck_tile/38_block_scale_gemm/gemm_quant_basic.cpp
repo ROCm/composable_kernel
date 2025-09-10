@@ -54,10 +54,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                                                  ComputeDataType>;
 
     using BaseGemmPipeline =
-        ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>; // TODO :: check for BQuant
-
-    // using BaseGemmPipeline = typename PipelineTypeTraits<
-    //         GemmConfig::Pipeline>::template BaseGemmPipeline<GemmPipelineProblem>;
+        ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
 
     const ck_tile::index_t K_split =
         (args.K + GemmConfig::K_Tile - 1) / GemmConfig::K_Tile * GemmConfig::K_Tile;
@@ -115,8 +112,6 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
             std::conditional_t<QuantMode == ck_tile::QuantType::AQuantGrouped,
                                ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
                                ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>;
-        // using GemmPipeline = typename PipelineTypeTraits<GemmConfig::Pipeline>::template
-        // GemmPipeline<PipelineProblem>;
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<typename TypeConfig::ADataType,
@@ -401,4 +396,4 @@ int run_gemm_example(int argc, char* argv[])
     }
 }
 
-int main(int argc, char* argv[]) { return !run_gemm_example<GemmConfigAQuant>(argc, argv); }
+int main(int argc, char* argv[]) { return !run_gemm_example<GemmConfigQuant>(argc, argv); }
