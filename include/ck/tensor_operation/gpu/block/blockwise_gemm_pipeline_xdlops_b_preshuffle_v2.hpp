@@ -235,7 +235,15 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v2<BlockGemmPipelineScheduler::I
               typename BGridBuffer,
               typename BBlockBuffer,
               typename BBlockTransferStep,
-              typename CThreadBuffer>
+              typename CThreadBuffer,
+              typename D0GridDesc,
+              typename D0GridBuffer,
+              typename D0BlockTransfer,
+              typename D0ThreadBuffer,
+              typename D1GridDesc,
+              typename D1GridBuffer,
+              typename D1BlockTransfer,
+              typename D1ThreadBuffer>
     __device__ void Run(const AGridDesc& a_grid_desc,
                         const ABlockDesc& a_block_desc,
                         ABlockTransfer& a_blockwise_copy,
@@ -248,7 +256,15 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v2<BlockGemmPipelineScheduler::I
                         BBlockBuffer& b_block_buf,
                         const BBlockTransferStep& b_block_copy_step,
                         CThreadBuffer& c_thread_buf,
-                        index_t num_loop) const
+                        index_t num_loop,
+                        const D0GridDesc&   d0_grid_desc,
+                        const D0GridBuffer& d0_grid_buf,
+                        D0BlockTransfer&    d0_blockwise_copy,
+                        D0ThreadBuffer&     d0_thread_buf,
+                        const D1GridDesc&   d1_grid_desc,
+                        const D1GridBuffer& d1_grid_buf,
+                        D1BlockTransfer&    d1_blockwise_copy,
+                        D1ThreadBuffer&     d1_thread_buf) const
     {
         ignore = b_block_buf;
         __builtin_amdgcn_sched_barrier(0);
@@ -454,6 +470,16 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v2<BlockGemmPipelineScheduler::I
                                  b_block_desc_n0_n1_k0_k1,
                                  b_block_origin_idx,
                                  b_thread_bufs(local_read_reg));
+
+            d0_blockwise_copy.Run(d0_grid_desc, 
+                                  d0_grid_buf, 
+                                  make_tuple(I0, I0, I0, I0),
+                                  d0_thread_buf);
+                
+            d1_blockwise_copy.Run(d1_grid_desc, 
+                                  d1_grid_buf, 
+                                  make_tuple(I0, I0, I0, I0),
+                                  d1_thread_buf);
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, KRepeat, 1>{}([&](auto k0) {

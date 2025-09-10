@@ -151,11 +151,7 @@ struct ThreadwiseTensorSliceTransfer_v6r4
             static_for<0, ScalarPerVector, 1>{}([&](auto i) {
                     element_op_(dst_vector_container.template AsType<DstData>()(i),
                         src0_vector_container.template AsType<Src0Data>()[i],    
-                        #if 1
-                        src1_buf[Number<i>{}],
-                        #else
-                        type_convert<Src1Data>(src0_coord_.GetOffset()+i),
-                        #endif
+                        src1_buf[Number<src1_offset+i>{}],
                         src2_buf[Number<src2_offset>{}]);
                 });
 
