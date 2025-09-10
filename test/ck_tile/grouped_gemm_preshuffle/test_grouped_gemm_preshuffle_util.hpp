@@ -32,43 +32,40 @@ template <typename Tuple>
 class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
 {
     protected:
-    using ALayout     = std::tuple_element_t<0, Tuple>;
-    using BLayout     = std::tuple_element_t<1, Tuple>;
-    using CLayout     = std::tuple_element_t<2, Tuple>;
-    using ADataType   = std::tuple_element_t<3, Tuple>;
-    using BDataType   = std::tuple_element_t<4, Tuple>;
-    using AccDataType = std::tuple_element_t<5, Tuple>;
-    using CDataType   = std::tuple_element_t<6, Tuple>;
+    using ALayout     = typename Tuple::ALayoutType;
+    using BLayout     = typename Tuple::BLayoutType;
+    using CLayout     = typename Tuple::CLayoutType;
+    using ADataType   = typename Tuple::ADataType;
+    using BDataType   = typename Tuple::BDataType;
+    using AccDataType = typename Tuple::AccDataType;
+    using CDataType   = typename Tuple::CDataType;
     using PrecType    = BDataType;
     using DsLayout    = ck_tile::tuple<>; // not used
     using DsDataType  = ck_tile::tuple<>; // not used
 
-    struct GroupedGemKernelParam
-    {
-        static const bool kPadM = false;
-        static const bool kPadN = false;
-        static const bool kPadK = true; // preshuffle pipeline requires k padding
+    static const bool kPadM = false;
+    static const bool kPadN = false;
+    static const bool kPadK = true; // preshuffle pipeline requires k padding
 
-        static const int kBlockPerCu = 1;
+    static const int kBlockPerCu = Tuple::BlockPerCu_;
 
-        // decode shape for preshuffle pipeline v2
-        static const ck_tile::index_t M_Tile = 16;
-        static const ck_tile::index_t N_Tile = 64;
-        static const ck_tile::index_t K_Tile = 256 / sizeof(PrecType);
+    // Tile dimensions from tuple
+    static const ck_tile::index_t M_Tile = Tuple::M_Tile_;
+    static const ck_tile::index_t N_Tile = Tuple::N_Tile_;
+    static const ck_tile::index_t K_Tile = Tuple::K_Tile_;
 
-        static const ck_tile::index_t M_Warp = 1;
-        static const ck_tile::index_t N_Warp = 4;
-        static const ck_tile::index_t K_Warp = 1;
+    static const ck_tile::index_t M_Warp = 1;
+    static const ck_tile::index_t N_Warp = 4;
+    static const ck_tile::index_t K_Warp = 1;
 
-        static const ck_tile::index_t M_Warp_Tile = 16;
-        static const ck_tile::index_t N_Warp_Tile = 16;
-        static const ck_tile::index_t K_Warp_Tile = get_k_warp_tile_flatmm<PrecType, M_Warp_Tile>();
+    static const ck_tile::index_t M_Warp_Tile = 16;
+    static const ck_tile::index_t N_Warp_Tile = 16;
+    static const ck_tile::index_t K_Warp_Tile = get_k_warp_tile_flatmm<BDataType, M_Warp_Tile>();
 
-        static constexpr bool DoubleSmemBuffer = true;  // preshuffle v2 uses ping-pong smem
-        static constexpr bool TransposeC       = false; // transpose c is not supported
-        static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
-        static constexpr ck_tile::index_t TileParitionerM01      = 4;
-    };
+    static constexpr bool DoubleSmemBuffer = true;  // preshuffle v2 uses ping-pong smem
+    static constexpr bool TransposeC       = false; // transpose c is not supported
+    static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
+    static constexpr ck_tile::index_t TileParitionerM01      = 4;
 
     template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
     auto calculate_rtol_atol(const ck_tile::index_t K,
@@ -120,38 +117,25 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
     {
 
         using GemmShape =
-            ck_tile::TileGemmShape<ck_tile::sequence<GroupedGemKernelParam::M_Tile,
-                                                     GroupedGemKernelParam::N_Tile,
-                                                     GroupedGemKernelParam::K_Tile>,
-                                   ck_tile::sequence<GroupedGemKernelParam::M_Warp,
-                                                     GroupedGemKernelParam::N_Warp,
-                                                     GroupedGemKernelParam::K_Warp>,
-                                   ck_tile::sequence<GroupedGemKernelParam::M_Warp_Tile,
-                                                     GroupedGemKernelParam::N_Warp_Tile,
-                                                     GroupedGemKernelParam::K_Warp_Tile>>;
-        using TilePartitioner = ck_tile::GemmSpatiallyLocalTilePartitioner<
-            GemmShape,
-            GroupedGemKernelParam::TileParitionerGroupNum,
-            GroupedGemKernelParam::TileParitionerM01>;
+            ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
+                                   ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
+                                   ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
+        using TilePartitioner = ck_tile::
+            GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
-        using Traits = ck_tile::TileGemmTraits<GroupedGemKernelParam::kPadM,
-                                               GroupedGemKernelParam::kPadN,
-                                               GroupedGemKernelParam::kPadK,
-                                               ALayout,
-                                               BLayout,
-                                               CLayout>;
+        using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
 
         // for testing purposes, we can hardcode the values here as we what is compatible with
         // pipeline
         using GemmUniversalTraits =
-            ck_tile::TileGemmUniversalTraits<GroupedGemKernelParam::kPadM,
-                                             GroupedGemKernelParam::kPadN,
-                                             GroupedGemKernelParam::kPadK,
-                                             GroupedGemKernelParam::DoubleSmemBuffer,
+            ck_tile::TileGemmUniversalTraits<kPadM,
+                                             kPadN,
+                                             kPadK,
+                                             DoubleSmemBuffer,
                                              ALayout,
                                              BLayout,
                                              CLayout,
-                                             GroupedGemKernelParam::TransposeC,
+                                             TransposeC,
                                              /*UseStructuredSparsity*/ false,
                                              /*Persistent*/ false,
                                              /*NumWaveGroups*/ 1,
@@ -162,13 +146,12 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
         using BaseGemmPipeline =
             ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>;
 
-        const ck_tile::index_t k_grain = gemm_descs[0].k_batch * GroupedGemKernelParam::K_Tile;
-        const ck_tile::index_t K_split =
-            (gemm_descs[0].K + k_grain - 1) / k_grain * GroupedGemKernelParam::K_Tile;
-        const ck_tile::index_t num_loop = ck_tile::GemmSpatiallyLocalTilePartitioner<
-            GemmShape,
-            GroupedGemKernelParam::TileParitionerGroupNum,
-            GroupedGemKernelParam::TileParitionerM01>::GetLoopNum(K_split);
+        const ck_tile::index_t k_grain = gemm_descs[0].k_batch * K_Tile;
+        const ck_tile::index_t K_split = (gemm_descs[0].K + k_grain - 1) / k_grain * K_Tile;
+        const ck_tile::index_t num_loop =
+            ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
+                                                       TileParitionerGroupNum,
+                                                       TileParitionerM01>::GetLoopNum(K_split);
         const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
         const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
 
@@ -202,11 +185,11 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
                                                  ck_tile::element_wise::PassThrough,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,
-                                                 GroupedGemKernelParam::M_Warp,
-                                                 GroupedGemKernelParam::N_Warp,
-                                                 GroupedGemKernelParam::M_Warp_Tile,
-                                                 GroupedGemKernelParam::N_Warp_Tile,
-                                                 GroupedGemKernelParam::K_Warp_Tile,
+                                                 M_Warp,
+                                                 N_Warp,
+                                                 M_Warp_Tile,
+                                                 N_Warp_Tile,
+                                                 K_Warp_Tile,
                                                  UniversalGemmProblem::TransposeC,
                                                  memory_operation>>;
             using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
@@ -223,7 +206,7 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
 
             ave_time = ck_tile::launch_kernel(
                 s,
-                ck_tile::make_kernel<GroupedGemKernelParam::kBlockPerCu>(
+                ck_tile::make_kernel<kBlockPerCu>(
                     Kernel{},
                     grids,
                     blocks,
@@ -334,7 +317,7 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
             ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensors[i]);
 
             // Host-side preshuffle of B
-            auto b_shuffle_host = shuffle_b<GroupedGemKernelParam>(b_k_n_tensors[i]);
+            auto b_shuffle_host = shuffle_b<KernelParam>(b_k_n_tensors[i]);
 
             a_m_k_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
                 a_m_k_tensors[i].get_element_space_size_in_bytes()));
