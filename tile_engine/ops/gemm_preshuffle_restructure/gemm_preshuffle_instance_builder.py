@@ -394,7 +394,7 @@ class GemmPreshuffleKernelBuilder:
         ) = trait_combo
 
         # Create kernel name with proper boolean capitalization
-        kernel_name = f"gemm_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_{str(persistent).capitalize()}"
+        kernel_name = f"gemm_preshuffle_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_{str(persistent).capitalize()}"
 
         # Create tile configuration string
         tile_str = (
@@ -443,9 +443,6 @@ class GemmPreshuffleKernelBuilder:
         # Determine layouts based on self.layout
         a_layout, b_layout, c_layout = get_abc_layouts(self.layout)
 
-        print("[DELETE] I AM HERE 2")
-        print("[DELETE] WORK FROM HERE")
-
         # Generate kernel instance code using the correct API
         pragma_line = "#pragma once\n" if is_header else ""
         instance_code = f"""// Generated kernel instance for {kernel_name}
@@ -493,9 +490,9 @@ struct SelectedKernel {{
     static constexpr bool kPadK = {"true" if pad_k == "true" else "false"};
     static constexpr bool TransposeC = false;
     static constexpr bool UsePersistentKernel = {"true" if persistent == "true" else "false"};
-    static constexpr bool DoubleSmemBuffer = {"true" if pipeline == "compv4" else "false"};
+    static constexpr bool DoubleSmemBuffer = {"true" if pipeline == "preshufflev2" else "false"};
     static constexpr bool UseStructuredSparsity = false;
-    static constexpr bool Preshuffle = false;
+    static constexpr bool Preshuffle = true;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
 
     // Tile shape
@@ -520,7 +517,7 @@ struct SelectedKernel {{
         Traits>;
     
     // Base pipeline for hot loop detection
-    using BaseGemmPipeline = {base_pipeline_map.get(pipeline, "ck_tile::BaseGemmPipelineAgBgCrMem")}<GemmPipelineProblem>;
+    using BaseGemmPipeline = {base_pipeline_map.get(pipeline, "ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2")}<GemmPipelineProblem>;
 
     static float launch(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {{
         const ck_tile::index_t k_grain = args.k_batch * TileK;
@@ -534,7 +531,7 @@ struct SelectedKernel {{
         const auto Run = [&](const auto has_hot_loop_, const auto tail_number_, const auto memory_operation_) {{
             constexpr bool has_hot_loop_v = has_hot_loop_.value;
             constexpr auto tail_number_v = tail_number_.value;
-            constexpr auto scheduler = {scheduler_type_map.get(scheduler, "ck_tile::GemmPipelineScheduler::Intrawave")};
+            constexpr auto scheduler = {scheduler_type_map.get(scheduler, "ck_tile::GemmPipelineScheduler::Default")};
             [[maybe_unused]] constexpr auto memory_operation = memory_operation_.value;
 
             using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
@@ -550,7 +547,7 @@ struct SelectedKernel {{
                 has_hot_loop_v,
                 tail_number_v>;
             
-            using GemmPipeline = {pipeline_impl_map.get(pipeline, "ck_tile::GemmPipelineAgBgCrCompV3")}<UniversalGemmProblem>;
+            using GemmPipeline = {pipeline_impl_map.get(pipeline, "ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2")}<UniversalGemmProblem>;
             
             // Epilogue
 """
@@ -625,7 +622,7 @@ struct SelectedKernel {{
             }}
             
             // Launch kernel
-            constexpr int kBlockPerCu = 1;
+            constexpr int kBlockPerCu = 1; //[DELETE] Make this tunable later
             ave_time = ck_tile::launch_kernel(
                 stream,
                 ck_tile::make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
@@ -750,23 +747,22 @@ def main():
         )
 
         # Generate the kernel
-
-        print("[DELETE] I AM HERE 1")  # [DELETE] --- IGNORE ---
         kernel_name, instance_code = builder._generate_kernel_instance(
             tile_config, trait_combo
         )
 
-        """
         # Write the file
         simplified_name = kernel_name
-        if simplified_name.startswith("gemm_"):
-            simplified_name = simplified_name[5:]
+        if simplified_name.startswith("gemm_preshuffle_"):
+            simplified_name = simplified_name[16:]
 
-        header_file = builder.working_path / f"gemm_single_{simplified_name}.hpp"
+        header_file = (
+            builder.working_path / f"gemm_preshuffle_single_{simplified_name}.hpp"
+        )
         with open(header_file, "w") as f:
             f.write(instance_code)
 
-        print(f"Generated {header_file}") """
+        print(f"Generated {header_file}")
 
     elif args.gen_individual:
         # Generate all individual kernel files
