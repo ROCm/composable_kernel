@@ -295,11 +295,12 @@ struct CShuffleEpilogueStageBase
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows>
     CK_TILE_DEVICE auto operator()([[maybe_unused]] ODramWindow& out_dram_window,
                                    [[maybe_unused]] const OAccTile& o_acc_tile,
-                                                    const DsDramWindows& ds_dram_windows,
-                                                    void* p_smem)
+                                   const DsDramWindows& ds_dram_windows,
+                                   void* p_smem)
     {
-        static_assert(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
-                      "Currently, the CShuffleEpilogueStageBase only supports the Row Major Output layout");
+        static_assert(
+            std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
+            "Currently, the CShuffleEpilogueStageBase only supports the Row Major Output layout");
 
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
         auto lds_tile               = make_static_distributed_tensor<AccDataType>(LdsTileDistr);
@@ -361,11 +362,11 @@ struct SliceEpilogue : public CShuffleEpilogueStageBase<Problem_>
 
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename ContextType>
     CK_TILE_DEVICE auto operator()([[maybe_unused]] ODramWindow& out_dram_window,
-                                                    const OAccTile& o_acc_tile,
+                                   const OAccTile& o_acc_tile,
                                    [[maybe_unused]] const DsDramWindows& ds_dram_windows,
                                    [[maybe_unused]] void* p_smem,
-                                                    auto iAccess,
-                                                    ContextType& context)
+                                   auto iAccess,
+                                   ContextType& context)
     {
         block_sync_lds();
 
@@ -405,10 +406,10 @@ struct ScaleEpilogue : public CShuffleEpilogueStageBase<Problem_>
                                    [[maybe_unused]] const OAccTile& o_acc_tile,
                                    [[maybe_unused]] const DsDramWindows& ds_dram_windows,
                                    [[maybe_unused]] void* p_smem,
-                                                    auto iAccess,
-                                                    ContextType& context,
-                                                    const ScaleM& scale_m_tensor,
-                                                    const ScaleN& scale_n_tensor)
+                                   auto iAccess,
+                                   ContextType& context,
+                                   const ScaleM& scale_m_tensor,
+                                   const ScaleN& scale_n_tensor)
     {
         // Calculate offset for this iteration
         constexpr auto step     = SFC::get_index(iAccess);
@@ -445,7 +446,7 @@ struct CastLdsEpilogue : public CShuffleEpilogueStageBase<Problem_>
                                    [[maybe_unused]] const DsDramWindows& ds_dram_windows,
                                    [[maybe_unused]] void* p_smem,
                                    [[maybe_unused]] auto iAccess,
-                                                    ContextType& context)
+                                   ContextType& context)
     {
         // Cast LDS tile to output data type and store to LDS
         const auto c_warptile_in_tensor_casted = cast_tile<ODataType>(context.lds_tile);
@@ -465,7 +466,7 @@ struct PrepCTensorEpilogue : public CShuffleEpilogueStageBase<Problem_>
                                    [[maybe_unused]] const DsDramWindows& ds_dram_windows,
                                    [[maybe_unused]] void* p_smem,
                                    [[maybe_unused]] auto iAccess,
-                                                    ContextType& context)
+                                   ContextType& context)
     {
         // Create distribution and synchronize before loading from LDS
         constexpr auto dram_tile_distribution =
@@ -492,7 +493,7 @@ struct ApplyDEpilogue : public CShuffleEpilogueStageBase<Problem_>
                                    [[maybe_unused]] const DsDramWindows& ds_dram_windows,
                                    [[maybe_unused]] void* p_smem,
                                    [[maybe_unused]] auto iAccess,
-                                                    ContextType& context)
+                                   ContextType& context)
     {
         // Load all D tensors
         const auto ds_tensor = generate_tuple(
@@ -516,12 +517,12 @@ struct StoreToDramEpilogue : public CShuffleEpilogueStageBase<Problem_>
     static constexpr memory_operation_enum MemoryOperation = Base::MemoryOperation;
 
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename ContextType>
-    CK_TILE_DEVICE auto operator()(                 ODramWindow& out_dram_window,
+    CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window,
                                    [[maybe_unused]] const OAccTile& o_acc_tile,
                                    [[maybe_unused]] const DsDramWindows& ds_dram_windows,
                                    [[maybe_unused]] void* p_smem,
                                    [[maybe_unused]] auto iAccess,
-                                                    ContextType& context)
+                                   ContextType& context)
     {
         // Store final tensor based on memory operation type
         if constexpr(MemoryOperation == memory_operation_enum::set)
@@ -543,12 +544,12 @@ struct MoveWindowsEpilogue : public CShuffleEpilogueStageBase<Problem_>
     static constexpr index_t NumDTensor = Base::NumDTensor;
 
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename ContextType>
-    CK_TILE_DEVICE auto operator()(                 ODramWindow& out_dram_window,
+    CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window,
                                    [[maybe_unused]] const OAccTile& o_acc_tile,
                                    [[maybe_unused]] const DsDramWindows& ds_dram_windows,
                                    [[maybe_unused]] void* p_smem,
-                                                    auto iAccess,
-                                                    ContextType& context)
+                                   auto iAccess,
+                                   ContextType& context)
     {
         // Move windows only if not the last access iteration
         constexpr index_t num_access = SFC::get_num_of_access();
