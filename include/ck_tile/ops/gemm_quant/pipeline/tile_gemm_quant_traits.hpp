@@ -12,7 +12,8 @@ enum struct QuantType : std::uint16_t
 {
     AQuantGrouped = 0,
     BQuantGrouped = 1,
-    RowColQuant   = 2
+    RowColQuant   = 2,
+    TensorQuant   = 3
 };
 
 template <bool kPadM_,
