@@ -9,7 +9,7 @@
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "ck_tile/ops/gemm_group_quant.hpp"
+#include "ck_tile/ops/gemm_quant.hpp"
 
 #define CK_TILE_PIPELINE_PREFILL 1
 #define CK_TILE_PIPELINE_DECODE 2

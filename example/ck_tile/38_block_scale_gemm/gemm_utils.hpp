@@ -9,7 +9,7 @@
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "ck_tile/ops/gemm_group_quant.hpp"
+#include "ck_tile/ops/gemm_quant.hpp"
 
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile()

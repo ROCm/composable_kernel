@@ -12,7 +12,7 @@
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/host/concat.hpp"
-#include "ck_tile/ops/gemm_group_quant/pipeline/tile_gemm_quant_traits.hpp"
+#include "ck_tile/ops/gemm_quant/pipeline/tile_gemm_quant_traits.hpp"
 
 namespace ck_tile {
 

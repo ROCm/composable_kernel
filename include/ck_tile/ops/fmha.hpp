@@ -60,5 +60,6 @@
 #include "ck_tile/ops/fmha/pipeline/tile_fmha_shape.hpp"
 #include "ck_tile/ops/fmha/pipeline/tile_fmha_traits.hpp"
 #include "ck_tile/ops/common/generic_2d_block_shape.hpp"
+#include "ck_tile/ops/common/streamk_common.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/common/utils.hpp"

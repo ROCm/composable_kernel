@@ -13,7 +13,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "ck_tile/ops/gemm_group_quant.hpp"
+#include "ck_tile/ops/gemm_quant.hpp"
 #include "ck_tile/host.hpp"
 #include "quant_grouped_gemm.hpp"
 
