@@ -297,6 +297,15 @@ struct GemmSpatiallyLocalTilePartitioner
                 + local_id;
         }
 
+        /**
+         * original ids: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+         * XCD 0 gets: [0, 8], XCD 1 gets: [1, 9], ...
+         * 
+         * post-remap ids: [0, 2, 4, 6, 8, 10, 12, 14, 1, 3, 5, 7, 9, 11, 13, 15]
+         * XCD 0 gets: [0, 1], XCD 1 gets: [2, 3], ...
+         * 
+         * after remap the ids are continguous on each XCD
+         */
         return block_1d_id;
     }
 
