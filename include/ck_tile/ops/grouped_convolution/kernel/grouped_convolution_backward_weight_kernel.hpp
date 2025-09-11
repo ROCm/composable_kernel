@@ -10,6 +10,7 @@
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/host/concat.hpp"
 #include "ck_tile/core/utility/env.hpp"
+#include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/host/convolution_parameter.hpp"
 #include "ck_tile/ops/grouped_convolution/utils/transform_conv_bwd_weight_to_gemm.hpp"
 #include "ck_tile/ops/grouped_convolution/utils/grouped_convolution_utils.hpp"
@@ -82,12 +83,12 @@ struct GroupedConvBwdWeightKernelArgs
         b_grid_desc_n_k = grid_descs.at(number<1>{});
         c_grid_desc_m_n = grid_descs.at(number<2>{});
 
-        using Gm = GroupedConvTraitsType_::NumGroupsToMerge;
+        constexpr index_t numGroupsPerBatch = GroupedConvTraitsType_::NumGroupsToMerge;
 
-        group_stride_a = args.K_ * Gm;            // A: Out NWGK
-        group_stride_b = args.C_ * Gm;            // B: In  NWGC
-        group_stride_c = args.K_ * args.C_ * Gm * // C: Wei GKXC
-                         std::accumulate(args.filter_spatial_lengths_.begin(),
+        group_stride_a = args.K_ * numGroupsPerBatch;            // A: Out NWGK
+        group_stride_b = args.C_ * numGroupsPerBatch;            // B: In  NWGC
+        group_stride_c = args.K_ * args.C_ * numGroupsPerBatch   // C: Wei GKXC
+                         * std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
                                          std::multiplies<index_t>());
@@ -95,7 +96,7 @@ struct GroupedConvBwdWeightKernelArgs
         GemmM     = a_grid_desc_m_k.get_length(number<0>{});
         GemmN     = b_grid_desc_n_k.get_length(number<0>{});
         GemmK     = a_grid_desc_m_k.get_length(number<1>{});
-        GemmBatch = args.G_ / Gm;
+        GemmBatch = args.G_ / numGroupsPerBatch;
     }
 
     template <
@@ -160,12 +161,12 @@ struct GroupedConvBwdWeightKernelArgs
         b_grid_desc_n_k = grid_descs.at(number<1>{});
         c_grid_desc_m_n = grid_descs.at(number<2>{});
 
-        using Gm = GroupedConvTraitsType_::NumGroupsToMerge;
+        constexpr index_t numGroupsPerBatch = GroupedConvTraitsType_::NumGroupsToMerge;
 
-        group_stride_a = args.K_ * Gm;            // A: Out NHWGK
-        group_stride_b = args.C_ * Gm;            // B: In  NHWGC
-        group_stride_c = args.K_ * args.C_ * Gm * // C: Wei GKYXC
-                         std::accumulate(args.filter_spatial_lengths_.begin(),
+        group_stride_a = args.K_ * numGroupsPerBatch;            // A: Out NHWGK
+        group_stride_b = args.C_ * numGroupsPerBatch;            // B: In  NHWGC
+        group_stride_c = args.K_ * args.C_ * numGroupsPerBatch   // C: Wei GKYXC
+                         * std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
                                          std::multiplies<index_t>());
@@ -173,7 +174,7 @@ struct GroupedConvBwdWeightKernelArgs
         GemmM     = a_grid_desc_m_k.get_length(number<0>{});
         GemmN     = b_grid_desc_n_k.get_length(number<0>{});
         GemmK     = a_grid_desc_m_k.get_length(number<1>{});
-        GemmBatch = args.G_ / Gm;
+        GemmBatch = args.G_ / numGroupsPerBatch;
     }
 
     template <
@@ -245,12 +246,12 @@ struct GroupedConvBwdWeightKernelArgs
         b_grid_desc_n_k = grid_descs.at(number<1>{});
         c_grid_desc_m_n = grid_descs.at(number<2>{});
 
-        using Gm = GroupedConvTraitsType_::NumGroupsToMerge;
+        constexpr index_t numGroupsPerBatch = GroupedConvTraitsType_::NumGroupsToMerge;
 
-        group_stride_a = args.K_ * Gm;            // A: Out NDHWGK
-        group_stride_b = args.C_ * Gm;            // B: In  NDHWGC
-        group_stride_c = args.K_ * args.C_ * Gm * // C: wEI GKZYXC
-                         std::accumulate(args.filter_spatial_lengths_.begin(),
+        group_stride_a = args.K_ * numGroupsPerBatch;            // A: Out NDHWGK
+        group_stride_b = args.C_ * numGroupsPerBatch;            // B: In  NDHWGC
+        group_stride_c = args.K_ * args.C_ * numGroupsPerBatch   // C: wEI GKZYXC
+                         * std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
                                          std::multiplies<index_t>());
@@ -258,7 +259,7 @@ struct GroupedConvBwdWeightKernelArgs
         GemmM     = a_grid_desc_m_k.get_length(number<0>{});
         GemmN     = b_grid_desc_n_k.get_length(number<0>{});
         GemmK     = a_grid_desc_m_k.get_length(number<1>{});
-        GemmBatch = args.G_ / Gm;
+        GemmBatch = args.G_ / numGroupsPerBatch;
     }
 
     using ABCGridDescs = remove_cvref_t<
@@ -445,11 +446,17 @@ struct GroupedConvolutionBackwardWeightKernel
     {
         return [&]() {
             if(kargs.k_batch > 1)
+            {
+                // When we merge more than one conv group into a single gemm batch, we need to
+                // account for that when we zero out the weight buffer, i.e., the GEMM shapes 
+                // contain the padded elements which are not needed for the final wei_ptr output.
+                constexpr index_t numGroupsPerBatch = GroupedConvTraitsType_::NumGroupsToMerge;
+                const auto wei_size = kargs.GemmBatch * kargs.GemmM * kargs.GemmN / numGroupsPerBatch;
                 hipGetErrorString(hipMemsetAsync(kargs.wei_ptr,
                                                  0,
-                                                 kargs.GemmBatch * kargs.GemmM * kargs.GemmN *
-                                                     sizeof(WeiDataType),
+                                                 wei_size * sizeof(WeiDataType),
                                                  s.stream_id_));
+            }
         };
     }
 
@@ -601,7 +608,7 @@ struct GroupedConvolutionBackwardWeightKernel
         const auto& c_tensor_view = [&]() {
             return make_tensor_view<address_space_enum::global, DstInMemOp>(
                 c_ptr,
-                kargs.c_grid_desc_m_n); // B: in
+                kargs.c_grid_desc_m_n); // C: wei
         }();
 
         const auto& ds_tensor_view = generate_tuple(
@@ -661,6 +668,16 @@ struct GroupedConvolutionBackwardWeightKernel
         return make_tuple(a_pad_view, b_pad_view, ds_pad_view, c_pad_view);
     }
 
+    /**
+     * @brief Create views to the data that each workgroup will process.
+     *
+     * @param views padded views of A, B, D and C tensors
+     * @param i_m block m-index
+     * @param i_n block n-index
+     * @param i_k block k-index
+     *
+     * @return tuple of tile windows for A, B, D and C tensors
+     */    
     template <typename PadView>
     CK_TILE_DEVICE static auto MakeGemmTileWindows(const PadView& views,
                                                    const index_t i_m,
@@ -746,6 +763,45 @@ struct GroupedConvolutionBackwardWeightKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I3);
 
+        // In case we have multiple conv groups per GEMM batch, we need to store only the diagonal elements
+        // of the c_block_tile.
+        // constexpr index_t Gm = GroupedConvTraitsType_::NumGroupsToMerge;
+        // auto c_block_window_per_g = make_tile_window(
+        //     c_block_window,
+        //     c_block_window.get_window_origin()
+        // );
+        // if constexpr(Gm > 1)
+        // {
+        //     const index_t conv_group_size = kargs.group_stride_c / Gm;
+        //     static_for<0, Gm, 1>{}([&](auto g) 
+        //     {
+        //         // TODO: This is pseudocode, need to implement a proper way to slice the tile window
+        //         // to get the submatrix corresponding to the g-th conv group.
+        //         // constexpr auto& c_block_window_per_g = c_block_window.Slice(
+        //         //     make_tuple(number<g.value * TilePartitioner::MPerBlock / Gm>{},
+        //         //                number<0>{}),
+        //         //     make_tuple(number<(g.value + 1) * TilePartitioner::MPerBlock / Gm>{},
+        //         //                number<TilePartitioner::NPerBlock>{}));
+        //         // constexpr auto& c_block_tile_per_g = c_block_tile.Slice(
+        //         //     make_tuple(number<g.value * TilePartitioner::MPerBlock / Gm>{},
+        //         //                number<0>{}),
+        //         //     make_tuple(number<(g.value + 1) * TilePartitioner::MPerBlock / Gm>{},
+        //         //                number<TilePartitioner::NPerBlock>{}));
+        //         // constexpr auto & d_block_window_per_g = d_block_window.Slice(
+        //         //     make_tuple(number<g.value * TilePartitioner::MPerBlock / Gm>{},
+        //         //                number<0>{}),
+        //         //     make_tuple(number<(g.value + 1) * TilePartitioner::MPerBlock / Gm>{},
+        //         //                number<TilePartitioner::NPerBlock>{}));
+
+        //         EpiloguePipeline{}.template operator()<decltype(c_block_window_per_g), decltype(c_block_tile_per_g)>(
+        //             c_block_window_per_g, c_block_tile_per_g, d_block_window_per_g, smem_ptr_0);
+        //     });
+        // }
+        // else 
+        // {
+        //     EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
+        //         c_block_window, c_block_tile, d_block_window, smem_ptr_0);
+        // }
         EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
             c_block_window, c_block_tile, d_block_window, smem_ptr_0);
     }

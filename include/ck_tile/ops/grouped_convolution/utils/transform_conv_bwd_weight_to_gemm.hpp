@@ -464,19 +464,19 @@ struct TransformConvBwdWeightToGemm
         // GKXC
         const index_t GStride   = K_ * X_ * C_;
         const index_t KStride   = X_ * C_;
-        constexpr auto CXStride = I1;
+        constexpr auto CStride = I1;
 
         if constexpr (NumGroupsToMerge > 1)
         {
             return make_naive_tensor_descriptor(
-                make_tuple(1, NumGroupsToMerge, K_, X_ * C_),
-                make_tuple(GStride, GStride, KStride, CXStride));
+                make_tuple(NumGroupsToMerge, K_, X_ * C_),
+                make_tuple(GStride, KStride, CStride));
         }
         else
         {
             return make_naive_tensor_descriptor(
                 make_tuple(K_, X_ * C_),
-                make_tuple(KStride, CXStride));
+                make_tuple(KStride, CStride));
         }
     }
 
@@ -540,8 +540,8 @@ struct TransformConvBwdWeightToGemm
         if constexpr (NumGroupsToMerge > 1)
         {
             return make_naive_tensor_descriptor(
-                make_tuple(1, NumGroupsToMerge, K_, Y_ * X_ * C_),
-                make_tuple(GStride, GStride, KStride, CStride));
+                make_tuple(NumGroupsToMerge, K_, Y_ * X_ * C_),
+                make_tuple(GStride, KStride, CStride));
         }
         else
         {
@@ -611,8 +611,8 @@ struct TransformConvBwdWeightToGemm
         if constexpr (NumGroupsToMerge > 1)
         {
             return make_naive_tensor_descriptor(
-                make_tuple(1, NumGroupsToMerge, K_, Z_ * Y_ * X_ * C_),
-                make_tuple(GStride, GStride, KStride, CStride));
+                make_tuple(NumGroupsToMerge, K_, Z_ * Y_ * X_ * C_),
+                make_tuple(GStride, KStride, CStride));
         }
         else
         {
@@ -661,37 +661,46 @@ struct TransformConvBwdWeightToGemm
 
             // Weight tensor transformation, part 1 (padding)
             // [1, Gm, K, X * C] -> [Gm, Gm, K, X * C]
-            const auto wei_padded_grid_desc = transform_tensor_descriptor(
-                wei_grid_desc,
-                make_tuple(
-                    make_pad_transform(1, NumGroupsToMerge - 1, 0),
-                    make_pass_through_transform(NumGroupsToMerge),
-                    make_pass_through_transform(K_),
-                    make_pass_through_transform(X_ * C_)),
-                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}));
+            // const auto wei_padded_grid_desc = transform_tensor_descriptor(
+            //     wei_grid_desc,
+            //     make_tuple(
+            //         make_pad_transform(1, NumGroupsToMerge - 1, 0),
+            //         make_pass_through_transform(NumGroupsToMerge),
+            //         make_pass_through_transform(K_),
+            //         make_pass_through_transform(X_ * C_)),
+            //     make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
+            //     make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}));
 
             // Weight tensor transformation, part 2 (XOR)
             //[0    1, 2,     3] 
             //[Gm, Gm, K, X * C] -> [K, diag(Gm, Gm), X * C]
-            const auto wei_xor_grid_desc = transform_tensor_descriptor(
-                wei_padded_grid_desc,
-                make_tuple(
-                    make_xor_transform(make_tuple(NumGroupsToMerge, NumGroupsToMerge)),
-                    make_pass_through_transform(K_),
-                    make_pass_through_transform(X_ * C_)),
-                make_tuple(sequence<0, 1>{}, sequence<2>{}, sequence<3>{}),
-                make_tuple(sequence<2>{}, sequence<0, 1>{}, sequence<3>{})
-            );
+            // const auto wei_xor_grid_desc = transform_tensor_descriptor(
+            //     wei_padded_grid_desc,
+            //     make_tuple(
+            //         make_xor_transform(make_tuple(NumGroupsToMerge, NumGroupsToMerge)),
+            //         make_pass_through_transform(K_),
+            //         make_pass_through_transform(X_ * C_)),
+            //     make_tuple(sequence<0, 1>{}, sequence<2>{}, sequence<3>{}),
+            //     make_tuple(sequence<2>{}, sequence<0, 1>{}, sequence<3>{})
+            // );
 
             // Weight tensor transformation, part 3 (merge)
             // [K, diag(Gm, Gm), X * C] -> [(K*Gm), (Gm*X*C)]
+            // const auto wei_gemm_m_gemm_n_grid_desc = transform_tensor_descriptor(
+            //     wei_xor_grid_desc,
+            //     make_tuple(
+            //         make_merge_transform(make_tuple(K_, NumGroupsToMerge)),
+            //         make_merge_transform(make_tuple(NumGroupsToMerge * X_ *C_))),
+            //     make_tuple(sequence<0, 1>{}, sequence<2,3>{}),
+            //     make_tuple(sequence<0>{}, sequence<1>{}));
+
+            //[Gm, K, X*C] -> [Gm*K, X*C]
             const auto wei_gemm_m_gemm_n_grid_desc = transform_tensor_descriptor(
-                wei_xor_grid_desc,
+                wei_grid_desc,
                 make_tuple(
-                    make_merge_transform(make_tuple(K_, NumGroupsToMerge)),
-                    make_merge_transform(make_tuple(NumGroupsToMerge * X_ *C_))),
-                make_tuple(sequence<0, 1>{}, sequence<2,3>{}),
+                    make_merge_transform(make_tuple(NumGroupsToMerge, K_)),
+                    make_pass_through_transform(X_ * C_)),
+                make_tuple(sequence<0, 1>{}, sequence<2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
 
             // Input tensor transformation, part 1.
@@ -803,37 +812,46 @@ struct TransformConvBwdWeightToGemm
 
             // Weight tensor transformation, part 1 (padding)
             // [1, Gm, K, Y * X * C] -> [Gm, Gm, K, Y * X * C]
-            const auto wei_padded_grid_desc = transform_tensor_descriptor(
-                wei_grid_desc,
-                make_tuple(
-                    make_pad_transform(1, NumGroupsToMerge - 1, 0),
-                    make_pass_through_transform(NumGroupsToMerge),
-                    make_pass_through_transform(K_),
-                    make_pass_through_transform(Y_ * X_ * C_)),
-                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}));
+            // const auto wei_padded_grid_desc = transform_tensor_descriptor(
+            //     wei_grid_desc,
+            //     make_tuple(
+            //         make_pad_transform(1, NumGroupsToMerge - 1, 0),
+            //         make_pass_through_transform(NumGroupsToMerge),
+            //         make_pass_through_transform(K_),
+            //         make_pass_through_transform(Y_ * X_ * C_)),
+            //     make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
+            //     make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}));
 
             // Weight tensor transformation, part 2 (XOR)
             //[0    1, 2,         3] 
             //[Gm, Gm, K, Y * X * C] -> [K, diag(Gm, Gm), Y * X * C]
-            const auto wei_xor_grid_desc = transform_tensor_descriptor(
-                wei_padded_grid_desc,
-                make_tuple(
-                    make_xor_transform(make_tuple(NumGroupsToMerge, NumGroupsToMerge)),
-                    make_pass_through_transform(K_),
-                    make_pass_through_transform(Y_ * X_ * C_)),
-                make_tuple(sequence<0, 1>{}, sequence<2>{}, sequence<3>{}),
-                make_tuple(sequence<2>{}, sequence<0, 1>{}, sequence<3>{})
-            );
+            // const auto wei_xor_grid_desc = transform_tensor_descriptor(
+            //     wei_padded_grid_desc,
+            //     make_tuple(
+            //         make_xor_transform(make_tuple(NumGroupsToMerge, NumGroupsToMerge)),
+            //         make_pass_through_transform(K_),
+            //         make_pass_through_transform(Y_ * X_ * C_)),
+            //     make_tuple(sequence<0, 1>{}, sequence<2>{}, sequence<3>{}),
+            //     make_tuple(sequence<2>{}, sequence<0, 1>{}, sequence<3>{})
+            // );
 
             // Weight tensor transformation, part 3 (merge)
             // [K, diag(Gm, Gm), Y * X * C] -> [(K*Gm), (Gm*Y*X*C)]
+            // const auto wei_gemm_m_gemm_n_grid_desc = transform_tensor_descriptor(
+            //     wei_xor_grid_desc,
+            //     make_tuple(
+            //         make_merge_transform(make_tuple(K_, NumGroupsToMerge)),
+            //         make_merge_transform(make_tuple(NumGroupsToMerge * Y_ * X_ *C_))),
+            //     make_tuple(sequence<0, 1>{}, sequence<2,3>{}),
+            //     make_tuple(sequence<0>{}, sequence<1>{}));
+
+            //[Gm, K, Y*X*C] -> [Gm*K, Y*X*C]
             const auto wei_gemm_m_gemm_n_grid_desc = transform_tensor_descriptor(
-                wei_xor_grid_desc,
+                wei_grid_desc,
                 make_tuple(
-                    make_merge_transform(make_tuple(K_, NumGroupsToMerge)),
-                    make_merge_transform(make_tuple(NumGroupsToMerge * Y_ * X_ *C_))),
-                make_tuple(sequence<0, 1>{}, sequence<2,3>{}),
+                    make_merge_transform(make_tuple(NumGroupsToMerge, K_)),
+                    make_pass_through_transform(Y_ * X_ * C_)),
+                make_tuple(sequence<0, 1>{}, sequence<2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
 
             // Input tensor transformation, part 1.
@@ -948,37 +966,46 @@ struct TransformConvBwdWeightToGemm
 
             // Weight tensor transformation, part 1 (padding)
             // [1, Gm, K, Z * Y * X * C] -> [Gm, Gm, K, Z * Y * X * C]
-            const auto wei_padded_grid_desc = transform_tensor_descriptor(
-                wei_grid_desc,
-                make_tuple(
-                    make_pad_transform(1, NumGroupsToMerge - 1, 0),
-                    make_pass_through_transform(NumGroupsToMerge),
-                    make_pass_through_transform(K_),
-                    make_pass_through_transform(Z_ * Y_ * X_ * C_)),
-                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}));
+            // const auto wei_padded_grid_desc = transform_tensor_descriptor(
+            //     wei_grid_desc,
+            //     make_tuple(
+            //         make_pad_transform(1, NumGroupsToMerge - 1, 0),
+            //         make_pass_through_transform(NumGroupsToMerge),
+            //         make_pass_through_transform(K_),
+            //         make_pass_through_transform(Z_ * Y_ * X_ * C_)),
+            //     make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
+            //     make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}));
 
             // Weight tensor transformation, part 2 (XOR)
             //[0    1, 2,             3] 
             //[Gm, Gm, K, Z * Y * X * C] -> [K, diag(Gm, Gm), Z * Y * X * C]
-            const auto wei_xor_grid_desc = transform_tensor_descriptor(
-                wei_padded_grid_desc,
-                make_tuple(
-                    make_xor_transform(make_tuple(NumGroupsToMerge, NumGroupsToMerge)),
-                    make_pass_through_transform(K_),
-                    make_pass_through_transform(Z_ * Y_ * X_ * C_)),
-                make_tuple(sequence<0, 1>{}, sequence<2>{}, sequence<3>{}),
-                make_tuple(sequence<2>{}, sequence<0, 1>{}, sequence<3>{})
-            );
+            // const auto wei_xor_grid_desc = transform_tensor_descriptor(
+            //     wei_padded_grid_desc,
+            //     make_tuple(
+            //         make_xor_transform(make_tuple(NumGroupsToMerge, NumGroupsToMerge)),
+            //         make_pass_through_transform(K_),
+            //         make_pass_through_transform(Z_ * Y_ * X_ * C_)),
+            //     make_tuple(sequence<0, 1>{}, sequence<2>{}, sequence<3>{}),
+            //     make_tuple(sequence<2>{}, sequence<0, 1>{}, sequence<3>{})
+            // );
 
             // Weight tensor transformation, part 3 (merge)
             // [K, diag(Gm, Gm), Z * Y * X * C] -> [(K*Gm), (Gm*Z*Y*X*C)]
+            // const auto wei_gemm_m_gemm_n_grid_desc = transform_tensor_descriptor(
+            //     wei_xor_grid_desc,
+            //     make_tuple(
+            //         make_merge_transform(make_tuple(K_, NumGroupsToMerge)),
+            //         make_merge_transform(make_tuple(NumGroupsToMerge * Z_ * Y_ * X_ *C_))),
+            //     make_tuple(sequence<0, 1>{}, sequence<2,3>{}),
+            //     make_tuple(sequence<0>{}, sequence<1>{}));
+
+            //[Gm, K, Z*Y*X*C] -> [Gm*K, Z*Y*X*C]
             const auto wei_gemm_m_gemm_n_grid_desc = transform_tensor_descriptor(
-                wei_xor_grid_desc,
+                wei_grid_desc,
                 make_tuple(
-                    make_merge_transform(make_tuple(K_, NumGroupsToMerge)),
-                    make_merge_transform(make_tuple(NumGroupsToMerge * Z_ * Y_ * X_ *C_))),
-                make_tuple(sequence<0, 1>{}, sequence<2,3>{}),
+                    make_merge_transform(make_tuple(NumGroupsToMerge, K_)),
+                    make_pass_through_transform(Z_ * Y_ * X_ * C_)),
+                make_tuple(sequence<0, 1>{}, sequence<2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
 
             // Input tensor transformation, part 1.
