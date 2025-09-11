@@ -200,7 +200,7 @@ float fmha_bwd_(const ck_tile::stream_config& s, fmha_bwd_args a)
 
 template <>
 float fmha_bwd<2>(fmha_bwd_traits t, fmha_bwd_args a, const ck_tile::stream_config& s){{
-    const bool has_load_tr = ck_tile::is_load_tr_supported();
+    [[maybe_unused]] const bool has_load_tr = ck_tile::is_load_tr_supported();
     float r = -1;
 {F_dispatch}
     return r;
@@ -784,7 +784,7 @@ class FmhaBwdApiPool:
             per_tr_load += FMHA_BWD_API_COND_STATEMENT(F_cond=tr_load_cond_map[tr_load], F_body=per_max_seq_q, indent=4)
         if not per_tr_load:
             # empty string we add some ignore to suppress warning in api
-            per_tr_load += '    (void)t ; (void)s ; (void)a; (void)has_load_tr;'
+            per_tr_load += '    (void)t ; (void)s ; (void)a;'
         result = FMHA_BWD_KERNEL_HEADER + FMHA_BWD_API.format(F_dispatch = per_tr_load)
         return result.replace('\n\n', '\n')
 
