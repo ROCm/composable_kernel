@@ -81,8 +81,12 @@ struct ThreadwiseTensorSliceTransfer_v6r4
         dst_coord_ = make_tensor_coordinate(dst_desc, dst_slice_origin_idx);
     }
 
-    template <typename Src0Buffer, typename Src1Buffer, typename Src2Buffer, 
-    typename Src1SliceOriginIdx, typename Src2SliceOriginIdx, typename DstBuffer>
+    template <typename Src0Buffer,
+              typename Src1Buffer,
+              typename Src2Buffer,
+              typename Src1SliceOriginIdx,
+              typename Src2SliceOriginIdx,
+              typename DstBuffer>
     __device__ void Run(const Src0Desc& src0_desc,
                         const Src0Buffer& src0_buf,
                         const Src1Desc&,
@@ -94,7 +98,7 @@ struct ThreadwiseTensorSliceTransfer_v6r4
                         const DstDesc& dst_desc,
                         DstBuffer& dst_buf)
     {
-        
+
         static_assert(is_known_at_compile_time<remove_cvref_t<Src1SliceOriginIdx>>::value,
                       "wrong! Src1SliceOriginIdx need to known at compile-time");
 
@@ -111,8 +115,8 @@ struct ThreadwiseTensorSliceTransfer_v6r4
                                                     remove_cv_t<decltype(scalar_per_access)>>;
 
         constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
-        //static_assert(num_access==2);
-        // loop over space-filling curve
+        // static_assert(num_access==2);
+        //  loop over space-filling curve
         static_for<0, num_access, 1>{}([&](auto idx_1d) {
             using src0_vector_type = vector_type_maker_t<Src0Data, ScalarPerVector>;
             using src0_vector_t    = typename src0_vector_type::type;
@@ -134,21 +138,21 @@ struct ThreadwiseTensorSliceTransfer_v6r4
             // copy data from src0_buf into src0_vector_container
             auto src0_vector_container = src0_vector_type{
                 src0_buf.template Get<src0_vector_t>(src0_coord_.GetOffset(), is_src0_valid)};
-               // printf("T%d: src0_coord_.GetOffset()=%d \n", threadIdx.x, src0_coord_.GetOffset());
+            // printf("T%d: src0_coord_.GetOffset()=%d \n", threadIdx.x, src0_coord_.GetOffset());
             constexpr index_t src1_offset =
-                    src1_desc.CalculateOffset(to_multi_index(src1_slice_origin_idx));
+                src1_desc.CalculateOffset(to_multi_index(src1_slice_origin_idx));
             constexpr index_t src2_offset =
-                    src2_desc.CalculateOffset(to_multi_index(src2_slice_origin_idx));
+                src2_desc.CalculateOffset(to_multi_index(src2_slice_origin_idx));
 
             auto dst_vector_container = dst_vector_type{};
 
             // apply pointwise operation, assume src2's scalar is 1
             static_for<0, ScalarPerVector, 1>{}([&](auto i) {
-                    element_op_(dst_vector_container.template AsType<DstData>()(i),
-                        src0_vector_container.template AsType<Src0Data>()[i],    
-                        src1_buf[Number<src1_offset+i>{}],
-                        src2_buf[Number<src2_offset>{}]);
-                });
+                element_op_(dst_vector_container.template AsType<DstData>()(i),
+                            src0_vector_container.template AsType<Src0Data>()[i],
+                            src1_buf[Number<src1_offset + i>{}],
+                            src2_buf[Number<src2_offset>{}]);
+            });
 
             const bool is_dst_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);

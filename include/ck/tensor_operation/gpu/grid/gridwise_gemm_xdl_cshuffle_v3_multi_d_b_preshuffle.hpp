@@ -175,11 +175,11 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             : false;
     static constexpr auto is_scale_mfma = false;
     static constexpr auto mfma          = MfmaSelector<ComputeTypeA,
-                                                       MPerXdl,
-                                                       NPerXdl,
-                                                       ComputeTypeA,
-                                                       is_single_rate_mfma,
-                                                       is_scale_mfma>{};
+                                              MPerXdl,
+                                              NPerXdl,
+                                              ComputeTypeA,
+                                              is_single_rate_mfma,
+                                              is_scale_mfma>{};
     static constexpr index_t KPack      = math::max(lcm_AK1_BK1, mfma.selected_mfma.k_per_blk);
     static constexpr index_t KGroup     = []() {
         if constexpr(is_same_v<remove_cvref_t<BDataType>, f8_t>)
@@ -569,11 +569,11 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
 
     using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N(0, 0, 0, 0, {}))>;
 
-    // This struct is used to encapsulate functions related to preload Ds: 
-    // 1. set SrcSliceOrigin, 
-    // 2. copy data to vgpr, 
-    // 3. return origin when doing cshuffle, 
-    // 4. generate vgpr buffer description. 
+    // This struct is used to encapsulate functions related to preload Ds:
+    // 1. set SrcSliceOrigin,
+    // 2. copy data to vgpr,
+    // 3. return origin when doing cshuffle,
+    // 4. generate vgpr buffer description.
     template <index_t idx, typename DGridDesc, typename SfcCdeBlock>
     struct DsBlockTransfer
     {
@@ -612,9 +612,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                     make_multi_index(src_origin[I0],
                                      0,
                                      src_origin[I2],
-                                     get_thread_local_1d_id() 
-                                        * ThreadSliceLengths[I3]
-                                        % Number<NPerShuffle>{}));
+                                     get_thread_local_1d_id() * ThreadSliceLengths[I3] %
+                                         Number<NPerShuffle>{}));
             }
             else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, DLayout>::value)
             {
@@ -748,11 +747,20 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
 
         __host__ void Print() const
         {
-            std::cout << "problem {" << "M:" << M << ", " << "N:" << N << ", " << "K:" << K << ", "
-                      << "SA:" << StrideA << ", " << "SB:" << StrideB << ", " << "SC:" << StrideC
-                      << ", " << "MP:" << MPadded << ", " << "NP:" << NPadded << ", "
-                      << "KRead:" << KRead << ", " << "KP:" << KPadded << ", " << "AK0:" << AK0
-                      << ", " << "BK0:" << BK0 << ", " << "MBlock: " << MBlock << ", "
+            std::cout << "problem {"
+                      << "M:" << M << ", "
+                      << "N:" << N << ", "
+                      << "K:" << K << ", "
+                      << "SA:" << StrideA << ", "
+                      << "SB:" << StrideB << ", "
+                      << "SC:" << StrideC << ", "
+                      << "MP:" << MPadded << ", "
+                      << "NP:" << NPadded << ", "
+                      << "KRead:" << KRead << ", "
+                      << "KP:" << KPadded << ", "
+                      << "AK0:" << AK0 << ", "
+                      << "BK0:" << BK0 << ", "
+                      << "MBlock: " << MBlock << ", "
                       << "NBlock: " << NBlock << " }" << std::endl;
         }
 
@@ -1550,16 +1558,18 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             // tuple of reference to C/Ds tensor descriptors
             const auto c_ds_desc_refs = concat_tuple_of_reference(
                 tie(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
-                generate_tie([&](auto i) -> const auto& // return type should be reference
-                             { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
-                             Number<NumDTensor>{}));
+                generate_tie(
+                    [&](auto i) -> const auto& // return type should be reference
+                    { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
+                    Number<NumDTensor>{}));
 
             // tuple of reference to C/Ds tensor descriptors
             const auto c_ds_buf_refs = concat_tuple_of_reference(
                 tie(c_shuffle_block_buf),
-                generate_tie([&](auto i) -> const auto& // return type should be reference
-                             { return ds_grid_buf[i]; },
-                             Number<NumDTensor>{}));
+                generate_tie(
+                    [&](auto i) -> const auto& // return type should be reference
+                    { return ds_grid_buf[i]; },
+                    Number<NumDTensor>{}));
 
             // tuple of starting index of C/Ds blockwise copy
             const auto idx_c_ds_block_begin = container_concat(
@@ -2029,30 +2039,28 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
             using EDataType                       = CDataType;
             auto cde_block_copy_lds_and_global    = ThreadGroupTensorSliceTransfer_v6r4<
-                   ThisThreadBlock,
-                   CElementwiseOperation,
-                   EGlobalMemoryDataOperation,
-                   Sequence<1,
-                            CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
-                            1,
-                            CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
-                   CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-                   Sequence<0, 1, 2, 3>,                       // ThreadClusterArrangeOrder,
-                   CShuffleDataType,                           // Src0Data
-                   remove_cvref_t<decltype(DsDataType{}[I0])>, // Src1Data
-                   remove_cvref_t<decltype(DsDataType{}[I0])>, // Src2Data
-                   EDataType,                                  // DstData
-                   decltype(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock), // Src0Desc
-                   remove_cvref_t<
-                       decltype(D0BlockTransfer::d_buff_desc)>, // Src1Desc
-                   remove_cvref_t<
-                       decltype(D1BlockTransfer::d_buff_desc)>, // Src2Desc
-                   decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),          // DstDesc
-                   Sequence<0, 1, 2, 3>,                          // typename SrcDimAccessOrder,
-                   3,                                             // index_t SrcVectorDim,
-                   CDEShuffleBlockTransferScalarPerVectors{}[I0], // src scalar
-                   false,
-                   false> // ThreadTransferSrcResetCoordinateAfterRunFlags
+                ThisThreadBlock,
+                CElementwiseOperation,
+                EGlobalMemoryDataOperation,
+                Sequence<1,
+                         CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
+                         1,
+                         CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
+                CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+                Sequence<0, 1, 2, 3>,                       // ThreadClusterArrangeOrder,
+                CShuffleDataType,                           // Src0Data
+                remove_cvref_t<decltype(DsDataType{}[I0])>, // Src1Data
+                remove_cvref_t<decltype(DsDataType{}[I0])>, // Src2Data
+                EDataType,                                  // DstData
+                decltype(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock), // Src0Desc
+                remove_cvref_t<decltype(D0BlockTransfer::d_buff_desc)>,           // Src1Desc
+                remove_cvref_t<decltype(D1BlockTransfer::d_buff_desc)>,           // Src2Desc
+                decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),          // DstDesc
+                Sequence<0, 1, 2, 3>,                          // typename SrcDimAccessOrder,
+                3,                                             // index_t SrcVectorDim,
+                CDEShuffleBlockTransferScalarPerVectors{}[I0], // src scalar
+                false,
+                false> // ThreadTransferSrcResetCoordinateAfterRunFlags
                 {c_shuffle_block_desc_mblock_mperblock_nblock_nperblock, // src_descs
                  make_tuple(0, 0, 0, 0),                                 // src_block_slice_origins
                  e_grid_desc_mblock_mperblock_nblock_nperblock,

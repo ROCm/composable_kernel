@@ -79,8 +79,12 @@ struct ThreadGroupTensorSliceTransfer_v6r4
         }
     }
 
-    template <typename Src0Buffer, typename Src1Buffer, typename Src2Buffer, 
-            typename Src1SliceOriginIdx, typename Src2SliceOriginIdx, typename DstBuffer>
+    template <typename Src0Buffer,
+              typename Src1Buffer,
+              typename Src2Buffer,
+              typename Src1SliceOriginIdx,
+              typename Src2SliceOriginIdx,
+              typename DstBuffer>
     __device__ void Run(const Src0Desc& src0_desc,
                         const Src0Buffer& src0_buf,
                         const Src1Desc& src1_desc,
@@ -95,12 +99,21 @@ struct ThreadGroupTensorSliceTransfer_v6r4
         if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
-            threadwise_transfer_.template Run<Src0Buffer, Src1Buffer, Src2Buffer,
-             Src1SliceOriginIdx, Src2SliceOriginIdx, DstBuffer>(
-                src0_desc, src0_buf, 
-                src1_desc, Src1SliceOriginIdx{}, src1_buf, 
-                src2_desc, Src2SliceOriginIdx{}, src2_buf, 
-                dst_desc, dst_buf);
+            threadwise_transfer_.template Run<Src0Buffer,
+                                              Src1Buffer,
+                                              Src2Buffer,
+                                              Src1SliceOriginIdx,
+                                              Src2SliceOriginIdx,
+                                              DstBuffer>(src0_desc,
+                                                         src0_buf,
+                                                         src1_desc,
+                                                         Src1SliceOriginIdx{},
+                                                         src1_buf,
+                                                         src2_desc,
+                                                         Src2SliceOriginIdx{},
+                                                         src2_buf,
+                                                         dst_desc,
+                                                         dst_buf);
         }
     }
 
