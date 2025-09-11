@@ -12,6 +12,7 @@ enum class BlockFmhaPipelineEnum
     QRKSVS_ASYNC,
     QSKSVS,
     QRKSVS_ASYNC_TRLOAD,
+    QRKSVS_WHOLEK_PREFETCH,
 };
 
 template <BlockFmhaPipelineEnum>
@@ -37,6 +38,12 @@ template <>
 struct BlockFmhaPipelineEnumToStr<BlockFmhaPipelineEnum::QRKSVS_ASYNC_TRLOAD>
 {
     static constexpr const char* name = "qr_async_trload";
+};
+
+template <>
+struct BlockFmhaPipelineEnumToStr<BlockFmhaPipelineEnum::QRKSVS_WHOLEK_PREFETCH>
+{
+    static constexpr const char* name = "qr_wholek_prefetch";
 };
 
 } // namespace ck_tile

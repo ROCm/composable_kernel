@@ -106,7 +106,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
         }
     }();
 
-    static constexpr const char* name = "qr_async";
+    static constexpr const char* name = "qr_ks_vs_whole_k_prefetch";
 
     using DropoutType = std::conditional_t<kHasDropout, BlockDropout, NullBlockDropout>;
 

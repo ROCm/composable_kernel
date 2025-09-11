@@ -116,6 +116,7 @@ PIPELINE_MAP = {
     "qr_async" : "ck_tile::BlockFmhaPipelineQRKSVSAsync",
     "qs" : "ck_tile::BlockFmhaPipelineQSKSVS",
     "qr_async_trload" : "ck_tile::BlockFmhaPipelineQRKSVSAsyncTrload",
+    "qr_wholek_prefetch" : "ck_tile::BlockFmhaPipelineQRKSVSWholeKPrefetch",
 }
 
 PIPELINE_ENUM_MAP = {
@@ -125,6 +126,7 @@ PIPELINE_ENUM_MAP = {
     "qs" : "ck_tile::BlockFmhaPipelineEnum::QSKSVS",
     "qr_pagedkv" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS",
     "qr_async_trload" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS_ASYNC_TRLOAD",
+    "qr_wholek_prefetch" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS_WHOLEK_PREFETCH",
 }
 
 BOOL_MAP = {
