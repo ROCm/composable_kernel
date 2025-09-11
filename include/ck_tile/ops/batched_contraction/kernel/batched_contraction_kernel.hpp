@@ -74,7 +74,7 @@ struct BatchedContractionHostArgs
     const std::vector<ck_tile::index_t> G_strides_E;
 };
 
-template <ck_tile::index_t NumDTensor = 0>
+template <ck_tile::index_t NumDimG, ck_tile::index_t NumDTensor = 0>
 struct BatchedContractionKernelArgs
 {
     const void* a_ptr;
@@ -85,16 +85,19 @@ struct BatchedContractionKernelArgs
     ck_tile::index_t M;
     ck_tile::index_t N;
     ck_tile::index_t K;
-    const ck_tile::index_t* G_lengths; // [G0, G1, G2, ... , G_{NumDimG-1}]
+    ck_tile::index_t G_lengths[NumDimG]; // [G0, G1, G2, ... , G_{NumDimG-1}]
+    ck_tile::index_t
+        G_strides_A[NumDimG]; // [G0_stride_A, G1_stride_A, ... , G_{NumDimG-1}_stride_A]
+    ck_tile::index_t
+        G_strides_B[NumDimG]; // [G0_stride_B, G1_stride_B, ... , G_{NumDimG-1}_stride_B]
+    ck_tile::index_t
+        G_strides_E[NumDimG]; // [G0_stride_E, G1_stride_E, ... , G_{NumDimG-1}_stride_E]
+    std::array<std::array<ck_tile::index_t, NumDimG>, NumDTensor> G_strides_Ds;
+
     ck_tile::index_t stride_A;
     ck_tile::index_t stride_B;
     std::array<ck_tile::index_t, NumDTensor> stride_Ds;
     ck_tile::index_t stride_E;
-
-    const ck_tile::index_t* G_strides_A; // [G0_stride_A, G1_stride_A, ... , G_{NumDimG-1}_stride_A]
-    const ck_tile::index_t* G_strides_B; // [G0_stride_B, G1_stride_B, ... , G_{NumDimG-1}_stride_B]
-    std::array<const ck_tile::index_t*, NumDTensor> G_strides_Ds;
-    const ck_tile::index_t* G_strides_E;
 };
 
 template <typename Problem_,
@@ -122,7 +125,7 @@ struct BatchedContractionKernel
         ck_tile::UniversalGemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
     static constexpr ck_tile::index_t kBlockSize = UniversalGemmKernel::kBlockSize;
 
-    using KernelArgs = BatchedContractionKernelArgs<NumDTensor>;
+    using KernelArgs = BatchedContractionKernelArgs<NumDimG, NumDTensor>;
 
     CK_TILE_HOST static constexpr auto GetKernelName() { return "batched_contraction_kernel"; }
 
@@ -176,14 +179,18 @@ struct BatchedContractionKernel
     CK_TILE_HOST static constexpr KernelArgs
     MakeKernelArgs(const BatchedContractionHostArgs<NumDTensor>& host_args)
     {
-        std::cout << "MakeKernelArgs called" << std::endl;
-
-        // Test if we can access the vectors
-        std::cout << "Testing vector access..." << std::endl;
-        std::cout << "G_lengths size: " << host_args.G_lengths.size() << std::endl;
-        std::cout << "G_strides_A size: " << host_args.G_strides_A.size() << std::endl;
-
-        std::cout << "Creating KernelArgs..." << std::endl;
+        if(host_args.G_lengths.size() != NumDimG || host_args.G_strides_A.size() != NumDimG ||
+           host_args.G_strides_B.size() != NumDimG || host_args.G_strides_E.size() != NumDimG)
+        {
+            throw std::invalid_argument("G dimension size mismatch");
+        }
+        for(ck_tile::index_t d = 0; d < NumDTensor; ++d)
+        {
+            if(host_args.G_strides_Ds[d].size() != NumDimG)
+            {
+                throw std::invalid_argument("G_strides_Ds dimension size mismatch");
+            }
+        }
 
         KernelArgs kargs;
         kargs.a_ptr   = host_args.a_ptr;
@@ -195,37 +202,32 @@ struct BatchedContractionKernel
         kargs.N       = host_args.N;
         kargs.K       = host_args.K;
 
-        kargs.G_lengths = host_args.G_lengths.data();
-
         kargs.stride_A  = host_args.stride_A;
         kargs.stride_B  = host_args.stride_B;
         kargs.stride_Ds = host_args.stride_Ds;
         kargs.stride_E  = host_args.stride_E;
 
-        kargs.G_strides_A = host_args.G_strides_A.data();
-        kargs.G_strides_B = host_args.G_strides_B.data();
-        kargs.G_strides_E = host_args.G_strides_E.data();
-
-        for(ck_tile::index_t i = 0; i < NumDTensor; ++i)
+        for(ck_tile::index_t i = 0; i < NumDimG; ++i)
         {
-            kargs.G_strides_Ds[i] = host_args.G_strides_Ds[i].data();
+            kargs.G_lengths[i]   = host_args.G_lengths[i];
+            kargs.G_strides_A[i] = host_args.G_strides_A[i];
+            kargs.G_strides_B[i] = host_args.G_strides_B[i];
+            kargs.G_strides_E[i] = host_args.G_strides_E[i];
         }
 
-        std::cout << "KernelArgs created successfully" << std::endl;
+        for(ck_tile::index_t d = 0; d < NumDTensor; ++d)
+        {
+            for(ck_tile::index_t i = 0; i < NumDimG; ++i)
+            {
+                kargs.G_strides_Ds[d][i] = host_args.G_strides_Ds[d][i];
+            }
+        }
 
         return kargs;
     }
 
     CK_TILE_DEVICE void operator()(const KernelArgs& kargs) const
     {
-        if(threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0)
-        {
-            printf("DEBUG 1: Kernel started, blockIdx=(%u,%u,%u)\n",
-                   blockIdx.x,
-                   blockIdx.y,
-                   blockIdx.z);
-        }
-
         const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockIdx.x);
         const ck_tile::index_t i_m =
             __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
@@ -237,50 +239,6 @@ struct BatchedContractionKernel
 
         const auto g_indices = DecomposeGIndex<NumDimG>(i_batch_flat, kargs.G_lengths);
 
-        if(threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0)
-        {
-            printf("Kernel Debug: blockIdx=(%u,%u,%u) i_batch_flat=%d\n",
-                   blockIdx.x,
-                   blockIdx.y,
-                   blockIdx.z,
-                   static_cast<int>(i_batch_flat));
-
-            printf("G_lengths: ");
-            for(ck_tile::index_t i = 0; i < NumDimG; ++i)
-            {
-                printf("%d ", static_cast<int>(kargs.G_lengths[i]));
-            }
-            printf("\n");
-
-            printf("g_indices: ");
-            for(ck_tile::index_t i = 0; i < NumDimG; ++i)
-            {
-                printf("%d ", static_cast<int>(g_indices[i]));
-            }
-            printf("\n");
-
-            printf("G_strides_A: ");
-            for(ck_tile::index_t i = 0; i < NumDimG; ++i)
-            {
-                printf("%d ", static_cast<int>(kargs.G_strides_A[i]));
-            }
-            printf("\n");
-
-            printf("G_strides_B: ");
-            for(ck_tile::index_t i = 0; i < NumDimG; ++i)
-            {
-                printf("%d ", static_cast<int>(kargs.G_strides_B[i]));
-            }
-            printf("\n");
-
-            printf("G_strides_E: ");
-            for(ck_tile::index_t i = 0; i < NumDimG; ++i)
-            {
-                printf("%d ", static_cast<int>(kargs.G_strides_E[i]));
-            }
-            printf("\n");
-        }
-
         const auto G_offset_A =
             __builtin_amdgcn_readfirstlane(CalculateGOffset<NumDimG>(g_indices, kargs.G_strides_A));
 
@@ -290,38 +248,9 @@ struct BatchedContractionKernel
         const auto G_offset_E =
             __builtin_amdgcn_readfirstlane(CalculateGOffset<NumDimG>(g_indices, kargs.G_strides_E));
 
-        if(threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0)
-        {
-            printf("Calculated offsets: G_offset_A=%d, G_offset_B=%d, G_offset_E=%d\n",
-                   static_cast<int>(G_offset_A),
-                   static_cast<int>(G_offset_B),
-                   static_cast<int>(G_offset_E));
-
-            // Also print the original pointers and calculated pointers
-            printf("Original ptrs: a_ptr=%p, b_ptr=%p, e_ptr=%p\n",
-                   static_cast<const void*>(kargs.a_ptr),
-                   static_cast<const void*>(kargs.b_ptr),
-                   static_cast<const void*>(kargs.e_ptr));
-        }
-
         const ADataType* a_ptr = static_cast<const ADataType*>(kargs.a_ptr) + G_offset_A;
         const BDataType* b_ptr = static_cast<const BDataType*>(kargs.b_ptr) + G_offset_B;
         EDataType* e_ptr       = static_cast<EDataType*>(kargs.e_ptr) + G_offset_E;
-
-        if(threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0)
-        {
-            printf("Final ptrs: a_ptr=%p, b_ptr=%p, e_ptr=%p\n",
-                   static_cast<const void*>(a_ptr),
-                   static_cast<const void*>(b_ptr),
-                   static_cast<const void*>(e_ptr));
-            printf("Ptr differences: a_diff=%ld, b_diff=%ld, e_diff=%ld\n",
-                   static_cast<const char*>(static_cast<const void*>(a_ptr)) -
-                       static_cast<const char*>(kargs.a_ptr),
-                   static_cast<const char*>(static_cast<const void*>(b_ptr)) -
-                       static_cast<const char*>(kargs.b_ptr),
-                   static_cast<const char*>(static_cast<const void*>(e_ptr)) -
-                       static_cast<const char*>(kargs.e_ptr));
-        }
 
         std::array<const void*, NumDTensor> ds_batch_ptr;
         static_for<0, NumDTensor, 1>{}([&](auto i) {

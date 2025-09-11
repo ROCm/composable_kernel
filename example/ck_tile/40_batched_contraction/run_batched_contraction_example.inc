@@ -122,21 +122,21 @@ int run_batched_contraction_example_with_layouts(
 
     using namespace ck_tile::literals;
 
-    // auto f_host_tensor_descriptor = [](std::size_t g,
-    //                                    std::size_t row,
-    //                                    std::size_t col,
-    //                                    std::size_t stride,
-    //                                    std::size_t batch_stride,
-    //                                    auto layout) {
-    //     if constexpr(std::is_same_v<decltype(layout), ck_tile::tensor_layout::gemm::RowMajor>)
-    //     {
-    //         return ck_tile::HostTensorDescriptor({g, row, col}, {batch_stride, stride, 1_uz});
-    //     }
-    //     else
-    //     {
-    //         return ck_tile::HostTensorDescriptor({g, row, col}, {batch_stride, 1_uz, stride});
-    //     }
-    // };
+    auto f_host_tensor_descriptor = [](std::size_t g,
+                                       std::size_t row,
+                                       std::size_t col,
+                                       std::size_t stride,
+                                       std::size_t batch_stride,
+                                       auto layout) {
+        if constexpr(std::is_same_v<decltype(layout), ck_tile::tensor_layout::gemm::RowMajor>)
+        {
+            return ck_tile::HostTensorDescriptor({g, row, col}, {batch_stride, stride, 1_uz});
+        }
+        else
+        {
+            return ck_tile::HostTensorDescriptor({g, row, col}, {batch_stride, 1_uz, stride});
+        }
+    };
 
     auto f_get_default_stride = [](std::size_t row,
                                    std::size_t col,
@@ -206,16 +206,12 @@ int run_batched_contraction_example_with_layouts(
     }
     std::cout << "]" << std::endl;
 
-    ck_tile::HostTensor<::ADataType> a_m_k({total_G, M, K});
-    ck_tile::HostTensor<::BDataType> b_k_n({total_G, K, N});
-    ck_tile::HostTensor<::EDataType> e_m_n_dev_result({total_G, M, N});
-
-    // ck_tile::HostTensor<::ADataType> a_m_k(
-    //     f_host_tensor_descriptor(G, M, K, stride_A, batch_stride_A, a_layout));
-    // ck_tile::HostTensor<::BDataType> b_k_n(
-    //     f_host_tensor_descriptor(G, K, N, stride_B, batch_stride_B, b_layout));
-    // ck_tile::HostTensor<::EDataType> e_m_n_dev_result(
-    //     f_host_tensor_descriptor(G, M, N, stride_E, batch_stride_E, e_layout));
+    ck_tile::HostTensor<::ADataType> a_m_k(
+        f_host_tensor_descriptor(total_G, M, K, stride_A, M * K, a_layout));
+    ck_tile::HostTensor<::BDataType> b_k_n(
+        f_host_tensor_descriptor(total_G, K, N, stride_B, K * N, b_layout));
+    ck_tile::HostTensor<::EDataType> e_m_n_dev_result(
+        f_host_tensor_descriptor(total_G, M, N, stride_E, M * N, e_layout));
 
     ck_tile::FillUniformDistribution<::ADataType>{-5.f, 5.f}(a_m_k);
     ck_tile::FillUniformDistribution<::BDataType>{-5.f, 5.f}(b_k_n);
@@ -285,9 +281,8 @@ int run_batched_contraction_example_with_layouts(
 
     if(arg_parser.get_int("v") == 1)
     {
-        // ck_tile::HostTensor<::EDataType> e_m_n_host_ref(
-        //     f_host_tensor_descriptor(G, M, N, stride_E, batch_stride_E, ELayout{}));
-        ck_tile::HostTensor<::EDataType> e_m_n_host_ref({total_G, M, N});
+        ck_tile::HostTensor<::EDataType> e_m_n_host_ref(
+            f_host_tensor_descriptor(total_G, M, N, stride_E, M * N, ELayout{}));
         e_m_n_host_ref.SetZero();
 
         // Simple matrix multiplication reference

@@ -35,7 +35,7 @@ auto create_args(int argc, char* argv[])
         .insert("n", "1024", "n dimension")
         .insert("k", "2048", "k dimension")
         .insert(
-            "g_dims", "4", "G dimensions separated by comma (e.g., '4,2' for 2D, '2,3,4' for 3D)")
+            "g_dims", "8", "G dimensions separated by comma (e.g., '4,2' for 2D, '2,3,4' for 3D)")
         .insert("stride_a", "0", "Tensor A stride")
         .insert("stride_b", "0", "Tensor B stride")
         .insert("stride_e", "0", "Tensor E stride")
