@@ -57,9 +57,7 @@ struct GroupedConvFwdKernelArgs
 
         k_batch = args.k_batch;
 
-        // Note: GemmM will be updated after Split-N calculation
-        // Initially set to full size, will be adjusted after transformer creation
-        GemmM     = args.N_ * args.output_spatial_lengths_[0];
+        // GemmM will be set after Split-N calculation
         GemmN     = args.K_;
         GemmK     = args.C_ * args.filter_spatial_lengths_[0];
         GemmBatch = args.G_;
