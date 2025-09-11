@@ -679,6 +679,7 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
                 async_load_tile(lds_tile_a, dram_tile_a);
         };
         auto prefill_lds_a_stage2 = [&](auto lds_tile_a) {
+            async_load_fence();
             // data has been stored in lds, no need more operation.
             static_assert(std::is_same_v<AElementFunction, identity>,
                           "buffer_load_lds don't support element func fot A before mfma");
