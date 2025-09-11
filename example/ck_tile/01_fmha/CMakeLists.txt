@@ -145,23 +145,6 @@ list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -Wno-undefined-func-template)
 list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -Wno-float-equal)
 list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -Wno-float-equal)
 
-# TODO: Can MFMA and WMMA implementations coexist in one binary? Some host code DEPENDS on warp
-# size so it cannot launch kernels for MFMA and WMMA at the same time
-# Create separate binaries?
-if(INST_TARGETS MATCHES "gfx12" AND NOT INST_TARGETS MATCHES "gfx9")
-  message(STATUS "FMHA use WMMA")
-  list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=1 -DCK_TILE_USE_MFMA=0)
-  list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=1 -DCK_TILE_USE_MFMA=0)
-elseif(NOT INST_TARGETS MATCHES "gfx12" AND INST_TARGETS MATCHES "gfx9")
-  message(STATUS "FMHA use MFMA")
-  list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=0 -DCK_TILE_USE_MFMA=1)
-  list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=0 -DCK_TILE_USE_MFMA=1)
-else()
-  message(WARNING "FMHA cannot use both MFMA and WMMA, only MFMA is forced to use")
-  list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=0 -DCK_TILE_USE_MFMA=1)
-  list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=0 -DCK_TILE_USE_MFMA=1)
-endif()
-
 # NOTE: this is dangerous since will change the whole kernel to flush denormals
 #       WIP with compiler team for an exp2 intrinsic..., then remove this
 if(NOT DEFINED FMHA_FWD_FAST_EXP2)
