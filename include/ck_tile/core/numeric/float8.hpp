@@ -399,9 +399,9 @@ CK_TILE_HOST_DEVICE DstT run_cast_to_f8(SrcT src, unsigned int rng = 0)
         }
         mantissa += (1u << SrcT_mant); // Add the implicit 1 into mantissa
     }
-    // The value is smaller than min f8 denormal and results in zero (the early exit also prevents
+    // The value is <= than min f8 denormal/2 and results in zero (the early exit also prevents
     // an undefined behavior of bit shifts >= type width).
-    if(exponent_diff > DstT_mant)
+    if(exponent_diff > DstT_mant + 1)
     {
         return is_fnuz ? 0 : (sign << (DstT_exp + DstT_mant));
     }
