@@ -837,6 +837,24 @@ make_tile_window_raw(const TensorView_& tensor_view,
     return w;
 }
 
+template <typename NewTensorView_,
+          typename OldTensorView_,
+          typename WindowLengths_,
+          typename StaticTileDistribution_,
+          index_t NumCoord = 1>
+CK_TILE_DEVICE auto
+replace_bottom_tensor_view(const NewTensorView_& new_tensor_view,
+                           const tile_window_with_static_distribution<OldTensorView_,
+                                                                      WindowLengths_,
+                                                                      StaticTileDistribution_,
+                                                                      NumCoord>& tile_window)
+{
+    return make_tile_window(new_tensor_view,
+                            tile_window.get_window_lengths(),
+                            tile_window.get_window_origin(),
+                            tile_window.get_tile_distribution());
+}
+
 template <typename TensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
@@ -944,6 +962,15 @@ make_tile_window_raw(const tile_window_with_static_lengths<TensorView, WindowLen
                               tile_distribution);
     w.init_raw();
     return w;
+}
+
+template <typename NewTensorView_, typename OldTensorView_, typename WindowLengths_>
+CK_TILE_DEVICE auto replace_bottom_tensor_view(
+    const NewTensorView_& new_tensor_view,
+    const tile_window_with_static_lengths<OldTensorView_, WindowLengths_>& tile_window)
+{
+    return make_tile_window(
+        new_tensor_view, tile_window.get_window_lengths(), tile_window.get_window_origin());
 }
 
 template <typename TensorView_, typename WindowLengths_>

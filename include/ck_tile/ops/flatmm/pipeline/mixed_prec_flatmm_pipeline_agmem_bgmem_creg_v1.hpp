@@ -529,12 +529,10 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
 
         __builtin_amdgcn_sched_barrier(0);
 
-        auto a_dram_view        = a_copy_dram_window_.get_bottom_tensor_view();
-        auto a_copy_dram_window = make_tile_window(
-            PipelinePolicy::template TransformF16xF4_ATensorView<Problem>(a_dram_view),
-            a_copy_dram_window_.get_window_lengths(),
-            a_copy_dram_window_.get_window_origin(),
-            a_copy_dram_window_.get_tile_distribution());
+        auto a_copy_dram_window = replace_bottom_tensor_view(
+            PipelinePolicy::template TransformF16xF4_ATensorView<Problem>(
+                a_copy_dram_window_.get_bottom_tensor_view()),
+            a_copy_dram_window_);
 
         // A tile in LDS
         ADataType* p_a_lds_ping = static_cast<ADataType*>(p_smem_ping);
