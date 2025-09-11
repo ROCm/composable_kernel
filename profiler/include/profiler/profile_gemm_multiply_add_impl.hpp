@@ -55,7 +55,6 @@ bool profile_gemm_multiply_add_impl(int do_verification,
                                : std::vector<std::size_t>({1_uz, stride});
 
             return HostTensorDescriptor({row, col}, strides, layout);
-
         };
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
@@ -144,7 +143,7 @@ bool profile_gemm_multiply_add_impl(int do_verification,
         ref_invoker.Run(ref_argument);
 
         for(int m = 0; m < M; ++m)
-        {    
+        {
             for(int n = 0; n < N; ++n)
             {
                 cde_element_op(e_m_n_host_result(m, n), c_m_n(m, n), d0_m_n(m, n), d1_m_n(m, n));

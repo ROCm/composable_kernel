@@ -106,20 +106,20 @@ struct HostTensorDescriptor
     // Master constructor
     template <typename Layout>
     HostTensorDescriptor(std::vector<std::size_t> lens,
-                        std::vector<std::size_t> strides,
-                        const Layout& layout = DefaultLayout() // only to propagate the
-                    )
+                         std::vector<std::size_t> strides,
+                         const Layout& layout = DefaultLayout() // only to propagate the
+                         )
         : mLens(std::move(lens)), mStrides(std::move(strides))
     {
         if(mStrides.empty())
         {
             this->CalculateStrides();
         }
-        
+
         this->ValidateStrides(layout);
     }
 
-    HostTensorDescriptor() : HostTensorDescriptor({}, {}, DefaultLayout()) {};
+    HostTensorDescriptor() : HostTensorDescriptor({}, {}, DefaultLayout()){};
 
     void CalculateStrides();
 
@@ -132,32 +132,39 @@ struct HostTensorDescriptor
             // TBD: should we throw error for 0-dim tensor?
             return;
 
-        if constexpr (std::is_same_v<ck::tensor_layout::BaseTensorLayout, Layout>)
+        if constexpr(std::is_same_v<ck::tensor_layout::BaseTensorLayout, Layout>)
         {
             // TBD: should we throw error instead of warning?
-            // Currently, any legacy code that doesn't pass layout to HostTensorDescriptor ctor will hit this case.
-            // Initialy can do warning, run all tests to identify where HostTensorDescriptor ctor is called without layout.
-            // Once all places are fixed, can change to throw error.
-            std::cerr << "Warning: Abstract tensor layout BaseTensorLayout can't be verified. Pls pass specific tensor layout to HostTensorDescriptor." << std::endl;
+            // Currently, any legacy code that doesn't pass layout to HostTensorDescriptor ctor will
+            // hit this case. Initialy can do warning, run all tests to identify where
+            // HostTensorDescriptor ctor is called without layout. Once all places are fixed, can
+            // change to throw error.
+            std::cerr << "Warning: Abstract tensor layout BaseTensorLayout can't be verified. Pls "
+                         "pass specific tensor layout to HostTensorDescriptor."
+                      << std::endl;
             return;
         }
 
         // GEMM cases
-        if constexpr (ck::tensor_layout::gemm::is_gemm_layout<Layout>::value)
+        if constexpr(ck::tensor_layout::gemm::is_gemm_layout<Layout>::value)
         {
-            if constexpr (std::is_same_v<ck::tensor_layout::gemm::RowMajor, Layout> || std::is_same_v<ck::tensor_layout::gemm::ColumnMajor, Layout>)
+            if constexpr(std::is_same_v<ck::tensor_layout::gemm::RowMajor, Layout> ||
+                         std::is_same_v<ck::tensor_layout::gemm::ColumnMajor, Layout>)
             {
-                // The logic here assumes the GEMM with tensor of more than 2 dims, will always have HW dimesnsions as the inner ones
-                // e.g. batched GEMM is either BHW or BWH, so we check at the inner two dimensions only.
-                const auto n_dims = mLens.size();
-                const auto inner_idx = std::is_same_v<ck::tensor_layout::gemm::RowMajor, Layout> ? n_dims - 1 : n_dims - 2;
+                // The logic here assumes the GEMM with tensor of more than 2 dims, will always have
+                // HW dimesnsions as the inner ones e.g. batched GEMM is either BHW or BWH, so we
+                // check at the inner two dimensions only.
+                const auto n_dims    = mLens.size();
+                const auto inner_idx = std::is_same_v<ck::tensor_layout::gemm::RowMajor, Layout>
+                                           ? n_dims - 1
+                                           : n_dims - 2;
                 const auto outer_idx = inner_idx == n_dims - 1 ? n_dims - 2 : n_dims - 1;
 
-                if (mStrides[outer_idx] < mLens[inner_idx] * mStrides[inner_idx])
+                if(mStrides[outer_idx] < mLens[inner_idx] * mStrides[inner_idx])
                 {
                     std::ostringstream oss;
-                    oss << "Invalid strides for " << layout << ": "
-                        << "mLens: " << mLens << ", mStrides: " << mStrides;
+                    oss << "Invalid strides for " << layout << ": " << "mLens: " << mLens
+                        << ", mStrides: " << mStrides;
                     throw std::runtime_error(oss.str());
                 }
             }
@@ -168,7 +175,7 @@ struct HostTensorDescriptor
                 throw std::runtime_error(oss.str());
             }
         }
-        #if 0
+#if 0
         // TBD: is_convolution_layout is not implemented yet
         else if constexpr (ck::tensor_layout::gemm::is_convolution_layout<Layout>::value)
         {
@@ -177,40 +184,39 @@ struct HostTensorDescriptor
             std::cerr << "Warning: Tensor layout verification for Convolutions is not supported yet." << std::endl;
             return;
         }
-        #endif
+#endif
         else
         {
             // TBD: if desired, a new "bypass" layout can be added to skip the error, e.g.
-            //     if constexpr (std::is_same_v<ck::tensor_layout::BypassLayoutVerfication, Layout>) { return; }
+            //     if constexpr (std::is_same_v<ck::tensor_layout::BypassLayoutVerfication, Layout>)
+            //     { return; }
             std::ostringstream oss;
             oss << "Error: Tensor layout verification for " << layout << " is not supported yet.";
             throw std::runtime_error(oss.str());
         }
     }
 
-    template <typename X, typename = std::enable_if_t<std::is_convertible_v<X, std::size_t>>, 
-            typename Layout = DefaultLayout>
+    template <typename X,
+              typename        = std::enable_if_t<std::is_convertible_v<X, std::size_t>>,
+              typename Layout = DefaultLayout>
     HostTensorDescriptor(const std::initializer_list<X>& lens, const Layout& layout = Layout())
         : HostTensorDescriptor(std::vector<std::size_t>(lens.begin(), lens.end()), {}, layout)
     {
     }
 
     template <typename Layout = DefaultLayout>
-    HostTensorDescriptor(const std::initializer_list<ck::long_index_t>& lens, const Layout& layout = Layout())
-        : HostTensorDescriptor(
-              std::vector<std::size_t>(lens.begin(), lens.end()), {}, layout)
+    HostTensorDescriptor(const std::initializer_list<ck::long_index_t>& lens,
+                         const Layout& layout = Layout())
+        : HostTensorDescriptor(std::vector<std::size_t>(lens.begin(), lens.end()), {}, layout)
     {
     }
 
     template <typename Lengths,
               typename Layout = DefaultLayout,
-              typename = std::enable_if_t<
-                  (
-                      std::is_convertible_v<ck::ranges::range_value_t<Lengths>, std::size_t> ||
-                      std::is_convertible_v<ck::ranges::range_value_t<Lengths>, ck::long_index_t>
-                  ) && std::is_convertible_v<Layout, DefaultLayout>
-              >
-    >
+              typename        = std::enable_if_t<
+                         (std::is_convertible_v<ck::ranges::range_value_t<Lengths>, std::size_t> ||
+                   std::is_convertible_v<ck::ranges::range_value_t<Lengths>, ck::long_index_t>) &&
+                         std::is_convertible_v<Layout, DefaultLayout>>>
     HostTensorDescriptor(const Lengths& lens, const Layout& layout = Layout())
         : HostTensorDescriptor(std::vector<std::size_t>(lens.begin(), lens.end()), {}, layout)
     {
@@ -218,15 +224,15 @@ struct HostTensorDescriptor
 
     template <typename X,
               typename Y,
-              typename = std::enable_if_t<std::is_convertible_v<X, std::size_t> &&
-                                          std::is_convertible_v<Y, std::size_t>>,
+              typename        = std::enable_if_t<std::is_convertible_v<X, std::size_t> &&
+                                                 std::is_convertible_v<Y, std::size_t>>,
               typename Layout = DefaultLayout>
     HostTensorDescriptor(const std::initializer_list<X>& lens,
                          const std::initializer_list<Y>& strides,
                          const Layout& layout = Layout())
         : HostTensorDescriptor(std::vector<std::size_t>(lens.begin(), lens.end()),
-                              std::vector<std::size_t>(strides.begin(), strides.end()),
-                              layout)
+                               std::vector<std::size_t>(strides.begin(), strides.end()),
+                               layout)
     {
     }
 
@@ -243,20 +249,18 @@ struct HostTensorDescriptor
     template <typename Lengths,
               typename Strides,
               typename Layout = DefaultLayout,
-              typename = std::enable_if_t<
-                  (
-                      (std::is_convertible_v<ck::ranges::range_value_t<Lengths>, std::size_t> &&
-                       std::is_convertible_v<ck::ranges::range_value_t<Strides>, std::size_t>) ||
-                      (std::is_convertible_v<ck::ranges::range_value_t<Lengths>, ck::long_index_t> &&
-                       std::is_convertible_v<ck::ranges::range_value_t<Strides>, ck::long_index_t>)
-                  )
-                  && std::is_convertible_v<Layout, DefaultLayout>
-              >
-    >
-    HostTensorDescriptor(const Lengths& lens, const Strides& strides, const Layout& layout = Layout())
+              typename        = std::enable_if_t<
+                         ((std::is_convertible_v<ck::ranges::range_value_t<Lengths>, std::size_t> &&
+                    std::is_convertible_v<ck::ranges::range_value_t<Strides>, std::size_t>) ||
+                   (std::is_convertible_v<ck::ranges::range_value_t<Lengths>, ck::long_index_t> &&
+                    std::is_convertible_v<ck::ranges::range_value_t<Strides>, ck::long_index_t>)) &&
+                         std::is_convertible_v<Layout, DefaultLayout>>>
+    HostTensorDescriptor(const Lengths& lens,
+                         const Strides& strides,
+                         const Layout& layout = Layout())
         : HostTensorDescriptor(std::vector<std::size_t>(lens.begin(), lens.end()),
-                              std::vector<std::size_t>(strides.begin(), strides.end()),
-                              layout)
+                               std::vector<std::size_t>(strides.begin(), strides.end()),
+                               layout)
     {
     }
 
@@ -282,7 +286,7 @@ struct HostTensorDescriptor
 
     friend std::ostream& operator<<(std::ostream& os, const HostTensorDescriptor& desc);
 
-private:
+    private:
     std::vector<std::size_t> mLens;
     std::vector<std::size_t> mStrides;
 };
