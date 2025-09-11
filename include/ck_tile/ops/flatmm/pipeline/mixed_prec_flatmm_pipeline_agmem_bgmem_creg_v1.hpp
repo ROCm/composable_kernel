@@ -184,7 +184,7 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
     CK_TILE_HOST_DEVICE static constexpr auto
     SchedulerPerM(index_t dsread_perM, index_t dswrite_perM, index_t load_perM)
     {
-#if CKTILE_FLATMM_USE_BUFFER_LOAD_LDS_AS_POSSIBLE && defined(__gfx950__)
+#if CKTILE_FLATMM_USE_BUFFER_LOAD_LDS
         // GFX950 use BUFFER_LOAD_LDS to fill lds_buffer_A.
         // There is no separate DS_WRITE instruction at all.
         dswrite_perM = 0;
@@ -347,6 +347,7 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
         //  0   M7N2:   63      -       -           8       -
         //  0   M7N3:   64      4       -           -       -
 
+#if !CKTILE_FLATMM_USE_BUFFER_LOAD_LDS
         _Pragma("unroll") for(int kIter = 0; kIter < KIterPerWarp; kIter++)
         {
             _Pragma("unroll") for(int mIter = 0; mIter < MIterPerWarp; mIter++)
@@ -410,10 +411,12 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
         if(Aload_num_perK == 0)
             __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
         __builtin_amdgcn_sched_barrier(0);
+#endif
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto Last2ndHotLoopScheduler()
     {
+#if !CKTILE_FLATMM_USE_BUFFER_LOAD_LDS
         _Pragma("unroll") for(int kIter = 0; kIter < KIterPerWarp; kIter++)
         {
             _Pragma("unroll") for(int mIter = 0; mIter < MIterPerWarp; mIter++)
@@ -462,10 +465,12 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
             }
         }
         __builtin_amdgcn_sched_barrier(0);
+#endif
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto LastHotLoopScheduler()
     {
+#if !CKTILE_FLATMM_USE_BUFFER_LOAD_LDS
         _Pragma("unroll") for(int kIter = 0; kIter < KIterPerWarp; kIter++)
         {
             _Pragma("unroll") for(int mIter = 0; mIter < MIterPerWarp; mIter++)
@@ -482,6 +487,7 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
             }
         }
         // __builtin_amdgcn_sched_barrier(0);
+#endif
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto GetADramTileDistribution()
@@ -520,6 +526,8 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
         constexpr auto c_warp_y_lengths =
             to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
+
+        __builtin_amdgcn_sched_barrier(0);
 
         auto a_dram_view        = a_copy_dram_window_.get_bottom_tensor_view();
         auto a_copy_dram_window = make_tile_window(
@@ -664,7 +672,7 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
             PrefillAfterGemm  = 2,
             PrefillAlways     = PrefillBeforeGemm | PrefillAfterGemm,
         };
-#if CKTILE_FLATMM_USE_BUFFER_LOAD_LDS_AS_POSSIBLE && defined(__gfx950__)
+#if CKTILE_FLATMM_USE_BUFFER_LOAD_LDS
         auto prefill_lds_a_stage1 = [&](auto lds_tile_a, auto dram_tile_a, auto prefill_location) {
             // global -> lds
             if constexpr(prefill_location & PrefillAfterGemm)
