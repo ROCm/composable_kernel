@@ -26,6 +26,10 @@ struct Reduce
     using YDataType       = ck_tile::remove_cvref_t<typename Problem::YDataType>;
 
     static constexpr index_t kBlockSize = Problem::BlockShape::BlockSize;
+    CK_TILE_HOST static constexpr auto BlockSize()
+    {
+        return is_wave32() ? kBlockSize / 2 : kBlockSize;
+    }
 
     private:
     // Helper function to calculate optimal vector size for input tensor
