@@ -15,7 +15,8 @@
 #include "ck_tile/host.hpp"
 #include "batched_gemm.hpp"
 
-template <typename ADataType,
+template <typename GemmConfig,
+          typename ADataType,
           typename BDataType,
           typename DsDataType,
           typename AccDataType,
@@ -27,54 +28,19 @@ template <typename ADataType,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stream_config& s)
 {
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
-    // Memory friendly for Interwave scheduler
-    constexpr ck_tile::index_t M_Tile = 128;
-    constexpr ck_tile::index_t N_Tile = 32;
-    constexpr ck_tile::index_t K_Tile = 64;
+    constexpr ck_tile::index_t M_Tile = GemmConfig::M_Tile;
+    constexpr ck_tile::index_t N_Tile = GemmConfig::N_Tile;
+    constexpr ck_tile::index_t K_Tile = GemmConfig::K_Tile;
 
-    constexpr ck_tile::index_t M_Warp = 4;
-    constexpr ck_tile::index_t N_Warp = 1;
-    constexpr ck_tile::index_t K_Warp = 1;
+    constexpr ck_tile::index_t M_Warp = GemmConfig::M_Warp;
+    constexpr ck_tile::index_t N_Warp = GemmConfig::N_Warp;
+    constexpr ck_tile::index_t K_Warp = GemmConfig::K_Warp;
 
-    constexpr ck_tile::index_t M_Warp_Tile = 32;
-    constexpr ck_tile::index_t N_Warp_Tile = 32;
-    constexpr ck_tile::index_t K_Warp_Tile = 8;
+    constexpr ck_tile::index_t M_Warp_Tile = GemmConfig::M_Warp_Tile;
+    constexpr ck_tile::index_t N_Warp_Tile = GemmConfig::N_Warp_Tile;
+    constexpr ck_tile::index_t K_Warp_Tile = GemmConfig::K_Warp_Tile;
 
-    constexpr bool DoubleSmemBuffer = false;
-#endif
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
-    // Compute friendly for Intrawave scheduler
-    constexpr ck_tile::index_t M_Tile = 256;
-    constexpr ck_tile::index_t N_Tile = 256;
-    constexpr ck_tile::index_t K_Tile = 64;
-
-    constexpr ck_tile::index_t M_Warp = 2;
-    constexpr ck_tile::index_t N_Warp = 2;
-    constexpr ck_tile::index_t K_Warp = 1;
-
-    constexpr ck_tile::index_t M_Warp_Tile = 32;
-    constexpr ck_tile::index_t N_Warp_Tile = 32;
-    constexpr ck_tile::index_t K_Warp_Tile = 16;
-
-    constexpr bool DoubleSmemBuffer = false;
-#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V4)
-    // Compute friendly for Intrawave scheduler
-    // Using the ping pong reader in the lds level
-    constexpr ck_tile::index_t M_Tile = 256;
-    constexpr ck_tile::index_t N_Tile = 256;
-    constexpr ck_tile::index_t K_Tile = 32;
-
-    constexpr ck_tile::index_t M_Warp = 2;
-    constexpr ck_tile::index_t N_Warp = 2;
-    constexpr ck_tile::index_t K_Warp = 1;
-
-    constexpr ck_tile::index_t M_Warp_Tile = 32;
-    constexpr ck_tile::index_t N_Warp_Tile = 32;
-    constexpr ck_tile::index_t K_Warp_Tile = 16;
-
-    constexpr bool DoubleSmemBuffer = true;
-#endif
+    constexpr bool DoubleSmemBuffer = GemmConfig::DoubleSmemBuffer;
 
     constexpr bool kPadM = false;
     constexpr bool kPadN = false;
@@ -105,7 +71,8 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
-    using BaseGemmPipeline = UNIVERSAL_GEMM_PIPELINE<GemmPipelineProblem>;
+    using BaseGemmPipeline = typename PipelineTypeTraits<
+        GemmConfig::Pipeline>::template UniversalGemmPipeline<GemmPipelineProblem>;
 
     const ck_tile::index_t k_grain     = args.k_batch * K_Tile;
     const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * K_Tile;
@@ -119,7 +86,7 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
         [&](const auto has_hot_loop_, const auto tail_number_, const auto memory_operation_) {
             constexpr bool has_hot_loop_v   = has_hot_loop_.value;
             constexpr auto tail_number_v    = tail_number_.value;
-            constexpr auto scheduler        = GEMM_PIPELINE_SCHEDULER;
+            constexpr auto scheduler        = GemmConfig::Scheduler;
             constexpr auto memory_operation = memory_operation_.value;
 
             using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
@@ -131,7 +98,8 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
                                                                                has_hot_loop_v,
                                                                                tail_number_v>;
 
-            using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
+            using GemmPipeline = typename PipelineTypeTraits<
+                GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
 
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
@@ -207,7 +175,11 @@ int main(int argc, char* argv[])
 {
     try
     {
-        return !run_batched_gemm_example(argc, argv);
+#if CK_TILE_USE_WMMA
+        return !run_batched_gemm_example<GemmConfigV3_Wmma>(argc, argv);
+#else
+        return !run_batched_gemm_example<GemmConfigV3>(argc, argv);
+#endif
     }
     catch(const std::runtime_error& e)
     {
