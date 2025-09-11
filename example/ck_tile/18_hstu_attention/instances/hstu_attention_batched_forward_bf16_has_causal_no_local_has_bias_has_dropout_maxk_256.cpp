@@ -1,14 +1,10 @@
 
-/*
-  Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree.
- *
- * The file is automatically generated, don't modify!
- * See the generator script
- * `composable_kernel/example/ck_tile/18_hstu_attention/generate_instances.py`
- */
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+
+// The file is automatically generated, don't modify!
+// See the generator script
+// `composable_kernel/example/ck_tile/18_hstu_attention/generate_instances.py`
 
 #include <ck_tile/core/numeric/half.hpp>
 #include "hstu_attention_batched_forward_dispatch.hpp"
