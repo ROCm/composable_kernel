@@ -99,12 +99,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     constexpr bool kThreePass = true;
 
-    using BlockWarps = ck_tile::sequence<4, 1>;
-    using BlockTile  = ck_tile::sequence<4, 128>;
-    using WarpTile   = ck_tile::sequence<1, 64>;
-    using Vector     = ck_tile::sequence<1, 1>;
+    using BlockTile      = ck_tile::sequence<4, 128>;
+    using Vector         = ck_tile::sequence<1, 1>;
+    using ThreadPerBlock = ck_tile::sequence<4, 64>;
 
-    using Shape   = ck_tile::Generic2dBlockShape<BlockTile, BlockWarps, WarpTile, Vector>;
+    using Shape   = ck_tile::Generic2dBlockShape<BlockTile, ThreadPerBlock, Vector>;
     using Problem = ck_tile::AddRmsnorm2dRdquantFwdPipelineProblem<ADataType,
                                                                    BDataType,
                                                                    GammaDataType,

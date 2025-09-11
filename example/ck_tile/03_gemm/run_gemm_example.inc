@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
+#include "ck_tile/host/permute_pk_int4.hpp"
+
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
 {
@@ -90,61 +92,6 @@ void permute_tensor_b(Tensor& tensor)
     }
 }
 
-template <typename Tensor>
-void permute_vectors_i4x4_b(Tensor& tensor)
-{
-    const ck_tile::index_t K = tensor.get_length(0);
-    const ck_tile::index_t N = tensor.get_length(1);
-    // vector pk_i4x4 permute
-    for(int i = 0; i < N; i++)
-    {
-        for(int j = 0; j < K; j += 8)
-        {
-            int8_t input[8];
-
-            for(int k = 0; k < 4; k++)
-            {
-                int8_t i4x2      = tensor(j + k * 2, i).data;
-                input[k * 2 + 0] = (i4x2 >> 4) & 0xf;
-                input[k * 2 + 1] = (i4x2 >> 0) & 0xf;
-            }
-
-            // permute 01234567->20643175
-            {
-                int8_t hi   = input[2];
-                int8_t lo   = input[0];
-                int8_t i4x2 = (hi << 4) | lo;
-
-                tensor(j + 0, i) = i4x2;
-            }
-
-            {
-                int8_t hi   = input[6];
-                int8_t lo   = input[4];
-                int8_t i4x2 = (hi << 4) | lo;
-
-                tensor(j + 2, i) = i4x2;
-            }
-
-            {
-                int8_t hi   = input[3];
-                int8_t lo   = input[1];
-                int8_t i4x2 = (hi << 4) | lo;
-
-                tensor(j + 4, i) = i4x2;
-            }
-
-            {
-                int8_t hi   = input[7];
-                int8_t lo   = input[5];
-                int8_t i4x2 = (hi << 4) | lo;
-
-                tensor(j + 6, i) = i4x2;
-            }
-        }
-    }
-}
-
 template <typename GemmConfig,
           typename Invoker,
           typename ADataType,
@@ -229,16 +176,63 @@ template <typename GemmConfig, typename T>
 auto shuffle_b(const ck_tile::HostTensor<T>& t)
 {
     assert(t.get_lengths().size() == 2);
+    int n_ = t.get_lengths()[1];
+    int k_ = t.get_lengths()[0];
+
+    if(ck_tile::is_gfx12_supported())
+    {
+        // TODO: Please modify it once kABK0PerLane is changed in WmmaTraitsBase<gfx12>
+        constexpr int divisor      = 2;
+        constexpr int kABK0PerLane = 2;
+        ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
+                                       GemmConfig::N_Warp_Tile,
+                                       k_ / GemmConfig::K_Warp_Tile,
+                                       divisor,
+                                       kABK0PerLane,
+                                       GemmConfig::K_Warp_Tile / divisor / kABK0PerLane});
+        std::copy(t.begin(), t.end(), t_view.begin());
+        return ck_tile::reference_permute(t_view, {0, 2, 4, 1, 3, 5});
+    }
+    else
+    {
+        int divisor = 1;
+        if(ck_tile::is_gfx11_supported())
+        {
+            divisor = 1;
+        }
+        else
+        {
+            assert(is_wave32() == false);
+            divisor = GemmConfig::N_Warp_Tile == 32 ? 2 : 4;
+        }
+        ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
+                                       GemmConfig::N_Warp_Tile,
+                                       k_ / GemmConfig::K_Warp_Tile,
+                                       divisor,
+                                       GemmConfig::K_Warp_Tile / divisor});
+        std::copy(t.begin(), t.end(), t_view.begin());
+        return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
+    }
+}
+
+template <typename GemmConfig, typename T>
+auto shuffle_b_permuteN(const ck_tile::HostTensor<T>& t)
+{
+    assert(t.get_lengths().size() == 2);
+
     int n_                = t.get_lengths()[1];
     int k_                = t.get_lengths()[0];
     constexpr int divisor = GemmConfig::N_Warp_Tile == 32 ? 2 : 4;
-    ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
+    constexpr int NRepeat = GemmConfig::N_Tile / GemmConfig::N_Warp_Tile / GemmConfig::N_Warp;
+    ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Tile,
+                                   GemmConfig::N_Warp,
                                    GemmConfig::N_Warp_Tile,
+                                   NRepeat,
                                    k_ / GemmConfig::K_Warp_Tile,
                                    divisor,
                                    GemmConfig::K_Warp_Tile / divisor});
     std::copy(t.begin(), t.end(), t_view.begin());
-    return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
+    return ck_tile::reference_permute(t_view, {0, 3, 1, 4, 5, 2, 6});
 }
 
 template <typename CDataType>
@@ -346,7 +340,18 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
 
     if constexpr(preshuffle)
     {
-        ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<GemmConfig>(b_k_n);
+        ck_tile::HostTensor<BDataType> b_shuffle_host = [&]() {
+            if constexpr(GemmConfig::TiledMMAPermuteN)
+            {
+                std::cout << "Run with PermuteN" << std::endl;
+                return shuffle_b_permuteN<GemmConfig>(b_k_n);
+            }
+            else
+            {
+                std::cout << "Run without PermuteN" << std::endl;
+                return shuffle_b<GemmConfig>(b_k_n);
+            }
+        }();
         // shuffled buffer B for device implementation
         b_k_n_dev_buf.ToDevice(b_shuffle_host.data());
     }
@@ -368,7 +373,7 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
                                  BLayout,
                                  CLayout>(b_k_n_dev);
             }
-            permute_vectors_i4x4_b(b_k_n_dev);
+            ck_tile::permute_vectors_i4x4_b(b_k_n_dev);
             b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
         }
         else
