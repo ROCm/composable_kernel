@@ -30,94 +30,6 @@ class GemmPreshuffleKernelBuilder:
         if config_json and os.path.exists(config_json):
             with open(config_json, "r") as f:
                 self.config = json.load(f)
-        else:
-            print(
-                "No config JSON provided or file does not exist. Using default configuration."
-            )
-            self.config = self._get_default_config()
-
-    # [TODO] Currently only support fp16 and fp8 needs to add more datatype support
-    # [TODO] Add this into commons
-    def _get_default_config(self):
-        """Return default configuration if no config file is provided"""
-        # Define base tile configurations that work for all layouts
-        base_fp16_configs = [
-            {
-                "tile_m": 256,
-                "tile_n": 256,
-                "tile_k": 32,
-                "warp_m": 2,
-                "warp_n": 2,
-                "warp_k": 1,
-                "warp_tile_m": 32,
-                "warp_tile_n": 32,
-                "warp_tile_k": 32,
-            },
-            {
-                "tile_m": 256,
-                "tile_n": 128,
-                "tile_k": 32,
-                "warp_m": 2,
-                "warp_n": 2,
-                "warp_k": 1,
-                "warp_tile_m": 32,
-                "warp_tile_n": 32,
-                "warp_tile_k": 16,
-            },
-        ]
-
-        base_fp8_configs = [
-            {
-                "tile_m": 256,
-                "tile_n": 256,
-                "tile_k": 32,
-                "warp_m": 4,
-                "warp_n": 1,
-                "warp_k": 1,
-                "warp_tile_m": 32,
-                "warp_tile_n": 32,
-                "warp_tile_k": 32,
-            },
-            {
-                "tile_m": 256,
-                "tile_n": 128,
-                "tile_k": 32,
-                "warp_m": 1,
-                "warp_n": 4,
-                "warp_k": 1,
-                "warp_tile_m": 16,
-                "warp_tile_n": 16,
-                "warp_tile_k": 32,
-            },
-        ]
-
-        # Create configurations for all supported layouts
-        all_layouts = ["rcr", "rrr", "ccr", "crr"]
-        tile_configs = {}
-
-        for datatype, base_configs in [
-            ("fp16", base_fp16_configs),
-            ("fp8", base_fp8_configs),
-        ]:
-            tile_configs[datatype] = {}
-            for layout in all_layouts:
-                tile_configs[datatype][layout] = base_configs
-
-        return {
-            "tile_configs": tile_configs,
-            "traits": {
-                "pipelines": ["preshufflev1", "preshufflev2"],
-                "epilogues": ["default", "cshuffle"],
-                "schedulers": ["intrawave", "interwave", "default"],
-            },
-            "structured_sparsity": ["false"],
-            "padding": {"pad_m": ["false"], "pad_n": ["false"], "pad_k": ["false"]},
-            "persistent": ["false"],
-            # [TODO] kBlockPerCu parameter should be configarable
-            # "tunable_params": {
-            #     "kBlockPerCu": 2,
-            # },
-        }
 
     def write_kernel_list(self):
         """Write kernel list to file for CMake to read (with comprehensive validation)"""
@@ -807,7 +719,7 @@ def main():
         choices=["rcr", "rrr", "ccr", "crr"],
         help="Matrix layout",
     )
-    parser.add_argument("--config_json", help="Configuration JSON file")
+    parser.add_argument("--config_json", required=True, help="Configuration JSON file")
     parser.add_argument(
         "--num_workers", type=int, help="Number of parallel workers (default: auto)"
     )
