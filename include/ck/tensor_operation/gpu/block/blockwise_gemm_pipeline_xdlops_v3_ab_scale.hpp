@@ -342,8 +342,8 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
             a_scale_thread_desc.GetElementSpaceSize()));
         using BScaleBufferType = decltype(make_static_buffer<AddressSpaceEnum::Vgpr, AccDataType>(
             b_scale_thread_desc.GetElementSpaceSize()));
-        StaticallyIndexedArray<AScaleBufferType, Number<2>{}> a_scale_thread_bufs;
-        StaticallyIndexedArray<BScaleBufferType, Number<2>{}> b_scale_thread_bufs;
+        StaticallyIndexedArray<AScaleBufferType, Number<1>{}> a_scale_thread_bufs;
+        StaticallyIndexedArray<BScaleBufferType, Number<1>{}> b_scale_thread_bufs;
         auto c_scale_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, AccDataType>(
             c_scale_thread_desc.GetElementSpaceSize());
 
@@ -461,12 +461,14 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
             });
         });
 
+        // Clear the first MFMA buffer
         static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
-            c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
-                .template AsType<AccDataType>()(Number<t>{}) = 0;
+            c_thread_buf_per_scale.GetVectorTypeReference(I0).template AsType<AccDataType>()(
+                Number<t>{}) = 0;
         });
 
-        // Fill first MFMA buffer
+        // Fill first MFMA buffer with index I0, this output used in the first part of main loop for
+        // scale-FMA
         static_for<0, KRepeat, 1>{}([&](auto k0) {
             vector_type<ComputeDataType, KPack> a_thread_vec;
             vector_type<ComputeDataType, KPack> b_thread_vec;
@@ -483,7 +485,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
 
             xdlops_gemm.template Run<>(a_thread_vec.template AsType<mfma_input_type>(),
                                        b_thread_vec.template AsType<mfma_input_type>(),
-                                       c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{}));
+                                       c_thread_buf_per_scale.GetVectorTypeReference(I0));
         });
 
         __builtin_amdgcn_sched_barrier(0);
@@ -494,7 +496,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
             index_t i = 0;
             do
             {
-                auto LoopFunc = [&](auto mfma_reg_buf, auto scale_buf_idx) {
+                auto LoopFunc = [&](auto mfma_reg_buf, auto scale_reg_buf) {
                     block_sync_lds();
                     a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
                     b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
@@ -510,7 +512,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
                                                 a_scale_grid_buf,
                                                 a_scale_thread_desc,
                                                 make_tuple(m0, I0),
-                                                a_scale_thread_bufs(scale_buf_idx));
+                                                a_scale_thread_bufs(I0));
                         a_scale_thread_copy.MoveSrcSliceWindow(
                             a_scale_grid_desc, a_scale_thread_copy_step.At(Number<0>{}));
                     });
@@ -530,7 +532,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
                                             b_scale_grid_buf,
                                             b_scale_thread_desc,
                                             make_tuple(I0, I0),
-                                            b_scale_thread_bufs(scale_buf_idx));
+                                            b_scale_thread_bufs(I0));
 
                     b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
                                                            b_scale_thread_copy_step);
@@ -575,20 +577,18 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
                             });
                             // Run the element-wise FMA with offset data from the above MFMA to
                             // break dependencies
-                            constexpr index_t
-                                c_offset = // TODO: this offset is wrong by one iteration?? keep an
-                                           // offset from previous iter
+                            constexpr index_t c_offset =
                                 c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
                             static_for<0, xdlops_gemm.GetRegSizePerXdlops() / 2, 1>{}([&](auto t) {
                                 using pk_fma_type = typename vector_type<AccDataType, 2>::type;
 
-                                constexpr auto scale_buf_idx_offset =
-                                    scale_buf_idx * xdlops_gemm.GetRegSizePerXdlops();
+                                constexpr auto scale_reg_buf_offset =
+                                    scale_reg_buf * xdlops_gemm.GetRegSizePerXdlops();
                                 c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
                                     .template AsType<pk_fma_type>()(t) = __builtin_elementwise_fma(
                                     c_thread_buf_per_scale // mfma output from previous iteration
-                                                           // (scale_buf_idx)
-                                        .GetVectorTypeReference(Number<scale_buf_idx_offset>{})
+                                                           // (scale_reg_buf)
+                                        .GetVectorTypeReference(Number<scale_reg_buf_offset>{})
                                         .template AsType<pk_fma_type>()[t],
                                     c_scale_thread_vec.template AsType<
                                         pk_fma_type>()[Number<0>{}], // scales c=a*b
@@ -619,64 +619,139 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
                     });
 
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
-                        c_scale_thread_buf(m0) = a_scale_thread_bufs[scale_buf_idx][m0] *
-                                                 b_scale_thread_bufs[scale_buf_idx][I0];
+                        c_scale_thread_buf(m0) =
+                            a_scale_thread_bufs[I0][m0] * b_scale_thread_bufs[I0][I0];
                     });
 
                     HotLoopScheduler();
                     __builtin_amdgcn_sched_barrier(0);
                 };
 
-                LoopFunc(I0, I1);
+                // in the first iteration of the hot loop, write MFMA into I1, and use the prefilled
+                // I0 for FMA/scaling
                 LoopFunc(I1, I0);
+                // we had MFMA just put into I1, now use I1 to do scaling, and write next MFMA into
+                // I0
+                LoopFunc(I0, I1);
 
                 i += 2;
             } while(i < (num_loop - 2));
         }
         __builtin_amdgcn_sched_barrier(0);
 
-        // tail
-        // if constexpr(TailNum == TailNumber::Full)
-        // {
-        //     static_for<0, MRepeat, 1>{}([&](auto m0) {
-        //         static_for<0, NRepeat, 1>{}([&](auto n0) {
-        //             static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
-        //                 c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
-        //                     .template AsType<AccDataType>()(Number<t>{}) = 0;
-        //             });
-        //             static_for<0, KRepeat, 1>{}([&](auto k0) {
-        //                 vector_type<ComputeDataType, KPack> a_thread_vec;
-        //                 vector_type<ComputeDataType, KPack> b_thread_vec;
+        /* The tail still needs to do the following:
+            (0) load last scales during MFMA into scale buffer I0
+            (1) we have data loaded into a_thread_buf and b_thread_buf for last MFMA -> compute MFMA
+           into I1 (2) we have MFMA output in I0 that needs still to be scaled with FMA (3) finally,
+           we do scaling with MFMA output in I1
+        */
+        if constexpr(TailNum == TailNumber::Full)
+        {
+            //// (0) load last scales into buffer I0
+            static_for<0, MRepeat, 1>{}([&](auto m0) {
+                a_scale_thread_copy.Run(a_scale_grid_desc,
+                                        a_scale_grid_buf,
+                                        a_scale_thread_desc,
+                                        make_tuple(m0, I0),
+                                        a_scale_thread_bufs(I0));
+                a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
+                                                       a_scale_thread_copy_step.At(Number<0>{}));
+            });
 
-        //                 static_for<0, KPack, 1>{}([&](auto ik) {
-        //                     a_thread_vec.template AsType<ComputeDataType>()(ik) =
-        //                         a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-        //                             make_tuple(m0, I0, k0, ik))>{}];
-        //                     b_thread_vec.template AsType<ComputeDataType>()(ik) =
-        //                         b_thread_buf[Number<b_thread_desc_.CalculateOffset(
-        //                             make_tuple(n0, I0, k0, ik))>{}];
-        //                 });
+            b_scale_thread_copy.Run(b_scale_grid_desc,
+                                    b_scale_grid_buf,
+                                    b_scale_thread_desc,
+                                    make_tuple(I0, I0),
+                                    b_scale_thread_bufs(I0));
 
-        //                 using mfma_input_type =
-        //                     typename vector_type<ComputeDataType, xdlops_gemm.K1PerXdlops>::type;
+            //// (1-3) do last MFMA and scaling FMAs
+            static_for<0, MRepeat, 1>{}([&](auto m0) {
+                vector_type<AccDataType, 2> c_scale_thread_vec;
+                c_scale_thread_vec.template AsType<AccDataType>()(Number<0>{}) =
+                    c_scale_thread_buf[m0];
+                c_scale_thread_vec.template AsType<AccDataType>()(Number<1>{}) =
+                    c_scale_thread_buf[m0];
 
-        //                 xdlops_gemm.template Run<>(
-        //                     a_thread_vec.template AsType<mfma_input_type>(),
-        //                     b_thread_vec.template AsType<mfma_input_type>(),
-        //                     c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{}));
-        //             });
-        //             static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
-        //                 constexpr index_t c_offset =
-        //                     c_thread_desc_.CalculateOffset(make_tuple(m0, n0, t));
-        //                 c_thread_buf(Number<c_offset>{}) +=
-        //                     c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
-        //                         .template AsType<AccDataType>()[Number<t>{}] *
-        //                     type_convert<AccDataType>(c_scale_thread_buf[m0]);
-        //             });
-        //         });
-        //     });
-        //     __builtin_amdgcn_sched_barrier(0);
-        // }
+                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                    //// (1) clear MFMA output I0 buffer
+                    static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
+                        c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
+                            .template AsType<AccDataType>()(Number<t>{}) = 0;
+                    });
+                    // (1) compute MFMA into I1 buffer
+                    static_for<0, KRepeat, 1>{}([&](auto k0) {
+                        vector_type<ComputeDataType, KPack> a_thread_vec;
+                        vector_type<ComputeDataType, KPack> b_thread_vec;
+
+                        static_for<0, KPack, 1>{}([&](auto ik) {
+                            a_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                a_thread_buf[Number<a_thread_desc_.CalculateOffset(
+                                    make_tuple(m0, I0, k0, ik))>{}];
+                            b_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                b_thread_buf[Number<b_thread_desc_.CalculateOffset(
+                                    make_tuple(n0, I0, k0, ik))>{}];
+                        });
+
+                        using mfma_input_type =
+                            typename vector_type<ComputeDataType, xdlops_gemm.K1PerXdlops>::type;
+
+                        // (1) MFMA into I1 buffer
+                        constexpr auto c_thread_idx_offset =
+                            Number<xdlops_gemm.GetRegSizePerXdlops()>{};
+                        xdlops_gemm.template Run<>(
+                            a_thread_vec.template AsType<mfma_input_type>(),
+                            b_thread_vec.template AsType<mfma_input_type>(),
+                            c_thread_buf_per_scale.GetVectorTypeReference(c_thread_idx_offset));
+                    });
+
+                    //// (2) Run the element-wise FMA with data from MFMA buffer I1
+                    constexpr auto c_offset = c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                    static_for<0, xdlops_gemm.GetRegSizePerXdlops() / 2, 1>{}([&](auto t) {
+                        using pk_fma_type = typename vector_type<AccDataType, 2>::type;
+
+                        constexpr auto c_thread_idx_offset = I0;
+                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                            .template AsType<pk_fma_type>()(t) = __builtin_elementwise_fma(
+                            c_thread_buf_per_scale // mfma output from previous iteration
+                                .GetVectorTypeReference(c_thread_idx_offset)
+                                .template AsType<pk_fma_type>()[t],
+                            c_scale_thread_vec
+                                .template AsType<pk_fma_type>()[Number<0>{}], // scales c=a*b
+                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                                .template AsType<pk_fma_type>()[t]);
+                    });
+
+                    //// (3) Run the final element-wise FMA with data from MFMA buffer I0
+
+                    // Get last scale for m0
+                    c_scale_thread_buf(m0) =
+                        a_scale_thread_bufs[I0][m0] * b_scale_thread_bufs[I0][I0];
+                    // vector_type<AccDataType, 2> c_scale_thread_vec;
+                    c_scale_thread_vec.template AsType<AccDataType>()(Number<0>{}) =
+                        c_scale_thread_buf[m0];
+                    c_scale_thread_vec.template AsType<AccDataType>()(Number<1>{}) =
+                        c_scale_thread_buf[m0];
+
+                    static_for<0, xdlops_gemm.GetRegSizePerXdlops() / 2, 1>{}([&](auto t) {
+                        using pk_fma_type = typename vector_type<AccDataType, 2>::type;
+
+                        // data in I1
+                        constexpr auto buf_idx_offset =
+                            Number<I1 * xdlops_gemm.GetRegSizePerXdlops()>{};
+                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                            .template AsType<pk_fma_type>()(t) = __builtin_elementwise_fma(
+                            c_thread_buf_per_scale.GetVectorTypeReference(buf_idx_offset)
+                                .template AsType<pk_fma_type>()[t],
+                            c_scale_thread_vec
+                                .template AsType<pk_fma_type>()[Number<0>{}], // scales c=a*b
+                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                                .template AsType<pk_fma_type>()[t]);
+                    });
+                });
+            });
+            __builtin_amdgcn_sched_barrier(0);
+        }
     }
 
     protected:
