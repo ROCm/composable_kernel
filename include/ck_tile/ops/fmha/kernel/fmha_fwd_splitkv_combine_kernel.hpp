@@ -37,7 +37,7 @@ struct FmhaFwdSplitKVCombineKernel
     template <> struct t2s<ck_tile::bf8_t> { static constexpr const char * name = "bf8"; };
     // clang-format on
 
-    __host__ static std::string GetName()
+    CK_TILE_HOST static std::string GetName()
     {
         // sync with generate.py
         // clang-format off
@@ -127,7 +127,7 @@ struct FmhaFwdSplitKVCombineKernel
     using Kargs = std::conditional_t<kIsGroupMode, GroupModeKargs, BatchModeKargs>;
 
     template <bool Cond = !kIsGroupMode>
-    __host__ static constexpr std::enable_if_t<Cond, Kargs>
+    CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
     MakeKargs(const void* lse_acc_ptr,
               const void* o_acc_ptr,
               void* lse_ptr,
@@ -185,7 +185,7 @@ struct FmhaFwdSplitKVCombineKernel
     }
 
     template <bool Cond = kIsGroupMode>
-    __host__ static constexpr std::enable_if_t<Cond, Kargs>
+    CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
     MakeKargs(const void* lse_acc_ptr,
               const void* o_acc_ptr,
               void* lse_ptr,
@@ -266,7 +266,17 @@ struct FmhaFwdSplitKVCombineKernel
         return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch);
     }
 
-    __host__ static constexpr auto BlockSize() { return dim3(kBlockSize); }
+    CK_TILE_HOST static dim3 BlockSize()
+    {
+        if(is_wave32())
+        {
+            return dim3(kBlockSize / 2);
+        }
+        else
+        {
+            return dim3(kBlockSize);
+        }
+    }
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
