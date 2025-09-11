@@ -92,7 +92,7 @@ int profile_gemm_multiply_multiply(int argc, char* argv[])
     using F32  = float;
     using BF16 = ck::bhalf_t;
     using F16  = ck::half_t;
-#if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || CK_USE_OCP_FP8 || CK_USE_FNUZ_FP8 || \
+#if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || CK_USE_OCP_FP8 || defined(CK_USE_GFX94) || \
     defined(CK_USE_WMMA_FP8)
     using F8 = ck::f8_t;
 #endif
@@ -167,8 +167,7 @@ int profile_gemm_multiply_multiply(int argc, char* argv[])
 
         return pass ? 0 : 1;
     };
-#if 0
-#if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || CK_USE_OCP_FP8 || CK_USE_FNUZ_FP8 || \
+#if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || CK_USE_OCP_FP8 || defined(CK_USE_GFX94) || \
     defined(CK_USE_WMMA_FP8)
     if(data_type == GemmDataType::F8_F8_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
@@ -181,7 +180,6 @@ int profile_gemm_multiply_multiply(int argc, char* argv[])
             F8{}, F8{}, F8{}, F32{}, F32{}, F32{}, F16{}, Row{}, Col{}, Row{}, Col{}, Row{});
     }
 #endif // CK_ENABLE_FP8
-#endif
     if(data_type == GemmDataType::INT8_INT8_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
         return profile(
