@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -142,7 +142,7 @@ struct ThreadwiseTensorSliceTransfer_v6r4
 
             auto dst_vector_container = dst_vector_type{};
 
-            // apply pointwise operation
+            // apply pointwise operation, assume src2's scalar is 1
             static_for<0, ScalarPerVector, 1>{}([&](auto i) {
                     element_op_(dst_vector_container.template AsType<DstData>()(i),
                         src0_vector_container.template AsType<Src0Data>()[i],    
