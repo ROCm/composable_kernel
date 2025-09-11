@@ -108,7 +108,7 @@ function(add_test_executable TEST_NAME)
     #only continue if there are some source files left on the list
     if(ARGN)
         if(ARGN MATCHES "_xdl")
-             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx10-3-generic)
+             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx1030 gfx10-3-generic)
         elseif(ARGN MATCHES "_wmma")
              list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx950)
         elseif(ARGN MATCHES "_smfmac")
