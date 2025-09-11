@@ -569,6 +569,11 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
 
     using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N(0, 0, 0, 0, {}))>;
 
+    // This struct is used to encapsulate functions related to preload Ds: 
+    // 1. set SrcSliceOrigin, 
+    // 2. copy data to vgpr, 
+    // 3. return origin when doing cshuffle, 
+    // 4. generate vgpr buffer description. 
     template <index_t idx, typename DGridDesc, typename SfcCdeBlock>
     struct DsBlockTransfer
     {
@@ -596,8 +601,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                 return Sequence<1, 1, 1, 1>{};
             }
         }();
-
-        __device__ static constexpr auto GetBuffSize() { return d_buff_desc.GetElementSpaceSize(); }
 
         __device__ constexpr DsBlockTransfer(const DGridDesc& d_grid_desc, const Index& src_origin)
             : d_buffer_transfer_(d_grid_desc, src_origin)
@@ -1874,13 +1877,13 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                                               make_multi_index(block_m_id, 0, block_n_id, 0));
         auto d0_thread_buf =
             make_static_buffer<AddressSpaceEnum::Vgpr, typename D0BlockTransfer::DDataType>(
-                d0_block_copy_to_vgpr.GetBuffSize());
+                d0_block_copy_to_vgpr.d_buff_desc.GetElementSpaceSize());
 
         D1BlockTransfer d1_block_copy_to_vgpr(ds_grid_desc_mblock_mperblock_nblock_nperblock[I1],
                                               make_multi_index(block_m_id, 0, block_n_id, 0));
         auto d1_thread_buf =
             make_static_buffer<AddressSpaceEnum::Vgpr, typename D1BlockTransfer::DDataType>(
-                d1_block_copy_to_vgpr.GetBuffSize());
+                d1_block_copy_to_vgpr.d_buff_desc.GetElementSpaceSize());
 
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
@@ -2079,7 +2082,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to write to LDS
                 block_sync_lds();
-
                 // each thread write its data from VGPR to LDS
                 c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                                               sfc_c_vgpr.GetIndexTupleOfNumber(access_id),
