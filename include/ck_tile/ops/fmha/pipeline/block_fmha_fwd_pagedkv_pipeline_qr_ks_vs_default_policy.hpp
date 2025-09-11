@@ -31,79 +31,33 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVSDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
 
         constexpr auto warp_gemm = []() {
-            constexpr index_t WarpGemmM = Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{});
-
-// TODO: generalize for MFMA and WMMA
-#if CK_TILE_USE_WMMA
-            if constexpr(((std::is_same_v<typename Problem::QDataType, half_t> &&
-                           std::is_same_v<typename Problem::KDataType, half_t>) ||
-                          (std::is_same_v<typename Problem::QDataType, bf16_t> &&
-                           std::is_same_v<typename Problem::KDataType, bf16_t>)) &&
+            if constexpr(get_warp_size() == 64 &&
+                         std::is_same_v<typename Problem::QDataType, fp8_t> &&
+                         std::is_same_v<typename Problem::KDataType, fp8_t> &&
                          std::is_same_v<typename Problem::SaccDataType, float>)
             {
-                static_assert(WarpGemmM == 16);
+                static_assert(Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}) == 32);
+                static_assert(Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}) == 32);
+                static_assert(Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}) == 32);
 
-                return WarpGemmDispatcher<typename Problem::QDataType,
-                                          typename Problem::KDataType,
-                                          typename Problem::SaccDataType,
-                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
-                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
-                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
-                                          true>{};
-            }
-            else if constexpr(((std::is_same_v<typename Problem::QDataType, fp8_t>) ||
-                               (std::is_same_v<typename Problem::QDataType, bf8_t>)) &&
-                              ((std::is_same_v<typename Problem::KDataType, fp8_t>) ||
-                               (std::is_same_v<typename Problem::KDataType, bf8_t>)) &&
-                              std::is_same_v<typename Problem::SaccDataType, float>)
-            {
-                static_assert(WarpGemmM == 16);
-
-                return WarpGemmDispatcher<typename Problem::QDataType,
-                                          typename Problem::KDataType,
-                                          typename Problem::SaccDataType,
-                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
-                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
-                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
-                                          true>{};
-            }
-#else
-            static_assert(WarpGemmM == 4 || WarpGemmM == 16 || WarpGemmM == 32);
-
-            if constexpr(std::is_same_v<typename Problem::QDataType, half_t> &&
-                         std::is_same_v<typename Problem::KDataType, half_t> &&
-                         std::is_same_v<typename Problem::SaccDataType, float>)
-            {
-                if constexpr(WarpGemmM == 32)
-                    return WarpGemmMfmaF16F16F32M32N32K16SwizzleBTransposedCDistribution{};
-                else if constexpr(WarpGemmM == 16)
-                    return WarpGemmMfmaF16F16F32M16N16K16TransposedCDistribution{};
-                else // WarpGemmM == 4
-                    return WarpGemmMfmaF16F16F32M4N64K16{};
-            }
-            else if constexpr(std::is_same_v<typename Problem::QDataType, bf16_t> &&
-                              std::is_same_v<typename Problem::KDataType, bf16_t> &&
-                              std::is_same_v<typename Problem::SaccDataType, float>)
-            {
-                if constexpr(WarpGemmM == 32)
-                    return WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleBTransposedCDistribution{};
-                else if constexpr(WarpGemmM == 16)
-                    return WarpGemmMfmaBf16Bf16F32M16N16K16TransposedCDistribution{};
-                else // WarpGemmM == 4
-                    return WarpGemmMfmaBf16Bf16F32M4N64K16{};
-            }
-            else if constexpr(std::is_same_v<typename Problem::QDataType, fp8_t> &&
-                              std::is_same_v<typename Problem::KDataType, fp8_t> &&
-                              std::is_same_v<typename Problem::SaccDataType, float>)
-            {
-                static_assert(WarpGemmM == 32);
-
-                // TODO: hard coded here. Otherwise, it may incorrect result
+                // TODO: hard coded here. Otherwise, it produces incorrect results
                 constexpr index_t swizzle_factor = 4;
                 return WarpGemmMfmaFp8Fp8F32M32N32K32SwizzleBTransposedCDistribution<
                     swizzle_factor>{};
-            } // TODO - bf8_t
-#endif
+            }
+            else
+            {
+                constexpr bool SwizzleA =
+                    Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}) == 32;
+                return WarpGemmDispatcher<typename Problem::QDataType,
+                                          typename Problem::KDataType,
+                                          typename Problem::SaccDataType,
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
+                                          true, // TransposeC
+                                          SwizzleA>{};
+            }
         }();
 
         using BlockGemmPolicy =
