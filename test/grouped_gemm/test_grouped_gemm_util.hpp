@@ -303,12 +303,19 @@ struct DeviceGroupedGemmSplitkInstanceWrapper
         {
             ggemm_instance.SetKBatchSize(&argument, kbatch);
         }
-
-        EXPECT_TRUE(ggemm_instance.IsSupportedArgument(argument));
-        auto invoker = ggemm_instance.MakeInvoker();
-        DeviceMem dev_gemm_kargs(ggemm_instance.GetDeviceKernelArgSize(&argument));
-        ggemm_instance.SetDeviceKernelArgs(&argument, dev_gemm_kargs.GetDeviceBuffer());
-        return invoker.Run(argument, StreamConfig{nullptr, false});
+        if(kbatch > 1 && ck::is_gfx11_supported())
+        {
+            EXPECT_FALSE(ggemm_instance.IsSupportedArgument(argument));
+            return 0;
+        }
+        else
+        {
+            EXPECT_TRUE(ggemm_instance.IsSupportedArgument(argument));
+            auto invoker = ggemm_instance.MakeInvoker();
+            DeviceMem dev_gemm_kargs(ggemm_instance.GetDeviceKernelArgSize(&argument));
+            ggemm_instance.SetDeviceKernelArgs(&argument, dev_gemm_kargs.GetDeviceBuffer());
+            return invoker.Run(argument, StreamConfig{nullptr, false});
+        }
     }
 };
 
