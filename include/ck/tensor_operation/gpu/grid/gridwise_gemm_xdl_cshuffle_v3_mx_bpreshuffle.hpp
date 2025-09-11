@@ -39,20 +39,22 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3_mx(typename GridwiseGemm::Argument karg)
 {
-#if defined(__gfx950__) && __HIP_DEVICE_COMPILE__
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+#if defined(__gfx950__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
+    {
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
+        auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
-    GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
-        karg.p_a_scale_grid + splitk_batch_offset.a_scale_k_split_offset,
-        karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-        karg.p_b_scale_grid + splitk_batch_offset.b_scale_k_split_offset,
-        karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
-        p_shared,
-        karg);
-
+        GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+            karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
+            karg.p_a_scale_grid + splitk_batch_offset.a_scale_k_split_offset,
+            karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
+            karg.p_b_scale_grid + splitk_batch_offset.b_scale_k_split_offset,
+            karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
+            p_shared,
+            karg);
+    }
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -71,24 +73,26 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3_mx(typename GridwiseGemm::Argument karg)
 {
-#if defined(__gfx950__) && __HIP_DEVICE_COMPILE__
-    // Pass two lds pointer is the key to tell compiler that ds_read/write
-    // operate on different lds chunk at same time without order dependecy
-    __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-    __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+#if defined(__gfx950__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
+    {
+        // Pass two lds pointer is the key to tell compiler that ds_read/write
+        // operate on different lds chunk at same time without order dependecy
+        __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
+        auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
-    GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
-        karg.p_a_scale_grid + splitk_batch_offset.a_scale_k_split_offset,
-        karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-        karg.p_b_scale_grid + splitk_batch_offset.b_scale_k_split_offset,
-        karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
-        p_shared_0,
-        p_shared_1,
-        karg);
-
+        GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+            karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
+            karg.p_a_scale_grid + splitk_batch_offset.a_scale_k_split_offset,
+            karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
+            karg.p_b_scale_grid + splitk_batch_offset.b_scale_k_split_offset,
+            karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
+            p_shared_0,
+            p_shared_1,
+            karg);
+    }
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -422,7 +426,9 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
 
     __host__ __device__ static auto MakeBGridDescriptor_Preshuffled(index_t N0, index_t K0)
     {
-        constexpr index_t NkSwizzleNumber = Number<WarpSize * KPack>{};
+        constexpr index_t MWave           = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t WaveSize        = BlockSize / (MWave * NWave);
+        constexpr index_t NkSwizzleNumber = Number<WaveSize * KPack>{};
         return make_naive_tensor_descriptor_packed(
             make_tuple(N0 / NWave / NXdlPack, NWave, NXdlPack, K0, NkSwizzleNumber));
     }
@@ -666,9 +672,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
               AK0{CalculateAK0Padded(K_, KBatch_)},
               BK0{CalculateBK0Padded(K_, KBatch_)},
               MBlock{CalculateMBlock(M_)},
-              NBlock{CalculateNBlock(N_)},
-              BN0Shuffled{CalculateBN0Shuffled(N_)},
-              BK0Shuffled{CalculateBK0Shuffled(K_)}
+              NBlock{CalculateNBlock(N_)}
         {
         }
 
@@ -700,9 +704,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
         index_t BK0;
         index_t MBlock;
         index_t NBlock;
-        // FOR PRESHUFFLE ONLY
-        index_t BN0Shuffled;
-        index_t BK0Shuffled;
     };
 
     // Argument
@@ -836,6 +837,9 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
 
     __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
+        constexpr index_t MWave    = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t WaveSize = BlockSize / (MWave * NWave);
+
         // A matrix in LDS memory, dst of blockwise copy
         if constexpr(ABlockLdsExtraM || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
         {
@@ -867,9 +871,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
             // kfold and mpair dimension is not always required.
             // more dimension in merge_transform increase the difficulty of generating immarg offset
             // for compiler.
-            constexpr auto WaveSize = 64;
-            constexpr auto M0       = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I1);
-            constexpr auto M1       = MPerBlock / M0;
+            constexpr auto M0 = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I1);
+            constexpr auto M1 = MPerBlock / M0;
 
             constexpr auto KThreadWrite     = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I0);
             constexpr auto K0PerThreadWrite = AK0Number / KThreadWrite;
@@ -1027,6 +1030,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
         return math::max(a_block_space_size_aligned * sizeof(ADataType),
                          c_block_size * sizeof(CShuffleDataType));
     }
+
+    IS_VALID_COMPILATION_PARAMETER_IMPL(CDataType)
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     __host__ static constexpr bool CheckValidity(const Argument& karg)
@@ -2271,10 +2276,12 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
                                     void* p_shared_1,
                                     const Problem& problem)
     {
+        index_t BN0Shuffled              = CalculateBN0Shuffled(problem.N);
+        index_t BK0Shuffled              = CalculateBK0Shuffled(problem.K);
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
             problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
         const auto b_grid_desc_bk0_n_bk1 =
-            MakeBGridDescriptor_Preshuffled(problem.BN0Shuffled, problem.BK0Shuffled);
+            MakeBGridDescriptor_Preshuffled(BN0Shuffled, BK0Shuffled);
 
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(
             problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideC);

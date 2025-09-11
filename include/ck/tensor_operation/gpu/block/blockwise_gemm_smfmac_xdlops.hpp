@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -49,7 +49,9 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    static constexpr index_t WaveSize = get_warp_size();
+    static constexpr index_t MWaves   = MPerBlock / (MRepeat * MPerXDL);
+    static constexpr index_t NWaves   = NPerBlock / (NRepeat * NPerXDL);
+    static constexpr index_t WaveSize = BlockSize / MWaves / NWaves;
 
     static constexpr index_t MPerBlock = AK0MK1BlockDesc{}.GetLength(I1);
     static constexpr index_t NPerBlock = BK0NK1BlockDesc{}.GetLength(I1);
@@ -65,9 +67,6 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
         SparseXdlopsGemm<ComputeTypeA, MPerXDL, NPerXDL, KPack, ComputeTypeB>{};
 
     static constexpr index_t KPerThread = KPerBlock / xdlops_gemm.K0PerXdlops;
-
-    static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
-    static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
 
     StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr,
                               FloatAcc,
@@ -158,6 +157,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
     __host__ __device__ BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1()
     {
+#if defined(__HIP_DEVICE_COMPILE__)
         static_assert(AK0MK1BlockDesc::IsKnownAtCompileTime() &&
                           BK0NK1BlockDesc::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
@@ -173,6 +173,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
         static_assert(
             KPack % (16 * sizeof(ComputeTypeA)) == 0,
             "KPack must be divisbile by number of elements processed in single smfmac instruction");
+#endif
     }
 
     __host__ __device__ static constexpr auto GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2()

@@ -162,9 +162,15 @@ CK_TILE_HOST_DEVICE static void print(const tensor_descriptor<Transforms,
 {
     printf("tensor_descriptor{\n");
     // first print the tensor adaptor part of the descriptor using the base class print
-    print(static_cast<const typename decltype(descriptor)::Base&>(descriptor));
-    printf("element_space_size_: %ld,\n",
-           static_cast<long>(descriptor.get_element_space_size().value));
+    using Base = typename tensor_descriptor<Transforms,
+                                            LowerDimensionHiddenIdss,
+                                            UpperDimensionHiddenIdss,
+                                            TopDimensionHiddenIds,
+                                            ElementSpaceSize,
+                                            GuaranteedVectorLengths,
+                                            GuaranteedVectorStrides>::Base;
+    print(static_cast<const Base&>(descriptor));
+    printf("element_space_size_: %ld,\n", static_cast<long>(descriptor.get_element_space_size()));
     printf("guaranteed_vector_lengths: ");
     print(GuaranteedVectorLengths{});
     printf(",\nguaranteed_vector_strides: ");

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -207,6 +207,22 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             SharedMemTrait::c_block_space_size * sizeof(FloatCShuffle);
 
         return math::max(gemm0_bytes_end, gemm1_bytes_end, softmax_bytes_end, c_block_bytes_end);
+    }
+
+    template <
+        InMemoryDataOperationEnum CGlobalMemoryDataOperation_ = InMemoryDataOperationEnum::Set>
+    __device__ static bool constexpr IsValidCompilationParameter()
+    {
+        return ck::tensor_operation::device::IsValidGemmCompilationParameter<
+            BlockSize,
+            MPerBlock,
+            NPerBlock,
+            MPerXdl,
+            NPerXdl,
+            MXdlPerWave,
+            NXdlPerWave,
+            FloatC,
+            CGlobalMemoryDataOperation>();
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
@@ -570,17 +586,32 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         constexpr auto A1ThreadSlice_K0_M_K1 =
             make_tuple(Number<Gemm1KPerBlock / n4 / AccN3>{}, Number<m0 * m1 * m2>{}, Number<n4>{});
 
-        constexpr auto A1ThreadSliceK0        = A1ThreadSlice_K0_M_K1[I0];
-        constexpr auto A1ThreadSliceM         = A1ThreadSlice_K0_M_K1[I1];
-        constexpr auto A1ThreadSliceK1        = A1ThreadSlice_K0_M_K1[I2];
+        constexpr auto A1ThreadSliceK0 = A1ThreadSlice_K0_M_K1[I0];
+        constexpr auto A1ThreadSliceM  = A1ThreadSlice_K0_M_K1[I1];
+        constexpr auto A1ThreadSliceK1 = A1ThreadSlice_K0_M_K1[I2];
+
+        // A1 matrix blockwise copy
+#if defined(__gfx11__)
+        constexpr auto a1_thread_desc_k0_m_k1 = make_naive_tensor_descriptor_packed(
+            make_tuple(A1ThreadSliceK0, A1ThreadSliceM, Number<A1ThreadSliceK1 * 2>{}));
+        auto a1_blockwise_copy = ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow<
+            FloatGemmAcc,
+            FloatAB,
+            decltype(acc_thread_desc_k0_m_k1),
+            decltype(a1_thread_desc_k0_m_k1),
+            tensor_operation::element_wise::PassThrough,
+            Sequence<A1ThreadSliceK0, A1ThreadSliceM, A1ThreadSliceK1>,
+            Sequence<1, 0, 2>,
+            2,
+            n4,
+            0x76543210,
+            0xfedcba98,
+            false>{make_tuple(0, 0, 0)};
+        static_assert(n4 == A1ThreadSliceK1);
+#else
         constexpr auto a1_thread_desc_k0_m_k1 = make_naive_tensor_descriptor(
             A1ThreadSlice_K0_M_K1,
             make_tuple(A1ThreadSliceM * A1ThreadSliceK1, A1ThreadSliceK1, I1));
-
-        // B1 matrix in LDS memory, dst of blockwise copy
-        constexpr auto b1_block_desc_bk0_n_bk1 = GetB1BlockDescriptor_BK0PerBlock_NPerBlock_BK1();
-
-        // A1 matrix blockwise copy
         auto a1_blockwise_copy = ThreadwiseTensorSliceTransfer_StaticToStatic<
             FloatGemmAcc,
             FloatAB,
@@ -591,6 +622,10 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             Sequence<1, 0, 2>,
             2,
             n4>{tensor_operation::element_wise::PassThrough{}};
+#endif
+
+        // B1 matrix in LDS memory, dst of blockwise copy
+        constexpr auto b1_block_desc_bk0_n_bk1 = GetB1BlockDescriptor_BK0PerBlock_NPerBlock_BK1();
 
         // B1 matrix blockwise copy
         auto b1_blockwise_copy =
@@ -640,9 +675,13 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         // with 'group_size' amount of contiguous elements. Having Gemm1KPack greater than A1K1 will
         // cause mismatch in summation index for example c[0:7] = a1[[0:3, 8:11]] * b1[0:7].
         // therefore we may just as well assign Gemm1KPack = group_size
-
+#if defined(__gfx11__)
+        constexpr index_t Gemm1KPack =
+            MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.group_size * 2;
+#else
         constexpr index_t Gemm1KPack =
             MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.group_size;
+#endif
 
         auto gemm1_blockwise_gemm = BlockwiseGemmXdlops_v2<
             BlockSize,
@@ -716,8 +755,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                                   decltype(thread_slice_desc_m_n)>{};
 
         const index_t num_gemm1_k_block_outer_loop =
-            b_grid_desc_bk0_n_bk1.GetLength(I1) / NPerBlock;
-        constexpr index_t num_gemm1_k_block_inner_loop = NPerBlock / Gemm1KPerBlock;
+            b_grid_desc_bk0_n_bk1.GetLength(I1) / NPerBlock * Gemm0NWaves;
+        constexpr index_t num_gemm1_k_block_inner_loop = NPerBlock / Gemm1KPerBlock / Gemm0NWaves;
 
         // Initialize C
         StaticBuffer<AddressSpaceEnum::Vgpr, FloatGemmAcc, acc1_thread_buf.Size(), true>

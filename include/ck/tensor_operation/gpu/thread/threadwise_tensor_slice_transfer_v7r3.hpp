@@ -165,6 +165,9 @@ struct ThreadwiseTensorSliceTransfer_v7r3
 
                 oob_val = oob_val & is_src_valid;
 
+                // TODO: With column-major matrices this step restricts the transferred tensor slice
+                // to just one element, which consequently prevents using atomic operations if the
+                // matrix data type is on 16 bits.
                 if constexpr(SrcScalarPerVectors{}[i] == 1)
                 {
                     auto data_types = SrcDatas{};

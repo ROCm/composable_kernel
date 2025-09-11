@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -24,11 +24,15 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
     kernel_gemm_xdl_cshuffle_v1(typename GridwiseGemm::Argument karg)
 {
-#if(defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__))
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx11__) || \
+    defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
+    {
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(
-        karg.p_a_grid, karg.p_b_grid, karg.p_c_grid, p_shared, karg);
+        GridwiseGemm::template Run<HasMainKBlockLoop>(
+            karg.p_a_grid, karg.p_b_grid, karg.p_c_grid, p_shared, karg);
+    }
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
@@ -48,10 +52,15 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                 FloatC* __restrict__ p_c_grid,
                                 typename GridwiseGemm::Problem problem)
 {
-#if(defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__))
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx11__) || \
+    defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
+    {
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid, p_b_grid, p_c_grid, p_shared, problem);
+        GridwiseGemm::template Run<HasMainKBlockLoop>(
+            p_a_grid, p_b_grid, p_c_grid, p_shared, problem);
+    }
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
@@ -540,6 +549,22 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         return math::max((a_block_space_size_aligned * sizeof(ComputeTypeA) +
                           b_block_space_size_aligned * sizeof(ComputeTypeB)),
                          c_block_size * sizeof(FloatCShuffle));
+    }
+
+    template <
+        InMemoryDataOperationEnum CGlobalMemoryDataOperation_ = InMemoryDataOperationEnum::Set>
+    __device__ static bool constexpr IsValidCompilationParameter()
+    {
+        return ck::tensor_operation::device::IsValidGemmCompilationParameter<
+            BlockSize,
+            MPerBlock,
+            NPerBlock,
+            MPerXdl,
+            NPerXdl,
+            MXdlPerWave,
+            NXdlPerWave,
+            FloatC,
+            CGlobalMemoryDataOperation>();
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
