@@ -10,16 +10,12 @@ from pathlib import Path
 from typing import List
 
 HSTU_COPYRIGHT_HEADER = """
-/*
-  Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree.
- *
- * The file is automatically generated, don't modify!
- * See the generator script
- * `{file}`
- */
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+
+// The file is automatically generated, don't modify!
+// See the generator script
+// `{file}`
 """.format(
     file=os.path.relpath(os.path.realpath(__file__), start=Path(__file__).parents[4])
 )
