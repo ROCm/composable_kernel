@@ -82,8 +82,5 @@
             false
         ]
     }
-  },
-  "tunable_params": {
-    "kBlockPerCu": 2
   }
 }

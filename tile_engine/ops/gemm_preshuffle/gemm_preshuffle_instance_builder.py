@@ -113,9 +113,10 @@ class GemmPreshuffleKernelBuilder:
             "structured_sparsity": ["false"],
             "padding": {"pad_m": ["false"], "pad_n": ["false"], "pad_k": ["false"]},
             "persistent": ["false"],
-            "tunable_params": {
-                "kBlockPerCu": 2,
-            },
+            # [TODO] kBlockPerCu parameter should be configarable
+            # "tunable_params": {
+            #     "kBlockPerCu": 2,
+            # },
         }
 
     def write_kernel_list(self):

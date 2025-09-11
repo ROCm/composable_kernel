@@ -30,7 +30,7 @@ inline auto create_args(int argc, char* argv[])
         .insert("stride_c", "0", "The stride value for tensor C. Default is 0.")
         .insert("split_k", "1", "The split value for k dimension. Default is 1.")
         .insert("verify",
-                "0",
+                "2",
                 "The type of validation. Set to 0 for no validation, 1 for validation on CPU, or 2 "
                 "for validation on GPU. Default is 0, no validation.")
         .insert("log",

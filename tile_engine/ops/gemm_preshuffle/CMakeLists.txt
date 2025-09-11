@@ -101,9 +101,9 @@ function(create_individual_gemm_preshuffle_target datatype layout trait tile_con
     list(GET trait_parts 1 epilogue)
     list(GET trait_parts 2 scheduler)
     
-    add_dependencies(benchmark_gemm_preshuffle_${pipeline} ${target_name})
-    add_dependencies(benchmark_gemm_preshuffle_${epilogue} ${target_name})
-    add_dependencies(benchmark_gemm_preshuffle_${scheduler} ${target_name})
+    add_dependencies(benchmark_gemm_preshuffle_${pipeline}_pipeline ${target_name})
+    add_dependencies(benchmark_gemm_preshuffle_${epilogue}_epilogue ${target_name})
+    add_dependencies(benchmark_gemm_preshuffle_${scheduler}_scheduler ${target_name})
 endfunction()
 
 # Function to build individual GEMM Preshuffle targets
@@ -272,18 +272,18 @@ else()
     # These are common trait components used across all GEMM kernels
     set(GEMM_PRESHUFFLE_PIPELINES "preshufflev1;preshufflev2")
     set(GEMM_PRESHUFFLE_EPILOGUES "default;cshuffle")
-    set(GEMM_PRESHUFFLE_SCHEDULERS "intrawave;interwave") 
+    set(GEMM_PRESHUFFLE_SCHEDULERS "intrawave;interwave;default") 
 
     foreach(pipeline IN LISTS GEMM_PRESHUFFLE_PIPELINES)
-        add_custom_target(benchmark_gemm_preshuffle_${pipeline})
+        add_custom_target(benchmark_gemm_preshuffle_${pipeline}_pipeline)
     endforeach()
 
     foreach(epilogue IN LISTS GEMM_PRESHUFFLE_EPILOGUES)
-        add_custom_target(benchmark_gemm_preshuffle_${epilogue})
+        add_custom_target(benchmark_gemm_preshuffle_${epilogue}_epilogue)
     endforeach()
 
     foreach(scheduler IN LISTS GEMM_PRESHUFFLE_SCHEDULERS)
-        add_custom_target(benchmark_gemm_preshuffle_${scheduler})
+        add_custom_target(benchmark_gemm_preshuffle_${scheduler}_scheduler)
     endforeach()
 
     # Build individual targets for each datatype/layout combination
