@@ -240,8 +240,10 @@ struct FmhaFwdSplitKVCombineKernel
                                                 ck_tile::index_t max_seqlen_q,
                                                 ck_tile::index_t hdim_v)
     {
+        // Recalculate kM0 = get_warp_size() / NThreads on host
+        const index_t m0 = (is_wave32() ? 32 : 64) / FmhaPipeline::Problem::NThreads;
         // TODO: this may need tuning
-        return dim3(ck_tile::integer_divide_ceil(max_seqlen_q, FmhaPipeline::kM0) *
+        return dim3(ck_tile::integer_divide_ceil(max_seqlen_q, m0) *
                         ck_tile::integer_divide_ceil(hdim_v, FmhaPipeline::kN1),
                     nhead,
                     batch_size);

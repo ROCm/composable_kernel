@@ -204,6 +204,7 @@ struct BlockFmhaSplitKVCombinePipelineProblem
 
     using BaseType::kM0;
     using BaseType::kN1;
+    using BaseType::NThreads;
 
     static_assert(kN1 <= kHeadDimV && kHeadDimV % kN1 == 0);
 
