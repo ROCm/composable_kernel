@@ -100,7 +100,7 @@ struct GroupedConvFwdKernelArgs
         // Get the actual split N from transformer
         n_per_split = conv_to_gemm_transformer.GetN();
         original_n  = conv_to_gemm_transformer.GetOriginalN();
-        n_splits    = (original_n + n_per_split - 1) / n_per_split; // Calculate number of splits
+        n_splits    = ck_tile::integer_divide_ceil(original_n, n_per_split);
 
         // Calculate batch strides for NWGC layout
         input_batch_stride  = args.C_ * args.input_spatial_lengths_[0];
@@ -191,7 +191,7 @@ struct GroupedConvFwdKernelArgs
         // Get the actual split N from transformer
         n_per_split = conv_to_gemm_transformer.GetN();
         original_n  = conv_to_gemm_transformer.GetOriginalN();
-        n_splits    = (original_n + n_per_split - 1) / n_per_split; // Calculate number of splits
+        n_splits    = ck_tile::integer_divide_ceil(original_n, n_per_split);
 
         // Calculate batch strides for NHWGC layout
         input_batch_stride =
@@ -292,7 +292,7 @@ struct GroupedConvFwdKernelArgs
         // Get the actual split N from transformer
         n_per_split = conv_to_gemm_transformer.GetN();
         original_n  = conv_to_gemm_transformer.GetOriginalN();
-        n_splits    = (original_n + n_per_split - 1) / n_per_split; // Calculate number of splits
+        n_splits    = ck_tile::integer_divide_ceil(original_n, n_per_split);
 
         // Calculate batch strides for NDHWGC layout
         input_batch_stride = args.C_ * args.input_spatial_lengths_[0] *
@@ -447,10 +447,8 @@ struct GroupedConvolutionForwardKernel
 
     CK_TILE_HOST static auto GridSize(const GroupedConvFwdKernelArgsSpecialized& kargs)
     {
-        // Ensure n_splits is at least 1 (defensive programming)
-        const index_t grid_z = (kargs.n_splits == 0 || kargs.n_splits > 1024) ? 1 : kargs.n_splits;
-
-        return dim3(TilePartitioner::GridSize(kargs.GemmM, kargs.GemmN), kargs.GemmBatch, grid_z);
+        return dim3(
+            TilePartitioner::GridSize(kargs.GemmM, kargs.GemmN), kargs.GemmBatch, kargs.n_splits);
     }
 
     CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
@@ -832,22 +830,16 @@ struct GroupedConvolutionForwardKernel
         const auto group_offset_c = __builtin_amdgcn_readfirstlane(kargs.group_stride_c * blockIdY);
 
         // Split-N handling: Get which split this workgroup handles
-        const auto blockIdZ    = __builtin_amdgcn_readfirstlane(blockIdx.z);
-        const index_t split_id = blockIdZ;
+        const auto blockIdZ = __builtin_amdgcn_readfirstlane(blockIdx.z);
 
         // Calculate batch offset for this split
-        const index_t batch_offset = split_id * kargs.n_per_split;
-
-        // Check if this split is valid
-        // With exact divisors, this should never happen, but keep as safety check
-        if(batch_offset >= kargs.original_n)
-        {
-            return;
-        }
+        const index_t batch_offset = __builtin_amdgcn_readfirstlane(blockIdZ * kargs.n_per_split);
 
         // Calculate memory offsets for this split
-        const index_t input_batch_offset  = batch_offset * kargs.input_batch_stride;
-        const index_t output_batch_offset = batch_offset * kargs.output_batch_stride;
+        const index_t input_batch_offset =
+            __builtin_amdgcn_readfirstlane(batch_offset * kargs.input_batch_stride);
+        const index_t output_batch_offset =
+            __builtin_amdgcn_readfirstlane(batch_offset * kargs.output_batch_stride);
 
         // Adjust pointers: combine group offset and batch offset
         const InDataType* a_ptr =
