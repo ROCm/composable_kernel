@@ -8,6 +8,7 @@ namespace tensor_layout {
 
 struct BaseTensorLayout
 {
+    static constexpr const char* name = "BaseTensorLayout";
 };
 
 namespace gemm {
@@ -27,6 +28,13 @@ struct MFMA : public BaseTensorLayout
     static constexpr const char* name = "MFMA";
 };
 
+// if creating a new gemm layout, please also update is_gemm_layout
+template <typename Layout>
+struct is_gemm_layout : std::false_type {};
+
+template <> struct is_gemm_layout<RowMajor> : std::true_type {};
+template <> struct is_gemm_layout<ColumnMajor> : std::true_type {};
+template <> struct is_gemm_layout<MFMA> : std::true_type {};
 } // namespace gemm
 
 namespace convolution {

@@ -129,29 +129,63 @@ struct HostTensorDescriptor
         assert(mLens.size() == mStrides.size());
 
         if(mLens.empty())
+            // TBD: should we throw error for 0-dim tensor?
             return;
 
         if constexpr (std::is_same_v<ck::tensor_layout::BaseTensorLayout, Layout>)
         {
-            static_cast<void>(layout);
-            std::cerr << "Warning: Tensor layout is undefined." << std::endl;
+            // TBD: should we throw error instead of warning?
+            // Currently, any legacy code that doesn't pass layout to HostTensorDescriptor ctor will hit this case.
+            // Initialy can do warning, run all tests to identify where HostTensorDescriptor ctor is called without layout.
+            // Once all places are fixed, can change to throw error.
+            std::cerr << "Warning: Abstract tensor layout BaseTensorLayout can't be verified. Pls pass specific tensor layout to HostTensorDescriptor." << std::endl;
             return;
         }
-        if constexpr (std::is_same_v<ck::tensor_layout::gemm::RowMajor, Layout>)
+
+        // GEMM cases
+        if constexpr (ck::tensor_layout::gemm::is_gemm_layout<Layout>::value)
         {
-            std::cout << "Row" << std::endl;
-            if(mStrides[0] < mLens[1])
+            if constexpr (std::is_same_v<ck::tensor_layout::gemm::RowMajor, Layout> || std::is_same_v<ck::tensor_layout::gemm::ColumnMajor, Layout>)
+            {
+                // The logic here assumes the GEMM with tensor of more than 2 dims, will always have HW dimesnsions as the inner ones
+                // e.g. batched GEMM is either BHW or BWH, so we check at the inner two dimensions only.
+                const auto n_dims = mLens.size();
+                const auto inner_idx = std::is_same_v<ck::tensor_layout::gemm::RowMajor, Layout> ? n_dims - 1 : n_dims - 2;
+                const auto outer_idx = inner_idx == n_dims - 1 ? n_dims - 2 : n_dims - 1;
+
+                if (mStrides[outer_idx] < mLens[inner_idx] * mStrides[inner_idx])
+                {
+                    std::ostringstream oss;
+                    oss << "Invalid strides for " << layout << ": "
+                        << "mLens: " << mLens << ", mStrides: " << mStrides;
+                    throw std::runtime_error(oss.str());
+                }
+            }
+            else
             {
                 std::ostringstream oss;
-                oss << "Invalid strides for " << layout.name << ": "
-                    << "mLens: " << mLens << ", mStrides: " << mStrides;
+                oss << "Error: Unsupported GEMM layout: " << layout;
                 throw std::runtime_error(oss.str());
             }
         }
+        #if 0
+        // TBD: is_convolution_layout is not implemented yet
+        else if constexpr (ck::tensor_layout::gemm::is_convolution_layout<Layout>::value)
+        {
+            // TBD: implement verification for Conv layouts
+            // For now, just print warning and return
+            std::cerr << "Warning: Tensor layout verification for Convolutions is not supported yet." << std::endl;
+            return;
+        }
+        #endif
         else
         {
-            std::cout << "Col" << std::endl;
-        }    
+            // TBD: if desired, a new "bypass" layout can be added to skip the error, e.g.
+            //     if constexpr (std::is_same_v<ck::tensor_layout::BypassLayoutVerfication, Layout>) { return; }
+            std::ostringstream oss;
+            oss << "Error: Tensor layout verification for " << layout << " is not supported yet.";
+            throw std::runtime_error(oss.str());
+        }
     }
 
     template <typename X, typename = std::enable_if_t<std::is_convertible_v<X, std::size_t>>, 
@@ -438,13 +472,10 @@ struct Tensor
     {
         if constexpr(ck::is_packed_type_v<ck::remove_cvref_t<T>>)
         {
-            std::cout << "packed_size_v<T>:" << ck::packed_size_v<ck::remove_cvref_t<T>>
-                      << std::endl;
             return (mDesc.GetElementSpaceSize() + 1) / ck::packed_size_v<ck::remove_cvref_t<T>>;
         }
         else
         {
-            std::cout << "not packed " << std::endl;
             return mDesc.GetElementSpaceSize();
         }
     }
