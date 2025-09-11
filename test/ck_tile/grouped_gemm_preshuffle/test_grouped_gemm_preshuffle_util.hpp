@@ -94,18 +94,15 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
         return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg);
     }
 
-    template <typename GemmConfig, typename T>
+    template <typename T>
     auto shuffle_b(const ck_tile::HostTensor<T>& t)
     {
         assert(t.get_lengths().size() == 2);
         int n_                = t.get_lengths()[1];
         int k_                = t.get_lengths()[0];
-        constexpr int divisor = GemmConfig::N_Warp_Tile == 32 ? 2 : 4;
-        ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
-                                       GemmConfig::N_Warp_Tile,
-                                       k_ / GemmConfig::K_Warp_Tile,
-                                       divisor,
-                                       GemmConfig::K_Warp_Tile / divisor});
+        constexpr int divisor = N_Warp_Tile == 32 ? 2 : 4;
+        ck_tile::HostTensor<T> t_view(
+            {n_ / N_Warp_Tile, N_Warp_Tile, k_ / K_Warp_Tile, divisor, K_Warp_Tile / divisor});
         std::copy(t.begin(), t.end(), t_view.begin());
         return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
     }
@@ -317,7 +314,7 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
             ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensors[i]);
 
             // Host-side preshuffle of B
-            auto b_shuffle_host = shuffle_b<KernelParam>(b_k_n_tensors[i]);
+            auto b_shuffle_host = shuffle_b(b_k_n_tensors[i]);
 
             a_m_k_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
                 a_m_k_tensors[i].get_element_space_size_in_bytes()));
