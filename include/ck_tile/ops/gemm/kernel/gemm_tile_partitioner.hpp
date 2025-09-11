@@ -265,6 +265,32 @@ struct GemmSpatiallyLocalTilePartitioner
         return integer_divide_ceil(K, KPerBlock);
     }
 
+    CK_TILE_HOST_DEVICE static auto RemapXCD(int pid, int GRID_MN, int NUM_XCDS = 8) {
+        // Number of pids per XCD in the new arrangement
+        int pids_per_xcd = (GRID_MN + NUM_XCDS - 1) / NUM_XCDS;
+
+        // When GRID_MN cannot divide NUM_XCDS, some xcds will have
+        // pids_per_xcd pids, the other will have pids_per_xcd - 1 pids.
+        // We calculate the number of xcds that have pids_per_xcd pids as tall_xcds
+        int tall_xcds = GRID_MN % NUM_XCDS;
+        tall_xcds = (tall_xcds == 0) ? NUM_XCDS : tall_xcds;
+
+        // Compute current XCD and local pid within the XCD
+        int xcd = pid % NUM_XCDS;
+        int local_pid = pid / NUM_XCDS;
+
+        // Calculate new pid based on the new grouping
+        if (xcd < tall_xcds) {
+            pid = xcd * pids_per_xcd + local_pid;
+        } else {
+            pid = tall_xcds * pids_per_xcd
+                + (xcd - tall_xcds) * (pids_per_xcd - 1)
+                + local_pid;
+        }
+
+        return pid;
+    }
+
     /**
      * @brief Calculate workgroup 1D index mapping into 2D output C-tile space.
      *
@@ -276,6 +302,7 @@ struct GemmSpatiallyLocalTilePartitioner
     {
         const auto M0 = integer_divide_ceil(M, MPerBlock);
         const auto N0 = integer_divide_ceil(N, NPerBlock);
+        // index_t block_1d_id = RemapXCD(_block_1d_id, M0 * N0)
 
         if(M0 == 1)
         {
