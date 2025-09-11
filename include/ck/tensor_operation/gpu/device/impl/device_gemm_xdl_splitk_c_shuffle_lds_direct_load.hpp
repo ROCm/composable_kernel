@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -70,12 +70,17 @@ struct DeviceGemmXdlSplitKCShuffle_LdsDirectLoad : public DeviceGemmSplitK<ALayo
                                                                            CElementwiseOperation,
                                                                            ComputeType>
 {
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
+
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
 
-    using GridwiseGemm = GridwiseGemm_xdlops_splitk_lds_direct_load<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = GridwiseGemm_xdlops_splitk_lds_direct_load<
         BlockSize,
         ADataType,
         BDataType,
@@ -96,7 +101,7 @@ struct DeviceGemmXdlSplitKCShuffle_LdsDirectLoad : public DeviceGemmSplitK<ALayo
         NPerXDL,
         K1,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWave_,
         ABlockTransferThreadClusterLengths_K0_M_K1,
         ABlockTransferSrcAccessOrder,
         ABlockTransferSrcVectorDim,
@@ -114,8 +119,10 @@ struct DeviceGemmXdlSplitKCShuffle_LdsDirectLoad : public DeviceGemmSplitK<ALayo
         LoopSched,
         PipelineVer,
         ComputeType>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
-    struct Argument : public GridwiseGemm::Argument
+    struct Argument : public GridwiseGemm64::Argument
     {
         Argument(const ADataType* p_a_grid_,
                  const BDataType* p_b_grid_,
@@ -134,20 +141,20 @@ struct DeviceGemmXdlSplitKCShuffle_LdsDirectLoad : public DeviceGemmSplitK<ALayo
                  AElementwiseOperation a_element_op_,
                  BElementwiseOperation b_element_op_,
                  CElementwiseOperation c_element_op_)
-            : GridwiseGemm::Argument(p_a_grid_,
-                                     p_b_grid_,
-                                     p_c_grid_,
-                                     M_,
-                                     N_,
-                                     K_,
-                                     StrideA_,
-                                     StrideB_,
-                                     StrideC_,
-                                     MPadded_,
-                                     NPadded_,
-                                     KPadded_,
-                                     K0Padded_,
-                                     k_batch_),
+            : GridwiseGemm64::Argument(p_a_grid_,
+                                       p_b_grid_,
+                                       p_c_grid_,
+                                       M_,
+                                       N_,
+                                       K_,
+                                       StrideA_,
+                                       StrideB_,
+                                       StrideC_,
+                                       MPadded_,
+                                       NPadded_,
+                                       KPadded_,
+                                       K0Padded_,
+                                       k_batch_),
               a_element_op(a_element_op_),
               b_element_op(b_element_op_),
               c_element_op(c_element_op_)
@@ -159,15 +166,19 @@ struct DeviceGemmXdlSplitKCShuffle_LdsDirectLoad : public DeviceGemmSplitK<ALayo
         CElementwiseOperation c_element_op;
     };
 
-    using DefaultBlock2CTileMap = typename GridwiseGemm::DefaultBlock2CTileMap;
+    using DefaultBlock2CTileMap = typename GridwiseGemm64::DefaultBlock2CTileMap;
 
     // Invoker
     struct Invoker : public BaseInvoker
     {
+        template <typename Argument_>
+        void Print(const Argument_& karg)
+        {
+            karg.Print();
+        }
 
-        void Print(const Argument& karg) { karg.Print(); }
-
-        float Run(const Argument& karg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const Argument& karg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
             {
@@ -175,8 +186,8 @@ struct DeviceGemmXdlSplitKCShuffle_LdsDirectLoad : public DeviceGemmSplitK<ALayo
             }
 
             const auto kbatch = karg.k_batch;
-
-            if(!GridwiseGemm::CheckValidity(karg))
+            auto arg          = *reinterpret_cast<const typename GridwiseGemm::Argument*>(&karg);
+            if(!GridwiseGemm::CheckValidity(arg))
             {
                 throw std::runtime_error(
                     "wrong! GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2 has invalid "
@@ -199,17 +210,16 @@ struct DeviceGemmXdlSplitKCShuffle_LdsDirectLoad : public DeviceGemmSplitK<ALayo
                                                      karg.M * karg.N * sizeof(CDataType),
                                                      stream_config.stream_id_));
 
-                ave_time =
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(gdx, gdy, gdz),
-                                           dim3(BlockSize),
-                                           0,
-                                           static_cast<typename GridwiseGemm::Argument>(karg),
-                                           b2c_map,
-                                           karg.a_element_op,
-                                           karg.b_element_op,
-                                           karg.c_element_op);
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
+                                                  dim3(gdx, gdy, gdz),
+                                                  dim3(BlockSize),
+                                                  0,
+                                                  arg,
+                                                  b2c_map,
+                                                  karg.a_element_op,
+                                                  karg.b_element_op,
+                                                  karg.c_element_op);
             };
 
             if(has_main_k0_block_loop)
@@ -274,6 +284,8 @@ struct DeviceGemmXdlSplitKCShuffle_LdsDirectLoad : public DeviceGemmSplitK<ALayo
             return ave_time;
         }
 
+        INVOKER_RUN_IMPL
+
         // polymorphic
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override
@@ -290,12 +302,31 @@ struct DeviceGemmXdlSplitKCShuffle_LdsDirectLoad : public DeviceGemmSplitK<ALayo
 
     static bool IsSupportedArgument(const Argument& karg)
     {
-        if(!ck::is_xdl_supported())
+        if(!ck::is_lds_direct_load_supported())
+        {
+            return false;
+        }
+        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
         {
             return false;
         }
 
-        return GridwiseGemm::CheckValidity(karg);
+        if(get_warp_size() == 64)
+        {
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                return GridwiseGemm64::CheckValidity(karg);
+            }
+        }
+        else
+        {
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                return GridwiseGemm32::CheckValidity(
+                    reinterpret_cast<const typename GridwiseGemm32::Argument&>(karg));
+            }
+        }
+        return false;
     }
 
     // polymorphic
@@ -327,10 +358,10 @@ struct DeviceGemmXdlSplitKCShuffle_LdsDirectLoad : public DeviceGemmSplitK<ALayo
                         StrideA,
                         StrideB,
                         StrideC,
-                        GridwiseGemm::CalculateMPadded(M),
-                        GridwiseGemm::CalculateNPadded(N),
-                        GridwiseGemm::CalculateKPadded(K, KBatch),
-                        GridwiseGemm::CalculateK0Padded(K, KBatch),
+                        GridwiseGemm64::CalculateMPadded(M),
+                        GridwiseGemm64::CalculateNPadded(N),
+                        GridwiseGemm64::CalculateKPadded(K, KBatch),
+                        GridwiseGemm64::CalculateK0Padded(K, KBatch),
                         KBatch,
                         a_element_op,
                         b_element_op,
@@ -363,10 +394,10 @@ struct DeviceGemmXdlSplitKCShuffle_LdsDirectLoad : public DeviceGemmSplitK<ALayo
                                           StrideA,
                                           StrideB,
                                           StrideC,
-                                          GridwiseGemm::CalculateMPadded(M),
-                                          GridwiseGemm::CalculateNPadded(N),
-                                          GridwiseGemm::CalculateKPadded(K, KBatch),
-                                          GridwiseGemm::CalculateK0Padded(K, KBatch),
+                                          GridwiseGemm64::CalculateMPadded(M),
+                                          GridwiseGemm64::CalculateNPadded(N),
+                                          GridwiseGemm64::CalculateKPadded(K, KBatch),
+                                          GridwiseGemm64::CalculateK0Padded(K, KBatch),
                                           KBatch,
                                           a_element_op,
                                           b_element_op,

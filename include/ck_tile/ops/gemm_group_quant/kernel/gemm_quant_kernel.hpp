@@ -70,17 +70,21 @@ struct get_bq_data_type_or<T, Default>
     using type = typename T::BQDataType;
 };
 
-template <typename T, typename Default>
-struct get_preshuffle_or
-{
-    using type = Default;
+template <typename T>
+concept HasStaticPreshuffleQuant = requires {
+    { T::PreshuffleQuant } -> std::convertible_to<decltype(T::PreshuffleQuant)>;
 };
 
-template <typename T, typename Default>
-    requires requires { typename T::PreshuffleQuant; }
-struct get_preshuffle_or<T, Default>
+template <typename T>
+struct is_quantpreshuffle_enabled
 {
-    using type = typename T::PreshuffleQuant;
+    static constexpr bool value = false;
+};
+
+template <HasStaticPreshuffleQuant T>
+struct is_quantpreshuffle_enabled<T>
+{
+    static constexpr auto value = T::PreshuffleQuant;
 };
 } // namespace detail
 
@@ -198,9 +202,9 @@ struct QuantGemmKernel
     using BQLayout = remove_cvref_t<
         typename detail::get_bq_layout_or<GemmPipeline, typename GemmPipeline::BLayout>::type>;
 
-    static constexpr index_t kBlockSize   = GemmPipeline::BlockSize;
-    static constexpr bool PreshuffleQuant = remove_cvref_t<
-        typename detail::get_preshuffle_or<GemmPipeline, std::false_type>::type>::value;
+    static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
+    static constexpr bool PreshuffleQuant =
+        detail::is_quantpreshuffle_enabled<GemmPipeline_>::value;
 
     using ADataType   = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType   = remove_cvref_t<typename GemmPipeline::BDataType>;
@@ -769,12 +773,11 @@ struct QuantGemmKernel
     CK_TILE_DEVICE static auto
     MakeGemmTileWindows(const PadView& views, const index_t i_m, const index_t i_n)
     {
-        const auto& a_pad_view  = views.at(I0);
-        const auto& aq_pad_view = views.at(I1);
-        const auto& b_pad_view  = views.at(I2);
-        const auto& bq_pad_view = views.at(I3);
-        const auto& c_pad_view  = views.at(I4);
-
+        const auto& a_pad_view     = views.at(I0);
+        const auto& aq_pad_view    = views.at(I1);
+        const auto& b_pad_view     = views.at(I2);
+        const auto& bq_pad_view    = views.at(I3);
+        const auto& c_pad_view     = views.at(I4);
         const auto& a_block_window = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
             {
