@@ -887,6 +887,105 @@ struct tile_window_with_static_lengths
         this->window_lengths_     = window_lengths;
         this->bottom_tensor_view_ = bottom_tensor_view;
     }
+
+    /**
+     * @brief Print elements from a specified range within the tile window for debugging purposes.
+     *
+     * This method prints tensor elements within the specified coordinate range relative to the
+     * tile window's local coordinate system (not global coordinates). Each element is accessed
+     * using vectorized memory operations and converted to float for display.
+     *
+     * @tparam DataType The data type of tensor elements (e.g., ck_tile::fp16_t, float,
+     * ck_tile::bf8_t). Must be compatible with thread_buffer and convertible to float for printing.
+     *
+     * @param start_i Starting row index (inclusive) within the tile window's local coordinate
+     * system
+     * @param end_i   Ending row index (exclusive) within the tile window's local coordinate system
+     * @param start_j Starting column index (inclusive) within the tile window's local coordinate
+     * system
+     * @param end_j   Ending column index (exclusive) within the tile window's local coordinate
+     * system
+     * @param label   Optional string label to prefix the output (default: empty string)
+     *
+     * @note This function performs no bounds checking. The caller must ensure that:
+     *       - 0 <= start_i < end_i <= window height
+     *       - 0 <= start_j < end_j <= window width
+     *       - The specified range does not exceed the underlying tensor dimensions
+     *
+     * @warning This method uses vectorized loads with a fixed size of 2 elements. It may read
+     *          beyond the requested element but only prints the first element from each vector.
+     *
+     * @example
+     * @code
+     * // Create a tile window over a tensor
+     * auto tile_window = make_tile_window(tensor_view,
+     *                                     make_tuple(number<64>{}, number<32>{}),
+     *                                     {tile_origin_m, tile_origin_k});
+     *
+     * // Print first 4x8 elements with fp16 data type
+     * tile_window.template print_tile_window_range<ck_tile::fp16_t>(0, 4, 0, 8, "A");
+     *
+     * // Print a specific subset with float data type
+     * tile_window.template print_tile_window_range<float>(2, 6, 4, 12, "A_subset");
+     *
+     * // Print without label
+     * tile_window.template print_tile_window_range<ck_tile::bf8_t>(0, 2, 0, 4);
+     * @endcode
+     *
+     * @example Output format:
+     * @code
+     * A Window Range [0:3, 0:7] (origin: 128, 0):
+     *   A[0,0] = 1.000000  A[0,1] = 1.100000  A[0,2] = 1.200000  A[0,3] = 1.300000  A[0,4]
+     * = 1.400000  A[0,5] = 1.500000  A[0,6] = 1.600000  A[0,7] = 1.700000 A[1,0] = 1.000000  A[1,1]
+     * = 1.100000  A[1,2] = 1.200000  A[1,3] = 1.300000  A[1,4] = 1.400000  A[1,5] = 1.500000 A[1,6]
+     * = 1.600000  A[1,7] = 1.700000 A[2,0] = 1.000000  A[2,1] = 1.100000  A[2,2] = 1.200000  A[2,3]
+     * = 1.300000  A[2,4] = 1.400000  A[2,5] = 1.500000  A[2,6] = 1.600000  A[2,7] = 1.700000 A[3,0]
+     * = 1.000000  A[3,1] = 1.100000  A[3,2] = 1.200000  A[3,3] = 1.300000  A[3,4] = 1.400000 A[3,5]
+     * = 1.500000  A[3,6] = 1.600000  A[3,7] = 1.700000
+     * @endcode
+     *
+     * @see make_tile_window() for creating tile windows
+     * @see thread_buffer for understanding vectorized access patterns
+     * @see tensor_view::get_vectorized_elements() for the underlying access mechanism
+     */
+    template <typename DataType>
+    CK_TILE_DEVICE void print_tile_window_range(index_t start_i,
+                                                index_t end_i,
+                                                index_t start_j,
+                                                index_t end_j,
+                                                const char* label = "") const
+    {
+        const auto& tensor_view  = this->get_bottom_tensor_view();
+        const auto window_origin = this->get_window_origin();
+
+        printf("%s Window Range [%d:%d, %d:%d] (origin: %d, %d):\n",
+               label,
+               start_i,
+               end_i - 1,
+               start_j,
+               end_j - 1,
+               window_origin[0],
+               window_origin[1]);
+
+        for(index_t i = start_i; i < end_i; i++)
+        {
+            for(index_t j = start_j; j < end_j; j++)
+            {
+                // Create coordinate for this element relative to window origin
+                auto coord =
+                    make_tensor_coordinate(tensor_view.get_tensor_descriptor(),
+                                           make_tuple(window_origin[0] + i, window_origin[1] + j));
+
+                // Get the element using thread buffer type directly
+                using ThreadBuf = thread_buffer<DataType, 2>;
+                auto buf        = tensor_view.template get_vectorized_elements<ThreadBuf>(coord, 0);
+                auto value      = buf.at(number<0>{}); // Extract first element from thread buffer
+                printf("  %s[%d,%d] = %f", label, i, j, static_cast<float>(value));
+            }
+            printf("\n");
+        }
+        printf("\n");
+    }
 };
 
 template <typename TensorView_, typename WindowLengths_>
