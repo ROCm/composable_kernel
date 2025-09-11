@@ -194,21 +194,27 @@ int main(int argc, char* argv[])
     int init_method      = 1;
     bool time_kernel     = false;
 
-    if(argc == 4)
+    std::size_t group_count = rand() % 16 + 1;
+
+    if(argc == 1)
+    {
+        // use default
+    }
+    else if(argc == 5)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
+        group_count     = std::stoi(argv[4]);
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=n0, 1=yes)\n");
+        printf("arg4: group count (default = random from 1..16)");
         exit(0);
     }
-
-    std::size_t group_count = rand() % 16 + 1;
 
     // GEMM shape
     std::vector<ck::tensor_operation::device::ContractionDesc<1>> contraction_descs;

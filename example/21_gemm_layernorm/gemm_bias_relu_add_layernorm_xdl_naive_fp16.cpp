@@ -236,7 +236,7 @@ void DumpGemmLayerNormPerf(float gemm_reduce_time, float normalize_time, int M, 
               << " GB/s, " << std::endl;
 }
 
-int main()
+int main(int argc, char* argv[])
 {
     // GEMM shape
     ck::index_t M = 1024;
@@ -248,6 +248,25 @@ int main()
     ck::index_t StrideD0 = 0;
     ck::index_t StrideD1 = 1024;
     ck::index_t StrideE  = 1024;
+
+    bool do_verification = true;
+    bool time_kernel     = false;
+
+    if(argc == 1)
+    {
+        // use default
+    }
+    else if(argc == 3)
+    {
+        do_verification = std::stoi(argv[1]);
+        time_kernel     = static_cast<bool>(std::stoi(argv[2]));
+    }
+    else
+    {
+        printf("arg1: verification (0=no, 1=yes)\n");
+        printf("arg2: time kernel (0=no, 1=yes)\n");
+        exit(0);
+    }
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor2d(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor2d(K, N, StrideB, BLayout{}));
@@ -357,6 +376,7 @@ int main()
     normalize_invoker.Run(normalize_argument_ptr.get(), StreamConfig{nullptr, false});
 
     bool pass = true;
+    if(do_verification)
     {
         // verification
         Tensor<LayerNormOutDataType> host_layerNorm_m_n(
@@ -383,27 +403,25 @@ int main()
                                      1e-2);
     }
 
+    if(time_kernel)
     {
         // evaluate kernel perf
-        bool time_kernel = true;
-
         float gemm_reduce_mean_reduce_square_mean_ave_time =
-            gemmReduce_invoker.Run(gemmReduce_argument, StreamConfig{nullptr, time_kernel});
+            gemmReduce_invoker.Run(gemmReduce_argument, StreamConfig{nullptr, true});
         float normalize_ave_time =
-            normalize_invoker.Run(normalize_argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+            normalize_invoker.Run(normalize_argument_ptr.get(), StreamConfig{nullptr, true});
 
-        if(time_kernel)
-            DumpGemmLayerNormPerf<ADataType,
-                                  BDataType,
-                                  EDataType,
-                                  D0DataType,
-                                  D1DataType,
-                                  R0DataType,
-                                  R1DataType,
-                                  GammaDataType,
-                                  BetaDataType,
-                                  LayerNormOutDataType>(
-                gemm_reduce_mean_reduce_square_mean_ave_time, normalize_ave_time, M, N, K);
+        DumpGemmLayerNormPerf<ADataType,
+                              BDataType,
+                              EDataType,
+                              D0DataType,
+                              D1DataType,
+                              R0DataType,
+                              R1DataType,
+                              GammaDataType,
+                              BetaDataType,
+                              LayerNormOutDataType>(
+            gemm_reduce_mean_reduce_square_mean_ave_time, normalize_ave_time, M, N, K);
     }
 
     return pass ? 0 : 1;
