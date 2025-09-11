@@ -3,6 +3,7 @@
 This folder contains examples of quant GEMMs using the ck_tile tile-programming implementation.
 
 - AQuant kernel with blocks of A matrix sharing scales: custom GEMM pipeline
+- BQuant kernel with blocks of B matrix sharing scales: custom GEMM pipeline
 - Row and Column-wise scaled: scaling implemented in Epilogue
 
 ## build
@@ -38,3 +39,13 @@ args:
       -timer    gpu:gpu timer, cpu:cpu timer (default:gpu)
  -quant_mode    Which quant method to use (aquant, rowcol)
 ```
+
+User need to select correct mapping of config for each quant mode:
+
+|  | quant_mode as runtime argument | Config in cpp file |
+|:--------|:-----:|-------|
+| For selecting AQuant  | aquant  | GemmConfigQuant    |
+| For selecting Aquant with Preshuffle   | aquant  | GemmConfigPreshuffleQuant    |
+| For selecting BQuant  | bquant  | GemmConfigQuant    |
+| For selecting RowCol quant  | rowcolquant  | GemmConfigRowColQuant    |
+
