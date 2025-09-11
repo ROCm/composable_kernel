@@ -1369,11 +1369,7 @@ pipeline {
                                            ninja -j64 benchmark_gemm_multi_d_fp16_crrr && \
                                            ./bin/benchmark_gemm_multi_d_fp16_crrr && \
                                            ninja -j64 benchmark_gemm_multi_d_fp16_rcrr && \
-                                           ./bin/benchmark_gemm_multi_d_fp16_rcrr && \
-                                           ninja -j64 benchmark_gemm_preshuffle_fp16_rcr && \
-                                           ./bin/benchmark_gemm_preshuffle_fp16_rcr && \
-                                           ninja -j64 benchmark_gemm_preshuffle_fp8_rcr && \
-                                           ./bin/benchmark_gemm_preshuffle_fp8_rcr """
+                                           ./bin/benchmark_gemm_multi_d_fp16_rcrr """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1403,6 +1399,9 @@ pipeline {
                                            ninja -j64 benchmark_gemm_all && \
                                            python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" \
                                            --warmup 5 --repeat 5 --verbose --json results.json && \
+                                           ninja -j64 benchmark_gemm_preshuffle_all && \
+                                           python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" \
+                                           --warmup 5 --repeat 5 --verbose --json results.json && \
                                            ninja -j64 benchmark_gemm_multi_d_fp16_rrrr && \
                                            ./bin/benchmark_gemm_multi_d_fp16_rrrr && \
                                            ninja -j64 benchmark_gemm_multi_d_fp16_ccrr && \
@@ -1410,11 +1409,7 @@ pipeline {
                                            ninja -j64 benchmark_gemm_multi_d_fp16_crrr && \
                                            ./bin/benchmark_gemm_multi_d_fp16_crrr && \
                                            ninja -j64 benchmark_gemm_multi_d_fp16_rcrr && \
-                                           ./bin/benchmark_gemm_multi_d_fp16_rcrr && \
-                                            ninja -j64 benchmark_gemm_preshuffle_fp16_rcr && \
-                                           ./bin/benchmark_gemm_preshuffle_fp16_rcr && \
-                                           ninja -j64 benchmark_gemm_preshuffle_fp8_rcr && \
-                                           ./bin/benchmark_gemm_preshuffle_fp8_rcr """
+                                           ./bin/benchmark_gemm_multi_d_fp16_rcrr """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
