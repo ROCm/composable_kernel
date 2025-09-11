@@ -141,7 +141,7 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
 
                 // TODO: hard coded here. Otherwise, it may incorrect result
                 constexpr index_t swizzle_factor = 4;
-                return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<
+                return WarpGemmMfmaFp8Fp8F32M32N32K32SwizzleBTransposedCDistribution<
                     swizzle_factor>{};
             } // TODO - bf8_t
 #endif
@@ -335,7 +335,7 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
 
                 // TODO: hard coded here. Otherwise, it may incorrect result
                 constexpr index_t swizzle_factor = 4;
-                return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<
+                return WarpGemmMfmaFp8Fp8F32M32N32K32SwizzleBTransposedCDistribution<
                     swizzle_factor>{};
             } // TODO - bf8_t
 #endif
@@ -1046,7 +1046,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
                          std::is_same_v<typename Problem::VDataType, fp8_t> &&
                          std::is_same_v<typename Problem::OaccDataType, float>)
             {
-                return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<>{};
+                return WarpGemmMfmaFp8Fp8F32M32N32K32SwizzleBTransposedCDistribution<>{};
                 // return
                 // WarpGemmImpl<WarpGemmAttributeMfmaTransposedCDistribution_SwizzleB<
                 //         WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<typename
