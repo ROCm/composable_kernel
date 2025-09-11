@@ -136,8 +136,16 @@ class TestCkTileGemmPipeline : public ::testing::Test
     static constexpr bool SkipALds =
         is_use_lds_type<type_at<15>>::value ? !type_at<15>::value : false;
 
-    static constexpr bool SkipBLds =
-        is_use_lds_type<type_at<16>>::value ? !type_at<16>::value : false;
+    static constexpr bool SkipBLds = [] {
+        if constexpr(!std::is_same_v<type_at<16>, void>)
+        {
+            return is_use_lds_type<type_at<16>>::value ? !type_at<16>::value : false;
+        }
+        else
+        {
+            return false;
+        }
+    }();
 
     template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
     void invoke_gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
