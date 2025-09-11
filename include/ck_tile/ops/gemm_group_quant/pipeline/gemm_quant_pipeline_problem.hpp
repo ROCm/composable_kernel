@@ -54,14 +54,14 @@ struct GemmQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_,
     using typename Base::CLayout;
 
     static constexpr bool TransposeC = TransposeC_;
-
+    static constexpr bool PreshuffleB = Traits::PreshuffleB;
+    static constexpr bool DoubleSmemBuffer = Traits::DoubleSmemBuffer;
     using Base::kBlockSize;
 
     using Base::kPadK;
     using Base::kPadM;
     using Base::kPadN;
 
-    using Base::DoubleSmemBuffer;
     using Base::VectorLoadSize;
 
     using AQLayout = remove_cvref_t<typename Traits::AQLayout>;

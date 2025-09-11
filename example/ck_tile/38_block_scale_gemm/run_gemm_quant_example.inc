@@ -24,6 +24,22 @@ auto shuffle_aq(const ck_tile::HostTensor<T>* t, int block_aq_k)
     return ck_tile::reference_permute(t_view, {1, 0, 2});
 }
 
+template <typename GemmConfig, typename T>
+auto shuffle_b(const ck_tile::HostTensor<T>& t)
+{
+    assert(t.get_lengths().size() == 2);
+    int n_                = t.get_lengths()[1];
+    int k_                = t.get_lengths()[0];
+    constexpr int divisor = GemmConfig::N_Warp_Tile == 32 ? 2 : 4;
+    ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
+                                   GemmConfig::N_Warp_Tile,
+                                   k_ / GemmConfig::K_Warp_Tile,
+                                   divisor,
+                                   GemmConfig::K_Warp_Tile / divisor});
+    std::copy(t.begin(), t.end(), t_view.begin());
+    return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
+}
+
 template <typename GemmConfig,
           typename TypeConfig,
           typename ALayout,
@@ -390,10 +406,17 @@ int run_gemm_example_with_layouts(int argc,
         ck_tile::permute_vectors_i4x4_b(b_k_n_dev);
         b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
     }
+    else if constexpr(GemmConfig::PreshuffleB && QuantMode == ck_tile::QuantType::BQuantGrouped)
+    {
+        ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<GemmConfig>(b_k_n);
+        // shuffled buffer B for device implementation
+        b_k_n_dev_buf.ToDevice(b_shuffle_host.data());
+    }
     else
     {
         b_k_n_dev_buf.ToDevice(b_k_n.data());
     }
+
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 

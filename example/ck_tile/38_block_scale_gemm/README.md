@@ -48,4 +48,3 @@ User need to select correct mapping of config for each quant mode:
 | For selecting Aquant with Preshuffle   | aquant  | GemmConfigPreshuffleQuant    |
 | For selecting BQuant  | bquant  | GemmConfigQuant    |
 | For selecting RowCol quant  | rowcolquant  | GemmConfigRowColQuant    |
-

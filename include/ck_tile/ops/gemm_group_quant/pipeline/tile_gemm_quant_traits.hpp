@@ -19,6 +19,7 @@ template <bool kPadM_,
           bool kPadN_,
           bool kPadK_,
           bool PreshuffleQuant_,
+          bool PreshuffleB_,
           typename ALayout_,
           typename BLayout_,
           typename CLayout_,
@@ -50,6 +51,7 @@ struct TileGemmQuantTraits
     static constexpr bool UsePersistentKernel   = UsePersistentKernel_;
 
     static constexpr bool PreshuffleQuant = PreshuffleQuant_;
+    static constexpr bool PreshuffleB     = PreshuffleB_;
 };
 
 } // namespace ck_tile

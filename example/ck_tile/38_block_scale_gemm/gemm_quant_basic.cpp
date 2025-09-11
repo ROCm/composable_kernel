@@ -41,10 +41,14 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                                     GemmConfig::kPadN,
                                                     GemmConfig::kPadK,
                                                     GemmConfig::PreshuffleQuant,
+                                                    GemmConfig::PreshuffleB,
                                                     ALayout,
                                                     BLayout,
                                                     CLayout,
-                                                    QuantMode>;
+                                                    QuantMode,
+                                                    ALayout,
+                                                    BLayout,
+                                                    GemmConfig::DoubleSmemBuffer>;
 
     using GemmPipelineProblem = ck_tile::GemmPipelineProblemBase<typename TypeConfig::ADataType,
                                                                  typename TypeConfig::BDataType,
@@ -110,7 +114,10 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
             ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem>,
             std::conditional_t<QuantMode == ck_tile::QuantType::AQuantGrouped,
                                ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
-                               ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>;
+                               std::conditional_t<GemmConfig::PreshuffleB == false,
+                                                      ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
+                                                      ck_tile::WPQuantBPipelineAgBgCrV2<
+                                                          PipelineProblem>>>>;
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<typename TypeConfig::ADataType,
@@ -330,10 +337,14 @@ int run_gemm_example(int argc, char* argv[])
         using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::fp8_t,
                                                         ck_tile::pk_int4_t,
                                                         ck_tile::half_t,
-                                                        ck_tile::fp8_t>{});
+                                                        ck_tile::fp8_t>{});                                                       
 
         if(quant_mode == "bquant")
         {
+            if constexpr(GemmConfig<ck_tile::fp8_t>::PreshuffleB){
+                throw std::runtime_error(
+                    "Unsupported datatype for preshuffle!");
+            } 
             return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
                                               TypeConfig,
                                               128,
@@ -355,6 +366,10 @@ int run_gemm_example(int argc, char* argv[])
 
         if(quant_mode == "bquant")
         {
+            if(GemmConfig<ck_tile::fp8_t>::PreshuffleB){
+                throw std::runtime_error(
+                    "Unsupported datatype for preshuffle!");
+            } 
             return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
                                               TypeConfig,
                                               128,
@@ -373,4 +388,4 @@ int run_gemm_example(int argc, char* argv[])
     }
 }
 
-int main(int argc, char* argv[]) { return !run_gemm_example<GemmConfigQuant>(argc, argv); }
+int main(int argc, char* argv[]) { return !run_gemm_example<GemmConfigPreshuffleB_Bquant>(argc, argv); }
