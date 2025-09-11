@@ -266,10 +266,20 @@ struct FmhaFwdV3Kernel
                                                 ck_tile::index_t hdim_v_)
     {
         // TODO: this may need tuning
-        return dim3(ck_tile::integer_divide_ceil(seqlen_q_, FmhaPipeline::kM0) *
-                        ck_tile::integer_divide_ceil(hdim_v_, FmhaPipeline::kN1),
-                    nhead_,
-                    batch_size_);
+        if constexpr(kHasMask)
+        {
+            return dim3(ck_tile::integer_divide_ceil(seqlen_q_, FmhaPipeline::kM0) *
+                            ck_tile::integer_divide_ceil(hdim_v_, FmhaPipeline::kN1),
+                        nhead_,
+                        batch_size_);
+        }
+        else
+        {
+            return dim3(nhead_,
+                        ck_tile::integer_divide_ceil(seqlen_q_, FmhaPipeline::kM0) *
+                            ck_tile::integer_divide_ceil(hdim_v_, FmhaPipeline::kN1),
+                        batch_size_);
+        }
     }
 
     CK_TILE_DEVICE static constexpr auto
@@ -312,31 +322,28 @@ struct FmhaFwdV3Kernel
     {
         using namespace ck_tile;
 
-        // const index_t num_tile_m0 = seqlen_q / kM0;
-        const index_t num_tile_n1 = ck_tile::integer_divide_ceil(kargs.hdim_v, FmhaPipeline::kN1);
+        // const index_t num_tile_n1 = ck_tile::integer_divide_ceil(kargs.hdim_v,
+        // FmhaPipeline::kN1);
 
-        const index_t i_block = blockIdx.x;
-        const index_t i_nhead = blockIdx.y;
-        const index_t i_batch = blockIdx.z;
-
-        const auto f = [](index_t dividend, index_t divisor) {
-            index_t quotient = dividend / divisor;
-            index_t modulus  = dividend - quotient * divisor;
-            return ck_tile::make_tuple(quotient, modulus);
-        };
-
-        const auto [i_tile_m, i_tile_n] = f(i_block, num_tile_n1);
-
+        // assume that num_tile_n1 is always 1
         if constexpr(kHasMask)
         {
+            const index_t i_block = blockIdx.x;
+            const index_t i_nhead = blockIdx.y;
+            const index_t i_batch = blockIdx.z;
+
             const auto [new_i_block, new_i_nhead] =
                 RemapTileIndices(i_block, i_nhead, kargs.remap_opt);
-            // assume that num_tile_n1 is always 1
+
             return ck_tile::make_tuple(new_i_block, 0, new_i_nhead, i_batch);
         }
         else
         {
-            return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch);
+            const index_t i_nhead = blockIdx.x;
+            const index_t i_block = blockIdx.y;
+            const index_t i_batch = blockIdx.z;
+
+            return ck_tile::make_tuple(i_block, 0, i_nhead, i_batch);
         }
     }
 
