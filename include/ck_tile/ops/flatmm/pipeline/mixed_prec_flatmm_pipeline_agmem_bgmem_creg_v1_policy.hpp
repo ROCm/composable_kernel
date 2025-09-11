@@ -7,6 +7,8 @@
 
 namespace ck_tile {
 
+#define CKTILE_FLATMM_USE_BUFFER_LOAD_LDS_AS_POSSIBLE 1
+
 struct F16xMXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 {
     static constexpr auto I0 = number<0>{};
@@ -21,7 +23,7 @@ struct F16xMXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     CK_TILE_HOST_DEVICE static constexpr auto
     TransformF16xF4_ATensorView(const NativeADramTensorView& a_dram_view)
     {
-#if defined(__gfx950__) //|| defined(__gfx942__)
+#if CKTILE_FLATMM_USE_BUFFER_LOAD_LDS_AS_POSSIBLE && defined(__gfx950__)
         constexpr int DynamicTileOffsetFlag = 0;
 
         constexpr index_t MPerXdl = Problem::BlockGemmShape::WarpTile::at(I0);
@@ -118,7 +120,7 @@ struct F16xMXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeF16xF4_WriteALdsBlockDescriptor()
     {
-#if defined(__gfx950__) //|| defined(__gfx942__)
+#if CKTILE_FLATMM_USE_BUFFER_LOAD_LDS_AS_POSSIBLE && defined(__gfx950__)
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         constexpr index_t KPack     = GetSmemPackA<Problem>();
