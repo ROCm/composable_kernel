@@ -343,7 +343,6 @@ float reduce_stage2(const GemmSplitKHostArgs& args, const ck_tile::stream_config
     using WarpTile   = ck_tile::sequence<32, 128>;
     using ThreadTile = ck_tile::sequence<8, 8>;
 
-    constexpr ck_tile::index_t kBlockSize  = 256;
     constexpr ck_tile::index_t kBlockPerCu = 1;
 
     ck_tile::index_t kGridSize = (output_size + BlockTile::at(ck_tile::number<0>{}) - 1) /
@@ -352,7 +351,8 @@ float reduce_stage2(const GemmSplitKHostArgs& args, const ck_tile::stream_config
     using Shape = ck_tile::Reduce2dShape<BlockWarps, BlockTile, WarpTile, ThreadTile>;
     using Problem =
         ck_tile::Reduce2dProblem<CDataType, ComputeDataType, CDataType, Shape, ReduceOp>;
-    using Kernel = ck_tile::Reduce<Problem>;
+    using Kernel                      = ck_tile::Reduce<Problem>;
+    const ck_tile::index_t kBlockSize = Kernel::BlockSize();
 
     if(!Kernel::IsSupportedArgument(reduce_dim_size, workspace_strides))
     {
@@ -992,7 +992,11 @@ int main(int argc, char* argv[])
 
     try
     {
+#if CK_TILE_USE_WMMA
+        return !run_gemm_example<GemmConfigComputeV3_WMMA>(arg_parser);
+#else
         return !run_gemm_example<GemmConfigComputeV3>(arg_parser);
+#endif
     }
     catch(const std::runtime_error& e)
     {
