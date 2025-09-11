@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -32,7 +32,7 @@ struct ReferenceBatchedGemm : public device::BaseOperator
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op,
-                const int k_batch=1)
+                 const int k_batch = 1)
             : a_g_m_k_{a_g_m_k},
               b_g_k_n_{b_g_k_n},
               c_g_m_n_{c_g_m_n},
@@ -67,15 +67,15 @@ struct ReferenceBatchedGemm : public device::BaseOperator
                 const int K = arg.a_g_m_k_.mDesc.GetLengths()[2];
 
                 // simulate fp accuacy implications of k batching
-                std::vector<CDataType> partialSums(arg.k_batch_); 
+                std::vector<CDataType> partialSums(arg.k_batch_);
 
                 for(int batchIdx = 0; batchIdx < arg.k_batch_; ++batchIdx)
                 {
-                    int batchSize = std::max(K/arg.k_batch_, 1);
-                    int batchStart = batchSize*batchIdx;
-                    int batchEnd = batchSize*(batchIdx+1);
-                    // add any extra round-off to last batch 
-                    if(batchIdx == arg.k_batch_-1)
+                    int batchSize  = std::max(K / arg.k_batch_, 1);
+                    int batchStart = batchSize * batchIdx;
+                    int batchEnd   = batchSize * (batchIdx + 1);
+                    // add any extra round-off to last batch
+                    if(batchIdx == arg.k_batch_ - 1)
                         batchEnd = K;
 
                     AccDataType v_acc = 0;
@@ -94,18 +94,19 @@ struct ReferenceBatchedGemm : public device::BaseOperator
                     AccDataType v_c;
                     arg.c_element_op_(v_c, v_acc);
                     partialSums[batchIdx] = ck::type_convert<CDataType>(v_c);
-
                 }
 
                 // finally, sum up partial sums
-                // note that we can't simulate the random nature of atomic additions, but at least we can
-                // simulate the effect of partial sums
-                 AccDataType v_c = 0;
+                // note that we can't simulate the random nature of atomic additions, but at least
+                // we can simulate the effect of partial sums
+                AccDataType v_c = 0;
                 if(arg.k_batch_ > 1)
                 {
-                    for(int batchIdx = 0;batchIdx < arg.k_batch_;batchIdx++)
+                    for(int batchIdx = 0; batchIdx < arg.k_batch_; batchIdx++)
                     {
-                        v_c = ck::type_convert<CDataType>(ck::type_convert<AccDataType>(v_c) + ck::type_convert<AccDataType>(partialSums[batchIdx]));
+                        v_c = ck::type_convert<CDataType>(
+                            ck::type_convert<AccDataType>(v_c) +
+                            ck::type_convert<AccDataType>(partialSums[batchIdx]));
                     }
                 }
                 else
@@ -145,9 +146,10 @@ struct ReferenceBatchedGemm : public device::BaseOperator
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op,
-                             const int k_batch=1)
+                             const int k_batch = 1)
     {
-        return Argument{a_g_m_k, b_g_k_n, c_g_m_n, a_element_op, b_element_op, c_element_op, k_batch};
+        return Argument{
+            a_g_m_k, b_g_k_n, c_g_m_n, a_element_op, b_element_op, c_element_op, k_batch};
     }
 
     static auto MakeInvoker() { return Invoker{}; }

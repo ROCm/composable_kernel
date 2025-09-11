@@ -3,7 +3,6 @@
 
 #include <tuple>
 
-
 #include "gtest/gtest.h"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "test_batched_gemm_b_scale_util.hpp"
@@ -29,8 +28,8 @@ struct tuple_concat<std::tuple<Xs...>, std::tuple<Ys...>>
 } // namespace
 
 template <typename Tuple>
-class TestBatchedGemmBScale_MK_NK
-    : public ck::test::TestBatchedGemmBScale<typename tuple_concat<std::tuple<Row, Col>, Tuple>::type>
+class TestBatchedGemmBScale_MK_NK : public ck::test::TestBatchedGemmBScale<
+                                        typename tuple_concat<std::tuple<Row, Col>, Tuple>::type>
 {
 };
 

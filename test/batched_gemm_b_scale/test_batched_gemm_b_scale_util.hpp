@@ -69,37 +69,37 @@ class TestBatchedGemmBScale : public testing::Test
                    int n_warmup = 1,
                    int n_iter   = 10)
     {
-        const int BatchStrideA = StrideA*M;
-        const int BatchStrideB = StrideB*K;
-        const int BatchStrideC = StrideC*M;
-        const int BatchStrideScaleB = StrideB*K;
-        bool pass = ck::profiler::profile_batched_gemm_b_scale_impl<ADataType,
-                                                                BDataType,
-                                                                BScaleDataType,
-                                                                ComputeDataType,
-                                                                F32,    
-                                                                CDataType,
-                                                                ScaleBlockK,
-                                                                ALayout,
-                                                                BLayout,
-                                                            CLayout>(verify_,
-                                                                     init_method_,
-                                                                     log_,
-                                                                     bench_,
-                                                                     M,
-                                                                     N,
-                                                                     K,
-                                                                     StrideA,
-                                                                     StrideB,
-                                                                     StrideC,
-                                                                     BatchStrideA,
-                                                                     BatchStrideB,
-                                                                     BatchStrideC,
-                                                                     BatchStrideScaleB,
-                                                                     Nbatch,
-                                                                     kbatch,
-                                                                     n_warmup,
-                                                                     n_iter);
+        const int BatchStrideA      = StrideA * M;
+        const int BatchStrideB      = StrideB * K;
+        const int BatchStrideC      = StrideC * M;
+        const int BatchStrideScaleB = StrideB * K;
+        bool pass                   = ck::profiler::profile_batched_gemm_b_scale_impl<ADataType,
+                                                                                      BDataType,
+                                                                                      BScaleDataType,
+                                                                                      ComputeDataType,
+                                                                                      F32,
+                                                                                      CDataType,
+                                                                                      ScaleBlockK,
+                                                                                      ALayout,
+                                                                                      BLayout,
+                                                                                      CLayout>(verify_,
+                                                                             init_method_,
+                                                                             log_,
+                                                                             bench_,
+                                                                             M,
+                                                                             N,
+                                                                             K,
+                                                                             StrideA,
+                                                                             StrideB,
+                                                                             StrideC,
+                                                                             BatchStrideA,
+                                                                             BatchStrideB,
+                                                                             BatchStrideC,
+                                                                             BatchStrideScaleB,
+                                                                             Nbatch,
+                                                                             kbatch,
+                                                                             n_warmup,
+                                                                             n_iter);
         EXPECT_TRUE(pass);
     }
 };
