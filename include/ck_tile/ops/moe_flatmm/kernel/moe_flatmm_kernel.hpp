@@ -756,9 +756,9 @@ struct MoeFlatmmKernel
         // total number of tokens: sorted tokens + delimiter tokens + trailing padding tokens
         // we launch the grid based on the total number of tokens which needs to be static
         int partition_idx       = blockIdx.x;
-        auto valid_token_cnt = kargs.p_max_token_id[0]; // sorted tokens + delimiter tokens
-        int total_valid_tile_cnt = TilePartitioner::GridSize(valid_token_cnt, kargs.N);
-        auto tilePartitioner = TilePartitioner{valid_token_cnt, kargs.N};
+        auto max_token_id = kargs.p_max_token_id[0]; // sorted tokens + delimiter tokens
+        int total_valid_tile_cnt = TilePartitioner::GridSize(max_token_id, kargs.N);
+        auto tilePartitioner = TilePartitioner{max_token_id, kargs.N};
         do
         {
             if (partition_idx >= total_valid_tile_cnt) {
@@ -770,7 +770,7 @@ struct MoeFlatmmKernel
 
             this->operator()(kargs, block_offset_m, block_offset_n);
             partition_idx += gridDim.x;
-        } while(UsePersistentKernel && partition_idx < total_work_tile_cnt);
+        } while(UsePersistentKernel && partition_idx < total_valid_tile_cnt);
     }
 
     template <class MoeFlatmmKernelArgs>
