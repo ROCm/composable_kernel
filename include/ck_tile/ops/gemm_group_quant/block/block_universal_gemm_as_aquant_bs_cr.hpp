@@ -358,10 +358,11 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
 
                         if constexpr(Traits::PreshuffleQuant)
                         {
+                            static_assert(false,
+                                          "It is not supported yet to enable both Preshuffle and "
+                                          "TransposeC.");
                             if constexpr(Traits::TransposeC) // transposed C
                             {
-                                static_assert(false,
-                                              "It is not supported yet to enable both Preshuffle.");
                                 // TODO:
                                 // A new tile distribution is needed for the Preshuffle and
                                 // Transpose combination. For instance, with mnk at 16x16x32, lanes
@@ -455,7 +456,7 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
                         }
                         else
                         {
-                            if(Traits::TransposeC) // transposed C
+                            if constexpr(Traits::TransposeC) // transposed C
                             {
                                 constexpr index_t reg_offset = mIter * Traits::AQPerBlock + kQScale;
                                 constexpr auto tbuf_offset   = number<
