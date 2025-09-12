@@ -755,13 +755,14 @@ struct MoeFlatmmKernel
     {
         // total number of tokens: sorted tokens + delimiter tokens + trailing padding tokens
         // we launch the grid based on the total number of tokens which needs to be static
-        int partition_idx       = blockIdx.x;
-        auto max_token_id = kargs.p_max_token_id[0]; // sorted tokens + delimiter tokens
+        int partition_idx        = blockIdx.x;
+        auto max_token_id        = kargs.p_max_token_id[0]; // sorted tokens + delimiter tokens
         int total_valid_tile_cnt = TilePartitioner::GridSize(max_token_id, kargs.N);
-        auto tilePartitioner = TilePartitioner{max_token_id, kargs.N};
+        auto tilePartitioner     = TilePartitioner{max_token_id, kargs.N};
         do
         {
-            if (partition_idx >= total_valid_tile_cnt) {
+            if(partition_idx >= total_valid_tile_cnt)
+            {
                 return; // early exit for trailing padding tokens
             }
             partition_idx = tilePartitioner.RemapXCD(partition_idx, total_valid_tile_cnt);
@@ -806,7 +807,7 @@ struct MoeFlatmmKernel
             }
             return gather_token_id;
         };
-        
+
         static_for<0, DramMRepeat, 1>{}([&](auto m0) {
             const auto row_idx =
                 coord_m + m0 * (TilePartitioner::MPerBlock / DramMRepeat) + a_coord[I0];
@@ -1003,12 +1004,12 @@ struct MoeFlatmmKernel
                     kargs.scale_n.ptr + expert_id * kargs.N,
                     make_tuple(1, kargs.N),
                     make_tuple(0, scale_stride_n),
-                    number<ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1>{},
+                    number < ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1 > {},
                     number<1>{}), // MXF4_Pipeline does't use scale_n, so there is no need to
                                   // permute as n_pack
                 make_tuple(number<TilePartitioner::MPerBlock>{},
-                           number<IsGateUp ? TilePartitioner::NPerBlock / 2
-                                           : TilePartitioner::NPerBlock>{}),
+                           number < IsGateUp ? TilePartitioner::NPerBlock / 2
+                                             : TilePartitioner::NPerBlock > {}),
                 {0, IsGateUp ? coord_n / 2 : coord_n},
                 output_acc_tile_distr);
 
@@ -1017,7 +1018,7 @@ struct MoeFlatmmKernel
                     kargs.scale_n.ptr + expert_id * kargs.N + kargs.N / 2,
                     make_tuple(1, kargs.N),
                     make_tuple(0, scale_stride_n),
-                    number<ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1>{},
+                    number < ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1 > {},
                     number<1>{}),
                 make_tuple(number<TilePartitioner::MPerBlock>{},
                            number<TilePartitioner::NPerBlock / 2>{}),
@@ -1034,8 +1035,8 @@ struct MoeFlatmmKernel
             auto exp_bias_window = make_tile_window(
                 permute_tensor_view(exp_bias_view, number<(MXFP4_Pipeline && !IsInputGemm)>{}),
                 make_tuple(number<TilePartitioner::MPerBlock>{},
-                           number<IsGateUp ? TilePartitioner::NPerBlock / 2
-                                           : TilePartitioner::NPerBlock>{}),
+                           number < IsGateUp ? TilePartitioner::NPerBlock / 2
+                                             : TilePartitioner::NPerBlock > {}),
                 {0, IsGateUp ? coord_n / 2 : coord_n},
                 output_acc_tile_distr);
 
@@ -1319,7 +1320,7 @@ struct MoeFlatmmKernel
                     constexpr auto step = SFC::get_forward_step(iAccess);
                     // row_offset of out windows has been included in scatter offset
                     move_tile_window(c_block_window,
-                                     {0, step.at(number<1>{}) / number<IsGateUp ? 2 : 1>{}});
+                                     {0, step.at(number<1>{}) / number < IsGateUp ? 2 : 1 > {}});
                 }
             });
         }
