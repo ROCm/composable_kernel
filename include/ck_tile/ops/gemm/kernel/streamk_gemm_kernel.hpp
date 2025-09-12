@@ -278,16 +278,15 @@ struct StreamKKernel
 
         // An "iteration" denotes the multiplication of one macro tile in A with a macro tile in B.
         // The total iteration length is the total of such multiplications performed.
-        uint32_t total_iter_length = iter_end - iter_start;
+        uint32_t total_iter_length = __builtin_amdgcn_readfirstlane(iter_end - iter_start);
 
         // Main Stream-K loop
         while(true)
         {
             // Determine the number of macro tiles in A and B this WG is resposible for in the
             // current C macro tile.
-            uint32_t current_iter_length =
-                __builtin_amdgcn_readfirstlane(kargs.tile_partitioner.GetCurrentIterLength(
-                    iter_start, iter_end, total_iter_length));
+            uint32_t current_iter_length = kargs.tile_partitioner.GetCurrentIterLength(
+                iter_start, iter_end, total_iter_length);
 
             // Determine the 1D tile_idx and the iter_offset for this WG.
             // The tile_idx is the 1D macro tile index in the C tensor.
@@ -295,7 +294,7 @@ struct StreamKKernel
             // current iteration of the while loop.
             uint32_t tile_idx, iter_offset;
             kargs.tile_partitioner.GetTileIdxWithOffset(iter_end - 1, tile_idx, iter_offset);
-            iter_offset = __builtin_amdgcn_readfirstlane(iter_offset - current_iter_length + 1);
+            iter_offset = iter_offset - current_iter_length + 1;
 
             // Get the 2D tile index in the C tensor for this WG using the 1D index (i.e. tile_idx)
             auto spatial_idx = kargs.tile_partitioner.GetOutputTileIndex(tile_idx);

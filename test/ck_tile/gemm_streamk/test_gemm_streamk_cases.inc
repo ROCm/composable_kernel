@@ -3,9 +3,6 @@
 
 #pragma once
 
-#ifndef TEST_STREAM_K_CASES_INC
-#define TEST_STREAM_K_CASES_INC
-
 TYPED_TEST(TEST_SUITE_NAME, StreamK_M256_N256_K256_DP)
 {
 
@@ -105,5 +102,3 @@ TYPED_TEST(TEST_SUITE_NAME, StreamK_Unsupported_Reduction)
     EXPECT_THROW(this->Run(M, N, K, num_sk_blocks, ck_tile::StreamKReductionStrategy::Reduction),
                  std::runtime_error);
 }
-
-#endif
