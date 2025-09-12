@@ -18,7 +18,7 @@ function(create_tile_add_rmsnorm2d_rdquant_fwd SUFFIX)
     set_property(GLOBAL PROPERTY RULE_MESSAGES OFF)
 endfunction()
 
-if(GPU_TARGETS MATCHES "gfx9")
+if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
     create_tile_add_rmsnorm2d_rdquant_fwd("fp16")
     create_tile_add_rmsnorm2d_rdquant_fwd("bf16")
 else()

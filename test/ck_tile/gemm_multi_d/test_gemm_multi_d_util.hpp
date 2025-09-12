@@ -86,7 +86,28 @@ class TestCkTileGemmMultiD : public ::testing::Test
     using DsLayout          = ck_tile::tuple<D0Layout, D1Layout>;
     using DsDataType        = ck_tile::tuple<D0DataType, D1DataType>;
 
-    template <typename ADataType,
+    struct GemmWarpConfig_Mfma
+    {
+        static constexpr ck_tile::index_t M_Tile      = 256;
+        static constexpr ck_tile::index_t N_Tile      = 256;
+        static constexpr ck_tile::index_t K_Tile      = 64;
+        static constexpr ck_tile::index_t M_Warp_Tile = 32;
+        static constexpr ck_tile::index_t N_Warp_Tile = 32;
+        static constexpr ck_tile::index_t K_Warp_Tile = 16;
+    };
+
+    struct GemmWarpConfig_Wmma
+    {
+        static constexpr ck_tile::index_t M_Tile      = 128;
+        static constexpr ck_tile::index_t N_Tile      = 128;
+        static constexpr ck_tile::index_t K_Tile      = 64;
+        static constexpr ck_tile::index_t M_Warp_Tile = 16;
+        static constexpr ck_tile::index_t N_Warp_Tile = 16;
+        static constexpr ck_tile::index_t K_Warp_Tile = 16;
+    };
+
+    template <typename GemmWarpConfig,
+              typename ADataType,
               typename BDataType,
               typename DsDataType,
               typename AccDataType,
@@ -99,17 +120,17 @@ class TestCkTileGemmMultiD : public ::testing::Test
     void invoke_gemm_multi_d(const ck_tile::GemmMultiDHostArgs<DsDataType::size()>& args,
                              const ck_tile::stream_config& s)
     {
-        constexpr ck_tile::index_t M_Tile = 256;
-        constexpr ck_tile::index_t N_Tile = 256;
-        constexpr ck_tile::index_t K_Tile = 64;
+        constexpr ck_tile::index_t M_Tile = GemmWarpConfig::M_Tile;
+        constexpr ck_tile::index_t N_Tile = GemmWarpConfig::N_Tile;
+        constexpr ck_tile::index_t K_Tile = GemmWarpConfig::K_Tile;
 
         constexpr ck_tile::index_t M_Warp = 2;
         constexpr ck_tile::index_t N_Warp = 2;
         constexpr ck_tile::index_t K_Warp = 1;
 
-        constexpr ck_tile::index_t M_Warp_Tile = 32;
-        constexpr ck_tile::index_t N_Warp_Tile = 32;
-        constexpr ck_tile::index_t K_Warp_Tile = 16;
+        constexpr ck_tile::index_t M_Warp_Tile = GemmWarpConfig::M_Warp_Tile;
+        constexpr ck_tile::index_t N_Warp_Tile = GemmWarpConfig::N_Warp_Tile;
+        constexpr ck_tile::index_t K_Warp_Tile = GemmWarpConfig::K_Warp_Tile;
 
         constexpr bool DoubleSmemBuffer = false;
 
@@ -359,8 +380,9 @@ class TestCkTileGemmMultiD : public ::testing::Test
                                                               StrideB,
                                                               stridesDs,
                                                               StrideE});
-
-        invoke_gemm_multi_d<ADataType,
+#if CK_TILE_USE_WMMA
+        invoke_gemm_multi_d<GemmWarpConfig_Wmma,
+                            ADataType,
                             BDataType,
                             DsDataType,
                             AccDataType,
@@ -370,6 +392,19 @@ class TestCkTileGemmMultiD : public ::testing::Test
                             DsLayout,
                             ELayout,
                             CDElementWiseFn>(args, ck_tile::stream_config{nullptr, false});
+#else
+        invoke_gemm_multi_d<GemmWarpConfig_Mfma,
+                            ADataType,
+                            BDataType,
+                            DsDataType,
+                            AccDataType,
+                            EDataType,
+                            ALayout,
+                            BLayout,
+                            DsLayout,
+                            ELayout,
+                            CDElementWiseFn>(args, ck_tile::stream_config{nullptr, false});
+#endif
 
         std::cout << "Run kernel with M =" << M << " N =" << N << " K =" << K
                   << " StrideA =" << StrideA << " StrideB =" << StrideB << " StrideE =" << StrideE
