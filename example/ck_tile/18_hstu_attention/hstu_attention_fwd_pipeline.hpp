@@ -21,7 +21,6 @@ struct HstuAttentionFwdPipelineQRKSVS
     using BiasDataType    = remove_cvref_t<typename Problem::BiasDataType>;
     using PDataType       = remove_cvref_t<typename Problem::InOutDataType>;
     using ODataType       = remove_cvref_t<typename Problem::InOutDataType>;
-    using HstuMask        = remove_cvref_t<typename Problem::HstuMask>;
 
     using HstuAttentionTileSetting = remove_cvref_t<typename Problem::HstuAttentionTileSetting>;
 
@@ -40,6 +39,7 @@ struct HstuAttentionFwdPipelineQRKSVS
     static constexpr bool kIsJagged   = Problem::kIsJagged;
     static constexpr auto kHasBias    = Problem::kHasBias;
     static constexpr bool kHasDropout = Problem::kHasDropout;
+    static constexpr bool kHasCausal  = Problem::kHasCausal;
 
     static constexpr bool kPadSeqLenQ   = Problem::Traits::kPadSeqLenQ;
     static constexpr bool kPadSeqLenK   = Problem::Traits::kPadSeqLenK;
@@ -118,7 +118,8 @@ struct HstuAttentionFwdPipelineQRKSVS
               typename BiasElementFunction,
               typename SAccElementFunction,
               typename PComputeElementFunction,
-              typename OAccElementFunction>
+              typename OAccElementFunction,
+              typename HstuMask>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*kSubQKHeaddim tile
                const QElementFunction& q_element_func,
@@ -131,7 +132,7 @@ struct HstuAttentionFwdPipelineQRKSVS
                const SAccElementFunction& s_acc_element_func,
                const PComputeElementFunction& p_compute_element_func,
                const OAccElementFunction& o_acc_element_func,
-               HstuMask mask,
+               HstuMask& mask,
                float scale_s, // scaling value exerted on the immediate Q@K result
                float scale_p, // scaling value exerted on the SiLu result
                void* smem_ptr,
@@ -577,7 +578,8 @@ struct HstuAttentionFwdPipelineQRKSVS
     template <typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
-              typename BiasDramBlockWindowTmp>
+              typename BiasDramBlockWindowTmp,
+              typename HstuMask>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
                const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
