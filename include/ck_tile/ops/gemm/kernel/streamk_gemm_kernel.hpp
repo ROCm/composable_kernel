@@ -229,12 +229,11 @@ struct StreamKKernel
 
     CK_TILE_HOST static bool IsSupportedArgument(const StreamKKernelArgs& kargs)
     {
-        if(kargs.tile_partitioner.sk_num_blocks != 0)
+        if(kargs.reduction_strategy == StreamKReductionStrategy::Reduction)
         {
             if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
             {
-                CK_TILE_ERROR("CK Tile Stream-K currently only supports 0 SK blocks (i.e., "
-                              "data-parallel only).");
+                CK_TILE_ERROR("CK Tile Stream-K only supports the atomic reduction strategy.");
             }
             return false;
         }
@@ -271,30 +270,34 @@ struct StreamKKernel
 
         uint32_t block_idx = ck_tile::get_block_1d_id();
 
+        bool is_padding_block =
+            __builtin_amdgcn_readfirstlane(block_idx >= kargs.tile_partitioner.sk_num_blocks &&
+                                           block_idx < kargs.tile_partitioner.dp_start_block_idx);
+
+        // Padding blocks make it such that the DP blocks are aligned with the number of CUs; they
+        // should not partake in the GEMM
+        if(is_padding_block)
+            return;
+
         // Determine the K offset of the first and final macro tile in the A and B tensors along the
         // K dimension.
         uint32_t iter_start, iter_end;
         kargs.tile_partitioner.GetBlockItr(block_idx, iter_start, iter_end);
-
-        // An "iteration" denotes the multiplication of one macro tile in A with a macro tile in B.
-        // The total iteration length is the total of such multiplications performed.
-        uint32_t total_iter_length = __builtin_amdgcn_readfirstlane(iter_end - iter_start);
 
         // Main Stream-K loop
         while(true)
         {
             // Determine the number of macro tiles in A and B this WG is resposible for in the
             // current C macro tile.
-            uint32_t current_iter_length = kargs.tile_partitioner.GetCurrentIterLength(
-                iter_start, iter_end, total_iter_length);
+            uint32_t current_iter_length = __builtin_amdgcn_readfirstlane(
+                kargs.tile_partitioner.GetCurrentIterLength(iter_start, iter_end));
 
             // Determine the 1D tile_idx and the iter_offset for this WG.
             // The tile_idx is the 1D macro tile index in the C tensor.
             // The iter_offset is the starting macro tile index in the K dimension for the WG in the
             // current iteration of the while loop.
             uint32_t tile_idx, iter_offset;
-            kargs.tile_partitioner.GetTileIdxWithOffset(iter_end - 1, tile_idx, iter_offset);
-            iter_offset = iter_offset - current_iter_length + 1;
+            kargs.tile_partitioner.GetTileIdxWithOffset(iter_start, tile_idx, iter_offset);
 
             // Get the 2D tile index in the C tensor for this WG using the 1D index (i.e. tile_idx)
             auto spatial_idx = kargs.tile_partitioner.GetOutputTileIndex(tile_idx);
@@ -328,7 +331,7 @@ struct StreamKKernel
                     k_size);
 
             // Prepare for next Stream-K loop iteration.
-            iter_end -= current_iter_length;
+            iter_start += current_iter_length;
             if(iter_end <= iter_start)
                 break;
             block_sync_lds();

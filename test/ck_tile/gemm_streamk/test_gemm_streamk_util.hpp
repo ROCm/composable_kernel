@@ -189,11 +189,6 @@ class TestCkTileStreamK : public ::testing::Test
             throw std::runtime_error("Reduction Strategy is current unsupported!\n");
         }
 
-        if(num_sk_blocks != 0)
-        {
-            GTEST_SKIP() << "CK Tile Stream K currently only supports DP.";
-        }
-
         auto f_host_tensor_descriptor = [](std::size_t row,
                                            std::size_t col,
                                            std::size_t stride,

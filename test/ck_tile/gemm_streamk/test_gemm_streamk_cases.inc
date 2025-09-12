@@ -25,6 +25,17 @@ TYPED_TEST(TEST_SUITE_NAME, StreamK_M256_N256_K256_SKBlocks4)
     this->Run(M, N, K, num_sk_blocks);
 }
 
+TYPED_TEST(TEST_SUITE_NAME, StreamK_M256_N256_K256_SKBlocks12)
+{
+
+    ck_tile::index_t M     = 256;
+    ck_tile::index_t N     = 256;
+    ck_tile::index_t K     = 256;
+    uint32_t num_sk_blocks = 12;
+
+    this->Run(M, N, K, num_sk_blocks);
+}
+
 TYPED_TEST(TEST_SUITE_NAME, StreamK_M256_N256_K256_SKBlocks8)
 {
 
@@ -80,13 +91,13 @@ TYPED_TEST(TEST_SUITE_NAME, StreamK_M3840_N4096_K4096_DP)
     this->Run(M, N, K, num_sk_blocks);
 }
 
-TYPED_TEST(TEST_SUITE_NAME, StreamK_M3840_N4096_K4096_SKBlocks960)
+TYPED_TEST(TEST_SUITE_NAME, StreamK_M3840_N4096_K4096_SKBlocks64)
 {
 
     ck_tile::index_t M     = 3840;
     ck_tile::index_t N     = 4096;
     ck_tile::index_t K     = 4096;
-    uint32_t num_sk_blocks = 960;
+    uint32_t num_sk_blocks = 64;
 
     this->Run(M, N, K, num_sk_blocks);
 }
