@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp"
@@ -57,10 +57,10 @@ using DeviceGroupedConvNDFwdInstance =
         64,          // KPerBlock
         16,          // AK1
         16,          // BK1
-        32,          // MPerXdl
-        32,          // NPerXdl
-        2,           // MXdlPerWave
-        4,           // NXdlPerWave
+        16,          // MPerXdl
+        16,          // NPerXdl
+        4,           // MXdlPerWave
+        8,           // NXdlPerWave
         S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
         S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
@@ -77,13 +77,33 @@ using DeviceGroupedConvNDFwdInstance =
         1,           // BBlockLdsExtraN
         1,
         1,
-        S<1, 64, 1, 4>,
-        8>;
+        S<1, 32, 1, 8>,
+        4>;
 
 #include "run_conv2d_fwd_bias_perchannel_quantization_example.inc"
 
-int main()
+int main(int argc, char* argv[])
 {
+    bool do_verification = true;
+    bool time_kernel     = true;
+
+    if(argc == 1)
+    {
+        // use default
+    }
+    else if(argc == 3)
+    {
+        do_verification = std::stoi(argv[1]);
+        time_kernel     = std::stoi(argv[2]);
+    }
+    else
+    {
+        printf("arg1: verification (0=no, 1=yes)\n");
+        printf("arg2: time kernel (0=no, 1=yes)\n");
+        exit(0);
+    }
+
     const auto out_element_op = OutElementOp{ActivationOp{}};
-    run_conv2d_fwd_bias_perchannel_quantization_example(out_element_op);
+    run_conv2d_fwd_bias_perchannel_quantization_example(
+        out_element_op, do_verification, time_kernel);
 };

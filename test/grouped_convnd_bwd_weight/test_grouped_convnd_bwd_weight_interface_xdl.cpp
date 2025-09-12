@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -48,7 +48,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
         //##########|     Dim|         |          |          |   Type|    Type|    Type|    Type| Elementwise| Elementwise| Elementwise|                            Weight|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|    ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|   ClusterLengths| ScalarPerVector|
         //##########| Spatial|         |          |          |       |        |        |        |   Operation|   Operation|   Operation|                    Specialization|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|     ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| MBlock_MPerBlock|    NWaveNPerXdl|
         //##########|        |         |          |          |       |        |        |        |            |            |            |                                  |      |      |      |      |   |     |     |     |     |                |                 |               |               |               |               |          |                |               |               |              |               |               |          |            |            | NBlock_NPerBlock|                |
-        <         NDimSpatial,  InLayout, WeiLayout,OutLayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,   128,    32,   128,     4,  8,   32,   32,    1,    2,  S<1, 4, 4,  8>,  S<0, 3, 1, 2>,  S<0, 2, 1, 3>,              2,              8,              1,      true,  S<1, 4, 16, 2>,  S<0, 3, 1, 2>,  S<0, 2, 1, 3>,             2,              8,              4,      true,           1,           1,   S<1, 32, 1, 4>,               8>;
+        <         NDimSpatial,  InLayout, WeiLayout,OutLayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,   128,    32,   128,     4,  8,   16,   16,    2,    4,  S<1, 4, 4,  8>,  S<0, 3, 1, 2>,  S<0, 2, 1, 3>,              2,              8,              1,      true,  S<1, 4, 16, 2>,  S<0, 3, 1, 2>,  S<0, 2, 1, 3>,             2,              8,              4,      true,           1,           1,   S<1, 16, 1, 8>,               4>;
     // clang-format on
 
     ck::utils::conv::ConvParam conv_param;
