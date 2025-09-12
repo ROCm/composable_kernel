@@ -46,23 +46,49 @@ bool profile_gemm_multiply_add_impl(int do_verification,
                                     int StrideD1,
                                     int StrideE)
 {
+    auto is_auto_stride = [](int s) { return s <= 0; };
+
     auto f_host_tensor_descriptor =
-        [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+        [is_auto_stride](std::size_t row, std::size_t col, int stride, auto layout) {
             using namespace ck::literals;
 
-            auto strides = is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value
-                               ? std::vector<std::size_t>({stride, 1_uz})
-                               : std::vector<std::size_t>({1_uz, stride});
+            auto strides = is_auto_stride(stride) ? std::vector<std::size_t>{}
+                           : is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value
+                               ? std::vector<std::size_t>({static_cast<std::size_t>(stride), 1_uz})
+                               : std::vector<std::size_t>({1_uz, static_cast<std::size_t>(stride)});
 
             return HostTensorDescriptor({row, col}, strides, layout);
         };
-
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
     Tensor<D0DataType> d0_m_n(f_host_tensor_descriptor(M, N, StrideD0, D0Layout{}));
     Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor(M, N, StrideD1, D1Layout{}));
     Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
     Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
+
+    auto get_leading_stride = [](const std::vector<std::size_t>& strides,
+                                 auto layout) -> std::size_t {
+        if(is_same<decltype(layout), tensor_layout::gemm::ColumnMajor>::value)
+        {
+            return strides.back();
+        }
+        else // RowMajor
+        {
+            return strides[strides.size() - 2];
+        }
+    };
+
+    // Update all Stride values if they are "auto stride"
+    if(is_auto_stride(StrideA))
+        StrideA = get_leading_stride(a_m_k.mDesc.GetStrides(), ALayout{});
+    if(is_auto_stride(StrideB))
+        StrideB = get_leading_stride(b_k_n.mDesc.GetStrides(), BLayout{});
+    if(is_auto_stride(StrideD0))
+        StrideD0 = get_leading_stride(d0_m_n.mDesc.GetStrides(), D0Layout{});
+    if(is_auto_stride(StrideD1))
+        StrideD1 = get_leading_stride(d1_m_n.mDesc.GetStrides(), D1Layout{});
+    if(is_auto_stride(StrideE))
+        StrideE = get_leading_stride(e_m_n_device_result.mDesc.GetStrides(), ELayout{});
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;

@@ -92,12 +92,6 @@ int profile_gemm_multiply_add(int argc, char* argv[])
         using D1Layout = decltype(d1_layout);
         using ELayout  = decltype(e_layout);
 
-        const int DefaultStrideA  = ck::is_same_v<ALayout, Row> ? K : M;
-        const int DefaultStrideB  = ck::is_same_v<BLayout, Row> ? N : K;
-        const int DefaultStrideD0 = ck::is_same_v<D0Layout, Row> ? N : M;
-        const int DefaultStrideD1 = ck::is_same_v<D1Layout, Row> ? N : M;
-        const int DefaultStrideE  = ck::is_same_v<ELayout, Row> ? N : M;
-
         bool pass = ck::profiler::profile_gemm_multiply_add_impl<ADataType,
                                                                  BDataType,
                                                                  AccDataType,
@@ -108,19 +102,18 @@ int profile_gemm_multiply_add(int argc, char* argv[])
                                                                  BLayout,
                                                                  D0Layout,
                                                                  D1Layout,
-                                                                 ELayout>(
-            do_verification,
-            init_method,
-            do_log,
-            time_kernel,
-            M,
-            N,
-            K,
-            (StrideA < 0) ? DefaultStrideA : StrideA,
-            (StrideB < 0) ? DefaultStrideB : StrideB,
-            (StrideD0 < 0) ? DefaultStrideD0 : StrideD0,
-            (StrideD1 < 0) ? DefaultStrideD1 : StrideD1,
-            (StrideE < 0) ? DefaultStrideE : StrideE);
+                                                                 ELayout>(do_verification,
+                                                                          init_method,
+                                                                          do_log,
+                                                                          time_kernel,
+                                                                          M,
+                                                                          N,
+                                                                          K,
+                                                                          StrideA,
+                                                                          StrideB,
+                                                                          StrideD0,
+                                                                          StrideD1,
+                                                                          StrideE);
 
         return pass ? 0 : 1;
     };

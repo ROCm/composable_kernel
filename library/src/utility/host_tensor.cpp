@@ -5,18 +5,6 @@
 
 #include "ck/library/utility/host_tensor.hpp"
 
-void HostTensorDescriptor::CalculateStrides()
-{
-    mStrides.clear();
-    mStrides.resize(mLens.size(), 0);
-    if(mStrides.empty())
-        return;
-
-    mStrides.back() = 1;
-    std::partial_sum(
-        mLens.rbegin(), mLens.rend() - 1, mStrides.rbegin() + 1, std::multiplies<std::size_t>());
-}
-
 std::size_t HostTensorDescriptor::GetNumOfDimension() const { return mLens.size(); }
 
 std::size_t HostTensorDescriptor::GetElementSize() const

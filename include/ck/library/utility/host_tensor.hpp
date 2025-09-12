@@ -101,19 +101,21 @@ auto construct_f_unpack_args(F, T args)
 
 struct HostTensorDescriptor
 {
-    using DefaultLayout = ck::tensor_layout::BaseTensorLayout;
+    using BaseTensorLayout = ck::tensor_layout::BaseTensorLayout;
+    using DefaultLayout =
+        ck::tensor_layout::gemm::RowMajor; // Default to RowMajor layout since CalculateStrides
+                                           // only supports RowMajor for now
 
     // Master constructor
     template <typename Layout>
     HostTensorDescriptor(std::vector<std::size_t> lens,
                          std::vector<std::size_t> strides,
-                         const Layout& layout = DefaultLayout() // only to propagate the
-                         )
+                         const Layout& layout = DefaultLayout())
         : mLens(std::move(lens)), mStrides(std::move(strides))
     {
-        if(mStrides.empty())
+        if(IsAutoStrides())
         {
-            this->CalculateStrides();
+            this->CalculateStrides(layout);
         }
 
         this->ValidateStrides(layout);
@@ -121,16 +123,53 @@ struct HostTensorDescriptor
 
     HostTensorDescriptor() : HostTensorDescriptor({}, {}, DefaultLayout()){};
 
-    void CalculateStrides();
+    template <typename Layout>
+    void CalculateStrides(const Layout& layout)
+    {
+
+        if constexpr(!(std::is_same_v<ck::tensor_layout::gemm::RowMajor, Layout> ||
+                       std::is_same_v<ck::tensor_layout::gemm::ColumnMajor, Layout>))
+        {
+            std::ostringstream oss;
+            oss << "Only RowMajor and ColumnMajor layouts are supported in CalculateStrides. Got "
+                << layout;
+            throw std::runtime_error(oss.str());
+        }
+
+        mStrides.clear();
+        mStrides.resize(mLens.size(), 0);
+        if(mStrides.empty())
+            return;
+
+        mStrides.back() = 1;
+        std::partial_sum(mLens.rbegin(),
+                         mLens.rend() - 1,
+                         mStrides.rbegin() + 1,
+                         std::multiplies<std::size_t>());
+
+        if constexpr(std::is_same_v<ck::tensor_layout::gemm::ColumnMajor, Layout>)
+        {
+            // swap the last two strides
+            if(mStrides.size() >= 2)
+                std::swap(mStrides[mStrides.size() - 1], mStrides[mStrides.size() - 2]);
+        }
+    }
 
     template <typename Layout>
     void ValidateStrides(const Layout& layout) const
     {
-        assert(mLens.size() == mStrides.size());
+        assert(!mLens.empty() && mLens.size() == mStrides.size());
 
-        if(mLens.empty())
-            // TBD: should we throw error for 0-dim tensor?
-            return;
+        auto strides_int = AsInt(mStrides);
+        if(std::any_of(
+               strides_int.begin(), strides_int.end(), [](int stride) { return stride <= 0; }))
+        {
+            std::ostringstream oss;
+            oss << "Stride values must be positive or all-zeros (auto-derived from tensor "
+                   "dimensions). Instead got ";
+            std::copy(strides_int.begin(), strides_int.end(), std::ostream_iterator<int>(oss, " "));
+            throw std::runtime_error(oss.str());
+        }
 
         if constexpr(std::is_same_v<ck::tensor_layout::BaseTensorLayout, Layout>)
         {
@@ -153,7 +192,7 @@ struct HostTensorDescriptor
             {
                 // The logic here assumes the GEMM with tensor of more than 2 dims, will always have
                 // HW dimesnsions as the inner ones e.g. batched GEMM is either BHW or BWH, so we
-                // check at the inner two dimensions only.
+                // check only the two inner dimensions.
                 const auto n_dims    = mLens.size();
                 const auto inner_idx = std::is_same_v<ck::tensor_layout::gemm::RowMajor, Layout>
                                            ? n_dims - 1
@@ -163,8 +202,7 @@ struct HostTensorDescriptor
                 if(mStrides[outer_idx] < mLens[inner_idx] * mStrides[inner_idx])
                 {
                     std::ostringstream oss;
-                    oss << "Invalid strides for " << layout << ": " << "mLens: " << mLens
-                        << ", mStrides: " << mStrides;
+                    oss << "Invalid strides for " << layout << ": " << *this;
                     throw std::runtime_error(oss.str());
                 }
             }
@@ -216,7 +254,7 @@ struct HostTensorDescriptor
               typename        = std::enable_if_t<
                          (std::is_convertible_v<ck::ranges::range_value_t<Lengths>, std::size_t> ||
                    std::is_convertible_v<ck::ranges::range_value_t<Lengths>, ck::long_index_t>) &&
-                         std::is_convertible_v<Layout, DefaultLayout>>>
+                         std::is_convertible_v<Layout, BaseTensorLayout>>>
     HostTensorDescriptor(const Lengths& lens, const Layout& layout = Layout())
         : HostTensorDescriptor(std::vector<std::size_t>(lens.begin(), lens.end()), {}, layout)
     {
@@ -254,7 +292,7 @@ struct HostTensorDescriptor
                     std::is_convertible_v<ck::ranges::range_value_t<Strides>, std::size_t>) ||
                    (std::is_convertible_v<ck::ranges::range_value_t<Lengths>, ck::long_index_t> &&
                     std::is_convertible_v<ck::ranges::range_value_t<Strides>, ck::long_index_t>)) &&
-                         std::is_convertible_v<Layout, DefaultLayout>>>
+                         std::is_convertible_v<Layout, BaseTensorLayout>>>
     HostTensorDescriptor(const Lengths& lens,
                          const Strides& strides,
                          const Layout& layout = Layout())
@@ -289,6 +327,43 @@ struct HostTensorDescriptor
     private:
     std::vector<std::size_t> mLens;
     std::vector<std::size_t> mStrides;
+
+    /**
+     * @brief Converts a vector of size_t values to a vector of int values.
+     *
+     * @param vec The input vector of size_t values to be converted.
+     * @return std::vector<int> A vector containing the converted int values.
+     */
+    std::vector<int> AsInt(const std::vector<size_t>& vec) const
+    {
+        std::vector<int> strides_int(vec.size());
+        std::transform(vec.begin(), vec.end(), strides_int.begin(), [](std::size_t stride) {
+            return static_cast<int>(stride);
+        });
+        return strides_int;
+    }
+
+    /**
+     * @brief Determines if the strides are set to "auto" (unknown).
+     *
+     * This function checks if all stride values are less than or equal to zero,
+     * which indicates that the strides are either unknown or set to be automatically determined.
+     * It is a workaround for cases where the original stride value is -1 (unknown)
+     * and may have been cast to an unsigned type (see `mStrides`).
+     *
+     * @return true if all stride values are less than or equal to zero (auto/unknown), false
+     * otherwise.
+     */
+    bool IsAutoStrides() const
+    {
+        // This is a workaround if the original stride value is -1 (which means "unknown") has been
+        // passed in and casted to size_t (unsigned).
+        auto strides_int = AsInt(mStrides);
+        return (std::all_of(
+                   strides_int.begin(), strides_int.end(), [](int stride) { return stride <= 0; }))
+                   ? true
+                   : false;
+    }
 };
 
 template <typename New2Old>
@@ -304,7 +379,7 @@ HostTensorDescriptor transpose_host_tensor_descriptor_given_new2old(const HostTe
         new_strides[i] = a.GetStrides()[new2old[i]];
     }
 
-    return HostTensorDescriptor(new_lengths, new_strides, HostTensorDescriptor::DefaultLayout());
+    return HostTensorDescriptor(new_lengths, new_strides);
 }
 
 struct joinable_thread : std::thread
