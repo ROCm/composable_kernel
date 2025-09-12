@@ -26,6 +26,15 @@ CK_TILE_DEVICE auto load_tile(const TileWindow_& tile_window,
     return tile_window.load(number<i_access>{}, bool_constant<oob_conditional_check>{});
 }
 
+/**
+ * @brief Load tile with elementwise function
+ *
+ * @note This function is a modification of the existing load function. It has been extended with
+ * two additional parameters: it takes a tuple as input and an elementwise function. For each A =
+ * A0, A1… AN, the elementwise function is additionally applied during a single read.
+ *
+ * @return A output tensor where an elementwise function is applied to every element.
+ */
 template <typename TileWindow_,
           typename ElementWise_,
           index_t i_access           = -1,
