@@ -1,5 +1,4 @@
-# Currently ck_tile is only built on gfx9
-if(GPU_TARGETS MATCHES "gfx9")
+if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
 
     function(add_permute_test TARGET_NAME MAIN_SRC)
         add_gtest_executable(${TARGET_NAME} ${MAIN_SRC})

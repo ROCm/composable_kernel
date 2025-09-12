@@ -17,8 +17,10 @@
 #include <utility>
 #include <vector>
 
+#if !CK_TILE_USE_WMMA
 #ifdef PERMUTE_USE_ALTERNATIVE_IMPL
 #include "alternative_impl/matrix_core_swizzle.hpp"
+#endif
 #endif
 
 namespace detail {
@@ -193,6 +195,7 @@ class TestCkTilePermute : public ::testing::Test
 
             return permute<DataType>(a, stream_config);
         };
+#if !CK_TILE_USE_WMMA
 #ifdef PERMUTE_USE_ALTERNATIVE_IMPL
         // batch* n0*n1*n2*k0*k1*k2 -> batch* n0*k0*n1*k1*n2*k2
         if((perm == std::string("0,1,4,2,5,3,6") || perm == std::string("0,1,2,4,5,3,6") ||
@@ -278,6 +281,7 @@ class TestCkTilePermute : public ::testing::Test
             }
         }
         else
+#endif
 #endif
         {
             run_permute();
