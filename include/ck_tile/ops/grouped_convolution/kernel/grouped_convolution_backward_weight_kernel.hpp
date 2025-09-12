@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <string>
+#include <algorithm>
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
@@ -96,7 +97,7 @@ struct GroupedConvBwdWeightKernelArgs
         GemmM     = a_grid_desc_m_k.get_length(number<0>{});
         GemmN     = b_grid_desc_n_k.get_length(number<0>{});
         GemmK     = a_grid_desc_m_k.get_length(number<1>{});
-        GemmBatch = args.G_ / numGroupsPerBatch;
+        GemmBatch = std::max(static_cast<long>(1), args.G_ / numGroupsPerBatch);
     }
 
     template <
@@ -174,7 +175,7 @@ struct GroupedConvBwdWeightKernelArgs
         GemmM     = a_grid_desc_m_k.get_length(number<0>{});
         GemmN     = b_grid_desc_n_k.get_length(number<0>{});
         GemmK     = a_grid_desc_m_k.get_length(number<1>{});
-        GemmBatch = args.G_ / numGroupsPerBatch;
+        GemmBatch = std::max(static_cast<long>(1), args.G_ / numGroupsPerBatch);
     }
 
     template <
@@ -259,7 +260,7 @@ struct GroupedConvBwdWeightKernelArgs
         GemmM     = a_grid_desc_m_k.get_length(number<0>{});
         GemmN     = b_grid_desc_n_k.get_length(number<0>{});
         GemmK     = a_grid_desc_m_k.get_length(number<1>{});
-        GemmBatch = args.G_ / numGroupsPerBatch;
+        GemmBatch = std::max(static_cast<long>(1), args.G_ / numGroupsPerBatch);
     }
 
     using ABCGridDescs = remove_cvref_t<
@@ -535,9 +536,9 @@ struct GroupedConvolutionBackwardWeightKernel
                      std::is_same_v<InLayout, ctc::NDHWGC>)
         {
             // Check access per C
-            if(ConvC % GemmPipeline::GetVectorSizeB() != 0)
+            if((GroupedConvTraitsType_::NumGroupsToMerge *ConvC) % GemmPipeline::GetVectorSizeB() != 0)
             {
-                CK_TILE_ERROR("Conv C is not a multiple of vector load size for input image!");
+                CK_TILE_ERROR("NumGroupsToMerge * Conv C is not a multiple of vector load size for input image!");
                 return false;
             }
         }
@@ -553,9 +554,9 @@ struct GroupedConvolutionBackwardWeightKernel
                      std::is_same_v<WeiLayout, ctc::GKYXC> ||
                      std::is_same_v<WeiLayout, ctc::GKZYXC>)
         {
-            if(ConvC % EpiloguePipeline::GetVectorSizeC() != 0)
+            if((GroupedConvTraitsType_::NumGroupsToMerge *ConvC) % EpiloguePipeline::GetVectorSizeC() != 0)
             {
-                CK_TILE_ERROR("Conv C is not a multiple of vector load size for weight!");
+                CK_TILE_ERROR("NumGroupsToMerge * Conv C is not a multiple of vector load size for weight!");
                 return false;
             }
         }
@@ -570,9 +571,9 @@ struct GroupedConvolutionBackwardWeightKernel
                      std::is_same_v<OutLayout, ctc::NHWGK> ||
                      std::is_same_v<OutLayout, ctc::NDHWGK>)
         {
-            if(ConvK % GemmPipeline::GetVectorSizeA() != 0)
+            if((GroupedConvTraitsType_::NumGroupsToMerge * ConvK) % GemmPipeline::GetVectorSizeA() != 0)
             {
-                CK_TILE_ERROR("Conv K is not a multiple of vector store size for output image!");
+                CK_TILE_ERROR("NumGroupsToMerge * Conv K is not a multiple of vector store size for output image!");
                 return false;
             }
         }
@@ -802,6 +803,13 @@ struct GroupedConvolutionBackwardWeightKernel
         //     EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
         //         c_block_window, c_block_tile, d_block_window, smem_ptr_0);
         // }
+
+        if (threadIdx.x == 0)
+        {
+            const auto c_block_tile_distribution = c_block_tile.get_tile_distribution();
+            print(c_block_tile_distribution);
+        }
+
         EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
             c_block_window, c_block_tile, d_block_window, smem_ptr_0);
     }
