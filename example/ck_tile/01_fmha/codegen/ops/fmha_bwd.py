@@ -872,12 +872,14 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[Fm
             # fp32 only, all variations
             if receipt == 800:
                 cond = dtype == 'fp32'
+                cond &= dpad == dvpad
                 if not cond:
                     continue
             # fp32 only, minimal set of parameters
             elif receipt == 801:
                 cond = dtype == 'fp32'
                 cond &= hdim in [64, 128]
+                cond &= dpad == dvpad
                 cond &= mode == 'batch'
                 cond &= bias == 'no'
                 cond &= dropout == 'no'
