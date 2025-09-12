@@ -164,8 +164,8 @@ TYPED_TEST(WGRuntimeTest, Compare_Dispatcher_MakeWG)
     constexpr index_t N = Case::NPerWave;
     constexpr index_t K = Case::KPerWave;
 
-    ck_tile::HostTensor<AType> A({M, K});
-    ck_tile::HostTensor<BType> B({K, N});
+    ck_tile::HostTensor<AType> A({M/2, K/2});
+    ck_tile::HostTensor<BType> B({K/2, N/2});
     ck_tile::HostTensor<CType> C({M, N});
 
     // Note:pk_fp4_t packed_size = 2
