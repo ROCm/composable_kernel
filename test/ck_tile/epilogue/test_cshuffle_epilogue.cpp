@@ -41,8 +41,8 @@ TEST_F(CShuffleEpilogueTest, BasicHalfTest)
                                                       NPerXdl,
                                                       KPerXdl>;
 
-    bool result = run_cshuffle_epilogue_test<TestProblem, kMPerBlock, kNPerBlock>(ScaleType::None);
-    EXPECT_TRUE(result) << "Basic CShuffleEpilogue test failed";
+    auto result = run_cshuffle_epilogue_test<TestProblem, kMPerBlock, kNPerBlock>(ScaleType::None);
+    EXPECT_FLOAT_EQ(result[0], 2.0F) << "Basic CShuffleEpilogue test failed";
 }
 
 TEST_F(CShuffleEpilogueTest, BasicHalfTestWithScale)
@@ -73,9 +73,11 @@ TEST_F(CShuffleEpilogueTest, BasicHalfTestWithScale)
                                                       NPerXdl,
                                                       KPerXdl>;
 
-    bool result =
+    auto result =
         run_cshuffle_epilogue_test<TestProblem, kMPerBlock, kNPerBlock>(ScaleType::RowCol);
-    EXPECT_TRUE(result) << "RowCol Scale CShuffleEpilogue test failed";
+    EXPECT_FLOAT_EQ(result[0], 2.0F) << "RowCol CShuffleEpilogue test failed: first element not 2";
+    EXPECT_FLOAT_EQ(result[1], 4.0F)
+        << "RowCol CShuffleEpilogue test failed: second element not 2*2";
 }
 
 TEST_F(CShuffleEpilogueTest, BasicHalfTestWithTensorScale)
@@ -106,9 +108,10 @@ TEST_F(CShuffleEpilogueTest, BasicHalfTestWithTensorScale)
                                                       NPerXdl,
                                                       KPerXdl>;
 
-    bool result =
+    auto result =
         run_cshuffle_epilogue_test<TestProblem, kMPerBlock, kNPerBlock>(ScaleType::Tensor);
-    EXPECT_TRUE(result) << "Tensor Scale CShuffleEpilogue test failed";
+    EXPECT_FLOAT_EQ(result[0], 4.0F)
+        << "TensorScale CShuffleEpilogue test failed: first element not 2*2=4";
 }
 
 int main(int argc, char** argv)

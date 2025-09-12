@@ -124,7 +124,7 @@ using SimpleCShuffleEpilogueProblem =
                             memory_operation_enum::set>;
 
 template <typename Problem, index_t M, index_t N>
-bool run_cshuffle_epilogue_test(ScaleType scale = ScaleType::None)
+auto run_cshuffle_epilogue_test(ScaleType scale = ScaleType::None)
 {
     using ODataType = typename Problem::ODataType;
 
@@ -173,9 +173,8 @@ bool run_cshuffle_epilogue_test(ScaleType scale = ScaleType::None)
     {
         float* m_scale;
         float* n_scale;
-        std::vector<float> h_m_scale(1, 1.0F);
+        std::vector<float> h_m_scale(1, 2.0F);
         std::vector<float> h_n_scale(1, 1.0F);
-        h_n_scale[0] = 2.0F; // multiply all by 2
         HIP_CHECK_ERROR(hipMalloc(&m_scale, sizeof(float)));
         HIP_CHECK_ERROR(hipMalloc(&n_scale, sizeof(float)));
         HIP_CHECK_ERROR(hipMemcpy(m_scale, h_m_scale.data(), sizeof(float), hipMemcpyHostToDevice));
@@ -197,20 +196,15 @@ bool run_cshuffle_epilogue_test(ScaleType scale = ScaleType::None)
     HIP_CHECK_ERROR(hipMemcpy(
         host_output.data(), device_output, output_size * sizeof(ODataType), hipMemcpyDeviceToHost));
 
-    // Basic verification - just check that output has a 2, and 4 if using scaling
-    bool has_2 =
-        type_convert<float>(host_output[0]) > 1.9F && type_convert<float>(host_output[0]) < 2.1F;
-    bool scale_has_4 = true;
-    if(!(scale == ScaleType::None))
-    {
-        scale_has_4 = type_convert<float>(host_output[1]) > 3.9F &&
-                      type_convert<float>(host_output[1]) < 4.1F;
-    }
-
     // Cleanup
     HIP_CHECK_ERROR(hipFree(device_output));
 
-    return has_2 && scale_has_4;
+    return host_output;
+}
+
+bool check_float_equal(float a, float b, float epsilon = 1e-3F)
+{
+    return std::fabs(a - b) < epsilon;
 }
 
 } // namespace ck_tile
