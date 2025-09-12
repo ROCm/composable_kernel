@@ -63,6 +63,7 @@ using fmha_trait_{F_idx} = ck_tile::TileFmhaTraits<{F_spad},
                                                     {F_dropout},
                                                     {F_squant},
                                                     {F_occupancy},
+                                                    false,
                                                     {F_sglang_layout}>;
 
 using fmha_variant_{F_idx} = ck_tile::ComposedAttention<{F_logits} * ck_tile::LOGITS_SOFT_CAP, CK_TILE_FMHA_FWD_FAST_EXP2>;
@@ -517,8 +518,6 @@ class KernelComponentFactory:
             for logits, mask, bias, lse, dropout, sglang in itertools.product(["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], ["t", "f"], ["t", "f"]):
                     pipelines.append(FmhaFwdPipeline('qr_async', 'row', 't', 'f', 't', 't', logits, bias, lse, dropout, squant, mask, sglang))
                     pipelines.append(FmhaFwdPipeline('qr_async', 'row', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask, sglang))
-                    # pipelines.append(FmhaFwdPipeline('qr_async', 'col', 't', 'f', 't', 't', logits, bias, lse, dropout, squant, mask))
-                    # pipelines.append(FmhaFwdPipeline('qr_async', 'col', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask))
         else:
             assert False
         return pipelines
