@@ -318,7 +318,7 @@ struct FmhaFwdV3Kernel
         return make_tuple(remapped_tg_idx, remapped_tg_idy);
     }
 
-    CK_TILE_DEVICE static constexpr auto GetTileIndex(const Kargs& kargs)
+    CK_TILE_DEVICE static constexpr auto GetTileIndex(const Kargs&)
     {
         using namespace ck_tile;
 
