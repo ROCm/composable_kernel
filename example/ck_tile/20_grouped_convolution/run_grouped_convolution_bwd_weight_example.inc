@@ -15,7 +15,7 @@ float invoke_grouped_conv_bwd_weight(ck_tile::GroupedConvBwdWeightHostArgs& args
                                      int n_warmup,
                                      int n_repeat)
 {
-    float ave_time = grouped_conv_bwd_weight<NDimSpatial,
+    float ave_time = Invoker::template grouped_conv_bwd_weight<NDimSpatial,
                                              GemmWarpConfig,
                                              InDataType,
                                              WeiDataType,
@@ -46,12 +46,8 @@ template <ck_tile::index_t NDimSpatial,
           typename WeiLayout,
           typename OutLayout>
 int run_grouped_conv_bwd_weight_example_with_layouts(
-    int argc, char* argv[], const InLayout, const WeiLayout, const OutLayout)
+    ck_tile::ArgParser& arg_parser, const InLayout, const WeiLayout, const OutLayout)
 {
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
-        return -1;
-
     using AccDataType = float;
 
     std::vector<ck_tile::index_t> filter_spatial_lengths;
@@ -138,7 +134,7 @@ int run_grouped_conv_bwd_weight_example_with_layouts(
     std::cout << "weight: " << weight.mDesc << std::endl;
     std::cout << "output: " << output.mDesc << std::endl;
 
-    invoke_grouped_conv_bwd_weight<NDimSpatial,
+    float ave_time = invoke_grouped_conv_bwd_weight<NDimSpatial,
                                    GemmWarpConfig,
                                    InDataType,
                                    WeiDataType,
@@ -149,6 +145,15 @@ int run_grouped_conv_bwd_weight_example_with_layouts(
                                    OutLayout>(args, n_warmup, n_repeat);
 
     weight_dev_buf.FromDevice(weight.data());
+
+    std::size_t flop     = args.GetFlops();
+    std::size_t num_byte = args.GetByte<InDataType, WeiDataType, OutDataType>();
+    float tflops         = static_cast<float>(flop) / 1.E9 / ave_time;
+    float gb_per_sec     = num_byte / 1.E6 / ave_time;
+
+    std::cout << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
+              << std::endl;
+
     bool pass = true;
 
     if(arg_parser.get_int("v") == 1)
@@ -188,4 +193,57 @@ int run_grouped_conv_bwd_weight_example_with_layouts(
     }
 
     return pass;
+}
+
+template <typename Invoker,
+          typename GemmWarpConfig,
+          typename InPrecType,
+          typename WeiPrecType = InPrecType,
+          typename OutPrecType = InPrecType>
+int run_grouped_conv_bwd_weight_example_prec_type(
+    std::string in_layout, std::string wei_layout, std::string out_layout, ck_tile::ArgParser& arg_parser)
+{
+    using NWGC   = ck_tile::tensor_layout::convolution::NWGC;
+    using NHWGC  = ck_tile::tensor_layout::convolution::NHWGC;
+    using NDHWGC = ck_tile::tensor_layout::convolution::NDHWGC;
+
+    using GKXC   = ck_tile::tensor_layout::convolution::GKXC;
+    using GKYXC  = ck_tile::tensor_layout::convolution::GKYXC;
+    using GKZYXC = ck_tile::tensor_layout::convolution::GKZYXC;
+
+    using NWGK   = ck_tile::tensor_layout::convolution::NWGK;
+    using NHWGK  = ck_tile::tensor_layout::convolution::NHWGK;
+    using NDHWGK = ck_tile::tensor_layout::convolution::NDHWGK;
+
+    if(in_layout == "NWGC" && wei_layout == "GKXC" && out_layout == "NWGK")
+    {
+        return run_grouped_conv_bwd_weight_example_with_layouts<ck_tile::number<1>{},
+                                                                GemmWarpConfig,
+                                                                InPrecType,
+                                                                WeiPrecType,
+                                                                OutPrecType>(
+            argc, argv, NWGC{}, GKXC{}, NWGK{});
+    }
+    else if(in_layout == "NHWGC" && wei_layout == "GKYXC" && out_layout == "NHWGK")
+    {
+        return run_grouped_conv_bwd_weight_example_with_layouts<ck_tile::number<2>{},
+                                                                GemmWarpConfig,
+                                                                InPrecType,
+                                                                WeiPrecType,
+                                                                OutPrecType>(
+            argc, argv, NHWGC{}, GKYXC{}, NHWGK{});
+    }
+    else if(in_layout == "NDHWGC" && wei_layout == "GKZYXC" && out_layout == "NDHWGK")
+    {
+        return run_grouped_conv_bwd_weight_example_with_layouts<ck_tile::number<3>{},
+                                                                GemmWarpConfig,
+                                                                InPrecType,
+                                                                WeiPrecType,
+                                                                OutPrecType>(
+            argc, argv, NDHWGC{}, GKZYXC{}, NDHWGK{});
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported memory layout!");
+    }
 }
