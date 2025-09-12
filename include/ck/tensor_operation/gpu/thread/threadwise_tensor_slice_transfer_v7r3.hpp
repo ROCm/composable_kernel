@@ -48,8 +48,6 @@ struct ThreadwiseTensorSliceTransfer_v7r3
 {
     static constexpr auto I0 = Number<0>{};
 
-    static constexpr auto SrcScalarPerVector = SrcScalarPerVectors{}[I0];
-
     static constexpr index_t nDim = SliceLengths::Size();
 
     static constexpr index_t nSrc = SrcDescs::Size();
@@ -66,6 +64,9 @@ struct ThreadwiseTensorSliceTransfer_v7r3
         return generate_tuple([&](auto i) { return make_tensor_coordinate(descs[i], indices[i]); },
                               Number<Descs::Size()>{});
     }
+
+    static constexpr auto SrcScalarPerVector =
+        reduce_on_sequence(SrcScalarPerVectors{}, math::minimize<index_t>{}, Number<1>{});
 
     using SrcCoords = decltype(MakeCoordinates(SrcDescs{}, StaticallyIndexedArray<Index, nSrc>{}));
     using DstCoords = decltype(MakeCoordinates(DstDescs{}, StaticallyIndexedArray<Index, nDst>{}));
