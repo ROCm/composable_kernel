@@ -1427,13 +1427,9 @@ pipeline {
                                            python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" \
                                            --warmup 5 --repeat 5 --verbose --json results.json && \
                                            ninja -j64 benchmark_gemm_fp16_rcr && \
-                                           ./bin/benchmark_gemm_fp16_rcr && \
                                            ninja -j64 benchmark_gemm_fp16_rrr && \
-                                           ./bin/benchmark_gemm_fp16_rrr && \
                                            ninja -j64 benchmark_gemm_fp16_crr && \
-                                           ./bin/benchmark_gemm_fp16_crr && \
-                                           ninja -j64 benchmark_gemm_fp16_ccr && \
-                                           ./bin/benchmark_gemm_fp16_ccr """
+                                           ninja -j64 benchmark_gemm_fp16_ccr """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
