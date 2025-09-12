@@ -104,14 +104,15 @@ struct ReferenceBatchedGemm : public device::BaseOperator
                 {
                     for(int batchIdx = 0; batchIdx < arg.k_batch_; batchIdx++)
                     {
-                        v_c = ck::type_convert<CDataType>(
+                        // mimic the way fp operations would be done on GPU for k-batching
+                        v_c = ck::type_convert<AccDataType>(ck::type_convert<CDataType>(
                             ck::type_convert<AccDataType>(v_c) +
-                            ck::type_convert<AccDataType>(partialSums[batchIdx]));
+                            ck::type_convert<AccDataType>(partialSums[batchIdx])));
                     }
                 }
                 else
                 {
-                    v_c = partialSums[0];
+                    v_c = ck::type_convert<AccDataType>(partialSums[0]);
                 }
 
                 arg.c_g_m_n_(g, m, n) = ck::type_convert<CDataType>(v_c);
