@@ -105,9 +105,9 @@ int run_gemm_multi_abd_example_with_layouts(int argc,
     {
         return -1;
     }
-    using AElementWiseFn   = AddScale;
-    using BElementWiseFn   = AddScale;
-    using CDEElementWiseFn = MultiplyMultiply;
+    using AElementWiseFn   = ck_tile::element_wise::AddScale;
+    using BElementWiseFn   = ck_tile::element_wise::AddScale;
+    using CDEElementWiseFn = ck_tile::element_wise::MultiDMultiply;
     using AsLayout         = ck_tile::tuple<A0Layout, A1Layout>;
     using BsLayout         = ck_tile::tuple<B0Layout, B1Layout>;
     using DsLayout         = ck_tile::tuple<D0Layout, D1Layout>;

@@ -370,6 +370,23 @@ struct PassThrough
     }
 };
 
+struct AddScale
+{
+    template <typename E, typename... As>
+    CK_TILE_HOST_DEVICE constexpr void operator()(E& a, const As&... as) const
+    {
+        // Start with the base value c
+        float result = ck_tile::type_convert<float>(0.0f);
+
+        // Add by each D parameter using fold expression
+        ((result += ck_tile::type_convert<float>(as)), ...);
+
+        a = ck_tile::type_convert<E>(scale * result);
+    }
+
+    float scale = 1.0;
+};
+
 struct MultiDMultiply
 {
     template <typename E, typename C, typename... Ds>
@@ -1230,7 +1247,7 @@ struct Swish
 
 struct SoftRelu
 {
-    SoftRelu(float alpha = 1.f) : alpha_(alpha){};
+    SoftRelu(float alpha = 1.f) : alpha_(alpha) {};
 
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
@@ -1249,7 +1266,7 @@ struct SoftRelu
 struct Power
 {
     Power(float alpha = 0.f, float beta = 1.f, float gamma = 2.f)
-        : alpha_(alpha), beta_(beta), gamma_(gamma){};
+        : alpha_(alpha), beta_(beta), gamma_(gamma) {};
 
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
@@ -1271,7 +1288,7 @@ struct Power
 
 struct ClippedRelu
 {
-    ClippedRelu(float alpha = 0.f, float beta = 1.f) : alpha_(alpha), beta_(beta){};
+    ClippedRelu(float alpha = 0.f, float beta = 1.f) : alpha_(alpha), beta_(beta) {};
 
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
@@ -1290,7 +1307,7 @@ struct ClippedRelu
 
 struct LeakyRelu
 {
-    LeakyRelu(float alpha = 0.01f) : alpha_(alpha){};
+    LeakyRelu(float alpha = 0.01f) : alpha_(alpha) {};
 
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
@@ -1307,7 +1324,7 @@ struct LeakyRelu
 
 struct Elu
 {
-    Elu(float alpha = 1.f) : alpha_(alpha){};
+    Elu(float alpha = 1.f) : alpha_(alpha) {};
 
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
@@ -1324,7 +1341,7 @@ struct Elu
 
 struct Logistic
 {
-    Logistic(float alpha = 1.f) : alpha_(alpha){};
+    Logistic(float alpha = 1.f) : alpha_(alpha) {};
 
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const

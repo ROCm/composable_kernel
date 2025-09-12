@@ -29,11 +29,10 @@ CK_TILE_DEVICE auto load_tile(const TileWindow_& tile_window,
 /**
  * @brief Load tile with elementwise function
  *
- * @note This function is a modification of the existing load function. It has been extended with
- * two additional parameters: it takes a tuple as input and an elementwise function. For each A =
- * A0, A1… AN, the elementwise function is additionally applied during a single read.
- *
- * @return A output tensor where an elementwise function is applied to every element.
+ * @note This function is a modification of the existing load function.
+ *       It has been extended with two additional parameters: it takes a tuple as input
+ *       and an elementwise function. For each A = A0, A1… AN, the elementwise function
+ *       is additionally applied during a single read.
  */
 template <typename TileWindow_,
           typename ElementWise_,

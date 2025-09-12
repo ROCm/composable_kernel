@@ -3,29 +3,6 @@
 
 #pragma once
 
-struct AddScale
-{
-    template <typename E, typename A0, typename A1>
-    CK_TILE_HOST_DEVICE constexpr void operator()(E& a, const A0& a0, const A1& a1) const
-    {
-        a = scale * (ck_tile::type_convert<float>(a0) + ck_tile::type_convert<float>(a1));
-    }
-
-    float scale = 1.0;
-};
-
-struct MultiplyMultiply
-{
-    template <typename E, typename C, typename A0, typename A1>
-    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const A0& d0, const A1& d1) const -> void
-    {
-        const float x0_f = ck_tile::type_convert<float>(c) * ck_tile::type_convert<float>(d0) *
-                           ck_tile::type_convert<float>(d1);
-
-        e = ck_tile::type_convert<E>(x0_f);
-    }
-};
-
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
 {

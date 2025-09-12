@@ -495,7 +495,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
 
             // LDS write 0
-            if constexpr(is_a_col_major)
+            if constexpr(is_a_col_major && !is_a_load_tr_v())
             {
                 auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
                     Policy::template MakeShuffledARegTileDistribution<Problem>());
