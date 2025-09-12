@@ -16,6 +16,18 @@ enum struct QuantType : std::uint16_t
     TensorQuant   = 3
 };
 
+std::string quant_type_to_string(QuantType quant_type)
+{
+    switch(quant_type)
+    {
+    case QuantType::AQuantGrouped: return "AQuantGrouped";
+    case QuantType::BQuantGrouped: return "BQuantGrouped";
+    case QuantType::RowColQuant: return "RowColQuant";
+    case QuantType::TensorQuant: return "TensorQuant";
+    default: return "Unknown";
+    }
+}
+
 template <bool kPadM_,
           bool kPadN_,
           bool kPadK_,

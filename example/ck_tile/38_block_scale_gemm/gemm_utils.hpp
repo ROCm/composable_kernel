@@ -241,7 +241,7 @@ auto create_args(int argc, char* argv[])
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
         .insert("flush_cache", "true", "flush cache before running the kernel, defaults to true")
         .insert("rotating_count", "1", "rotating count, defaults to 1")
-        .insert("quant_mode", "aquant", "Choose aquant (default), bquant or rowcol");
+        .insert("quant_mode", "aquant", "Choose aquant (default), bquant, tensor or rowcol");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);

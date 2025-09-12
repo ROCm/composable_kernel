@@ -330,7 +330,6 @@ struct QuantGemmKernel
             }
         }
 
-        // NOTE: no kernel currently uses BQuant like this:
         if constexpr(kQuantType == QuantType::BQuantGrouped)
         {
             static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
@@ -969,9 +968,9 @@ struct QuantGemmKernel
         else if constexpr(kQuantType == QuantType::TensorQuant)
         {
             const AccDataType aq_scale =
-                __builtin_amdgcn_readfirstlane(*static_cast<AccDataType*>(kargs.aq_ptr));
+                __builtin_amdgcn_readfirstlane(type_convert<AccDataType>(*aq_ptr));
             const AccDataType bq_scale =
-                __builtin_amdgcn_readfirstlane(*static_cast<AccDataType*>(kargs.bq_ptr));
+                __builtin_amdgcn_readfirstlane(type_convert<AccDataType>(*bq_ptr));
             EpiloguePipeline{}(
                 c_block_window, c_block_tile, c_block_window, smem_ptr_0, aq_scale, bq_scale);
         }
