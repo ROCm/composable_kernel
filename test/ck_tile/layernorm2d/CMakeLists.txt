@@ -1,7 +1,7 @@
 function(create_tile_layernorm2d_fwd SUFFIX)
     set(TEST_CK_TILE_LAYERNORM2D_FWD "test_ck_tile_layernorm2d_fwd_${SUFFIX}")
 
-    message("adding example ${TEST_CK_TILE_LAYERNORM2D_FWD}")
+    message(DEBUG "adding example ${TEST_CK_TILE_LAYERNORM2D_FWD}")
     add_test_executable(${TEST_CK_TILE_LAYERNORM2D_FWD} layernorm2d_fwd_${SUFFIX}.cpp)
     target_include_directories(${TEST_CK_TILE_LAYERNORM2D_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
     target_sources(${TEST_CK_TILE_LAYERNORM2D_FWD} PRIVATE ${LAYERNORM2D_FWD_GEN_BLOBS})
