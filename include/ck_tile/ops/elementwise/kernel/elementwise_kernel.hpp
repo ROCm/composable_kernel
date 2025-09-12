@@ -25,6 +25,7 @@ struct ElementWiseKernel
     {
         return is_wave32() ? kBlockSize / 2 : kBlockSize;
     }
+
     template <typename... XDataType, typename Dims>
     CK_TILE_DEVICE void operator()(const Dims lens,
                                    const Dims input_strides,

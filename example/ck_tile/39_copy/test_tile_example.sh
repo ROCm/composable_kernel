@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 set -euo pipefail
 
 BIN="${BIN:-../../../build/bin/tile_example_copy}"
