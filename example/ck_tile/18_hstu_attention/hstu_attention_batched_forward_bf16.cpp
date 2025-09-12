@@ -17,24 +17,11 @@ void hstu_attention_batched_forward_bf16(HstuAttentionFwdParams& param, hipStrea
     const bool use_causal  = param.use_causal;
     BOOL_SWITCH_3(has_bias, kHasBias, has_dropout, kHasDropout, use_causal, kUseCausal, [&] {
         HDIM_SWITCH(param.hdim_qk, param.hdim_v, MaxK, [&] {
-            if(param.window_size > 0)
-            {
-                run_batched_forward_causal_local_bias_dropout_dispatch<ck_tile::bf16_t,
-                                                                       kUseCausal,
-                                                                       true,
-                                                                       kHasBias,
-                                                                       kHasDropout,
-                                                                       MaxK>(param, stream);
-            }
-            else
-            {
-                run_batched_forward_causal_local_bias_dropout_dispatch<ck_tile::bf16_t,
-                                                                       kUseCausal,
-                                                                       false,
-                                                                       kHasBias,
-                                                                       kHasDropout,
-                                                                       MaxK>(param, stream);
-            };
+            run_batched_forward_causal_bias_dropout_dispatch<ck_tile::bf16_t,
+                                                             kUseCausal,
+                                                             kHasBias,
+                                                             kHasDropout,
+                                                             MaxK>(param, stream);
         });
     });
 };

@@ -41,15 +41,14 @@ struct HstuAttentionFwdKernel
     using BiasDataType = ck_tile::remove_cvref_t<typename HstuAttentionPipeline::BiasDataType>;
     using ODataType    = ck_tile::remove_cvref_t<typename HstuAttentionPipeline::ODataType>;
 
-    static constexpr bool kIsJagged     = HstuAttentionPipeline::kIsJagged;
-    static constexpr bool kPadSeqLenQ   = HstuAttentionPipeline::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK   = HstuAttentionPipeline::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQK = HstuAttentionPipeline::kPadHeadDimQK;
-    static constexpr bool kPadHeadDimV  = HstuAttentionPipeline::kPadHeadDimV;
-    static constexpr auto kHasBias      = HstuAttentionPipeline::kHasBias;
-    static constexpr bool kHasDropout   = HstuAttentionPipeline::kHasDropout;
-    using HstuMask = ck_tile::remove_cvref_t<typename HstuAttentionPipeline::HstuMask>;
-    static constexpr bool kHasLocalMask = HstuMask::kUseLocal;
+    static constexpr bool kIsJagged      = HstuAttentionPipeline::kIsJagged;
+    static constexpr bool kPadSeqLenQ    = HstuAttentionPipeline::kPadSeqLenQ;
+    static constexpr bool kPadSeqLenK    = HstuAttentionPipeline::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQK  = HstuAttentionPipeline::kPadHeadDimQK;
+    static constexpr bool kPadHeadDimV   = HstuAttentionPipeline::kPadHeadDimV;
+    static constexpr auto kHasBias       = HstuAttentionPipeline::kHasBias;
+    static constexpr bool kHasDropout    = HstuAttentionPipeline::kHasDropout;
+    static constexpr bool kHasCausalMask = HstuAttentionPipeline::kHasCausal;
 
     template <ck_tile::index_t I> // to avoid duplicated base class problem, introduce an template
                                   // arg
@@ -93,6 +92,8 @@ struct HstuAttentionFwdKernel
         float scale_p; // scaling value exerted on the SiLU result
 
         ck_tile::index_t contextual_seqlen;
+        ck_tile::index_t window_size;
+        ck_tile::index_t min_full_attn_seqlen;
     };
 
     struct HstuAttentionFwdJaggModeBaseKargs
@@ -126,10 +127,6 @@ struct HstuAttentionFwdKernel
         float scale_p; // scaling value exerted on the SiLU result
 
         ck_tile::index_t contextual_seqlen;
-    };
-
-    struct HstuAttentionFwdMaskKargs
-    {
         ck_tile::index_t window_size;
         ck_tile::index_t min_full_attn_seqlen;
     };
@@ -170,9 +167,6 @@ struct HstuAttentionFwdKernel
     };
 
     struct HstuAttentionFwdBatchModeKargs : HstuAttentionFwdBatchModeBaseKargs,
-                                            std::conditional_t<kHasLocalMask,
-                                                               HstuAttentionFwdMaskKargs,
-                                                               HstuAttentionFwdEmptyKargs<0>>,
                                             std::conditional_t<kHasBias,
                                                                HstuAttentionFwdBatchModeBiasKargs,
                                                                HstuAttentionFwdEmptyKargs<1>>,
@@ -183,9 +177,6 @@ struct HstuAttentionFwdKernel
     };
 
     struct HstuAttentionFwdJaggModeKargs : HstuAttentionFwdJaggModeBaseKargs,
-                                           std::conditional_t<kHasLocalMask,
-                                                              HstuAttentionFwdMaskKargs,
-                                                              HstuAttentionFwdEmptyKargs<0>>,
                                            std::conditional_t<kHasBias,
                                                               HstuAttentionFwdCommonBiasKargs,
                                                               HstuAttentionFwdEmptyKargs<1>>,
@@ -258,17 +249,13 @@ struct HstuAttentionFwdKernel
              num_head,
              -scale_s,
              attn_scale ? attn_scale : 1.0f / static_cast<float>(seqlen), // max_seqlen
-             contextual_seqlen},                                          // args for common karg
-            {},                                                           // placeholder for mask
-            {},                                                           // placeholder for bias
-            {},                                                           // placeholder for dropout
+             contextual_seqlen,
+             window_size,
+             min_full_attn_seqlen}, // args for common karg
+            {},                     // placeholder for bias
+            {},                     // placeholder for dropout
         };
 
-        if constexpr(kHasLocalMask)
-        {
-            kargs.window_size          = window_size;
-            kargs.min_full_attn_seqlen = min_full_attn_seqlen;
-        }
         if constexpr(kHasBias)
         {
             kargs.bias_ptr          = bias_ptr;
@@ -337,17 +324,13 @@ struct HstuAttentionFwdKernel
              num_head,
              -scale_s,
              attn_scale ? attn_scale : 1.0f / static_cast<float>(max_seqlen),
-             contextual_seqlen}, // args for common karg
-            {},                  // placeholder for mask
-            {},                  // placeholder for bias
-            {},                  // placeholder for dropout
+             contextual_seqlen,
+             window_size,
+             min_full_attn_seqlen}, // args for common karg
+            {},                     // placeholder for bias
+            {},                     // placeholder for dropout
         };
 
-        if constexpr(kHasLocalMask)
-        {
-            kargs.window_size          = window_size;
-            kargs.min_full_attn_seqlen = min_full_attn_seqlen;
-        }
         if constexpr(kHasBias)
         {
             kargs.bias_ptr          = bias_ptr;
@@ -374,11 +357,8 @@ struct HstuAttentionFwdKernel
         ck_tile::index_t num_tile_in_seqlen =
             ck_tile::integer_divide_ceil(seqlen_, HstuAttentionPipeline::kM0);
 
-        if constexpr(kHasLocalMask)
-        {
-            if(has_minfull_attn_seqlen)
-                num_tile_in_seqlen += 1;
-        };
+        if(has_minfull_attn_seqlen)
+            num_tile_in_seqlen += 1;
 
         if constexpr(HstuAttentionPipeline::kN1 < HstuAttentionPipeline::kSubQKHeaddim)
         {
@@ -518,40 +498,34 @@ struct HstuAttentionFwdKernel
         bool is_tile_in_first_split   = true;
         index_t i_m0;
 
-        if constexpr(kHasLocalMask)
+        if(kargs.min_full_attn_seqlen > 0)
         {
-            if(kargs.min_full_attn_seqlen > 0)
+            // need consider for cases where min_full_attn_seqlen be bigger than max_uih_len
+            if(kargs.seqlen - num_target > kargs.min_full_attn_seqlen)
             {
-                // need consider for cases where min_full_attn_seqlen be bigger than max_uih_len
-                if(kargs.seqlen - num_target > kargs.min_full_attn_seqlen)
-                {
-                    seqlen_in_first_split = kargs.seqlen - num_target - kargs.min_full_attn_seqlen;
+                seqlen_in_first_split = kargs.seqlen - num_target - kargs.min_full_attn_seqlen;
 
-                    index_t num_tile_in_first_split = ck_tile::integer_divide_ceil(
-                        seqlen_in_first_split, HstuAttentionPipeline::kM0);
+                index_t num_tile_in_first_split =
+                    ck_tile::integer_divide_ceil(seqlen_in_first_split, HstuAttentionPipeline::kM0);
 
-                    is_tile_in_first_split = (i_tile_m < num_tile_in_first_split);
+                is_tile_in_first_split = (i_tile_m < num_tile_in_first_split);
 
-                    i_m0 =
-                        is_tile_in_first_split
-                            ? __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM0)
-                            : __builtin_amdgcn_readfirstlane((i_tile_m - num_tile_in_first_split) *
-                                                             HstuAttentionPipeline::kM0) +
-                                  seqlen_in_first_split;
-                }
-                else
-                {
-                    seqlen_in_first_split  = 0;
-                    is_tile_in_first_split = false;
-
-                    // adjust the min_full_attn_seqlen to be passed to HstuBlockMask constructor
-                    kargs.min_full_attn_seqlen = kargs.seqlen - num_target;
-
-                    i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM0);
-                };
+                i_m0 = is_tile_in_first_split
+                           ? __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM0)
+                           : __builtin_amdgcn_readfirstlane((i_tile_m - num_tile_in_first_split) *
+                                                            HstuAttentionPipeline::kM0) +
+                                 seqlen_in_first_split;
             }
             else
+            {
+                seqlen_in_first_split  = 0;
+                is_tile_in_first_split = false;
+
+                // adjust the min_full_attn_seqlen to be passed to HstuBlockMask constructor
+                kargs.min_full_attn_seqlen = kargs.seqlen - num_target;
+
                 i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM0);
+            };
         }
         else
             i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM0);
@@ -562,19 +536,6 @@ struct HstuAttentionFwdKernel
 
         if(seqlen_q_in_ctrl <= i_m0)
             return;
-
-        HstuMask mask = [&]() {
-            if constexpr(kHasLocalMask)
-                return make_hstu_block_mask_with_local<HstuMask>(is_tile_in_first_split,
-                                                                 kargs.seqlen,
-                                                                 kargs.contextual_seqlen,
-                                                                 num_target,
-                                                                 kargs.window_size,
-                                                                 kargs.min_full_attn_seqlen);
-            else
-                return make_hstu_block_mask_without_local<HstuMask>(
-                    kargs.seqlen, kargs.contextual_seqlen, num_target);
-        }();
 
         // for simplicity, batch stride we just modify the pointer
         const QKVDataType* q_ptr = reinterpret_cast<const QKVDataType*>(kargs.q_ptr) +
@@ -706,15 +667,44 @@ struct HstuAttentionFwdKernel
         }();
 
         auto o_acc_tile = [&]() {
-            return HstuAttentionPipeline{}(q_dram_window,
-                                           k_dram_window,
-                                           v_dram_window,
-                                           bias_dram_window,
-                                           mask,
-                                           kargs.scale_s,
-                                           kargs.scale_p,
-                                           smem_ptr,
-                                           dropout);
+            if(kargs.window_size > 0)
+            {
+                using HstuMaskType = typename ck_tile::HstuBlockMasking<kHasCausalMask, true>::Type;
+                const auto mask =
+                    make_hstu_block_mask_with_local<HstuMaskType>(is_tile_in_first_split,
+                                                                  kargs.seqlen,
+                                                                  kargs.contextual_seqlen,
+                                                                  num_target,
+                                                                  kargs.window_size,
+                                                                  kargs.min_full_attn_seqlen);
+
+                return HstuAttentionPipeline{}(q_dram_window,
+                                               k_dram_window,
+                                               v_dram_window,
+                                               bias_dram_window,
+                                               mask,
+                                               kargs.scale_s,
+                                               kargs.scale_p,
+                                               smem_ptr,
+                                               dropout);
+            }
+            else
+            {
+                using HstuMaskType =
+                    typename ck_tile::HstuBlockMasking<kHasCausalMask, false>::Type;
+                const auto mask = make_hstu_block_mask_without_local<HstuMaskType>(
+                    kargs.seqlen, kargs.contextual_seqlen, num_target);
+
+                return HstuAttentionPipeline{}(q_dram_window,
+                                               k_dram_window,
+                                               v_dram_window,
+                                               bias_dram_window,
+                                               mask,
+                                               kargs.scale_s,
+                                               kargs.scale_p,
+                                               smem_ptr,
+                                               dropout);
+            };
         }();
 
         // O DRAM and O DRAM window

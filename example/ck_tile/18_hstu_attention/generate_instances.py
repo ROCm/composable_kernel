@@ -26,17 +26,16 @@ HSTU_FORWARD_INSTANCE_TEMPLATE_INC = """
 """
 
 HSTU_FORWARD_INSTANCE_TEMPLATE = """
-{extern}template void run_{mode}_forward_causal_local_bias_dropout_dispatch<
+{extern}template void run_{mode}_forward_causal_bias_dropout_dispatch<
     {dtype},
     {has_causal},
-    {has_local},
     {has_bias},
     {has_dropout},
     {max_k}>(HstuAttentionFwdParams& param, hipStream_t stream);
 """
 
 HSTU_FORWARD_INSTANCE_FNAME = (
-    "hstu_attention_{mode}_forward_{dtype_str}_{has_or_no_causal_str}_{has_or_no_local_str}_"
+    "hstu_attention_{mode}_forward_{dtype_str}_{has_or_no_causal_str}_"
     "{has_or_no_bias_str}_{has_or_no_dropout_str}_{max_k_str}.cpp"
 )
 
@@ -47,11 +46,6 @@ BOOL_MAP = {True: "true", False: "false"}
 BOOL_MAP_CAUSAL = {
     True: "has_causal",
     False: "no_causal",
-}
-
-BOOL_MAP_LOCAL = {
-    True: "has_local",
-    False: "no_local",
 }
 
 BOOL_MAP_BIAS = {
@@ -84,7 +78,7 @@ MODE_NAME_MAP = {
 def create_forward_instances(instance_dir: Path, headdims: List) -> None:
     for mode in ["batched", "jagged"]:
         for dtype in ["fp16", "bf16"]:
-            for has_causal, has_local in ([True, True], [True, False], [False, True], [False, False]):
+            for has_causal in [True, False]:
                 for has_bias in [True, False]:
                     for has_dropout in [True, False]:
                         for max_k in headdims:
@@ -92,7 +86,6 @@ def create_forward_instances(instance_dir: Path, headdims: List) -> None:
                                 mode=mode,
                                 dtype_str=dtype,
                                 has_or_no_causal_str=BOOL_MAP_CAUSAL[has_causal],
-                                has_or_no_local_str=BOOL_MAP_LOCAL[has_local],
                                 has_or_no_bias_str=BOOL_MAP_BIAS[has_bias],
                                 has_or_no_dropout_str=BOOL_MAP_DROPOUT[has_dropout],
                                 max_k_str=INT_MAP_MAX_K[max_k],
@@ -108,7 +101,6 @@ def create_forward_instances(instance_dir: Path, headdims: List) -> None:
                                 mode=mode,
                                 dtype=TYPE_CTYPE_MAP[dtype],
                                 has_causal=BOOL_MAP[has_causal],
-                                has_local=BOOL_MAP[has_local],
                                 has_bias=BOOL_MAP[has_bias],
                                 has_dropout=BOOL_MAP[has_dropout],
                                 max_k=max_k,
@@ -140,14 +132,13 @@ def create_forward_instances_ref(instance_dir: Path, headdims: List) -> None:
                 for max_k in headdims:
                     for has_bias in [True, False]:
                         for has_dropout in [True, False]:
-                            for has_causal, has_local in zip([True, False],[True, False]):
+                            for has_causal in [True, False]:
                                 forward_instance = (
                                     HSTU_FORWARD_INSTANCE_TEMPLATE.format(
                                         extern="extern ",
                                         mode=mode,
                                         dtype=TYPE_CTYPE_MAP[dtype],
                                         has_causal=BOOL_MAP[has_causal],
-                                        has_local=BOOL_MAP[has_local],
                                         has_bias=BOOL_MAP[has_bias],
                                         has_dropout=BOOL_MAP[has_dropout],
                                         max_k=max_k,

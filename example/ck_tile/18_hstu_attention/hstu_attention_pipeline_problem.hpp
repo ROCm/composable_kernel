@@ -20,7 +20,7 @@ template <typename InOutDataType_,
           bool kIsJagged_,
           bool kHasBias_,
           bool kHasDropout_,
-          typename HstuMask_, // encoding Causal and Local, contextual masking
+          bool kHasCausal_,
           typename AttentionTileSetting_,
           typename Traits_>
 struct HstuAttentionFwdPipelineProblem
@@ -41,8 +41,7 @@ struct HstuAttentionFwdPipelineProblem
     static constexpr bool kIsJagged   = kIsJagged_;
     static constexpr bool kHasBias    = kHasBias_;
     static constexpr bool kHasDropout = kHasDropout_;
-
-    using HstuMask = remove_cvref_t<HstuMask_>;
+    static constexpr bool kHasCausal  = kHasCausal_;
 
     using HstuAttentionTileSetting = remove_cvref_t<AttentionTileSetting_>;
 
