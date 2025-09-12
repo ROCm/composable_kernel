@@ -129,5 +129,10 @@ inline bool is_gfx103_supported()
            ck::get_device_name() == "gfx1035" || ck::get_device_name() == "gfx1036";
 }
 
+inline bool is_wmma_supported()
+{
+    return is_gfx103_supported() || is_gfx11_supported() || is_gfx12_supported();
+}
+
 } // namespace ck
 #endif
