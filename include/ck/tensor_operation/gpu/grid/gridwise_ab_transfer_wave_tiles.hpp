@@ -11,6 +11,7 @@ namespace ck {
 
 template <typename ABLayout,
           typename ABMajorLayout,
+          typename LDSTypeAB,
           index_t BlockSize,
           index_t MNPerBlock,
           index_t KPerBlock,
@@ -20,10 +21,14 @@ template <typename ABLayout,
           index_t WaveSize>
 struct ABTransferWaveTiles
 {
+    static_assert(!(is_same_v<remove_cvref_t<LDSTypeAB>, pk_i4_t>),
+                  "wave tile transfer method does not support pk_i4_t");
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
+
+    static constexpr index_t MNKRow = 2;
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -71,13 +76,13 @@ struct ABTransferWaveTiles
             make_tuple(Sequence<0, 2>{}, Sequence<1, 3>{}));
 
         // The distinction is needed to get the same global indices for both layouts
+        // Divide each tile in 2 16x8 subtile
+        // MNTiles - KTiles - MNKRow - LaneLocal - VectorSize
+        // MNKRow    = 0-1
+        // LaneLocal = 0-15
+        // VectorSize must be 8
         if constexpr(is_same_v<ABMajorLayout, ABLayout>)
         {
-            // Divide each tile in 8x8 subtile
-            // MNTiles - KTiles - LaneGroup - LaneLocal - VectorSize
-            // LaneGroup = 0-3
-            // LaneLocal = 0-7
-            // VectorSize must be 8
             const auto ab_grid_desc_mntiles_ktiles_lanegroup_lanelocal_abk1 =
                 transform_tensor_descriptor(
                     ab_grid_desc_mntiles_ktiles,
@@ -85,12 +90,11 @@ struct ABTransferWaveTiles
                                    math::integer_divide_ceil(sizeMN, Number<MNPerWmma>{})),
                                make_pass_through_transform(
                                    math::integer_divide_ceil(sizeK, Number<KPack>{})),
-                               make_unmerge_transform(make_tuple(Number<MNPerWmma / ABK1Value>{},
-                                                                 Number<ABK1Value>{})),
+                               make_pass_through_transform(Number<MNPerWmma>{}),
                                make_unmerge_transform(
-                                   make_tuple(Number<KPack / ABK1Value>{}, Number<ABK1Value>{}))),
+                                   make_tuple(Number<MNKRow>{}, Number<KPack / MNKRow>{}))),
                     make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 4>{}, Sequence<3, 5>{}));
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3, 4>{}));
 
             // Freeze VectorSize to first element of the loading chunk (for convenience)
             return transform_tensor_descriptor(
@@ -99,22 +103,16 @@ struct ABTransferWaveTiles
                     make_pass_through_transform(
                         math::integer_divide_ceil(sizeMN, Number<MNPerWmma>{})),
                     make_pass_through_transform(math::integer_divide_ceil(sizeK, Number<KPack>{})),
-                    make_merge_transform(
-                        make_tuple(Number<MNPerWmma / ABK1Value>{}, Number<KPack / ABK1Value>{})),
-                    make_pass_through_transform(Number<ABK1Value>{}),
+                    make_pass_through_transform(Number<MNPerWmma>{}),
+                    make_pass_through_transform(Number<MNKRow>{}),
                     make_freeze_transform(I0)),
                 make_tuple(
-                    Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4>{}, Sequence<5>{}),
+                    Sequence<0>{}, Sequence<1>{}, Sequence<3>{}, Sequence<2>{}, Sequence<4>{}),
                 make_tuple(
                     Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<>{}));
         }
         else
         {
-            // Divide each 16x16 tile into 4 8x8 subtiles
-            // MNTiles - KTiles - LaneGroup - LaneLocal - VectorSize
-            // LaneGroup = 0-3
-            // LaneLocal = 0-7
-            // VectorSize must be 8
             const auto ab_grid_desc_mntiles_ktiles_lanegroup_lanelocal_abk1 =
                 transform_tensor_descriptor(
                     ab_grid_desc_mntiles_ktiles,
@@ -123,11 +121,10 @@ struct ABTransferWaveTiles
                                make_pass_through_transform(
                                    math::integer_divide_ceil(sizeK, Number<KPack>{})),
                                make_unmerge_transform(
-                                   make_tuple(Number<KPack / ABK1Value>{}, Number<ABK1Value>{})),
-                               make_unmerge_transform(make_tuple(Number<MNPerWmma / ABK1Value>{},
-                                                                 Number<ABK1Value>{}))),
-                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<3>{}, Sequence<2>{}),
-                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 4>{}, Sequence<3, 5>{}));
+                                   make_tuple(Number<MNKRow>{}, Number<MNPerWmma / MNKRow>{})),
+                               make_pass_through_transform(Number<KPack>{})),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4>{}));
 
             // Freeze VectorSize to first element of the loading chunk (for convenience)
             return transform_tensor_descriptor(
@@ -136,14 +133,13 @@ struct ABTransferWaveTiles
                     make_pass_through_transform(
                         math::integer_divide_ceil(sizeMN, Number<MNPerWmma>{})),
                     make_pass_through_transform(math::integer_divide_ceil(sizeK, Number<KPack>{})),
-                    make_merge_transform(
-                        make_tuple(Number<MNPerWmma / ABK1Value>{}, Number<KPack / ABK1Value>{})),
-                    make_pass_through_transform(Number<ABK1Value>{}),
-                    make_freeze_transform(I0)),
+                    make_pass_through_transform(Number<MNKRow>{}),
+                    make_freeze_transform(I0),
+                    make_pass_through_transform(Number<KPack>{})),
                 make_tuple(
-                    Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4>{}, Sequence<5>{}),
+                    Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
                 make_tuple(
-                    Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<>{}));
+                    Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<>{}, Sequence<3>{}));
         }
     }
 
@@ -152,17 +148,17 @@ struct ABTransferWaveTiles
         // LDS memory layouts:
         // lanes within tiles stored contiguously in chunks of 8 elements
         // tiles are then stored first in K dimension
-        // MNTiles - KTiles - LaneGroup - LaneLocal - VectorSize
+        // MNTiles - KTiles - MNKRow - LaneLocal - VectorSize
         const auto a_grid_desc_mraw_kraw = [&]() {
             return make_naive_tensor_descriptor(
                 make_tuple(Number<MNRepeat_ * MNWaves_>{},
                            Number<KRepeat_ * KWaves_>{},
-                           Number<MNPerWmma * KPack / ABK1Value / ABK1Value>{},
-                           Number<ABK1Value>{},
+                           Number<MNKRow>{},
+                           Number<MNPerWmma>{},
                            Number<ABK1Value>{}),
                 make_tuple(Number<KPack * MNPerWmma * KWaves_ * KRepeat_>{},
                            Number<KPack * MNPerWmma>{},
-                           Number<ABK1Value * ABK1Value>{},
+                           Number<ABK1Value * MNPerWmma>{},
                            Number<ABK1Value>{},
                            I1));
         }();
@@ -170,12 +166,11 @@ struct ABTransferWaveTiles
         // Freeze VectorSize to first element of the chunk (for convenience)
         return transform_tensor_descriptor(
             a_grid_desc_mraw_kraw,
-            make_tuple(
-                make_pass_through_transform(Number<MNRepeat_ * MNWaves_>{}),
-                make_pass_through_transform(Number<KRepeat_ * KWaves_>{}),
-                make_pass_through_transform(Number<MNPerWmma * KPack / ABK1Value / ABK1Value>{}),
-                make_pass_through_transform(Number<ABK1Value>{}),
-                make_freeze_transform(I0)),
+            make_tuple(make_pass_through_transform(Number<MNRepeat_ * MNWaves_>{}),
+                       make_pass_through_transform(Number<KRepeat_ * KWaves_>{}),
+                       make_pass_through_transform(Number<MNKRow>{}),
+                       make_pass_through_transform(Number<MNPerWmma>{}),
+                       make_freeze_transform(I0)),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<>{}));
     }
@@ -195,38 +190,45 @@ struct ABTransferWaveTiles
     __device__ static auto GetBlockLaneIdx()
     {
         const index_t lane_id = __lane_id();
-        ;
 
-        constexpr index_t NumberSubTiles = (MNPerWmma / ABK1Value) * (KPack / ABK1Value);
+        constexpr index_t LanesPerSubTile = ABDoTranspose ? KPack : MNPerWmma;
+
         constexpr auto laneid_to_block_lane_idx_adaptor = make_single_stage_tensor_adaptor(
-            make_tuple(make_merge_transform(make_tuple(NumberSubTiles, ABK1Value))),
+            make_tuple(make_merge_transform(make_tuple(MNKRow, LanesPerSubTile))),
             make_tuple(Sequence<0, 1>{}),
             make_tuple(Sequence<0>{}));
 
         return laneid_to_block_lane_idx_adaptor.CalculateBottomIndex(make_multi_index(lane_id));
     }
 
+    template <typename ABDataType>
     __device__ static auto GetGridLaneIdx()
     {
         const index_t lane_id = __lane_id();
 
-        constexpr index_t SubTilesK                    = KPack / ABK1Value;
-        constexpr index_t SubTilesMN                   = MNPerWmma / ABK1Value;
-        constexpr auto laneid_to_grid_lane_idx_adaptor = make_single_stage_tensor_adaptor(
-            make_tuple(make_merge_transform(make_tuple(SubTilesK, SubTilesMN, ABK1Value))),
-            make_tuple(Sequence<0, 1, 2>{}),
-            make_tuple(Sequence<0>{}));
+        constexpr index_t SubTilesRow = MNKRow;
+        constexpr index_t SubTilesCol = 4 / sizeof(ABDataType);
+        constexpr index_t LanesPerSubTile =
+            ABDoTranspose ? KPack / SubTilesCol : MNPerWmma / SubTilesCol;
+        constexpr auto dims_tuple = ABDoTranspose
+                                        ? make_tuple(SubTilesCol, SubTilesRow, LanesPerSubTile)
+                                        : make_tuple(SubTilesRow, SubTilesCol, LanesPerSubTile);
+
+        constexpr auto laneid_to_grid_lane_idx_adaptor =
+            make_single_stage_tensor_adaptor(make_tuple(make_merge_transform(dims_tuple)),
+                                             make_tuple(Sequence<0, 1, 2>{}),
+                                             make_tuple(Sequence<0>{}));
 
         const auto indices =
             laneid_to_grid_lane_idx_adaptor.CalculateBottomIndex(make_multi_index(lane_id));
 
-        if constexpr(is_same_v<ABMajorLayout, ABLayout>)
+        if constexpr(!ABDoTranspose)
         {
-            return make_multi_index(indices[I1] * SubTilesMN + indices[I0], indices[I2]);
+            return make_multi_index(indices[I0], indices[I1] * LanesPerSubTile + indices[I2]);
         }
         else
         {
-            return make_multi_index(indices[I0] * SubTilesMN + indices[I1], indices[I2]);
+            return make_multi_index(indices[I1], indices[I0] * LanesPerSubTile + indices[I2]);
         }
     }
 
@@ -253,7 +255,7 @@ struct ABTransferWaveTiles
         index_t wave_idK    = wave_idx[I1];
         index_t wave_idMN   = wave_idx[I0];
 
-        const auto grid_lane_id    = GetGridLaneIdx();
+        const auto grid_lane_id    = GetGridLaneIdx<ABDataType>();
         index_t lane_group_grid    = grid_lane_id[I0];
         index_t lane_local_id_grid = grid_lane_id[I1];
 
@@ -287,16 +289,10 @@ struct ABTransferWaveTiles
         // This is a block descriptor used to read LDS memory into register
         // It's defined in a way consistent with the existing implementation to
         // avoid changes in the pipelines
-#ifdef __gfx12__
-        constexpr auto KRow = I2;
-#else
-        constexpr auto KRow = I1;
-#endif
-
         return make_naive_tensor_descriptor(make_tuple(Number<KPerBlock / KPack>{},
                                                        Number<MNRepeat>{},
                                                        Number<MNWaves>{},
-                                                       Number<KRow>{},
+                                                       Number<MNKRow>{},
                                                        Number<MNPerWmma>{},
                                                        Number<ABK1Value>{}),
                                             make_tuple(Number<KPack * MNPerWmma>{},
@@ -316,8 +312,6 @@ struct ABTransferWaveTiles
     template <typename GridDescriptor>
     __device__ static constexpr index_t GetKDimension(const GridDescriptor& grid_desc)
     {
-        // K dimension size. This should always be called with the A matrix grid descriptor
-        // because it doesn't work for B matrix when packed int4 is used
         return grid_desc.GetLength(I1) * KPack;
     }
 };

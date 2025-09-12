@@ -152,23 +152,34 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
+    static constexpr index_t APackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<LDSTypeA>, pk_i4_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
+    static constexpr index_t BPackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<LDSTypeB>, pk_i4_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
     // Limitations of the current implementation:
     //  - no multiAB
-    //  - fp16 only
     //  - GemmSpecialization Default
     //  - pipeline v1 because v3 is buggy (fixed in batched gemm gemm implementation)
     // AK1Value == 8 is not really a limitation but a requirement for the method so
     // it will stay
 #ifdef __gfx12__
     static constexpr bool IsAWaveTransferApplicable =
-        !ForceThreadTileTransfer && NumATensor == 1 &&
-        is_same_v<remove_cvref_t<tuple_element_t<0, AsDataType>>, half_t> &&
+        !ForceThreadTileTransfer && NumATensor == 1 && APackedSize == 1 &&
         GemmSpec == tensor_operation::device::GemmSpecialization::Default &&
         BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 && AK1Value == 8;
 
     static constexpr bool IsBWaveTransferApplicable =
-        !ForceThreadTileTransfer && NumBTensor == 1 &&
-        is_same_v<remove_cvref_t<tuple_element_t<0, BsDataType>>, half_t> &&
+        !ForceThreadTileTransfer && NumBTensor == 1 && BPackedSize == 1 &&
         GemmSpec == tensor_operation::device::GemmSpecialization::Default &&
         BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 && BK1Value == 8;
 #else
@@ -185,6 +196,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         IsAWaveTransferApplicable,
         ABTransferWaveTiles<ALayout,
                             tensor_layout::gemm::RowMajor,
+                            LDSTypeA,
                             BlockSize,
                             MPerBlock,
                             KPerBlock,
@@ -217,6 +229,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         IsBWaveTransferApplicable,
         ABTransferWaveTiles<BLayout,
                             tensor_layout::gemm::ColumnMajor,
+                            LDSTypeB,
                             BlockSize,
                             NPerBlock,
                             KPerBlock,
@@ -247,20 +260,6 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                   "pk_i4_t does not support padding");
 
     static_assert(!PermuteA, "PermuteA is not supported");
-
-    static constexpr index_t APackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<LDSTypeA>, pk_i4_t>)
-            return 2;
-        else
-            return 1;
-    }();
-
-    static constexpr index_t BPackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<LDSTypeB>, pk_i4_t>)
-            return 2;
-        else
-            return 1;
-    }();
 
     // return block_id to C matrix tile idx (m0, n0) mapping
     // if arch = gfx942
