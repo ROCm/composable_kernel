@@ -341,10 +341,6 @@ int run_gemm_example(int argc, char* argv[])
 
         if(quant_mode == "bquant")
         {
-            if constexpr(GemmConfig<ck_tile::fp8_t>::PreshuffleB){
-                throw std::runtime_error(
-                    "Unsupported datatype for preshuffle!");
-            } 
             return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
                                               TypeConfig,
                                               128,
@@ -365,11 +361,7 @@ int run_gemm_example(int argc, char* argv[])
                                                         ck_tile::bf8_t>{});
 
         if(quant_mode == "bquant")
-        {
-            if(GemmConfig<ck_tile::fp8_t>::PreshuffleB){
-                throw std::runtime_error(
-                    "Unsupported datatype for preshuffle!");
-            } 
+        { 
             return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
                                               TypeConfig,
                                               128,

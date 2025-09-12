@@ -1062,20 +1062,31 @@ struct QuantGemmKernel
         const auto& b_block_window = gemm_tile_windows.at(I2);
 
         const auto& c_block_tile = [&]() {
-            //if constexpr(kQuantType == QuantType::BQuantGrouped)
+            if constexpr(kQuantType == QuantType::BQuantGrouped)
             {
                 const auto& bq_block_window = gemm_tile_windows.at(I3);
                 return GemmPipeline{}.template operator()(
                     a_block_window, b_block_window, bq_block_window, num_loop, smem_ptr_0, smem_ptr_1);
+            }
+            else{
+                return nullptr;
+                //throw std::runtime_error("DoubleSmemBuffer Not implemented for AQuantGrouped or RowColQuant");
+                //static_assert(kQuantType == QuantType::BQuantGrouped, "DoubleSmemBuffer Not implemented");
             }
         }();
 
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I4);
 
-        //if constexpr(kQuantType == QuantType::BQuantGrouped)
+        if constexpr(kQuantType == QuantType::BQuantGrouped)
         {
             EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
+        }
+        else 
+        {
+            return;
+            //throw std::runtime_error("DoubleSmemBuffer Not implemented for AQuantGrouped or RowColQuant");
+            //static_assert(kQuantType == QuantType::BQuantGrouped, "DoubleSmemBuffer Not implemented");
         }
     }
 

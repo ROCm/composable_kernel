@@ -140,7 +140,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                       ? "AQuantGrouped"
                       : (QuantMode == ck_tile::QuantType::BQuantGrouped ? "BQuantGrouped"
                                                                         : "RowColQuant"))
-              << " PreshuffleQuant = " << (GemmConfig::PreshuffleQuant ? "true" : "false") << " : "
+              << " PreshuffleQuant = " << (GemmConfig::PreshuffleQuant ? "true" : "false")
+              << " PreshuffleB = " << (GemmConfig::PreshuffleB ? "true" : "false") << " : "
               << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << std::endl;
 
@@ -329,9 +330,13 @@ int run_gemm_example_with_layouts(int argc,
     {
         if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
-            ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x38)}(a_m_k);
-            ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x22)}(b_k_n);
-            ck_tile::FillConstant<BQDataType>{static_cast<BQDataType>(0.5f)}(*bq_tensor_ptr);
+            // ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x38)}(a_m_k);
+            // ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x22)}(b_k_n);
+            // ck_tile::FillConstant<BQDataType>{static_cast<BQDataType>(0.5f)}(*bq_tensor_ptr);
+            ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x40)}(a_m_k);
+            ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x40)}(b_k_n);
+            ck_tile::FillConstant<BQDataType>{static_cast<BQDataType>(1.0f)}(*bq_tensor_ptr);
+            printf("Bquant grouped tensors initialized to constant 1.0f\n");
         }
         else
         {
@@ -399,22 +404,34 @@ int run_gemm_example_with_layouts(int argc,
     {
         a_m_k_dev_buf.ToDevice(a_m_k.data());
     }
+
     if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
     {
-        // Permute vector pk_i4x4 data for device implementation
-        ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
-        ck_tile::permute_vectors_i4x4_b(b_k_n_dev);
-        b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
-    }
-    else if constexpr(GemmConfig::PreshuffleB && QuantMode == ck_tile::QuantType::BQuantGrouped)
-    {
-        ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<GemmConfig>(b_k_n);
-        // shuffled buffer B for device implementation
-        b_k_n_dev_buf.ToDevice(b_shuffle_host.data());
+        if constexpr(GemmConfig::PreshuffleQuant)
+        {
+            ck_tile::HostTensor<BDataType> b_k_n_dev = shuffle_b<GemmConfig>(b_k_n);
+            ck_tile::permute_vectors_i4x4_b(b_k_n_dev);
+            b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
+        }
+        else
+        {
+            // Permute vector pk_i4x4 data for device implementation
+            ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
+            ck_tile::permute_vectors_i4x4_b(b_k_n_dev);
+            b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
+        }
     }
     else
     {
-        b_k_n_dev_buf.ToDevice(b_k_n.data());
+        if constexpr(GemmConfig::PreshuffleQuant)
+        {
+            ck_tile::HostTensor<BDataType> b_k_n_dev = shuffle_b<GemmConfig>(b_k_n);
+            b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
+        }
+        else
+        {
+            b_k_n_dev_buf.ToDevice(b_k_n.data());
+        }
     }
 
     c_m_n_dev_buf.SetZero();

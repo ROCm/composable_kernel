@@ -22,6 +22,7 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
     using BQDataType     = remove_cvref_t<typename Problem::BQDataType>;
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
+    using ComputeDataType= remove_cvref_t<typename Problem::ComputeDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>; // TileFlatmmShape
 
     static constexpr auto I0   = number<0>();
@@ -66,6 +67,11 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
         (WG::kK + kQuantGroupSize - 1) / kQuantGroupSize;
 
     static constexpr index_t KIterPerQScale = KIterPerWarp / QScalesPerBlockRow;
+    static constexpr index_t DsReadPreload   = 2; // default 2, preload 2 ds read
+
+    static constexpr index_t m_preload = (MIterPerWarp * KIterPerWarp >= DsReadPreload)
+                                             ? DsReadPreload
+                                             : MIterPerWarp * KIterPerWarp;
 
     template <typename T>
     CK_TILE_DEVICE static float cvt_scale_to_fp32(T& scale)
@@ -109,6 +115,24 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
         return c_block_tensor;
     }
 
+    template <typename WarpWindow, typename WarpTile>
+    CK_TILE_DEVICE static void load_interleaved_pk_type(WarpTile& warp_tile,
+                                                        const WarpWindow& warp_window)
+    {
+        const element_wise::PassThroughPack8 elementwise_op{};
+        const index_t UnaryOpSize = 8;
+        
+        static_assert(WarpTile::get_thread_buffer_size() % UnaryOpSize == 0);
+        constexpr index_t thread_buffer_size = WarpTile::get_thread_buffer_size() / UnaryOpSize;
+        const auto in_dstr_tensors           = load_tile(warp_window);
+
+        using ComputeVectorType = ComputeDataType __attribute__((ext_vector_type(UnaryOpSize)));
+        static_for<0, thread_buffer_size, 1>{}([&](auto i) {
+            elementwise_op(warp_tile.get_thread_buffer().template get_as<ComputeVectorType>()(i),
+                           in_dstr_tensors.get_thread_buffer().template get_as<pk_int4x4_t>()[i]);
+        });
+    }
+
     // C += A * B
     template <typename CBlockTensor,
               typename ABlockTensor,
@@ -119,23 +143,23 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
                                    ABlockTensor& a_warp_tensor,
                                    BFlatBlockTensor& b_warp_tensor,
                                    BQBlockTensor& bq_block_tensor,
-                                   ABlockWindow& a_warp_windows,
-                                   index_t m_preload) const
+                                   ABlockWindow& a_warp_windows) const
     {
         using CWarpDstr   = typename WG::CWarpDstr;
         using CWarpTensor = typename WG::CWarpTensor;
 
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
+        constexpr auto c_warp_y_lengths =
+             to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
 
-        static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-                static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-                    
-                    static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
-                        constexpr auto AwarpIter = (kIter * MIterPerWarp + mIter) % m_preload;
+        static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+                static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+                    constexpr auto AwarpIter = (kIter * MIterPerWarp + mIter) % m_preload;
+                    static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                         // read C warp tensor from C block tensor
                         CWarpTensor c_warp_tensor;
 
-                        c_warp_tensor.get_thread_buffer() = c_block_tile.get_y_sliced_thread_data(
+                        c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
                             merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
                             merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
@@ -148,44 +172,50 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
                         {
                             WG{}(c_warp_tensor, a_warp_tensor(number<AwarpIter>{}), b_warp_tensor(nIter)(kIter));
                         }   
+                        
+                        auto& scale_reg   = bq_block_tensor.get_thread_buffer()[0];
+                        scale_reg=0;
+                        // if constexpr((kIter + 1) % KIterPerQScale == 0)
+                        // {
+                        //     constexpr index_t reg_offset =
+                        //         nIter * KPerBlockBQ + ((kIter * WG::kK) / kQuantGroupSize);
 
-                        if constexpr((kIter + 1) % KIterPerQScale == 0)
-                        {
-                            constexpr index_t reg_offset =
-                                nIter * KPerBlockBQ + ((kIter * WG::kK) / kQuantGroupSize);
+                        //     constexpr auto tbuf_offset =
+                        //         number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
+                        //                 merge_sequences(sequence<mIter, nIter>{},
+                        //                                 c_warp_y_index_zeros)) /
+                        //             CBlockTensor::PackedSize>{};
 
-                            constexpr auto tbuf_offset =
-                                number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
-                                        merge_sequences(sequence<mIter, nIter>{},
-                                                        c_warp_y_index_zeros)) /
-                                    CBlockTensor::PackedSize>{};
-
-                            auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
-                            float scale_reg_f = cvt_scale_to_fp32(scale_reg);
-                            static_for<0, WG::kM / 2, 1>{}([&](auto c_row) {
-                                c_block_tile.get_thread_buffer()[tbuf_offset + c_row] +=
-                                    (c_warp_tensor.get_thread_buffer()[c_row] * scale_reg_f);
-                            });
-                        }
+                        //     auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
+                        //     float scale_reg_f = cvt_scale_to_fp32(scale_reg);
+                        //     static_for<0, WG::kM / 2, 1>{}([&](auto c_row) {
+                        //         c_block_tensor.get_thread_buffer()[tbuf_offset + c_row] +=
+                        //             (c_warp_tensor.get_thread_buffer()[c_row] * scale_reg_f);
+                        //     });
+                        // }
+                        // write C warp tensor into C block tensor
+                        c_block_tensor.set_y_sliced_thread_data(
+                            merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                            merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
+                            c_warp_tensor.get_thread_buffer());
 
                         __builtin_amdgcn_sched_barrier(0x7F6);
-                    
-                        // preload next A from lds
-                        if constexpr((kIter * MIterPerWarp + mIter) <
-                                    (KIterPerWarp * MIterPerWarp - m_preload))
-                        {
-                            constexpr auto AmIter = (mIter + m_preload) % MIterPerWarp;
-                            constexpr auto AkIter = (kIter + (mIter + m_preload) / MIterPerWarp);
-                            a_warp_tensor(number<AwarpIter>{}) =
-                                load_tile(a_warp_windows(number<AmIter>{})(number<AkIter>{}));
-                        }
-
-                        // barrier
-                        if constexpr((kIter == KIterPerWarp - 1) && (mIter == MIter_2nd_last))
-                        {
-                            block_sync_lds();
-                        }
                     });
+                        // preload next A from lds
+                    if constexpr((kIter * MIterPerWarp + mIter) <
+                                (KIterPerWarp * MIterPerWarp - m_preload))
+                    {
+                        constexpr auto AmIter = (mIter + m_preload) % MIterPerWarp;
+                        constexpr auto AkIter = (kIter + (mIter + m_preload) / MIterPerWarp);
+                        a_warp_tensor(number<AwarpIter>{}) =
+                            load_tile(a_warp_windows(number<AmIter>{})(number<AkIter>{}));
+                    }
+
+                    // barrier
+                    if constexpr((kIter == KIterPerWarp - 1) && (mIter == MIter_2nd_last))
+                    {
+                        block_sync_lds();
+                    }
                 });
             });
     }
