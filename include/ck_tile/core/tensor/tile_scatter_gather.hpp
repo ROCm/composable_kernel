@@ -522,18 +522,22 @@ struct tile_scatter_gather
                 constexpr auto idx_gather   = idx_ys_start[number<YsGatherDim>{}];
                 const auto page_offset      = page_idx_[idx_gather];
 
+                // merge page_offset into bottom_coord
+                auto mixed_bottom_thread_coord = bottom_tensor_thread_coord;
+                mixed_bottom_thread_coord.get_hidden_index()[number<0>{}] += page_offset;
+
                 // read from bottom tensor
                 if constexpr(std::is_same_v<ValidArray, std::nullptr_t>)
                     this->get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
                         smem,
-                        bottom_tensor_thread_coord,
-                        page_offset,
+                        mixed_bottom_thread_coord,
+                        number<0>{},
                         bool_constant<oob_conditional_check>{});
                 else
                     this->get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
                         smem,
-                        bottom_tensor_thread_coord,
-                        page_offset,
+                        mixed_bottom_thread_coord,
+                        number<0>{},
                         valids_[idx_gather],
                         bool_constant<oob_conditional_check>{});
 
