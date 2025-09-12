@@ -43,6 +43,7 @@ cmake                                                                           
 -D BUILD_DEV=ON                                                                                   \
 -D GPU_TARGETS=$GPU_TARGETS                                                                       \
 -D CMAKE_VERBOSE_MAKEFILE:BOOL=ON                                                                 \
--D USE_BITINT_EXTENSION_INT4=OFF                                                                  \
-"${REST_ARGS[@]}"                                                                                 \                                                                                     \
+-D USE_BITINT_EXTENSION_INT4=OFF                                    \
+-G Ninja                                                                  \
+$@                                                                                                \
 ${MY_PROJECT_SOURCE}

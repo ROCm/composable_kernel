@@ -635,7 +635,7 @@ struct tile_window_linear
             // read from bottom tensor
             const vector_t vec_value =
                 this->get_bottom_tensor_view().template get_transpose_vectorized_elements<vector_t>(
-                    bottom_tensor_thread_coord, 0);
+                    bottom_tensor_thread_coord);
             // write into distributed tensor
             static_for<0, traits::ScalarPerVector, 1>{}([&](auto j) {
                 constexpr auto idx_ys = generate_tuple(

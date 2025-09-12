@@ -13,6 +13,8 @@
 #include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v1.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v1_custom_policy.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v1.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v3_custom_policy.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v3.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_breg_creg_v1_custom_policy.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_breg_creg_v1.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_custom_policy.hpp"
@@ -91,9 +93,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                true,
                                false, // SwizzleAccess
                                false, // UseStructuredSparsity
-                               (Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}) *
-                                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}) ==
-                                512)
+                               // TODO: Fix double access issue
+                               (Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}) == 32 &&
+                                Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}) == 16)
                                    ? WGAttrNumAccessEnum ::Double
                                    : WGAttrNumAccessEnum ::Single>;
 
@@ -169,9 +171,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                true,
                                false, // SwizzleAccess
                                false, // UseStructuredSparsity
-                               (Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}) *
-                                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}) ==
-                                512)
+                               // TODO: Fix double access issue
+                               (Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}) == 32 &&
+                                Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}) == 16)
                                    ? WGAttrNumAccessEnum ::Double
                                    : WGAttrNumAccessEnum ::Single>;
 
@@ -1034,23 +1036,37 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
+        // Handle 32x32 tc consume 16x16 tc output
+        constexpr auto BWarpContiguous =
+            (Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}) == 16 &&
+             Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}) == 32)
+                ? false
+                : true;
 
         constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<0>{});
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
 
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0 / 2;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
 
         constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
         constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
 
+        using b_distr_hs_n = std::conditional_t<BWarpContiguous,
+                                                sequence<NIterPerWarp, NWarp>,
+                                                sequence<NWarp, NIterPerWarp>>;
+        using b_distr_ps_minor =
+            std::conditional_t<BWarpContiguous, sequence<0, 1>, sequence<0, 0>>;
+        using b_distr_ys_minor =
+            std::conditional_t<BWarpContiguous, sequence<0, 0>, sequence<1, 0>>;
+
         constexpr auto k_block_outer_dstr_encoding =
             tile_distribution_encoding<sequence<MWarp>,
-                                       tuple<sequence<NIterPerWarp, NWarp>, sequence<KIterPerWarp>>,
+                                       tuple<b_distr_hs_n, sequence<KIterPerWarp>>,
                                        tuple<sequence<0, 1>>,
-                                       tuple<sequence<0, 1>>,
+                                       tuple<b_distr_ps_minor>,
                                        sequence<1, 2>,
-                                       sequence<0, 0>>{};
+                                       b_distr_ys_minor>{};
 
         constexpr auto k_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             k_block_outer_dstr_encoding, typename WarpGemm::BWarpDstrEncoding{});
@@ -1092,6 +1108,12 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         using BlockGemm       = remove_cvref_t<decltype(GetOGradVBlockGemm<Problem>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
+        // Handle 32x32 tc consume 16x16 tc output
+        constexpr auto BWarpContiguous =
+            (Problem::BlockFmhaShape::Gemm2WarpTile::at(number<0>{}) == 16 &&
+             Problem::BlockFmhaShape::Gemm3WarpTile::at(number<0>{}) == 32)
+                ? false
+                : true;
 
         constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm2BlockWarps::at(number<0>{});
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm2BlockWarps::at(number<1>{});
@@ -1102,13 +1124,21 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
         constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
 
+        using b_distr_hs_n = std::conditional_t<BWarpContiguous,
+                                                sequence<NIterPerWarp, NWarp>,
+                                                sequence<NWarp, NIterPerWarp>>;
+        using b_distr_ps_minor =
+            std::conditional_t<BWarpContiguous, sequence<0, 1>, sequence<0, 0>>;
+        using b_distr_ys_minor =
+            std::conditional_t<BWarpContiguous, sequence<0, 0>, sequence<1, 0>>;
+
         constexpr auto v_block_outer_dstr_encoding =
             tile_distribution_encoding<sequence<MWarp>,
-                                       tuple<sequence<NIterPerWarp, NWarp>, sequence<KIterPerWarp>>,
+                                       tuple<b_distr_hs_n, sequence<KIterPerWarp>>,
                                        tuple<sequence<0, 1>>,
-                                       tuple<sequence<0, 1>>,
+                                       tuple<b_distr_ps_minor>,
                                        sequence<1, 2>,
-                                       sequence<0, 0>>{};
+                                       b_distr_ys_minor>{};
 
         constexpr auto v_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             v_block_outer_dstr_encoding, typename WarpGemm::BWarpDstrEncoding{});
@@ -1191,7 +1221,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm4BlockWarps::at(number<1>{});
 
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kN0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kN0 / 2;
 
         constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
         constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;

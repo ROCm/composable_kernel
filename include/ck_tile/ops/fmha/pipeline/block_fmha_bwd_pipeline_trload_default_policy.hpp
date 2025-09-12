@@ -10,7 +10,7 @@ namespace ck_tile {
 
 struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
 {
-    template <typename Problem>
+    template <typename Problem, index_t StageCount = 1>
     CK_TILE_HOST_DEVICE static constexpr auto GetQKBlockGemm()
     {
         using GemmProblem =
@@ -19,7 +19,7 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
                              typename Problem::AccDataType,
                              Problem::kBlockSize,
                              TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
-                                                    Problem::BlockFmhaShape::kN0,
+                                                    Problem::BlockFmhaShape::kN0 / StageCount,
                                                     Problem::BlockFmhaShape::kK0>,
                                            typename Problem::BlockFmhaShape::Gemm0BlockWarps,
                                            typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
@@ -36,13 +36,21 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
             SwizzleA>;
 
         using BlockGemmPolicy =
-            BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::QDataType,
+            BlockGemmARegBRegCRegV3CustomPolicy<typename Problem::QDataType,
                                                 typename Problem::KDataType,
                                                 typename Problem::AccDataType,
                                                 typename Problem::BlockFmhaShape::Gemm0BlockWarps,
                                                 WarpGemm>;
+        constexpr auto BWarpContiguous =
+            (Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}) == 16 &&
+             Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}) == 32)
+                ? false
+                : true;
 
-        return BlockGemmARegBRegCRegV1<GemmProblem, BlockGemmPolicy, /* TransposeC */ true>{};
+        return BlockGemmARegBRegCRegV3<GemmProblem,
+                                       BlockGemmPolicy,
+                                       /* TransposeC */ true,
+                                       /* BWarpContiguous_ */ BWarpContiguous>{};
     }
 
     template <typename Problem>
@@ -76,14 +84,23 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
             false,
             SwizzleA>;
 
+        constexpr auto BWarpContiguous =
+            (Problem::BlockFmhaShape::Gemm2WarpTile::at(number<0>{}) == 16 &&
+             Problem::BlockFmhaShape::Gemm3WarpTile::at(number<0>{}) == 32)
+                ? false
+                : true;
+
         using BlockGemmPolicy =
-            BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::OGradDataType,
+            BlockGemmARegBRegCRegV3CustomPolicy<typename Problem::OGradDataType,
                                                 typename Problem::VDataType,
                                                 typename Problem::AccDataType,
                                                 typename Problem::BlockFmhaShape::Gemm2BlockWarps,
                                                 WarpGemm>;
 
-        return BlockGemmARegBRegCRegV1<GemmProblem, BlockGemmPolicy, /* TransposeC */ true>{};
+        return BlockGemmARegBRegCRegV3<GemmProblem,
+                                       BlockGemmPolicy,
+                                       /* TransposeC */ true,
+                                       /* BWarpContiguous_ */ BWarpContiguous>{};
     }
 
     template <typename Problem>
@@ -92,19 +109,20 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
         return BlockFmhaBwdPipelineDefaultPolicy::GetSGradTQTBlockGemm<Problem>();
     }
 
-    template <typename Problem>
+    template <typename Problem, index_t StageCount = 1>
     CK_TILE_HOST_DEVICE static constexpr auto GetSGradKTBlockGemm()
     {
         using BlockFmhaShape = typename Problem::BlockFmhaShape;
-        using GemmProblem    = BlockGemmProblem<
-               typename Problem::GemmDataType,
-               typename Problem::KDataType,
-               typename Problem::AccDataType,
-               Problem::kBlockSize,
-               TileGemmShape<
-                   sequence<BlockFmhaShape::kM0, BlockFmhaShape::kQKHeaddim, BlockFmhaShape::kK4>,
-                   typename BlockFmhaShape::Gemm4BlockWarps,
-                   typename BlockFmhaShape::Gemm4WarpTile>>;
+        using GemmProblem =
+            BlockGemmProblem<typename Problem::GemmDataType,
+                             typename Problem::KDataType,
+                             typename Problem::AccDataType,
+                             Problem::kBlockSize,
+                             TileGemmShape<sequence<BlockFmhaShape::kM0,
+                                                    BlockFmhaShape::kQKHeaddim / StageCount,
+                                                    BlockFmhaShape::kK4>,
+                                           typename BlockFmhaShape::Gemm4BlockWarps,
+                                           typename BlockFmhaShape::Gemm4WarpTile>>;
 
         using WarpGemm = WarpGemmDispatcher< //
             typename Problem::GemmDataType,
@@ -497,7 +515,7 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
         constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm4BlockWarps::at(number<0>{});
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm4BlockWarps::at(number<1>{});
 
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kQKHeaddim / 2;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kN0;
 
         constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
@@ -887,7 +905,6 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm1BlockWarps::at(number<1>{});
 
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kVHeaddim;
-        // constexpr index_t kNPerBlock = 32;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
 
         constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
@@ -903,8 +920,6 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
 
         constexpr auto dot_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             dot_block_outer_dstr_encoding, typename WarpGemm::BWarpDstrEncoding{});
-        // CK_PRINT<typename WarpGemm::BWarpDstrEncoding>();
-        // CK_PRINT<decltype(dot_block_dstr_encode)>();
 
         return make_static_tile_distribution(
             typename InputTileDistributionTraits<
@@ -973,6 +988,58 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
             typename InputTileDistributionTraits<
                 decltype(ds_block_dstr_encode),
                 typename Problem::GemmDataType>::TransposedDstrEncode{});
+    }
+
+    template <typename Problem, typename PTOutTensor, typename PInTensor>
+    CK_TILE_DEVICE static constexpr void PTFromGemm0CToGemm1A(PTOutTensor& pt_out,
+                                                              const PInTensor& p_in)
+    {
+        CK_PRINT<PTOutTensor, PInTensor>();
+        pt_out.get_thread_buffer() = p_in.get_thread_buffer();
+        // if constexpr(Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}) == 16)
+        // {
+        //     using BlockGemm       = remove_cvref_t<decltype(GetPTOGradTBlockGemm<Problem>())>;
+        //     constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        //     using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
+
+        //     constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm1BlockWarps::at(number<0>{});
+
+        //     constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kN0;
+        //     constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+
+        //     constexpr index_t MIterPerWarp = kMPerBlock / (MWarp * WarpGemm::kM);
+        //     constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
+
+        //     using AWarpDstr = typename WarpGemm::AWarpDstr;
+        //     using CWarpDstr = typename WarpGemm::CWarpDstr;
+        //     auto pt_warp_tensor =
+        //         make_static_distributed_tensor<typename Problem::GemmDataType>(CWarpDstr{});
+
+        //     constexpr auto a_warp_y_lengths =
+        //         to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+        //     constexpr auto c_warp_y_lengths =
+        //         to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+
+        //     constexpr auto a_warp_y_index_zeros = uniform_sequence_gen_t<AWarpDstr::NDimY, 0>{};
+        //     constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
+
+        //     static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+        //         static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+        //             pt_warp_tensor.get_thread_buffer() = p_in.get_y_sliced_thread_data(
+        //                 merge_sequences(sequence<kIter, mIter>{}, c_warp_y_index_zeros),
+        //                 merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+
+        //             pt_out.set_y_sliced_thread_data(
+        //                 merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+        //                 merge_sequences(sequence<1, 1>{}, a_warp_y_lengths),
+        //                 pt_warp_tensor.get_thread_buffer());
+        //         });
+        //     });
+        // }
+        // else
+        // {
+        //     pt_out.get_thread_buffer() = p_in.get_thread_buffer();
+        // }
     }
 
     template <typename Problem>

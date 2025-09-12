@@ -96,49 +96,66 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
         // LDS allocation
         // cast to char* to do pointer arithmetic
         const auto smem_ptr_ = reinterpret_cast<char*>(smem_ptr);
+        // K/V reuse same space, V stay in register while K stays in LDS
         const auto k_lds_ptr = reinterpret_cast<KDataType*>(smem_ptr_);
-        const auto v_lds_ptr =
-            reinterpret_cast<VDataType*>(smem_ptr_ + Policy::template GetSmemSizeK<Problem>());
+        const auto v_lds_ptr = reinterpret_cast<VDataType*>(smem_ptr_);
 
-        const auto do_lds_ptr0 = reinterpret_cast<OGradDataType*>(smem_ptr_);
-        const auto do_lds_ptr1 = reinterpret_cast<OGradDataType*>(
-            smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>());
-        const auto q_lds_ptr0   = reinterpret_cast<QDataType*>( //
-            smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>() +
+        // Double LDS for dO, Q, LSE, D
+        const auto do_lds_ptr0 =
+            reinterpret_cast<OGradDataType*>(smem_ptr_ + Policy::template GetSmemSizeK<Problem>());
+        const auto do_lds_ptr1 =
+            reinterpret_cast<OGradDataType*>(smem_ptr_ + Policy::template GetSmemSizeK<Problem>() +
+                                             Policy::template GetSmemSizeOGrad<Problem>());
+
+        const auto q_lds_ptr0 = reinterpret_cast<QDataType*>( //
+            smem_ptr_ + Policy::template GetSmemSizeK<Problem>() +
+            Policy::template GetSmemSizeOGrad<Problem>() +
             Policy::template GetSmemSizeOGrad<Problem>());
-        const auto q_lds_ptr1   = reinterpret_cast<QDataType*>( //
-            smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>() +
+        const auto q_lds_ptr1 = reinterpret_cast<QDataType*>( //
+            smem_ptr_ + Policy::template GetSmemSizeK<Problem>() +
+            Policy::template GetSmemSizeOGrad<Problem>() +
             Policy::template GetSmemSizeOGrad<Problem>() +
             Policy::template GetSmemSizeQ<Problem>());
+
         const auto lse_lds_ptr0 = reinterpret_cast<LSEDataType*>(
-            smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>() +
+            smem_ptr_ + Policy::template GetSmemSizeK<Problem>() +
+            Policy::template GetSmemSizeOGrad<Problem>() +
             Policy::template GetSmemSizeOGrad<Problem>() +
             Policy::template GetSmemSizeQ<Problem>() + Policy::template GetSmemSizeQ<Problem>());
         const auto lse_lds_ptr1 = reinterpret_cast<LSEDataType*>(
-            smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>() +
+            smem_ptr_ + Policy::template GetSmemSizeK<Problem>() +
+            Policy::template GetSmemSizeOGrad<Problem>() +
             Policy::template GetSmemSizeOGrad<Problem>() +
             Policy::template GetSmemSizeQ<Problem>() + Policy::template GetSmemSizeQ<Problem>() +
             Policy::template GetSmemSizeLSE<Problem>());
+
         const auto d_lds_ptr0 = reinterpret_cast<DDataType*>(
-            smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>() +
+            smem_ptr_ + Policy::template GetSmemSizeK<Problem>() +
+            Policy::template GetSmemSizeOGrad<Problem>() +
             Policy::template GetSmemSizeOGrad<Problem>() +
             Policy::template GetSmemSizeQ<Problem>() + Policy::template GetSmemSizeQ<Problem>() +
             Policy::template GetSmemSizeLSE<Problem>() +
             Policy::template GetSmemSizeLSE<Problem>());
         const auto d_lds_ptr1 = reinterpret_cast<DDataType*>(
-            smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>() +
+            smem_ptr_ + Policy::template GetSmemSizeK<Problem>() +
+            Policy::template GetSmemSizeOGrad<Problem>() +
             Policy::template GetSmemSizeOGrad<Problem>() +
             Policy::template GetSmemSizeQ<Problem>() + Policy::template GetSmemSizeQ<Problem>() +
             Policy::template GetSmemSizeLSE<Problem>() +
             Policy::template GetSmemSizeLSE<Problem>() + Policy::template GetSmemSizeD<Problem>());
+
         const auto ds_lds_ptr = reinterpret_cast<GemmDataType*>(
-            smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>() +
+            smem_ptr_ + Policy::template GetSmemSizeK<Problem>() +
+            Policy::template GetSmemSizeOGrad<Problem>() +
             Policy::template GetSmemSizeOGrad<Problem>() +
             Policy::template GetSmemSizeQ<Problem>() + Policy::template GetSmemSizeQ<Problem>() +
             Policy::template GetSmemSizeLSE<Problem>() +
             Policy::template GetSmemSizeLSE<Problem>() + Policy::template GetSmemSizeD<Problem>() +
             Policy::template GetSmemSizeD<Problem>());
+
+        // Bias share same space with ds
         const auto bias_lds_ptr = reinterpret_cast<BiasDataType*>(ds_lds_ptr);
+
         return run(k_lds_ptr,
                    v_lds_ptr,
                    do_lds_ptr0,
@@ -207,28 +224,35 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
                 std::is_same_v<DDataType, remove_cvref_t<typename DDramBlockWindowTmp::DataType>>,
             "wrong!");
 
-        static_assert(kM0 == QDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kN0 == KDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kN0 == VDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kM0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kN0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
-                          kM0 == OGradDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kM0 == LSEDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kM0 == DDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kM0 == QGradDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kM0 == BiasGradDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kN0 == BiasGradDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
+        // util
+        constexpr auto I0 = number<0>{};
+        constexpr auto I1 = number<1>{};
+
+        static_assert(kM0 == QDramBlockWindowTmp{}.get_window_lengths()[I0] &&
+                          kN0 == KDramBlockWindowTmp{}.get_window_lengths()[I0] &&
+                          kN0 == VDramBlockWindowTmp{}.get_window_lengths()[I0] &&
+                          kM0 == BiasDramBlockWindowTmp{}.get_window_lengths()[I0] &&
+                          kN0 == BiasDramBlockWindowTmp{}.get_window_lengths()[I1] &&
+                          kM0 == OGradDramBlockWindowTmp{}.get_window_lengths()[I0] &&
+                          kM0 == LSEDramBlockWindowTmp{}.get_window_lengths()[I0] &&
+                          kM0 == DDramBlockWindowTmp{}.get_window_lengths()[I0] &&
+                          kM0 == QGradDramBlockWindowTmp{}.get_window_lengths()[I0] &&
+                          kM0 == BiasGradDramBlockWindowTmp{}.get_window_lengths()[I0] &&
+                          kN0 == BiasGradDramBlockWindowTmp{}.get_window_lengths()[I1],
                       "wrong!");
 
         // Block GEMM
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
-        constexpr auto gemm_1 = Policy::template GetPTOGradTBlockGemm<Problem>();
-        constexpr auto gemm_2 = Policy::template GetOGradVBlockGemm<Problem>();
+        constexpr auto gemm_1 = Policy::template GetOGradVBlockGemm<Problem>();
+        constexpr auto gemm_2 = Policy::template GetPTOGradTBlockGemm<Problem>();
         constexpr auto gemm_3 = Policy::template GetSGradTQTBlockGemm<Problem>();
         constexpr auto gemm_4 = Policy::template GetSGradKTBlockGemm<Problem>();
 
+        constexpr auto gemm_0_staged = Policy::template GetQKBlockGemm<Problem, 2>();
+        constexpr auto gemm_4_staged = Policy::template GetSGradKTBlockGemm<Problem, 2>();
+
         // init VGrad & KGrad
-        auto dv_acc = decltype(gemm_1.MakeCBlockTile()){};
+        auto dv_acc = decltype(gemm_2.MakeCBlockTile()){};
         auto dk_acc = decltype(gemm_3.MakeCBlockTile()){};
 
         // K, HBM ->LDS ->Reg
@@ -243,7 +267,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
 
         // Early termination
         const auto [seqlen_q_start, seqlen_q_end] =
-            mask.GetTileRangeAlongY(k_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
+            mask.GetTileRangeAlongY(k_origin.at(I0), number<kM0>{}, number<kN0>{});
 
         const auto num_total_loop = integer_divide_ceil(seqlen_q_end - seqlen_q_start, kM0);
 
@@ -278,10 +302,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
 
         //------------------------------------------------------------------
         // KT, HBM -> LDS --trload-->Reg
-        async_load_tile(k_lds_write_window, k_dram_window);
         async_load_tile(v_lds_write_window, v_dram_window);
-        __builtin_amdgcn_s_waitcnt(3952);
-        block_sync_lds();
 
         //------------------------------------------------------------------
         // Pre-Load KV into Registers
@@ -289,18 +310,16 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
             k_lds_ptr, Policy::template MakeKLdsReadBlockDescriptor<Problem>());
         auto k_lds_read_window =
             make_tile_window(k_lds_read,
-                             make_tuple(number<kN0>{}, number<kK0>{}),
+                             make_tuple(number<kN0 / 2>{}, number<kQKHeaddim>{}),
                              k_lds_write_window.get_window_origin(),
                              Policy::template MakeKRegBlockDescriptor<Problem>());
-        auto k_reg_tensor = load_tile(k_lds_read_window);
+        // auto k_reg_tensor = load_tile(k_lds_read_window);
 
         auto kt_lds_read_window =
             make_tile_window(k_lds_read,
-                             make_tuple(number<kN0>{}, number<kK0>{}),
+                             make_tuple(number<kN0>{}, number<kQKHeaddim / 2>{}),
                              {0, 0},
                              Policy::template MakeKTRegBlockDescriptor<Problem>());
-
-        auto kt_reg_tensor = load_tile_transpose(kt_lds_read_window);
 
         auto v_lds_read = make_tensor_view<address_space_enum::lds>(
             v_lds_ptr, Policy::template MakeVLdsReadBlockDescriptor<Problem>());
@@ -309,10 +328,13 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
                              make_tuple(number<kN0>{}, number<kK2>{}),
                              v_lds_write_window.get_window_origin(),
                              Policy::template MakeVRegBlockDescriptor<Problem>());
+
+        block_sync_lds_direct_load();
         auto v_reg_tensor = load_tile(v_lds_read_window);
 
-        __builtin_amdgcn_s_waitcnt(3952);
         block_sync_lds();
+        async_load_tile(k_lds_write_window, k_dram_window);
+
         //---------------------------- Loop Load in ----------------------------//
         // Q: HBM -->LDS
         auto q_dram_window =
@@ -389,7 +411,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
         auto bias_dram_window =
             make_tile_window(bias_dram_block_window_tmp.get_bottom_tensor_view(),
                              bias_dram_block_window_tmp.get_window_lengths(),
-                             {seqlen_q_start, bias_origin.at(number<1>{})},
+                             {seqlen_q_start, bias_origin.at(I1)},
                              Policy::template MakeBiasTileDistribution<Problem>());
 
         auto bias_lds = make_tensor_view<address_space_enum::lds>(
@@ -451,7 +473,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
         auto dbias_dram_window =
             make_tile_window(dbias_dram_block_window_tmp.get_bottom_tensor_view(),
                              dbias_dram_block_window_tmp.get_window_lengths(),
-                             {seqlen_q_start, dbias_origin.at(number<1>{})}); // M/N
+                             {seqlen_q_start, dbias_origin.at(I1)}); // M/N
 
         auto dbias_lds_read_window =
             make_tile_window(bias_lds,
@@ -470,24 +492,46 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
         static_assert(kM0 == kK1, "kM0 should equal to kK1");
         static_assert(kVHeaddim >= kK2, "kVHeaddim should be equal or greater than kK2");
         static_assert(kM0 == kK3, "kM0 should equal to kK3");
-        constexpr index_t k4_loops = kN0 / kK4;
+        // constexpr index_t k4_loops = kN0 / kK4;
+
+        union k_kt_type
+        {
+            CK_TILE_DEVICE k_kt_type() {}
+
+            decltype(load_tile(k_lds_read_window)) k_reg_tensor;
+            decltype(load_tile_transpose(kt_lds_read_window)) kt_reg_tensor;
+        };
+
+        auto k_kts = make_tuple(k_kt_type{}, k_kt_type{});
+
+        union q_qt_type
+        {
+            CK_TILE_DEVICE q_qt_type() {}
+
+            decltype(load_tile(q_lds_read_window)) q_reg_tensor;
+            decltype(load_tile_transpose(qt_lds_read_window)) qt_reg_tensor;
+        } q_tile;
 
         clear_tile(dv_acc);
         clear_tile(dk_acc);
 
         __builtin_amdgcn_sched_barrier(0);
 
-        decltype(load_tile(q_lds_read_window)) q_reg_tensor;
         decltype(load_tile(lse_lds_read_window)) lse;
         decltype(load_tile_transpose(ds_lds_read_window)) ds_reg_tensor;
-        decltype(load_tile_transpose(ds_lds_read_window)) ds_reg_tensor_next;
+        // decltype(load_tile_transpose(ds_lds_read_window)) ds_reg_tensor_next;
         decltype(load_tile(do_lds_read_window)) do_reg_tensor;
         decltype(load_tile_transpose(dot_lds_read_window)) dot_reg_tensor;
         decltype(load_tile(d_lds_read_window)) d;
-        decltype(load_tile_transpose(qt_lds_read_window)) qt_reg_tensor;
         decltype(gemm_0.MakeCBlockTile()) s_acc, p;
-        decltype(gemm_2.MakeCBlockTile()) dp_acc, ds;
+        decltype(gemm_1.MakeCBlockTile()) dp_acc, ds;
         decltype(gemm_4.MakeCBlockTile()) dq_acc;
+
+        // constexpr index_t k_vmem_insts = k_dram_window.get_num_of_access();
+        constexpr index_t q_vmem_insts   = q_dram_window.get_num_of_access();
+        constexpr index_t do_vmem_insts  = do_dram_window.get_num_of_access();
+        constexpr index_t lse_vmem_insts = lse_dram_window.get_num_of_access();
+        constexpr index_t d_vmem_insts   = d_dram_window.get_num_of_access();
 
         index_t i_total_bodys = 0;
         auto main_body_impl   = [&](auto is_prologue_,
@@ -502,10 +546,268 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
                                   DDataType* const __restrict__ d_lds_ptr_next
 
                                   ) mutable {
+            ignore                     = do_lds_ptr_next;
             constexpr bool is_prologue = is_prologue_.value;
             constexpr bool is_epilogue = is_epilogue_.value;
             static_assert(is_prologue || is_epilogue, "is_prologue or is_epilogue should be true");
-            constexpr bool is_main_body = is_prologue && is_epilogue;
+            // constexpr bool is_main_body = is_prologue && is_epilogue;
+            if constexpr(is_epilogue)
+            {
+                // STAGE 1, Q@K Gemm0
+                set_slice_tile(s_acc,
+                               gemm_0_staged(q_tile.q_reg_tensor, k_kts.at(I0).k_reg_tensor),
+                               sequence<I0, I0>{},
+                               sequence<number<kM0>{}, number<kN0 / 2>{}>{});
+
+                // CK_PRINTF_WARP0<float>{}(s_acc);
+                // CK_PRINTF_WARP0<float>{}(k_kts.at(I0).k_reg_tensor);
+                __builtin_amdgcn_sched_barrier(0);
+                k_kts.at(I1).k_reg_tensor = load_tile(k_lds_read_window);
+                move_tile_window(k_lds_read_window, {-kN0 / 2, 0});
+                __builtin_amdgcn_sched_barrier(0);
+
+                // Scale Qacc
+                if constexpr(kIsDeterministic)
+                {
+                    store_tile(dq_dram_window, dq_acc);
+                }
+                else
+                {
+                    update_tile(dq_dram_window, dq_acc);
+                }
+                move_tile_window(dq_dram_window, {kM0, 0});
+
+                set_slice_tile(s_acc,
+                               gemm_0_staged(q_tile.q_reg_tensor, k_kts.at(I1).k_reg_tensor),
+                               sequence<I0, number<kN0 / 2>{}>{},
+                               sequence<number<kM0>{}, number<kN0>{}>{});
+                // CK_PRINTF_WARP0<float>{}(s_acc);
+                // CK_PRINTF_WARP0<float>{}(k_kts.at(I1).k_reg_tensor);
+
+                __builtin_amdgcn_sched_barrier(0);
+                do_lds_read_window.set_bottom_tensor_view_data_ptr(do_lds_ptr_curr);
+                do_reg_tensor = load_tile(do_lds_read_window);
+                __builtin_amdgcn_sched_barrier(0);
+
+                dot_lds_read_window.set_bottom_tensor_view_data_ptr(do_lds_ptr_curr);
+                dot_reg_tensor = load_tile_transpose(dot_lds_read_window);
+
+                // STAGE 2, Scale, Add bias, Mask, Softmax, Dropout
+                if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
+                {
+                    const auto bias_tile    = load_tile(bias_dram_window);
+                    auto shuffled_bias_tile = make_static_distributed_tensor<BiasDataType>(
+                        Policy::template MakeShuffledBiasTileDistribution<Problem>());
+                    shuffle_tile(shuffled_bias_tile, bias_tile);
+                    store_tile(bias_lds_write_window, shuffled_bias_tile);
+                    block_sync_lds();
+                    auto bias_s_tile = load_tile(bias_s_lds_read_window);
+                    tile_elementwise_inout(
+                        [&](auto& x, const auto& y) {
+                            x = scale * x + log2e_v<AccDataType> * type_convert<AccDataType>(y);
+                        },
+                        s_acc,
+                        bias_s_tile);
+                    move_tile_window(bias_dram_window, {kM0, 0});
+                    __builtin_amdgcn_sched_barrier(0);
+                }
+                else if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI)
+                {
+                    constexpr auto s_spans = decltype(s_acc)::get_distributed_spans();
+                    sweep_tile_span(s_spans[I0], [&](auto idx0) {
+                        sweep_tile_span(s_spans[I1], [&](auto idx1) {
+                            const auto tile_idx = get_x_indices_from_distributed_indices(
+                                s_acc.get_tile_distribution(), make_tuple(idx0, idx1));
+
+                            const auto row         = seqlen_q_step + tile_idx.at(I0);
+                            const auto col         = k_origin.at(I0) + tile_idx.at(I1);
+                            constexpr auto i_j_idx = make_tuple(idx0, idx1);
+
+                            s_acc(i_j_idx) *= scale;
+                            position_encoding.update(s_acc(i_j_idx), row, col);
+                        });
+                    });
+                }
+
+                // {
+                // bool need_perpixel_check = mask.IsEdgeTile(
+                //     seqlen_q_step, k_origin.at(I0), number<kM0>{}, number<kN0>{});
+                // if(need_perpixel_check)
+                // {
+                //     set_tile_if(s_acc, -numeric<AccDataType>::infinity(), [&](auto tile_idx) {
+                //         const auto row = seqlen_q_step + tile_idx.at(I0);
+                //         const auto col = k_origin.at(I0) + tile_idx.at(I1);
+                //         return mask.IsOutOfBound(row, col);
+                //     });
+                // }
+                // }
+
+                constexpr auto p_spans = decltype(p)::get_distributed_spans();
+                sweep_tile_span(p_spans[I0], [&](auto idx0) {
+                    constexpr auto i_idx = make_tuple(idx0);
+                    auto row_lse         = log2e_v<LSEDataType> * get_validated_lse(lse[i_idx]);
+
+                    sweep_tile_span(p_spans[I1], [&](auto idx1) {
+                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
+
+                        if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                                     BiasEnum == BlockAttentionBiasEnum::ALIBI)
+                            p(i_j_idx) = s_acc[i_j_idx] - row_lse;
+                        else
+                            p(i_j_idx) = scale * s_acc[i_j_idx] - row_lse;
+                    });
+                });
+
+                dp_acc = gemm_1(do_reg_tensor, v_reg_tensor);
+
+                tile_elementwise_inout([&](auto& x) { x = exp2(x); }, p);
+
+                if constexpr(FmhaDropout::IsDropout)
+                {
+                    dropout.template Run<decltype(gemm_0), RandValOutputDataType>(
+                        seqlen_q_step, k_origin.at(I0), p, randval_dram_window);
+                }
+
+                const auto p_gemm = [&]() { // dropout / type conversion
+                    if constexpr(FmhaDropout::IsDropout)
+                    {
+                        return tile_elementwise_in(
+                            [](const auto& x) {
+                                return type_convert<GemmDataType>(x > 0.f ? x : 0.f);
+                            },
+                            p);
+                    }
+                    else
+                    {
+                        return cast_tile<GemmDataType>(p);
+                    }
+                }();
+
+                auto pt_reg_tensor = make_static_distributed_tensor<GemmDataType>(
+                    Policy::template MakePTRegSliceBlockDescriptor<Problem>());
+
+                Policy::template PTFromGemm0CToGemm1A<Problem>(pt_reg_tensor, p_gemm);
+
+                qt_lds_read_window.set_bottom_tensor_view_data_ptr(q_lds_ptr_curr);
+                q_tile.qt_reg_tensor = load_tile_transpose(qt_lds_read_window);
+
+                gemm_2(dv_acc, pt_reg_tensor, dot_reg_tensor);
+
+                constexpr auto ds_spans = decltype(ds)::get_distributed_spans();
+                sweep_tile_span(ds_spans[I0], [&](auto idx0) {
+                    constexpr auto i_idx = make_tuple(idx0);
+                    sweep_tile_span(ds_spans[I1], [&](auto idx1) {
+                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                        bool undrop_flag       = p[i_j_idx] >= 0;
+                        ds(i_j_idx) = p[i_j_idx] * (!FmhaDropout::IsDropout || undrop_flag
+                                                          ? (dp_acc[i_j_idx] - d[i_idx])
+                                                          : d[i_idx]);
+                    });
+                });
+
+                if constexpr(kHasBiasGrad)
+                {
+                    const auto dbias = [&]() {
+                        if constexpr(FmhaDropout::IsDropout)
+                        {
+                            return tile_elementwise_in(
+                                [&rp_undrop](const auto& x) {
+                                    return type_convert<BiasGradDataType>(x * rp_undrop);
+                                },
+                                ds);
+                        }
+                        else
+                        {
+                            return cast_tile<BiasGradDataType>(ds);
+                        }
+                    }();
+                    store_tile(bias_lds_write_window, dbias);
+                    __builtin_amdgcn_s_waitcnt(3952);
+                    block_sync_lds();
+                    auto shuffled_dbias_tile = load_tile(dbias_lds_read_window);
+                    auto dbias_tile          = make_static_distributed_tensor<BiasGradDataType>(
+                        Policy::template MakeBiasTileDistribution<Problem>());
+                    shuffle_tile(dbias_tile, shuffled_dbias_tile);
+                    store_tile(dbias_dram_window, dbias_tile);
+                    move_tile_window(dbias_dram_window, {kM0, 0});
+                    __builtin_amdgcn_sched_barrier(0);
+                }
+
+                const auto ds_gemm  = cast_tile<GemmDataType>(ds);
+                auto dst_reg_tensor = make_static_distributed_tensor<GemmDataType>(
+                    Policy::template MakeSGradTRegSliceBlockDescriptor<Problem>());
+                dst_reg_tensor.get_thread_buffer() = ds_gemm.get_thread_buffer();
+
+                block_sync_lds_direct_load<0>();
+                __builtin_amdgcn_sched_barrier(0);
+                lse_lds_read_window.set_bottom_tensor_view_data_ptr(lse_lds_ptr_next);
+                lse = load_tile(lse_lds_read_window);
+
+                __builtin_amdgcn_sched_barrier(0);
+                d_lds_read_window.set_bottom_tensor_view_data_ptr(d_lds_ptr_next);
+                d = load_tile(d_lds_read_window);
+
+                __builtin_amdgcn_sched_barrier(0);
+                store_tile(ds_lds_window, ds_gemm);
+
+                gemm_3(dk_acc, dst_reg_tensor, q_tile.qt_reg_tensor);
+                __builtin_amdgcn_sched_barrier(0);
+                k_kts.at(I0).kt_reg_tensor = load_tile_transpose(kt_lds_read_window);
+                move_tile_window(kt_lds_read_window, {0, kQKHeaddim / 2});
+                __builtin_amdgcn_sched_barrier(0);
+                block_sync_lds();
+                ds_reg_tensor = load_tile_transpose(ds_lds_read_window);
+
+                set_slice_tile(dq_acc,
+                               gemm_4_staged(ds_reg_tensor, k_kts.at(I0).kt_reg_tensor),
+                               sequence<I0, I0>{},
+                               sequence<number<kM0>{}, number<kQKHeaddim / 2>{}>{});
+                __builtin_amdgcn_sched_barrier(0);
+                k_kts.at(I1).kt_reg_tensor = load_tile_transpose(kt_lds_read_window);
+                move_tile_window(kt_lds_read_window, {0, -kQKHeaddim / 2});
+                __builtin_amdgcn_sched_barrier(0);
+
+                q_lds_write_window.set_bottom_tensor_view_data_ptr(q_lds_ptr_curr);
+                async_load_tile(q_lds_write_window, q_dram_window);
+                move_tile_window(q_dram_window, {kM0, 0});
+
+                do_lds_write_window.set_bottom_tensor_view_data_ptr(do_lds_ptr_curr);
+                async_load_tile(do_lds_write_window, do_dram_window);
+                move_tile_window(do_dram_window, {kM0, 0});
+
+                set_slice_tile(dq_acc,
+                               gemm_4_staged(ds_reg_tensor, k_kts.at(I1).kt_reg_tensor),
+                               sequence<I0, number<kQKHeaddim / 2>{}>{},
+                               sequence<number<kM0>{}, number<kQKHeaddim>{}>{});
+
+                __builtin_amdgcn_sched_barrier(0);
+                q_lds_read_window.set_bottom_tensor_view_data_ptr(q_lds_ptr_next);
+                q_tile.q_reg_tensor = load_tile(q_lds_read_window);
+                __builtin_amdgcn_sched_barrier(0);
+
+                k_kts.at(I0).k_reg_tensor = load_tile(k_lds_read_window);
+                move_tile_window(k_lds_read_window, {kN0 / 2, 0});
+                __builtin_amdgcn_sched_barrier(0);
+
+                lse_lds_write_window.set_bottom_tensor_view_data_ptr(lse_lds_ptr_curr);
+                async_load_tile(lse_lds_write_window, lse_dram_window);
+                move_tile_window(lse_dram_window, {kM0});
+
+                d_lds_write_window.set_bottom_tensor_view_data_ptr(d_lds_ptr_curr);
+                async_load_tile(d_lds_write_window, d_dram_window);
+                move_tile_window(d_dram_window, {kM0});
+
+                if constexpr(FmhaDropout::IsDropout)
+                {
+                    tile_elementwise_inout([&scale_rp_undrop](auto& x) { x = x * scale_rp_undrop; },
+                                           dq_acc);
+                }
+                else
+                {
+                    tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, dq_acc);
+                }
+            }
+#if 0
             if constexpr(is_prologue)
             {
                 lse_lds_write_window.set_bottom_tensor_view_data_ptr(lse_lds_ptr_next);
@@ -566,13 +868,13 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
                 else if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI)
                 {
                     constexpr auto s_spans = decltype(s_acc)::get_distributed_spans();
-                    sweep_tile_span(s_spans[number<0>{}], [&](auto idx0) {
-                        sweep_tile_span(s_spans[number<1>{}], [&](auto idx1) {
+                    sweep_tile_span(s_spans[I0], [&](auto idx0) {
+                        sweep_tile_span(s_spans[I1], [&](auto idx1) {
                             const auto tile_idx = get_x_indices_from_distributed_indices(
                                 s_acc.get_tile_distribution(), make_tuple(idx0, idx1));
 
-                            const auto row = seqlen_q_step + tile_idx.at(number<0>{});
-                            const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
+                            const auto row = seqlen_q_step + tile_idx.at(I0);
+                            const auto col = k_origin.at(I0) + tile_idx.at(I1);
                             constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
                             s_acc(i_j_idx) *= scale;
@@ -583,23 +885,23 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
 
                 {
                     bool need_perpixel_check = mask.IsEdgeTile(
-                        seqlen_q_step, k_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
+                        seqlen_q_step, k_origin.at(I0), number<kM0>{}, number<kN0>{});
                     if(need_perpixel_check)
                     {
                         set_tile_if(s_acc, -numeric<AccDataType>::infinity(), [&](auto tile_idx) {
-                            const auto row = seqlen_q_step + tile_idx.at(number<0>{});
-                            const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
+                            const auto row = seqlen_q_step + tile_idx.at(I0);
+                            const auto col = k_origin.at(I0) + tile_idx.at(I1);
                             return mask.IsOutOfBound(row, col);
                         });
                     }
                 }
 
                 constexpr auto p_spans = decltype(p)::get_distributed_spans();
-                sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
+                sweep_tile_span(p_spans[I0], [&](auto idx0) {
                     constexpr auto i_idx = make_tuple(idx0);
                     auto row_lse         = log2e_v<LSEDataType> * get_validated_lse(lse[i_idx]);
 
-                    sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
+                    sweep_tile_span(p_spans[I1], [&](auto idx1) {
                         constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
                         if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
@@ -613,7 +915,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
                 if constexpr(FmhaDropout::IsDropout)
                 {
                     dropout.template Run<decltype(gemm_0), RandValOutputDataType>(
-                        seqlen_q_step, k_origin.at(number<0>{}), p, randval_dram_window);
+                        seqlen_q_step, k_origin.at(I0), p, randval_dram_window);
                 }
                 const auto p_gemm = [&]() { // dropout / type conversion
                     if constexpr(FmhaDropout::IsDropout)
@@ -631,7 +933,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
                 }();
 
                 // STAGE 4, OGrad@V Gemm2
-                dp_acc = gemm_2(do_reg_tensor, v_reg_tensor);
+                dp_acc = gemm_1(do_reg_tensor, v_reg_tensor);
 
                 qt_lds_read_window.set_bottom_tensor_view_data_ptr(q_lds_ptr_curr);
                 qt_reg_tensor = load_tile_transpose(qt_lds_read_window);
@@ -640,7 +942,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
                 auto pt_reg_tensor = make_static_distributed_tensor<GemmDataType>(
                     Policy::template MakePTRegSliceBlockDescriptor<Problem>());
                 pt_reg_tensor.get_thread_buffer() = p_gemm.get_thread_buffer();
-                gemm_1(dv_acc, pt_reg_tensor, dot_reg_tensor);
+                gemm_2(dv_acc, pt_reg_tensor, dot_reg_tensor);
             }
             block_sync_lds();
             if constexpr(is_main_body)
@@ -650,9 +952,9 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
             {
                 // STAGE 5, P^T(PGrad^T - D)
                 constexpr auto ds_spans = decltype(ds)::get_distributed_spans();
-                sweep_tile_span(ds_spans[number<0>{}], [&](auto idx0) {
+                sweep_tile_span(ds_spans[I0], [&](auto idx0) {
                     constexpr auto i_idx = make_tuple(idx0);
-                    sweep_tile_span(ds_spans[number<1>{}], [&](auto idx1) {
+                    sweep_tile_span(ds_spans[I1], [&](auto idx1) {
                         constexpr auto i_j_idx = make_tuple(idx0, idx1);
                         bool undrop_flag       = p[i_j_idx] >= 0;
                         ds(i_j_idx) = p[i_j_idx] * (!FmhaDropout::IsDropout || undrop_flag
@@ -768,18 +1070,19 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
                 }
                 move_tile_window(dq_dram_window, {kM0, 0});
             }
+#endif
         };
 
         auto main_body = [&](auto is_prologue_, auto is_epilogue_) mutable {
             const bool is_even          = (i_total_bodys % 2 == 0);
-            const auto q_lds_ptr_curr   = is_even ? q_lds_ptr1 : q_lds_ptr0;
-            const auto q_lds_ptr_next   = is_even ? q_lds_ptr0 : q_lds_ptr1;
-            const auto do_lds_ptr_curr  = is_even ? do_lds_ptr1 : do_lds_ptr0;
-            const auto do_lds_ptr_next  = is_even ? do_lds_ptr0 : do_lds_ptr1;
-            const auto lse_lds_ptr_curr = is_even ? lse_lds_ptr1 : lse_lds_ptr0;
-            const auto lse_lds_ptr_next = is_even ? lse_lds_ptr0 : lse_lds_ptr1;
-            const auto d_lds_ptr_curr   = is_even ? d_lds_ptr1 : d_lds_ptr0;
-            const auto d_lds_ptr_next   = is_even ? d_lds_ptr0 : d_lds_ptr1;
+            const auto q_lds_ptr_curr   = is_even ? q_lds_ptr0 : q_lds_ptr1;
+            const auto q_lds_ptr_next   = is_even ? q_lds_ptr1 : q_lds_ptr0;
+            const auto do_lds_ptr_curr  = is_even ? do_lds_ptr0 : do_lds_ptr1;
+            const auto do_lds_ptr_next  = is_even ? do_lds_ptr1 : do_lds_ptr0;
+            const auto lse_lds_ptr_curr = is_even ? lse_lds_ptr0 : lse_lds_ptr1;
+            const auto lse_lds_ptr_next = is_even ? lse_lds_ptr1 : lse_lds_ptr0;
+            const auto d_lds_ptr_curr   = is_even ? d_lds_ptr0 : d_lds_ptr1;
+            const auto d_lds_ptr_next   = is_even ? d_lds_ptr1 : d_lds_ptr0;
             main_body_impl(is_prologue_,
                            is_epilogue_,
                            q_lds_ptr_curr,
@@ -793,18 +1096,70 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
             i_total_bodys += 1;
         };
 
-        main_body(std::true_type{}, std::false_type{});
+        // Prefetch twice fill double lds buffer
+        q_lds_write_window.set_bottom_tensor_view_data_ptr(q_lds_ptr0);
+        async_load_tile(q_lds_write_window, q_dram_window);
+        move_tile_window(q_dram_window, {kM0, 0});
+
+        do_lds_write_window.set_bottom_tensor_view_data_ptr(do_lds_ptr0);
+        async_load_tile(do_lds_write_window, do_dram_window);
+        move_tile_window(do_dram_window, {kM0, 0});
+
+        lse_lds_write_window.set_bottom_tensor_view_data_ptr(lse_lds_ptr0);
+        async_load_tile(lse_lds_write_window, lse_dram_window);
+        move_tile_window(lse_dram_window, {kM0});
+
+        d_lds_write_window.set_bottom_tensor_view_data_ptr(d_lds_ptr0);
+        async_load_tile(d_lds_write_window, d_dram_window);
+        move_tile_window(d_dram_window, {kM0});
+        i_total_bodys += 1;
+
+        q_lds_write_window.set_bottom_tensor_view_data_ptr(q_lds_ptr1);
+        async_load_tile(q_lds_write_window, q_dram_window);
+        move_tile_window(q_dram_window, {kM0, 0});
+
+        do_lds_write_window.set_bottom_tensor_view_data_ptr(do_lds_ptr1);
+        async_load_tile(do_lds_write_window, do_dram_window);
+        move_tile_window(do_dram_window, {kM0, 0});
+
+        lse_lds_write_window.set_bottom_tensor_view_data_ptr(lse_lds_ptr1);
+        async_load_tile(lse_lds_write_window, lse_dram_window);
+        move_tile_window(lse_dram_window, {kM0});
+
+        d_lds_write_window.set_bottom_tensor_view_data_ptr(d_lds_ptr1);
+        async_load_tile(d_lds_write_window, d_dram_window);
+        move_tile_window(d_dram_window, {kM0});
+        i_total_bodys += 1;
+
+        block_sync_lds_direct_load<q_vmem_insts + do_vmem_insts + lse_vmem_insts + d_vmem_insts>();
+
+        q_lds_read_window.set_bottom_tensor_view_data_ptr(q_lds_ptr0);
+        q_tile.q_reg_tensor = load_tile(q_lds_read_window);
+
+        k_kts.at(I0).k_reg_tensor = load_tile(k_lds_read_window);
+        move_tile_window(k_lds_read_window, {kN0 / 2, 0});
+
+        lse_lds_read_window.set_bottom_tensor_view_data_ptr(lse_lds_ptr0);
+        lse = load_tile(lse_lds_read_window);
+
+        d_lds_read_window.set_bottom_tensor_view_data_ptr(d_lds_ptr0);
+        d = load_tile(d_lds_read_window);
+
+        // main_body(std::true_type{}, std::false_type{});
         // Hot loop
-        if(num_total_loop > 1)
+
+        __builtin_amdgcn_sched_barrier(0);
+
+        do
         {
-            do
-            {
-                main_body(std::true_type{}, std::true_type{});
-                i_total_loops += 1;
-                seqlen_q_step += kM0;
-            } while(i_total_loops < num_total_loop - 1);
-        }
-        main_body(std::false_type{}, std::true_type{});
+            main_body(std::true_type{}, std::true_type{});
+            i_total_loops += 1;
+            seqlen_q_step += kM0;
+        } while(i_total_loops < num_total_loop);
+
+        __builtin_amdgcn_sched_barrier(0);
+
+        // main_body(std::false_type{}, std::true_type{});
 
         // Results Scale
         if constexpr(FmhaDropout::IsDropout)

@@ -190,7 +190,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     mask_info mask = mask_info::decode(arg_parser.get_str("mask"), seqlen_q, seqlen_k);
 
-    int init_method              = arg_parser.get_int("init");
+    std::string init_method = arg_parser.get_str("init");
     std::optional<uint32_t> seed = arg_parser.get_uint32("seed");
     if(*seed == 0)
     {
@@ -331,7 +331,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ? std::array<ck_tile::index_t, 5>{nsplits, shape_batch, nhead, shape_seqlen_q, hdim_q}
             : std::array<ck_tile::index_t, 5>{nsplits, shape_batch, shape_seqlen_q, nhead, hdim_q});
 
-    if(init_method == 0)
+    if(init_method == "0")
     {
         ck_tile::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f, seed}(q_host);
         ck_tile::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f, seed}(k_host);
@@ -339,7 +339,39 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::FillUniformDistributionIntegerValue<BiasDataType>{-2.f, 2.f, seed}(bias_host);
         ck_tile::FillUniformDistributionIntegerValue<OGradDataType>{-2.f, 2.f, seed}(do_host);
     }
-    else if(init_method == 1)
+    else if(init_method == "qkvdo1")
+    {
+        ck_tile::FillUniformDistributionIntegerValue<QDataType>{1.f, 1.f, seed}(q_host);
+        ck_tile::FillUniformDistributionIntegerValue<KDataType>{1.f, 1.f, seed}(k_host);
+        ck_tile::FillUniformDistributionIntegerValue<VDataType>{1.f, 1.f, seed}(v_host);
+        ck_tile::FillUniformDistributionIntegerValue<BiasDataType>{1.f, 1.f, seed}(bias_host);
+        ck_tile::FillUniformDistributionIntegerValue<OGradDataType>{1.f, 1.f, seed}(do_host);
+    }
+    else if(init_method == "k1")
+    {
+        ck_tile::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f, seed}(q_host);
+        ck_tile::FillUniformDistributionIntegerValue<KDataType>{1.f, 1.f, seed}(k_host);
+        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f, seed}(v_host);
+        ck_tile::FillUniformDistributionIntegerValue<BiasDataType>{-2.f, 2.f, seed}(bias_host);
+        ck_tile::FillUniformDistributionIntegerValue<OGradDataType>{-2.f, 2.f, seed}(do_host);
+    }
+    else if(init_method == "qk1")
+    {
+        ck_tile::FillUniformDistributionIntegerValue<QDataType>{1.f, 1.f, seed}(q_host);
+        ck_tile::FillUniformDistributionIntegerValue<KDataType>{1.f, 1.f, seed}(k_host);
+        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f, seed}(v_host);
+        ck_tile::FillUniformDistributionIntegerValue<BiasDataType>{-2.f, 2.f, seed}(bias_host);
+        ck_tile::FillUniformDistributionIntegerValue<OGradDataType>{-2.f, 2.f, seed}(do_host);
+    }
+    else if(init_method == "qkdo1")
+    {
+        ck_tile::FillUniformDistributionIntegerValue<QDataType>{1.f, 1.f, seed}(q_host);
+        ck_tile::FillUniformDistributionIntegerValue<KDataType>{1.f, 1.f, seed}(k_host);
+        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f, seed}(v_host);
+        ck_tile::FillUniformDistributionIntegerValue<BiasDataType>{-2.f, 2.f, seed}(bias_host);
+        ck_tile::FillUniformDistributionIntegerValue<OGradDataType>{1.f, 1.f, seed}(do_host);
+    }
+    else if(init_method == "1")
     {
         ck_tile::FillUniformDistribution<QDataType>{0.f, 1.f, seed}(q_host);
         ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(k_host);
@@ -347,7 +379,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::FillUniformDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
         ck_tile::FillUniformDistribution<OGradDataType>{0.f, 1.f, seed}(do_host);
     }
-    else if(init_method == 2)
+    else if(init_method == "2")
     {
         ck_tile::FillTrigValue<QDataType>{}(q_host);
         ck_tile::FillTrigValue<KDataType>{}(k_host);

@@ -50,44 +50,46 @@ constexpr bool is_sequence_suffix_v = is_sequence_suffix<Suffix, Sequence>::valu
 template <typename DataType>
 struct DefaultTranspose
 {
-    template <index_t LaneGroupSize>
+    template <index_t LaneGroupSize, index_t InstNumber = 1>
     struct Quad16
     {
         static_assert(LaneGroupSize == 64 || LaneGroupSize == 32 || LaneGroupSize == 16,
                       "LaneGroupSize must be 64, 32, or 16");
-        using InputEncoding =
-            tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<4>, sequence<LaneGroupSize / 16, 4, 4>>,
-                                       tuple<sequence<2, 1, 2>>,
-                                       tuple<sequence<0, 0, 1>>,
-                                       sequence<2>,
-                                       sequence<2>>;
+        static_assert(InstNumber == 1 || InstNumber == 2, "InstNumber must be 1, 2");
+        using InputEncoding = tile_distribution_encoding<
+            sequence<>,
+            tuple<sequence<InstNumber, 4>, sequence<LaneGroupSize / 16, 4, 4>>,
+            tuple<sequence<2, 1, 2>>,
+            tuple<sequence<0, 1, 1>>,
+            sequence<1, 2>,
+            sequence<0, 2>>;
 
         using OutputEncoding =
             tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<LaneGroupSize>, sequence<4>>,
+                                       tuple<sequence<LaneGroupSize>, sequence<4 * InstNumber>>,
                                        tuple<sequence<1>>,
                                        tuple<sequence<0>>,
                                        sequence<2>,
                                        sequence<0>>;
     };
 
-    template <index_t LaneGroupSize>
+    template <index_t LaneGroupSize, index_t InstNumber = 1>
     struct Quad8
     {
         static_assert(LaneGroupSize == 64 || LaneGroupSize == 32 || LaneGroupSize == 16,
                       "LaneGroupSize must be 64, 32, or 16");
-        using InputEncoding =
-            tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<8>, sequence<LaneGroupSize / 16, 2, 8>>,
-                                       tuple<sequence<2, 1, 2>>,
-                                       tuple<sequence<0, 0, 1>>,
-                                       sequence<2>,
-                                       sequence<2>>;
+        static_assert(InstNumber == 1 || InstNumber == 2, "InstNumber must be 1, 2");
+        using InputEncoding = tile_distribution_encoding<
+            sequence<>,
+            tuple<sequence<InstNumber, 8>, sequence<LaneGroupSize / 16, 2, 8>>,
+            tuple<sequence<2, 1, 2>>,
+            tuple<sequence<0, 1, 1>>,
+            sequence<1, 2>,
+            sequence<0, 2>>;
 
         using OutputEncoding =
             tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<LaneGroupSize>, sequence<8>>,
+                                       tuple<sequence<LaneGroupSize>, sequence<8 * InstNumber>>,
                                        tuple<sequence<1>>,
                                        tuple<sequence<0>>,
                                        sequence<2>,
@@ -95,15 +97,17 @@ struct DefaultTranspose
     };
 
     // Select based on data size
-    template <index_t LaneGroupSize>
-    using QuadInputEncoding = std::conditional_t<sizeof(DataType) == 2,
-                                                 typename Quad16<LaneGroupSize>::InputEncoding,
-                                                 typename Quad8<LaneGroupSize>::InputEncoding>;
+    template <index_t LaneGroupSize, index_t InstNumber = 1>
+    using QuadInputEncoding =
+        std::conditional_t<sizeof(DataType) == 2,
+                           typename Quad16<LaneGroupSize, InstNumber>::InputEncoding,
+                           typename Quad8<LaneGroupSize, InstNumber>::InputEncoding>;
 
-    template <index_t LaneGroupSize>
-    using QuadOutputEncoding = std::conditional_t<sizeof(DataType) == 2,
-                                                  typename Quad16<LaneGroupSize>::OutputEncoding,
-                                                  typename Quad8<LaneGroupSize>::OutputEncoding>;
+    template <index_t LaneGroupSize, index_t InstNumber = 1>
+    using QuadOutputEncoding =
+        std::conditional_t<sizeof(DataType) == 2,
+                           typename Quad16<LaneGroupSize, InstNumber>::OutputEncoding,
+                           typename Quad8<LaneGroupSize, InstNumber>::OutputEncoding>;
 
     // Always swap last two dimensions
     static constexpr auto transpose_dims = sequence<1, 0>{};
@@ -113,12 +117,16 @@ struct DefaultTranspose
         return idx; // Identity mapping
     };
 
-    template <typename InDstrEncode, bool ReverseDirection, index_t LaneGroupSize>
+    template <typename InDstrEncode,
+              bool ReverseDirection,
+              index_t LaneGroupSize,
+              index_t InstNumber = 1>
     struct ValidationTraitsImpl
     {
-        using QuadEncoding             = std::conditional_t<ReverseDirection,
-                                                            QuadOutputEncoding<LaneGroupSize>,
-                                                            QuadInputEncoding<LaneGroupSize>>;
+        using QuadEncoding = std::conditional_t<ReverseDirection,
+                                                QuadOutputEncoding<LaneGroupSize, InstNumber>,
+                                                QuadInputEncoding<LaneGroupSize, InstNumber>>;
+
         static constexpr auto I0       = number<0>{};
         static constexpr auto I1       = number<1>{};
         static constexpr auto input_hs = InDstrEncode::hs_lengthss_;
@@ -179,12 +187,21 @@ struct DefaultTranspose
         static constexpr bool value =
             ValidationTraitsImpl<InDstrEncode, ReverseDirection, 64>::value ||
             ValidationTraitsImpl<InDstrEncode, ReverseDirection, 32>::value ||
-            ValidationTraitsImpl<InDstrEncode, ReverseDirection, 16>::value;
+            ValidationTraitsImpl<InDstrEncode, ReverseDirection, 16>::value ||
+            ValidationTraitsImpl<InDstrEncode, ReverseDirection, 64, 2>::value ||
+            ValidationTraitsImpl<InDstrEncode, ReverseDirection, 32, 2>::value ||
+            ValidationTraitsImpl<InDstrEncode, ReverseDirection, 16, 2>::value;
         static constexpr index_t LaneGroupSize =
-            ValidationTraitsImpl<InDstrEncode, ReverseDirection, 64>::value   ? 64
-            : ValidationTraitsImpl<InDstrEncode, ReverseDirection, 32>::value ? 32
-            : ValidationTraitsImpl<InDstrEncode, ReverseDirection, 16>::value ? 16
-                                                                              : 0;
+            (ValidationTraitsImpl<InDstrEncode, ReverseDirection, 64>::value ||
+             ValidationTraitsImpl<InDstrEncode, ReverseDirection, 64, 2>::value)
+                ? 64
+            : (ValidationTraitsImpl<InDstrEncode, ReverseDirection, 32>::value ||
+               ValidationTraitsImpl<InDstrEncode, ReverseDirection, 32, 2>::value)
+                ? 32
+            : (ValidationTraitsImpl<InDstrEncode, ReverseDirection, 16>::value ||
+               ValidationTraitsImpl<InDstrEncode, ReverseDirection, 16, 2>::value)
+                ? 16
+                : 0;
     };
 };
 template <typename TileDistribution_, typename DataType_, typename Policy>
