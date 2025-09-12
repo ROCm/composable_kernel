@@ -314,15 +314,15 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t)
 
     if(ck_tile::is_gfx12_supported())
     {
-        // TODO: Please modify it once kABK0PerLane is changed in WmmaTraitsBase<gfx12>
         constexpr int divisor      = 2;
-        constexpr int kABK0PerLane = 2;
+        constexpr int kABK1PerLane = 8;
+        constexpr int kABK0PerLane = GemmConfig::K_Warp_Tile / divisor / kABK1PerLane;
         ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
                                        GemmConfig::N_Warp_Tile,
                                        k_ / GemmConfig::K_Warp_Tile,
-                                       divisor,
                                        kABK0PerLane,
-                                       GemmConfig::K_Warp_Tile / divisor / kABK0PerLane});
+                                       divisor,
+                                       kABK1PerLane});
         std::copy(t.begin(), t.end(), t_view.begin());
         return ck_tile::reference_permute(t_view, {0, 2, 4, 1, 3, 5});
     }

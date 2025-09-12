@@ -31,8 +31,10 @@ using F8Types = std::tuple<Row, Col, Row, F8, F8, F32, F16, Default, WeightPresh
 
 using KernelTypesWeightPreshuffle = ::testing::Types<
      std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Default,        WeightPreshuffle>,
-     std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,      BF16,             Default,        WeightPreshuffle>,
-     F8Types
+     std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,      BF16,             Default,        WeightPreshuffle>
+#if !CK_TILE_USE_WMMA || CK_TILE_USE_OCP_FP8     
+     , F8Types
+#endif     
      >;
 
 // clang-format on
