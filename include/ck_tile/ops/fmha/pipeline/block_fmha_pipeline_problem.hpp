@@ -63,6 +63,7 @@ struct BlockFmhaPipelineProblem
     static constexpr auto QScaleEnum        = Traits::QScaleEnum;
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
     static constexpr bool kHasSink          = Traits::kHasSink;
+    static constexpr bool kIsSglangLayout   = Traits::kIsSglangLayout;
 };
 
 template <typename QDataType_,

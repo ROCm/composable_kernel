@@ -12,6 +12,57 @@
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
 namespace ck_tile {
+template <typename OffsetVecType,
+          typename CoordVecType,
+          index_t kCoordAxis,
+          index_t kPageBlockSize,
+          index_t kPageShiftSize,
+          index_t kLoopStart,
+          index_t kLoopCount,
+          index_t kLoopStride,
+          bool kIsSglangLayout,
+          bool kIsKcache>
+CK_TILE_HOST_DEVICE void kv_offset_array_transform(const index_t* page_vec,
+                                                   const index_t& stride_kv,
+                                                   const CoordVecType& coord_vec,
+                                                   OffsetVecType& kv_offset_vec)
+{
+    const index_t& thread_coord_start = coord_vec[kCoordAxis];
+    if constexpr(kIsSglangLayout)
+    {
+        static_for<0, kLoopCount, 1>{}([&](auto k0) {
+            kv_offset_vec[k0] =
+                page_vec[thread_coord_start + kLoopStart + kLoopStride * k0.value] * stride_kv;
+        });
+    }
+    else
+    {
+        constexpr index_t kPageMask = (1 << kPageShiftSize) - 1;
+        if constexpr(kIsKcache)
+        {
+            // for k_offset_vec
+            static_for<0, kLoopCount, 1>{}([&](auto k0) {
+                constexpr index_t kPageId = kLoopStride * k0.value >> kPageShiftSize;
+                const index_t page_offset =
+                    (thread_coord_start + kLoopStride * k0.value) & kPageMask;
+                kv_offset_vec[k0] =
+                    ((page_vec[kPageId] << kPageShiftSize) + page_offset) * stride_kv;
+            });
+        }
+        else
+        {
+            // for v_offset_vec
+            const index_t lane0_start   = __builtin_amdgcn_readfirstlane(thread_coord_start);
+            const index_t lane0_page_id = (lane0_start + kLoopStart) >> kPageShiftSize;
+            const index_t page_loc      = page_vec[lane0_page_id] << kPageShiftSize;
+            static_for<0, kLoopCount, 1>{}([&](auto k0) {
+                const index_t page_offset =
+                    (thread_coord_start + kLoopStart + k0.value) & kPageMask;
+                kv_offset_vec[k0] = (page_loc + page_offset) * stride_kv;
+            });
+        }
+    }
+}
 
 // a variation of qr/ks/vs, where we use async copy to load k (potentially v in the future)
 template <typename Problem_,
@@ -41,17 +92,19 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
-    static constexpr index_t kM0           = BlockFmhaShape::kM0;
-    static constexpr index_t kN0           = BlockFmhaShape::kN0;
-    static constexpr index_t kK0           = BlockFmhaShape::kK0;
-    static constexpr index_t kN1           = BlockFmhaShape::kN1;
-    static constexpr index_t kK1           = BlockFmhaShape::kK1;
-    static constexpr index_t kQKHeaddim    = BlockFmhaShape::kQKHeaddim;
-    static constexpr index_t kSubQKHeaddim = BlockFmhaShape::kSubQKHeaddim;
-    static constexpr auto I0               = number<0>{};
-    static constexpr auto I1               = number<1>{};
-    static constexpr auto I2               = number<2>{};
-    static constexpr auto I3               = number<3>{};
+    static constexpr index_t kM0            = BlockFmhaShape::kM0;
+    static constexpr index_t kN0            = BlockFmhaShape::kN0;
+    static constexpr index_t kK0            = BlockFmhaShape::kK0;
+    static constexpr index_t kN1            = BlockFmhaShape::kN1;
+    static constexpr index_t kK1            = BlockFmhaShape::kK1;
+    static constexpr index_t kQKHeaddim     = BlockFmhaShape::kQKHeaddim;
+    static constexpr index_t kSubQKHeaddim  = BlockFmhaShape::kSubQKHeaddim;
+    static constexpr index_t kPageBlockSize = 16;
+    static constexpr index_t kPageShiftSize = 4;
+    static constexpr auto I0                = number<0>{};
+    static constexpr auto I1                = number<1>{};
+    static constexpr auto I2                = number<2>{};
+    static constexpr auto I3                = number<3>{};
 
     static_assert(kSubQKHeaddim <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
 
@@ -68,6 +121,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
     static constexpr auto BiasEnum          = Problem::BiasEnum;
     static constexpr bool kStoreLSE         = Problem::kStoreLSE;
     static constexpr bool kHasDropout       = Problem::kHasDropout;
+    static constexpr bool kIsSglangLayout   = Problem::kIsSglangLayout;
 
     static_assert((CK_TILE_FMHA_FWD_FAST_EXP2 &&
                    (kHasLogitsSoftCap && Problem::BiasEnum == BlockAttentionBiasEnum::NO_BIAS ||
@@ -325,9 +379,17 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
         using KDstrEncode         = typename decltype(k_dist)::DstrEncode;
         constexpr index_t NRepeat = KDstrEncode::hs_lengthss_[I0][I0];
         statically_indexed_array<index_t, NRepeat> k_offsets;
-        static_for<0, NRepeat, 1>{}([&](auto n0) {
-            k_offsets[n0] = page_idx[k_coord[0] + kN0 / NRepeat * n0.value] * stride_k;
-        });
+        kv_offset_array_transform<statically_indexed_array<index_t, NRepeat>,
+                                  decltype(k_coord),
+                                  0,
+                                  kPageBlockSize,
+                                  kPageShiftSize,
+                                  0,
+                                  NRepeat,
+                                  kN0 / NRepeat,
+                                  kIsSglangLayout,
+                                  true>(page_idx, stride_k, k_coord, k_offsets);
+
         auto k_dram_window = make_tile_scatter_gather(k_dram_block_window.get_bottom_tensor_view(),
                                                       k_dram_block_window.get_window_lengths(),
                                                       k_dram_block_window.get_window_origin(),
@@ -360,10 +422,16 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
         using VDstrEncode           = typename decltype(v_dist)::DstrEncode;
         constexpr index_t V_KRepeat = VDstrEncode::hs_lengthss_[I1][I3];
         statically_indexed_array<index_t, V_KRepeat> v_offsets;
-        (void)stride_k;
-        static_for<0, V_KRepeat, 1>{}([&](auto k0) {
-            v_offsets[k0] = page_idx[v_coord[VPageIndexDim] + k0.value] * stride_v;
-        });
+        kv_offset_array_transform<statically_indexed_array<index_t, V_KRepeat>,
+                                  decltype(v_coord),
+                                  VPageIndexDim,
+                                  kPageBlockSize,
+                                  kPageShiftSize,
+                                  0,
+                                  V_KRepeat,
+                                  1,
+                                  kIsSglangLayout,
+                                  false>(page_idx, stride_v, v_coord, v_offsets);
 
         auto v_dram_window =
             make_tile_scatter_gather(v_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -427,9 +495,16 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
 
             const auto bias_tile = load_tile(bias_dram_window); // load bias tile
             auto v_buf           = load_tile(v_dram_window, number<-1>{}, bool_constant<false>{});
-            static_for<0, V_KRepeat, 1>{}([&](auto k0) {
-                v_offsets[k0] = page_idx[kK1 + v_coord[VPageIndexDim] + k0.value] * stride_v;
-            });
+            kv_offset_array_transform<statically_indexed_array<index_t, V_KRepeat>,
+                                      decltype(v_coord),
+                                      VPageIndexDim,
+                                      kPageBlockSize,
+                                      kPageShiftSize,
+                                      kK1,
+                                      V_KRepeat,
+                                      1,
+                                      kIsSglangLayout,
+                                      false>(page_idx, stride_v, v_coord, v_offsets);
             v_dram_window.update_page_idx(v_offsets);
 
             __builtin_amdgcn_sched_barrier(0);
@@ -596,10 +671,16 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                     {0, kK1}); // will have scratch if move this right after load_tile(v_dram)...
                 v_buf = load_tile(
                     v_dram_window, number<-1>{}, bool_constant<false>{}); // load next v_buf
-                static_for<0, V_KRepeat, 1>{}([&](auto k0) {
-                    v_offsets[k0] =
-                        page_idx[kK1 * 2 + v_coord[VPageIndexDim] + k0.value] * stride_v;
-                });
+                kv_offset_array_transform<statically_indexed_array<index_t, V_KRepeat>,
+                                          decltype(v_coord),
+                                          VPageIndexDim,
+                                          kPageBlockSize,
+                                          kPageShiftSize,
+                                          2 * kK1,
+                                          V_KRepeat,
+                                          1,
+                                          kIsSglangLayout,
+                                          false>(page_idx, stride_v, v_coord, v_offsets);
                 v_dram_window.update_page_idx(v_offsets);
             }
             __builtin_amdgcn_sched_barrier(0);
@@ -727,11 +808,16 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                     {
                         v_buf = load_tile(
                             v_dram_window, number<-1>{}, bool_constant<false>{}); // load next v_buf
-                        static_for<0, V_KRepeat, 1>{}([&](auto k0) {
-                            v_offsets[k0] = page_idx[kK1 * 2 + i_k1.value * kK1 +
-                                                     v_coord[VPageIndexDim] + k0.value] *
-                                            stride_v;
-                        });
+                        kv_offset_array_transform<statically_indexed_array<index_t, V_KRepeat>,
+                                                  decltype(v_coord),
+                                                  VPageIndexDim,
+                                                  kPageBlockSize,
+                                                  kPageShiftSize,
+                                                  (2 + i_k1.value) * kK1,
+                                                  V_KRepeat,
+                                                  1,
+                                                  kIsSglangLayout,
+                                                  false>(page_idx, stride_v, v_coord, v_offsets);
                         v_dram_window.update_page_idx(v_offsets);
                     }
                     block_sync_lds();
@@ -772,14 +858,28 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             i_total_loops++;
             if(i_total_loops < num_total_loop)
             {
-                page_idx += kN0;
+                if constexpr(kIsSglangLayout)
+                {
+                    page_idx += kN0;
+                }
+                else
+                {
+                    page_idx += kN0 / kPageBlockSize;
+                }
                 // move K tile windows
                 move_tile_window(k_dram_block_window, {kN0, 0});
                 k_dram_window.set_window_origin(k_dram_block_window.get_window_origin());
 
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
-                    k_offsets[n0] = page_idx[k_coord[0] + kN0 / NRepeat * n0.value] * stride_k;
-                });
+                kv_offset_array_transform<statically_indexed_array<index_t, NRepeat>,
+                                          decltype(k_coord),
+                                          0,
+                                          kPageBlockSize,
+                                          kPageShiftSize,
+                                          0,
+                                          NRepeat,
+                                          kN0 / NRepeat,
+                                          kIsSglangLayout,
+                                          true>(page_idx, stride_k, k_coord, k_offsets);
                 k_dram_window.update_page_idx(k_offsets);
                 if constexpr(k1_loops >= 2 &&
                              LdsSeq.at(number<0>{}) == LdsSeq.at(number<k0_loops + k1_loops - 2>{}))
