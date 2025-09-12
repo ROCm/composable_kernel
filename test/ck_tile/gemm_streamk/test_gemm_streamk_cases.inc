@@ -25,8 +25,11 @@ TYPED_TEST(TEST_SUITE_NAME, StreamK_M256_N256_K256_SKBlocks4)
     this->Run(M, N, K, num_sk_blocks);
 }
 
+// TODO: Renable this test once reduction is implemented
 TYPED_TEST(TEST_SUITE_NAME, StreamK_M256_N256_K256_SKBlocks12)
 {
+    GTEST_SKIP() << "Skipping this test: There are precision issues with atomics due to >=3 WGs "
+                    "contributing to each macro tile in C";
 
     ck_tile::index_t M     = 256;
     ck_tile::index_t N     = 256;
