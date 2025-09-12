@@ -13,7 +13,6 @@
 #include "hstu_attention_fwd_setting.hpp"
 #include "hstu_attention_params.hpp"
 #include "hstu_attention_hdim_switch.hpp"
-#include "hstu_block_masking.hpp"
 #include "hstu_attention_pipeline_problem.hpp"
 #include "hstu_attention_traits.hpp"
 #include "hstu_attention_fwd_pipeline.hpp"
@@ -22,14 +21,12 @@
 
 template <typename InOutDataType,
           bool kUseCausal,
-          bool kUseLocal,
           bool kHasBias,
           bool kHasDropout,
           ck_tile::index_t MaxK>
-struct jagged_forward_causal_local_bias_dropout_dispatch
+struct jagged_forward_causal_bias_dropout_dispatch
 {
     using HstuAttentionTileSetting = typename HstuAttentionFwdTileSetting<MaxK>::Type;
-    using HstuMask = typename ck_tile::HstuBlockMasking<kUseCausal, kUseLocal>::Type;
 
     template <typename HstuTraits>
     using HstuPipelineProblemTemp = ck_tile::HstuAttentionFwdPipelineProblem<
@@ -40,7 +37,7 @@ struct jagged_forward_causal_local_bias_dropout_dispatch
         true, // kIsJagged
         kHasBias,
         kHasDropout,
-        HstuMask,
+        kUseCausal,
         HstuAttentionTileSetting,
         HstuTraits>;
 
@@ -131,17 +128,15 @@ struct jagged_forward_causal_local_bias_dropout_dispatch
 
 template <typename InOutDataType,
           bool kUseCausal,
-          bool kUseLocal,
           bool kHasBias,
           bool kHasDropout,
           ck_tile::index_t MaxK>
-void run_jagged_forward_causal_local_bias_dropout_dispatch(HstuAttentionFwdParams& param,
-                                                           hipStream_t stream)
+void run_jagged_forward_causal_bias_dropout_dispatch(HstuAttentionFwdParams& param,
+                                                     hipStream_t stream)
 {
-    jagged_forward_causal_local_bias_dropout_dispatch<InOutDataType,
-                                                      kUseCausal,
-                                                      kUseLocal,
-                                                      kHasBias,
-                                                      kHasDropout,
-                                                      MaxK>::Run(param, stream);
+    jagged_forward_causal_bias_dropout_dispatch<InOutDataType,
+                                                kUseCausal,
+                                                kHasBias,
+                                                kHasDropout,
+                                                MaxK>::Run(param, stream);
 };
