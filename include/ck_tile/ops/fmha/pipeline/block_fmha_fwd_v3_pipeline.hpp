@@ -1089,7 +1089,14 @@ struct BlockFmhaFwdV3Pipeline
             auto ps_pi        = number<1>{} - d;
             auto V_lds_rd_idx = ps_pi;
 
-            s_waitcnt_vmcnt<K_mem_su_ld_insts>();
+            if(1 < num_total_loop)
+            {
+                s_waitcnt_vmcnt<K_mem_su_ld_insts>();
+            }
+            else
+            {
+                s_waitcnt_vmcnt<0>();
+            }
             __builtin_amdgcn_s_barrier();
 
             V_lds_load(V_lds_rd_idx);
