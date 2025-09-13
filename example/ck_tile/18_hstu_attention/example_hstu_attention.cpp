@@ -11,7 +11,6 @@
 #include <utility>
 #include <vector>
 #include <random>
-#include <cassert>
 
 #include <ck_tile/host/host_tensor.hpp>
 #include <ck_tile/host/fill.hpp>
@@ -26,6 +25,8 @@
 #include "hstu_attention_bool_switch.hpp"
 #include "hstu_attention_params.hpp"
 #include "reference_hstu_attention.hpp"
+
+#include "hstu_attention_util.hpp"
 
 extern void hstu_attention_batched_forward_fp16(HstuAttentionFwdParams& param, hipStream_t stream);
 extern void hstu_attention_batched_forward_bf16(HstuAttentionFwdParams& param, hipStream_t stream);
@@ -261,6 +262,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
             max_target = max(max_target, num_targets[i]);
     };
 
+    HSTU_CHECK(!seq_lengths.empty(), "sequence lengths shoud be defined!");
+
     if(is_jagged)
     {
         // supplement seq_lengths using the last input value if user-provided lengths not enough
@@ -281,24 +284,31 @@ bool run(const ck_tile::ArgParser& arg_parser)
         // only consider num_batch values even if more values are provided by the user
         for(int i = 0; i < num_batch; i++)
         {
-            assert(seq_lengths[i] >= min_full_attn_seqlen);
+            HSTU_CHECK(
+                seq_lengths[i] >= min_full_attn_seqlen,
+                "min_full_attn_seqlen should not be bigger than the sequence length of any batch!");
         };
     }
     else
     {
-        assert(1 == seq_lengths.size());
+        HSTU_CHECK(1 == seq_lengths.size(),
+                   "sequence lengths for batched mode shoud have single element!");
         uih_seqlen     = seq_lengths[0];
         max_uih_seqlen = uih_seqlen;
 
-        assert(uih_seqlen >= min_full_attn_seqlen);
+        HSTU_CHECK(max_uih_seqlen >= min_full_attn_seqlen,
+                   "minf_full_attn_seqlen should not be bigger than the sequence length!");
     };
 
     // the user input of max_uih_seqlen can either be ignored or be bigger than all uih_seqlens
     // the user input of max_target can either be ignored or be bigger than all targets
-    assert(input_max_uih_seqlen <= 0 || input_max_uih_seqlen >= max_uih_seqlen);
-    assert(input_max_target <= 0 || input_max_target >= max_target);
+    HSTU_CHECK(input_max_uih_seqlen <= 0 || input_max_uih_seqlen >= max_uih_seqlen,
+               "the user input of max_uih_seqlen can either be ignored or be bigger than all "
+               "uih_seqlens!");
+    HSTU_CHECK(input_max_target <= 0 || input_max_target >= max_target,
+               "the user input of max_target can either be ignored or be bigger than all targets!");
 
-    assert(contextual_seqlen >= 0);
+    HSTU_CHECK(contextual_seqlen >= 0, "contextual_seqlen should be non-negative!");
 
     max_uih_seqlen = (input_max_uih_seqlen > 0) ? input_max_uih_seqlen : max_uih_seqlen;
     max_target     = (input_max_target > 0) ? input_max_target : max_target;
