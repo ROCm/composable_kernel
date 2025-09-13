@@ -12,17 +12,17 @@ namespace {
 
 namespace ckb = ck_tile::builder;
 using P       = ckb::BlockGemmPipelineVersion;
+
 // Defines the signature of the convolution operation to be tested.
 // This includes dimensionality, direction, data layout, and data type.
-// We wil not change these for this test suite, so we just use constexpr.
-struct FwdConvSignature
+struct ConvSignature
 {
-    static constexpr int spatial_dim = 2;
-    static constexpr auto direction  = ckb::ConvDirection::Forward;
-    static constexpr auto layout     = ckb::GroupConvLayout::NHWGC_GKYXC_NHWGK;
-    static constexpr auto data_type  = ckb::DataType::FP16;
+    int spatial_dim              = 2;
+    ckb::ConvDirection direction = ckb::ConvDirection::Forward;
+    ckb::GroupConvLayout layout  = ckb::GroupConvLayout::NHWGC_GKYXC_NHWGK;
+    ckb::DataType data_type      = ckb::DataType::FP16;
 };
-static_assert(ckb::ConvSignatureDescriptor<FwdConvSignature>);
+static_assert(ckb::ConvSignatureDescriptor<ConvSignature>);
 
 constexpr char API_VERSION[] = "0.1.0";
 static_assert(ckb::SupportedVersion<API_VERSION>);
@@ -258,7 +258,7 @@ TYPED_TEST(ConvBuilderInstancesTest, KernelParamsConfigured)
 {
     static constexpr const FwdConvAlgorithm& ALGORITHM =
         ConvBuilderInstancesTest<TypeParam>::ALGORITHM;
-    static constexpr const FwdConvSignature SIGNATURE;
+    static constexpr const ConvSignature SIGNATURE;
     using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM, API_VERSION>;
     EXPECT_EQ(Builder::Instance::TypeString(), ConvBuilderInstancesTest<TypeParam>::EXPECTED_TYPE);
     const auto& tp = ALGORITHM.tuning_params;

@@ -5,28 +5,31 @@
 namespace {
 
 namespace ckb = ck_tile::builder;
+using P       = ckb::BlockGemmPipelineVersion;
 
-struct FwdConvSignature
+// Defines the signature of the convolution operation to be tested.
+// This includes dimensionality, direction, data layout, and data type.
+struct ConvSignature
 {
-    static constexpr int spatial_dim = 2;
-    static constexpr auto direction  = ckb::ConvDirection::Forward;
-    static constexpr auto layout     = ckb::GroupConvLayout::NHWGC_GKYXC_NHWGK;
-    static constexpr auto data_type  = ckb::DataType::FP16;
+    int spatial_dim              = 2;
+    ckb::ConvDirection direction = ckb::ConvDirection::Forward;
+    ckb::GroupConvLayout layout  = ckb::GroupConvLayout::NHWGC_GKYXC_NHWGK;
+    ckb::DataType data_type      = ckb::DataType::FP16;
 };
-static_assert(ckb::ConvSignatureDescriptor<FwdConvSignature>);
+static_assert(ckb::ConvSignatureDescriptor<ConvSignature>);
 
-struct DefaultFwdConvAlgorithm
+struct DefaultAlgorithm
 {
 };
-static_assert(ckb::ConvAlgorithmDescriptor<DefaultFwdConvAlgorithm>);
+static_assert(ckb::ConvAlgorithmDescriptor<DefaultAlgorithm>);
 
 constexpr char API_VERSION[] = "0.1.0";
 static_assert(ckb::SupportedVersion<API_VERSION>);
 
 TEST(ConvBuilderTest, TestDefaultInstance)
 {
-    static constexpr const FwdConvSignature SIGNATURE;
-    static constexpr const DefaultFwdConvAlgorithm ALGORITHM;
+    static constexpr const ConvSignature SIGNATURE;
+    static constexpr const DefaultAlgorithm ALGORITHM;
     using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM, API_VERSION>;
     EXPECT_EQ(
         Builder::Instance::TypeString(),
