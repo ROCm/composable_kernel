@@ -295,10 +295,8 @@ INSTANTIATE_TEST_SUITE_P(TestAtomicKernelSuite,
                                            std::tuple{64, 16},
                                            std::tuple{64, 32}));
 
-#if defined(CK_USE_XDL)
 INSTANTIATE_TEST_SUITE_P(TestAtomicKernelSuite,
                          TestAtomicKernelFloat_4,
                          ::testing::Values(std::tuple{64, 8},
                                            std::tuple{64, 16},
                                            std::tuple{64, 32}));
-#endif
