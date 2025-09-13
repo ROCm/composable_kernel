@@ -55,6 +55,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
     static constexpr bool kStoreLSE         = FmhaPipeline::kStoreLSE;
     static constexpr bool kHasDropout       = FmhaPipeline::kHasDropout;
     static constexpr auto QScaleEnum        = FmhaPipeline::Problem::QScaleEnum;
+    static constexpr bool kIsSglangLayout   = FmhaPipeline::kIsSglangLayout;
     using AttentionVariant = ck_tile::remove_cvref_t<typename FmhaPipeline::AttentionVariant>;
     using FmhaMask         = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
     static constexpr bool kHasMask = FmhaMask::IsMasking;
@@ -137,9 +138,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         ck_tile::index_t page_block_size;
         const int32_t* kv_indptr;
         const int32_t* kv_page_indices;
-#if 0 // we assume page_block_size=1 for now
         const int32_t* kv_last_page_lens;
-#endif
 
         float scale_s;
 
@@ -325,9 +324,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               ck_tile::index_t page_block_size,
               const void* kv_indptr,
               const void* kv_page_indices,
-#if 0 // we assume page_block_size=1 for now
               const void* kv_last_page_lens,
-#endif
               float scale_s,
               [[maybe_unused]] float scale_p,
               [[maybe_unused]] float scale_o,
@@ -375,9 +372,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                      page_block_size,
                      reinterpret_cast<const int32_t*>(kv_indptr),
                      reinterpret_cast<const int32_t*>(kv_page_indices),
-#if 0 // we assume page_block_size=1 for now
                      reinterpret_cast<const int32_t*>(kv_last_page_lens),
-#endif
 #if CK_TILE_FMHA_FWD_FAST_EXP2
                      static_cast<float>(scale_s * ck_tile::log2e_v<>),
 #else
@@ -473,9 +468,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               ck_tile::index_t page_block_size,
               const void* kv_indptr,
               const void* kv_page_indices,
-#if 0 // we assume page_block_size=1 for now
               const void* kv_last_page_lens,
-#endif
               float scale_s,
               [[maybe_unused]] float scale_p,
               [[maybe_unused]] float scale_o,
@@ -518,9 +511,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                      page_block_size,
                      reinterpret_cast<const int32_t*>(kv_indptr),
                      reinterpret_cast<const int32_t*>(kv_page_indices),
-#if 0 // we assume page_block_size=1 for now
                      reinterpret_cast<const int32_t*>(kv_last_page_lens),
-#endif
 #if CK_TILE_FMHA_FWD_FAST_EXP2
                      static_cast<float>(scale_s * ck_tile::log2e_v<>),
 #else
@@ -711,9 +702,11 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         long_index_t batch_offset_o       = 0;
 
         const int32_t num_page_blocks = kargs.kv_indptr[i_batch + 1] - kargs.kv_indptr[i_batch];
-#if 0 // we assume page_block_size=1 for now
-        const int32_t last_page_len   = kargs.kv_last_page_lens[i_batch];
-#endif
+
+        int32_t last_page_len = 0;
+        if constexpr(!kIsSglangLayout)
+            last_page_len = kargs.kv_last_page_lens[i_batch];
+
         if constexpr(kIsGroupMode)
         {
             // get starting offset for each batch
@@ -747,12 +740,10 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                 return;
             }
 
-#if 0 // we assume page_block_size=1 for now
-            kargs.seqlen_k = (num_page_blocks - 1) * kargs.page_block_size + last_page_len;
-#else
-            //Fix:
-            kargs.seqlen_k = num_page_blocks * kargs.page_block_size;
-#endif
+            if constexpr(kIsSglangLayout)
+                kargs.seqlen_k = num_page_blocks;
+            else
+                kargs.seqlen_k = (num_page_blocks - 1) * kargs.page_block_size + last_page_len;
         }
         else
         {
@@ -775,12 +766,10 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
             }
             batch_offset_o = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
 
-#if 0 // we assume page_block_size=1 for now
-            kargs.seqlen_k = (num_page_blocks - 1) * kargs.page_block_size + last_page_len;
-#else
-            //Fix:
-            kargs.seqlen_k = num_page_blocks * kargs.page_block_size;
-#endif
+            if constexpr(kIsSglangLayout)
+                kargs.seqlen_k = num_page_blocks;
+            else
+                kargs.seqlen_k = (num_page_blocks - 1) * kargs.page_block_size + last_page_len;
         }
 
         // for simplicity, batch stride we just modify the pointer
