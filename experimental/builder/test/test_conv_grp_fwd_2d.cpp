@@ -45,11 +45,11 @@ TEST(ConvBuilderGrpFwd2d, TestDefaultFP32Instance)
     EXPECT_NE(Builder::Instance::TypeString(), "");
     // It's difficult to check the types direction on the kernel, so we instead
     // check that the builder has the correct data type aliases for FP32.
-    EXPECT_TRUE((std::is_same_v<typename Builder::factory::Types::ADataType, float>));
-    EXPECT_TRUE((std::is_same_v<typename Builder::factory::Types::BDataType, float>));
-    EXPECT_TRUE((std::is_same_v<typename Builder::factory::Types::CShuffleDataType, float>));
-    EXPECT_TRUE((std::is_same_v<typename Builder::factory::Types::AccDataType, float>));
-    EXPECT_TRUE((std::is_same_v<typename Builder::factory::Types::EDataType, float>));
+    EXPECT_TRUE((std::is_same_v<typename Builder::Factory::Types::ADataType, float>));
+    EXPECT_TRUE((std::is_same_v<typename Builder::Factory::Types::BDataType, float>));
+    EXPECT_TRUE((std::is_same_v<typename Builder::Factory::Types::CShuffleDataType, float>));
+    EXPECT_TRUE((std::is_same_v<typename Builder::Factory::Types::AccDataType, float>));
+    EXPECT_TRUE((std::is_same_v<typename Builder::Factory::Types::EDataType, float>));
 }
 
 TEST(ConvBuilderGrpFwd2d, TestDefaultFP16Instance)
@@ -59,11 +59,11 @@ TEST(ConvBuilderGrpFwd2d, TestDefaultFP16Instance)
     using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM, API_VERSION>;
 
     // Check that the builder has the correct data type aliases for FP16.
-    EXPECT_TRUE((std::is_same_v<typename Builder::factory::Types::ADataType, ck::half_t>));
-    EXPECT_TRUE((std::is_same_v<typename Builder::factory::Types::BDataType, ck::half_t>));
-    EXPECT_TRUE((std::is_same_v<typename Builder::factory::Types::CShuffleDataType, ck::half_t>));
-    EXPECT_TRUE((std::is_same_v<typename Builder::factory::Types::AccDataType, float>));
-    EXPECT_TRUE((std::is_same_v<typename Builder::factory::Types::EDataType, ck::half_t>));
+    EXPECT_TRUE((std::is_same_v<typename Builder::Factory::Types::ADataType, ck::half_t>));
+    EXPECT_TRUE((std::is_same_v<typename Builder::Factory::Types::BDataType, ck::half_t>));
+    EXPECT_TRUE((std::is_same_v<typename Builder::Factory::Types::CShuffleDataType, ck::half_t>));
+    EXPECT_TRUE((std::is_same_v<typename Builder::Factory::Types::AccDataType, float>));
+    EXPECT_TRUE((std::is_same_v<typename Builder::Factory::Types::EDataType, ck::half_t>));
 }
 
 TEST(ConvBuilderGrpFwd2d, TestDefaultBF16Instance)
@@ -73,11 +73,11 @@ TEST(ConvBuilderGrpFwd2d, TestDefaultBF16Instance)
     using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM, API_VERSION>;
 
     // Check that the builder has the correct data type aliases for BF16.
-    EXPECT_TRUE((std::is_same_v<typename Builder::factory::Types::ADataType, ck::bhalf_t>));
-    EXPECT_TRUE((std::is_same_v<typename Builder::factory::Types::BDataType, ck::bhalf_t>));
-    EXPECT_TRUE((std::is_same_v<typename Builder::factory::Types::CShuffleDataType, ck::bhalf_t>));
-    EXPECT_TRUE((std::is_same_v<typename Builder::factory::Types::AccDataType, float>));
-    EXPECT_TRUE((std::is_same_v<typename Builder::factory::Types::EDataType, ck::bhalf_t>));
+    EXPECT_TRUE((std::is_same_v<typename Builder::Factory::Types::ADataType, ck::bhalf_t>));
+    EXPECT_TRUE((std::is_same_v<typename Builder::Factory::Types::BDataType, ck::bhalf_t>));
+    EXPECT_TRUE((std::is_same_v<typename Builder::Factory::Types::CShuffleDataType, ck::bhalf_t>));
+    EXPECT_TRUE((std::is_same_v<typename Builder::Factory::Types::AccDataType, float>));
+    EXPECT_TRUE((std::is_same_v<typename Builder::Factory::Types::EDataType, ck::bhalf_t>));
 }
 
 } // namespace

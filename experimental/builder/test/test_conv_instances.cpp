@@ -262,21 +262,21 @@ TYPED_TEST(ConvBuilderInstancesTest, KernelParamsConfigured)
     using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM, API_VERSION>;
     EXPECT_EQ(Builder::Instance::TypeString(), ConvBuilderInstancesTest<TypeParam>::EXPECTED_TYPE);
     const auto& tp = ALGORITHM.tuning_params;
-    EXPECT_EQ(Builder::factory::TUNING.ak1, tp.ak1);
-    EXPECT_EQ(Builder::factory::TUNING.bk1, tp.bk1);
+    EXPECT_EQ(Builder::Factory::TUNING.ak1, tp.ak1);
+    EXPECT_EQ(Builder::Factory::TUNING.bk1, tp.bk1);
     const auto& tcda = ALGORITHM.block_transfer.thread_cluster_dims_a;
-    EXPECT_EQ(Builder::factory::A_BLOCK_TRANSFER.thread_cluster_dims[0], tcda.k0);
-    EXPECT_EQ(Builder::factory::A_BLOCK_TRANSFER.thread_cluster_dims[1], tcda.m);
-    EXPECT_EQ(Builder::factory::A_BLOCK_TRANSFER.thread_cluster_dims[2], tcda.k1);
+    EXPECT_EQ(Builder::Factory::A_BLOCK_TRANSFER.thread_cluster_dims[0], tcda.k0);
+    EXPECT_EQ(Builder::Factory::A_BLOCK_TRANSFER.thread_cluster_dims[1], tcda.m);
+    EXPECT_EQ(Builder::Factory::A_BLOCK_TRANSFER.thread_cluster_dims[2], tcda.k1);
     const auto& tcdb = ALGORITHM.block_transfer.thread_cluster_dims_b;
-    EXPECT_EQ(Builder::factory::B_BLOCK_TRANSFER.thread_cluster_dims[0], tcdb.k0);
-    EXPECT_EQ(Builder::factory::B_BLOCK_TRANSFER.thread_cluster_dims[1], tcdb.n);
-    EXPECT_EQ(Builder::factory::B_BLOCK_TRANSFER.thread_cluster_dims[2], tcdb.k1);
+    EXPECT_EQ(Builder::Factory::B_BLOCK_TRANSFER.thread_cluster_dims[0], tcdb.k0);
+    EXPECT_EQ(Builder::Factory::B_BLOCK_TRANSFER.thread_cluster_dims[1], tcdb.n);
+    EXPECT_EQ(Builder::Factory::B_BLOCK_TRANSFER.thread_cluster_dims[2], tcdb.k1);
     const auto& tcdc = ALGORITHM.block_transfer.thread_cluster_dims_c;
-    EXPECT_EQ(Builder::factory::C_BLOCK_TRANSFER.thread_cluster_dims[0], tcdc.m_block);
-    EXPECT_EQ(Builder::factory::C_BLOCK_TRANSFER.thread_cluster_dims[1], tcdc.m_wave_per_xdl);
-    EXPECT_EQ(Builder::factory::C_BLOCK_TRANSFER.thread_cluster_dims[2], tcdc.n_block);
-    EXPECT_EQ(Builder::factory::C_BLOCK_TRANSFER.thread_cluster_dims[3], tcdc.n_wave_per_xdl);
+    EXPECT_EQ(Builder::Factory::C_BLOCK_TRANSFER.thread_cluster_dims[0], tcdc.m_block);
+    EXPECT_EQ(Builder::Factory::C_BLOCK_TRANSFER.thread_cluster_dims[1], tcdc.m_wave_per_xdl);
+    EXPECT_EQ(Builder::Factory::C_BLOCK_TRANSFER.thread_cluster_dims[2], tcdc.n_block);
+    EXPECT_EQ(Builder::Factory::C_BLOCK_TRANSFER.thread_cluster_dims[3], tcdc.n_wave_per_xdl);
 }
 
 // A standard GTest to ensure that all `expected_type` strings in the
