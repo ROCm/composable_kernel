@@ -174,8 +174,7 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
                             
                         // }   
                         
-                        auto& scale_reg   = bq_block_tensor.get_thread_buffer()[0];
-                        scale_reg=0;
+                        
                         // if constexpr((kIter + 1) % KIterPerQScale == 0)
                         // {
                         //     constexpr index_t reg_offset =
@@ -189,11 +188,14 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
 
                         //     auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
                         //     float scale_reg_f = cvt_scale_to_fp32(scale_reg);
+                        //     //printf("scale_reg_f: %f\n", scale_reg_f);
                         //     static_for<0, WG::kM / 2, 1>{}([&](auto c_row) {
                         //         c_block_tensor.get_thread_buffer()[tbuf_offset + c_row] +=
                         //             (c_warp_tensor.get_thread_buffer()[c_row] * scale_reg_f);
                         //     });
                         // }
+                        auto& scale_reg   = bq_block_tensor.get_thread_buffer()[0];
+                        scale_reg=0;
                         // write C warp tensor into C block tensor
                         c_block_tensor.set_y_sliced_thread_data(
                             merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
