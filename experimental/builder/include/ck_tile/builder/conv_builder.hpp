@@ -29,7 +29,7 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvBuilder
 {
     static constexpr auto kVersion = VERSION;
-    using Factory = GroupedConvForwardXldCShuffleFactoryV3<SIGNATURE, ALGORITHM, VERSION>;
+    using Factory = ConvFactory<SIGNATURE, ALGORITHM, VERSION>;
     // Output: The kernel class.
     using Instance = Factory::Instance;
 };

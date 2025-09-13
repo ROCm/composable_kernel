@@ -269,7 +269,7 @@ template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           auto Version>
     requires SupportedVersion<Version>
-struct GroupedConvForwardXldCShuffleFactoryV3
+struct ConvFactory
 {
     static constexpr int SPATIAL_DIM = SIGNATURE.spatial_dim;
     using Layouts                    = ConvTensorLayouts<SIGNATURE.layout>;
