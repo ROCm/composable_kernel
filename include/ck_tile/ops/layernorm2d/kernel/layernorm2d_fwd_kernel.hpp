@@ -134,7 +134,11 @@ struct Layernorm2dFwd
         return dim3(integer_divide_ceil(hargs.m, Block_M));
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return Problem::BlockShape::BlockSize; }
+    CK_TILE_HOST static constexpr auto BlockSize()
+    {
+        return is_wave32() ? Problem::BlockShape::template GetBlockSize<true>()
+                           : Problem::BlockShape::template GetBlockSize<false>();
+    }
 
     // clang-format off
     template <typename T> struct t2s;
