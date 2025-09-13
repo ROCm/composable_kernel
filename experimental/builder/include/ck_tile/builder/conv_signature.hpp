@@ -22,7 +22,7 @@ concept ConvSpatialDim = std::is_integral_v<decltype(N)> && (N == 1 || N == 2 ||
 // Allowed datatypes for grouped convolutions.
 // Currently limited to floating-point types commonly accelerated on GPUs.
 template <DataType T>
-concept ConvDataType = (T == DataType::FP32) || (T == DataType::FP16);
+concept ConvDataType = (T == DataType::FP32) || (T == DataType::FP16) || (T == DataType::BF16);
 
 // Direction of the convolution operation.
 enum class ConvDirection

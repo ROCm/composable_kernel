@@ -6,6 +6,7 @@
 #include <ck_tile/builder/conv_signature.hpp>
 #include <ck_tile/builder/conv_algorithm.hpp>
 #include <ck_tile/builder/builder_utils.hpp>
+#include <ck_tile/builder/types.hpp>
 #include <ck_tile/builder/versions.h>
 
 namespace ck_tile::builder {
@@ -36,17 +37,45 @@ struct ConvTensorLayouts<GroupConvLayout::NHWGC_GKYXC_NHWGK>
 
 // Type mappings from builder convolution data type to CK tensor types.
 template <DataType T>
-struct ConvTensorTypes;
+struct ConvTensorTypes
+{
+    // This will trigger if a specialization for the given DataType is not found.
+    // We should always catch this in an earlier validation check.
+    static_assert(sizeof(unsupported_data_type<T>) == 0,
+                  "Internal error. Unsupported data type for convolution factory.");
+};
 
 template <>
 struct ConvTensorTypes<DataType::FP16>
+{
+    using ADataType        = ck::half_t;
+    using BDataType        = ck::half_t;
+    using CShuffleDataType = ck::half_t;
+    using DsDataTypes      = ck::Tuple<>;
+    using AccDataType      = float;
+    using EDataType        = ck::half_t;
+};
+
+template <>
+struct ConvTensorTypes<DataType::BF16>
 {
     using ADataType        = ck::bhalf_t;
     using BDataType        = ck::bhalf_t;
     using CShuffleDataType = ck::bhalf_t;
     using DsDataTypes      = ck::Tuple<>;
     using AccDataType      = float;
-    using EDataTYpe        = ck::bhalf_t;
+    using EDataType        = ck::bhalf_t;
+};
+
+template <>
+struct ConvTensorTypes<DataType::FP32>
+{
+    using ADataType        = float;
+    using BDataType        = float;
+    using CShuffleDataType = float;
+    using DsDataTypes      = ck::Tuple<>;
+    using AccDataType      = float;
+    using EDataType        = float;
 };
 
 // Hard-coded pass-through ops.
@@ -236,7 +265,9 @@ constexpr ck::BlockGemmPipelineVersion SetBlockGemmPipelineVersion()
 }
 
 // Factory builds an instance of a grouped convolution kernel.
-template <ConvSignatureDescriptor auto SIGNATURE, ConvAlgorithmDescriptor auto ALGORITHM, auto Version>
+template <ConvSignatureDescriptor auto SIGNATURE,
+          ConvAlgorithmDescriptor auto ALGORITHM,
+          auto Version>
     requires SupportedVersion<Version>
 struct GroupedConvForwardXldCShuffleFactoryV3
 {
@@ -268,7 +299,7 @@ struct GroupedConvForwardXldCShuffleFactoryV3
             typename Types::AccDataType,
             typename Types::CShuffleDataType,
             typename Types::DsDataTypes,
-            typename Types::EDataTYpe,
+            typename Types::EDataType,
             typename Ops::AElementwiseOp,
             typename Ops::BElementwiseOp,
             typename Ops::CDEElementwiseOp,
