@@ -219,8 +219,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     int window_size = arg_parser.get_int("local_len");
 
-    bool use_local = (window_size > 0);
-
     int contextual_seqlen    = arg_parser.get_int("context_len");
     int min_full_attn_seqlen = arg_parser.get_int("minfull_len");
 
@@ -516,26 +514,25 @@ bool run(const ck_tile::ArgParser& arg_parser)
         using GemmAccDataType = typename HstuAttentionFwdTypeConfig<InOutDataType>::GemmAccDataType;
         using CompDataType    = typename HstuAttentionFwdTypeConfig<InOutDataType>::CompDataType;
 
-        BOOL_SWITCH_3(is_jagged, kIsJagged, use_causal, kUseCausal, use_local, kUseLocal, [&] {
+        BOOL_SWITCH_2(is_jagged, kIsJagged, use_causal, kUseCausal, [&] {
             ck_tile::reference_hstu_attention<InOutDataType,
                                               GemmAccDataType,
                                               CompDataType,
                                               kIsJagged,
-                                              kUseCausal,
-                                              kUseLocal>::Run(q_host,
-                                                              k_host,
-                                                              v_host,
-                                                              o_host_ref,
-                                                              mask_host,
-                                                              num_batch,
-                                                              scale_s,
-                                                              attn_scale,
-                                                              max_seqlen,
-                                                              seq_offsets,
-                                                              num_targets,
-                                                              window_size,
-                                                              contextual_seqlen,
-                                                              min_full_attn_seqlen);
+                                              kUseCausal>::Run(q_host,
+                                                               k_host,
+                                                               v_host,
+                                                               o_host_ref,
+                                                               mask_host,
+                                                               num_batch,
+                                                               scale_s,
+                                                               attn_scale,
+                                                               max_seqlen,
+                                                               seq_offsets,
+                                                               num_targets,
+                                                               contextual_seqlen,
+                                                               window_size,
+                                                               min_full_attn_seqlen);
         });
 
         ck_tile::HostTensor<InOutDataType> o_host(
