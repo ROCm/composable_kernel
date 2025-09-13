@@ -1064,7 +1064,7 @@ struct QuantGemmKernel
         const auto& c_block_tile = [&]() {
             if constexpr(kQuantType == QuantType::BQuantGrouped)
             {
-                const auto& bq_block_window = gemm_tile_windows.at(I3);
+\                const auto& bq_block_window = gemm_tile_windows.at(I3);
                 return GemmPipeline{}.template operator()(
                     a_block_window, b_block_window, bq_block_window, num_loop, smem_ptr_0, smem_ptr_1);
             }

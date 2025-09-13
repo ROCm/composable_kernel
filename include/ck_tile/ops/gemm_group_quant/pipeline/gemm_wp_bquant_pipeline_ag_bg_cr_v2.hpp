@@ -50,7 +50,6 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
     static constexpr index_t BlockSize = Problem::kBlockSize;
     static constexpr index_t WaveSize  = get_warp_size();
 
-
     static constexpr index_t kMPerBlock     = BlockGemmShape::kM;
     static constexpr index_t kNPerBlock     = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock     = BlockGemmShape::kK;
@@ -1258,6 +1257,5 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
             p_smem_ping,
             p_smem_pong);
     }
-
 };
 }

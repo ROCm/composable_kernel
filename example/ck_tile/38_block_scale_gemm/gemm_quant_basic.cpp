@@ -57,7 +57,9 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                                                  GemmTraits,
                                                                  ComputeDataType>;
 
-    using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
+    using BaseGemmPipeline = std::conditional_t<GemmConfig::PreshuffleB == false,
+                                ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
+                                ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>>;
 
     const ck_tile::index_t K_split =
         (args.K + GemmConfig::K_Tile - 1) / GemmConfig::K_Tile * GemmConfig::K_Tile;
@@ -255,7 +257,7 @@ int run_gemm_example(int argc, char* argv[])
                 "Unsupported quantization mode! Use 'aquant', 'bquant' or 'rowcol'");
         }
     }
-    else if(data_type == "bf8")
+    /*else if(data_type == "bf8")
     {
         using TypeConfig =
             decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t, float>{});
@@ -373,7 +375,7 @@ int run_gemm_example(int argc, char* argv[])
             throw std::runtime_error(
                 "Unsupported quantization mode for this datatype! Use 'bquant'.");
         }
-    }
+    }*/
     else
     {
         throw std::runtime_error("Unsupported data type for this operation !!!");

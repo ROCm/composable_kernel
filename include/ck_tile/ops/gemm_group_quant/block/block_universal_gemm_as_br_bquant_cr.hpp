@@ -164,14 +164,15 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
                             merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
                         // warp GEMM
-                        if constexpr(kIter % KIterPerQScale == 0)
-                        {
-                            c_warp_tensor = WG{}(a_warp_tensor(number<AwarpIter>{}), b_warp_tensor(nIter)(kIter));
-                        }
-                        else
-                        {
-                            WG{}(c_warp_tensor, a_warp_tensor(number<AwarpIter>{}), b_warp_tensor(nIter)(kIter));
-                        }   
+                        WG{}(c_warp_tensor, a_warp_tensor(number<AwarpIter>{}), b_warp_tensor(nIter)(kIter));
+                        // if constexpr(kIter % KIterPerQScale == 0)
+                        // {
+                        //     c_warp_tensor = WG{}(a_warp_tensor(number<AwarpIter>{}), b_warp_tensor(nIter)(kIter));
+                        // }
+                        // else
+                        // {
+                            
+                        // }   
                         
                         auto& scale_reg   = bq_block_tensor.get_thread_buffer()[0];
                         scale_reg=0;

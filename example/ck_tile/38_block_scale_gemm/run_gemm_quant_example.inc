@@ -336,7 +336,6 @@ int run_gemm_example_with_layouts(int argc,
             ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x40)}(a_m_k);
             ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x40)}(b_k_n);
             ck_tile::FillConstant<BQDataType>{static_cast<BQDataType>(1.0f)}(*bq_tensor_ptr);
-            printf("Bquant grouped tensors initialized to constant 1.0f\n");
         }
         else
         {
@@ -407,7 +406,7 @@ int run_gemm_example_with_layouts(int argc,
 
     if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
     {
-        if constexpr(GemmConfig::PreshuffleQuant)
+        if constexpr(GemmConfig::PreshuffleB)
         {
             ck_tile::HostTensor<BDataType> b_k_n_dev = shuffle_b<GemmConfig>(b_k_n);
             ck_tile::permute_vectors_i4x4_b(b_k_n_dev);
@@ -423,7 +422,7 @@ int run_gemm_example_with_layouts(int argc,
     }
     else
     {
-        if constexpr(GemmConfig::PreshuffleQuant)
+        if constexpr(GemmConfig::PreshuffleB)
         {
             ck_tile::HostTensor<BDataType> b_k_n_dev = shuffle_b<GemmConfig>(b_k_n);
             b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
