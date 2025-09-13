@@ -280,14 +280,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
         {
             max_uih_seqlen = max(max_uih_seqlen, seq_lengths[i]);
         };
-
-        // only consider num_batch values even if more values are provided by the user
-        for(int i = 0; i < num_batch; i++)
-        {
-            HSTU_CHECK(
-                seq_lengths[i] >= min_full_attn_seqlen,
-                "min_full_attn_seqlen should not be bigger than the sequence length of any batch!");
-        };
     }
     else
     {
@@ -295,9 +287,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
                    "sequence lengths for batched mode shoud have single element!");
         uih_seqlen     = seq_lengths[0];
         max_uih_seqlen = uih_seqlen;
-
-        HSTU_CHECK(max_uih_seqlen >= min_full_attn_seqlen,
-                   "minf_full_attn_seqlen should not be bigger than the sequence length!");
     };
 
     // the user input of max_uih_seqlen can either be ignored or be bigger than all uih_seqlens
