@@ -58,7 +58,7 @@ struct ConvTensorTypes
 {
     // This will trigger if a specialization for the given DataType is not found.
     // We should always catch this in an earlier validation check.
-    static_assert(sizeof(unsupported_data_type<T>) == 0,
+    static_assert(sizeof(UnsupportedEnumValue<T>) == 0,
                   "Internal error. Unsupported data type for convolution factory.");
 };
 

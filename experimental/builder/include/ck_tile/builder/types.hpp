@@ -13,11 +13,4 @@ enum class DataType
     S4,
 };
 
-// Helper to provide a readable error for unsupported data types.
-// The compiler will print the name of this struct in the error message.
-template <DataType T>
-struct unsupported_data_type
-{
-};
-
 } // namespace ck_tile::builder
