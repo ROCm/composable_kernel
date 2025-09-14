@@ -10,8 +10,8 @@ namespace ck_tile::builder {
 // Layouts for grouped convolutions.
 enum class GroupConvLayout
 {
-    CHANNELS_LAST,    // Channels-last NHWGC_GKYXC_NHWGK
-    CHANNELS_FIRST     // Channels-first NGCHW_GKCYX_NGKHW
+    CHANNELS_LAST, // Channels-last NHWGC_GKYXC_NHWGK
+    CHANNELS_FIRST // Channels-first NGCHW_GKCYX_NGKHW
 };
 
 // Spatial dimensionalities of grouped convolutions.
@@ -27,20 +27,20 @@ concept ConvDataType = (T == DataType::FP32) || (T == DataType::FP16) || (T == D
 // Direction of the convolution operation.
 enum class ConvDirection
 {
-    Forward,
-    BackwardData,
-    BackwardWeight
+    FORWARD,
+    BACKWARD_DATA,
+    BACKWARD_WEIGHT
 };
 
 // Elementwise operation to fuse to convolution.
 enum class ElementwiseOperation
 {
-    Bias,
-    BiasClamp,
-    Bilinear,
-    Clamp,
-    Scale,
-    PassThrough
+    BIAS,
+    BIAS_CLAMP,
+    BILINEAR,
+    CLAMP,
+    SCALE,
+    PASS_THROUGH
 };
 
 // Operational signature of a convolution.
