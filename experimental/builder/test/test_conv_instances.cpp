@@ -19,7 +19,7 @@ struct ConvSignature
 {
     int spatial_dim              = 2;
     ckb::ConvDirection direction = ckb::ConvDirection::Forward;
-    ckb::GroupConvLayout layout  = ckb::GroupConvLayout::NHWGC_GKYXC_NHWGK;
+    ckb::GroupConvLayout layout  = ckb::GroupConvLayout::CHANNELS_LAST;
     ckb::DataType data_type      = ckb::DataType::FP16;
 };
 static_assert(ckb::ConvSignatureDescriptor<ConvSignature>);

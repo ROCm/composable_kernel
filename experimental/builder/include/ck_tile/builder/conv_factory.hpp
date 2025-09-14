@@ -12,11 +12,18 @@
 namespace ck_tile::builder {
 
 // Type mappings from the builder GroupConvLayout enum class to the CK tensor data types.
-template <GroupConvLayout Layout>
-struct ConvTensorLayouts;
+template <GroupConvLayout Layout, int SPATIAL_DIM>
+    requires(ConvSpatialDim<SPATIAL_DIM>)
+struct ConvTensorLayouts
+{
+    // This will trigger if a specialization for the given layout is not found.
+    // We should always catch this in an earlier validation check.
+    static_assert(sizeof(Layout) == 0,
+                  "Internal error. Unsupported layout for convolution factory.");
+};
 
 template <>
-struct ConvTensorLayouts<GroupConvLayout::NGCHW_GKCYX_NGKHW>
+struct ConvTensorLayouts<GroupConvLayout::CHANNELS_FIRST, 2>
 {
     // Channels first convolution layout.
     using ALayout  = ck::tensor_layout::convolution::NHWGC;
@@ -26,7 +33,7 @@ struct ConvTensorLayouts<GroupConvLayout::NGCHW_GKCYX_NGKHW>
 };
 
 template <>
-struct ConvTensorLayouts<GroupConvLayout::NHWGC_GKYXC_NHWGK>
+struct ConvTensorLayouts<GroupConvLayout::CHANNELS_LAST, 2>
 {
     // Channels last convolution layout.
     using ALayout  = ck::tensor_layout::convolution::NHWGC;
@@ -36,7 +43,7 @@ struct ConvTensorLayouts<GroupConvLayout::NHWGC_GKYXC_NHWGK>
 };
 
 template <>
-struct ConvTensorLayouts<GroupConvLayout::NDHWGC_GKZYXC_NDHWGK>
+struct ConvTensorLayouts<GroupConvLayout::CHANNELS_LAST, 3>
 {
     // Channels last convolution layout.
     using ALayout  = ck::tensor_layout::convolution::NDHWGC;
@@ -44,7 +51,6 @@ struct ConvTensorLayouts<GroupConvLayout::NDHWGC_GKZYXC_NDHWGK>
     using DsLayout = ck::Tuple<>;
     using ELayout  = ck::tensor_layout::convolution::NDHWGK;
 };
-
 
 // Type mappings from builder convolution data type to CK tensor types.
 template <DataType T>
@@ -283,7 +289,7 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFactory
 {
     static constexpr int SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts                    = ConvTensorLayouts<SIGNATURE.layout>;
+    using Layouts                    = ConvTensorLayouts<SIGNATURE.layout, SPATIAL_DIM>;
     using Types                      = ConvTensorTypes<SIGNATURE.data_type>;
     using Ops                        = ConvPassThroughOps;
     static constexpr ConvSpec SPECIALIZATION{

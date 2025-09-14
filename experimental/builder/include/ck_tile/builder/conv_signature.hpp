@@ -10,9 +10,8 @@ namespace ck_tile::builder {
 // Layouts for grouped convolutions.
 enum class GroupConvLayout
 {
-    NHWGC_GKYXC_NHWGK,    // Channels-last
-    NDHWGC_GKZYXC_NDHWGK, // Channels-last
-    NGCHW_GKCYX_NGKHW     // Channels-first
+    CHANNELS_LAST,    // Channels-last NHWGC_GKYXC_NHWGK
+    CHANNELS_FIRST     // Channels-first NGCHW_GKCYX_NGKHW
 };
 
 // Spatial dimensionalities of grouped convolutions.
