@@ -24,9 +24,6 @@ struct ConvSignature
 };
 static_assert(ckb::ConvSignatureDescriptor<ConvSignature>);
 
-constexpr char API_VERSION[] = "0.1.0";
-static_assert(ckb::SupportedVersion<API_VERSION>);
-
 // Defines the tunable algorithmic parameters for the convolution kernel.
 // This includes thread block configuration, tuning parameters, data transfer
 // settings, and the GEMM pipeline version.
@@ -259,7 +256,7 @@ TYPED_TEST(ConvBuilderInstancesTest, KernelParamsConfigured)
     static constexpr const FwdConvAlgorithm& ALGORITHM =
         ConvBuilderInstancesTest<TypeParam>::ALGORITHM;
     static constexpr const ConvSignature SIGNATURE;
-    using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM, API_VERSION>;
+    using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
     EXPECT_EQ(Builder::Instance::TypeString(), ConvBuilderInstancesTest<TypeParam>::EXPECTED_TYPE);
     const auto& tp = ALGORITHM.tuning_params;
     EXPECT_EQ(Builder::Factory::TUNING.ak1, tp.ak1);

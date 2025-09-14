@@ -7,7 +7,7 @@
 #include <ck_tile/builder/conv_algorithm.hpp>
 #include <ck_tile/builder/builder_utils.hpp>
 #include <ck_tile/builder/types.hpp>
-#include <ck_tile/builder/versions.h>
+#include <ck_tile/builder/versions.hpp>
 
 namespace ck_tile::builder {
 
