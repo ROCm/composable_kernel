@@ -35,6 +35,17 @@ struct ConvTensorLayouts<GroupConvLayout::NHWGC_GKYXC_NHWGK>
     using ELayout  = ck::tensor_layout::convolution::NHWGK;
 };
 
+template <>
+struct ConvTensorLayouts<GroupConvLayout::NDHWGC_GKZYXC_NDHWGK>
+{
+    // Channels last convolution layout.
+    using ALayout  = ck::tensor_layout::convolution::NDHWGC;
+    using BLayout  = ck::tensor_layout::convolution::GKZYXC;
+    using DsLayout = ck::Tuple<>;
+    using ELayout  = ck::tensor_layout::convolution::NDHWGK;
+};
+
+
 // Type mappings from builder convolution data type to CK tensor types.
 template <DataType T>
 struct ConvTensorTypes
