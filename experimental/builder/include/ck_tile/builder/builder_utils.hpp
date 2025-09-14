@@ -14,7 +14,7 @@ struct to_sequence_t
     template <std::size_t... Is>
     static auto get_sequence_type(std::index_sequence<Is...>) -> ck::Sequence<Arr[Is]...>;
 
-    // Helper to handler the .Size() method name in ck::Array.
+    // Helper method to handler the unusual .Size() method name in ck::Array.
     static constexpr auto get_size(const auto& arr)
     {
         if constexpr(requires { arr.size(); })
@@ -52,7 +52,19 @@ struct StringLiteral {
     }
 };
 
+// This is a C++17 deduction guide. It allows the compiler to automatically
+// deduce the template argument `N` for `StringLiteral` from a string literal
+// constructor argument. For example, you can write `StringLiteral s{"foo"};`
+// instead of `StringLiteral<4> s{"foo"};`.
 template <size_t N>
 StringLiteral(const char (&)[N]) -> StringLiteral<N>;
+
+// Helper to provide a readable error for unsupported enum values.
+// The compiler will print the name of this struct in the error message, so
+// the name of the enum value will appear instead of just its integer value.
+template <auto T>
+struct UnsupportedEnumValue
+{
+};
 
 } // namespace ck_tile::builder
