@@ -8,89 +8,6 @@
 #include <cmath>
 #include "contraction_utils.hpp"
 
-template <typename ADataType, typename BDataType, typename EDataType, typename AccDataType>
-auto calculate_rtol_atol(const ck_tile::index_t K,
-                         const ck_tile::index_t kbatch,
-                         const float max_accumulated_value)
-{
-    using ComputeType =
-        std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
-
-    const auto rtol = ck_tile::get_relative_threshold<ComputeType, EDataType, AccDataType>(
-        ck_tile::integer_divide_ceil(K, kbatch));
-    const auto atol = ck_tile::get_absolute_threshold<ComputeType, EDataType, AccDataType>(
-        max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
-
-    const auto rtol_split_k =
-        ck_tile::get_relative_threshold<EDataType, EDataType, EDataType>(kbatch);
-    const auto atol_split_k = ck_tile::get_absolute_threshold<EDataType, EDataType, EDataType>(
-        max_accumulated_value, kbatch);
-
-    return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
-}
-
-template <typename ADataType,
-          typename BDataType,
-          typename DsDataType,
-          typename AccDataType,
-          typename EDataType,
-          typename ALayout,
-          typename BLayout,
-          typename DsLayout,
-          typename ELayout,
-          typename CDEElementWise = ck_tile::element_wise::PassThrough>
-float invoke_batched_contraction(ck_tile::DeviceMem& a_m_k_dev_buf,
-                                 ck_tile::DeviceMem& b_k_n_dev_buf,
-                                 ck_tile::DeviceMem& e_m_n_dev_buf,
-                                 ck_tile::index_t M,
-                                 ck_tile::index_t N,
-                                 ck_tile::index_t K,
-                                 const std::vector<ck_tile::index_t>& G_lengths,
-                                 ck_tile::index_t stride_A,
-                                 ck_tile::index_t stride_B,
-                                 ck_tile::index_t stride_E,
-                                 const std::vector<ck_tile::index_t>& batch_strides_A,
-                                 const std::vector<ck_tile::index_t>& batch_strides_B,
-                                 const std::vector<ck_tile::index_t>& batch_strides_E,
-                                 ck_tile::index_t kbatch,
-                                 int n_warmup,
-                                 int n_repeat)
-{
-    ck_tile::BatchedContractionHostArgs<0> args{
-        a_m_k_dev_buf.GetDeviceBuffer(), // a_ptr
-        b_k_n_dev_buf.GetDeviceBuffer(), // b_ptr
-        {},                              // ds_ptr (empty for NumDTensor=0)
-        e_m_n_dev_buf.GetDeviceBuffer(), // e_ptr
-        kbatch,                          // k_batch
-        M,                               // M
-        N,                               // N
-        K,                               // K
-        G_lengths,                       // G (G dimensions)
-        stride_A,                        // stride_A
-        stride_B,                        // stride_B
-        {},                              // stride_Ds (empty)
-        stride_E,                        // stride_E
-        batch_strides_A,                 // batch_strides_A
-        batch_strides_B,                 // batch_strides_B
-        {},                              // batch_strides_Ds (empty)
-        batch_strides_E                  // batch_strides_E
-    };
-
-    float ave_time = batched_contraction<ADataType,
-                                         BDataType,
-                                         DsDataType,
-                                         AccDataType,
-                                         EDataType,
-                                         ALayout,
-                                         BLayout,
-                                         DsLayout,
-                                         ELayout,
-                                         CDEElementWise>(
-        args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
-
-    return ave_time;
-}
-
 template <typename ALayout, typename BLayout, typename ELayout>
 int run_batched_contraction_example_with_layouts(
     int argc,
@@ -99,230 +16,177 @@ int run_batched_contraction_example_with_layouts(
     const BLayout b_layout                  = BLayout{},
     [[maybe_unused]] const ELayout e_layout = ELayout{})
 {
+    (void)a_layout;
+    (void)b_layout;
     auto [result, arg_parser] = create_args(argc, argv);
     if(!result)
         return -1;
 
-    ck_tile::index_t M = arg_parser.get_int("m");
-    ck_tile::index_t N = arg_parser.get_int("n");
-    ck_tile::index_t K = arg_parser.get_int("k");
+    std::vector<ck_tile::index_t> G_dims = parse_dimensions(arg_parser.get_str("g_dims"));
+    std::vector<ck_tile::index_t> M_dims = parse_dimensions(arg_parser.get_str("m_dims"));
+    std::vector<ck_tile::index_t> N_dims = parse_dimensions(arg_parser.get_str("n_dims"));
+    std::vector<ck_tile::index_t> K_dims = parse_dimensions(arg_parser.get_str("k_dims"));
 
-    std::string g_dims_str               = arg_parser.get_str("g_dims");
-    std::vector<ck_tile::index_t> G_dims = parse_g_dimensions(g_dims_str);
-    ck_tile::index_t total_G             = calculate_total_g(G_dims);
+    ck_tile::index_t G_total = calculate_total_elements(G_dims);
+    ck_tile::index_t M_total = calculate_total_elements(M_dims);
+    ck_tile::index_t N_total = calculate_total_elements(N_dims);
+    ck_tile::index_t K_total = calculate_total_elements(K_dims);
 
-    ck_tile::index_t stride_A = arg_parser.get_int("stride_a");
-    ck_tile::index_t stride_B = arg_parser.get_int("stride_b");
-    ck_tile::index_t stride_E = arg_parser.get_int("stride_e");
+    std::vector<ck_tile::index_t> A_dims =
+        get_tensor_dims({G_dims, M_dims, K_dims}); // [G0,G1,..,M0,M1,..,K0,K1,..]
+    std::vector<ck_tile::index_t> B_dims =
+        get_tensor_dims({G_dims, N_dims, K_dims}); // [G0,G1,..,N0,N1,..,K0,K1,..]
+    std::vector<ck_tile::index_t> E_dims =
+        get_tensor_dims({G_dims, M_dims, N_dims}); // [G0,G1,..,M0,M1,..,N0,N1,..]
+
+    std::vector<ck_tile::index_t> A_strides = get_tensor_strides(A_dims);
+    std::vector<ck_tile::index_t> B_strides = get_tensor_strides(B_dims);
+    std::vector<ck_tile::index_t> E_strides = get_tensor_strides(E_dims);
 
     ck_tile::index_t kbatch = arg_parser.get_int("split_k");
-
+    (void)kbatch;
     int n_warmup = arg_parser.get_int("warmup");
     int n_repeat = arg_parser.get_int("repeat");
+    (void)n_warmup;
+    (void)n_repeat;
 
-    using namespace ck_tile::literals;
+    print_dims("G_dims", G_dims, G_total);
+    print_dims("M_dims", M_dims, M_total);
+    print_dims("N_dims", N_dims, N_total);
+    print_dims("K_dims", K_dims, K_total);
 
-    auto f_host_tensor_descriptor = [](std::size_t g,
-                                       std::size_t row,
-                                       std::size_t col,
-                                       std::size_t stride,
-                                       std::size_t batch_stride,
-                                       auto layout) {
-        if constexpr(std::is_same_v<decltype(layout), ck_tile::tensor_layout::gemm::RowMajor>)
-        {
-            return ck_tile::HostTensorDescriptor({g, row, col}, {batch_stride, stride, 1_uz});
-        }
-        else
-        {
-            return ck_tile::HostTensorDescriptor({g, row, col}, {batch_stride, 1_uz, stride});
-        }
-    };
+    std::cout << "\n=== Tensor Shapes for Kernel ===" << std::endl;
+    print_dims("A_dims", A_dims, 0);
+    print_dims("B_dims", B_dims, 0);
+    print_dims("E_dims", E_dims, 0);
 
-    auto f_get_default_stride = [](std::size_t row,
-                                   std::size_t col,
-                                   std::size_t stride,
-                                   auto layout) {
-        if(stride == 0)
-        {
-            if constexpr(std::is_same_v<decltype(layout), ck_tile::tensor_layout::gemm::RowMajor>)
-            {
-                return col;
-            }
-            else
-            {
-                return row;
-            }
-        }
-        else
-            return stride;
-    };
+    std::cout << "\n=== Tensor Strides ===" << std::endl;
+    print_dims("A_strides", A_strides, 0);
+    print_dims("B_strides", B_strides, 0);
+    print_dims("E_strides", E_strides, 0);
+    std::cout << "===============================================\n" << std::endl;
 
-    stride_A = f_get_default_stride(M, K, stride_A, a_layout);
-    stride_B = f_get_default_stride(K, N, stride_B, b_layout);
-    stride_E = f_get_default_stride(M, N, stride_E, e_layout);
+    ck_tile::HostTensor<::ADataType> a_full_dims(ck_tile::HostTensorDescriptor(A_dims, A_strides));
+    ck_tile::HostTensor<::BDataType> b_full_dims(ck_tile::HostTensorDescriptor(B_dims, B_strides));
+    ck_tile::HostTensor<::EDataType> e_full_dims_dev(
+        ck_tile::HostTensorDescriptor(E_dims, E_strides));
 
-    std::vector<ck_tile::index_t> G_strides_A = calculate_g_strides(G_dims, M * K);
-    std::vector<ck_tile::index_t> G_strides_B = calculate_g_strides(G_dims, K * N);
-    std::vector<ck_tile::index_t> G_strides_E = calculate_g_strides(G_dims, M * N);
+    ck_tile::FillUniformDistribution<::ADataType>{-5.f, 5.f}(a_full_dims);
+    ck_tile::FillUniformDistribution<::BDataType>{-5.f, 5.f}(b_full_dims);
 
-    std::cout << "Debug Info:" << std::endl;
-    std::cout << "G_dims: [";
-    for(size_t i = 0; i < G_dims.size(); ++i)
-    {
-        std::cout << G_dims[i];
-        if(i < G_dims.size() - 1)
-            std::cout << ",";
-    }
-    std::cout << "]" << std::endl;
-    std::cout << "total_G: " << total_G << std::endl;
-    std::cout << "M=" << M << ", N=" << N << ", K=" << K << std::endl;
-    std::cout << "stride_A=" << stride_A << ", stride_B=" << stride_B << ", stride_E=" << stride_E
-              << std::endl;
+    ck_tile::DeviceMem a_full_dims_dev_buf(a_full_dims.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem b_full_dims_dev_buf(b_full_dims.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem e_full_dims_dev_buf(e_full_dims_dev.get_element_space_size_in_bytes());
 
-    std::cout << "G_strides_A: [";
-    for(size_t i = 0; i < G_strides_A.size(); ++i)
-    {
-        std::cout << G_strides_A[i];
-        if(i < G_strides_A.size() - 1)
-            std::cout << ",";
-    }
-    std::cout << "]" << std::endl;
+    a_full_dims_dev_buf.ToDevice(a_full_dims.data());
+    b_full_dims_dev_buf.ToDevice(b_full_dims.data());
+    e_full_dims_dev_buf.SetZero();
+    e_full_dims_dev.SetZero();
 
-    std::cout << "G_strides_B: [";
-    for(size_t i = 0; i < G_strides_B.size(); ++i)
-    {
-        std::cout << G_strides_B[i];
-        if(i < G_strides_B.size() - 1)
-            std::cout << ",";
-    }
-    std::cout << "]" << std::endl;
+    e_full_dims_dev_buf.FromDevice(e_full_dims_dev.data());
 
-    std::cout << "G_strides_E: [";
-    for(size_t i = 0; i < G_strides_E.size(); ++i)
-    {
-        std::cout << G_strides_E[i];
-        if(i < G_strides_E.size() - 1)
-            std::cout << ",";
-    }
-    std::cout << "]" << std::endl;
+    // This function loops over ANY number of dimensions
+    std::function<void(std::vector<std::size_t>&,
+                       const std::vector<ck_tile::index_t>&,
+                       std::size_t,
+                       std::function<void()>)>
+        loop_dimensions =
+            [&](std::vector<std::size_t>& indices, // Current index values [i0, i1, i2, ...]
+                const std::vector<ck_tile::index_t>&
+                    dims,                           // Dimension sizes [dim0, dim1, dim2, ...]
+                std::size_t dim_idx,                // Which dimension we're currently looping
+                std::function<void()> inner_func) { // What to do when all dimensions are set
+                if(dim_idx >= dims.size())
+                {
+                    inner_func(); // All dimensions set, execute the inner computation
+                    return;
+                }
 
-    ck_tile::HostTensor<::ADataType> a_m_k(
-        f_host_tensor_descriptor(total_G, M, K, stride_A, M * K, a_layout));
-    ck_tile::HostTensor<::BDataType> b_k_n(
-        f_host_tensor_descriptor(total_G, K, N, stride_B, K * N, b_layout));
-    ck_tile::HostTensor<::EDataType> e_m_n_dev_result(
-        f_host_tensor_descriptor(total_G, M, N, stride_E, M * N, e_layout));
-
-    ck_tile::FillUniformDistribution<::ADataType>{-5.f, 5.f}(a_m_k);
-    ck_tile::FillUniformDistribution<::BDataType>{-5.f, 5.f}(b_k_n);
-
-    ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem e_m_n_dev_buf(e_m_n_dev_result.get_element_space_size_in_bytes());
-
-    a_m_k_dev_buf.ToDevice(a_m_k.data());
-    b_k_n_dev_buf.ToDevice(b_k_n.data());
-    e_m_n_dev_buf.SetZero();
-    e_m_n_dev_result.SetZero();
-
-    using DsDataType = ck_tile::tuple<>;
-    using DsLayout   = ck_tile::tuple<>;
-
-    float ave_time = invoke_batched_contraction<::ADataType,
-                                                ::BDataType,
-                                                DsDataType,
-                                                ::AccDataType,
-                                                ::EDataType,
-                                                ALayout,
-                                                BLayout,
-                                                DsLayout,
-                                                ELayout>(a_m_k_dev_buf,
-                                                         b_k_n_dev_buf,
-                                                         e_m_n_dev_buf,
-                                                         M,
-                                                         N,
-                                                         K,
-                                                         G_dims,
-                                                         stride_A,
-                                                         stride_B,
-                                                         stride_E,
-                                                         G_strides_A,
-                                                         G_strides_B,
-                                                         G_strides_E,
-                                                         kbatch,
-                                                         n_warmup,
-                                                         n_repeat);
-
-    e_m_n_dev_buf.FromDevice(e_m_n_dev_result.data());
-
-    // Print G dimensions info
-    std::string g_info = "G_dims=[";
-    for(size_t i = 0; i < G_dims.size(); ++i)
-    {
-        g_info += std::to_string(G_dims[i]);
-        if(i < G_dims.size() - 1)
-            g_info += ",";
-    }
-    g_info += "] (total=" + std::to_string(total_G) + ")";
-
-    std::string op_name{"Batched Contraction : G: " + std::to_string(G_dims.size()) + "D"};
-    std::size_t flop     = std::size_t(2) * total_G * M * N * K;
-    std::size_t num_byte = sizeof(::ADataType) * total_G * M * K +
-                           sizeof(::BDataType) * total_G * N * K +
-                           sizeof(::EDataType) * total_G * M * N;
-    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
-    float gb_per_sec = num_byte / 1.E6 / ave_time;
-
-    std::cout << "Run " << op_name << " kernel with M=" << M << " N=" << N << " K=" << K << " "
-              << g_info << " : " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-              << " GB/s" << std::endl;
-
-    bool pass = true;
+                // Loop over current dimension
+                for(ck_tile::index_t i = 0; i < dims[dim_idx]; ++i)
+                {
+                    indices[dim_idx] = i; // Set current dimension index
+                    loop_dimensions(
+                        indices, dims, dim_idx + 1, inner_func); // Recurse to next dimension
+                }
+            };
 
     if(arg_parser.get_int("v") == 1)
     {
-        ck_tile::HostTensor<::EDataType> e_m_n_host_ref(
-            f_host_tensor_descriptor(total_G, M, N, stride_E, M * N, ELayout{}));
-        e_m_n_host_ref.SetZero();
+        ck_tile::HostTensor<::EDataType> e_full_dims_host_ref(
+            ck_tile::HostTensorDescriptor(E_dims, E_strides));
+        e_full_dims_host_ref.SetZero();
 
-        // Simple matrix multiplication reference
-        for(ck_tile::index_t flat_g = 0; flat_g < total_G; ++flat_g)
-        {
-            for(ck_tile::index_t m = 0; m < M; ++m)
-            {
-                for(ck_tile::index_t n = 0; n < N; ++n)
-                {
+        std::cout << "Computing CPU reference..." << std::endl;
+
+        // progress tracking
+        auto start_time                        = std::chrono::high_resolution_clock::now();
+        ck_tile::index_t total_output_elements = G_total * M_total * N_total;
+        ck_tile::index_t completed_elements    = 0;
+        ck_tile::index_t next_progress_report  = total_output_elements / 10; // Report every 10%
+
+        std::vector<std::size_t> g_indices(G_dims.size());
+        std::vector<std::size_t> m_indices(M_dims.size());
+        std::vector<std::size_t> n_indices(N_dims.size());
+        std::vector<std::size_t> k_indices(K_dims.size());
+
+        loop_dimensions(g_indices, G_dims, 0, [&]() {
+            loop_dimensions(m_indices, M_dims, 0, [&]() {
+                loop_dimensions(n_indices, N_dims, 0, [&]() {
                     ::AccDataType sum = 0;
-                    for(ck_tile::index_t k = 0; k < K; ++k)
+
+                    loop_dimensions(k_indices, K_dims, 0, [&]() {
+                        std::vector<std::size_t> a_idx, b_idx;
+
+                        // A[G_indices, M_indices, K_indices]
+                        a_idx.insert(a_idx.end(), g_indices.begin(), g_indices.end());
+                        a_idx.insert(a_idx.end(), m_indices.begin(), m_indices.end());
+                        a_idx.insert(a_idx.end(), k_indices.begin(), k_indices.end());
+
+                        // B[G_indices, N_indices, K_indices]
+                        b_idx.insert(b_idx.end(), g_indices.begin(), g_indices.end());
+                        b_idx.insert(b_idx.end(), n_indices.begin(), n_indices.end());
+                        b_idx.insert(b_idx.end(), k_indices.begin(), k_indices.end());
+
+                        auto a_val = a_full_dims(a_idx);
+                        auto b_val = b_full_dims(b_idx);
+
+                        sum +=
+                            static_cast<::AccDataType>(a_val) * static_cast<::AccDataType>(b_val);
+                    });
+
+                    std::vector<std::size_t> e_idx;
+                    e_idx.insert(e_idx.end(), g_indices.begin(), g_indices.end());
+                    e_idx.insert(e_idx.end(), m_indices.begin(), m_indices.end());
+                    e_idx.insert(e_idx.end(), n_indices.begin(), n_indices.end());
+
+                    e_full_dims_host_ref(e_idx) = static_cast<::EDataType>(sum);
+
+                    ++completed_elements;
+                    if(completed_elements >= next_progress_report ||
+                       completed_elements == total_output_elements)
                     {
-                        sum += static_cast<::AccDataType>(a_m_k(flat_g, m, k)) *
-                               static_cast<::AccDataType>(b_k_n(flat_g, k, n));
+                        auto now = std::chrono::high_resolution_clock::now();
+                        auto elapsed =
+                            std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time);
+
+                        int percentage = (100 * completed_elements) / total_output_elements;
+                        std::cout << "Progress: " << percentage << "% (" << completed_elements
+                                  << "/" << total_output_elements << " elements, "
+                                  << elapsed.count() << "ms)" << std::endl;
+
+                        next_progress_report += total_output_elements / 10; // Next 10%
                     }
-                    e_m_n_host_ref(flat_g, m, n) = static_cast<::EDataType>(sum);
-                }
-            }
-        }
+                });
+            });
+        });
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 
-        const float max_accumulated_value =
-            *std::max_element(e_m_n_host_ref.mData.begin(), e_m_n_host_ref.mData.end());
-
-        const auto rtol_atol =
-            calculate_rtol_atol<::ADataType, ::BDataType, ::EDataType, ::AccDataType>(
-                K, kbatch, max_accumulated_value);
-
-        pass = ck_tile::check_err(e_m_n_dev_result,
-                                  e_m_n_host_ref,
-                                  "Error: Incorrect results!",
-                                  rtol_atol.at(ck_tile::number<0>{}),
-                                  rtol_atol.at(ck_tile::number<1>{}));
-
-        std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
-                  << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
-                  << std::endl;
-
-        std::cout << "The CPU verification result is: " << (pass ? "correct" : "fail") << std::endl;
+        std::cout << "CPU reference completed in " << duration.count() << "ms" << std::endl;
     }
-
+    bool pass = true;
     return pass;
 }
 

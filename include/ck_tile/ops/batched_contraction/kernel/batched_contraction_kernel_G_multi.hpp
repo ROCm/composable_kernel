@@ -20,32 +20,38 @@ struct BatchedContractionHostArgs
         const std::array<const void*, NumDTensor>& ds_ptr_,
         void* e_ptr_,
         ck_tile::index_t k_batch_,
-        const std::vector<ck_tile::index_t>& A_dims_, // [G0, G1, ..., M0, M1, ... , K0, K1, ...]
-        const std::vector<ck_tile::index_t>& B_dims_, // [G0, G1, ..., N0, N1, ... , K0, K1, ...]
-        const std::array<std::vector<ck_tile::index_t>, NumDTensor>&
-            Ds_dims_, // [G0, G1, ..., M0, M1, ... , N0, N1, ...][NumDTensor]
-        const std::vector<ck_tile::index_t>& E_dims_, // [G0, G1, ..., M0, M1, ... , N0, N1, ...]
-
-        const std::vector<ck_tile::index_t>& A_strides_, // [G0, G1, ..., M0, M1, ...,K0, K1, ...]
-        const std::vector<ck_tile::index_t>& B_strides_, // [G0, G1, ..., N0, N1, ...,K0, K1, ...]
-        const std::array<std::vector<ck_tile::index_t>, NumDTensor>&
-            Ds_strides_, // [G0, G1, ..., M0, M1, ...,N0, N1, ...]
+        ck_tile::index_t M_,
+        ck_tile::index_t N_,
+        ck_tile::index_t K_,
+        const std::vector<ck_tile::index_t>& G_lengths_, // [G0, G1, G2, ... , G_{NumDimG-1}]
+        ck_tile::index_t stride_A_,
+        ck_tile::index_t stride_B_,
+        const std::array<ck_tile::index_t, NumDTensor>& stride_Ds_,
+        ck_tile::index_t stride_E_,
         const std::vector<ck_tile::index_t>&
-            E_strides_) // [G0, G1, ..., M0, M1, ...,N0, N1, ...][NumDTensor]
-
+            G_strides_A_, // [G0_stride_A, G1_stride_A, ... , G_{NumDimG-1}_stride_A]
+        const std::vector<ck_tile::index_t>&
+            G_strides_B_, // [G0_stride_B, G1_stride_B, ... , G_{NumDimG-1}_stride_B]
+        const std::array<std::vector<ck_tile::index_t>, NumDTensor>& G_strides_Ds_,
+        const std::vector<ck_tile::index_t>&
+            G_strides_E_) // [G0_stride_E, G1_stride_E, ... , G_{NumDimG-1}_stride_E]
         : a_ptr(a_ptr_),
           b_ptr(b_ptr_),
           ds_ptr(ds_ptr_),
           e_ptr(e_ptr_),
           k_batch(k_batch_),
-          A_dims(A_dims_),
-          B_dims(B_dims_),
-          Ds_dims(Ds_dims_),
-          E_dims(E_dims_),
-          A_strides(A_strides_),
-          B_strides(B_strides_),
-          Ds_strides(Ds_strides_),
-          E_strides(E_strides_)
+          M(M_),
+          N(N_),
+          K(K_),
+          G_lengths(G_lengths_),
+          stride_A(stride_A_),
+          stride_B(stride_B_),
+          stride_Ds(stride_Ds_),
+          stride_E(stride_E_),
+          G_strides_A(G_strides_A_),
+          G_strides_B(G_strides_B_),
+          G_strides_Ds(G_strides_Ds_),
+          G_strides_E(G_strides_E_)
     {
     }
 
@@ -54,24 +60,21 @@ struct BatchedContractionHostArgs
     std::array<const void*, NumDTensor> ds_ptr;
     void* e_ptr;
     ck_tile::index_t k_batch;
-    const std::vector<ck_tile::index_t> A_dims; // [G0, G1, ..., M0, M1, ... , K0, K1, ...]
-    const std::vector<ck_tile::index_t> B_dims; // [G0, G1, ..., N0, N1, ... , K0, K1, ...]
-    const std::array<std::vector<ck_tile::index_t>, NumDTensor>
-        Ds_dims; // [G0, G1, ..., M0, M1, ... , N0, N1, ...][NumDTensor]
-    const std::vector<ck_tile::index_t> E_dims;    // [G0, G1, ..., M0, M1, ... , N0, N1, ...]
-    const std::vector<ck_tile::index_t> A_strides; // [G0, G1, ..., M0, M1, ...,K0, K1, ...]
-    const std::vector<ck_tile::index_t> B_strides; // [G0, G1, ..., N0, N1, ...,K0, K1, ...]
-    const std::array<std::vector<ck_tile::index_t>, NumDTensor>
-        Ds_strides; // [G0, G1, ..., M0, M1, ...,N0, N1, ...]
-    const std::vector<ck_tile::index_t>
-        E_strides; // [G0, G1, ..., M0, M1, ...,N0, N1, ...][NumDTensor]
+    ck_tile::index_t M;
+    ck_tile::index_t N;
+    ck_tile::index_t K;
+    const std::vector<ck_tile::index_t> G_lengths;
+    ck_tile::index_t stride_A;
+    ck_tile::index_t stride_B;
+    std::array<ck_tile::index_t, NumDTensor> stride_Ds;
+    ck_tile::index_t stride_E;
+    const std::vector<ck_tile::index_t> G_strides_A;
+    const std::vector<ck_tile::index_t> G_strides_B;
+    std::array<std::vector<ck_tile::index_t>, NumDTensor> G_strides_Ds;
+    const std::vector<ck_tile::index_t> G_strides_E;
 };
 
-template <ck_tile::index_t NumDimG,
-          ck_tile::index_t NumDimM,
-          ck_tile::index_t NumDimN,
-          ck_tile::index_t NumDimK,
-          ck_tile::index_t NumDTensor = 0>
+template <ck_tile::index_t NumDimG, ck_tile::index_t NumDTensor = 0>
 struct BatchedContractionKernelArgs
 {
     const void* a_ptr;
@@ -79,13 +82,10 @@ struct BatchedContractionKernelArgs
     std::array<const void*, NumDTensor> ds_ptr;
     void* e_ptr;
     ck_tile::index_t k_batch;
-
-    ck_tile::index_t M_dims[NumDimM]; // [M0, M1, M2, ... , M_{NumDimM-1}]
-    ck_tile::index_t N_dims[NumDimN]; // [N0, N1, N2, ... , N_{NumDimN-1}]
-    ck_tile::index_t K_dims[NumDimK]; // [K0, K1, K2, ... , K_{NumDimK-1}]
-    ck_tile::index_t G_dims[NumDimG]; // [G0, G1, G2, ... , G_{NumDimG-1}]
-
-    // G_batch strides
+    ck_tile::index_t M;
+    ck_tile::index_t N;
+    ck_tile::index_t K;
+    ck_tile::index_t G_lengths[NumDimG]; // [G0, G1, G2, ... , G_{NumDimG-1}]
     ck_tile::index_t
         G_strides_A[NumDimG]; // [G0_stride_A, G1_stride_A, ... , G_{NumDimG-1}_stride_A]
     ck_tile::index_t
@@ -93,10 +93,6 @@ struct BatchedContractionKernelArgs
     ck_tile::index_t
         G_strides_E[NumDimG]; // [G0_stride_E, G1_stride_E, ... , G_{NumDimG-1}_stride_E]
     std::array<std::array<ck_tile::index_t, NumDimG>, NumDTensor> G_strides_Ds;
-
-    ck_tile::index_t M_total; // total M length
-    ck_tile::index_t N_total; // total N length
-    ck_tile::index_t K_total; // total K length
 
     ck_tile::index_t stride_A;
     ck_tile::index_t stride_B;
@@ -129,7 +125,7 @@ struct BatchedContractionKernel
         ck_tile::UniversalGemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
     static constexpr ck_tile::index_t kBlockSize = UniversalGemmKernel::kBlockSize;
 
-    using KernelArgs = BatchedContractionKernelArgs<NumDimG, NumDimM, NumDimN, NumDimK, NumDTensor>;
+    using KernelArgs = BatchedContractionKernelArgs<NumDimG, NumDTensor>;
 
     CK_TILE_HOST static constexpr auto GetKernelName() { return "batched_contraction_kernel"; }
 
@@ -139,9 +135,9 @@ struct BatchedContractionKernel
                                                             {kargs.b_ptr},
                                                             kargs.ds_ptr,
                                                             kargs.e_ptr,
-                                                            kargs.M_total,
-                                                            kargs.N_total,
-                                                            kargs.K_total,
+                                                            kargs.M,
+                                                            kargs.N,
+                                                            kargs.K,
                                                             {kargs.stride_A},
                                                             {kargs.stride_B},
                                                             kargs.stride_Ds,
@@ -151,7 +147,7 @@ struct BatchedContractionKernel
         ck_tile::index_t total_G = 1;
         for(ck_tile::index_t i = 0; i < NumDimG; ++i)
         {
-            total_G *= kargs.G_dims[i];
+            total_G *= kargs.G_lengths[i];
         }
 
         return UniversalGemmKernel::IsSupportedArgument(gemm_kargs) && total_G > 0;
@@ -167,46 +163,32 @@ struct BatchedContractionKernel
         return dim3(UniversalGemmKernel::kBlockSize);
     }
 
-    CK_TILE_HOST static constexpr auto GridSize(const KernelArgs& kargs)
+    CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t M,
+                                                ck_tile::index_t N,
+                                                ck_tile::index_t KBatch,
+                                                const std::vector<ck_tile::index_t>& G_lengths)
     {
         ck_tile::index_t total_G = 1;
-        for(ck_tile::index_t i = 0; i < NumDimG; ++i)
+        for(auto g_len : G_lengths)
         {
-            total_G *= kargs.G_dims[i];
+            total_G *= g_len;
         }
-        return dim3(
-            TilePartitioner::GridSize(kargs.M_total, kargs.N_total), total_G, kargs.k_batch);
+        return dim3(TilePartitioner::GridSize(M, N), total_G, KBatch);
     }
 
     CK_TILE_HOST static constexpr KernelArgs
     MakeKernelArgs(const BatchedContractionHostArgs<NumDTensor>& host_args)
     {
-        const auto expected_A_dims = NumDimG + NumDimM + NumDimK;
-        const auto expected_B_dims = NumDimG + NumDimN + NumDimK;
-        const auto expected_E_dims = NumDimG + NumDimM + NumDimN;
-
-        if(host_args.A_dims.size() != expected_A_dims ||
-           host_args.A_strides.size() != expected_A_dims)
+        if(host_args.G_lengths.size() != NumDimG || host_args.G_strides_A.size() != NumDimG ||
+           host_args.G_strides_B.size() != NumDimG || host_args.G_strides_E.size() != NumDimG)
         {
-            throw std::invalid_argument("A dimension size mismatch");
+            throw std::invalid_argument("G dimension size mismatch");
         }
-        if(host_args.B_dims.size() != expected_B_dims ||
-           host_args.B_strides.size() != expected_B_dims)
-        {
-            throw std::invalid_argument("B dimension size mismatch");
-        }
-        if(host_args.E_dims.size() != expected_E_dims ||
-           host_args.E_strides.size() != expected_E_dims)
-        {
-            throw std::invalid_argument("E dimension size mismatch");
-        }
-
         for(ck_tile::index_t d = 0; d < NumDTensor; ++d)
         {
-            if(host_args.Ds_dims[d].size() != expected_E_dims ||
-               host_args.Ds_strides[d].size() != expected_E_dims)
+            if(host_args.G_strides_Ds[d].size() != NumDimG)
             {
-                throw std::invalid_argument("D dimension size mismatch");
+                throw std::invalid_argument("G_strides_Ds dimension size mismatch");
             }
         }
 
@@ -216,66 +198,29 @@ struct BatchedContractionKernel
         kargs.ds_ptr  = host_args.ds_ptr;
         kargs.e_ptr   = host_args.e_ptr;
         kargs.k_batch = host_args.k_batch;
+        kargs.M       = host_args.M;
+        kargs.N       = host_args.N;
+        kargs.K       = host_args.K;
+
+        kargs.stride_A  = host_args.stride_A;
+        kargs.stride_B  = host_args.stride_B;
+        kargs.stride_Ds = host_args.stride_Ds;
+        kargs.stride_E  = host_args.stride_E;
 
         for(ck_tile::index_t i = 0; i < NumDimG; ++i)
         {
-            kargs.G_dims[i]      = host_args.A_dims[i];
-            kargs.G_strides_A[i] = host_args.A_strides[i];
-            kargs.G_strides_B[i] = host_args.B_strides[i];
-            kargs.G_strides_E[i] = host_args.E_strides[i];
+            kargs.G_lengths[i]   = host_args.G_lengths[i];
+            kargs.G_strides_A[i] = host_args.G_strides_A[i];
+            kargs.G_strides_B[i] = host_args.G_strides_B[i];
+            kargs.G_strides_E[i] = host_args.G_strides_E[i];
         }
-        for(ck_tile::index_t i = 0; i < NumDimM; ++i)
-        {
-            kargs.M_dims[i] = host_args.A_dims[NumDimG + i];
-            if(kargs.M_dims[i] != host_args.E_dims[NumDimG + i])
-            {
-                throw std::invalid_argument("M dimension mismatch between A and E tensors");
-            }
-        }
-        for(ck_tile::index_t i = 0; i < NumDimN; ++i)
-        {
-            kargs.N_dims[i] = host_args.B_dims[NumDimG + i];
-            if(kargs.N_dims[i] != host_args.E_dims[NumDimG + NumDimM + i])
-            {
-                throw std::invalid_argument("N dimension mismatch between B and E tensors");
-            }
-        }
-        for(ck_tile::index_t i = 0; i < NumDimK; ++i)
-        {
-            kargs.K_dims[i] = host_args.A_dims[NumDimG + NumDimM + i];
-            if(kargs.K_dims[i] != host_args.B_dims[NumDimG + NumDimN + i])
-            {
-                throw std::invalid_argument("K dimension mismatch between A and B tensors");
-            }
-        }
-
-        kargs.M_total = 1;
-        for(ck_tile::index_t i = 0; i < NumDimM; ++i)
-        {
-            kargs.M_total *= kargs.M_dims[i];
-        }
-        kargs.N_total = 1;
-        for(ck_tile::index_t i = 0; i < NumDimN; ++i)
-        {
-            kargs.N_total *= kargs.N_dims[i];
-        }
-        kargs.K_total = 1;
-        for(ck_tile::index_t i = 0; i < NumDimK; ++i)
-        {
-            kargs.K_total *= kargs.K_dims[i];
-        }
-
-        kargs.stride_A = kargs.K_total;
-        kargs.stride_B = kargs.K_total;
-        kargs.stride_E = kargs.N_total;
 
         for(ck_tile::index_t d = 0; d < NumDTensor; ++d)
         {
             for(ck_tile::index_t i = 0; i < NumDimG; ++i)
             {
-                kargs.G_strides_Ds[d][i] = host_args.Ds_strides[d][i];
+                kargs.G_strides_Ds[d][i] = host_args.G_strides_Ds[d][i];
             }
-            kargs.stride_Ds[d] = kargs.N_total; // D tensors same shape as E
         }
 
         return kargs;
@@ -283,8 +228,7 @@ struct BatchedContractionKernel
 
     CK_TILE_DEVICE void operator()(const KernelArgs& kargs) const
     {
-        const auto [iM, iN] =
-            TilePartitioner{kargs.M_total, kargs.N_total}.GetOutputTileIndex(blockIdx.x);
+        const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockIdx.x);
         const ck_tile::index_t i_m =
             __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
         const ck_tile::index_t i_n =
@@ -293,7 +237,7 @@ struct BatchedContractionKernel
         const auto i_batch_flat = __builtin_amdgcn_readfirstlane(blockIdx.y);
         const auto i_splitk     = __builtin_amdgcn_readfirstlane(blockIdx.z);
 
-        const auto g_indices = DecomposeGIndex<NumDimG>(i_batch_flat, kargs.G_dims);
+        const auto g_indices = DecomposeGIndex<NumDimG>(i_batch_flat, kargs.G_lengths);
 
         const auto G_offset_A =
             __builtin_amdgcn_readfirstlane(CalculateGOffset<NumDimG>(g_indices, kargs.G_strides_A));
@@ -320,9 +264,9 @@ struct BatchedContractionKernel
                                                             {b_ptr},
                                                             ds_batch_ptr,
                                                             e_ptr,
-                                                            kargs.M_total,
-                                                            kargs.N_total,
-                                                            kargs.K_total,
+                                                            kargs.M,
+                                                            kargs.N,
+                                                            kargs.K,
                                                             {kargs.stride_A},
                                                             {kargs.stride_B},
                                                             kargs.stride_Ds,

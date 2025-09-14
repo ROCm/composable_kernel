@@ -31,14 +31,14 @@ using EDataType   = ContractionTypes::EDataType;
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("m", "512", "m dimension")
-        .insert("n", "1024", "n dimension")
-        .insert("k", "2048", "k dimension")
+    arg_parser.insert("m_dims", "512", "M dimensions separated by comma (e.g., '16,32' for 2D M)")
+        .insert("n_dims", "1024", "N dimensions separated by comma (e.g., '32,32' for 2D N)")
+        .insert("k_dims", "2048", "K dimensions separated by comma (e.g., '64,32' for 2D K)")
         .insert(
             "g_dims", "8", "G dimensions separated by comma (e.g., '4,2' for 2D, '2,3,4' for 3D)")
-        .insert("stride_a", "0", "Tensor A stride")
-        .insert("stride_b", "0", "Tensor B stride")
-        .insert("stride_e", "0", "Tensor E stride")
+        .insert("stride_a", "0", "Custom A tensor leading dimension stride (0 = auto)")
+        .insert("stride_b", "0", "Custom B tensor leading dimension stride (0 = auto)")
+        .insert("stride_e", "0", "Custom E tensor leading dimension stride (0 = auto)")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
         .insert("b_layout", "C", "B tensor data layout - Col by default")
         .insert("e_layout", "R", "E tensor data layout - Row by default")
@@ -54,53 +54,88 @@ auto create_args(int argc, char* argv[])
     return std::make_tuple(result, arg_parser);
 }
 
-// Helper function to parse G dimensions from string
-std::vector<ck_tile::index_t> parse_g_dimensions(const std::string& g_dims_str)
+// Helper function to parse G, M, N, K dimensions from string
+std::vector<ck_tile::index_t> parse_dimensions(const std::string& dims_str)
 {
-    std::vector<ck_tile::index_t> g_dims;
-    std::stringstream ss(g_dims_str);
+    std::vector<ck_tile::index_t> dims;
+    std::stringstream ss(dims_str);
     std::string token;
 
     while(std::getline(ss, token, ','))
     {
-        g_dims.push_back(std::stoi(token));
+        dims.push_back(std::stoi(token));
     }
 
-    if(g_dims.empty())
+    if(dims.empty())
     {
-        g_dims.push_back(1); // Default to single batch if empty
+        throw std::invalid_argument("Dimensions cannot be empty");
     }
 
-    return g_dims;
+    return dims;
 }
 
-// Helper function to calculate total G elements
-ck_tile::index_t calculate_total_g(const std::vector<ck_tile::index_t>& g_dims)
+// Helper function to Calculate total elements from multi-dimensional vector
+ck_tile::index_t calculate_total_elements(const std::vector<ck_tile::index_t>& dims)
 {
     ck_tile::index_t total = 1;
-    for(auto dim : g_dims)
+    for(auto dim : dims)
     {
         total *= dim;
     }
     return total;
 }
 
-// Helper function to calculate G strides
-std::vector<ck_tile::index_t> calculate_g_strides(const std::vector<ck_tile::index_t>& g_dims,
-                                                  ck_tile::index_t base_stride)
+// Helper function to Build tensor dimensions vector from dimensions for example
+// [G0,G1,..,M0,M1,..,K0,K1,..] >> [s0,s1,..]
+std::vector<ck_tile::index_t>
+get_tensor_dims(const std::vector<std::vector<ck_tile::index_t>>& dim_components)
 {
-    std::vector<ck_tile::index_t> strides(g_dims.size());
+    std::vector<ck_tile::index_t> result;
 
-    if(g_dims.size() == 0)
+    // Concatenate all dimension components: [G_dims] + ([M_dims] or [N_dims]) + ([K_dims] or
+    // [N_dims])
+    for(const auto& component : dim_components)
+    {
+        result.insert(result.end(), component.begin(), component.end());
+    }
+
+    return result;
+}
+
+// Helper function to Calculate tensor strides from all dimensions
+std::vector<ck_tile::index_t> get_tensor_strides(const std::vector<ck_tile::index_t>& dims)
+{
+    std::vector<ck_tile::index_t> strides(dims.size());
+
+    if(dims.empty())
         return strides;
 
-    // Calculate strides in row-major order
-    strides.back() = base_stride; // Last dimension stride
+    // Row-major strides: rightmost dimension has stride 1
+    strides.back() = 1;
 
-    for(int i = static_cast<int>(g_dims.size()) - 2; i >= 0; --i)
+    // Calculate strides from right to left
+    for(int i = static_cast<int>(dims.size()) - 2; i >= 0; --i)
     {
-        strides[i] = strides[i + 1] * g_dims[i + 1];
+        strides[i] = strides[i + 1] * dims[i + 1];
     }
 
     return strides;
+}
+
+// Helper function for printing dimensions
+void print_dims(const std::string& name,
+                const std::vector<ck_tile::index_t>& dims,
+                ck_tile::index_t total)
+{
+    std::cout << name << ": [";
+    for(size_t i = 0; i < dims.size(); ++i)
+    {
+        std::cout << dims[i];
+        if(i < dims.size() - 1)
+            std::cout << ",";
+    }
+    std::cout << "] ";
+    if(total != 0)
+        std::cout << "(total=" << total << ")";
+    std::cout << std::endl;
 }

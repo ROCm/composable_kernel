@@ -27,9 +27,6 @@ template <typename ADataType,
           typename DsLayout,
           typename ELayout,
           ck_tile::index_t NumDimG,
-          ck_tile::index_t NumDimM,
-          ck_tile::index_t NumDimN,
-          ck_tile::index_t NumDimK,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
 
 float batched_contraction_impl(const ck_tile::BatchedContractionHostArgs<0>& args,
@@ -80,9 +77,9 @@ float batched_contraction_impl(const ck_tile::BatchedContractionHostArgs<0>& arg
                                                        BDataType,
                                                        EDataType,
                                                        NumDimG, // NumDimG
-                                                       NumDimM, // NumDimM
-                                                       NumDimN, // NumDimN
-                                                       NumDimK, // NumDimK
+                                                       1,       // NumDimM
+                                                       1,       // NumDimN
+                                                       1,       // NumDimK
                                                        0        // NumDTensor
                                                        >;
 
