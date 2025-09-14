@@ -12,7 +12,7 @@ using P       = ckb::BlockGemmPipelineVersion;
 struct ConvSignature
 {
     int spatial_dim              = 3;
-    ckb::ConvDirection direction = ckb::ConvDirection::Forward;
+    ckb::ConvDirection direction = ckb::ConvDirection::FORWARD;
     ckb::GroupConvLayout layout  = ckb::GroupConvLayout::CHANNELS_LAST;
     ckb::DataType data_type      = ckb::DataType::BF16;
 };
