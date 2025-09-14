@@ -6,7 +6,7 @@
 #include <ck_tile/builder/conv_algorithm.hpp>
 #include <ck_tile/builder/conv_factory.hpp>
 #include <ck_tile/builder/conv_signature.hpp>
-#include <ck_tile/builder/versions.h>
+#include <ck_tile/builder/versions.hpp>
 
 namespace ck_tile::builder {
 
@@ -24,7 +24,7 @@ namespace ck_tile::builder {
  */
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
-          StringLiteral VERSION>
+          StringLiteral VERSION = LATEST_API_VERSION>
     requires SupportedVersion<VERSION> && ValidConvSignature<SIGNATURE>
 struct ConvBuilder
 {

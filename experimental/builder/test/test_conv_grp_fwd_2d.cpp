@@ -23,14 +23,11 @@ struct DefaultAlgorithm
 };
 static_assert(ckb::ConvAlgorithmDescriptor<DefaultAlgorithm>);
 
-constexpr char API_VERSION[] = "0.1.0";
-static_assert(ckb::SupportedVersion<API_VERSION>);
-
 TEST(ConvBuilderGrpFwd2d, TestDefaultInstance)
 {
     static constexpr const ConvSignature SIGNATURE;
     static constexpr const DefaultAlgorithm ALGORITHM;
-    using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM, API_VERSION>;
+    using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
     EXPECT_EQ(
         Builder::Instance::TypeString(),
         "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 256, 256, 32, Default, 32, 32, 4, 4, "
@@ -41,7 +38,7 @@ TEST(ConvBuilderGrpFwd2d, TestDefaultFP32Instance)
 {
     static constexpr const ConvSignature SIGNATURE{.data_type = ckb::DataType::FP32};
     static constexpr const DefaultAlgorithm ALGORITHM;
-    using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM, API_VERSION>;
+    using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
     EXPECT_NE(Builder::Instance::TypeString(), "");
     // It's difficult to check the types direction on the kernel, so we instead
     // check that the builder has the correct data type aliases for FP32.
@@ -56,7 +53,7 @@ TEST(ConvBuilderGrpFwd2d, TestDefaultFP16Instance)
 {
     static constexpr const ConvSignature SIGNATURE{.data_type = ckb::DataType::FP16};
     static constexpr const DefaultAlgorithm ALGORITHM;
-    using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM, API_VERSION>;
+    using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
 
     // Check that the builder has the correct data type aliases for FP16.
     EXPECT_TRUE((std::is_same_v<typename Builder::Factory::Types::ADataType, ck::half_t>));
@@ -70,7 +67,7 @@ TEST(ConvBuilderGrpFwd2d, TestDefaultBF16Instance)
 {
     static constexpr const ConvSignature SIGNATURE{.data_type = ckb::DataType::BF16};
     static constexpr const DefaultAlgorithm ALGORITHM;
-    using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM, API_VERSION>;
+    using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
 
     // Check that the builder has the correct data type aliases for BF16.
     EXPECT_TRUE((std::is_same_v<typename Builder::Factory::Types::ADataType, ck::bhalf_t>));
