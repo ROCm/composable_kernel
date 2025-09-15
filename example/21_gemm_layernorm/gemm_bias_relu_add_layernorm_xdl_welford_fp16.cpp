@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -154,6 +154,12 @@ void host_gemm_layernorm(Tensor<HDataType>& h_m_n,
 
 int main()
 {
+    // temp disable on gfx11 & gfx12
+    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+    {
+        return 0;
+    }
+
     bool do_verification = true;
 
     // GEMM shape

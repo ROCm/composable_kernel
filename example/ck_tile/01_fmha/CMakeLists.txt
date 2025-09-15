@@ -26,7 +26,7 @@ endforeach()
 
 # "fwd" is a must-have api for the fmha_fwd example, add it if not specified
 if(NOT "fwd" IN_LIST FMHA_FWD_ENABLE_APIS)
-  list(APPEND FMHA_FWD_ENABLE_APIS "fwd")
+  list(PREPEND FMHA_FWD_ENABLE_APIS "fwd")
 endif()
 
 file(GLOB_RECURSE CODE_GEN_SCRIPTS CONFIGURE_DEPENDS
@@ -50,6 +50,15 @@ set(FMHA_BWD_CODE_GEN_COMMON_ARGS
   --optdim 32,64,128,256
   # --filter fmha_bwd_dot...@fmha_bwd_convert...@fmha_bwd...
 )
+
+# Reduce building time by disabling instances that are not currently used in the gtests
+# TODO: Consider to use a special receipt for testing only, or even two receipts: a small subset of
+# instances for quick CI runs and a larger subset for scheduled runs (the tests skip tests when
+# there is no corresponding instance for parameters).
+if(BUILD_TESTING)
+  # Filters are in the order of FMHA_FWD_KNOWN_APIS: fwd,fwd_splitkv_combine@fwd_splitkv,fwd_appendkv,pagedkv_prefill
+  list(APPEND FMHA_FWD_CODE_GEN_COMMON_ARGS --filter *_nlogits*_nskip*,*@*_nlogits*_nbias*,*,*_nlogits*_nskip*_pagedkv)
+endif()
 
 # generate a list of kernels, but not actually emit files at config sta
 execute_process(
