@@ -91,8 +91,7 @@ float batched_contraction_impl(const ck_tile::BatchedContractionHostArgs<0>& arg
 
     using BaseGemmPipeline = UNIVERSAL_GEMM_PIPELINE<GemmPipelineProblem>;
 
-    const ck_tile::index_t k_batch     = 1;
-    const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(args.K);
+    const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(args.K_total);
     const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
     const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
 
@@ -139,28 +138,8 @@ float batched_contraction_impl(const ck_tile::BatchedContractionHostArgs<0>& arg
             ck_tile::BatchedContractionKernel<Problem, TilePartitioner, GemmPipeline, GemmEpilogue>;
         auto kargs = Kernel::MakeKernelArgs(args);
 
-        std::cout << "Debug KernelArgs:" << std::endl;
-        std::cout << "kargs.M=" << kargs.M << ", kargs.N=" << kargs.N << ", kargs.K=" << kargs.K
-                  << std::endl;
-        std::cout << "kargs.G_lengths size=" << NumDimG << std::endl;
-
-        const dim3 grids  = Kernel::GridSize(args.M, args.N, k_batch, args.G_lengths);
+        const dim3 grids  = Kernel::GridSize(kargs);
         const dim3 blocks = Kernel::GetBlockSize();
-
-        std::cout << "Debug GridSize calculation:" << std::endl;
-        std::cout << "args.M=" << args.M << ", args.N=" << args.N << std::endl;
-        std::cout << "k_batch=" << k_batch << std::endl;
-        std::cout << "args.G_lengths size=" << args.G_lengths.size() << std::endl;
-        std::cout << "Total G elements: ";
-        ck_tile::index_t total_calc = 1;
-        for(auto g : args.G_lengths)
-        {
-            std::cout << g << " ";
-            total_calc *= g;
-        }
-        std::cout << "= " << total_calc << std::endl;
-        std::cout << "Calculated grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                  << std::endl;
 
         if(!Kernel::IsSupportedArguments(kargs))
         {
@@ -178,15 +157,10 @@ float batched_contraction_impl(const ck_tile::BatchedContractionHostArgs<0>& arg
                       << std::endl;
         }
 
-        std::cout << "About to call make_kernel..." << std::endl;
         auto kernel = ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs);
-
-        std::cout << "make_kernel completed successfully!" << std::endl;
-        std::cout << "About to call launch_kernel..." << std::endl;
 
         ave_time = ck_tile::launch_kernel(s, kernel);
 
-        std::cout << "launch_kernel completed successfully!" << std::endl;
         return ave_time;
     };
 
@@ -194,6 +168,25 @@ float batched_contraction_impl(const ck_tile::BatchedContractionHostArgs<0>& arg
 
     return ave_time;
 }
+
+#define HANDLE_CASE(G, M, N, K)                                                  \
+    if(num_g_dims == G && num_m_dims == M && num_n_dims == N && num_k_dims == K) \
+    {                                                                            \
+        return batched_contraction_impl<ADataType,                               \
+                                        BDataType,                               \
+                                        DsDataType,                              \
+                                        AccDataType,                             \
+                                        EDataType,                               \
+                                        ALayout,                                 \
+                                        BLayout,                                 \
+                                        DsLayout,                                \
+                                        ELayout,                                 \
+                                        G,                                       \
+                                        M,                                       \
+                                        N,                                       \
+                                        K,                                       \
+                                        CDEElementWise>(args, s);                \
+    }
 
 template <typename ADataType,
           typename BDataType,
@@ -206,65 +199,25 @@ template <typename ADataType,
           typename ELayout,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float batched_contraction(const ck_tile::BatchedContractionHostArgs<0>& args,
-                          const ck_tile::stream_config& s)
+                          const ck_tile::stream_config& s,
+                          ck_tile::index_t num_g_dims,
+                          ck_tile::index_t num_m_dims,
+                          ck_tile::index_t num_n_dims,
+                          ck_tile::index_t num_k_dims)
 {
-    ck_tile::index_t num_g_dims = args.G_lengths.size();
-    std::cout << "G Dimension is : " << num_g_dims << std::endl;
+    std::cout << "Dimensions: G=" << num_g_dims << ", M=" << num_m_dims << ", N=" << num_n_dims
+              << ", K=" << num_k_dims << std::endl;
 
-    switch(num_g_dims)
-    {
-    case 1:
-        return batched_contraction_impl<ADataType,
-                                        BDataType,
-                                        DsDataType,
-                                        AccDataType,
-                                        EDataType,
-                                        ALayout,
-                                        BLayout,
-                                        DsLayout,
-                                        ELayout,
-                                        1,
-                                        CDEElementWise>(args, s);
-    case 2:
-        return batched_contraction_impl<ADataType,
-                                        BDataType,
-                                        DsDataType,
-                                        AccDataType,
-                                        EDataType,
-                                        ALayout,
-                                        BLayout,
-                                        DsLayout,
-                                        ELayout,
-                                        2,
-                                        CDEElementWise>(args, s);
-    case 3:
-        return batched_contraction_impl<ADataType,
-                                        BDataType,
-                                        DsDataType,
-                                        AccDataType,
-                                        EDataType,
-                                        ALayout,
-                                        BLayout,
-                                        DsLayout,
-                                        ELayout,
-                                        3,
-                                        CDEElementWise>(args, s);
-    case 4:
-        return batched_contraction_impl<ADataType,
-                                        BDataType,
-                                        DsDataType,
-                                        AccDataType,
-                                        EDataType,
-                                        ALayout,
-                                        BLayout,
-                                        DsLayout,
-                                        ELayout,
-                                        4,
-                                        CDEElementWise>(args, s);
-    default:
-        throw std::runtime_error("Unsupported number of G dimensions: " +
-                                 std::to_string(num_g_dims) + ". Supported: 1-4 dimensions.");
-    }
+    HANDLE_CASE(1, 1, 1, 1);
+    HANDLE_CASE(2, 1, 1, 1);
+    HANDLE_CASE(1, 2, 1, 1);
+    HANDLE_CASE(1, 1, 1, 2);
+    HANDLE_CASE(2, 2, 2, 2);
+
+    throw std::runtime_error(
+        "Unsupported dimension combination: G=" + std::to_string(num_g_dims) +
+        ", M=" + std::to_string(num_m_dims) + ", N=" + std::to_string(num_n_dims) +
+        ", K=" + std::to_string(num_k_dims) + ". Please add this combination to the kernel.");
 }
 
 #include "run_batched_contraction_example.inc"

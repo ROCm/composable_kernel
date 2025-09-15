@@ -20,6 +20,10 @@ struct BatchedContractionHostArgs
         const std::array<const void*, NumDTensor>& ds_ptr_,
         void* e_ptr_,
         ck_tile::index_t k_batch_,
+        ck_tile::index_t G_total_,
+        ck_tile::index_t M_total_,
+        ck_tile::index_t N_total_,
+        ck_tile::index_t K_total_,
         const std::vector<ck_tile::index_t>& A_dims_, // [G0, G1, ..., M0, M1, ... , K0, K1, ...]
         const std::vector<ck_tile::index_t>& B_dims_, // [G0, G1, ..., N0, N1, ... , K0, K1, ...]
         const std::array<std::vector<ck_tile::index_t>, NumDTensor>&
@@ -38,6 +42,10 @@ struct BatchedContractionHostArgs
           ds_ptr(ds_ptr_),
           e_ptr(e_ptr_),
           k_batch(k_batch_),
+          G_total(G_total_),
+          M_total(M_total_),
+          N_total(N_total_),
+          K_total(K_total_),
           A_dims(A_dims_),
           B_dims(B_dims_),
           Ds_dims(Ds_dims_),
@@ -54,6 +62,10 @@ struct BatchedContractionHostArgs
     std::array<const void*, NumDTensor> ds_ptr;
     void* e_ptr;
     ck_tile::index_t k_batch;
+    ck_tile::index_t G_total;
+    ck_tile::index_t M_total;
+    ck_tile::index_t N_total;
+    ck_tile::index_t K_total;
     const std::vector<ck_tile::index_t> A_dims; // [G0, G1, ..., M0, M1, ... , K0, K1, ...]
     const std::vector<ck_tile::index_t> B_dims; // [G0, G1, ..., N0, N1, ... , K0, K1, ...]
     const std::array<std::vector<ck_tile::index_t>, NumDTensor>
