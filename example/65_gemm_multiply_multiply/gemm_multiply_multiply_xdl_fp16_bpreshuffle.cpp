@@ -97,11 +97,12 @@ struct MultiplyMultiply
     }
 };
 
+static constexpr int KPack = 8;
+
 void preShuffleBuffer(const F16* src, F16* dst, int N, int K, int NXdl)
 {
-    int KPack = 16 / sizeof(F16);
     int NLane = NXdl;
-    int KLane = 64 / NLane;
+    int KLane = ck::get_warp_size() / NLane;
 
     int K0 = K / (KLane * KPack);
     // K -> K0 KLane KPack
@@ -147,12 +148,12 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShu
         <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
                AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   256,
                32,   128,    128,
-               8,   8,
-               32,   32,
-               1,    1,
+               KPack,   KPack,
+               16,   16,
+               2,    2,
                S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 0,
                S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 0,
-               1,    1,   S<1, 16, 1, 16>, S<8, 8, 1>,
+               1,    1,   S<1, 16, 1, 16>, S<4, 4, 1>,
                ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, F16>;
 // clang-format on
 
@@ -209,6 +210,12 @@ int main(int argc, char* argv[])
         printf(
             "arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideD, StrideE, KBatch\n");
         exit(0);
+    }
+
+    // temp disable on gfx11
+    if(ck::is_gfx11_supported())
+    {
+        return 0;
     }
 
     auto f_host_tensor_descriptor =

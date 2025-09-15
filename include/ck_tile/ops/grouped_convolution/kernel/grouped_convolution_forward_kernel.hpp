@@ -451,7 +451,10 @@ struct GroupedConvolutionForwardKernel
             TilePartitioner::GridSize(kargs.GemmM, kargs.GemmN), kargs.GemmBatch, kargs.n_splits);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
+    CK_TILE_HOST static auto BlockSize()
+    {
+        return is_wave32() ? dim3(kBlockSize / 2) : dim3(kBlockSize);
+    }
 
     CK_TILE_HOST static constexpr GroupedConvFwdKernelArgsSpecialized
     MakeKernelArgs(const GroupedConvFwdHostArgs& hostArgs)
