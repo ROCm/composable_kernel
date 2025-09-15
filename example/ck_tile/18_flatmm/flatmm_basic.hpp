@@ -81,7 +81,7 @@ struct FlatmmConfig16
     static constexpr bool DoubleSmemBuffer          = false;
 
     static constexpr int N_Repeat          = N_Tile / N_Warp_Tile / N_Warp;
-    static constexpr bool TiledMMAPermuteN = N_Repeat % 2 == 0;
+    static constexpr bool TiledMMAPermuteN = N_Repeat % 4 == 0;
 };
 
 template <typename DataType>
@@ -94,7 +94,7 @@ struct FlatmmConfig16_950 : public FlatmmConfig16<DataType>
 
     static constexpr int N_Repeat =
         N_Tile / FlatmmConfig16<DataType>::N_Warp_Tile / FlatmmConfig16<DataType>::N_Warp;
-    static constexpr bool TiledMMAPermuteN = N_Repeat % 2 == 0;
+    static constexpr bool TiledMMAPermuteN = N_Repeat % 4 == 0;
 };
 
 template <typename ADataType>

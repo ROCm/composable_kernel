@@ -35,17 +35,16 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t)
     int n_ = t.get_lengths()[1];
     int k_ = t.get_lengths()[0];
 
-    constexpr int N_Warp_Tile = FlatmmConfig::N_Warp_Tile;
-    constexpr int N_Warp      = FlatmmConfig::N_Warp;
-    constexpr int KPerLane    = FlatmmConfig::K_Warp_Tile / (64 / N_Warp_Tile);
+    constexpr int MaxVecSize     = 16 / sizeof(T);
+    constexpr int KLane          = ck_tile::get_warp_size() / FlatmmConfig::N_Warp_Tile;
+    constexpr int ItemsPerAccess = std::min(MaxVecSize, FlatmmConfig::K_Warp_Tile / KLane);
 
-    ck_tile::HostTensor<T> t_view({n_ / N_Warp_Tile,
-                                   N_Warp_Tile,
-                                   k_ / (64 * KPerLane / N_Warp_Tile),
-                                   64 / N_Warp_Tile,
-                                   KPerLane});
+    ck_tile::HostTensor<T> t_view({n_ / FlatmmConfig::N_Warp_Tile,
+                                   FlatmmConfig::N_Warp_Tile,
+                                   k_ / ItemsPerAccess,
+                                   ItemsPerAccess});
     std::copy(t.begin(), t.end(), t_view.begin());
-    return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
+    return ck_tile::reference_permute(t_view, {0, 2, 1, 3});
 }
 
 template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
