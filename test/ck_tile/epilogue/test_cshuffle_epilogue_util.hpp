@@ -202,9 +202,4 @@ auto run_cshuffle_epilogue_test(ScaleType scale = ScaleType::None)
     return host_output;
 }
 
-bool check_float_equal(float a, float b, float epsilon = 1e-3F)
-{
-    return std::fabs(a - b) < epsilon;
-}
-
 } // namespace ck_tile
