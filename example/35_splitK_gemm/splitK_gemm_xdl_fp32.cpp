@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -55,4 +55,11 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdlSplitKCShu
 
 #include "run_splitK_gemm_example.inc"
 
-int main(int argc, char* argv[]) { return !run_splitK_gemm_example(argc, argv); }
+int main(int argc, char* argv[])
+{
+    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+    {
+        return 0;
+    }
+    return !run_splitK_gemm_example(argc, argv);
+}

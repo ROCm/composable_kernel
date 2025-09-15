@@ -22,7 +22,8 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
-template <typename ADataType,
+template <typename GemmConfig,
+          typename ADataType,
           typename BDataType,
           typename DsDataType,
           typename AccDataType,
@@ -64,7 +65,8 @@ float invoke_batched_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                       batch_stride_C,
                                       batch_count};
 
-    float ave_time = batched_gemm<ADataType,
+    float ave_time = batched_gemm<GemmConfig,
+                                  ADataType,
                                   BDataType,
                                   DsDataType,
                                   AccDataType,
@@ -79,7 +81,7 @@ float invoke_batched_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     return ave_time;
 }
 
-template <typename ALayout, typename BLayout, typename CLayout>
+template <typename GemmConfig, typename ALayout, typename BLayout, typename CLayout>
 int run_batched_gemm_example_with_layouts(int argc,
                                           char* argv[],
                                           const ALayout a_layout                  = ALayout{},
@@ -170,7 +172,8 @@ int run_batched_gemm_example_with_layouts(int argc,
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
-    float ave_time = invoke_batched_gemm<ADataType,
+    float ave_time = invoke_batched_gemm<GemmConfig,
+                                         ADataType,
                                          BDataType,
                                          ck_tile::tuple<>,
                                          AccDataType,
@@ -311,6 +314,7 @@ int run_batched_gemm_example_with_layouts(int argc,
     return pass;
 }
 
+template <typename GemmConfig>
 int run_batched_gemm_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -329,7 +333,7 @@ int run_batched_gemm_example(int argc, char* argv[])
     // }
     if(a_layout == "R" && b_layout == "C")
     {
-        return run_batched_gemm_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
+        return run_batched_gemm_example_with_layouts<GemmConfig>(argc, argv, Row{}, Col{}, Row{});
     }
     // TODO: Fixme: with latest changes to GemmPipelineAGmemBGmemCRegV1DefaultPolicy below do not
     // work else if(a_layout == "C" && b_layout == "C")
