@@ -40,39 +40,40 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         constexpr index_t APackedSize = numeric_traits<ADataType>::PackedSize;
         constexpr index_t KPack       = GetSmemPackA<Problem>() * APackedSize;
 
-        constexpr auto a_lds_block_desc = make_naive_tensor_descriptor(
+        constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<KPerBlock / KPack>{}, number<MPerBlock>{}, number<KPack>{}),
             make_tuple(number<KPack>{}, number<KPerBlock>{}, number<1>{}),
             number<KPack>{},
             number<1>{});
 
-        constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
-            a_lds_block_desc,
-            make_tuple(make_xor_with_modulo_transform(make_tuple(
-                           number<MPerBlock>{}, number<KPerBlock / KPack>{})), // xor on M
-                       make_pass_through_transform(number<KPack>{})),
-            make_tuple(sequence<1, 0>{}, sequence<2>{}),
-            make_tuple(sequence<1, 0>{}, sequence<2>{}));
-
-        // constexpr int ContiguousThreadsCntInDS_READ_16B = 4;
-
         // constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
-        //     a_lds_block_desc_0,
+        //     a_lds_block_desc,
         //     make_tuple(make_xor_transform(make_tuple(number<MPerBlock>{},
-        //                                              number<ContiguousThreadsCntInDS_READ_16B>{})),
+        //                                              number<KPerBlock / KPack>{})), // xor on M
         //                make_pass_through_transform(number<KPack>{})),
         //     make_tuple(sequence<1, 0>{}, sequence<2>{}),
         //     make_tuple(sequence<1, 0>{}, sequence<2>{}));
 
-        // constexpr auto a_lds_block_desc = transform_tensor_descriptor(
-        //     a_lds_block_desc_permuted,
-        //     make_tuple(make_pass_through_transform(number<MPerBlock>{}),
-        //                make_merge_transform_v3_division_mod(
-        //                    make_tuple(number<KPerBlock / KPack>{}, number<KPack>{}))),
-        //     make_tuple(sequence<1>{}, sequence<0, 2>{}),
-        //     make_tuple(sequence<0>{}, sequence<1>{}));
+        constexpr int ContiguousThreadsCntInDS_READ_16B = 4;
 
-        return a_lds_block_desc_permuted;
+        constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
+            a_lds_block_desc_0,
+            make_tuple(make_xor_transform(make_tuple(number<MPerBlock>{},
+                                                     number<ContiguousThreadsCntInDS_READ_16B>{})),
+                       make_pass_through_transform(number<KPack>{})),
+            make_tuple(sequence<1, 0>{}, sequence<2>{}),
+            make_tuple(sequence<1, 0>{}, sequence<2>{}));
+
+        constexpr auto a_lds_block_desc = transform_tensor_descriptor(
+            a_lds_block_desc_permuted,
+            make_tuple(make_pass_through_transform(number<MPerBlock>{}),
+                       make_merge_transform_v3_division_mod(
+                           make_tuple(number<KPerBlock / KPack>{}, number<KPack>{}))),
+            make_tuple(sequence<1>{}, sequence<0, 2>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+
+        // return a_lds_block_desc_permuted;
+        return a_lds_block_desc;
     }
 
     template <typename Problem>

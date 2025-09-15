@@ -844,14 +844,14 @@ struct MXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Probl
                                             merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
                                     // warp GEMM
-                                    WG{}(c_warp_tensor,
-                                         a_warp_tensor(number<AwarpIter>{}),
-                                         b_warp_tensor_ping(nIter_pack * NXdlPack +
-                                                            inxdl)(kIter_pack * KXdlPack + ikxdl),
-                                         scale_a_tensor_ping(mIter_pack)(kIter_pack), // scale B
-                                         scale_b_tensor_ping(nIter_pack)(kIter_pack), // scale A
-                                         ikxdl * MXdlPack + imxdl,                    // A opsel
-                                         ikxdl * NXdlPack + inxdl);                   // B opsel
+                                    WG{}.template
+                                    operator()<ikxdl * MXdlPack + imxdl, ikxdl * NXdlPack + inxdl>(
+                                        c_warp_tensor,
+                                        a_warp_tensor(number<AwarpIter>{}),
+                                        b_warp_tensor_ping(nIter_pack * number<NXdlPack>{} + inxdl)(
+                                            kIter_pack * number<KXdlPack>{} + ikxdl),
+                                        scale_a_tile_tensor_ping(mIter_pack)(kIter_pack),
+                                        scale_b_tile_tensor_ping(nIter_pack)(kIter_pack));
 
                                     // write C warp tensor into C block tensor
                                     c_block_tile.set_y_sliced_thread_data(
@@ -973,14 +973,15 @@ struct MXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Probl
                                             merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
                                     // warp GEMM
-                                    WG{}(c_warp_tensor,
-                                         a_warp_tensor(number<AwarpIter>{}),
-                                         b_warp_tensor_pong(nIter_pack * NXdlPack +
-                                                            inxdl)(kIter_pack * KXdlPack + ikxdl),
-                                         scale_a_tensor_pong(mIter_pack)(kIter_pack), // scale B
-                                         scale_b_tensor_pong(nIter_pack)(kIter_pack), // scale A
-                                         ikxdl * MXdlPack + imxdl,                    // A opsel
-                                         ikxdl * NXdlPack + inxdl);                   // B opsel
+                                    WG{}(
+                                        c_warp_tensor,
+                                        a_warp_tensor(number<AwarpIter>{}),
+                                        b_warp_tensor_pong(nIter_pack * NXdlPack +
+                                                           inxdl)(kIter_pack * KXdlPack + ikxdl),
+                                        scale_a_tile_tensor_pong(mIter_pack)(kIter_pack), // scale B
+                                        scale_b_tile_tensor_pong(nIter_pack)(kIter_pack), // scale A
+                                        ikxdl * MXdlPack + imxdl,                         // A opsel
+                                        ikxdl * NXdlPack + inxdl);                        // B opsel
 
                                     // write C warp tensor into C block tensor
                                     c_block_tile.set_y_sliced_thread_data(
@@ -1100,14 +1101,15 @@ struct MXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Probl
                                             merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
                                     // warp GEMM
-                                    WG{}(c_warp_tensor,
-                                         a_warp_tensor(number<AwarpIter>{}),
-                                         b_warp_tensor_ping(nIter_pack * NXdlPack +
-                                                            inxdl)(kIter_pack * KXdlPack + ikxdl),
-                                         scale_a_tensor_ping(mIter_pack)(kIter_pack), // scale B
-                                         scale_b_tensor_ping(nIter_pack)(kIter_pack), // scale A
-                                         ikxdl * MXdlPack + imxdl,                    // A opsel
-                                         ikxdl * NXdlPack + inxdl);                   // B opsel
+                                    WG{}(
+                                        c_warp_tensor,
+                                        a_warp_tensor(number<AwarpIter>{}),
+                                        b_warp_tensor_ping(nIter_pack * NXdlPack +
+                                                           inxdl)(kIter_pack * KXdlPack + ikxdl),
+                                        scale_a_tile_tensor_ping(mIter_pack)(kIter_pack), // scale B
+                                        scale_b_tile_tensor_ping(nIter_pack)(kIter_pack), // scale A
+                                        ikxdl * MXdlPack + imxdl,                         // A opsel
+                                        ikxdl * NXdlPack + inxdl);                        // B opsel
 
                                     // write C warp tensor into C block tensor
                                     c_block_tile.set_y_sliced_thread_data(
@@ -1174,14 +1176,15 @@ struct MXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Probl
                                             merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
                                     // warp GEMM
-                                    WG{}(c_warp_tensor,
-                                         a_warp_tensor(number<AwarpIter>{}),
-                                         b_warp_tensor_pong(nIter_pack * NXdlPack +
-                                                            inxdl)(kIter_pack * KXdlPack + ikxdl),
-                                         scale_a_tensor_pong(mIter_pack)(kIter_pack), // scale B
-                                         scale_b_tensor_pong(nIter_pack)(kIter_pack), // scale A
-                                         ikxdl * MXdlPack + imxdl,                    // A opsel
-                                         ikxdl * NXdlPack + inxdl);                   // B opsel
+                                    WG{}(
+                                        c_warp_tensor,
+                                        a_warp_tensor(number<AwarpIter>{}),
+                                        b_warp_tensor_pong(nIter_pack * NXdlPack +
+                                                           inxdl)(kIter_pack * KXdlPack + ikxdl),
+                                        scale_a_tile_tensor_pong(mIter_pack)(kIter_pack), // scale B
+                                        scale_b_tile_tensor_pong(nIter_pack)(kIter_pack), // scale A
+                                        ikxdl * MXdlPack + imxdl,                         // A opsel
+                                        ikxdl * NXdlPack + inxdl);                        // B opsel
 
                                     // write C warp tensor into C block tensor
                                     c_block_tile.set_y_sliced_thread_data(
@@ -1242,14 +1245,15 @@ struct MXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Probl
                                             merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
                                     // warp GEMM
-                                    WG{}(c_warp_tensor,
-                                         a_warp_tensor(number<AwarpIter>{}),
-                                         b_warp_tensor_ping(nIter_pack * NXdlPack +
-                                                            inxdl)(kIter_pack * KXdlPack + ikxdl),
-                                         scale_a_tensor_ping(mIter_pack)(kIter_pack), // scale B
-                                         scale_b_tensor_ping(nIter_pack)(kIter_pack), // scale A
-                                         ikxdl * MXdlPack + imxdl,                    // A opsel
-                                         ikxdl * NXdlPack + inxdl);                   // B opsel
+                                    WG{}(
+                                        c_warp_tensor,
+                                        a_warp_tensor(number<AwarpIter>{}),
+                                        b_warp_tensor_ping(nIter_pack * NXdlPack +
+                                                           inxdl)(kIter_pack * KXdlPack + ikxdl),
+                                        scale_a_tile_tensor_ping(mIter_pack)(kIter_pack), // scale B
+                                        scale_b_tile_tensor_ping(nIter_pack)(kIter_pack), // scale A
+                                        ikxdl * MXdlPack + imxdl,                         // A opsel
+                                        ikxdl * NXdlPack + inxdl);                        // B opsel
 
                                     // write C warp tensor into C block tensor
                                     c_block_tile.set_y_sliced_thread_data(
