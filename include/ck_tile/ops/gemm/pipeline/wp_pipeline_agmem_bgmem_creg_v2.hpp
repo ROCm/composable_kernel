@@ -658,8 +658,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
 
         // Prefetch A0
         auto a_block_tile = load_tile_with_elementwise(a_copy_dram_window, a_element_func);
-        // auto a_block_tile = load_tile(a_copy_dram_window);
-        //  move A window to next k
+        // move A window to next k
         move_tile_window(a_copy_dram_window, {0, kKPerBlock});
 
         // prefetch B
@@ -684,8 +683,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
 
         // Prefetch A1
         a_block_tile = load_tile_with_elementwise(a_copy_dram_window, a_element_func);
-        // a_block_tile = load_tile(a_copy_dram_window);
-        //  move A window to next k
+        // move A window to next k
         move_tile_window(a_copy_dram_window, {0, kKPerBlock});
 
         // initialize C
@@ -723,13 +721,11 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
             });
 
             // Prefill A(2i+1)
-            // a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
             store_tile(a_copy_lds_window_pong, a_block_tile);
 
             // Prefetch A(2i+2)
             a_block_tile = load_tile_with_elementwise(a_copy_dram_window, a_element_func);
-            // a_block_tile = load_tile(a_copy_dram_window);
-            //  move A window to next k
+            // move A window to next k
             move_tile_window(a_copy_dram_window, {0, kKPerBlock});
 
             // GEMM 2i
@@ -800,13 +796,11 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
             });
 
             // Prefill A(2i+2)
-            // a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
             store_tile(a_copy_lds_window_ping, a_block_tile);
 
             // Prefetch A(2i+3)
             a_block_tile = load_tile_with_elementwise(a_copy_dram_window, a_element_func);
-            // a_block_tile = load_tile(a_copy_dram_window);
-            //  move A window to next k
+            // move A window to next k
             move_tile_window(a_copy_dram_window, {0, kKPerBlock});
 
             // GEMM 2i+1
@@ -881,7 +875,6 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
             });
 
             // Prefill A(loopK)
-            // a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
             store_tile(a_copy_lds_window_pong, a_block_tile);
 
             // GEMM loopK-1
