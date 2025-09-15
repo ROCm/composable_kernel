@@ -63,6 +63,23 @@ struct config
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = sizeof(Datatype) == 2 ? 16 : 32;
 };
+
+template <typename Datatype>
+struct config_wmma
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(Datatype);
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+};
+
 template <typename Tuple>
 class TestCkTileGemmPipeline : public ::testing::Test
 {
@@ -79,13 +96,12 @@ class TestCkTileGemmPipeline : public ::testing::Test
 
     using DsLayout   = ck_tile::tuple<>;
     using DsDataType = ck_tile::tuple<>;
-    using GemmConfig = config<ADataType>;
 
     static constexpr bool Persistent =
         ck_tile::tuple_element_or_default_t<Tuple, 9, std::false_type>::value;
     // TODO: expose tile size through test t-param ?
 
-    template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
+    template <typename GemmConfig, bool PadM, bool PadN, bool PadK, bool Preshuffle>
     void invoke_gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     {
         // TODO: This should be parameterized in tests
@@ -253,6 +269,48 @@ class TestCkTileGemmPipeline : public ::testing::Test
         k_batches_ = {1};
     }
 
+    template <typename GemmConfig, typename T>
+    auto shuffle_b(const ck_tile::HostTensor<T>& t)
+    {
+        assert(t.get_lengths().size() == 2);
+        int n_ = t.get_lengths()[1];
+        int k_ = t.get_lengths()[0];
+
+        if(ck_tile::is_gfx12_supported())
+        {
+            constexpr int divisor      = 2;
+            constexpr int kABK1PerLane = 8;
+            constexpr int kABK0PerLane = GemmConfig::K_Warp_Tile / divisor / kABK1PerLane;
+            ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
+                                           GemmConfig::N_Warp_Tile,
+                                           k_ / GemmConfig::K_Warp_Tile,
+                                           kABK0PerLane,
+                                           divisor,
+                                           kABK1PerLane});
+            std::copy(t.begin(), t.end(), t_view.begin());
+            return ck_tile::reference_permute(t_view, {0, 2, 4, 1, 3, 5});
+        }
+        else
+        {
+            int divisor = 1;
+            if(ck_tile::is_gfx11_supported())
+            {
+                divisor = 1;
+            }
+            else
+            {
+                assert(is_wave32() == false);
+                divisor = GemmConfig::N_Warp_Tile == 32 ? 2 : 4;
+            }
+            ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
+                                           GemmConfig::N_Warp_Tile,
+                                           k_ / GemmConfig::K_Warp_Tile,
+                                           divisor,
+                                           GemmConfig::K_Warp_Tile / divisor});
+            std::copy(t.begin(), t.end(), t_view.begin());
+            return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
+        }
+    }
     template <bool PadM = true, bool PadN = true, bool PadK = true, bool Preshuffle = false>
     void Run(const int M,
              const int N,
@@ -263,11 +321,17 @@ class TestCkTileGemmPipeline : public ::testing::Test
     {
         for(auto kb : k_batches_)
         {
-            RunSingle<PadM, PadN, PadK, Preshuffle>(M, N, K, StrideA, StrideB, StrideC, kb);
+#if CK_TILE_USE_WMMA
+            RunSingle<config_wmma<ADataType>, PadM, PadN, PadK, Preshuffle>(
+                M, N, K, StrideA, StrideB, StrideC, kb);
+#else
+            RunSingle<config<ADataType>, PadM, PadN, PadK, Preshuffle>(
+                M, N, K, StrideA, StrideB, StrideC, kb);
+#endif
         }
     }
 
-    template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
+    template <typename GemmConfig, bool PadM, bool PadN, bool PadK, bool Preshuffle>
     void RunSingle(const int M,
                    const int N,
                    const int K,
@@ -327,16 +391,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
         ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
 
-        constexpr int divisor = GemmConfig::N_Warp_Tile == 32 ? 2 : 4;
-        ck_tile::HostTensor<BDataType> t_view({N / GemmConfig::N_Warp_Tile,
-                                               GemmConfig::N_Warp_Tile,
-                                               K / GemmConfig::K_Warp_Tile,
-                                               divisor,
-                                               GemmConfig::K_Warp_Tile / divisor});
-
-        std::copy(b_k_n.begin(), b_k_n.end(), t_view.begin());
-        ck_tile::HostTensor<BDataType> b_shuffle_host =
-            ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
+        ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<GemmConfig>(b_k_n);
 
         a_m_k_dev_buf.ToDevice(a_m_k.data());
         b_k_n_dev_buf.ToDevice(b_shuffle_host.data());
@@ -354,7 +409,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                    stride_B,
                                    stride_C};
 
-        invoke_gemm<PadM, PadN, PadK, Preshuffle>(args, ck_tile::stream_config{nullptr, false});
+        invoke_gemm<GemmConfig, PadM, PadN, PadK, Preshuffle>(
+            args, ck_tile::stream_config{nullptr, false});
 
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
         bool pass = true;

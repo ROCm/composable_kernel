@@ -11,6 +11,12 @@ struct GemmConfigTwoStage : public GemmConfigComputeV3<PrecType_>
     using WorkspaceType = ck_tile::remove_cvref_t<WorkspaceType_>;
 };
 
+template <typename PrecType_, typename WorkspaceType_>
+struct GemmConfigTwoStage_Wmma : public GemmConfigComputeV3_WMMA<PrecType_>
+{
+    using WorkspaceType = ck_tile::remove_cvref_t<WorkspaceType_>;
+};
+
 struct SplitKTwoStageInvoker
 {
     template <typename GemmConfig,
@@ -155,8 +161,7 @@ struct SplitKTwoStageInvoker
             for(auto d : shape)
                 total_elements *= d;
 
-            constexpr ck_tile::index_t kBlockSize =
-                ck_tile::get_warp_size() * BlockWarps::at(ck_tile::number<0>{});
+            const ck_tile::index_t kBlockSize      = ElementwiseKernel::BlockSize();
             constexpr ck_tile::index_t kBlockPerCu = 1;
 
             constexpr ck_tile::index_t elements_per_block = BlockTile::at(ck_tile::number<0>{});

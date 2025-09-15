@@ -13,26 +13,6 @@
 #define CK_TILE_PIPELINE_MEMORY 2
 #define CK_TILE_PIPELINE_COMPUTE_V4 3
 
-#ifndef CK_TILE_PIPELINE_DEFAULT
-#define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE_V3
-#endif
-
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
-#define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrMem
-#define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrMem
-#define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Interwave
-#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
-#define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrCompV3
-#define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrCompV3
-#define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Intrawave
-#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V4)
-#define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrCompV4
-#define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrCompV4
-#define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Intrawave
-#else
-#error "unsupported CK_TILE_PIPELINE_DEFAULT value"
-#endif
-
 using ADataType   = ck_tile::half_t;
 using BDataType   = ck_tile::half_t;
 using D0DataType  = ck_tile::half_t;
@@ -40,6 +20,117 @@ using D1DataType  = ck_tile::half_t;
 using EDataType   = ck_tile::half_t;
 using DsDataType  = ck_tile::tuple<D0DataType, D1DataType>;
 using AccDataType = float;
+
+struct GemmConfigMemory
+{
+    // Memory friendly for Interwave scheduler
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 32;
+    static constexpr ck_tile::index_t K_Tile = 64;
+
+    static constexpr ck_tile::index_t M_Warp = 4;
+    static constexpr ck_tile::index_t N_Warp = 1;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = 8;
+
+    static constexpr bool DoubleSmemBuffer     = false;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_MEMORY;
+    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Interwave;
+};
+
+struct GemmConfigV3
+{
+    // Compute friendly for Intrawave scheduler
+    static constexpr ck_tile::index_t M_Tile = 256;
+    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr ck_tile::index_t K_Tile = 64;
+
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+
+    static constexpr bool DoubleSmemBuffer     = false;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
+    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave;
+};
+
+struct GemmConfigV4
+{
+    // Compute friendly for Intrawave scheduler
+    // Using the ping pong reader in the lds level
+    static constexpr ck_tile::index_t M_Tile = 256;
+    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr ck_tile::index_t K_Tile = 32;
+
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+
+    static constexpr bool DoubleSmemBuffer     = true;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V4;
+    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave;
+};
+
+struct GemmConfigV3_Wmma
+{
+    // Compute friendly for Intrawave scheduler
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 64;
+
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+
+    static constexpr bool DoubleSmemBuffer     = false;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
+    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave;
+};
+
+template <ck_tile::index_t PipelineId>
+struct PipelineTypeTraits;
+
+template <>
+struct PipelineTypeTraits<CK_TILE_PIPELINE_MEMORY>
+{
+    template <typename PipelineProblem>
+    using GemmPipeline = ck_tile::GemmPipelineAgBgCrMem<PipelineProblem>;
+    template <typename PipelineProblem>
+    using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrMem<PipelineProblem>;
+};
+
+template <>
+struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V3>
+{
+    template <typename PipelineProblem>
+    using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem>;
+    template <typename PipelineProblem>
+    using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<PipelineProblem>;
+};
+
+template <>
+struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V4>
+{
+    template <typename PipelineProblem>
+    using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV4<PipelineProblem>;
+    template <typename PipelineProblem>
+    using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV4<PipelineProblem>;
+};
 
 auto create_args(int argc, char* argv[])
 {
@@ -68,7 +159,8 @@ auto create_args(int argc, char* argv[])
 
 using gemm_multi_d_kargs = ck_tile::GemmMultiDHostArgs<DsDataType::size()>;
 
-template <typename ADataType,
+template <typename GemmConfig,
+          typename ADataType,
           typename BDataType,
           typename DsDataType,
           typename AccDataType,

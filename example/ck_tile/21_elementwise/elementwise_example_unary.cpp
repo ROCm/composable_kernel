@@ -78,8 +78,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     for(auto d : shape)
         total_elements *= d;
 
-    constexpr ck_tile::index_t kBlockSize =
-        ck_tile::get_warp_size() * BlockWarps::at(ck_tile::number<0>{});
+    const ck_tile::index_t kBlockSize      = Kernel::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = 1;
 
     constexpr ck_tile::index_t elements_per_block = BlockTile::at(ck_tile::number<0>{});
@@ -158,7 +157,14 @@ bool filter_then_run(const ck_tile::ArgParser& arg_parser)
     bool pass = true;
 
     if constexpr(std::is_same_v<XElementwiseOperation, ck_tile::element_wise::UnarySquare> &&
-                 std::is_same_v<XDataType, ck_tile::bf16_t>)
+                 (std::is_same_v<XDataType, ck_tile::bf16_t> ||
+                  std::is_same_v<YDataType, ck_tile::bf16_t>))
+    {
+        throw_unsupported();
+    }
+    else if constexpr(std::is_same_v<XElementwiseOperation, ck_tile::element_wise::UnaryConvert> &&
+                      (std::is_same_v<XDataType, ck_tile::bf16_t> ||
+                       std::is_same_v<YDataType, ck_tile::bf16_t>))
     {
         throw_unsupported();
     }
