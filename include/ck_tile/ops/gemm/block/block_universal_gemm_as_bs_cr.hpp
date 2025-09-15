@@ -14,7 +14,9 @@ namespace ck_tile {
 // A is block window on shared memory
 // B is block window on shared memory
 // C is block distributed tensor
-template <typename Problem_, typename Policy_ = BlockGemmASmemBSmemCRegV1DefaultPolicy, index_t UnaryOpSize_ = 8>
+template <typename Problem_,
+          typename Policy_     = BlockGemmASmemBSmemCRegV1DefaultPolicy,
+          index_t UnaryOpSize_ = 8>
 struct BlockUniversalGemmAsBsCr
 {
     private:
