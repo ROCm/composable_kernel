@@ -7,8 +7,6 @@
 
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 
-#define EXAMPLE_WITH_COMPUTE_DATATYPE
-
 using InDataType       = ck::f8_t;
 using WeiDataType      = ck::f8_t;
 using AccDataType      = float;
@@ -89,5 +87,3 @@ int main(int argc, char* argv[])
     }
     return run_convnd_fwd_example(argc, argv) ? 0 : 1;
 }
-
-#undef EXAMPLE_WITH_COMPUTE_DATATYPE
