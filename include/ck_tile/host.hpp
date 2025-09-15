@@ -16,7 +16,6 @@
 #include "ck_tile/host/host_tensor.hpp"
 #include "ck_tile/host/joinable_thread.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
-#include "ck_tile/host/permute_pk_int4.hpp"
 #include "ck_tile/host/ranges.hpp"
 #include "ck_tile/host/reference/reference_batched_dropout.hpp"
 #include "ck_tile/host/reference/reference_batched_dropout_randval.hpp"
