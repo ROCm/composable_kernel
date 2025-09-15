@@ -56,9 +56,6 @@ struct TileGemmUniversalTraits
     using BsLayout = BsLayout_;
     using CLayout  = CLayout_;
 
-    // TODO this can't be hardcoded here! Should be in policy!
-    static constexpr int _VectorSize = 16;
-
     static constexpr bool TransposeC            = TransposeC_;
     static constexpr bool UseStructuredSparsity = UseStructuredSparsity_;
     static constexpr bool UsePersistentKernel   = UsePersistentKernel_;
