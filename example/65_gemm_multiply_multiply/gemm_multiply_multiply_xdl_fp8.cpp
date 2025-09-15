@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -202,8 +202,6 @@ int main(int argc, char* argv[])
 
     constexpr ck::index_t NumDTensor = DsDataType::Size();
 
-    constexpr auto I0 = ck::Number<0>{};
-
     // do GEMM
     auto device_op = DeviceOpInstance{};
     auto invoker   = device_op.MakeInvoker();
@@ -218,7 +216,7 @@ int main(int argc, char* argv[])
                                K,
                                StrideA,
                                StrideB,
-                               std::array<ck::index_t, NumDTensor>{I0, I0},
+                               std::array<ck::index_t, NumDTensor>{StrideD, StrideD},
                                StrideE,
                                KBatch,
                                a_element_op,
