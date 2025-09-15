@@ -107,10 +107,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
     using BComputeDataType =
         conditional_t<is_same_v<BComputeDataType_, ck::half_t>, ck::bhalf_t, BComputeDataType_>;
 #else
-    using AComputeDataType =
-        conditional_t<is_same_v<AComputeDataType_, ck::tf32_t>, float, AComputeDataType_>;
-    using BComputeDataType =
-        conditional_t<is_same_v<BComputeDataType_, ck::tf32_t>, float, BComputeDataType_>;
+    using AComputeDataType = AComputeDataType_;
+    using BComputeDataType = BComputeDataType_;
 #endif
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
@@ -661,27 +659,26 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                 : false;
         constexpr auto is_scale_mfma = false;
         constexpr index_t KPack      = math::max(lcm_AK1_BK1,
-                                            MfmaSelector<AComputeDataType_,
+                                            MfmaSelector<AComputeDataType,
                                                               MPerXdl,
                                                               NPerXdl,
-                                                              BComputeDataType_,
+                                                              BComputeDataType,
                                                               is_single_rate_mfma,
                                                               is_scale_mfma>::selected_mfma.k_per_blk);
-        auto blockwise_gemm          = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
-                     BlockSize,
-                     AComputeDataType,
-                     BComputeDataType,
-                     AccDataType,
-                     decltype(a_block_desc_ak0_m_ak1),
-                     decltype(b_block_desc_bk0_n_bk1),
-                     MPerXdl,
-                     NPerXdl,
-                     MXdlPerWave,
-                     NXdlPerWave,
-                     KPack,
-                     LoopSched,
-                     AComputeDataType_,
-                     BComputeDataType_>();
+
+        auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
+            BlockSize,
+            AComputeDataType,
+            BComputeDataType,
+            AccDataType,
+            decltype(a_block_desc_ak0_m_ak1),
+            decltype(b_block_desc_bk0_n_bk1),
+            MPerXdl,
+            NPerXdl,
+            MXdlPerWave,
+            NXdlPerWave,
+            KPack,
+            LoopSched>();
 
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();
 

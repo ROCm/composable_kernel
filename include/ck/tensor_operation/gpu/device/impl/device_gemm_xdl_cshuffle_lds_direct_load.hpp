@@ -119,9 +119,7 @@ struct DeviceGemm_Xdl_CShuffle_LdsDirectLoad : public DeviceGemm<ALayout,
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CDEBlockTransferScalarPerVector_NPerBlock,
         LoopSched,
-        PipelineVer,
-        ComputeDataType>;
-
+        PipelineVer>;
     using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
@@ -214,14 +212,6 @@ struct DeviceGemm_Xdl_CShuffle_LdsDirectLoad : public DeviceGemm<ALayout,
         if(!ck::is_lds_direct_load_supported())
         {
             return false;
-        }
-
-        if constexpr(is_same_v<ComputeDataType, ck::tf32_t>)
-        {
-            if(!is_tf32_supported())
-            {
-                return false;
-            }
         }
 
         // Check vector load/store.
