@@ -26,7 +26,6 @@ using byte = unsigned char;
 using std::byte;
 #endif
 
-using tf32_t  = _BitInt(19); // 1 sign bit, 8 exponent bits, 10 mantissa bits
 using bhalf_t = ushort;
 using half_t  = _Float16;
 using int4_t  = _BitInt(4);
@@ -461,39 +460,5 @@ using int64_t = long long;
 #else
 using int64_t = long;
 #endif
-
-template <typename T>
-inline const char* get_type_name()
-{
-    if constexpr(is_same_v<T, half_t>)
-        return "fp16";
-    else if constexpr(is_same_v<T, bhalf_t>)
-        return "bf16";
-    else if constexpr(is_same_v<T, tf32_t>)
-        return "tf32";
-    else if constexpr(is_same_v<T, int4_t>)
-        return "int4";
-    else if constexpr(is_same_v<T, f4_t>)
-        return "f4";
-    else if constexpr(is_same_v<T, f6_t>)
-        return "f6";
-    else if constexpr(is_same_v<T, bf6_t>)
-        return "bf6";
-    else if constexpr(is_same_v<T, f8_t>)
-        return "f8";
-    else if constexpr(is_same_v<T, bf8_t>)
-        return "bf8";
-    else if constexpr(is_same_v<T, e8m0_bexp_t>)
-        return "e8m0";
-    else if constexpr(is_same_v<T, float>)
-        return "fp32";
-#if defined(__HIPCC_RTC__) || defined(CK_CODE_GEN_RTC)
-    else
-        return "unknown";
-#else
-    else
-        return typeid(T).name();
-#endif
-}
 
 } // namespace ck

@@ -87,9 +87,6 @@ foreach(gpu IN LISTS GPU_TARGETS)
         add_example_executable(example_gemm_xdl_lds_direct_load_fp32 gemm_xdl_lds_direct_load_fp32.cpp)
         add_example_dependencies(example_gemm_xdl example_gemm_xdl_lds_direct_load_fp32)
 
-        add_example_executable(example_gemm_xdl_lds_direct_load_fp32_tf32 gemm_xdl_lds_direct_load_fp32_tf32.cpp)
-        add_example_dependencies(example_gemm_xdl example_gemm_xdl_lds_direct_load_fp32_tf32)
-
         add_example_executable(example_gemm_xdl_lds_direct_load_fp16 gemm_xdl_lds_direct_load_fp16.cpp)
         add_example_dependencies(example_gemm_xdl example_gemm_xdl_lds_direct_load_fp16)
 
