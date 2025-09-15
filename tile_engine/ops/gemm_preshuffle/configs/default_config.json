@@ -1,51 +1,51 @@
 {
-    "tile_config": {
-        "tile_m": {
-            "values": [
-                128
-            ]
-        },
-        "tile_n": {
-            "values": [
-                128
-            ]
-        },
-        "tile_k": {
-            "values": [
-                128
-            ]
-        },
-        "warp_m": {
-            "values": [
-                1
-            ]
-        },
-        "warp_n": {
-            "values": [
-                4
-            ]
-        },
-        "warp_k": {
-            "values": [
-                1
-            ]
-        },
-        "warp_tile_m": {
-            "values": [
-                16
-            ]
-        },
-        "warp_tile_n": {
-            "values": [
-                16
-            ]
-        },
-        "warp_tile_k": {
-            "values": [
-                16,32
-            ]
-        }
+  "tile_config": {
+    "tile_m": {
+        "values": [
+            128
+        ]
     },
+    "tile_n": {
+        "values": [
+            128
+        ]
+    },
+    "tile_k": {
+        "values": [
+            128
+        ]
+    },
+    "warp_m": {
+        "values": [
+            1
+        ]
+    },
+    "warp_n": {
+        "values": [
+            4
+        ]
+    },
+    "warp_k": {
+        "values": [
+            1
+        ]
+    },
+    "warp_tile_m": {
+        "values": [
+            16
+        ]
+    },
+    "warp_tile_n": {
+        "values": [
+            16
+        ]
+    },
+    "warp_tile_k": {
+        "values": [
+            16,32
+        ]
+    }
+  },
   "trait_config": {
     "pipeline": {
       "values": [
@@ -86,5 +86,6 @@
             false
         ]
     }
-  }
+  },
+  "k_block_per_cu": 2
 }

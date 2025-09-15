@@ -296,7 +296,9 @@ class GemmPreshuffleKernelBuilder:
                 pipeline,
             )
 
-    def _generate_kernel_instance(self, tile_config, trait_combo, is_header=True):
+    def _generate_kernel_instance(
+        self, tile_config, trait_combo, k_block_per_cu, is_header=True
+    ):
         """Generate a single kernel instance"""
         (
             pipeline,
@@ -531,7 +533,7 @@ struct SelectedKernel {{
             }}
             
             // Launch kernel
-            constexpr int kBlockPerCu = 1;
+            constexpr int kBlockPerCu = {k_block_per_cu};
             ave_time = ck_tile::launch_kernel(
                 stream,
                 ck_tile::make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
@@ -575,6 +577,7 @@ struct SelectedKernel {{
 
         tile_configs = self._get_tile_configs()
         trait_combos = self._generate_trait_combinations()
+        k_block_per_cu = self.config.get("k_block_per_cu")
 
         # Prepare work items for parallel processing
         work_items = []
@@ -584,6 +587,7 @@ struct SelectedKernel {{
                     (
                         tile_config,
                         trait_combo,
+                        k_block_per_cu,
                         self.working_path,
                         self.datatype,
                         self.layout,
@@ -675,14 +679,14 @@ struct SelectedKernel {{
 
 def _generate_single_kernel_individual(work_item):
     """Worker function to generate a single individual kernel file"""
-    tile_config, trait_combo, working_path, datatype, layout = work_item
+    tile_config, trait_combo, k_block_per_cu, working_path, datatype, layout = work_item
 
     # Create a temporary builder instance for this worker
     builder = GemmPreshuffleKernelBuilder(working_path, datatype, layout)
 
     try:
         kernel_name, instance_code = builder._generate_kernel_instance(
-            tile_config, trait_combo
+            tile_config, trait_combo, k_block_per_cu
         )
 
         # Create simplified filename without the "gemm_" prefix
@@ -804,9 +808,11 @@ def main():
             trait_parts[6] == "True",  # persistent
         )
 
+        k_block_per_cu = builder.config.get("k_block_per_cu")
+
         # Generate the kernel
         kernel_name, instance_code = builder._generate_kernel_instance(
-            tile_config, trait_combo
+            tile_config, trait_combo, k_block_per_cu
         )
 
         # Write the file
