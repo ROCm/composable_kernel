@@ -34,6 +34,29 @@ struct ABTransferWaveTiles
 
     // Tiles distribution for global memory loading
     // Notes: support for not power of 2 needs to be reviewed later on
+    // The tiles are distributed along the non-contiguous matrix dimension
+    // Example 4 waves A row-major MPerBlock = 64, KPerBlock = 64
+    // MRepeat = 1, KRepeat = 4
+    // -------------
+    // |W0|  |  |  |
+    // -------------
+    // |W1|  |  |  |
+    // -------------
+    // |W2|  |  |  |
+    // -------------
+    // |W3|  |  |  |
+    // -------------
+    // Example 4 waves A column-major MPerBlock = 64, KPerBlock = 64
+    // MRepeat = 4, KRepeat = 1
+    // -------------
+    // |W0|W1|W2|W3|
+    // -------------
+    // |  |  |  |  |
+    // -------------
+    // |  |  |  |  |
+    // -------------
+    // |  |  |  |  |
+    // -------------
     static constexpr index_t NumberOfWaves = BlockSize / WaveSize;
     static constexpr index_t MNMajorWaves_ =
         MNPerBlock / MNPerWmma % std::min(MNPerBlock / MNPerWmma, NumberOfWaves) == 0
@@ -81,7 +104,7 @@ struct ABTransferWaveTiles
         // MNKRow    = 0-1
         // LaneLocal = 0-15
         // VectorSize must be 8
-        if constexpr(is_same_v<ABMajorLayout, ABLayout>)
+        if constexpr(!ABDoTranspose)
         {
             const auto ab_grid_desc_mntiles_ktiles_lanegroup_lanelocal_abk1 =
                 transform_tensor_descriptor(
@@ -97,6 +120,7 @@ struct ABTransferWaveTiles
                     make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3, 4>{}));
 
             // Freeze VectorSize to first element of the loading chunk (for convenience)
+            // Swap MNPerWmma and MNKRow for consistency with transpose descriptor
             return transform_tensor_descriptor(
                 ab_grid_desc_mntiles_ktiles_lanegroup_lanelocal_abk1,
                 make_tuple(
@@ -272,7 +296,7 @@ struct ABTransferWaveTiles
                                          Sequence<MNWaves_, KWaves_, I1, I1>,
                                          Sequence<I0, I1, I2, I3>,
                                          ABK1Value,
-                                         !is_same_v<ABLayout, ABMajorLayout>>(
+                                         ABDoTranspose>(
             grid_descriptor[I0],
             block_descriptor,
             make_multi_index(block_mn_id * (MNRepeat_ * MNWaves_) + wave_idMN,
