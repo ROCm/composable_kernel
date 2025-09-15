@@ -92,11 +92,11 @@ struct WarpGemmImpl
         c.get_thread_buffer().template set_as<CVec>(I0, c_vec);
     }
 
-    template <typename CTensor,
+    template <index_t opselA,
+              index_t opselB,
+              typename CTensor,
               typename ATensor,
               typename BTensor,
-              index_t opselA,
-              index_t opselB,
               bool post_nop_ = false>
     CK_TILE_DEVICE void operator()(CTensor& c,
                                    const ATensor& a,
@@ -150,7 +150,7 @@ struct WarpGemmImpl
         return c;
     }
 
-    template <typename ATensor, typename BTensor, index_t opselA, index_t opselB>
+    template <index_t opselA, index_t opselB, typename ATensor, typename BTensor>
     CK_TILE_DEVICE auto operator()(const ATensor& a,
                                    const BTensor& b,
                                    const int32_t& a_scale,
