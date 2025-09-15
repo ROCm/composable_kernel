@@ -309,8 +309,6 @@ int run_gemm_example_with_layouts(int argc,
                 *aq_tensor_ptr);
             ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
                 *bq_tensor_ptr);
-            // ck_tile::FillConstant<AQDataType>{static_cast<AQDataType>(1.f)}(*aq_tensor_ptr);
-            // ck_tile::FillConstant<BQDataType>{static_cast<BQDataType>(1.f)}(*bq_tensor_ptr);
         }
     }
     else if(init_method == 1)

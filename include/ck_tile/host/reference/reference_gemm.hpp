@@ -180,10 +180,6 @@ CK_TILE_HOST void reference_gemm_rowcol_quant(const HostTensor<ADataType>& a_m_k
                 else
                     v_b = fp32_val.lo;
             }
-            else if constexpr(std::is_same_v<BDataType, fp8_t>)
-            {
-                v_b = fp8_to_float_raw(b_element_op(b_k_n(k, n)));
-            }
             else
             {
                 v_b = ck_tile::type_convert<AccDataType>(b_element_op(b_k_n(k, n)));
@@ -231,8 +227,8 @@ CK_TILE_HOST void reference_gemm_tensor_quant(const HostTensor<ADataType>& a_m_k
         // Init accumulator
         AccDataType v_acc = 0;
         // Get scale for A and scale for B
-        AccDataType a_scale = ck_tile::type_convert<AccDataType>(aq_1_1(0, 0));
-        AccDataType b_scale = ck_tile::type_convert<AccDataType>(bq_1_1(0, 0));
+        const AccDataType a_scale = ck_tile::type_convert<AccDataType>(aq_1_1(0, 0));
+        const AccDataType b_scale = ck_tile::type_convert<AccDataType>(bq_1_1(0, 0));
 
         // Compute the dot product
         for(std::size_t k = 0; k < K; ++k)

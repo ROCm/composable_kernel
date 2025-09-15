@@ -967,10 +967,13 @@ struct QuantGemmKernel
         }
         else if constexpr(kQuantType == QuantType::TensorQuant)
         {
-            const AccDataType aq_scale =
-                __builtin_amdgcn_readfirstlane(type_convert<AccDataType>(*aq_ptr));
-            const AccDataType bq_scale =
-                __builtin_amdgcn_readfirstlane(type_convert<AccDataType>(*bq_ptr));
+            // TODO: why doesn't readfirstlane work here?
+            // const AccDataType aq_scale =
+            //     __builtin_amdgcn_readfirstlane(type_convert<AccDataType>(*aq_ptr));
+            // const AccDataType bq_scale =
+            //     __builtin_amdgcn_readfirstlane(type_convert<AccDataType>(*bq_ptr));
+            const AccDataType aq_scale = type_convert<AccDataType>(*aq_ptr);
+            const AccDataType bq_scale = type_convert<AccDataType>(*bq_ptr);
             EpiloguePipeline{}(
                 c_block_window, c_block_tile, c_block_window, smem_ptr_0, aq_scale, bq_scale);
         }
