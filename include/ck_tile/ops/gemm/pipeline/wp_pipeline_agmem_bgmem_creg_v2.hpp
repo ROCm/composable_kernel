@@ -509,24 +509,16 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
     }
 
     template <TailNumber TailNum,
-              typename AsDramBlockWindowTmp,
-              typename BsFlatBlockWindowTmp,
+              typename ADramBlockWindowTmp,
+              typename BFlatBlockWindowTmp,
               typename AElementFunction>
-    CK_TILE_DEVICE auto operator()(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const AElementFunction& a_element_func,
-                                   const BsFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
+                                   const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                    index_t num_loop,
                                    void* p_smem_ping,
                                    void* p_smem_pong) const
     {
-        static_assert(AsDramBlockWindowTmp::size() == 1 && BsFlatBlockWindowTmp::size() == 1,
-                      "The A/B DRAM block window should have a size of 1 "
-                      "Currently, BaseWeightPreshufflePipelineAGmemBGmemCRegV2 supports only a "
-                      "single A/B DRAM block window.");
-
-        using ADramBlockWindowTmp =
-            remove_cvref_t<std::tuple_element_t<number<0>{}, AsDramBlockWindowTmp>>;
-
         static_assert(
             std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>>,
             "wrong!");
