@@ -365,13 +365,12 @@ __device__ void print_distributed_index(const DistributedIndex& idx)
     printf("]");
 }
 
-__global__ void test_4x4_matrix_2x2_blocks_kernel(int* input, int* output, bool)
+__global__ void test_4x4_matrix_2x2_blocks_modify_input_kernel(int* input, int* output, bool)
 {
-    constexpr index_t x0_size = 4;
-    constexpr index_t x1_size = 4;
-    auto global_view = make_naive_tensor_view_packed<address_space_enum::global>(
-            input_data, make_tuple(x0_size, x1_size));
+    constexpr index_t global_shape_0 = 4;
+    constexpr index_t global_shape_1 = 4;
 
+    // Tile distribution parameters
     constexpr index_t MRepeat = 1;
     constexpr index_t NRepeat = 1;
     constexpr index_t MWarpPerBlock = 1;
@@ -382,7 +381,7 @@ __global__ void test_4x4_matrix_2x2_blocks_kernel(int* input, int* output, bool)
     constexpr index_t NVectorPerThread = 2;
 
     // Tile distribution encoding for 4x4 matrix as 2x2 blocks
-    constexpr auto matrix_4x4_dstr_encoding = tile_distribution_encoding<
+    constexpr auto encoding = tile_distribution_encoding<
         sequence<>,                                                      // No reduction dims
         tuple<
             // [H1_0, H1_1, H1_2, H1_3]
@@ -400,7 +399,26 @@ __global__ void test_4x4_matrix_2x2_blocks_kernel(int* input, int* output, bool)
         sequence<1, 1, 2, 2>,                                                    // Trivial since we have only warp
         sequence<0, 3, 0, 3>>{};                                                 // Map thread id to number of elements per thread (Hi_3)
 
-    auto distribution = make_static_tile_distribution(matrix_4x4_dstr_encoding);
+    auto distribution = make_static_tile_distribution(encoding);
+
+    constexpr auto hs_lengths_0 = encoding.hs_lengthss_[number<0>{}];
+    constexpr auto hs_lengths_1 = encoding.hs_lengthss_[number<1>{}];
+
+    constexpr index_t x0_size = reduce_on_sequence(hs_lengths_0, multiplies{}, number<1>{});
+    constexpr index_t x1_size = reduce_on_sequence(hs_lengths_1, multiplies{}, number<1>{});
+
+    if(threadIdx.x == 0 && blockIdx.x == 0)
+    {
+        printf("\n- Tile distribution created:\n");
+        printf("  X dimensions: %d\n", distribution.get_num_of_dimension_x());
+        printf("  Y dimensions: %d\n", distribution.get_num_of_dimension_y());
+        printf("  P dimensions: %d\n", distribution.get_num_of_dimension_p());
+        printf("  X lengths: [%d, %d]\n", x0_size, x1_size);
+    }
+    block_sync_lds();
+
+    auto global_view = make_naive_tensor_view_packed<address_space_enum::global>(
+            input, make_tuple(global_shape_0, global_shape_1));
 
     const auto window_lengths = make_tuple(x0_size, x1_size);
     auto tile_window = make_tile_window(global_view,
@@ -409,116 +427,29 @@ __global__ void test_4x4_matrix_2x2_blocks_kernel(int* input, int* output, bool)
                                             distribution);
     auto distributed_tensor = tile_window.load();
 
+    // Create output tensor view
+    auto output_global_view = make_naive_tensor_view_packed<address_space_enum::global>(
+        output, make_tuple(global_shape_0, global_shape_1));
 
+    // Create output tile window with the same distribution
+    auto output_tile_window = make_tile_window(output_global_view,
+                                              window_lengths,
+                                              {0, 0}, // Same window origin
+                                              distribution);
 
-    constexpr auto matrix_4x4_dstr = make_static_tile_distribution(matrix_4x4_dstr_encoding);
-    auto distributed_matrix = make_static_distributed_tensor<int>(matrix_4x4_dstr);
+    // Create a new distributed tensor for output (copy from input or modify)
+    auto output_distributed_tensor = distributed_tensor; // Copy the loaded data
 
-    // Initialize the 4x4 matrix with values 1-16
-    constexpr auto matrix_spans = distributed_matrix.get_distributed_spans();
-
-    // Initialize matrix with row-major values (1-16)
-    sweep_tile_span(matrix_spans[number<0>{}], [&](auto idx0) {
-        sweep_tile_span(matrix_spans[number<1>{}], [&](auto idx1) {
-            constexpr auto distributed_idx = make_tuple(idx0, idx1);
-            
-            // Get the actual matrix coordinates from distributed indices
-            const auto x_indices = get_x_indices_from_distributed_indices(
-                matrix_4x4_dstr, distributed_idx);
-            
-            // Calculate value: row * 4 + col + 1 (for 1-16 numbering)
-            const int row = x_indices[number<0>{}];
-            const int col = x_indices[number<1>{}];
-            const int value = row * 4 + col + 1;
-            
-            distributed_matrix(distributed_idx) = value;
-            
-            // if (debug) 
-            // {
-            //   // Ensure that we get some sensible output from different threads
-            //   if (threadIdx.x == 0)
-            //   {
-            //     printf("DistributedIdx (thread 0): (");
-            //     print_distributed_index(idx0);
-            //     printf(", ");
-            //     print_distributed_index(idx1);
-            //     printf(") -> Matrix[%d,%d] = %d\n", row, col, value);
-            //   }
-            //   else if (threadIdx.x == 1)
-            //   {
-            //     printf("DistributedIdx (thread 1): (");
-            //     print_distributed_index(idx0);
-            //     printf(", ");
-            //     print_distributed_index(idx1);
-            //     printf(") -> Matrix[%d,%d] = %d\n", row, col, value);
-            //   }
-            //   else if (threadIdx.x == 2)
-            //   {
-            //     printf("DistributedIdx (thread 2): (");
-            //     print_distributed_index(idx0);
-            //     printf(", ");
-            //     print_distributed_index(idx1);
-            //     printf(") -> Matrix[%d,%d] = %d\n", row, col, value);
-            //   }
-            //   else if (threadIdx.x == 3)
-            //   {
-            //     printf("DistributedIdx (thread 3): (");
-            //     print_distributed_index(idx0);
-            //     printf(", ");
-            //     print_distributed_index(idx1);
-            //     printf(") -> Matrix[%d,%d] = %d\n", row, col, value);
-            //   }
-            // }
-        });
+    // Modify the data before storing
+    sweep_tile(output_distributed_tensor, [&](auto idx) {
+        output_distributed_tensor(idx) = distributed_tensor(idx) * 2;
     });
 
-    // Ensure all threads have completed initialization
-    __syncthreads();
-
-    // Access 2x2 blocks and store results
-    int output_idx = 0;
-    // Block (0,0): top-left 2x2
-    for (int block_row = 0; block_row < 2; block_row++) {
-        for (int block_col = 0; block_col < 2; block_col++) {
-            for (int i = 0; i < 2; i++) {
-                for (int j = 0; j < 2; j++) {
-                    const int row = block_row * 2 + i;
-                    const int col = block_col * 2 + j;
-                    
-                    // Find the distributed indices for this matrix position
-                    bool found = false;
-                    int value = 0;
-                    
-                    sweep_tile_span(matrix_spans[number<0>{}], [&](auto idx0) {
-                        sweep_tile_span(matrix_spans[number<1>{}], [&](auto idx1) {
-                            if (!found) {
-                                constexpr auto distributed_idx = make_tuple(idx0, idx1);
-                                const auto x_indices = get_x_indices_from_distributed_indices(
-                                    matrix_4x4_dstr, distributed_idx);
-                                
-                                if (x_indices[number<0>{}] == row && 
-                                    x_indices[number<1>{}] == col) {
-                                    value = distributed_matrix[distributed_idx];
-                                    found = true;
-                                }
-                            }
-                        });
-                    });
-                    
-                    output[output_idx++] = value;
-                    
-                    // if (debug) 
-                    // {
-                    //     printf("Block(%d,%d)[%d,%d] (thread %u) = Matrix[%d,%d] = %d\n", 
-                    //       block_row, block_col, i, j, threadIdx.x, row, col, value);
-                    // }
-                }
-            }
-        }
-    }
+    // Store the distributed tensor to the output
+    output_tile_window.store(output_distributed_tensor);
 }
 
-TEST_F(TestTensorView, StaticDistributedTensor4x4Matrix2x2Blocks)
+TEST_F(TestTensorView, StaticDistributedTensor4x4Matrix2x2Blocks_modify_input)
 {
     // clang format-off
     std::vector<int> data_host = 
@@ -544,7 +475,7 @@ TEST_F(TestTensorView, StaticDistributedTensor4x4Matrix2x2Blocks)
     // Run kernel with debug output
     const dim3 block_dim(4); // 4 threads to cover 4 blocks
     const dim3 grid_dim(1);
-    test_4x4_matrix_2x2_blocks_kernel<<<grid_dim, block_dim>>>(input_device, output_device, true);
+    test_4x4_matrix_2x2_blocks_modify_input_kernel<<<grid_dim, block_dim>>>(input_device, output_device, true);
     hip_check_error(hipDeviceSynchronize());
     
     // Copy results back
@@ -553,25 +484,16 @@ TEST_F(TestTensorView, StaticDistributedTensor4x4Matrix2x2Blocks)
     
     // Verify the 4x4 matrix is correctly organized as 2x2 blocks
     // Expected matrix:
-    //  1  2  3  4
-    //  5  6  7  8  
-    //  9 10 11 12
-    // 13 14 15 16
-    
-    // Block (0,0): [1,2; 5,6]
-    // Block (0,1): [3,4; 7,8]  
-    // Block (1,0): [9,10; 13,14]
-    // Block (1,1): [11,12; 15,16]
-    
+    //  2  4  6  8
+    //  10 12 14 16  
+    //  18 20 22 24
+    //  26 28 30 32
+
     std::vector<int> expected_output = {
-        // Block (0,0)
-        1, 2, 5, 6,
-        // Block (0,1)  
-        3, 4, 7, 8,
-        // Block (1,0)
-        9, 10, 13, 14,
-        // Block (1,1)
-        11, 12, 15, 16
+        2, 4, 6, 8,
+        10, 12, 14, 16,
+        18, 20, 22, 24,
+        26, 28, 30, 32
     };
     
     EXPECT_EQ(output_host, expected_output);
@@ -580,50 +502,200 @@ TEST_F(TestTensorView, StaticDistributedTensor4x4Matrix2x2Blocks)
     hip_check_error(hipFree(input_device));
 }
 
-// Additional test to show slicing functionality
-// __global__ void test_matrix_slicing_kernel(int* output)
-// {
-//     constexpr index_t MIterPerWarp = 2;
-//     constexpr index_t NIterPerWarp = 2; 
-//     constexpr index_t MWarp = 1;
-//     constexpr index_t NWarp = 1;
+__global__ void test_4x4_matrix_2x2_get_sub_blocks_input_kernel(int* input, int* output, bool)
+{
+    constexpr index_t global_shape_0 = 4;
+    constexpr index_t global_shape_1 = 4;
 
-//     constexpr auto matrix_dstr_encoding = tile_distribution_encoding<
-//         sequence<>,
-//         tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
-//         tuple<sequence<2, 1>>,
-//         tuple<sequence<1, 1>>,
-//         sequence<1, 2>,
-//         sequence<0, 0>>{};
+    // Tile distribution parameters
+    constexpr index_t MRepeat = 1;
+    constexpr index_t NRepeat = 1;
+    constexpr index_t MWarpPerBlock = 1;
+    constexpr index_t NWarpPerBlock = 1;
+    constexpr index_t MThreadPerWarp = 2;
+    constexpr index_t NThreadPerWarp = 2;
+    constexpr index_t MVectorPerThread = 2;
+    constexpr index_t NVectorPerThread = 2;
 
-//     constexpr auto matrix_dstr = make_static_tile_distribution(matrix_dstr_encoding);
-//     auto distributed_matrix = make_static_distributed_tensor<int>(matrix_dstr);
-    
-//     // Initialize with simple values
-//     distributed_matrix.initialize(42);
-    
-//     // Extract a 2x2 slice from the top-left corner  
-//     auto slice_data = distributed_matrix.get_y_sliced_thread_data(
-//         sequence<0, 0>{},    // slice origins
-//         sequence<2, 2>{}     // slice lengths  
-//     );
-    
-//     // Store slice size in output
-//     output[0] = slice_data.size();
-// }
+    // Tile distribution encoding for 4x4 matrix as 2x2 blocks
+    constexpr auto encoding = tile_distribution_encoding<
+        sequence<>,                                                      // No reduction dims
+        tuple<
+            // [H1_0, H1_1, H1_2, H1_3]
+            sequence<MRepeat, MWarpPerBlock, MThreadPerWarp, MVectorPerThread>,  // M-dim: 1 rep, 1 warp, 2 threads, 2 elements per thread
+            // [H2_0, H2_1, H2_2, H2_3]
+            sequence<NRepeat, NWarpPerBlock, NThreadPerWarp, NVectorPerThread>>, // N-dim: 1 rep, 1 warp, 2 threads, 2 elements per thread
+        // P minor and major combined:
+        // P1 -> (H1_1, H2_1) and P2 -> (H1_2, H2_2)
+        tuple<sequence<1, 2>, sequence<1,2>>,                                    // P major(Warp) -> H mapping
+        tuple<sequence<1, 1>, sequence<2,2>>,                                    // P minor(Thread) -> H mapping
+        // Combined mapping
+        // First row: Y -> {H1,H2} mapping
+        // Second row: which in H dim (0,1,2,3) we map Y to
+        // Y0 -> H1_0, Y1 -> H1_3, Y2 -> H2_0, Y3 -> H2_3 
+        sequence<1, 1, 2, 2>,                                                    // Trivial since we have only warp
+        sequence<0, 3, 0, 3>>{};                                                 // Map thread id to number of elements per thread (Hi_3)
 
-// TEST_F(TestTensorView, StaticDistributedTensorSlicing)
-// {
-//     int* output_device;
-//     hip_check_error(hipMalloc(&output_device, sizeof(int)));
+    auto distribution = make_static_tile_distribution(encoding);
+
+    constexpr auto hs_lengths_0 = encoding.hs_lengthss_[number<0>{}];
+    constexpr auto hs_lengths_1 = encoding.hs_lengthss_[number<1>{}];
+
+    constexpr index_t x0_size = reduce_on_sequence(hs_lengths_0, multiplies{}, number<1>{});
+    constexpr index_t x1_size = reduce_on_sequence(hs_lengths_1, multiplies{}, number<1>{});
+
+    if(threadIdx.x == 0 && blockIdx.x == 0)
+    {
+        printf("\n- Tile distribution created:\n");
+        printf("  X dimensions: %d\n", distribution.get_num_of_dimension_x());
+        printf("  Y dimensions: %d\n", distribution.get_num_of_dimension_y());
+        printf("  P dimensions: %d\n", distribution.get_num_of_dimension_p());
+        printf("  X lengths: [%d, %d]\n", x0_size, x1_size);
+    }
+    block_sync_lds();
+
+    auto global_view = make_naive_tensor_view_packed<address_space_enum::global>(
+            input, make_tuple(global_shape_0, global_shape_1));
+
+    const auto window_lengths = make_tuple(x0_size, x1_size);
+    auto tile_window = make_tile_window(global_view,
+                                            window_lengths,
+                                            {0, 0}, // Window origin as initializer list
+                                            distribution);
+    auto distributed_tensor = tile_window.load();
+
+    constexpr index_t max_elements = x0_size * x1_size;
+    float collected_values[max_elements];
+    index_t value_count = 0;
+
+    // Sweep through the distributed tensor and collect values using sweep_tile API
+    sweep_tile(distributed_tensor, [&](auto idx) {
+        if(value_count < max_elements)
+        {
+            collected_values[value_count] = distributed_tensor(idx);
+            value_count++;
+        }
+    });
+
+    index_t warp_id   = threadIdx.x / get_warp_size();
+    index_t thread_id = threadIdx.x % get_warp_size();
     
-//     test_matrix_slicing_kernel<<<1, 32>>>(output_device);
-//     hip_check_error(hipDeviceSynchronize());
+    static constexpr int print_thread_ids[] = {0, 1, 3, 4};
+    for(int sel : print_thread_ids)
+    {
+      block_sync_lds();
+      if(static_cast<int>(threadIdx.x) == sel)
+      {
+          printf("Partition index: (warp=%d, thread=%d)\n",
+                  static_cast<int>(warp_id),
+                  static_cast<int>(thread_id));
+          printf("Collected values: ");
+          for(index_t i = 0; i < value_count; i++)
+          {
+              printf("%.0f", collected_values[i]);
+              if(i < value_count - 1)
+                  printf(", ");
+          }
+          printf("\n\n");
+      }
+      block_sync_lds();
+    }
+
+    // Create output tensor view
+    auto output_global_view = make_naive_tensor_view_packed<address_space_enum::global>(
+        output, make_tuple(8, 4));
+
+    constexpr auto output_encoding = tile_distribution_encoding<
+        sequence<>,                                                      // No reduction dims
+        tuple<
+            // [H1_0, H1_1, H1_2, H1_3]
+            sequence<MRepeat, MWarpPerBlock, MThreadPerWarp, MVectorPerThread>,  // M-dim: 1 rep, 1 warp, 2 threads, 2 elements per thread
+            // [H2_0, H2_1, H2_2, H2_3]
+            sequence<NRepeat, NWarpPerBlock, NThreadPerWarp, NVectorPerThread / 2>>, // N-dim: 1 rep, 1 warp, 2 threads, 1 elements per thread
+        // P minor and major combined:
+        // P1 -> (H1_1, H2_1) and P2 -> (H1_2, H2_2)
+        tuple<sequence<1, 2>, sequence<1,2>>,                                    // P major(Warp) -> H mapping
+        tuple<sequence<1, 1>, sequence<2,2>>,                                    // P minor(Thread) -> H mapping
+        // Combined mapping
+        // First row: Y -> {H1,H2} mapping
+        // Second row: which in H dim (0,1,2,3) we map Y to
+        // Y0 -> H1_0, Y1 -> H1_3, Y2 -> H2_0, Y3 -> H2_3 
+        sequence<1, 1, 2, 2>,                                                    // Trivial since we have only warp
+        sequence<0, 3, 0, 3>>{};   
+
+    auto output_distribution = make_static_tile_distribution(output_encoding);
+    auto output_distributed_tensor = make_static_distributed_tensor<int>(output_distribution);
+
+    constexpr auto y_lengths = distributed_tensor.get_tile_distribution().get_ys_to_d_descriptor().get_lengths();
+    constexpr auto y_index_zeros = uniform_sequence_gen_t<4, 0>{}; // 4 Y dimensions
+
+    output_distributed_tensor.get_thread_buffer() = distributed_tensor.get_y_sliced_thread_data(
+        merge_sequences(
+            sequence<0, 0>{},      // Start from (0,0)
+            y_index_zeros),        // Zeros for other Y dimensions
+        merge_sequences(
+            sequence<1, 1>{},      // Take 1x1 elements per thread (adjust as needed)
+            to_sequence(y_lengths))); // Keep original Y lengths structure
+
+    // Create output tile window with the same distribution
+    auto output_tile_window = make_tile_window(output_global_view,
+                                              window_lengths,
+                                              {0, 0},
+                                              output_distribution);
+
+    // Store the distributed tensor to the output
+    output_tile_window.store(output_distributed_tensor);
+}
+
+TEST_F(TestTensorView, StaticDistributedTensor4x4Matrix2x2Blocks_get_sub_blocks)
+{
+    // clang format-off
+    std::vector<int> data_host = 
+      {
+        1, 2, 3 ,4,
+        5, 6, 7, 8, 
+        9, 10, 11, 12,
+        13, 14, 15, 16
+      };
+    // clang format-on
+
+    constexpr int total_elements = 8; // 2 times 2 x 2 matrix = 8 elements
+    std::vector<int> output_host(total_elements, 0);
+    int* output_device;
     
-//     int slice_size;
-//     hip_check_error(hipMemcpy(&slice_size, output_device, sizeof(int), hipMemcpyDeviceToHost));
+    int* input_device;
+    hip_check_error(hipMalloc(&input_device, data_host.size() * sizeof(int)));
+    hip_check_error(hipMemcpy(input_device, data_host.data(), data_host.size() * sizeof(int), hipMemcpyHostToDevice));
+
+    hip_check_error(hipMalloc(&output_device, total_elements * sizeof(int)));
+    hip_check_error(hipMemset(output_device, 0, total_elements * sizeof(int)));
     
-//     EXPECT_GT(slice_size, 0);
+    // Run kernel with debug output
+    const dim3 block_dim(4); // 4 threads to cover 4 blocks
+    const dim3 grid_dim(1);
+    test_4x4_matrix_2x2_blocks_get_sub_blocks_kernel<<<grid_dim, block_dim>>>(input_device, output_device, true);
+    hip_check_error(hipDeviceSynchronize());
     
-//     hipFree(output_device);
-// }
+    // Copy results back
+    hip_check_error(hipMemcpy(
+        output_host.data(), output_device, total_elements * sizeof(int), hipMemcpyDeviceToHost));
+    
+    // Verify the 4x4 matrix is correctly organized as 2x2 blocks
+    // Expected matrix:
+    //  1  2 
+    //  5  6 
+    //  11 12
+    //  15 16
+
+    std::vector<int> expected_output = {
+        1, 2,
+        5, 6,
+        11, 12,
+        15, 16
+    };
+    
+    EXPECT_EQ(output_host, expected_output);
+    
+    hip_check_error(hipFree(output_device));
+    hip_check_error(hipFree(input_device));
+}
