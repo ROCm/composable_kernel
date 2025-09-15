@@ -9,11 +9,15 @@
 namespace ck_tile {
 
 // BlockDropoutBwd and BlockDropout (fwd) support two warp gemm tile sizes: 32x32 (MFMA only) and
-// 16x16 (MFMA and WMMA). fwd and bwd can use different tile sizes, generated random numbers will be
-// the same. It is also the same for MFMA and WMMA. The (batch, head, lane) coordinate determines an
-// offset in a random sequence, the (row, col) coordinate of the current 32x32 tile in the P matrix
-// determines a subsequence. This means that sequences are non-overlapping, reproducible and
-// independent of mask or window.
+// 16x16 (MFMA and WMMA). Even if fwd and bwd use different tile sizes, generated random
+// numbers will be the same, they are also the same for MFMA (on CDNA), WMMA (on RDNA), or host
+// (for verification, see ck_tile/host/reference/reference_batched_dropout_randval.hpp).
+//
+// The (row, col) coordinate of the current 32x32 tile in the P matrix determines a subsequence of
+// random numbers (ph_subsequence).
+// The (batch, head, 0..63) coordinate determines an offset in the subsequence (ph_head_offset and
+// ph_offset).
+// This means that subsequences are non-overlapping, reproducible and independent of mask or window.
 //
 // There are 3 modes (all produce the same results):
 //  * For 32x32 MFMA tile each of 64 lanes generates 4 * 32 bits or 16 bytes, so one warp generates
@@ -25,6 +29,11 @@ namespace ck_tile {
 //  * For 16x16 WMMA tile one warp generates 1/2 of the 32x32 tile ((16 * 16) / (32 * 16) = 1/2), 2
 //  warps generate the same 64 * 16 random bytes and each uses its own half. If kMPerBlock > MWarp *
 //  WG::kM one warp can generate two 16x16 tiles.
+
+namespace detail {
+// The number of Philox 4x32 results required to fill 32x32 tile of 8-bit values
+constexpr index_t philox_per_tile = 64;
+} // namespace detail
 
 struct NullBlockDropout
 {
@@ -51,8 +60,8 @@ struct BlockDropout
                                      uint8_t p_undrop_in_uint8_t_,
                                      bool is_store_randval_)
         : ph_seed(warp_uniform(seed)),
-          // 64 is max warp size
-          ph_head_offset(warp_uniform(offset + (i_batch * nheads + i_head) * 64)),
+          ph_head_offset(
+              warp_uniform(offset + (i_batch * nheads + i_head) * detail::philox_per_tile)),
           rp_undrop(rp_undrop_),
           p_undrop_in_uint8_t(p_undrop_in_uint8_t_),
           is_store_randval(is_store_randval_)
@@ -257,8 +266,8 @@ struct BlockDropout
                 // from a separate subsequence of Philox)
                 const unsigned long long ph_subsequence =
                     bit_cast<unsigned long long>(make_uint2(wg_m0, wg_n0));
-                const index_t ph_lane_offset = get_lane_id();
-                const ck_tile::philox ph(ph_seed, ph_head_offset + ph_lane_offset);
+                const index_t ph_offset = get_lane_id();
+                const ck_tile::philox ph(ph_seed, ph_head_offset + ph_offset);
                 static_assert(randval_dist_generated.kThreadElementSpaceSize == 16);
                 ph.get_random_16x8(random_uint8_t, ph_subsequence);
             }
@@ -271,10 +280,10 @@ struct BlockDropout
                 const index_t subtile_m0 = wg_m0 % 2;
                 if constexpr(get_warp_size() == 32)
                 {
-                    const index_t ph_lane_offset = (get_lane_id() & 15) +
-                                                   (((get_lane_id() >> 4) & 1) << 5) +
-                                                   ((wg_n0 % 2) << 4);
-                    const ck_tile::philox ph(ph_seed, ph_head_offset + ph_lane_offset);
+                    const index_t ph_offset = (get_lane_id() & 15) +
+                                              (((get_lane_id() >> 4) & 1) << 5) +
+                                              ((wg_n0 % 2) << 4);
+                    const ck_tile::philox ph(ph_seed, ph_head_offset + ph_offset);
                     if constexpr(MIterPerWarp == 1)
                     {
                         static_assert(randval_dist_generated.kThreadElementSpaceSize == 8);
@@ -289,9 +298,9 @@ struct BlockDropout
                 }
                 else
                 {
-                    const index_t subtile_n0     = (get_lane_id() >> 4) & 1;
-                    const index_t ph_lane_offset = (get_lane_id() & 47) + ((wg_n0 % 2) << 4);
-                    const ck_tile::philox ph(ph_seed, ph_head_offset + ph_lane_offset);
+                    const index_t subtile_n0 = (get_lane_id() >> 4) & 1;
+                    const index_t ph_offset  = (get_lane_id() & 47) + ((wg_n0 % 2) << 4);
+                    const ck_tile::philox ph(ph_seed, ph_head_offset + ph_offset);
                     if constexpr(MIterPerWarp == 1)
                     {
                         static_assert(randval_dist_generated.kThreadElementSpaceSize == 4);
@@ -407,8 +416,8 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
                                         float rp_undrop_,
                                         uint8_t p_undrop_in_uint8_t_)
         : ph_seed(warp_uniform(seed)),
-          // 64 is max warp size
-          ph_head_offset(warp_uniform(offset + (i_batch * nheads + i_head) * 64)),
+          ph_head_offset(
+              warp_uniform(offset + (i_batch * nheads + i_head) * detail::philox_per_tile)),
           rp_undrop(rp_undrop_),
           p_undrop_in_uint8_t(p_undrop_in_uint8_t_)
     {
@@ -534,8 +543,8 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
                 // taken from a separate subsequence of Philox)
                 const unsigned long long ph_subsequence =
                     bit_cast<unsigned long long>(make_uint2(wg_m0, wg_n0));
-                const index_t ph_lane_offset = get_lane_id();
-                const ck_tile::philox ph(ph_seed, ph_head_offset + ph_lane_offset);
+                const index_t ph_offset = get_lane_id();
+                const ck_tile::philox ph(ph_seed, ph_head_offset + ph_offset);
                 static_assert(randval_dist_generated.kThreadElementSpaceSize == 16);
                 ph.get_random_16x8(random_uint8_t, ph_subsequence);
             }
@@ -548,10 +557,10 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
                 const index_t subtile_m0 = wg_m0 % 2;
                 if constexpr(get_warp_size() == 32)
                 {
-                    const index_t ph_lane_offset = (get_lane_id() & 15) +
-                                                   (((get_lane_id() >> 4) & 1) << 5) +
-                                                   ((wg_n0 % 2) << 4);
-                    const ck_tile::philox ph(ph_seed, ph_head_offset + ph_lane_offset);
+                    const index_t ph_offset = (get_lane_id() & 15) +
+                                              (((get_lane_id() >> 4) & 1) << 5) +
+                                              ((wg_n0 % 2) << 4);
+                    const ck_tile::philox ph(ph_seed, ph_head_offset + ph_offset);
                     if constexpr(MIterPerWarp == 1)
                     {
                         static_assert(randval_dist_generated.kThreadElementSpaceSize == 8);
@@ -566,9 +575,9 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
                 }
                 else
                 {
-                    const index_t subtile_n0     = (get_lane_id() >> 4) & 1;
-                    const index_t ph_lane_offset = (get_lane_id() & 47) + ((wg_n0 % 2) << 4);
-                    const ck_tile::philox ph(ph_seed, ph_head_offset + ph_lane_offset);
+                    const index_t subtile_n0 = (get_lane_id() >> 4) & 1;
+                    const index_t ph_offset  = (get_lane_id() & 47) + ((wg_n0 % 2) << 4);
+                    const ck_tile::philox ph(ph_seed, ph_head_offset + ph_offset);
                     if constexpr(MIterPerWarp == 1)
                     {
                         static_assert(randval_dist_generated.kThreadElementSpaceSize == 4);
