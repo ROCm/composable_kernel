@@ -29,6 +29,128 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
+void calculate_reference_multi_dimensional(const ck_tile::HostTensor<::ADataType>& a_full_dims,
+                                           const ck_tile::HostTensor<::BDataType>& b_full_dims,
+                                           ck_tile::HostTensor<::EDataType>& e_full_dims_host_ref,
+                                           const std::vector<ck_tile::index_t>& G_dims,
+                                           const std::vector<ck_tile::index_t>& M_dims,
+                                           const std::vector<ck_tile::index_t>& N_dims,
+                                           const std::vector<ck_tile::index_t>& K_dims,
+                                           const std::vector<ck_tile::index_t>& A_dims,
+                                           const std::vector<ck_tile::index_t>& B_dims,
+                                           const std::vector<ck_tile::index_t>& E_dims)
+{
+    std::cout << "Calculating reference using multi-dimensional indexing..." << std::endl;
+
+    std::vector<std::size_t> g_idx(G_dims.size());
+    std::vector<std::size_t> m_idx(M_dims.size());
+    std::vector<std::size_t> n_idx(N_dims.size());
+    std::vector<std::size_t> k_idx(K_dims.size());
+    std::vector<std::size_t> a_idx, b_idx, e_idx;
+
+    a_idx.reserve(A_dims.size());
+    b_idx.reserve(B_dims.size());
+    e_idx.reserve(E_dims.size());
+
+    for(ck_tile::index_t g_flat = 0; g_flat < calculate_total_elements(G_dims); ++g_flat)
+    {
+        ck_tile::index_t temp = g_flat;
+        for(int i = G_dims.size() - 1; i >= 0; --i)
+        {
+            g_idx[i] = temp % G_dims[i];
+            temp /= G_dims[i];
+        }
+
+        for(ck_tile::index_t m_flat = 0; m_flat < calculate_total_elements(M_dims); ++m_flat)
+        {
+            temp = m_flat;
+            for(int i = M_dims.size() - 1; i >= 0; --i)
+            {
+                m_idx[i] = temp % M_dims[i];
+                temp /= M_dims[i];
+            }
+
+            for(ck_tile::index_t n_flat = 0; n_flat < calculate_total_elements(N_dims); ++n_flat)
+            {
+                temp = n_flat;
+                for(int i = N_dims.size() - 1; i >= 0; --i)
+                {
+                    n_idx[i] = temp % N_dims[i];
+                    temp /= N_dims[i];
+                }
+
+                ::AccDataType sum = 0;
+
+                for(ck_tile::index_t k_flat = 0; k_flat < calculate_total_elements(K_dims);
+                    ++k_flat)
+                {
+                    temp = k_flat;
+                    for(int i = K_dims.size() - 1; i >= 0; --i)
+                    {
+                        k_idx[i] = temp % K_dims[i];
+                        temp /= K_dims[i];
+                    }
+
+                    a_idx.clear();
+                    b_idx.clear();
+
+                    a_idx.insert(a_idx.end(), g_idx.begin(), g_idx.end());
+                    a_idx.insert(a_idx.end(), m_idx.begin(), m_idx.end());
+                    a_idx.insert(a_idx.end(), k_idx.begin(), k_idx.end());
+
+                    b_idx.insert(b_idx.end(), g_idx.begin(), g_idx.end());
+                    b_idx.insert(b_idx.end(), n_idx.begin(), n_idx.end());
+                    b_idx.insert(b_idx.end(), k_idx.begin(), k_idx.end());
+
+                    auto a_val = a_full_dims(a_idx);
+                    auto b_val = b_full_dims(b_idx);
+
+                    sum += static_cast<::AccDataType>(a_val) * static_cast<::AccDataType>(b_val);
+                }
+
+                e_idx.clear();
+                e_idx.insert(e_idx.end(), g_idx.begin(), g_idx.end());
+                e_idx.insert(e_idx.end(), m_idx.begin(), m_idx.end());
+                e_idx.insert(e_idx.end(), n_idx.begin(), n_idx.end());
+
+                e_full_dims_host_ref(e_idx) = static_cast<::EDataType>(sum);
+            }
+        }
+    }
+}
+
+void calculate_reference_flat_indexing(const ck_tile::HostTensor<::ADataType>& a_full_dims,
+                                       const ck_tile::HostTensor<::BDataType>& b_full_dims,
+                                       ck_tile::HostTensor<::EDataType>& e_full_dims_host_ref,
+                                       ck_tile::index_t G_total,
+                                       ck_tile::index_t M_total,
+                                       ck_tile::index_t N_total,
+                                       ck_tile::index_t K_total)
+{
+    std::cout << "Calculating reference using flat indexing..." << std::endl;
+
+    for(ck_tile::index_t g_flat = 0; g_flat < G_total; ++g_flat)
+    {
+        for(ck_tile::index_t m_flat = 0; m_flat < M_total; ++m_flat)
+        {
+            for(ck_tile::index_t n_flat = 0; n_flat < N_total; ++n_flat)
+            {
+                ::AccDataType sum = 0;
+                for(ck_tile::index_t k_flat = 0; k_flat < K_total; ++k_flat)
+                {
+                    auto a_val =
+                        a_full_dims.mData[g_flat * M_total * K_total + m_flat * K_total + k_flat];
+                    auto b_val =
+                        b_full_dims.mData[g_flat * N_total * K_total + n_flat * K_total + k_flat];
+                    sum += static_cast<::AccDataType>(a_val) * static_cast<::AccDataType>(b_val);
+                }
+                e_full_dims_host_ref.mData[g_flat * M_total * N_total + m_flat * N_total + n_flat] =
+                    static_cast<::EDataType>(sum);
+            }
+        }
+    }
+}
+
 template <typename ADataType,
           typename BDataType,
           typename DsDataType,
@@ -264,216 +386,52 @@ int run_batched_contraction_example_with_layouts(
     e_full_dims_dev_buf.FromDevice(e_full_dims_dev.data());
     std::cout << "GPU results retrieved from device." << std::endl;
 
-    // This function loops over ANY number of dimensions
-    // std::function<void(std::vector<std::size_t>&,
-    //                    const std::vector<ck_tile::index_t>&,
-    //                    std::size_t,
-    //                    std::function<void()>)>
-    //     loop_dimensions =
-    //         [&](std::vector<std::size_t>& indices, // Current index values [i0, i1, i2, ...]
-    //             const std::vector<ck_tile::index_t>&
-    //                 dims,                           // Dimension sizes [dim0, dim1, dim2, ...]
-    //             std::size_t dim_idx,                // Which dimension we're currently looping
-    //             std::function<void()> inner_func) { // What to do when all dimensions are set
-    //             if(dim_idx >= dims.size())
-    //             {
-    //                 inner_func(); // All dimensions set, execute the inner computation
-    //                 return;
-    //             }
-
-    //             // Loop over current dimension
-    //             for(ck_tile::index_t i = 0; i < dims[dim_idx]; ++i)
-    //             {
-    //                 indices[dim_idx] = i; // Set current dimension index
-    //                 loop_dimensions(
-    //                     indices, dims, dim_idx + 1, inner_func); // Recurse to next dimension
-    //             }
-    //         };
-
     bool pass = true;
     if(arg_parser.get_int("v") == 1)
     {
+
+        std::cout << "Computing CPU reference..." << std::endl;
+
         ck_tile::HostTensor<::EDataType> e_full_dims_host_ref(
             ck_tile::HostTensorDescriptor(E_dims, E_strides));
         e_full_dims_host_ref.SetZero();
 
-        std::cout << "Computing CPU reference..." << std::endl;
-
-        // progress tracking
         auto start_time = std::chrono::high_resolution_clock::now();
-        // ck_tile::index_t total_output_elements = G_total * M_total * N_total;
-        // ck_tile::index_t completed_elements    = 0;
-        // ck_tile::index_t next_progress_report  = total_output_elements / 10; // Report every 10%
 
-        // std::vector<std::size_t> g_idx(G_dims.size());
-        // std::vector<std::size_t> m_idx(M_dims.size());
-        // std::vector<std::size_t> n_idx(N_dims.size());
-        // std::vector<std::size_t> k_idx(K_dims.size());
-        // std::vector<std::size_t> a_idx, b_idx, e_idx;
+        calculate_reference_flat_indexing(
+            a_full_dims, b_full_dims, e_full_dims_host_ref, G_total, M_total, N_total, K_total);
 
-        // a_idx.reserve(A_dims.size());
-        // b_idx.reserve(B_dims.size());
-        // e_idx.reserve(E_dims.size());
+        ck_tile::HostTensor<::EDataType> e_full_dims_host_ref1(
+            ck_tile::HostTensorDescriptor(E_dims, E_strides));
+        e_full_dims_host_ref1.SetZero();
+        calculate_reference_multi_dimensional(a_full_dims,
+                                              b_full_dims,
+                                              e_full_dims_host_ref1,
+                                              G_dims,
+                                              M_dims,
+                                              N_dims,
+                                              K_dims,
+                                              A_dims,
+                                              B_dims,
+                                              E_dims);
 
-        // for(ck_tile::index_t g_flat = 0; g_flat < G_total; ++g_flat){
-        //     // Convert flat G index to multi-dimensional
-        //     ck_tile::index_t temp = g_flat;
-        //     for(int i = G_dims.size() - 1; i >= 0; --i) {
-        //         g_idx[i] = temp % G_dims[i];
-        //         temp /= G_dims[i];
-        //     }
-
-        //     for(ck_tile::index_t m_flat = 0; m_flat < M_total; ++m_flat) {
-        //         // Convert flat M index to multi-dimensional
-        //         temp = m_flat;
-        //         for(int i = M_dims.size() - 1; i >= 0; --i) {
-        //             m_idx[i] = temp % M_dims[i];
-        //             temp /= M_dims[i];
-        //         }
-
-        //         for(ck_tile::index_t n_flat = 0; n_flat < N_total; ++n_flat) {
-        //             // Convert flat N index to multi-dimensional
-        //             temp = n_flat;
-        //             for(int i = N_dims.size() - 1; i >= 0; --i) {
-        //                 n_idx[i] = temp % N_dims[i];
-        //                 temp /= N_dims[i];
-        //             }
-
-        //             ::AccDataType sum = 0;
-
-        //             for(ck_tile::index_t k_flat = 0; k_flat < K_total; ++k_flat) {
-        //                 // Convert flat K index to multi-dimensional
-        //                 temp = k_flat;
-        //                 for(int i = K_dims.size() - 1; i >= 0; --i) {
-        //                     k_idx[i] = temp % K_dims[i];
-        //                     temp /= K_dims[i];
-        //                 }
-
-        //                 a_idx.clear();
-        //                 b_idx.clear();
-
-        //                 // A[G_indices, M_indices, K_indices]
-        //                 a_idx.insert(a_idx.end(), g_idx.begin(), g_idx.end());
-        //                 a_idx.insert(a_idx.end(), m_idx.begin(), m_idx.end());
-        //                 a_idx.insert(a_idx.end(), k_idx.begin(), k_idx.end());
-
-        //                 // B[G_indices, N_indices, K_indices]
-        //                 b_idx.insert(b_idx.end(), g_idx.begin(), g_idx.end());
-        //                 b_idx.insert(b_idx.end(), n_idx.begin(), n_idx.end());
-        //                 b_idx.insert(b_idx.end(), k_idx.begin(), k_idx.end());
-
-        //                 auto a_val = a_full_dims(a_idx);
-        //                 auto b_val = b_full_dims(b_idx);
-
-        //                 sum += static_cast<::AccDataType>(a_val) *
-        //                 static_cast<::AccDataType>(b_val);
-        //             }
-
-        //             e_idx.clear();
-        //             e_idx.insert(e_idx.end(), g_idx.begin(), g_idx.end());
-        //             e_idx.insert(e_idx.end(), m_idx.begin(), m_idx.end());
-        //             e_idx.insert(e_idx.end(), n_idx.begin(), n_idx.end());
-
-        //             e_full_dims_host_ref1(e_idx) = static_cast<::EDataType>(sum);
-
-        //             ++completed_elements;
-        //             if(completed_elements >= next_progress_report || completed_elements ==
-        //             total_output_elements) {
-        //                 auto now = std::chrono::high_resolution_clock::now();
-        //                 auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now
-        //                 - start_time); int percentage = (100 * completed_elements) /
-        //                 total_output_elements; std::cout << "Progress: " << percentage << "% ("
-        //                 << completed_elements
-        //                         << "/" << total_output_elements << " elements, " <<
-        //                         elapsed.count() << "ms)" << std::endl;
-        //                 next_progress_report += total_output_elements / 10;
-        //             }
-        //         }
-        //     }
-        // }
-
-        for(ck_tile::index_t g_flat = 0; g_flat < G_total; ++g_flat)
+        bool identical = true;
+        for(std::size_t i = 0; i < e_full_dims_host_ref1.mData.size(); ++i)
         {
-            for(ck_tile::index_t m_flat = 0; m_flat < M_total; ++m_flat)
+            if(std::fabs(e_full_dims_host_ref1.mData[i] - e_full_dims_host_ref.mData[i]) >
+               std::numeric_limits<::EDataType>::epsilon() * 10)
             {
-                for(ck_tile::index_t n_flat = 0; n_flat < N_total; ++n_flat)
-                {
-                    ::AccDataType sum = 0;
-                    for(ck_tile::index_t k_flat = 0; k_flat < K_total; ++k_flat)
-                    {
-                        auto a_val =
-                            a_full_dims
-                                .mData[g_flat * M_total * K_total + m_flat * K_total + k_flat];
-                        auto b_val =
-                            b_full_dims
-                                .mData[g_flat * N_total * K_total + n_flat * K_total + k_flat];
-                        sum +=
-                            static_cast<::AccDataType>(a_val) * static_cast<::AccDataType>(b_val);
-                    }
-                    e_full_dims_host_ref
-                        .mData[g_flat * M_total * N_total + m_flat * N_total + n_flat] =
-                        static_cast<::EDataType>(sum);
-                }
+                identical = false;
+                std::cout << "Difference at index " << i << ": "
+                          << "ref1=" << static_cast<float>(e_full_dims_host_ref1.mData[i]) << ", "
+                          << "ref=" << static_cast<float>(e_full_dims_host_ref.mData[i])
+                          << std::endl;
+                break;
             }
         }
 
-        // std::vector<std::size_t> g_indices(G_dims.size());
-        // std::vector<std::size_t> m_indices(M_dims.size());
-        // std::vector<std::size_t> n_indices(N_dims.size());
-        // std::vector<std::size_t> k_indices(K_dims.size());
+        std::cout << "Comparison result: " << (identical ? "IDENTICAL" : "DIFFERENT") << std::endl;
 
-        // loop_dimensions(g_indices, G_dims, 0, [&]() {
-        //     loop_dimensions(m_indices, M_dims, 0, [&]() {
-        //         loop_dimensions(n_indices, N_dims, 0, [&]() {
-        //             ::AccDataType sum = 0;
-
-        //             loop_dimensions(k_indices, K_dims, 0, [&]() {
-        //                 std::vector<std::size_t> a_idx, b_idx;
-
-        //                 // A[G_indices, M_indices, K_indices]
-        //                 a_idx.insert(a_idx.end(), g_indices.begin(), g_indices.end());
-        //                 a_idx.insert(a_idx.end(), m_indices.begin(), m_indices.end());
-        //                 a_idx.insert(a_idx.end(), k_indices.begin(), k_indices.end());
-
-        //                 // B[G_indices, N_indices, K_indices]
-        //                 b_idx.insert(b_idx.end(), g_indices.begin(), g_indices.end());
-        //                 b_idx.insert(b_idx.end(), n_indices.begin(), n_indices.end());
-        //                 b_idx.insert(b_idx.end(), k_indices.begin(), k_indices.end());
-
-        //                 auto a_val = a_full_dims(a_idx);
-        //                 auto b_val = b_full_dims(b_idx);
-
-        //                 sum +=
-        //                     static_cast<::AccDataType>(a_val) *
-        //                     static_cast<::AccDataType>(b_val);
-        //             });
-
-        //             std::vector<std::size_t> e_idx;
-        //             e_idx.insert(e_idx.end(), g_indices.begin(), g_indices.end());
-        //             e_idx.insert(e_idx.end(), m_indices.begin(), m_indices.end());
-        //             e_idx.insert(e_idx.end(), n_indices.begin(), n_indices.end());
-
-        //             e_full_dims_host_ref(e_idx) = static_cast<::EDataType>(sum);
-
-        //             ++completed_elements;
-        //             if(completed_elements >= next_progress_report ||
-        //                completed_elements == total_output_elements)
-        //             {
-        //                 auto now = std::chrono::high_resolution_clock::now();
-        //                 auto elapsed =
-        //                     std::chrono::duration_cast<std::chrono::milliseconds>(now -
-        //                     start_time);
-
-        //                 int percentage = (100 * completed_elements) / total_output_elements;
-        //                 std::cout << "Progress: " << percentage << "% (" << completed_elements
-        //                           << "/" << total_output_elements << " elements, "
-        //                           << elapsed.count() << "ms)" << std::endl;
-
-        //                 next_progress_report += total_output_elements / 10; // Next 10%
-        //             }
-        //         });
-        //     });
-        // });
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
