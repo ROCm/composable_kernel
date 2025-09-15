@@ -38,6 +38,10 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                       const CDEElementwiseOperation c_element_op)
 {
     using RowMajor = ck::tensor_layout::gemm::RowMajor;
+    using ElementDataTypeA =
+        ck::conditional_t<is_same_v<ComputeTypeA, ck::tf32_t>, float, ComputeTypeA>;
+    using ElementDataTypeB =
+        ck::conditional_t<is_same_v<ComputeTypeB, ck::tf32_t>, float, ComputeTypeB>;
 
     const int row_idx = blockIdx.x * blockDim.x + threadIdx.x;
     const int col_idx = blockIdx.y * blockDim.y + threadIdx.y;
@@ -46,8 +50,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
     {
 
         AccDataType v_acc{0};
-        ComputeTypeA v_a{0};
-        ComputeTypeB v_b{0};
+        ElementDataTypeA v_a{0};
+        ElementDataTypeB v_b{0};
         CDataType v_c{0};
 
         for(int k_idx = 0; k_idx < k; ++k_idx)
@@ -76,7 +80,16 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
             // apply b_element_op
             b_element_op(v_b, p_b_grid[element_idx_b]);
             // multiply and accumulate
-            v_acc += type_convert<AccDataType>(v_a) * type_convert<AccDataType>(v_b);
+            if constexpr(is_same_v<ComputeTypeA, ComputeTypeB> &&
+                         is_same_v<ComputeTypeA, ck::tf32_t>)
+            { // only for tf32 now
+                v_acc += ck::type_convert<AccDataType>(ck::type_convert<ComputeTypeA>(v_a)) *
+                         ck::type_convert<AccDataType>(ck::type_convert<ComputeTypeB>(v_b));
+            }
+            else
+            {
+                v_acc += type_convert<AccDataType>(v_a) * type_convert<AccDataType>(v_b);
+            }
         }
         // apply c_element_op
         c_element_op(v_c, v_acc);
