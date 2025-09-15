@@ -47,7 +47,7 @@ class TestGroupedConvndFwd : public ::testing::Test
                                true,  // do_verification
                                1,     // init_method: integer value
                                false, // do_log
-                               true,  // time_kernel
+                               false, // time_kernel
                                param,
                                out_element_op);
         }
