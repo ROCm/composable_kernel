@@ -76,7 +76,7 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
             hipDeviceProp_t prop;
             int deviceId = 0; // default device
 
-            constexpr int block_size = FlatmmPipeline::BlockSize().x;
+            constexpr int block_size = MXFlatmmKernel::BlockSize().x;
             int dync_smem_size       = 0;
             int maxActiveBlocksPerCU = 0;
 
@@ -86,7 +86,7 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
                 &maxActiveBlocksPerCU,
                 reinterpret_cast<void*>(
                     kentry2<block_size,
-                            FlatmmPipeline,
+                            MXFlatmmKernel,
                             FlatmmKernelArgs<ScaleM, ScaleN, DsDataType::size()>>),
                 block_size,
                 dync_smem_size);

@@ -284,12 +284,14 @@ CK_TILE_HOST void reference_mx_gemm(const HostTensor<ADataType>& a_m_k,
 
     const std::size_t ScaleBlockSize = K / scale_a.get_length(1);
 
-    HostTensor<AccDataType> a_m_k_scaled({M, K}, {K, 1});
-    HostTensor<AccDataType> b_k_n_scaled({K, N}, {1, N});
+    HostTensor<AccDataType> a_m_k_scaled({std::size_t(M), std::size_t(K)},
+                                         {std::size_t(K), std::size_t(1)});
+    HostTensor<AccDataType> b_k_n_scaled({std::size_t(K), std::size_t(N)},
+                                         {std::size_t(1), std::size_t(K)});
 
-    for(int m = 0; m < M; ++m)
+    for(std::size_t m = 0; m < M; ++m)
     {
-        for(int k = 0; k < K; ++k)
+        for(std::size_t k = 0; k < K; ++k)
         {
             if constexpr(std::is_same_v<ADataType, pk_fp4_t>)
             {
@@ -297,7 +299,7 @@ CK_TILE_HOST void reference_mx_gemm(const HostTensor<ADataType>& a_m_k,
                     continue; // skip odd k
 
                 auto a_f4x2  = a_m_k(m, k);
-                auto a_scale = scale_a(m, k / ScaleBlockSize);
+                auto a_scale = ck_tile::type_convert<AccDataType>(scale_a(m, k / ScaleBlockSize));
                 // auto f4_lo   = ck_tile::type_convert<AccDataType>(f4x2)[0];
                 // auto f4_hi   = ck_tile::type_convert<AccDataType>(f4x2)[1];
                 auto a_f4_lo =
@@ -311,9 +313,9 @@ CK_TILE_HOST void reference_mx_gemm(const HostTensor<ADataType>& a_m_k,
         }
     }
 
-    for(int n = 0; n < N; n++)
+    for(std::size_t n = 0; n < N; n++)
     {
-        for(int k = 0; k < K; k++)
+        for(std::size_t k = 0; k < K; k++)
         {
             if constexpr(std::is_same_v<BDataType, pk_fp4_t>)
             {
@@ -321,7 +323,7 @@ CK_TILE_HOST void reference_mx_gemm(const HostTensor<ADataType>& a_m_k,
                     continue; // skip odd k
 
                 auto b_f4x2  = b_k_n(k, n);
-                auto b_scale = scale_b(k / ScaleBlockSize, n);
+                auto b_scale = ck_tile::type_convert<AccDataType>(scale_b(k / ScaleBlockSize, n));
                 // auto f4_lo   = ck_tile::type_convert<AccDataType>(f4x2)[0];
                 // auto f4_hi   = ck_tile::type_convert<AccDataType>(f4x2)[1];
                 auto b_f4_lo =
