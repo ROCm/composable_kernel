@@ -69,6 +69,5 @@
 #include "ck_tile/ops/gemm/warp/warp_gemm_smfmac_impl.hpp"
 #include "ck_tile/ops/gemm/warp/warp_wmma_gemm.hpp"
 #include "ck_tile/ops/common/generic_2d_block_shape.hpp"
-#include "ck_tile/ops/common/streamk_common.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/common/utils.hpp"
