@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /*
 Gemm + Gemm fused operation. Computes C_m_o = A_m_k * B0_k_n * B1_n_o
@@ -81,11 +81,11 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmGemm_X
     16,          // AK1
     16,          // BK1
     4,           // B1K1
-    32,          // MPerXDL
-    32,          // NPerXDL
-    1,           // MXdlPerWave
-    4,           // NXdlPerWave
-    4,           // Gemm1NXdlPerWave
+    16,          // MPerXDL
+    16,          // NPerXDL
+    2,           // MXdlPerWave
+    8,           // NXdlPerWave
+    8,           // Gemm1NXdlPerWave
     S<4, 64, 1>, // ABlockTransfer
     S<1, 0, 2>,
     S<1, 0, 2>,
@@ -110,7 +110,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmGemm_X
     1,              // CShuffleMXdlPerWavePerShuffle
     2,              // CShuffleNXdlPerWavePerShuffle
     S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-    8>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
+    4>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
 
 using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
                                                                                 B0DataType,

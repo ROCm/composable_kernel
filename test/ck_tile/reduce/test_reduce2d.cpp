@@ -59,7 +59,7 @@ class TestCkTileReduce : public ::testing::Test
         using Kernel = ck_tile::Reduce<Problem>;
 
         // Launch configuration
-        constexpr ck_tile::index_t kBlockSize  = 256;
+        const ck_tile::index_t kBlockSize      = Kernel::BlockSize();
         constexpr ck_tile::index_t kBlockPerCu = 1;
 
         ck_tile::index_t kGridSize =

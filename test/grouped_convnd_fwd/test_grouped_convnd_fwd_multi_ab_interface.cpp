@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -70,10 +70,10 @@ class TestGroupedConvndFwdMultiABInterfaceBase : public ::testing::Test
             32,          // KPerBlock
             8,           // AK1
             8,           // BK1
-            32,          // MPerXdl
-            32,          // NPerXdl
-            2,           // MXdlPerWave
-            4,           // NXdlPerWave
+            16,          // MPerXdl
+            16,          // NPerXdl
+            4,           // MXdlPerWave
+            8,           // NXdlPerWave
             S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
             S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
             S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
@@ -91,7 +91,7 @@ class TestGroupedConvndFwdMultiABInterfaceBase : public ::testing::Test
             1,
             1,
             S<1, 32, 1, 8>,
-            8>;
+            4>;
 
     const ck::utils::conv::ConvParam conv_param{
         3, 1, 16, 16, 8, {3, 3, 3}, {17, 17, 17}, {2, 2, 2}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}};
@@ -172,8 +172,8 @@ class TestGroupedConvndFwdMultiABInterfaceBase : public ::testing::Test
 
 class TestGroupedConvndFwdMultiAInterface
     : public TestGroupedConvndFwdMultiABInterfaceBase<float,
-                                                      ck::Tuple<float, float>,
-                                                      float,
+                                                      ck::Tuple<ck::half_t, ck::half_t>,
+                                                      ck::half_t,
                                                       ScaleAdd,
                                                       PassThrough>
 {
@@ -181,8 +181,8 @@ class TestGroupedConvndFwdMultiAInterface
 
 class TestGroupedConvndFwdMultiBInterface
     : public TestGroupedConvndFwdMultiABInterfaceBase<float,
-                                                      float,
-                                                      ck::Tuple<float, float>,
+                                                      ck::half_t,
+                                                      ck::Tuple<ck::half_t, ck::half_t>,
                                                       PassThrough,
                                                       ScaleAdd>
 {
@@ -190,15 +190,18 @@ class TestGroupedConvndFwdMultiBInterface
 
 class TestGroupedConvndFwdMultiABInterface
     : public TestGroupedConvndFwdMultiABInterfaceBase<float,
-                                                      ck::Tuple<float, float>,
-                                                      ck::Tuple<float, float>,
+                                                      ck::Tuple<ck::half_t, ck::half_t>,
+                                                      ck::Tuple<ck::half_t, ck::half_t>,
                                                       ScaleAdd,
                                                       ScaleAdd>
 {
 };
 
-class TestGroupedConvndFwdInterface
-    : public TestGroupedConvndFwdMultiABInterfaceBase<float, float, float, PassThrough, PassThrough>
+class TestGroupedConvndFwdInterface : public TestGroupedConvndFwdMultiABInterfaceBase<float,
+                                                                                      ck::half_t,
+                                                                                      ck::half_t,
+                                                                                      PassThrough,
+                                                                                      PassThrough>
 {
 };
 
