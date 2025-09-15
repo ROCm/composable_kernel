@@ -13,6 +13,7 @@
 #include "grouped_convolution_utils.hpp"
 
 template <ck_tile::index_t NDimSpatial,
+          typename GemmWarpConfig,
           typename InDataType,
           typename WeiDataType,
           typename AccDataType,
@@ -36,9 +37,9 @@ float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
     constexpr ck_tile::index_t N_Warp = 2;
     constexpr ck_tile::index_t K_Warp = 1;
 
-    constexpr ck_tile::index_t M_Warp_Tile = 32;
-    constexpr ck_tile::index_t N_Warp_Tile = 32;
-    constexpr ck_tile::index_t K_Warp_Tile = 16;
+    constexpr ck_tile::index_t M_Warp_Tile = GemmWarpConfig::M_Warp_Tile;
+    constexpr ck_tile::index_t N_Warp_Tile = GemmWarpConfig::N_Warp_Tile;
+    constexpr ck_tile::index_t K_Warp_Tile = GemmWarpConfig::K_Warp_Tile;
 
     constexpr ck_tile::index_t VectorSizeA = 8;
     constexpr ck_tile::index_t VectorSizeB = 8;
@@ -141,7 +142,10 @@ float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
 
 #include "run_grouped_convolution_bwd_weight_example.inc"
 
-template <typename InPrecType, typename WeiPrecType = InPrecType, typename OutPrecType = InPrecType>
+template <typename GemmWarpConfig,
+          typename InPrecType,
+          typename WeiPrecType = InPrecType,
+          typename OutPrecType = InPrecType>
 int run_grouped_conv_bwd_weight_example_prec_type(
     std::string in_layout, std::string wei_layout, std::string out_layout, int argc, char* argv[])
 {
@@ -160,6 +164,7 @@ int run_grouped_conv_bwd_weight_example_prec_type(
     if(in_layout == "NWGC" && wei_layout == "GKXC" && out_layout == "NWGK")
     {
         return run_grouped_conv_bwd_weight_example_with_layouts<ck_tile::number<1>{},
+                                                                GemmWarpConfig,
                                                                 InPrecType,
                                                                 WeiPrecType,
                                                                 OutPrecType>(
@@ -168,6 +173,7 @@ int run_grouped_conv_bwd_weight_example_prec_type(
     else if(in_layout == "NHWGC" && wei_layout == "GKYXC" && out_layout == "NHWGK")
     {
         return run_grouped_conv_bwd_weight_example_with_layouts<ck_tile::number<2>{},
+                                                                GemmWarpConfig,
                                                                 InPrecType,
                                                                 WeiPrecType,
                                                                 OutPrecType>(
@@ -176,6 +182,7 @@ int run_grouped_conv_bwd_weight_example_prec_type(
     else if(in_layout == "NDHWGC" && wei_layout == "GKZYXC" && out_layout == "NDHWGK")
     {
         return run_grouped_conv_bwd_weight_example_with_layouts<ck_tile::number<3>{},
+                                                                GemmWarpConfig,
                                                                 InPrecType,
                                                                 WeiPrecType,
                                                                 OutPrecType>(
@@ -187,6 +194,7 @@ int run_grouped_conv_bwd_weight_example_prec_type(
     }
 }
 
+template <typename GemmWarpConfig>
 int run_grouped_conv_bwd_weight_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -200,12 +208,12 @@ int run_grouped_conv_bwd_weight_example(int argc, char* argv[])
 
     if(data_type == "fp16")
     {
-        return run_grouped_conv_bwd_weight_example_prec_type<ck_tile::half_t>(
+        return run_grouped_conv_bwd_weight_example_prec_type<GemmWarpConfig, ck_tile::half_t>(
             in_layout, wei_layout, out_layout, argc, argv);
     }
     else if(data_type == "bf16")
     {
-        return run_grouped_conv_bwd_weight_example_prec_type<ck_tile::bf16_t>(
+        return run_grouped_conv_bwd_weight_example_prec_type<GemmWarpConfig, ck_tile::bf16_t>(
             in_layout, wei_layout, out_layout, argc, argv);
     }
     else
@@ -214,4 +222,11 @@ int run_grouped_conv_bwd_weight_example(int argc, char* argv[])
     }
 }
 
-int main(int argc, char* argv[]) { return !run_grouped_conv_bwd_weight_example(argc, argv); }
+int main(int argc, char* argv[])
+{
+#if CK_TILE_USE_WMMA
+    return !run_grouped_conv_bwd_weight_example<GemmWarpConfig_Wmma>(argc, argv);
+#else
+    return !run_grouped_conv_bwd_weight_example<GemmWarpConfig_Mfma>(argc, argv);
+#endif
+}
