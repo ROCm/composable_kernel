@@ -25,6 +25,12 @@ template <typename ADataType,
           typename ComputeTypeB = ComputeTypeA>
 struct ReferenceGemm : public device::BaseOperator
 {
+
+    using ElementDataTypeA =
+        ck::conditional_t<is_same_v<ComputeTypeA, ck::tf32_t>, float, ComputeTypeA>;
+    using ElementDataTypeB =
+        ck::conditional_t<is_same_v<ComputeTypeB, ck::tf32_t>, float, ComputeTypeB>;
+
     // Argument
     struct Argument : public device::BaseArgument
     {
@@ -63,8 +69,8 @@ struct ReferenceGemm : public device::BaseOperator
                 const int K = arg.a_m_k_.mDesc.GetLengths()[1];
 
                 AccDataType v_acc{0};
-                ComputeTypeA v_a{0};
-                ComputeTypeB v_b{0};
+                ElementDataTypeA v_a{0};
+                ElementDataTypeB v_b{0};
 
                 for(int k = 0; k < K; ++k)
                 {
@@ -77,16 +83,16 @@ struct ReferenceGemm : public device::BaseOperator
                         else
                             i4 = (i4x2 >> 4) & 0xf;
                         i4  = i4 - 8;
-                        v_a = type_convert<ComputeTypeA>(i4);
+                        v_a = type_convert<ElementDataTypeA>(i4);
                     }
                     else if constexpr(is_same_v<ADataType, f4x2_pk_t>)
                     {
                         // TODO: add support for ColMajor layout as well
                         if(k % 2 == 1)
-                            v_a = type_convert<ComputeTypeA>(
+                            v_a = type_convert<ElementDataTypeA>(
                                 f4_t(arg.a_m_k_(m, k).template unpack<>(Number<1>{})));
                         else
-                            v_a = type_convert<ComputeTypeA>(
+                            v_a = type_convert<ElementDataTypeA>(
                                 f4_t(arg.a_m_k_(m, k).template unpack<>(Number<0>{})));
                     }
                     else if constexpr(is_same_v<ADataType, f6x16_pk_t> ||
@@ -94,7 +100,7 @@ struct ReferenceGemm : public device::BaseOperator
                                       is_same_v<ADataType, f6x32_pk_t> ||
                                       is_same_v<ADataType, bf6x32_pk_t>)
                     {
-                        v_a = type_convert<ComputeTypeA>(
+                        v_a = type_convert<ElementDataTypeA>(
                             arg.a_m_k_(m, k).unpack(k % ADataType::packed_size));
                     }
                     else
@@ -111,16 +117,16 @@ struct ReferenceGemm : public device::BaseOperator
                         else
                             i4 = (i4x2 >> 4) & 0xf;
                         i4  = i4 - 8;
-                        v_b = type_convert<ComputeTypeB>(i4);
+                        v_b = type_convert<ElementDataTypeB>(i4);
                     }
                     else if constexpr(is_same_v<BDataType, f4x2_pk_t>)
                     {
                         // TODO: add support for RowMajor layout as well
                         if(k % 2 == 1)
-                            v_b = type_convert<ComputeTypeB>(
+                            v_b = type_convert<ElementDataTypeB>(
                                 f4_t(arg.b_k_n_(k, n).template unpack<>(Number<1>{})));
                         else
-                            v_b = type_convert<ComputeTypeB>(
+                            v_b = type_convert<ElementDataTypeB>(
                                 f4_t(arg.b_k_n_(k, n).template unpack<>(Number<0>{})));
                     }
                     else if constexpr(is_same_v<BDataType, f6x16_pk_t> ||
@@ -128,7 +134,7 @@ struct ReferenceGemm : public device::BaseOperator
                                       is_same_v<BDataType, f6x32_pk_t> ||
                                       is_same_v<BDataType, bf6x32_pk_t>)
                     {
-                        v_b = type_convert<ComputeTypeB>(
+                        v_b = type_convert<ElementDataTypeB>(
                             arg.b_k_n_(k, n).unpack(k % BDataType::packed_size));
                     }
                     else
@@ -136,8 +142,18 @@ struct ReferenceGemm : public device::BaseOperator
                         arg.b_element_op_(v_b, arg.b_k_n_(k, n));
                     }
 
-                    v_acc +=
-                        ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
+                    if constexpr(is_same_v<ComputeTypeA, ComputeTypeB> &&
+                                 is_same_v<ComputeTypeA, ck::tf32_t>)
+                    { // only for tf32 now
+                        v_acc +=
+                            ck::type_convert<AccDataType>(ck::type_convert<ComputeTypeA>(v_a)) *
+                            ck::type_convert<AccDataType>(ck::type_convert<ComputeTypeB>(v_b));
+                    }
+                    else
+                    {
+                        v_acc +=
+                            ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
+                    }
                 }
 
                 CDataType v_c{0};
