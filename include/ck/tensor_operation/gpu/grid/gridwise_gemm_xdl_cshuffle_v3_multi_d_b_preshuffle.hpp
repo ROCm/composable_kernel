@@ -590,16 +590,16 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         using Index                       = MultiIndex<4>;
         static constexpr auto sfc_d_block = remove_cvref_t<SfcCdeBlock>{};
 
-        static constexpr auto MPerShuffle = CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl;
-        static constexpr auto NPerShuffle = CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl;
+        static constexpr auto MPerCShuffle = CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl;
+        static constexpr auto NPerCShuffle = CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl;
 
-        static constexpr auto MShuffle = MXdlPerWave / CShuffleMXdlPerWavePerShuffle;
-        static constexpr auto NShuffle = NXdlPerWave / CShuffleNXdlPerWavePerShuffle;
+        static constexpr auto MShuffles = MXdlPerWave / CShuffleMXdlPerWavePerShuffle;
+        static constexpr auto NShuffles = NXdlPerWave / CShuffleNXdlPerWavePerShuffle;
 
         static constexpr auto ThreadSliceLengths = []() constexpr {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, DLayout>::value)
             {
-                return Sequence<1, MPerShuffle, 1, NPerShuffle>{} /
+                return Sequence<1, MPerCShuffle, 1, NPerCShuffle>{} /
                        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock{};
             }
             else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, DLayout>::value)
@@ -619,7 +619,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                                      0,
                                      src_origin[I2],
                                      get_thread_local_1d_id() * ThreadSliceLengths[I3] %
-                                         Number<NPerShuffle>{}));
+                                         Number<NPerCShuffle>{}));
             }
             else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, DLayout>::value)
             {
@@ -642,25 +642,25 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, DLayout>::value)
             {
-                static_for<0, NShuffle, 1>{}([&](auto i) {
+                static_for<0, NShuffles, 1>{}([&](auto i) {
                     d_buffer_transfer_.Run(
                         src_desc, src_buf, d_buff_desc, make_tuple(I0, i, I0, I0), dst_buf);
-                    if constexpr(i < NShuffle - 1)
+                    if constexpr(i < NShuffles - 1)
                     {
                         d_buffer_transfer_.MoveSrcSliceWindow(
-                            src_desc, Index(I0, I0, I0, Number<NPerShuffle>{}));
+                            src_desc, Index(I0, I0, I0, Number<NPerCShuffle>{}));
                     }
                 });
             }
             else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, DLayout>::value)
             {
-                static_for<0, MShuffle, 1>{}([&](auto i) {
+                static_for<0, MShuffles, 1>{}([&](auto i) {
                     d_buffer_transfer_.Run(
                         src_desc, src_buf, d_buff_desc, make_tuple(I0, i, I0, I0), dst_buf);
-                    if constexpr(i < MShuffle - 1)
+                    if constexpr(i < MShuffles - 1)
                     {
                         d_buffer_transfer_.MoveSrcSliceWindow(
-                            src_desc, Index(I0, Number<MPerShuffle>{}, I0, I0));
+                            src_desc, Index(I0, Number<MPerCShuffle>{}, I0, I0));
                     }
                 });
             }
@@ -672,11 +672,11 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             constexpr auto idx_md = sfc_d_block.GetIndex(Number<access_id>{});
             if constexpr(is_same<tensor_layout::gemm::RowMajor, DLayout>::value)
             {
-                return make_tuple(I0, Number<idx_md[I3] / NPerShuffle>{}, I0, I0);
+                return make_tuple(I0, Number<idx_md[I3] / NPerCShuffle>{}, I0, I0);
             }
             else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, DLayout>::value)
             {
-                return make_tuple(I0, Number<idx_md[I1] / MPerShuffle>{}, I0, I0);
+                return make_tuple(I0, Number<idx_md[I1] / MPerCShuffle>{}, I0, I0);
             }
         }
 
@@ -684,12 +684,12 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             if constexpr(is_same<tensor_layout::gemm::RowMajor, DLayout>::value)
             {
                 return make_naive_tensor_descriptor_packed(
-                    make_tuple(I1, Number<NShuffle>{}, I1, Number<ThreadSliceLengths[I3]>{}));
+                    make_tuple(I1, Number<NShuffles>{}, I1, Number<ThreadSliceLengths[I3]>{}));
             }
             else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, DLayout>::value)
             {
                 return make_naive_tensor_descriptor_packed(
-                    make_tuple(I1, Number<MShuffle>{}, I1, I1));
+                    make_tuple(I1, Number<MShuffles>{}, I1, I1));
             }
         }();
 
