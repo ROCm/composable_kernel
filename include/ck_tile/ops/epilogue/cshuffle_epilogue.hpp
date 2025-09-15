@@ -12,10 +12,6 @@
 
 namespace ck_tile {
 
-<<<<<<< HEAD
-template <typename AsDataType_,
-          typename BsDataType_,
-=======
 template <typename T>
 concept HasDataType = requires { typename T::DataType; };
 
@@ -32,9 +28,8 @@ struct GetDataType<T>
     using type = typename T::DataType; // Use T::ScaleN::DataType
 };
 
-template <typename ADataType_,
-          typename BDataType_,
->>>>>>> origin/develop
+template <typename AsDataType_,
+          typename BsDataType_,
           typename DsDataType_,
           typename AccDataType_,
           typename ODataType_,
