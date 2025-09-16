@@ -401,36 +401,38 @@ int run_batched_contraction_example_with_layouts(
         calculate_reference_flat_indexing(
             a_full_dims, b_full_dims, e_full_dims_host_ref, G_total, M_total, N_total, K_total);
 
-        ck_tile::HostTensor<::EDataType> e_full_dims_host_ref1(
-            ck_tile::HostTensorDescriptor(E_dims, E_strides));
-        e_full_dims_host_ref1.SetZero();
-        calculate_reference_multi_dimensional(a_full_dims,
-                                              b_full_dims,
-                                              e_full_dims_host_ref1,
-                                              G_dims,
-                                              M_dims,
-                                              N_dims,
-                                              K_dims,
-                                              A_dims,
-                                              B_dims,
-                                              E_dims);
+        // ck_tile::HostTensor<::EDataType> e_full_dims_host_ref1(
+        //     ck_tile::HostTensorDescriptor(E_dims, E_strides));
+        // e_full_dims_host_ref1.SetZero();
+        // calculate_reference_multi_dimensional(a_full_dims,
+        //                                       b_full_dims,
+        //                                       e_full_dims_host_ref1,
+        //                                       G_dims,
+        //                                       M_dims,
+        //                                       N_dims,
+        //                                       K_dims,
+        //                                       A_dims,
+        //                                       B_dims,
+        //                                       E_dims);
 
-        bool identical = true;
-        for(std::size_t i = 0; i < e_full_dims_host_ref1.mData.size(); ++i)
-        {
-            if(std::fabs(e_full_dims_host_ref1.mData[i] - e_full_dims_host_ref.mData[i]) >
-               std::numeric_limits<::EDataType>::epsilon() * 10)
-            {
-                identical = false;
-                std::cout << "Difference at index " << i << ": "
-                          << "ref1=" << static_cast<float>(e_full_dims_host_ref1.mData[i]) << ", "
-                          << "ref=" << static_cast<float>(e_full_dims_host_ref.mData[i])
-                          << std::endl;
-                break;
-            }
-        }
+        // bool identical = true;
+        // for(std::size_t i = 0; i < e_full_dims_host_ref1.mData.size(); ++i)
+        // {
+        //     if(std::fabs(e_full_dims_host_ref1.mData[i] - e_full_dims_host_ref.mData[i]) >
+        //        std::numeric_limits<::EDataType>::epsilon() * 10)
+        //     {
+        //         identical = false;
+        //         std::cout << "Difference at index " << i << ": "
+        //                   << "ref1=" << static_cast<float>(e_full_dims_host_ref1.mData[i]) << ",
+        //                   "
+        //                   << "ref=" << static_cast<float>(e_full_dims_host_ref.mData[i])
+        //                   << std::endl;
+        //         break;
+        //     }
+        // }
 
-        std::cout << "Comparison result: " << (identical ? "IDENTICAL" : "DIFFERENT") << std::endl;
+        // std::cout << "Comparison result: " << (identical ? "IDENTICAL" : "DIFFERENT") <<
+        // std::endl;
 
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration =
@@ -456,6 +458,31 @@ int run_batched_contraction_example_with_layouts(
                   << std::endl;
 
         std::cout << "The CPU verification result is: " << (pass ? "correct" : "fail") << std::endl;
+
+        std::cout << "===============================================" << std::endl;
+
+        std::cout << "\n=== Random Samples of Reference and Result ===" << std::endl;
+
+        // Generate 10 random indices
+        std::vector<std::size_t> random_indices;
+        std::size_t total_elements = e_full_dims_host_ref.mData.size();
+        std::mt19937 rng(std::random_device{}());
+        std::uniform_int_distribution<std::size_t> dist(0, total_elements - 1);
+
+        for(int i = 0; i < 10; ++i)
+        {
+            random_indices.push_back(dist(rng));
+        }
+
+        // Print the values at the random indices
+        for(std::size_t idx : random_indices)
+        {
+            std::cout << "Index " << idx << ": "
+                      << "ref=" << static_cast<float>(e_full_dims_host_ref.mData[idx]) << ", "
+                      << "GPU=" << static_cast<float>(e_full_dims_dev.mData[idx]) << std::endl;
+        }
+
+        std::cout << "===============================================" << std::endl;
     }
 
     return pass;
