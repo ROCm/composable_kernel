@@ -676,14 +676,14 @@ struct GridwiseGemm_wmma_cshuffle_v3
               InMemoryDataOperationEnum EGlobalMemoryDataOperation,
               TailNumber TailNum>
     __device__ static void Run(void* p_shared,
-                               const AGridDesc_AK0_M_K1 a_grid_desc_ak0_m_ak1,
-                               const BGridDesc_BK0_N_K1 b_grid_desc_bk0_n_bk1,
-                               const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                               const AGridDesc_AK0_M_K1& a_grid_desc_ak0_m_ak1,
+                               const BGridDesc_BK0_N_K1& b_grid_desc_bk0_n_bk1,
+                               const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
                                    ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                               const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+                               const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock&
                                    e_grid_desc_mblock_mperblock_nblock_nperblock,
-                               const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
-                               const ComputePtrOffsetOfN compute_ptr_offset_of_n,
+                               const ComputePtrOffsetOfBatch& compute_ptr_offset_of_batch,
+                               const ComputePtrOffsetOfN& compute_ptr_offset_of_n,
                                const index_t num_k_per_block,
                                Argument& karg)
     {
