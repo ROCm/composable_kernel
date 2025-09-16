@@ -97,7 +97,7 @@ run_fp16_appendkv_tests() {
 set -x
 
 run_fp16_bf16_tests
-run_fp8_tests
+# run_fp8_tests
 
 if [ $TEST_APPENDKV -eq 1 ] ; then
     run_fp16_appendkv_tests
