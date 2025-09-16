@@ -106,6 +106,7 @@ struct BatchedContractionKernelArgs
         G_strides_E[NumDimG]; // [G0_stride_E, G1_stride_E, ... , G_{NumDimG-1}_stride_E]
     std::array<std::array<ck_tile::index_t, NumDimG>, NumDTensor> G_strides_Ds;
 
+    ck_tile::index_t G_total; // total G length
     ck_tile::index_t M_total; // total M length
     ck_tile::index_t N_total; // total N length
     ck_tile::index_t K_total; // total K length
@@ -181,13 +182,116 @@ struct BatchedContractionKernel
 
     CK_TILE_HOST static constexpr auto GridSize(const KernelArgs& kargs)
     {
-        ck_tile::index_t total_G = 1;
-        for(ck_tile::index_t i = 0; i < NumDimG; ++i)
-        {
-            total_G *= kargs.G_dims[i];
-        }
         return dim3(
-            TilePartitioner::GridSize(kargs.M_total, kargs.N_total), total_G, kargs.k_batch);
+            TilePartitioner::GridSize(kargs.M_total, kargs.N_total), kargs.G_total, kargs.k_batch);
+    }
+
+    // A[G0, G1, ..., M0, M1, M2, ..., K0, K1, K2, ...]
+    CK_TILE_HOST static constexpr auto
+    Make_A_GridDescriptor_M_K(const std::vector<ck_tile::index_t>& A_dims,
+                              const std::vector<ck_tile::index_t>& A_strides)
+    {
+
+        // Remove G Dimensions
+        const auto A_dims_M_K = make_tuple_from_vector(
+            A_dims, number<NumDimG>{}, number<NumDimG + NumDimM + NumDimK>{});
+        const auto A_strides_M_K = make_tuple_from_vector(
+            A_strides, number<NumDimG>{}, number<NumDimG + NumDimM + NumDimK>{});
+
+        // dimension Ids for M and K
+        constexpr auto A_dims_M_ids = typename arithmetic_sequence_gen<0, NumDimM, 1>::type{};
+        constexpr auto A_dims_K_ids =
+            typename arithmetic_sequence_gen<NumDimM, NumDimM + NumDimK, 1>::type{};
+
+        // Dimensions for M [M0, M1, ...] and K [K0, K1, ...]
+        const auto dims_M = get_container_subset(A_dims_M_K, A_dims_M_ids);
+        const auto dims_K = get_container_subset(A_dims_M_K, A_dims_K_ids);
+
+        // naive tensor A[M0, M1, M2, ..., K0, K1, K2...] Discriptor
+        const auto A_grid_desc_Ms_Ks =
+            ck_tile::make_naive_tensor_descriptor(A_dims_M_K, A_strides_M_K);
+
+        // transformed tensor to flatten M and K dimensions  [M_total = M0 * M1 * M2 * ... , K_total
+        // = K0 * K1 * K2 * ...]
+        const auto A_grid_desc_Mflat_Kflat = ck_tile::transform_tensor_descriptor(
+            A_grid_desc_Ms_Ks,
+            make_tuple(make_merge_transform(dims_M), make_merge_transform(dims_K)),
+            make_tuple(A_dims_M_ids, A_dims_K_ids),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+
+        return A_grid_desc_Mflat_Kflat;
+    }
+
+    // B[G0, G1, ..., N0, N1, N2, ..., K0, K1, K2, ...]
+    CK_TILE_HOST static constexpr auto
+    Make_B_GridDescriptor_N_K(const std::vector<ck_tile::index_t>& B_dims,
+                              const std::vector<ck_tile::index_t>& B_strides)
+    {
+
+        // Remove G Dimensions
+        const auto B_dims_N_K = make_tuple_from_vector(
+            B_dims, number<NumDimG>{}, number<NumDimG + NumDimN + NumDimK>{});
+        const auto B_strides_N_K = make_tuple_from_vector(
+            B_strides, number<NumDimG>{}, number<NumDimG + NumDimN + NumDimK>{});
+
+        // dimension Ids for N and K
+        constexpr auto B_dims_N_ids = typename arithmetic_sequence_gen<0, NumDimN, 1>::type{};
+        constexpr auto B_dims_K_ids =
+            typename arithmetic_sequence_gen<NumDimN, NumDimN + NumDimK, 1>::type{};
+
+        // Dimensions for N [N0, N1, ...] and K [K0, K1, ...]
+        const auto dims_N = get_container_subset(B_dims_N_K, B_dims_N_ids);
+        const auto dims_K = get_container_subset(B_dims_N_K, B_dims_K_ids);
+
+        // naive tensor B[N0, N1, N2, ..., K0, K1, K2...] Discriptor
+        const auto B_grid_desc_Ns_Ks =
+            ck_tile::make_naive_tensor_descriptor(B_dims_N_K, B_strides_N_K);
+
+        // transformed tensor to flatten N and K dimensions  [N_total = N0 * N1 * N2 * ... , K_total
+        // = K0 * K1 * K2 * ...]
+        const auto B_grid_desc_Nflat_Kflat = ck_tile::transform_tensor_descriptor(
+            B_grid_desc_Ns_Ks,
+            make_tuple(make_merge_transform(dims_N), make_merge_transform(dims_K)),
+            make_tuple(B_dims_N_ids, B_dims_K_ids),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+
+        return B_grid_desc_Nflat_Kflat;
+    }
+
+    // E[G0, G1, ..., M0, M1, M2, ..., N0, N1, N2, ...]
+    CK_TILE_HOST static constexpr auto
+    Make_E_GridDescriptor_M_N(const std::vector<ck_tile::index_t>& E_dims,
+                              const std::vector<ck_tile::index_t>& E_strides)
+    {
+
+        // Remove G dimensions
+        const auto E_dims_M_N = make_tuple_from_vector(
+            E_dims, number<NumDimG>{}, number<NumDimG + NumDimM + NumDimN>{});
+        const auto E_strides_M_N = make_tuple_from_vector(
+            E_strides, number<NumDimG>{}, number<NumDimG + NumDimM + NumDimN>{});
+
+        // dimension Ids for M and N
+        constexpr auto E_dims_M_ids = typename arithmetic_sequence_gen<0, NumDimM, 1>::type{};
+        constexpr auto E_dims_N_ids =
+            typename arithmetic_sequence_gen<NumDimM, NumDimM + NumDimN, 1>::type{};
+
+        // Dimensions for M and N
+        const auto dims_M = get_container_subset(E_dims_M_N, E_dims_M_ids);
+        const auto dims_N = get_container_subset(E_dims_M_N, E_dims_N_ids);
+
+        // naive tensor E[M0, M1, M2, ..., N0, N1, N2...] Discriptor
+        const auto E_grid_desc_Ms_Ns =
+            ck_tile::make_naive_tensor_descriptor(E_dims_M_N, E_strides_M_N);
+
+        // transformed tensor to flatten M and N dimensions   [M_total = M0 * M1 * M2 * ... ,
+        // N_total = N0 * N1 * N2 * ...]
+        const auto E_grid_desc_Mflat_Nflat = ck_tile::transform_tensor_descriptor(
+            E_grid_desc_Ms_Ns,
+            make_tuple(make_merge_transform(dims_M), make_merge_transform(dims_N)),
+            make_tuple(E_dims_M_ids, E_dims_N_ids),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+
+        return E_grid_desc_Mflat_Nflat;
     }
 
     CK_TILE_HOST static constexpr KernelArgs
@@ -261,21 +365,10 @@ struct BatchedContractionKernel
             }
         }
 
-        kargs.M_total = 1;
-        for(ck_tile::index_t i = 0; i < NumDimM; ++i)
-        {
-            kargs.M_total *= kargs.M_dims[i];
-        }
-        kargs.N_total = 1;
-        for(ck_tile::index_t i = 0; i < NumDimN; ++i)
-        {
-            kargs.N_total *= kargs.N_dims[i];
-        }
-        kargs.K_total = 1;
-        for(ck_tile::index_t i = 0; i < NumDimK; ++i)
-        {
-            kargs.K_total *= kargs.K_dims[i];
-        }
+        kargs.G_total = host_args.G_total;
+        kargs.M_total = host_args.M_total;
+        kargs.N_total = host_args.N_total;
+        kargs.K_total = host_args.K_total;
 
         kargs.stride_A = kargs.K_total;
         kargs.stride_B = kargs.K_total;

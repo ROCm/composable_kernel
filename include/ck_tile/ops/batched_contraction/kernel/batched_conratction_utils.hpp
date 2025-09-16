@@ -32,4 +32,11 @@ CalculateGOffset(const std::array<ck_tile::index_t, NumDimG>& g_indices,
     return offset;
 }
 
+template <typename T, typename NumType>
+auto make_tuple_from_vector(const std::vector<T>& vec, NumType start, NumType end)
+{
+    return ck_tile::generate_tuple([&](auto i) { return vec[start + i]; },
+                                   ck_tile::number<end - start>{});
+}
+
 } // namespace ck_tile
