@@ -308,15 +308,15 @@ struct GroupedGemmKernel
             //}
             //else
             //{
-                RunGemmWithPipelineSelection2LDS(a_ptr,
-                    b_ptr,
-                    c_ptr,
-                    smem_ptr_0,
-                    smem_ptr_1,
-                    kargs,
-                    splitk_batch_offset,
-                    i_m,
-                    i_n);
+                // RunGemmWithPipelineSelection2LDS(a_ptr,
+                //     b_ptr,
+                //     c_ptr,
+                //     smem_ptr_0,
+                //     smem_ptr_1,
+                //     kargs,
+                //     splitk_batch_offset,
+                //     i_m,
+                //     i_n);
             //}
         }
         else // SingleSmemBuffer
@@ -512,10 +512,6 @@ struct GroupedGemmKernel
     CK_TILE_DEVICE void operator()(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
                                    index_t group_count) const
     {
-        if(get_thread_id() == 0 && get_block_id() == 0)
-        {
-            printf("Non-persistent grouped gemm\n");
-        }
         const index_t block_id   = ck_tile::get_block_1d_id();
         const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg*>(
             cast_pointer_to_generic_address_space(gemm_descs_const));
