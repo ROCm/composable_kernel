@@ -646,16 +646,13 @@ struct StreamKTilePartitioner
      * @brief Get length of loop iterations for stream-k loop
      */
     CK_TILE_DEVICE uint32_t GetCurrentIterLength(uint32_t iter_start,
-                                                 uint32_t iter_end,
-                                                 uint32_t total_iter_length) const noexcept
+                                                 uint32_t iter_end) const noexcept
     {
-        uint32_t iter_length_mod, iter_length_quo /*unused*/;
-        k_iters_per_tile.divmod(iter_end, iter_length_quo, iter_length_mod);
-        uint32_t total_iter_length_val = static_cast<uint32_t>(total_iter_length);
-        uint32_t current_iter_length =
-            min(iter_length_mod == 0 ? (iter_end - iter_start) : iter_length_mod,
-                total_iter_length_val);
-        return current_iter_length;
+        // A WG's iter_end is either in the current C macro tile or not.
+        // If it is not, then the macro tile boundary is where the WG must stop.
+        uint32_t distance_to_tile_boundary =
+            k_iters_per_tile.get() - (iter_start % k_iters_per_tile.get());
+        return min(iter_start + distance_to_tile_boundary, iter_end) - iter_start;
     }
 
     /**
@@ -672,9 +669,7 @@ struct StreamKTilePartitioner
     CK_TILE_DEVICE void
     GetTileIdxWithOffset(uint32_t iter, uint32_t& tile_idx, uint32_t& iter_offset) const noexcept
     {
-        uint32_t tile_idx_val    = static_cast<uint32_t>(tile_idx);
-        uint32_t iter_offset_val = static_cast<uint32_t>(iter_offset);
-        k_iters_per_tile.divmod(iter, tile_idx_val, iter_offset_val);
+        k_iters_per_tile.divmod(iter, tile_idx, iter_offset);
     }
 
     /**
