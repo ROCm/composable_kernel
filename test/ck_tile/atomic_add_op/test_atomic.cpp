@@ -21,44 +21,22 @@ struct AtomicKernelParam
 template <typename DataType_, ck_tile::index_t multiple_>
 class TestAtomicKernel : public ::testing::TestWithParam<std::tuple<int, int>>
 {
-    struct AtomicKernelWaveSize64
+    struct AtomicKernelWaveSize
     {
-        using BlockWaves                             = ck_tile::sequence<2, 1>;
-        using BlockTile                              = ck_tile::sequence<128, 8>;
-        using WaveTile                               = ck_tile::sequence<64, 8>;
-        static constexpr ck_tile::index_t kBlockSize = 128; // 2 waves * 64 lanes
-    };
-
-    struct AtomicKernelWaveSize32
-    {
-        using BlockWaves                             = ck_tile::sequence<2, 1>;
-        using BlockTile                              = ck_tile::sequence<64, 8>;
-        using WaveTile                               = ck_tile::sequence<32, 8>; // 32*2 == 64
-        static constexpr ck_tile::index_t kBlockSize = 64; // 2 waves * 32 lanes
+        using BlockWaves = ck_tile::sequence<2, 1>;
+        using BlockTile  = ck_tile::sequence<128, 8>;
+        using WaveTile   = ck_tile::sequence<64, 8>;
     };
 
     template <typename Config>
-    void RunTestImpl_(const AtomicKernelParam& params, int require_warp_size, const char* tag)
+    void RunTestImpl_(const AtomicKernelParam& params)
     {
-        // Device capability check & skip if wavesize mismatches
-        int dev = 0;
-        hipDeviceProp_t prop{};
-        if(hipGetDevice(&dev) != hipSuccess || hipGetDeviceProperties(&prop, dev) != hipSuccess)
-        {
-            GTEST_SKIP() << "[" << tag << "] hipGetDeviceProperties failed; skipping.";
-        }
-        if(prop.warpSize != require_warp_size)
-        {
-            GTEST_SKIP() << "[" << tag << "] Device warpSize=" << prop.warpSize << " (requires "
-                         << require_warp_size << "); skipping.";
-        }
-
         using XDataType = DataType_;
 
         const ck_tile::index_t m = params.m;
         const ck_tile::index_t n = params.n;
 
-        std::cout << "[" << tag << "] Input Tensor Dimensions: " << m << ", " << n << std::endl;
+        std::cout << "Input Tensor Dimensions: " << m << ", " << n << std::endl;
 
         constexpr int dword_bytes = 4;
         const int base_vec        = dword_bytes / static_cast<int>(sizeof(XDataType));
@@ -90,7 +68,7 @@ class TestAtomicKernel : public ::testing::TestWithParam<std::tuple<int, int>>
                           WaveTile::at(ck_tile::number<1>{}) * BlockWaves::at(ck_tile::number<1>{}),
                       "BlockTile.N must equal WaveTile.N * BlockWaves.N");
 
-        std::cout << "[" << tag << "] Vector per thread = " << vec
+        std::cout << "Vector per thread = " << vec
                   << "  BlockWaves=" << BlockWaves::at(ck_tile::number<0>{}) << "x"
                   << BlockWaves::at(ck_tile::number<1>{})
                   << "  WaveTile=" << WaveTile::at(ck_tile::number<0>{}) << "x"
@@ -105,7 +83,7 @@ class TestAtomicKernel : public ::testing::TestWithParam<std::tuple<int, int>>
         using Problem = ck_tile::AtomicKernelProblem<XDataType, Shape>;
         using Kernel  = ck_tile::AtomicKernel<Problem>;
 
-        constexpr ck_tile::index_t kBlockSize  = Config::kBlockSize;
+        const ck_tile::index_t kBlockSize      = Kernel::BlockSize();
         constexpr ck_tile::index_t kBlockPerCu = 1;
 
         (void)hipGetLastError(); // clear sticky
@@ -121,9 +99,8 @@ class TestAtomicKernel : public ::testing::TestWithParam<std::tuple<int, int>>
                           n));
 
         ASSERT_EQ(hipPeekAtLastError(), hipSuccess)
-            << "[" << tag << "] hipPeekAtLastError: " << hipGetErrorString(hipGetLastError());
-        ASSERT_EQ(hipDeviceSynchronize(), hipSuccess)
-            << "[" << tag << "] hipDeviceSynchronize failed";
+            << "hipPeekAtLastError: " << hipGetErrorString(hipGetLastError());
+        ASSERT_EQ(hipDeviceSynchronize(), hipSuccess) << "hipDeviceSynchronize failed";
 
         // host reference computation
         x_dev_input.FromDevice(x_host_dev.mData.data());
@@ -136,17 +113,7 @@ class TestAtomicKernel : public ::testing::TestWithParam<std::tuple<int, int>>
     }
 
     protected:
-    // WaveSize = 64 path
-    void RunTest(const AtomicKernelParam& params)
-    {
-        RunTestImpl_<AtomicKernelWaveSize64>(params, /*require_warp_size=*/64, "WS64");
-    }
-
-    // WaveSize = 32 path
-    void RunTestWave32(const AtomicKernelParam& params)
-    {
-        RunTestImpl_<AtomicKernelWaveSize32>(params, /*require_warp_size=*/32, "WS32");
-    }
+    void RunTest(const AtomicKernelParam& params) { RunTestImpl_<AtomicKernelWaveSize>(params); }
 };
 
 class TestAtomicKernelHalf_1 : public TestAtomicKernel<ck_tile::half_t, 1>
@@ -189,10 +156,6 @@ class TestAtomicKernelFloat_4 : public TestAtomicKernel<float, 4>
 {
 };
 
-//
-// WaveSize=64 tests (auto-skip on wave32 devices)
-//
-#if defined(CK_USE_XDL)
 TEST_P(TestAtomicKernelHalf_1, TestCorrectness)
 {
     auto [M, N] = GetParam();
@@ -258,72 +221,6 @@ TEST_P(TestAtomicKernelFloat_4, TestCorrectness)
     auto [M, N] = GetParam();
     this->RunTest({M, N});
 }
-
-//
-// WaveSize=32 tests (auto-skip on wave64 devices)
-//
-#else
-TEST_P(TestAtomicKernelHalf_1, TestCorrectnessWS32)
-{
-    auto [M, N] = GetParam();
-    this->RunTestWave32({M, N});
-}
-TEST_P(TestAtomicKernelHalf_2, TestCorrectnessWS32)
-{
-    auto [M, N] = GetParam();
-    this->RunTestWave32({M, N});
-}
-TEST_P(TestAtomicKernelHalf_4, TestCorrectnessWS32)
-{
-    auto [M, N] = GetParam();
-    this->RunTestWave32({M, N});
-}
-TEST_P(TestAtomicKernelBF16_1, TestCorrectnessWS32)
-{
-    auto [M, N] = GetParam();
-    this->RunTestWave32({M, N});
-}
-TEST_P(TestAtomicKernelBF16_2, TestCorrectnessWS32)
-{
-    auto [M, N] = GetParam();
-    this->RunTestWave32({M, N});
-}
-TEST_P(TestAtomicKernelBF16_4, TestCorrectnessWS32)
-{
-    auto [M, N] = GetParam();
-    this->RunTestWave32({M, N});
-}
-TEST_P(TestAtomicKernelBF8_1, TestCorrectnessWS32)
-{
-    auto [M, N] = GetParam();
-    this->RunTestWave32({M, N});
-}
-TEST_P(TestAtomicKernelBF8_2, TestCorrectnessWS32)
-{
-    auto [M, N] = GetParam();
-    this->RunTestWave32({M, N});
-}
-TEST_P(TestAtomicKernelFP8_1, TestCorrectnessWS32)
-{
-    auto [M, N] = GetParam();
-    this->RunTestWave32({M, N});
-}
-TEST_P(TestAtomicKernelFP8_2, TestCorrectnessWS32)
-{
-    auto [M, N] = GetParam();
-    this->RunTestWave32({M, N});
-}
-TEST_P(TestAtomicKernelFloat_1, TestCorrectnessWS32)
-{
-    auto [M, N] = GetParam();
-    this->RunTestWave32({M, N});
-}
-TEST_P(TestAtomicKernelFloat_2, TestCorrectnessWS32)
-{
-    auto [M, N] = GetParam();
-    this->RunTestWave32({M, N});
-}
-#endif
 
 // Common parameter lists
 INSTANTIATE_TEST_SUITE_P(TestAtomicKernelSuite,
@@ -398,10 +295,8 @@ INSTANTIATE_TEST_SUITE_P(TestAtomicKernelSuite,
                                            std::tuple{64, 16},
                                            std::tuple{64, 32}));
 
-#if defined(CK_USE_XDL)
 INSTANTIATE_TEST_SUITE_P(TestAtomicKernelSuite,
                          TestAtomicKernelFloat_4,
                          ::testing::Values(std::tuple{64, 8},
                                            std::tuple{64, 16},
                                            std::tuple{64, 32}));
-#endif
