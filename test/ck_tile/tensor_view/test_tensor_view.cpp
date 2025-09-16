@@ -502,7 +502,8 @@ TEST_F(TestTensorView, StaticDistributedTensor4x4Matrix2x2Blocks_modify_input)
     hip_check_error(hipFree(input_device));
 }
 
-__global__ void test_4x4_matrix_2x2_get_sub_blocks_input_kernel(int* input, int* output, bool)
+template <bool DebugOutput = false>
+__global__ void test_4x4_matrix_get_2x2_blocks_kernel(int* input, int* output)
 {
     constexpr index_t global_shape_0 = 4;
     constexpr index_t global_shape_1 = 4;
@@ -544,16 +545,6 @@ __global__ void test_4x4_matrix_2x2_get_sub_blocks_input_kernel(int* input, int*
     constexpr index_t x0_size = reduce_on_sequence(hs_lengths_0, multiplies{}, number<1>{});
     constexpr index_t x1_size = reduce_on_sequence(hs_lengths_1, multiplies{}, number<1>{});
 
-    if(threadIdx.x == 0 && blockIdx.x == 0)
-    {
-        printf("\n- Tile distribution created:\n");
-        printf("  X dimensions: %d\n", distribution.get_num_of_dimension_x());
-        printf("  Y dimensions: %d\n", distribution.get_num_of_dimension_y());
-        printf("  P dimensions: %d\n", distribution.get_num_of_dimension_p());
-        printf("  X lengths: [%d, %d]\n", x0_size, x1_size);
-    }
-    block_sync_lds();
-
     auto global_view = make_naive_tensor_view_packed<address_space_enum::global>(
             input, make_tuple(global_shape_0, global_shape_1));
 
@@ -564,87 +555,79 @@ __global__ void test_4x4_matrix_2x2_get_sub_blocks_input_kernel(int* input, int*
                                             distribution);
     auto distributed_tensor = tile_window.load();
 
-    constexpr index_t max_elements = x0_size * x1_size;
-    float collected_values[max_elements];
-    index_t value_count = 0;
-
-    // Sweep through the distributed tensor and collect values using sweep_tile API
-    sweep_tile(distributed_tensor, [&](auto idx) {
-        if(value_count < max_elements)
-        {
-            collected_values[value_count] = distributed_tensor(idx);
-            value_count++;
-        }
-    });
-
-    index_t warp_id   = threadIdx.x / get_warp_size();
-    index_t thread_id = threadIdx.x % get_warp_size();
-    
-    static constexpr int print_thread_ids[] = {0, 1, 3, 4};
-    for(int sel : print_thread_ids)
-    {
-      block_sync_lds();
-      if(static_cast<int>(threadIdx.x) == sel)
-      {
-          printf("Partition index: (warp=%d, thread=%d)\n",
-                  static_cast<int>(warp_id),
-                  static_cast<int>(thread_id));
-          printf("Collected values: ");
-          for(index_t i = 0; i < value_count; i++)
-          {
-              printf("%.0f", collected_values[i]);
-              if(i < value_count - 1)
-                  printf(", ");
-          }
-          printf("\n\n");
-      }
-      block_sync_lds();
-    }
-
-    // Create output tensor view
-    auto output_global_view = make_naive_tensor_view_packed<address_space_enum::global>(
-        output, make_tuple(8, 4));
-
+    // Create output encoding for 4x2 matrix (2 diagonal blocks stacked vertically)
     constexpr auto output_encoding = tile_distribution_encoding<
-        sequence<>,                                                      // No reduction dims
+        sequence<>,
         tuple<
-            // [H1_0, H1_1, H1_2, H1_3]
-            sequence<MRepeat, MWarpPerBlock, MThreadPerWarp, MVectorPerThread>,  // M-dim: 1 rep, 1 warp, 2 threads, 2 elements per thread
-            // [H2_0, H2_1, H2_2, H2_3]
-            sequence<NRepeat, NWarpPerBlock, NThreadPerWarp, NVectorPerThread / 2>>, // N-dim: 1 rep, 1 warp, 2 threads, 1 elements per thread
-        // P minor and major combined:
-        // P1 -> (H1_1, H2_1) and P2 -> (H1_2, H2_2)
-        tuple<sequence<1, 2>, sequence<1,2>>,                                    // P major(Warp) -> H mapping
-        tuple<sequence<1, 1>, sequence<2,2>>,                                    // P minor(Thread) -> H mapping
-        // Combined mapping
-        // First row: Y -> {H1,H2} mapping
-        // Second row: which in H dim (0,1,2,3) we map Y to
-        // Y0 -> H1_0, Y1 -> H1_3, Y2 -> H2_0, Y3 -> H2_3 
-        sequence<1, 1, 2, 2>,                                                    // Trivial since we have only warp
-        sequence<0, 3, 0, 3>>{};   
+            // M dimension: 2 diagonal blocks * 2 rows each = 4 total rows
+            sequence<1, 1, 4, 1>,
+            // N dimension: 2 columns per block
+            sequence<1, 1, 1, 2>>,
+        tuple<sequence<1, 2>, sequence<1,2>>,
+        tuple<sequence<1, 1>, sequence<2,2>>,
+        sequence<1, 1, 1, 2>,
+        sequence<0, 3, 0, 3>>{};
 
     auto output_distribution = make_static_tile_distribution(output_encoding);
     auto output_distributed_tensor = make_static_distributed_tensor<int>(output_distribution);
+    auto output_global_view = make_naive_tensor_view_packed<address_space_enum::global>(
+            output, make_tuple(4, 2));
 
-    constexpr auto y_lengths = distributed_tensor.get_tile_distribution().get_ys_to_d_descriptor().get_lengths();
-    constexpr auto y_index_zeros = uniform_sequence_gen_t<4, 0>{}; // 4 Y dimensions
+    static_for<0, 2, 1>{}([&](auto row_offset) 
+    {
+        if (threadIdx.x == 0) 
+        {
+          output_distributed_tensor.get_thread_buffer() = distributed_tensor.get_y_sliced_thread_data(
+            sequence<0, 0, row_offset, 0>{}, 
+            sequence<1, 1, 1, 2>{}); // copy one row of a 2x2 block
+        }
 
-    output_distributed_tensor.get_thread_buffer() = distributed_tensor.get_y_sliced_thread_data(
-        merge_sequences(
-            sequence<0, 0>{},      // Start from (0,0)
-            y_index_zeros),        // Zeros for other Y dimensions
-        merge_sequences(
-            sequence<1, 1>{},      // Take 1x1 elements per thread (adjust as needed)
-            to_sequence(y_lengths))); // Keep original Y lengths structure
+        if (threadIdx.x == 3) 
+        {
+          output_distributed_tensor.get_thread_buffer() = distributed_tensor.get_y_sliced_thread_data(
+            sequence<0, 0, 1-row_offset, 0>{}, 
+            sequence<1, 1, 1, 2>{}); // copy one row of a 2x2 block
+        }
+        
+        // Print the output distributed tensor for verification
+        if constexpr (DebugOutput)
+        {
+          block_sync_lds();
+          static_for<0, 4, 1>{}([&](auto thread_id) {
+            if(threadIdx.x == thread_id)
+            {
+              printf("\n- Output Distributed Tensor Data (thread %d):\n", static_cast<int>(thread_id));
+              sweep_tile(output_distributed_tensor, [&](auto idx) {
+                printf("  output_distributed_tensor");
+                print_distributed_index(idx[number<0>{}]);
+                print_distributed_index(idx[number<1>{}]);
+                printf(" = %d\n", output_distributed_tensor(idx));
+              });
+              __syncthreads();
+            }
+          });
+        }
 
-    // Create output tile window with the same distribution
-    auto output_tile_window = make_tile_window(output_global_view,
-                                              window_lengths,
-                                              {0, 0},
+        if (threadIdx.x == 0) 
+        {
+          auto output_tile_window = make_tile_window(output_global_view,
+                                              make_tuple(4, 2),
+                                              {row_offset, 0},
                                               output_distribution);
+        
+          output_tile_window.store(output_distributed_tensor);
+        }
 
-    // Store the distributed tensor to the output
-    output_tile_window.store(output_distributed_tensor);
+        if (threadIdx.x == 3) 
+        {
+          auto output_tile_window = make_tile_window(output_global_view,
+                                              make_tuple(4, 2),
+                                              {-row_offset, 0},
+                                              output_distribution);
+        
+          output_tile_window.store(output_distributed_tensor);
+        }
+    });
 }
 
 TEST_F(TestTensorView, StaticDistributedTensor4x4Matrix2x2Blocks_get_sub_blocks)
@@ -673,7 +656,9 @@ TEST_F(TestTensorView, StaticDistributedTensor4x4Matrix2x2Blocks_get_sub_blocks)
     // Run kernel with debug output
     const dim3 block_dim(4); // 4 threads to cover 4 blocks
     const dim3 grid_dim(1);
-    test_4x4_matrix_2x2_blocks_get_sub_blocks_kernel<<<grid_dim, block_dim>>>(input_device, output_device, true);
+
+    test_4x4_matrix_get_2x2_blocks_kernel<<<grid_dim, block_dim>>>(
+        input_device, output_device);
     hip_check_error(hipDeviceSynchronize());
     
     // Copy results back
