@@ -101,8 +101,8 @@ int run_mx_flatmm_with_layouts(int argc,
         ck_tile::FillUniformDistribution<ScaleDataType>{-2.f, 2.f}(scale_b);
     }
 
-#if 0
 #if 1
+#if 0
     printf("printf a_host: \n");
     for(int m = 0; m < M; m++)
     {
@@ -141,9 +141,9 @@ int run_mx_flatmm_with_layouts(int argc,
     printf("\n");
 
     printf("printf scale_b: \n");
-    for(int n = 0; n < N / DequantGranularityN; n++)
+    for(int n = 0; n < N / ScaleGranularityN; n++)
     {
-        for(int k = 0; k < K / DequantGranularityK; k++)
+        for(int k = 0; k < K / ScaleGranularityK; k++)
         {
             printf("%.2f ", ck_tile::type_convert<float>(scale_b(k, n)));
         }
@@ -172,13 +172,24 @@ int run_mx_flatmm_with_layouts(int argc,
         }
         printf("\n");
     }
+    printf("\n");
 
+    printf("printf scale_a: \n");
+    for(int m = 0; m < M / ScaleGranularityM; m++)
+    {
+        for(int k = 0; k < K / ScaleGranularityK;)
+        {
+            printf("0x%08x ", *(reinterpret_cast<uint32_t*>(&scale_a(m, k).data)));
+            k += 4;
+        }
+        printf("\n");
+    }
     printf("\n");
 
     printf("printf scale_b: \n");
-    for(int n = 0; n < N / DequantGranularityN; n++)
+    for(int n = 0; n < N / ScaleGranularityN; n++)
     {
-        for(int k = 0; k < K / DequantGranularityK;)
+        for(int k = 0; k < K / ScaleGranularityK;)
         {
             printf("0x%08x ", *(reinterpret_cast<uint32_t*>(&scale_b(k, n).data)));
             k += 4;
