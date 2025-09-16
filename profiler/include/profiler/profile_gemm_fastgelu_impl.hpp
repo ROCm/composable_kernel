@@ -40,18 +40,18 @@ bool profile_gemm_fastgelu_impl(int do_verification,
                                 int StrideB,
                                 int StrideE)
 {
+    auto is_auto_stride = [](int s) { return s <= 0; };
+
     auto f_host_tensor_descriptor =
-        [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+        [is_auto_stride](std::size_t row, std::size_t col, int stride, auto layout) {
             using namespace ck::literals;
 
-            if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
-            {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
-            }
-            else
-            {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
-            }
+            auto strides = is_auto_stride(stride) ? std::vector<std::size_t>{}
+                           : is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value
+                               ? std::vector<std::size_t>({static_cast<std::size_t>(stride), 1_uz})
+                               : std::vector<std::size_t>({1_uz, static_cast<std::size_t>(stride)});
+
+            return HostTensorDescriptor({row, col}, strides, layout);
         };
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
