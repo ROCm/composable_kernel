@@ -476,14 +476,14 @@ def buildHipClangJob(Map conf=[:]){
         def retimage
         (retimage, image) = getDockerImage(conf)
 
-        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
+        // gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 20, unit: 'HOURS')
                 {
                     cmake_build(conf)
                 }
             }
-        }
+        // }
         return retimage
 }
 
@@ -538,7 +538,7 @@ def Build_CK(Map conf=[:]){
         def image
         def retimage
 
-        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
+        // gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
             try {
                 (retimage, image) = getDockerImage(conf)
                 withDockerContainer(image: image, args: dockerOpts) {
@@ -692,7 +692,7 @@ def Build_CK(Map conf=[:]){
                     }
                 }
             }
-        }
+        // }
         return retimage
 }
 
@@ -728,7 +728,7 @@ def process_results(Map conf=[:]){
     def variant = env.STAGE_NAME
     def retimage
 
-    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
+    // gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
         try
         {
             echo "Pulling image: ${image}"
@@ -741,7 +741,7 @@ def process_results(Map conf=[:]){
         {
             error "Unable to locate image: ${image}"
         }
-    }
+    // }
 
     withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
         timeout(time: 15, unit: 'MINUTES'){
@@ -836,7 +836,7 @@ def run_aiter_tests(Map conf=[:]){
     dockerOpts = dockerOpts + " --group-add=${video_id} --group-add=${render_id} "
     echo "Docker flags: ${dockerOpts}"
 
-    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
+    // gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
         try
         {
             echo "Pulling image: ${image}"
@@ -849,7 +849,7 @@ def run_aiter_tests(Map conf=[:]){
         {
             error "Unable to locate image: ${image}"
         }
-    }
+    // }
 
     withDockerContainer(image: image, args: dockerOpts) {
         timeout(time: 2, unit: 'HOURS'){
@@ -894,7 +894,7 @@ def run_pytorch_tests(Map conf=[:]){
     dockerOpts = dockerOpts + " --group-add=${video_id} --group-add=${render_id} "
     echo "Docker flags: ${dockerOpts}"
 
-    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
+    // gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
         try
         {
             echo "Pulling image: ${image}"
@@ -907,7 +907,7 @@ def run_pytorch_tests(Map conf=[:]){
         {
             error "Unable to locate image: ${image}"
         }
-    }
+    // }
 
     withDockerContainer(image: image, args: dockerOpts) {
         timeout(time: 2, unit: 'HOURS'){
