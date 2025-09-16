@@ -26,7 +26,7 @@ endforeach()
 
 # "fwd" is a must-have api for the fmha_fwd example, add it if not specified
 if(NOT "fwd" IN_LIST FMHA_FWD_ENABLE_APIS)
-  list(APPEND FMHA_FWD_ENABLE_APIS "fwd")
+  list(PREPEND FMHA_FWD_ENABLE_APIS "fwd")
 endif()
 
 file(GLOB_RECURSE CODE_GEN_SCRIPTS CONFIGURE_DEPENDS
@@ -50,6 +50,15 @@ set(FMHA_BWD_CODE_GEN_COMMON_ARGS
   --optdim 32,64,128,256
   # --filter fmha_bwd_dot...@fmha_bwd_convert...@fmha_bwd...
 )
+
+# Reduce building time by disabling instances that are not currently used in the gtests
+# TODO: Consider to use a special receipt for testing only, or even two receipts: a small subset of
+# instances for quick CI runs and a larger subset for scheduled runs (the tests skip tests when
+# there is no corresponding instance for parameters).
+if(BUILD_TESTING)
+  # Filters are in the order of FMHA_FWD_KNOWN_APIS: fwd,fwd_splitkv_combine@fwd_splitkv,fwd_appendkv,pagedkv_prefill
+  list(APPEND FMHA_FWD_CODE_GEN_COMMON_ARGS --filter *_nlogits*_nskip*,*@*_nlogits*_nbias*,*,*_nlogits*_nskip*_pagedkv)
+endif()
 
 # generate a list of kernels, but not actually emit files at config sta
 execute_process(
@@ -204,8 +213,20 @@ list(APPEND EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS
   -Wno-undefined-func-template
   --save-temps
 )
-target_compile_options(${EXAMPLE_FMHA_FWD_V3} PRIVATE ${EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS})
+set(EXAMPLE_FMHA_FWD_V3_COMPILE_DEFINITIONS)
 
+check_cxx_compiler_flag("-mllvm --amdgpu-disable-packed-fp32=1" HAS_DISABLE_PACKED_FP32)
+if(HAS_DISABLE_PACKED_FP32)
+  list(APPEND EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS
+    -mllvm --amdgpu-disable-packed-fp32=1
+  )
+  list(APPEND EXAMPLE_FMHA_FWD_V3_COMPILE_DEFINITIONS
+    -DCK_TILE_DISABLE_PACKED_FP32=1
+  )
+endif()
+
+target_compile_options(${EXAMPLE_FMHA_FWD_V3} PRIVATE ${EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS})
+target_compile_definitions(${EXAMPLE_FMHA_FWD_V3} PRIVATE ${EXAMPLE_FMHA_FWD_V3_COMPILE_DEFINITIONS})
 # TODO: we have to turn off this global prop, otherwise the progress bar generated
 # by cmake will print too many files, execvp: /bin/sh: Argument list too long
 # however, this property may affect global

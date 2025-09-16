@@ -34,7 +34,8 @@ struct fmha_fwd_v3_args
 
     index_t window_size_left;
     index_t window_size_right;
-    index_t mask_type;
+    index_t mask_type; // should be 0 for no mask; or 2 for causal mask (window_size_left < 0 and
+                       // window_size_right == 0).
 
     const void* q_ptr;
     index_t stride_q;
