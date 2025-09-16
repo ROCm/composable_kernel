@@ -43,6 +43,7 @@ set(REGRESSION_TESTS
     test_ck_tile_fmha_fwd_bf16
     test_ck_tile_fmha_fwd_fp16
     test_ck_tile_fmha_fwd_fp8
+    test_ck_tile_grouped_gemm
 )
 
 function(add_test_executable TEST_NAME)
