@@ -47,7 +47,6 @@ using KernelTypes = ::testing::Types<
     //               ALayout, BLayout, CLayout, ADataType, BDataType, AccDataType, CDataType, M_Tile, N_Tile, K_Tile, BlockPerCu
     KernelConfig<    Row,     Col,     Row,       F16,       F16,         F32,       F16,       16,     64,    256,         1>,
     KernelConfig<    Row,     Col,     Row,       F8,        F8,          F32,       F16,       16,     64,    256,         1>,
-    // Prefill variants with larger tiles
     KernelConfig<    Row,     Col,     Row,       F16,       F16,         F32,       F16,      128,    128,    128,         2>,
     KernelConfig<    Row,     Col,     Row,       F8,        F8,          F32,       F16,      128,    128,    128,         2>
     >;

@@ -241,14 +241,6 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
              const int kbatch      = 1,
              const int group_count = 16)
     {
-        // Skip FP8 tests on gfx950 GPU
-        if constexpr(std::is_same_v<ADataType, ck_tile::fp8_t> || std::is_same_v<BDataType, ck_tile::fp8_t>)
-        {
-            if(ck_tile::get_device_name() == "gfx950")
-            {
-                GTEST_SKIP() << "FP8 tests are not supported on gfx950 GPU";
-            }
-        }
 
         using namespace ck_tile::literals;
         auto f_host_tensor_descriptor = [](std::size_t row,

@@ -17,7 +17,7 @@ TYPED_TEST(TestCkTileGroupedGemmPreshuffle, PrefillVariant)
 
         Ms.push_back(256 + 128 * i);
         Ns.push_back(256 + 128 * i);
-        Ks.push_back(128 + 64 * i);
+        Ks.push_back(128 * (i + 1));
 
         stride_As.push_back(Ks[i]);
         stride_Bs.push_back(Ks[i]);
