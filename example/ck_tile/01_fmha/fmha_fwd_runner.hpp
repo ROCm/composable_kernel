@@ -182,6 +182,10 @@ fwd_result fmha_fwd_run(mode_enum mode,
             return "fp8";
         else if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdBf8>)
             return "bf8";
+        else if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8Bf16>)
+            return "fp8bf16";
+        else if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8Fp32>)
+            return "fp8fp32";
         else
             static_assert(false);
     }();
