@@ -401,7 +401,7 @@ TEST_P(PagedKV, Test)
                                                0,               // scale_s
                                                0,               // logits_soft_cap
                                                is_v_rowmajor,   // is_v_rowmajor
-                                               def_lse,         // lse
+                                               false,           // lse
                                                page_block_size, // page_block_size
                                                false,           // use_cache_batch_idx
                                                "n",             // bias_str

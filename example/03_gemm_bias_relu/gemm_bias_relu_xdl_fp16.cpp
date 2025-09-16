@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -83,10 +83,10 @@ using DeviceOpInstance =
                                                                    32,
                                                                    8,
                                                                    8,
-                                                                   32,
-                                                                   32,
+                                                                   16,
+                                                                   16,
+                                                                   8,
                                                                    4,
-                                                                   2,
                                                                    S<4, 64, 1>,
                                                                    S<1, 0, 2>,
                                                                    S<1, 0, 2>,
@@ -104,7 +104,7 @@ using DeviceOpInstance =
                                                                    1,
                                                                    1,
                                                                    S<1, 32, 1, 8>,
-                                                                   8>;
+                                                                   4>;
 
 int main(int argc, char* argv[])
 {
@@ -113,13 +113,13 @@ int main(int argc, char* argv[])
     bool time_kernel     = false;
 
     // GEMM shape
-    ck::index_t M = 3840;
-    ck::index_t N = 4096;
-    ck::index_t K = 4096;
+    ck::index_t M = 1920;
+    ck::index_t N = 2048;
+    ck::index_t K = 2048;
 
-    ck::index_t StrideA = 4096;
-    ck::index_t StrideB = 4096;
-    ck::index_t StrideE = 4096;
+    ck::index_t StrideA = 2048;
+    ck::index_t StrideB = 2048;
+    ck::index_t StrideE = 2048;
 
     if(argc == 1)
     {
