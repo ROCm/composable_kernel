@@ -37,10 +37,26 @@ using DeviceElementwisePermuteInstance = ck::tensor_operation::device::DeviceEle
     ck::Sequence<8>,      // InScalarPerVectorSeq
     ck::Sequence<8>>;     // OutScalarPerVectorSeq
 
-int main()
+int main(int argc, char* argv[])
 {
     bool do_verification = true;
     bool time_kernel     = true;
+
+    if(argc == 1)
+    {
+        // use default
+    }
+    else if(argc == 3)
+    {
+        do_verification = std::stoi(argv[1]);
+        time_kernel     = std::stoi(argv[2]);
+    }
+    else
+    {
+        printf("arg1: verification (0=no, 1=yes)\n");
+        printf("arg2: time kernel (0=no, 1=yes)\n");
+        exit(0);
+    }
 
     std::vector<std::size_t> nchw = {16, 128, 32, 64};
     std::vector<std::size_t> nhwc = {16, 32, 64, 128};

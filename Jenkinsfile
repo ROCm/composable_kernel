@@ -149,7 +149,7 @@ def getDockerImage(Map conf=[:]){
         image = conf.get("docker_name", "")
         echo "Using legacy docker: ${image}"
     }
-    else if ( params.BUILD_GFX950 && conf.get("docker_name", "") != "" ){
+    else if ( (params.BUILD_GFX950 || params.RUN_CK_TILE_FMHA_TESTS) && conf.get("docker_name", "") != "" ){
         image = conf.get("docker_name", "")
         echo "Using special docker: ${image}"
     }
@@ -186,11 +186,11 @@ def buildDocker(install_prefix){
         dockerArgs = dockerArgs + " --no-cache --build-arg BASE_DOCKER='${base_image_name}' -f Dockerfile.compiler . "
     }
     else if(params.RUN_AITER_TESTS){
-        image_name = "rocm/composable_kernel:ck_aiter"
+        image_name = "${env.CK_DOCKERHUB_PRIVATE}:ck_aiter"
         dockerArgs = dockerArgs + " --no-cache -f Dockerfile.aiter --build-arg AITER_BRANCH='${params.aiter_branch}' --build-arg CK_AITER_BRANCH='${params.ck_aiter_branch}' . "
     }
      else if(params.RUN_PYTORCH_TESTS){
-        image_name = "rocm/composable_kernel:ck_pytorch"
+        image_name = "${env.CK_DOCKERHUB}:ck_pytorch"
         dockerArgs = dockerArgs + " --no-cache -f Dockerfile.pytorch --build-arg CK_PYTORCH_BRANCH='${params.ck_pytorch_branch}' . "
     }
    else{
@@ -716,7 +716,7 @@ def process_results(Map conf=[:]){
     env.HSA_ENABLE_SDMA=0
     checkout scm
     //use older image that has user jenkins
-    def image = "rocm/composable_kernel:ck_ub22.04_rocm6.3"
+    def image = "${env.CK_DOCKERHUB}:ck_ub22.04_rocm6.3"
     def prefixpath = "/opt/rocm"
 
     // Jenkins is complaining about the render group 
@@ -827,7 +827,7 @@ def run_aiter_tests(Map conf=[:]){
     env.HSA_ENABLE_SDMA=0
     checkout scm
     //use the latest pytorch image
-    def image = "rocm/composable_kernel:ck_aiter"
+    def image = "${env.CK_DOCKERHUB_PRIVATE}:ck_aiter"
     def dockerOpts="--network=host --device=/dev/kfd --device=/dev/dri --group-add video --group-add render --group-add irc --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --user=jenkins -v=/var/jenkins/:/var/jenkins"
     def variant = env.STAGE_NAME
     def retimage
@@ -885,7 +885,7 @@ def run_pytorch_tests(Map conf=[:]){
     env.HSA_ENABLE_SDMA=0
     checkout scm
     //use the latest pytorch-nightly image
-    def image = "rocm/composable_kernel:ck_pytorch"
+    def image = "${env.CK_DOCKERHUB}:ck_pytorch"
     def dockerOpts="--network=host --device=/dev/kfd --device=/dev/dri --group-add video --group-add render --group-add irc --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --user=jenkins -v=/var/jenkins/:/var/jenkins"
     def variant = env.STAGE_NAME
     def retimage
@@ -1033,8 +1033,8 @@ pipeline {
             description: "Build CK and run tests on gfx90a (default: ON)")
         booleanParam(
             name: "BUILD_GFX942",
-            defaultValue: false,
-            description: "Build CK and run tests on gfx942 (default: OFF)")
+            defaultValue: true,
+            description: "Build CK and run tests on gfx942 (default: ON)")
         booleanParam(
             name: "BUILD_GFX950",
             defaultValue: false,
@@ -1207,6 +1207,18 @@ pipeline {
                         cleanWs()
                     }
                 }
+                stage("Run AITER Tests on gfx950")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_AITER_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx950")}
+                    steps{
+                        run_aiter_tests()
+                        cleanWs()
+                    }
+                }
             }
         }
         stage("Run Grouped Conv Large Case Tests")
@@ -1321,12 +1333,32 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 && \
-                                           make -j64 tile_example_fmha_fwd tile_example_fmha_bwd && \
+                                           make -j128 tile_example_fmha_fwd tile_example_fmha_bwd && \
                                            cd ../ &&
                                            example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        cleanWs()
+                    }
+                }
+                stage("Run CK_TILE_FMHA Tests on gfx950")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_CK_TILE_FMHA_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx950") }
+                    environment{
+                        def docker_name = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub24.04_rocm7.0"
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx950 && \
+                                           make -j128 tile_example_fmha_fwd tile_example_fmha_bwd && \
+                                           cd ../ &&
+                                           example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx950 """
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, docker_name: docker_name, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
                     }
                 }
@@ -1353,9 +1385,14 @@ pipeline {
                                             -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
+                                            -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8" \
+                                            -D GEMM_PRESHUFFLE_LAYOUT="rcr" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 benchmark_gemm_all && \
                                            python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" \
+                                           --warmup 5 --repeat 5 --verbose --json results.json && \
+                                           ninja -j64 benchmark_gemm_preshuffle_all && \
+                                           python3 ../tile_engine/ops/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" \
                                            --warmup 5 --repeat 5 --verbose --json results.json && \
                                            ninja -j64 benchmark_gemm_multi_d_fp16_rrrr && \
                                            ./bin/benchmark_gemm_multi_d_fp16_rrrr && \
@@ -1388,9 +1425,14 @@ pipeline {
                                             -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
+                                            -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8" \
+                                            -D GEMM_PRESHUFFLE_LAYOUT="rcr" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 benchmark_gemm_all && \
                                            python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" \
+                                           --warmup 5 --repeat 5 --verbose --json results.json && \
+                                           ninja -j64 benchmark_gemm_preshuffle_all && \
+                                           python3 ../tile_engine/ops/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" \
                                            --warmup 5 --repeat 5 --verbose --json results.json && \
                                            ninja -j64 benchmark_gemm_multi_d_fp16_rrrr && \
                                            ./bin/benchmark_gemm_multi_d_fp16_rrrr && \
