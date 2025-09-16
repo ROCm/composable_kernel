@@ -12,7 +12,7 @@
     },
     "tile_k": {
       "values": [
-        64
+        128
       ]
     },
     "warp_m": {
@@ -32,12 +32,12 @@
     },
     "warp_tile_m": {
       "values": [
-        16
+        32
       ]
     },
     "warp_tile_n": {
       "values": [
-        16
+        32
       ]
     },
     "warp_tile_k": {
@@ -59,7 +59,7 @@
     },
     "epilogue": {
       "values": [
-        "default"
+        "cshuffle"
       ]
     },
     "pad_m": {
@@ -83,5 +83,5 @@
        ]
     }
   },
-  "k_block_per_cu": 8
+  "k_block_per_cu": 1
 }

@@ -1,5 +1,5 @@
-set(GEMM_PRESHUFFLE_DATATYPE "fp8;fp16" CACHE STRING "List of datatypes for GEMM Preshuffle (semicolon-separated)")
-set(GEMM_PRESHUFFLE_LAYOUT "rcr" CACHE STRING "List of layout for GEMM Preshuffle (semicolon-separated)")
+set(GEMM_PRESHUFFLE_DATATYPE "fp8;fp16;bf8;bf16" CACHE STRING "List of datatypes for GEMM Preshuffle (semicolon-separated)")
+set(GEMM_PRESHUFFLE_LAYOUT "rcr;crr;ccr;rrr" CACHE STRING "List of layout for GEMM Preshuffle (semicolon-separated)")
 set(GEMM_PRESHUFFLE_CONFIG_FILE "" CACHE STRING "Custom config file name (without path, must be in configs/ folder)")
 option(ENABLE_CCACHE_GEMM_PRESHUFFLE "Enable ccache for GEMM Preshuffle ops compilation" OFF)
 

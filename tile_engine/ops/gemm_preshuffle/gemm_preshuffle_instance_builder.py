@@ -347,9 +347,9 @@ class GemmPreshuffleKernelBuilder:
         acc_type = "float"
 
         # Determine output type
-        c_type = get_dtype_string(self.datatype)
+        c_type = self.datatype
         if self.datatype in ["fp8", "bf8"]:
-            c_type = "ck_tile::fp16_t"
+            c_type = "fp16"
 
         # Determine layouts based on self.layout
         a_layout, b_layout, c_layout = get_abc_layouts(self.layout)
@@ -372,7 +372,7 @@ class GemmPreshuffleKernelBuilder:
 using ADataType = {get_dtype_string(self.datatype)};
 using BDataType = {get_dtype_string(self.datatype)};
 using AccDataType = {acc_type};
-using CDataType = {c_type};
+using CDataType = {get_dtype_string(c_type)};
 
 using ALayout = {a_layout};
 using BLayout = {b_layout};
@@ -689,11 +689,11 @@ def _generate_single_kernel_individual(work_item):
             tile_config, trait_combo, k_block_per_cu
         )
 
-        # Create simplified filename without the "gemm_" prefix
-        # Remove "gemm_" from the beginning of kernel_name for the filename
+        # Create simplified filename without the "gemm_preshuffle_" prefix
+        # Remove "gemm_preshuffle_" from the beginning of kernel_name for the filename
         simplified_name = kernel_name
-        if simplified_name.startswith("gemm_"):
-            simplified_name = simplified_name[5:]  # Remove "gemm_" prefix
+        if simplified_name.startswith("gemm_preshuffle_"):
+            simplified_name = simplified_name[16:]  # Remove "gemm_preshuffle_" prefix
 
         # Write individual header file
         header_file = working_path / f"gemm_single_{simplified_name}.hpp"
@@ -756,7 +756,7 @@ def main():
     assert len(layout_parts) == 3, (
         f"Invalid layout string: {args.layout} (must be 3 characters like 'rcr' where r stands for row major and c stands for column major)"
     )
-    assert layout_parts[0] == "r" and layout_parts[1] == "c", (
+    assert layout_parts[0] in ["r", "c"] and layout_parts[1] in ["r", "c"], (
         f"Invalid matrix_a layout : {layout_parts[0]} or matrix_b layout: {layout_parts[1]} (matrix_a must be 'r' for row major and matrix_b must be 'c' for column major as it is the only supported layout for preshuffle)"
     )
     assert layout_parts[2] == "r", (

@@ -350,6 +350,7 @@ def get_dtype_string(datatype: str) -> str:
     dtype_map = {
         "fp16": "ck_tile::fp16_t",
         "fp8": "ck_tile::fp8_t",
+        "bf8": "ck_tile::bf8_t",
         "bf16": "ck_tile::bf16_t",
         "fp32": "float",
         "fp64": "double",
