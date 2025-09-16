@@ -1,4 +1,5 @@
 #pragma once
+#include <type_traits>
 
 bool run_gemm_add_multiply(const ProblemSize& problem_size, const ExecutionConfig& config)
 {
@@ -6,16 +7,16 @@ bool run_gemm_add_multiply(const ProblemSize& problem_size, const ExecutionConfi
 
     auto& [M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideE] = problem_size;
 
+    auto is_auto_stride = [](std::size_t s) { return s == 0; };
+
     auto f_host_tensor_descriptor =
-        [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-            if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
-            {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
-            }
-            else
-            {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
-            }
+        [is_auto_stride](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+            auto strides = is_auto_stride(stride) ? std::vector<std::size_t>{}
+                           : std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value
+                               ? std::vector<std::size_t>({stride, 1_uz})
+                               : std::vector<std::size_t>({1_uz, stride});
+
+            return HostTensorDescriptor({row, col}, strides, layout);
         };
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));

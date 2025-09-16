@@ -113,6 +113,9 @@ struct HostTensorDescriptor
                          const Layout& layout = DefaultLayout())
         : mLens(std::move(lens)), mStrides(std::move(strides))
     {
+        // TBD: change const Layout& layout = DefaultLayout() to BaseTensorLayout
+        // and handle/allow special cases of 1d and 2D RowMajor GEMMs.
+
         if(IsAutoStrides())
         {
             this->CalculateStrides(layout);
@@ -126,14 +129,11 @@ struct HostTensorDescriptor
     template <typename Layout>
     void CalculateStrides(const Layout& layout)
     {
-
         if constexpr(!(std::is_same_v<ck::tensor_layout::gemm::RowMajor, Layout> ||
                        std::is_same_v<ck::tensor_layout::gemm::ColumnMajor, Layout>))
         {
-            std::ostringstream oss;
-            oss << "Only RowMajor and ColumnMajor layouts are supported in CalculateStrides. Got "
-                << layout;
-            throw std::runtime_error(oss.str());
+            std::cerr << "Only RowMajor and ColumnMajor layouts are supported for empty strides, got "
+                << layout << ". Will calculate strides as RowMajor." << std::endl;
         }
 
         mStrides.clear();
@@ -158,17 +158,17 @@ struct HostTensorDescriptor
     template <typename Layout>
     void ValidateStrides(const Layout& layout) const
     {
-        assert(!mLens.empty() && mLens.size() == mStrides.size());
-
-        auto strides_int = AsInt(mStrides);
-        if(std::any_of(
-               strides_int.begin(), strides_int.end(), [](int stride) { return stride <= 0; }))
+        if constexpr (std::is_same_v<ck::tensor_layout::BypassLayoutVerification, Layout>)
         {
-            std::ostringstream oss;
-            oss << "Stride values must be positive or all-zeros (auto-derived from tensor "
-                   "dimensions). Instead got ";
-            std::copy(strides_int.begin(), strides_int.end(), std::ostream_iterator<int>(oss, " "));
-            throw std::runtime_error(oss.str());
+            return;
+        }
+
+        assert(!mLens.empty());
+
+        const auto n_dims = mLens.size();
+        if (n_dims == 1) // skip any 1D tensors
+        {
+            return;
         }
 
         if constexpr(std::is_same_v<ck::tensor_layout::BaseTensorLayout, Layout>)
@@ -185,18 +185,31 @@ struct HostTensorDescriptor
         }
 
         // GEMM cases
-        if constexpr(ck::tensor_layout::gemm::is_gemm_layout<Layout>::value)
+        if constexpr(std::is_base_of_v<ck::tensor_layout::gemm::BaseGemmLayout, Layout>)
         {
+            assert(mLens.size() == mStrides.size());
+
+            // in GEMM, strides must be all positive or all zeros (auto-derived from tensor dimensions)
+            auto strides_int = AsInt(mStrides);
+            if(std::any_of(
+                strides_int.begin(), strides_int.end(), [](int stride) { return stride <= 0; }))
+            {
+                std::ostringstream oss;
+                oss << "Stride values must be positive or all-zeros (auto-derived from tensor "
+                    "dimensions). Instead got ";
+                std::copy(strides_int.begin(), strides_int.end(), std::ostream_iterator<int>(oss, " "));
+                throw std::runtime_error(oss.str());
+            }
+
             if constexpr(std::is_same_v<ck::tensor_layout::gemm::RowMajor, Layout> ||
                          std::is_same_v<ck::tensor_layout::gemm::ColumnMajor, Layout>)
             {
                 // The logic here assumes the GEMM with tensor of more than 2 dims, will always have
                 // HW dimesnsions as the inner ones e.g. batched GEMM is either BHW or BWH, so we
                 // check only the two inner dimensions.
-                const auto n_dims    = mLens.size();
                 const auto inner_idx = std::is_same_v<ck::tensor_layout::gemm::RowMajor, Layout>
-                                           ? n_dims - 1
-                                           : n_dims - 2;
+                                        ? n_dims - 1
+                                        : n_dims - 2;
                 const auto outer_idx = inner_idx == n_dims - 1 ? n_dims - 2 : n_dims - 1;
 
                 if(mStrides[outer_idx] < mLens[inner_idx] * mStrides[inner_idx])
@@ -213,21 +226,18 @@ struct HostTensorDescriptor
                 throw std::runtime_error(oss.str());
             }
         }
-#if 0
         // TBD: is_convolution_layout is not implemented yet
-        else if constexpr (ck::tensor_layout::gemm::is_convolution_layout<Layout>::value)
+        //else if constexpr (ck::tensor_layout::gemm::is_convolution_layout<Layout>::value)
+        // template<class T> inline constexpr bool is_ctc_layout_v = std::is_base_of_v<ctc::BaseLayoutTag, T>;
+        else if constexpr(std::is_base_of_v<ck::tensor_layout::convolution::BaseConvolutionLayout, Layout>)
         {
             // TBD: implement verification for Conv layouts
             // For now, just print warning and return
-            std::cerr << "Warning: Tensor layout verification for Convolutions is not supported yet." << std::endl;
+            std::cerr << "Warning: Tensor layout verification for ck::tensor_layout::convolution layouts is not supported yet. Skipping..." << std::endl;
             return;
         }
-#endif
         else
         {
-            // TBD: if desired, a new "bypass" layout can be added to skip the error, e.g.
-            //     if constexpr (std::is_same_v<ck::tensor_layout::BypassLayoutVerfication, Layout>)
-            //     { return; }
             std::ostringstream oss;
             oss << "Error: Tensor layout verification for " << layout << " is not supported yet.";
             throw std::runtime_error(oss.str());
@@ -356,6 +366,9 @@ struct HostTensorDescriptor
      */
     bool IsAutoStrides() const
     {
+        if (mStrides.empty())
+            return true;
+
         // This is a workaround if the original stride value is -1 (which means "unknown") has been
         // passed in and casted to size_t (unsigned).
         auto strides_int = AsInt(mStrides);
@@ -366,9 +379,10 @@ struct HostTensorDescriptor
     }
 };
 
-template <typename New2Old>
+template <typename New2Old, typename NewLayout = HostTensorDescriptor::BaseTensorLayout>
 HostTensorDescriptor transpose_host_tensor_descriptor_given_new2old(const HostTensorDescriptor& a,
-                                                                    const New2Old& new2old)
+                                                                    const New2Old& new2old,
+                                                                    const NewLayout& new_layout = NewLayout())
 {
     std::vector<std::size_t> new_lengths(a.GetNumOfDimension());
     std::vector<std::size_t> new_strides(a.GetNumOfDimension());
@@ -379,7 +393,7 @@ HostTensorDescriptor transpose_host_tensor_descriptor_given_new2old(const HostTe
         new_strides[i] = a.GetStrides()[new2old[i]];
     }
 
-    return HostTensorDescriptor(new_lengths, new_strides);
+    return HostTensorDescriptor(new_lengths, new_strides, new_layout);
 }
 
 struct joinable_thread : std::thread
@@ -484,6 +498,32 @@ struct Tensor
     template <typename Lengths, typename Strides>
     Tensor(const Lengths& lens, const Strides& strides)
         : mDesc(lens, strides), mData(GetElementSpaceSize())
+    {
+    }
+
+    template <typename X, typename... Rest,
+            std::enable_if_t<(sizeof...(Rest) > 0), int> = 0>
+    Tensor(std::initializer_list<X> lens, Rest&&... rest) : mDesc(lens, std::forward<Rest>(rest)...), mData(GetElementSpaceSize())
+    {
+    }
+
+    template <typename X, typename Y, typename... Rest,
+            std::enable_if_t<(sizeof...(Rest) > 0), int> = 0>
+    Tensor(std::initializer_list<X> lens, std::initializer_list<Y> strides, Rest&&... rest)
+        : mDesc(lens, strides, std::forward<Rest>(rest)...), mData(GetElementSpaceSize())
+    {
+    }
+
+    template <typename Lengths, typename... Rest,
+            std::enable_if_t<(sizeof...(Rest) > 0), int> = 0>
+    Tensor(const Lengths& lens, Rest&&... rest) : mDesc(lens, std::forward<Rest>(rest)...), mData(GetElementSpaceSize())
+    {
+    }
+
+    template <typename Lengths, typename Strides, typename... Rest,
+            std::enable_if_t<(sizeof...(Rest) > 0), int> = 0>
+    Tensor(const Lengths& lens, const Strides& strides, Rest&&... rest)
+        : mDesc(lens, strides, std::forward<Rest>(rest)...), mData(GetElementSpaceSize())
     {
     }
 
