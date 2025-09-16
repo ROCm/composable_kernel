@@ -62,8 +62,12 @@ struct pk_float4_e2m1_t
     CK_TILE_HOST_DEVICE constexpr operator bf16x2_t() const { return to_bf16x2(); }
 
     template <index_t I>
-    CK_TILE_HOST_DEVICE constexpr pk_float4_e2m1_t unpack(number<I>) const { return _unpack(number<I>{});}
-    CK_TILE_HOST_DEVICE constexpr static pk_float4_e2m1_t pack(const pk_float4_e2m1_t& x0, const pk_float4_e2m1_t& x1)
+    CK_TILE_HOST_DEVICE constexpr pk_float4_e2m1_t unpack(number<I>) const
+    {
+        return _unpack(number<I>{});
+    }
+    CK_TILE_HOST_DEVICE constexpr static pk_float4_e2m1_t pack(const pk_float4_e2m1_t& x0,
+                                                               const pk_float4_e2m1_t& x1)
     {
         return _pack(x0.get(), x1.get());
     }
@@ -363,7 +367,8 @@ CK_TILE_HOST_DEVICE constexpr fp16x2_t pk_fp4_t::to_fp16x2(float scale) const
 {
     return fp16x2_t{
         type_convert<fp16_t>(type_convert<float>(e2m1_to_fp16_table[_unpack(number<0>{})]) * scale),
-        type_convert<fp16_t>(type_convert<float>(e2m1_to_fp16_table[_unpack(number<1>{})]) * scale)};
+        type_convert<fp16_t>(type_convert<float>(e2m1_to_fp16_table[_unpack(number<1>{})]) *
+                             scale)};
 }
 #endif
 
