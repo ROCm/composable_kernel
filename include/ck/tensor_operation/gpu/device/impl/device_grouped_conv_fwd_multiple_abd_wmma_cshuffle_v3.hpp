@@ -38,7 +38,7 @@ namespace {
 /*
  * \brief Wrapper function of GridwiseGemm Wmma Cshuffle V3 to realize grouped forward convolution.
  *
- * \tparam ComputePtrOffsetOfBatch Class that computes the base pointer offsets of A, B, D and E
+ * \tparam ComputePtrOffset Class that computes the base pointer offsets of A, B, D and E
  * matrices for groups or splitN. Currently it works for identical strides, but this can be extended
  * to other layouts. The returned offset can be either \p index_t or \p long_index_t. If it returns
  * \p long_index_t, we are not subject to the 2GB limitations.
@@ -46,14 +46,6 @@ namespace {
  * \tparam Block2ETileMap Block2ETileMap::CalculateBottomIndex() takes in the id of a workgroup and
  * returns the 2D index of the tile that it computes. \see
  * GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3::Run().
- *
- * \note Using \p ComputePtrOffsetOfBatch gives us the flexibility that 2 workgroups can compute 2
- * tiles from different matrices. Keep in mind that these 2 matrices can share the same grid
- * descriptor (like in BatchedGEMM), or use their own grid descriptors (in GroupedGemm). \link
- * impl/device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk.hpp kernel_gemm_xdlops_v2r3_for_conv3d \endlink for
- * \link DeviceConv3d \endlink uses the same concept, but currently does NOT encapsulate the
- * computing of pointer offset into \p ComputePtrOffsetOfStridedBatch.
- *
  */
 template <typename GridwiseGemm,
           typename AGridDesc_AK0_M_AK1,
@@ -123,8 +115,6 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     ignore = num_k_per_block;
 #endif // End of if (!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
 }
-
-// TODO: Implement 2lds kernel?
 
 } // namespace
 
@@ -791,12 +781,6 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
             }
 
             {
-                // Original effective calculation of MBlock and NBlock
-                // const auto M = e_grid_desc_m_n.GetLength(I0);
-                // const auto N = e_grid_desc_m_n.GetLength(I1);
-                // const auto MBlock = M / MPerBlock;
-                // const auto NBlock = N / NPerBlock;
-
                 const index_t GemmM = a_grid_desc_ak0_m_ak1_.GetLength(I1);
                 const index_t GemmN = b_grid_desc_bk0_n_bk1_.GetLength(I1);
                 const auto MBlock   = CTranspose ? GridwiseGemmCTranspose::CalculateMBlock(GemmN)
@@ -1149,9 +1133,14 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                             ck::utility::flush_icache();
                             // rotating mem
                             rotating_mem.Next();
-                            // clear c mem
-                            // TODO: this E clearing does not look correct. Fix when implementing
-                            // splitK. if(arg_.KBatch > 1)
+                            // clear E mem
+
+                            // TODO: The calculation of the E buffer size may not be correct in all
+                            // cases, for example if the memory is not contiguous due to padding or
+                            // unusual strides. Investigate when implementing splitK. It may be
+                            // safer to use GetElementSpaceSize().
+
+                            // if(arg_.KBatch > 1)
                             //     HIP_CHECK_ERROR(hipMemsetAsync(arg_.p_e_grid,
                             //                                    0,
                             //                                    arg_.M * arg_.N *
