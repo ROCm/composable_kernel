@@ -123,6 +123,15 @@ generate_sharded_instantiations(
   SRC_LIST GROUPED_conv3d_FWD_BIAS_BNORM_CLAMP
   OUTPUT_DIR ${GENERATED_DIR}/xdl/merged_groups
 )
+
+set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+generate_sharded_instantiations(
+  INSTANCES_NAME device_grouped_conv3d_fwd_bias_bn_clamp_xdl_merged_groups_ndhwgc_gkzyxc_ndhwgk_f32_tf32_instances
+  TEMPLATE_FILE xdl/merged_groups/device_grouped_conv3d_fwd_bias_bn_clamp_xdl_merged_groups_ndhwgc_gkzyxc_ndhwgk_f32_tf32_instance.in
+  NUM_SHARDS 3
+  SRC_LIST GROUPED_conv3d_FWD_BIAS_BNORM_CLAMP
+  OUTPUT_DIR ${GENERATED_DIR}/xdl/merged_groups
+)
    #mem
    # NDHWGC, GKZYXC, NDHWGK
 

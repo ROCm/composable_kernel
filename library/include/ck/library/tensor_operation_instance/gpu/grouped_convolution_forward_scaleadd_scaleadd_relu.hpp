@@ -68,6 +68,22 @@ void add_device_grouped_conv3d_fwd_xdl_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhw
                                                                 PassThrough,
                                                                 PassThrough,
                                                                 ScaleAddScaleAddRelu>>>& instances);
+
+void add_device_grouped_conv3d_fwd_xdl_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhwgk_f32_tf32_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                ck::Tuple<NDHWGK, G_K>,
+                                                                NDHWGK,
+                                                                F32,
+                                                                F32,
+                                                                ck::Tuple<F32, F32>,
+                                                                F32,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                ScaleAddScaleAddRelu,
+                                                                TF32,
+                                                                TF32>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_INT8
@@ -138,8 +154,16 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                          is_same_v<OutDataType, float>)
             {
-                add_device_grouped_conv3d_fwd_xdl_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhwgk_f32_instances(
-                    op_ptrs);
+                if constexpr(is_same_v<ComputeType, TF32>)
+                {
+                    add_device_grouped_conv3d_fwd_xdl_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhwgk_f32_tf32_instances(
+                        op_ptrs);
+                }
+                else
+                {
+                    add_device_grouped_conv3d_fwd_xdl_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhwgk_f32_instances(
+                        op_ptrs);
+                }
             }
 #endif
 #ifdef CK_ENABLE_FP16

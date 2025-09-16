@@ -69,7 +69,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     static constexpr index_t WaveSize = BlockSize / MWaves / NWaves;
 
     static constexpr auto xdlops_gemm =
-        XdlopsGemm<ComputeTypeA, MPerXDL, NPerXDL, KPack, ComputeTypeB, false, false>{};
+        XdlopsGemm<ComputeTypeA, MPerXDL, NPerXDL, KPack, ComputeTypeB>{};
 
     static constexpr index_t KPerThread = KPerBlock / xdlops_gemm.K0PerXdlops;
 
@@ -637,21 +637,19 @@ constexpr auto BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector()
     }
     else if constexpr(LoopSched == LoopScheduler::Interwave)
     {
-        return BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<
-            BlockSize,
-            FloatA,
-            FloatB,
-            FloatAcc,
-            AK0MK1BlockDesc,
-            BK0NK1BlockDesc,
-            MPerXDL,
-            NPerXDL,
-            MRepeat,
-            NRepeat,
-            KPack,
-            ComputeTypeA,
-            ComputeTypeB,
-            CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING_MAC_CLUSTERS>{};
+        return BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
+                                                                            FloatA,
+                                                                            FloatB,
+                                                                            FloatAcc,
+                                                                            AK0MK1BlockDesc,
+                                                                            BK0NK1BlockDesc,
+                                                                            MPerXDL,
+                                                                            NPerXDL,
+                                                                            MRepeat,
+                                                                            NRepeat,
+                                                                            KPack,
+                                                                            ComputeTypeA,
+                                                                            ComputeTypeB>{};
     }
 };
 

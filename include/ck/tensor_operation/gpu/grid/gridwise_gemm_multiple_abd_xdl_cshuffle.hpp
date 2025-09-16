@@ -107,8 +107,10 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
     using BComputeDataType =
         conditional_t<is_same_v<BComputeDataType_, ck::half_t>, ck::bhalf_t, BComputeDataType_>;
 #else
-    using AComputeDataType = AComputeDataType_;
-    using BComputeDataType = BComputeDataType_;
+    using AComputeDataType =
+        conditional_t<is_same_v<AComputeDataType_, ck::tf32_t>, float, AComputeDataType_>;
+    using BComputeDataType =
+        conditional_t<is_same_v<BComputeDataType_, ck::tf32_t>, float, BComputeDataType_>;
 #endif
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
@@ -679,20 +681,21 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
         // sanity check
         constexpr auto lcm_AK1_BK1 = math::lcm(AK1, BK1);
         constexpr bool is_single_rate_mfma =
-            (((is_same<AComputeDataType, half_t>::value ||
-               is_same<AComputeDataType, bhalf_t>::value) &&
+            (((is_same<AComputeDataType_, half_t>::value ||
+               is_same<AComputeDataType_, bhalf_t>::value) &&
               lcm_AK1_BK1 <= 4) ||
-             (is_same<AComputeDataType, int8_t>::value && lcm_AK1_BK1 <= 8) ||
-             ((is_same<AComputeDataType, f8_t>::value || is_same<AComputeDataType, bf8_t>::value) &&
+             (is_same<AComputeDataType_, int8_t>::value && lcm_AK1_BK1 <= 8) ||
+             ((is_same<AComputeDataType_, f8_t>::value ||
+               is_same<AComputeDataType_, bf8_t>::value) &&
               lcm_AK1_BK1 < 32))
                 ? true
                 : false;
         static constexpr auto is_scale_mfma = false;
         constexpr index_t KPack             = math::max(lcm_AK1_BK1,
-                                            MfmaSelector<AComputeDataType,
+                                            MfmaSelector<AComputeDataType_,
                                                                      MPerXdl,
                                                                      NPerXdl,
-                                                                     BComputeDataType,
+                                                                     BComputeDataType_,
                                                                      is_single_rate_mfma,
                                                                      is_scale_mfma>::selected_mfma.k_per_blk);
 
@@ -709,8 +712,8 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
             NXdlPerWave,
             KPack,
             LoopSched,
-            AComputeDataType,
-            BComputeDataType>();
+            AComputeDataType_,
+            BComputeDataType_>();
 
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();
 

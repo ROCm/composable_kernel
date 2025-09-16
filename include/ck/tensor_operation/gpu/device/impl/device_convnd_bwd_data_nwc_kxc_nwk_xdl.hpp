@@ -55,7 +55,8 @@ template <ck::index_t NDimSpatial,
           ck::index_t BBlockTransferDstScalarPerVector_K1,
           bool BBlockLdsAddExtraN,
           ck::index_t CThreadTransferSrcDstVectorDim,
-          ck::index_t CThreadTransferDstScalarPerVector>
+          ck::index_t CThreadTransferDstScalarPerVector,
+          typename ComputeDataType = InDataType>
 struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
     : public DeviceConvBwdData<
           NDimSpatial,
@@ -78,6 +79,14 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
           WeiElementwiseOperation,
           OutElementwiseOperation>
 {
+
+    DeviceConvNdBwdDataNwcKxcNwk_Xdl()
+    {
+        static_assert(is_same_v<InDataType, ComputeDataType> ||
+                          (is_same_v<InDataType, float> && is_same_v<ComputeDataType, ck::tf32_t>),
+                      "InDataType and ComputeDataType need to be the same or (InDataType=float and "
+                      "ComputeDataType=tf32_t)");
+    }
     using DeviceOp = DeviceConvNdBwdDataNwcKxcNwk_Xdl;
 
     GET_NXDL_PER_WAVE_IMPL
@@ -89,7 +98,7 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
     using CDataType = InDataType;
 
     // TODO make A/B datatype different
-    using ABDataType = InDataType;
+    using ABDataType = ComputeDataType;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -1195,6 +1204,36 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
             }
         }
 
+        void Print() const
+        {
+            std::cout << "InDataType: " << get_type_name<InDataType>()
+                      << "; WeiDataType: " << get_type_name<WeiDataType>()
+                      << "; OutDataType: " << get_type_name<OutDataType>()
+                      << "; AccDataType: " << get_type_name<AccDataType>() << std::endl;
+            auto print_v = [](std::ostream& os,
+                              const std::vector<ck::index_t>& v,
+                              const std::string& name) -> std::ostream& {
+                os << name << ": [";
+                for(size_t i = 0; i < v.size(); ++i)
+                {
+                    os << v[i];
+                    if(i + 1 < v.size())
+                        os << ", ";
+                }
+                os << "]";
+                return os;
+            };
+            std::cout << "Conv params: Ndims: " << NDimSpatial << ", N: " << Conv_N_
+                      << ", K: " << Conv_K_ << ", C: " << Conv_C_ << "\n\t";
+            print_v(std::cout, input_spatial_lengths_, "input_spatial_lengths") << "\n\t";
+            print_v(std::cout, filter_spatial_lengths_, "filter_spatial_lengths") << "\n\t";
+            print_v(std::cout, output_spatial_lengths_, "output_spatial_lengths") << "\n\t";
+            print_v(std::cout, conv_filter_strides_, "conv_filter_strides") << "\n\t";
+            print_v(std::cout, conv_filter_dilations_, "conv_filter_dilations") << "\n\t";
+            print_v(std::cout, input_left_pads_, "input_left_pads") << "\n\t";
+            print_v(std::cout, input_right_pads_, "input_right_pads") << std::endl;
+        }
+
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
@@ -1226,6 +1265,11 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
         template <typename GridwiseGemm>
         float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
+
+            if(stream_config.log_level_ > 0)
+            {
+                arg.Print();
+            }
             float ave_time = 0;
             for(size_t i = 0; i < arg.a_grid_desc_k0_m_k1_container_.size(); i++)
             {
