@@ -163,20 +163,42 @@ struct BatchedGemmKernel
     CK_TILE_HOST static auto
     IsSupportedArgument(const typename BatchedGemmKernel::KernelArgs& kargs) -> bool
     {
-        bool isValid = true;
-
-        // Check leading dimensions validity
-        if(!(kargs.M % GemmPipeline::MPerBlock == 0 && kargs.N % GemmPipeline::NPerBlock == 0 &&
-             kargs.K % GemmPipeline::KPerBlock == 0))
+        if(kargs.batch_count < 1)
         {
-            isValid = false;
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR("Conditions not met for batch_count >= 1 !");
+            }
+            return false;
         }
-        if(kargs.M < GemmPipeline::MPerBlock || kargs.N < GemmPipeline::NPerBlock ||
-           kargs.K < GemmPipeline::KPerBlock)
+        if(kargs.batch_stride_A < 0 || kargs.batch_stride_A < kargs.M * kargs.K)
         {
-            isValid = false;
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR(
+                    "Conditions not met for batch_stride_A >= M * K AND batch_stride_A < 0!");
+            }
+            return false;
         }
-        return isValid && UniversalGemmKernel::IsSupportedArgument(kargs);
+        if(kargs.batch_stride_B < 0 || kargs.batch_stride_B < kargs.K * kargs.N)
+        {
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR(
+                    "Conditions not met for batch_stride_B >= K * N AND batch_stride_B < 0!");
+            }
+            return false;
+        }
+        if(kargs.batch_stride_E < 0 || kargs.batch_stride_E < kargs.M * kargs.N)
+        {
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR(
+                    "Conditions not met for batch_stride_E >= M * N AND batch_stride_E < 0!");
+            }
+            return false;
+        }
+        return UniversalGemmKernel::IsSupportedArgument(kargs);
     }
 
     CK_TILE_DEVICE void operator()(BatchedGemmKernelArgs kargs) const
