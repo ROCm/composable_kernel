@@ -657,7 +657,7 @@ struct MXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Probl
             scale_a_window.get_bottom_tensor_view(),
             make_tuple(number<MWarp * WG::kM>{}, number<64 / WG::kM>{}),
             scale_a_window.get_window_origin(),
-            PipelinePolicy::template MakeMXFP4_ScaleA_DramTileDistribution<Problem>());
+            PipelinePolicy::template MakeMXFP4_ScaleA_FlatDramTileDistribution<Problem>());
 
         auto scale_b_dram_window = make_tile_window(
             scale_b_window.get_bottom_tensor_view(),
@@ -769,6 +769,16 @@ struct MXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Probl
                 load_tile(a_warp_windows_ping(number<mIter>{})(number<kIter>{}));
         });
         __builtin_amdgcn_sched_barrier(0);
+
+#if 1
+        if(blockIdx.x == 0)
+        {
+            printf("tid: %u, scale_a_tile_tensor_ping(0)(0)[0]: 0x%08x\n",
+                   threadIdx.x,
+                   *(reinterpret_cast<uint32_t*>(
+                       &scale_a_tile_tensor_ping(I0)(I0).get_thread_buffer()[0])));
+        }
+#endif
 
         // MAIN LOOP
         index_t iCounter = (num_loop - 1) / 2;

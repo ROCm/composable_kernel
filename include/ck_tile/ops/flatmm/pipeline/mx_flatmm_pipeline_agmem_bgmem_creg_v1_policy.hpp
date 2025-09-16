@@ -286,14 +286,16 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         constexpr index_t K_Lane = 64 / TileShape::WarpTile::at(I0);
         constexpr index_t M_Lane = TileShape::WarpTile::at(I0);
 
+        constexpr index_t N_Wrap = TileShape::BlockWarps::at(number<1>{});
+
         constexpr index_t MWavePerBlk = M_Warp;
 
         return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<>,                          // ?
-                                       tuple<sequence<MWavePerBlk, M_Lane>, // second direction
-                                             sequence<K_Lane, 1>>,          // first direction
-                                       tuple<sequence<1>, sequence<2, 1>>,  // which direction
-                                       tuple<sequence<0>, sequence<0, 1>>,  // which index
+            tile_distribution_encoding<sequence<N_Wrap>,                      // ?
+                                       tuple<sequence<MWavePerBlk, M_Lane>,   // second direction
+                                             sequence<K_Lane, 1>>,            // first direction
+                                       tuple<sequence<1, 0>, sequence<2, 1>>, // which direction
+                                       tuple<sequence<0, 0>, sequence<0, 1>>, // which index
                                        // <repeat, vec_load>
                                        sequence<2>,
                                        sequence<1>>{});
@@ -311,14 +313,16 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         constexpr index_t K_Lane = 64 / TileShape::WarpTile::at(I1);
         constexpr index_t N_Lane = TileShape::WarpTile::at(I1);
 
+        constexpr index_t M_Wrap = TileShape::BlockWarps::at(number<0>{});
+
         constexpr index_t NWavePerBlk = N_Warp;
 
         return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<>,                          // ?
-                                       tuple<sequence<NWavePerBlk, N_Lane>, // second direction
-                                             sequence<K_Lane, 1>>,          // first direction
-                                       tuple<sequence<1>, sequence<2, 1>>,  // which direction
-                                       tuple<sequence<0>, sequence<0, 1>>,  // which index
+            tile_distribution_encoding<sequence<M_Wrap>,                      // ?
+                                       tuple<sequence<NWavePerBlk, N_Lane>,   // second direction
+                                             sequence<K_Lane, 1>>,            // first direction
+                                       tuple<sequence<0, 1>, sequence<2, 1>>, // which direction
+                                       tuple<sequence<0, 0>, sequence<0, 1>>, // which index
                                        // <repeat, vec_load>
                                        sequence<2>,
                                        sequence<1>>{});

@@ -100,6 +100,13 @@ int run_mx_flatmm_with_layouts(int argc,
         ck_tile::FillUniformDistribution<ScaleDataType>{-2.f, 2.f}(scale_a);
         ck_tile::FillUniformDistribution<ScaleDataType>{-2.f, 2.f}(scale_b);
     }
+    else if(init_method == 3)
+    {
+        ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_host);
+        ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_origin_host);
+        ck_tile::FillUniformDistribution<ScaleDataType>{-2.f, 2.f}(scale_a);
+        ck_tile::FillUniformDistribution<ScaleDataType>{-2.f, 2.f}(scale_b);
+    }
 
 #if 1
 #if 0
@@ -108,7 +115,11 @@ int run_mx_flatmm_with_layouts(int argc,
     {
         for(int k = 0; k < K; k++)
         {
-            printf("%.2f ", ck_tile::type_convert<float>(a_host(m, k)));
+            auto a_f4x2 = a_host(m, k);
+            if(k % 2 == 0)
+                printf("%.2f ", ck_tile::type_convert<float>(a_f4x2.unpack(ck_tile::number<1>{})));
+            else
+                printf("%.2f ", ck_tile::type_convert<float>(a_f4x2.unpack(ck_tile::number<0>{})));
         }
         printf("\n");
     }
@@ -138,6 +149,17 @@ int run_mx_flatmm_with_layouts(int argc,
         printf("\n");
     }
 #endif
+    printf("\n");
+
+    printf("printf scale_a: \n");
+    for(int m = 0; m < M / ScaleGranularityM; m++)
+    {
+        for(int k = 0; k < K / ScaleGranularityK; k++)
+        {
+            printf("%.2f ", ck_tile::type_convert<float>(scale_a(m, k)));
+        }
+        printf("\n");
+    }
     printf("\n");
 
     printf("printf scale_b: \n");
