@@ -11,10 +11,11 @@ bool run_gemm_add_multiply(const ProblemSize& problem_size, const ExecutionConfi
 
     auto f_host_tensor_descriptor =
         [is_auto_stride](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-            auto strides = is_auto_stride(stride) ? std::vector<std::size_t>{}
-                           : std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value
-                               ? std::vector<std::size_t>({stride, 1_uz})
-                               : std::vector<std::size_t>({1_uz, stride});
+            auto strides =
+                is_auto_stride(stride) ? std::vector<std::size_t>{}
+                : std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value
+                    ? std::vector<std::size_t>({stride, 1_uz})
+                    : std::vector<std::size_t>({1_uz, stride});
 
             return HostTensorDescriptor({row, col}, strides, layout);
         };

@@ -37,7 +37,6 @@ struct MFMA : public BaseGemmLayout
     static constexpr const char* name = "MFMA";
 };
 
-
 } // namespace gemm
 
 namespace convolution {

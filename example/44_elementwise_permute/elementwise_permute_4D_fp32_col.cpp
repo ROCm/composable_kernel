@@ -22,8 +22,8 @@ using F32 = float;
 using ADataType = F32;
 using BDataType = F32;
 
-using NchwLayout = ck::tensor_layout::convolution::NCHW;
-using NhwcLayout = ck::tensor_layout::convolution::NHWC;
+using NchwLayout  = ck::tensor_layout::convolution::NCHW;
+using NhwcLayout  = ck::tensor_layout::convolution::NHWC;
 using UnaryScale  = ck::tensor_operation::element_wise::Scale;
 using UnarySquare = ck::tensor_operation::element_wise::UnarySquare;
 using UnaryScaleSquare =
