@@ -24,19 +24,15 @@ using Default = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
 using WeightPreshuffle =
     ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::WeightPreshuffle>;
 
-// Adding aliases for the F8 parameters to facilitate skipping tests.
-// These aliases can be removed once test failures are fixed.
-using F8F8Types = std::tuple<Row, Col, Row, F8, F8, F32, F16, Default, WeightPreshuffle>;
-using F8I4Types = std::tuple<Row, Col, Row, F8, I4, F32, F16, Default, WeightPreshuffle>;
-
 // clang-format off
 
 using KernelTypesWeightPreshuffle = ::testing::Types<
      std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Default,        WeightPreshuffle>,
      std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       BF16,            Default,        WeightPreshuffle>
-#if !CK_TILE_USE_WMMA || CK_TILE_USE_OCP_FP8     
-     , F8F8Types,
-     F8I4Types
+#if !CK_TILE_USE_WMMA || CK_TILE_USE_OCP_FP8
+     ,
+     std::tuple<    Row,     Col,     Row,       F8,        F8,          F32,       F16,             Default,        WeightPreshuffle>,
+     std::tuple<    Row,     Col,     Row,       F8,        I4,          F32,       F16,             Default,        WeightPreshuffle>
 #endif     
      >;
 
