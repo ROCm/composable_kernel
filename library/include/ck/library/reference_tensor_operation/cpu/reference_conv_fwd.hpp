@@ -164,8 +164,18 @@ struct ReferenceConvFwd : public device::BaseOperator
                                                      k,
                                                      c,
                                                      x);
-                                v_acc +=
-                                    ck::type_convert<float>(v_in) * ck::type_convert<float>(v_wei);
+                                if constexpr(is_same_v<ComputeDataType, ck::tf32_t>)
+                                {
+                                    v_acc += ck::type_convert<float>(
+                                                 ck::type_convert<ComputeDataType>(v_in)) *
+                                             ck::type_convert<float>(
+                                                 ck::type_convert<ComputeDataType>(v_wei));
+                                }
+                                else
+                                {
+                                    v_acc += ck::type_convert<float>(v_in) *
+                                             ck::type_convert<float>(v_wei);
+                                }
                             }
                         }
                     }
@@ -239,8 +249,18 @@ struct ReferenceConvFwd : public device::BaseOperator
                                                          c,
                                                          y,
                                                          x);
-                                    v_acc += ck::type_convert<float>(v_in) *
-                                             ck::type_convert<float>(v_wei);
+                                    if constexpr(is_same_v<ComputeDataType, ck::tf32_t>)
+                                    {
+                                        v_acc += ck::type_convert<float>(
+                                                     ck::type_convert<ComputeDataType>(v_in)) *
+                                                 ck::type_convert<float>(
+                                                     ck::type_convert<ComputeDataType>(v_wei));
+                                    }
+                                    else
+                                    {
+                                        v_acc += ck::type_convert<float>(v_in) *
+                                                 ck::type_convert<float>(v_wei);
+                                    }
                                 }
                             }
                         }
@@ -328,10 +348,18 @@ struct ReferenceConvFwd : public device::BaseOperator
                                                              z,
                                                              y,
                                                              x);
-                                        v_acc += ck::type_convert<float>(
-                                                     ck::type_convert<ComputeDataType>(v_in)) *
-                                                 ck::type_convert<float>(
-                                                     ck::type_convert<ComputeDataType>(v_wei));
+                                        if constexpr(is_same_v<ComputeDataType, ck::tf32_t>)
+                                        {
+                                            v_acc += ck::type_convert<float>(
+                                                         ck::type_convert<ComputeDataType>(v_in)) *
+                                                     ck::type_convert<float>(
+                                                         ck::type_convert<ComputeDataType>(v_wei));
+                                        }
+                                        else
+                                        {
+                                            v_acc += ck::type_convert<float>(v_in) *
+                                                     ck::type_convert<float>(v_wei);
+                                        }
                                     }
                                 }
                             }
