@@ -57,7 +57,7 @@ bool profile_gemm_multiply_add_impl(int do_verification,
                                ? std::vector<std::size_t>({static_cast<std::size_t>(stride), 1_uz})
                                : std::vector<std::size_t>({1_uz, static_cast<std::size_t>(stride)});
 
-            return HostTensorDescriptor({row, col}, strides, layout);
+            return HostTensorDescriptor({row, col}, strides);
         };
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));

@@ -102,9 +102,16 @@ auto construct_f_unpack_args(F, T args)
 struct HostTensorDescriptor
 {
     using BaseTensorLayout = ck::tensor_layout::BaseTensorLayout;
-    using DefaultLayout =
-        ck::tensor_layout::gemm::RowMajor; // Default to RowMajor layout since CalculateStrides
-                                           // only supports RowMajor for now
+    using DefaultLayout    = BaseTensorLayout;
+
+    // Runtime tag describing which layout is picked when layout is not specified explicitly at
+    // construction time.
+    enum class ChosenLayout
+    {
+        Original,
+        RowMajor,
+        ColumnMajor
+    };
 
     // Master constructor
     template <typename Layout>
@@ -113,46 +120,156 @@ struct HostTensorDescriptor
                          const Layout& layout = DefaultLayout())
         : mLens(std::move(lens)), mStrides(std::move(strides))
     {
-        // TBD: change const Layout& layout = DefaultLayout() to BaseTensorLayout
-        // and handle/allow special cases of 1d and 2D RowMajor GEMMs.
-
-        if(IsAutoStrides())
+        // To support legacy use cases, when layout is not passed in
+        const auto new_layout = HandleDefaultLayout(layout);
+        if(dbg) 
         {
-            this->CalculateStrides(layout);
+            std::cout << "Original Lens: [";
+            LogRange(std::cout, mLens, ", ") << "] and Strides: [";
+            LogRange(std::cout, mStrides, ", ") << "]" << std::endl;
+            std::cout << "Layout: " << layout << " --> " << new_layout << std::endl;
         }
 
-        this->ValidateStrides(layout);
+        // Handling the strides and validation based on the chosen layout
+        DispatchChosenLayout(new_layout, layout, [&](auto selected_layout) {
+            this->CalculateStrides(selected_layout);
+            this->ValidateStrides(selected_layout);
+        });
     }
 
     HostTensorDescriptor() : HostTensorDescriptor({}, {}, DefaultLayout()){};
 
+    // Helper that invokes a callable with a concrete layout object whose type
+    // matches the chosen tag (so template code depending on the layout type
+    // can still leverage if constexpr branches).
+    template <typename F, typename OrigLayout>
+    void DispatchChosenLayout(ChosenLayout tag, const OrigLayout& orig, F&& f) const
+    {
+        switch(tag)
+        {
+        case ChosenLayout::RowMajor: f(ck::tensor_layout::gemm::RowMajor{}); break;
+        case ChosenLayout::ColumnMajor: f(ck::tensor_layout::gemm::ColumnMajor{}); break;
+        case ChosenLayout::Original:
+        default: f(orig); break;
+        }
+    }
+
+    template <typename Layout>
+    ChosenLayout HandleDefaultLayout(const Layout&)
+    {
+        if constexpr(!std::is_same_v<Layout, DefaultLayout>)
+        {
+            return ChosenLayout::Original;
+        }
+        else
+        {
+            if(mStrides.empty())
+            {
+                // No strides provided -> assume RowMajor
+                return ChosenLayout::RowMajor;
+            }
+
+            const std::size_t rank = mLens.size();
+
+            if(rank > 2)
+            {
+                // Keep as Base (legacy / abstract) – validation will warn/throw later
+                return ChosenLayout::Original;
+            }
+
+            if(rank == 0)
+            {
+                return ChosenLayout::Original;
+            }
+
+            if(rank == 1)
+            {
+                // Treat 1D tensor as RowMajor
+                return ChosenLayout::RowMajor;
+            }
+
+            // rank == 2
+            if(mStrides.size() == 2)
+            {
+                // RowMajor pattern (?, 1)
+                if(mStrides[1] == 1)
+                {
+                    return ChosenLayout::RowMajor;
+                }
+
+                // ColumnMajor pattern (1, ?)
+                if(mStrides[0] == 1)
+                {
+                    return ChosenLayout::ColumnMajor;
+                }
+            }
+
+            // Fallback: leave as abstract
+            return ChosenLayout::Original;
+        }
+    }
+
     template <typename Layout>
     void CalculateStrides(const Layout& layout)
     {
-        if constexpr(!(std::is_same_v<ck::tensor_layout::gemm::RowMajor, Layout> ||
-                       std::is_same_v<ck::tensor_layout::gemm::ColumnMajor, Layout>))
+        // This is a workaround if the original stride value is -1 (which means "unknown") has been
+        // passed in and casted to size_t (unsigned).
+        auto strides_int = AsInt(mStrides);
+
+        // case of empty strides or all-zero: auto-calculate based on layout and tensor dimensions
+        if(mStrides.empty() || std::all_of(strides_int.begin(), strides_int.end(), [](int stride) {
+               return stride <= 0;
+           }))
         {
-            std::cerr
-                << "Only RowMajor and ColumnMajor layouts are supported for empty strides, got "
-                << layout << ". Will calculate strides as RowMajor." << std::endl;
+
+            if constexpr(!(std::is_same_v<ck::tensor_layout::gemm::RowMajor, Layout> ||
+                           std::is_same_v<ck::tensor_layout::gemm::ColumnMajor, Layout>))
+            {
+                std::cerr << "Only RowMajor and ColumnMajor layouts are supported for empty "
+                             "strides, got "
+                          << layout << ". Will calculate strides as RowMajor." << std::endl;
+            }
+
+            mStrides.clear();
+            mStrides.resize(mLens.size(), 0);
+            if(mStrides.empty())
+                return;
+
+            mStrides.back() = 1;
+            std::partial_sum(mLens.rbegin(),
+                             mLens.rend() - 1,
+                             mStrides.rbegin() + 1,
+                             std::multiplies<std::size_t>());
+
+            if constexpr(std::is_same_v<ck::tensor_layout::gemm::ColumnMajor, Layout>)
+            {
+                // swap the last two strides
+                if(mStrides.size() >= 2)
+                    std::swap(mStrides[mStrides.size() - 1], mStrides[mStrides.size() - 2]);
+            }
         }
-
-        mStrides.clear();
-        mStrides.resize(mLens.size(), 0);
-        if(mStrides.empty())
-            return;
-
-        mStrides.back() = 1;
-        std::partial_sum(mLens.rbegin(),
-                         mLens.rend() - 1,
-                         mStrides.rbegin() + 1,
-                         std::multiplies<std::size_t>());
-
-        if constexpr(std::is_same_v<ck::tensor_layout::gemm::ColumnMajor, Layout>)
+        // The other case is if one of the strides is unknown
+        // Currently, only GEMM RowMajor and ColumnMajor layouts are supported and only in the lower
+        // two dimensions, e.g. {..., 0, N} or {..., M, 0}. The higher dimensions are left
+        // untouched.
+        else if constexpr(std::is_same_v<ck::tensor_layout::gemm::RowMajor, Layout> ||
+                          std::is_same_v<ck::tensor_layout::gemm::ColumnMajor, Layout>)
         {
-            // swap the last two strides
-            if(mStrides.size() >= 2)
-                std::swap(mStrides[mStrides.size() - 1], mStrides[mStrides.size() - 2]);
+            auto n_dims = mStrides.size();
+            const auto inner_idx =
+                std::is_same_v<ck::tensor_layout::gemm::RowMajor, Layout> ? n_dims - 1 : n_dims - 2;
+            const auto outer_idx = inner_idx == n_dims - 1 ? n_dims - 2 : n_dims - 1;
+            if(mLens.size() >= 2 && n_dims >= 2)
+            {
+                if(mStrides[inner_idx] <= 0)
+                {
+                    mStrides[inner_idx] = 1;
+                }
+                if(mStrides[outer_idx] <= 0)
+                {
+                    mStrides[outer_idx] = mLens[inner_idx] * mStrides[inner_idx];
+                }
+            }
         }
     }
 
@@ -174,14 +291,14 @@ struct HostTensorDescriptor
 
         if constexpr(std::is_same_v<ck::tensor_layout::BaseTensorLayout, Layout>)
         {
-            // TBD: should we throw error instead of warning?
             // Currently, any legacy code that doesn't pass layout to HostTensorDescriptor ctor will
-            // hit this case. Initialy can do warning, run all tests to identify where
-            // HostTensorDescriptor ctor is called without layout. Once all places are fixed, can
-            // change to throw error.
-            std::cerr << "Warning: Abstract tensor layout BaseTensorLayout can't be verified. Pls "
-                         "pass specific tensor layout to HostTensorDescriptor."
-                      << std::endl;
+            // hit this case (unless it is a special case - see `HandleDefaultLayout`). Initialy can
+            // do warning, run all tests to identify where HostTensorDescriptor ctor is called
+            // without layout. Once all places are fixed, can change to throw error.
+            throw std::runtime_error("HostTensorDescriptor::ValidateStrides: Abstract tensor "
+                                     "layout BaseTensorLayout can't be verified. Pls "
+                                     "pass specific tensor layout to HostTensorDescriptor (or "
+                                     "ck::tensor_layout::BypassLayoutVerification)");
             return;
         }
 
@@ -229,10 +346,7 @@ struct HostTensorDescriptor
                 throw std::runtime_error(oss.str());
             }
         }
-        // TBD: is_convolution_layout is not implemented yet
-        // else if constexpr (ck::tensor_layout::gemm::is_convolution_layout<Layout>::value)
-        // template<class T> inline constexpr bool is_ctc_layout_v =
-        // std::is_base_of_v<ctc::BaseLayoutTag, T>;
+        // Convolution cases
         else if constexpr(std::is_base_of_v<ck::tensor_layout::convolution::BaseConvolutionLayout,
                                             Layout>)
         {
@@ -252,18 +366,22 @@ struct HostTensorDescriptor
     }
 
     template <typename X,
-              typename        = std::enable_if_t<std::is_convertible_v<X, std::size_t>>,
-              typename Layout = DefaultLayout>
-    HostTensorDescriptor(const std::initializer_list<X>& lens, const Layout& layout = Layout())
+              typename Layout = DefaultLayout,
+              typename        = std::enable_if_t<std::is_convertible_v<X, std::size_t> &&
+                                                 std::is_convertible_v<Layout, BaseTensorLayout>>>
+    HostTensorDescriptor(const std::initializer_list<X>& lens, const Layout& layout = Layout{})
         : HostTensorDescriptor(std::vector<std::size_t>(lens.begin(), lens.end()), {}, layout)
     {
+        if(dbg) std::cout << "HostTensorDescriptor ctor (" << __LINE__ << ")" << std::endl;
     }
 
-    template <typename Layout = DefaultLayout>
+    template <typename Layout = DefaultLayout,
+              typename        = std::enable_if_t<std::is_convertible_v<Layout, BaseTensorLayout>>>
     HostTensorDescriptor(const std::initializer_list<ck::long_index_t>& lens,
-                         const Layout& layout = Layout())
+                         const Layout& layout = Layout{})
         : HostTensorDescriptor(std::vector<std::size_t>(lens.begin(), lens.end()), {}, layout)
     {
+        if(dbg) std::cout << "HostTensorDescriptor ctor (" << __LINE__ << ")" << std::endl;
     }
 
     template <typename Lengths,
@@ -272,9 +390,10 @@ struct HostTensorDescriptor
                          (std::is_convertible_v<ck::ranges::range_value_t<Lengths>, std::size_t> ||
                    std::is_convertible_v<ck::ranges::range_value_t<Lengths>, ck::long_index_t>) &&
                          std::is_convertible_v<Layout, BaseTensorLayout>>>
-    HostTensorDescriptor(const Lengths& lens, const Layout& layout = Layout())
+    HostTensorDescriptor(const Lengths& lens, const Layout& layout = Layout{})
         : HostTensorDescriptor(std::vector<std::size_t>(lens.begin(), lens.end()), {}, layout)
     {
+        if(dbg) std::cout << "HostTensorDescriptor ctor (" << __LINE__ << ")" << std::endl;
     }
 
     template <typename X,
@@ -284,21 +403,36 @@ struct HostTensorDescriptor
               typename Layout = DefaultLayout>
     HostTensorDescriptor(const std::initializer_list<X>& lens,
                          const std::initializer_list<Y>& strides,
-                         const Layout& layout = Layout())
+                         const Layout& layout = Layout{})
         : HostTensorDescriptor(std::vector<std::size_t>(lens.begin(), lens.end()),
                                std::vector<std::size_t>(strides.begin(), strides.end()),
                                layout)
     {
+        if(dbg) std::cout << "HostTensorDescriptor ctor (" << __LINE__ << ")" << std::endl;
     }
 
+    // HostTensorDescriptor({row, col}, {row_stride, col_stride})
     template <typename Layout = DefaultLayout>
     HostTensorDescriptor(const std::initializer_list<ck::long_index_t>& lens,
                          const std::initializer_list<ck::long_index_t>& strides,
-                         const Layout& layout = Layout())
+                         const Layout& layout = Layout{})
         : HostTensorDescriptor(std::vector<std::size_t>(lens.begin(), lens.end()),
                                std::vector<std::size_t>(strides.begin(), strides.end()),
                                layout)
     {
+        if(dbg) std::cout << "HostTensorDescriptor ctor (" << __LINE__ << ")" << std::endl;
+    }
+
+    // HostTensorDescriptor({row, col}, strides)
+    template <typename Strides, typename Layout = DefaultLayout>
+    HostTensorDescriptor(const std::initializer_list<std::size_t>& lens,
+                         const Strides& strides,
+                         const Layout& layout = Layout{})
+        : HostTensorDescriptor(std::vector<std::size_t>(lens.begin(), lens.end()),
+                               std::vector<std::size_t>(strides.begin(), strides.end()),
+                               layout)
+    {
+        if(dbg) std::cout << "HostTensorDescriptor ctor (" << __LINE__ << ")" << std::endl;
     }
 
     template <typename Lengths,
@@ -312,11 +446,12 @@ struct HostTensorDescriptor
                          std::is_convertible_v<Layout, BaseTensorLayout>>>
     HostTensorDescriptor(const Lengths& lens,
                          const Strides& strides,
-                         const Layout& layout = Layout())
+                         const Layout& layout = Layout{})
         : HostTensorDescriptor(std::vector<std::size_t>(lens.begin(), lens.end()),
                                std::vector<std::size_t>(strides.begin(), strides.end()),
                                layout)
     {
+        if(dbg) std::cout << "HostTensorDescriptor ctor (" << __LINE__ << ")" << std::endl;
     }
 
     std::size_t GetNumOfDimension() const;
@@ -340,10 +475,12 @@ struct HostTensorDescriptor
     }
 
     friend std::ostream& operator<<(std::ostream& os, const HostTensorDescriptor& desc);
+    friend std::ostream& operator<<(std::ostream& os, ChosenLayout tag);
 
     private:
     std::vector<std::size_t> mLens;
     std::vector<std::size_t> mStrides;
+    static constexpr bool dbg = true;
 
     /**
      * @brief Converts a vector of size_t values to a vector of int values.
@@ -358,31 +495,6 @@ struct HostTensorDescriptor
             return static_cast<int>(stride);
         });
         return strides_int;
-    }
-
-    /**
-     * @brief Determines if the strides are set to "auto" (unknown).
-     *
-     * This function checks if all stride values are less than or equal to zero,
-     * which indicates that the strides are either unknown or set to be automatically determined.
-     * It is a workaround for cases where the original stride value is -1 (unknown)
-     * and may have been cast to an unsigned type (see `mStrides`).
-     *
-     * @return true if all stride values are less than or equal to zero (auto/unknown), false
-     * otherwise.
-     */
-    bool IsAutoStrides() const
-    {
-        if(mStrides.empty())
-            return true;
-
-        // This is a workaround if the original stride value is -1 (which means "unknown") has been
-        // passed in and casted to size_t (unsigned).
-        auto strides_int = AsInt(mStrides);
-        return (std::all_of(
-                   strides_int.begin(), strides_int.end(), [](int stride) { return stride <= 0; }))
-                   ? true
-                   : false;
     }
 };
 

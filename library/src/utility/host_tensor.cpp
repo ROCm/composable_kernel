@@ -45,3 +45,14 @@ std::ostream& operator<<(std::ostream& os, const HostTensorDescriptor& desc)
 
     return os;
 }
+
+std::ostream& operator<<(std::ostream& os, HostTensorDescriptor::ChosenLayout tag)
+{
+    switch(tag)
+    {
+    case HostTensorDescriptor::ChosenLayout::Original: os << "Original"; break;
+    case HostTensorDescriptor::ChosenLayout::RowMajor: os << "RowMajor"; break;
+    case HostTensorDescriptor::ChosenLayout::ColumnMajor: os << "ColumnMajor"; break;
+    }
+    return os;
+}
