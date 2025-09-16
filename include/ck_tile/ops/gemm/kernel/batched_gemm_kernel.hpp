@@ -161,9 +161,22 @@ struct BatchedGemmKernel
     }
 
     CK_TILE_HOST static auto
-    IsSupportedArgument(const typename UniversalGemmKernel::KernelArgs& kargs) -> bool
+    IsSupportedArgument(const typename BatchedGemmKernel::KernelArgs& kargs) -> bool
     {
-        return UniversalGemmKernel::IsSupportedArgument(kargs);
+        bool isValid = true;
+
+        // Check leading dimensions validity
+        if(!(kargs.M % GemmPipeline::MPerBlock == 0 && kargs.N % GemmPipeline::NPerBlock == 0 &&
+             kargs.K % GemmPipeline::KPerBlock == 0))
+        {
+            isValid = false;
+        }
+        if(kargs.M < GemmPipeline::MPerBlock || kargs.N < GemmPipeline::NPerBlock ||
+           kargs.K < GemmPipeline::KPerBlock)
+        {
+            isValid = false;
+        }
+        return isValid && UniversalGemmKernel::IsSupportedArgument(kargs);
     }
 
     CK_TILE_DEVICE void operator()(BatchedGemmKernelArgs kargs) const

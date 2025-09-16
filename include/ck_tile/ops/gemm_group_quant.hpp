@@ -17,5 +17,6 @@
 #include "ck_tile/ops/gemm_group_quant/pipeline/gemm_quant_pipeline_problem.hpp"
 #include "ck_tile/ops/gemm_group_quant/pipeline/tile_gemm_quant_traits.hpp"
 #include "ck_tile/ops/common/generic_2d_block_shape.hpp"
+#include "ck_tile/ops/common/streamk_common.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/common/utils.hpp"
