@@ -850,6 +850,98 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                    GetWorkspaceETensorSizeBytes();
         }
 
+        // Calculate rotating memory buffer sizes ahead of time. The convolution to gemm
+        // transformer doesn't always lead to correct GetElementSpaceSize() results for the
+        // Tensor descriptor, so we have to do a bunch of ad-hoc corrections. There might be
+        // a better way to do this.
+        auto GetRotMemAsTensorSizeBytes() const
+        {
+            std::array<std::size_t, NumATensor> size_as_buffers;
+            ck::index_t eff_num_group = num_group_ / NumGroupsToMerge;
+
+            static_for<0, NumATensor, 1>{}([&](auto i) {
+                using ADataType_single = remove_cvref_t<tuple_element_t<i.value, GemmAsDataType>>;
+                if constexpr(is_same_v<ALayout, tensor_layout::convolution::NWGC> ||
+                             is_same_v<ALayout, tensor_layout::convolution::NHWGC> ||
+                             is_same_v<ALayout, tensor_layout::convolution::NDHWGC>)
+                {
+                    size_as_buffers[i] =
+                        (a_grid_desc_ak0_m_ak1_.GetElementSpaceSize() +
+                         (num_group_ - NumGroupsToMerge) * (a_g_n_c_wis_strides_[0])) *
+                        sizeof(ADataType_single) / GridwiseGemm::APackedSize;
+                }
+                else
+                {
+                    if(CTranspose && a_g_n_c_wis_lengths_[I1] > 1)
+                    {
+                        size_as_buffers[i] = (a_grid_desc_ak0_m_ak1_.GetElementSpaceSize() +
+                                              (eff_num_group - 1) * (a_g_n_c_wis_strides_[0])) *
+                                             sizeof(ADataType_single) / GridwiseGemm::APackedSize;
+                    }
+                    else
+                    {
+                        size_as_buffers[i] = a_grid_desc_ak0_m_ak1_.GetElementSpaceSize() *
+                                             eff_num_group * sizeof(ADataType_single) /
+                                             GridwiseGemm::APackedSize;
+                    }
+                }
+            });
+
+            return size_as_buffers;
+        }
+
+        auto GetRotMemBsTensorSizeBytes() const
+        {
+            std::array<std::size_t, NumBTensor> size_bs_buffers;
+            ck::index_t eff_num_group = num_group_ / NumGroupsToMerge;
+
+            static_for<0, NumBTensor, 1>{}([&](auto i) {
+                using BDataType_single = remove_cvref_t<tuple_element_t<i.value, GemmBsDataType>>;
+                size_bs_buffers[i] = b_grid_desc_bk0_n_bk1_.GetElementSpaceSize() * eff_num_group *
+                                     sizeof(BDataType_single) / GridwiseGemm::BPackedSize;
+            });
+
+            return size_bs_buffers;
+        }
+
+        auto GetRotMemDsTensorSizeBytes() const
+        {
+            std::array<std::size_t, NumDTensor> size_ds_buffers;
+            ck::index_t eff_num_group = num_group_ / NumGroupsToMerge;
+
+            // TODO: Ds packed size consideration?
+            static_for<0, NumDTensor, 1>{}([&](auto i) {
+                using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+                using DLayout   = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
+
+                if constexpr(is_same_v<DLayout, tensor_layout::convolution::NWGK> ||
+                             is_same_v<DLayout, tensor_layout::convolution::NHWGK> ||
+                             is_same_v<DLayout, tensor_layout::convolution::NDHWGK>)
+                {
+                    size_ds_buffers[i] =
+                        (ds_grid_desc_m_n_[i].GetElementSpaceSize() +
+                         (num_group_ - NumGroupsToMerge) * ds_g_n_k_wos_strides_[i][0]) *
+                        sizeof(DDataType);
+                }
+                else
+                {
+                    if(CTranspose && ds_g_n_k_wos_lengths_[i][I1] > 1)
+                    {
+                        size_ds_buffers[i] = (ds_grid_desc_m_n_[i].GetElementSpaceSize() +
+                                              (eff_num_group - 1) * (ds_g_n_k_wos_strides_[i][0])) *
+                                             sizeof(DDataType);
+                    }
+                    else
+                    {
+                        size_ds_buffers[i] = ds_grid_desc_m_n_[i].GetElementSpaceSize() *
+                                             eff_num_group * sizeof(DDataType);
+                    }
+                }
+            });
+
+            return size_ds_buffers;
+        }
+
         void Print() const
         {
             std::cout << "A[AK0, M, AK1]: " << a_grid_desc_ak0_m_ak1_ << std::endl;
@@ -991,98 +1083,6 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
             }
 
             const auto Run = [&](const auto& kernel) {
-                // Calculate rotating memory buffer sizes ahead of time. The convolution to gemm
-                // transformer doesn't always lead to correct GetElementSpaceSize() results for the
-                // Tensor descriptor, so we have to do a bunch of ad-hoc corrections. There might be
-                // a better way to do this.
-                std::array<std::size_t, NumATensor> size_as_buffers;
-                std::array<std::size_t, NumBTensor> size_bs_buffers;
-                std::array<std::size_t, NumDTensor> size_ds_buffers;
-
-                if(stream_config.flush_cache && !NeedTransposeKernel)
-                {
-                    ck::index_t eff_num_group = arg.num_group_ / NumGroupsToMerge;
-
-                    static_for<0, NumATensor, 1>{}([&](auto i) {
-                        using ADataType_single =
-                            remove_cvref_t<tuple_element_t<i.value, GemmAsDataType>>;
-                        if constexpr(is_same_v<ALayout, tensor_layout::convolution::NWGC> ||
-                                     is_same_v<ALayout, tensor_layout::convolution::NHWGC> ||
-                                     is_same_v<ALayout, tensor_layout::convolution::NDHWGC>)
-                        {
-                            size_as_buffers[i] = (arg.a_grid_desc_ak0_m_ak1_.GetElementSpaceSize() +
-                                                  (arg.num_group_ - NumGroupsToMerge) *
-                                                      (arg.a_g_n_c_wis_strides_[0])) *
-                                                 sizeof(ADataType_single) /
-                                                 GridwiseGemm::APackedSize;
-                        }
-                        else
-                        {
-                            if(CTranspose && arg.a_g_n_c_wis_lengths_[I1] > 1)
-                            {
-                                size_as_buffers[i] =
-                                    (arg.a_grid_desc_ak0_m_ak1_.GetElementSpaceSize() +
-                                     (eff_num_group - 1) * (arg.a_g_n_c_wis_strides_[0])) *
-                                    sizeof(ADataType_single) / GridwiseGemm::APackedSize;
-                            }
-                            else
-                            {
-                                size_as_buffers[i] =
-                                    arg.a_grid_desc_ak0_m_ak1_.GetElementSpaceSize() *
-                                    eff_num_group * sizeof(ADataType_single) /
-                                    GridwiseGemm::APackedSize;
-                            }
-                        }
-                    });
-
-                    static_for<0, NumBTensor, 1>{}([&](auto i) {
-                        using BDataType_single =
-                            remove_cvref_t<tuple_element_t<i.value, GemmBsDataType>>;
-                        size_bs_buffers[i] = arg.b_grid_desc_bk0_n_bk1_.GetElementSpaceSize() *
-                                             eff_num_group * sizeof(BDataType_single) /
-                                             GridwiseGemm::BPackedSize;
-                    });
-
-                    // TODO: Ds packed size consideration?
-                    static_for<0, NumDTensor, 1>{}([&](auto i) {
-                        using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
-                        using DLayout   = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
-
-                        if constexpr(is_same_v<DLayout, tensor_layout::convolution::NWGK> ||
-                                     is_same_v<DLayout, tensor_layout::convolution::NHWGK> ||
-                                     is_same_v<DLayout, tensor_layout::convolution::NDHWGK>)
-                        {
-                            size_ds_buffers[i] = (arg.ds_grid_desc_m_n_[i].GetElementSpaceSize() +
-                                                  (arg.num_group_ - NumGroupsToMerge) *
-                                                      arg.ds_g_n_k_wos_strides_[i][0]) *
-                                                 sizeof(DDataType);
-                        }
-                        else
-                        {
-                            if(CTranspose && arg.ds_g_n_k_wos_lengths_[i][I1] > 1)
-                            {
-                                size_ds_buffers[i] =
-                                    (arg.ds_grid_desc_m_n_[i].GetElementSpaceSize() +
-                                     (eff_num_group - 1) * (arg.ds_g_n_k_wos_strides_[i][0])) *
-                                    sizeof(DDataType);
-                            }
-                            else
-                            {
-                                size_ds_buffers[i] =
-                                    arg.ds_grid_desc_m_n_[i].GetElementSpaceSize() * eff_num_group *
-                                    sizeof(DDataType);
-                            }
-                        }
-                    });
-
-                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                    {
-                        printf("\033[032mUsing rotating memory num group %d eff %d!\033[0m\n",
-                               arg.num_group_,
-                               eff_num_group);
-                    }
-                }
-
                 if constexpr(CTranspose)
                 {
                     static_assert(NumATensor == 1, "Num A Tensor should be 1\n");
@@ -1113,6 +1113,13 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                     {
                         typename GridwiseGemmCTranspose::Argument gemm_arg_ = gemm_arg;
 
+                        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                        {
+                            printf("\033[032mUsing rotating memory num group %d eff %d!\033[0m\n",
+                                   arg.num_group_,
+                                   arg.num_group_ / NumGroupsToMerge);
+                        }
+
                         ck::utility::RotatingMemWrapperMultiABD<
                             typename GridwiseGemmCTranspose::Argument,
                             GemmBsDataType,
@@ -1120,9 +1127,9 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                             DsDataType>
                             rotating_mem(gemm_arg_,
                                          stream_config.rotating_count,
-                                         size_bs_buffers,
-                                         size_as_buffers,
-                                         size_ds_buffers);
+                                         arg.GetRotMemBsTensorSizeBytes(),
+                                         arg.GetRotMemAsTensorSizeBytes(),
+                                         arg.GetRotMemDsTensorSizeBytes());
 
                         rotating_mem.Print();
 
@@ -1205,15 +1212,22 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                     {
                         typename GridwiseGemm::Argument gemm_arg_ = gemm_arg;
 
+                        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                        {
+                            printf("\033[032mUsing rotating memory num group %d eff %d!\033[0m\n",
+                                   arg.num_group_,
+                                   arg.num_group_ / NumGroupsToMerge);
+                        }
+
                         ck::utility::RotatingMemWrapperMultiABD<typename GridwiseGemm::Argument,
                                                                 GemmAsDataType,
                                                                 GemmBsDataType,
                                                                 DsDataType>
                             rotating_mem(gemm_arg_,
                                          stream_config.rotating_count,
-                                         size_as_buffers,
-                                         size_bs_buffers,
-                                         size_ds_buffers);
+                                         arg.GetRotMemAsTensorSizeBytes(),
+                                         arg.GetRotMemBsTensorSizeBytes(),
+                                         arg.GetRotMemDsTensorSizeBytes());
 
                         rotating_mem.Print();
 
