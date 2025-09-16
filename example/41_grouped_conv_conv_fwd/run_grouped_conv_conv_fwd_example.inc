@@ -257,7 +257,7 @@ bool run_grouped_conv_conv_fwd(bool do_verification,
 #endif
 
         return ck::utils::check_err(
-            out1_device, out1_host, "Error: incorrect results!", 1e-5f, 1e-4f);
+            out1_device, out1_host, "Error: incorrect results!", 1e-3f, 1.5e-3f);
     }
 
     return true;

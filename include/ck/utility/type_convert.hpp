@@ -244,6 +244,30 @@ inline __host__ __device__ constexpr half_t type_convert_sp<half_t, int>(int x)
 }
 
 template <>
+inline __host__ __device__ constexpr int type_convert_sp<int, f8_t>(f8_t x)
+{
+    union
+    {
+        f8_t fp8;
+        int int32;
+    } u = {x};
+
+    return u.int32;
+}
+
+template <>
+inline __host__ __device__ constexpr f8_t type_convert_sp<f8_t, int>(int x)
+{
+    union
+    {
+        int int32;
+        f8_t fp8;
+    } u = {x};
+
+    return u.fp8;
+}
+
+template <>
 inline __host__ __device__ constexpr int type_convert_sp<int, bhalf_t>(bhalf_t x)
 {
     union

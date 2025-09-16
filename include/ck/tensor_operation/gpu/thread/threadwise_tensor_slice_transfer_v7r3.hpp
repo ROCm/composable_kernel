@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -48,8 +48,6 @@ struct ThreadwiseTensorSliceTransfer_v7r3
 {
     static constexpr auto I0 = Number<0>{};
 
-    static constexpr auto SrcScalarPerVector = SrcScalarPerVectors{}[I0];
-
     static constexpr index_t nDim = SliceLengths::Size();
 
     static constexpr index_t nSrc = SrcDescs::Size();
@@ -67,6 +65,10 @@ struct ThreadwiseTensorSliceTransfer_v7r3
                               Number<Descs::Size()>{});
     }
 
+    static constexpr auto SrcScalarPerVector =
+        reduce_on_sequence(SrcScalarPerVectors{},
+                           math::minimize<index_t>{},
+                           Number<1>{}); // GetMinSrcScalarPerVector(); SrcScalarPerVectors{}[I0];
     using SrcCoords = decltype(MakeCoordinates(SrcDescs{}, StaticallyIndexedArray<Index, nSrc>{}));
     using DstCoords = decltype(MakeCoordinates(DstDescs{}, StaticallyIndexedArray<Index, nDst>{}));
 
@@ -165,6 +167,9 @@ struct ThreadwiseTensorSliceTransfer_v7r3
 
                 oob_val = oob_val & is_src_valid;
 
+                // TODO: With column-major matrices this step restricts the transferred tensor slice
+                // to just one element, which consequently prevents using atomic operations if the
+                // matrix data type is on 16 bits.
                 if constexpr(SrcScalarPerVectors{}[i] == 1)
                 {
                     auto data_types = SrcDatas{};

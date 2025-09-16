@@ -50,7 +50,7 @@ CK_TILE_HOST void reference_gemm_quant(const HostTensor<ADataType>& a_m_k,
             if constexpr(std::is_same_v<ADataType, pk_int4_t>)
             {
                 const pk_int4_t pk_val  = a_element_op(a_m_k(m, k));
-                const fp32x2_t fp32_val = pk_int4_t_to_fp32x2_t_signed_conversion(pk_val);
+                const fp32x2_t fp32_val = pk_int4_t_to_fp32x2_t(pk_val);
                 if(k % 2 == 1)
                     v_a = fp32_val.hi;
                 else
@@ -63,7 +63,7 @@ CK_TILE_HOST void reference_gemm_quant(const HostTensor<ADataType>& a_m_k,
             if constexpr(std::is_same_v<BDataType, pk_int4_t>)
             {
                 const pk_int4_t pk_val  = b_element_op(b_k_n(k, n));
-                const fp32x2_t fp32_val = pk_int4_t_to_fp32x2_t_signed_conversion(pk_val);
+                const fp32x2_t fp32_val = pk_int4_t_to_fp32x2_t(pk_val);
                 if(k % 2 == 1)
                     v_b = fp32_val.hi;
                 else
@@ -107,6 +107,92 @@ CK_TILE_HOST void reference_gemm_quant(const HostTensor<ADataType>& a_m_k,
                 v_block_acc = 0;
             }
         }
+
+        c_m_n(m, n) = ck_tile::type_convert<CDataType>(acc_element_op(v_acc));
+    };
+
+    make_ParallelTensorFunctor(f_mn, M, N)(std::thread::hardware_concurrency());
+    std::cout << std::endl;
+}
+
+template <typename ADataType,
+          typename AQDataType,
+          typename BDataType,
+          typename BQDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename AElementOp   = ck_tile::identity,
+          typename BElementOp   = ck_tile::identity,
+          typename ACCElementOp = ck_tile::identity>
+CK_TILE_HOST void reference_gemm_rowcol_quant(const HostTensor<ADataType>& a_m_k,
+                                              const HostTensor<AQDataType>& aq_m_1,
+                                              const HostTensor<BDataType>& b_k_n,
+                                              const HostTensor<BQDataType>& bq_1_n,
+                                              HostTensor<CDataType>& c_m_n,
+                                              const AElementOp& a_element_op     = {},
+                                              const BElementOp& b_element_op     = {},
+                                              const ACCElementOp& acc_element_op = {})
+{
+    static_assert(std::is_same_v<ADataType, fp8_t> || std::is_same_v<ADataType, bf8_t>);
+    static_assert(std::is_same_v<BDataType, fp8_t> || std::is_same_v<BDataType, bf8_t>);
+    static_assert(std::is_same_v<AccDataType, float>);
+    static_assert(std::is_same_v<CDataType, float> || std::is_same_v<CDataType, ck_tile::half_t>);
+    static_assert(std::is_same_v<AQDataType, float> && std::is_same_v<BQDataType, float>);
+    const std::size_t M = a_m_k.get_length(0);
+    const std::size_t N = b_k_n.get_length(1);
+    const std::size_t K = a_m_k.get_length(1);
+
+    auto f_mn = [&](auto m, auto n) {
+        // Init accumulator
+        AccDataType v_acc = 0;
+        // Get row scale for A and column scale for B
+        float a_scale = aq_m_1(m, 0);
+        float b_scale = bq_1_n(0, n);
+
+        // Compute the dot product
+        for(std::size_t k = 0; k < K; ++k)
+        {
+            AccDataType v_a;
+            AccDataType v_b;
+
+            // Process A data
+            if constexpr(std::is_same_v<ADataType, pk_int4_t>)
+            {
+                const pk_int4_t pk_val  = a_element_op(a_m_k(m, k));
+                const fp32x2_t fp32_val = pk_int4_t_to_fp32x2_t_signed_conversion(pk_val);
+                if(k % 2 == 1)
+                    v_a = fp32_val.hi;
+                else
+                    v_a = fp32_val.lo;
+            }
+            else
+            {
+                v_a = ck_tile::type_convert<AccDataType>(a_element_op(a_m_k(m, k)));
+            }
+
+            // Process B data
+            if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+            {
+                const pk_int4_t pk_val  = b_element_op(b_k_n(k, n));
+                const fp32x2_t fp32_val = pk_int4_t_to_fp32x2_t_signed_conversion(pk_val);
+                if(k % 2 == 1)
+                    v_b = fp32_val.hi;
+                else
+                    v_b = fp32_val.lo;
+            }
+            else if constexpr(std::is_same_v<BDataType, fp8_t>)
+            {
+                v_b = fp8_to_float_raw(b_element_op(b_k_n(k, n)));
+            }
+            else
+            {
+                v_b = ck_tile::type_convert<AccDataType>(b_element_op(b_k_n(k, n)));
+            }
+
+            v_acc += v_a * v_b;
+        }
+
+        v_acc = v_acc * a_scale * b_scale;
 
         c_m_n(m, n) = ck_tile::type_convert<CDataType>(acc_element_op(v_acc));
     };

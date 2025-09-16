@@ -359,7 +359,7 @@ CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
 {
     static_assert((std::is_same<T, int32_t>::value && (N == 1)) ||
                       (std::is_same<T, uint32_t>::value && (N == 1)) ||
-                      (std::is_same<T, float>::value && (N == 1 || N == 2)) ||
+                      (std::is_same<T, float>::value && (N == 1 || N == 2 || N == 4)) ||
                       (std::is_same<T, double>::value && (N == 1 || N == 2)) ||
                       (std::is_same<T, fp16_t>::value && (N == 2 || N == 4 || N == 8)) ||
                       (std::is_same<T, bf16_t>::value && (N == 2 || N == 4 || N == 8)) ||
@@ -369,6 +369,8 @@ CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
 
     constexpr auto I0 = number<0>{};
     constexpr auto I1 = number<1>{};
+    constexpr auto I2 = number<2>{};
+    constexpr auto I3 = number<3>{};
 
     if constexpr(std::is_same<T, float>::value)
     {
@@ -380,6 +382,13 @@ CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
         {
             atomicAdd(c_style_pointer_cast<float*>(p_dst), x.template get_as<float>()[I0]);
             atomicAdd(c_style_pointer_cast<float*>(p_dst) + 1, x.template get_as<float>()[I1]);
+        }
+        else if constexpr(N == 4)
+        {
+            atomicAdd(c_style_pointer_cast<float*>(p_dst), x.template get_as<float>()[I0]);
+            atomicAdd(c_style_pointer_cast<float*>(p_dst) + 1, x.template get_as<float>()[I1]);
+            atomicAdd(c_style_pointer_cast<float*>(p_dst) + 2, x.template get_as<float>()[I2]);
+            atomicAdd(c_style_pointer_cast<float*>(p_dst) + 3, x.template get_as<float>()[I3]);
         }
     }
     else if constexpr(std::is_same<T, double>::value)

@@ -14,6 +14,7 @@
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/host.hpp"
 #include "test_gemm_aquant_utils.hpp"
+#include "ck_tile/host/permute_pk_int4.hpp"
 
 template <typename GemmConfig,
           typename ADataType,
@@ -26,7 +27,7 @@ template <typename GemmConfig,
           typename BLayout,
           typename CLayout,
           uint32_t QuantGroupSize>
-float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::stream_config& s)
+float gemm_calc_aquant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s)
 {
     constexpr bool kPadM = false;
     constexpr bool kPadN = false;
@@ -55,13 +56,14 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
 
     using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenGemmShape>;
 
-    using CodegenGemmTraits = ck_tile::TileGemmAQuantTraits<kPadM,
-                                                            kPadN,
-                                                            kPadK,
-                                                            GemmConfig::PreshuffleQuant,
-                                                            ALayout,
-                                                            BLayout,
-                                                            CLayout>;
+    using CodegenGemmTraits = ck_tile::TileGemmQuantTraits<kPadM,
+                                                           kPadN,
+                                                           kPadK,
+                                                           false, // preshuffle
+                                                           ALayout,
+                                                           BLayout,
+                                                           CLayout,
+                                                           ck_tile::QuantType::AQuantGrouped>;
 
     using GemmPipelineProblem = ck_tile::GemmPipelineProblemBase<ADataType,
                                                                  BDataType,
@@ -114,8 +116,10 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
                                                     K_Warp_Tile,
                                                     transposed_warp_gemm,
                                                     ck_tile::memory_operation_enum::set>>;
-        using Kernel =
-            ck_tile::AQuantGemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
+        using Kernel = ck_tile::QuantGemmKernel<TilePartitioner,
+                                                CodegenGemmPipeline,
+                                                GemmEpilogue,
+                                                ck_tile::QuantType::AQuantGrouped>;
 
         auto kargs = Kernel::MakeKernelArgs(args);
 
@@ -185,7 +189,7 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   int n_warmup,
                   int n_repeat)
 {
-    ck_tile::AQuantGemmHostArgs args;
+    ck_tile::QuantGemmHostArgs args;
     args.a_ptr     = a_m_k_dev_buf.GetDeviceBuffer();
     args.aq_ptr    = aq_m_aqk_dev_buf.GetDeviceBuffer();
     args.b_ptr     = b_k_n_dev_buf.GetDeviceBuffer();
@@ -194,7 +198,7 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     args.M         = M;
     args.N         = N;
     args.K         = K;
-    args.QK        = AQK;
+    args.QK_A      = AQK;
     args.stride_A  = stride_A;
     args.stride_B  = stride_B;
     args.stride_C  = stride_C;
@@ -333,7 +337,17 @@ bool run_gemm_test_with_layouts(int argc,
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
 
-    a_m_k_dev_buf.ToDevice(a_m_k.data());
+    if constexpr(std::is_same_v<ADataType, ck_tile::pk_int4_t>)
+    {
+        // Permute vector pk_i4x4 data for device implementation
+        ck_tile::HostTensor<ADataType> a_m_k_dev = a_m_k;
+        ck_tile::permute_vectors_i4x4_b(a_m_k_dev);
+        a_m_k_dev_buf.ToDevice(a_m_k_dev.data());
+    }
+    else
+    {
+        a_m_k_dev_buf.ToDevice(a_m_k.data());
+    }
     aq_m_aqk_dev_buf.ToDevice(aq_m_aqk.data());
     b_k_n_dev_buf.ToDevice(b_k_n.data());
     c_m_n_dev_buf.SetZero();

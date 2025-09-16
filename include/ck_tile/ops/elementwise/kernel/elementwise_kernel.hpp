@@ -21,11 +21,15 @@ struct ElementWiseKernel
     using ElementWiseOperation = ck_tile::remove_cvref_t<typename Problem::ElementWiseOperation>;
 
     static constexpr index_t kBlockSize = Problem::BlockShape::kBlockSize;
+    CK_TILE_HOST static constexpr auto BlockSize()
+    {
+        return is_wave32() ? kBlockSize / 2 : kBlockSize;
+    }
 
     template <typename... XDataType, typename Dims>
-    CK_TILE_DEVICE void operator()(Dims lens,
-                                   Dims input_strides,
-                                   Dims output_strides,
+    CK_TILE_DEVICE void operator()(const Dims lens,
+                                   const Dims input_strides,
+                                   const Dims output_strides,
                                    const tuple<XDataType...>& input_tensors,
                                    YDataType* p_y) const
     {

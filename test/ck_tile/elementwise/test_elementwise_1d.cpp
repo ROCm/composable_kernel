@@ -106,7 +106,7 @@ class TestCkTileElementwise : public ::testing::Test
         ck_tile::index_t grid_size =
             (total_m_elements + TestElementWiseShape::kBlockM - 1) / TestElementWiseShape::kBlockM;
         dim3 grid(grid_size, 1, 1);
-        dim3 block(TestElementWiseShape::kBlockSize, 1, 1);
+        dim3 block                             = dim3(ew_kernel.BlockSize());
         constexpr ck_tile::index_t kBlockPerCu = 1;
 
         ck_tile::stream_config s{nullptr, false, 0}; // Default stream, no timing, no log
