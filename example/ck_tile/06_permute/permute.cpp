@@ -3,6 +3,7 @@
 
 #include "permute.hpp"
 #include "ck_tile/host.hpp"
+#include "ck_tile/utility/json_dump.hpp"
 
 #include <array>
 #include <cstring>
@@ -128,6 +129,7 @@ auto create_args(int argc, char* argv[])
                 "non-deterministic seed")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "20", "number of iterations to benchmark the kernel")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
         .insert("jsonfile", "permute.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
@@ -257,6 +259,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         return permute(t, a, stream_config);
     };
+#if !CK_TILE_USE_WMMA
 #ifdef PERMUTE_USE_ALTERNATIVE_IMPL
     // batch* n0*n1*n2*k0*k1*k2 -> batch* n0*k0*n1*k1*n2*k2
     if((arg_parser.get_str("perm") == std::string("0,1,4,2,5,3,6") ||
@@ -345,6 +348,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
     }
     else
+#endif
 #endif
     {
         ave_time = run_permute();
