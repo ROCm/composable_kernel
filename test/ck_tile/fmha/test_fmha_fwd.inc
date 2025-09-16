@@ -32,9 +32,6 @@ const ck_tile::stream_config stream_config{
     1,       // rotating_count_
 };
 
-// range_q, range_k, range_v, range_p, range_o, squant
-#define QUANT_ARGS 1, 1, 1, 1, 1, squant
-
 #define COMMON_ARGS                                                                           \
     init_method, static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))), 1, \
         stream_config
@@ -117,7 +114,7 @@ TEST_P(AllLong, Test)
                                                1024,          // drop_offset
                                                false,         // drop_prefs
                                                mask_str,      // mask_str
-                                               QUANT_ARGS,
+                                               squant,
                                                true, // is_rotary_interleaved
                                                1,    // num_splits
                                                COMMON_ARGS);
@@ -179,7 +176,7 @@ TEST_P(HDimPadding, Test)
                                                0,             // drop_offset
                                                false,         // drop_prefs
                                                mask_str,      // mask_str
-                                               QUANT_ARGS,
+                                               squant,
                                                true, // is_rotary_interleaved
                                                1,    // num_splits
                                                COMMON_ARGS);
@@ -236,7 +233,7 @@ TEST_P(ElementwiseBias, Test)
                                                0,                 // drop_offset
                                                false,             // drop_prefs
                                                mask_str,          // mask_str
-                                               QUANT_ARGS,
+                                               squant,
                                                true, // is_rotary_interleaved
                                                1,    // num_splits
                                                COMMON_ARGS);
@@ -292,7 +289,7 @@ TEST_P(Alibi, Test)
                                                0,                 // drop_offset
                                                false,             // drop_prefs
                                                mask_str,          // mask_str
-                                               QUANT_ARGS,
+                                               squant,
                                                true, // is_rotary_interleaved
                                                1,    // num_splits
                                                COMMON_ARGS);
@@ -350,7 +347,7 @@ TEST_P(Dropout, Test)
                                                drop_offset,       // drop_offset
                                                drop_prefs,        // drop_prefs
                                                mask_str,          // mask_str
-                                               QUANT_ARGS,
+                                               squant,
                                                true, // is_rotary_interleaved
                                                1,    // num_splits
                                                COMMON_ARGS);
@@ -410,7 +407,7 @@ TEST_P(PagedKV, Test)
                                                0,               // drop_offset
                                                false,           // drop_prefs
                                                mask_str,        // mask_str
-                                               QUANT_ARGS,
+                                               squant,
                                                true, // is_rotary_interleaved
                                                1,    // num_splits
                                                COMMON_ARGS);
@@ -476,7 +473,7 @@ TEST_P(SplitKV, Test)
                                                0,                   // drop_offset
                                                false,               // drop_prefs
                                                mask_str,            // mask_str
-                                               QUANT_ARGS,
+                                               squant,
                                                true,       // is_rotary_interleaved
                                                num_splits, // num_splits
                                                COMMON_ARGS);
@@ -548,7 +545,7 @@ TEST_P(AppendKV, Test)
                                                0,                   // drop_offset
                                                false,               // drop_prefs
                                                mask_str,            // mask_str
-                                               QUANT_ARGS,
+                                               squant,
                                                false, // is_rotary_interleaved
                                                1,     // num_splits
                                                COMMON_ARGS);
@@ -618,7 +615,7 @@ TEST_P(AppendKVRoPE, Test)
                                                0,             // drop_offset
                                                false,         // drop_prefs
                                                mask_str,      // mask_str
-                                               QUANT_ARGS,
+                                               squant,
                                                is_rotary_interleaved, // is_rotary_interleaved
                                                1,                     // num_splits
                                                COMMON_ARGS);

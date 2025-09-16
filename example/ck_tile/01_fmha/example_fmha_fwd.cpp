@@ -223,11 +223,11 @@ int main(int argc, char* argv[])
         }
         else if(data_type == "fp8bf16")
         {
-            return run<FmhaFwdFp8>(arg_parser) == fwd_result::success ? 0 : -2;
+            return run<FmhaFwdFp8Bf16>(arg_parser) == fwd_result::success ? 0 : -2;
         }
         else if(data_type == "fp8fp32")
         {
-            return run<FmhaFwdFp8>(arg_parser) == fwd_result::success ? 0 : -2;
+            return run<FmhaFwdFp8Fp32>(arg_parser) == fwd_result::success ? 0 : -2;
         }
         std::cerr << "Unsupported precision: " << data_type << std::endl;
         return -1;
