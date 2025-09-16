@@ -417,7 +417,7 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
                                           flush_cache,
                                           rotating_count);
 
-    c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
+    //c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_byte =

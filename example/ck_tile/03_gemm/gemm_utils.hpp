@@ -120,7 +120,7 @@ struct GemmConfigComputeV3 : public GemmConfigBase
     // Compute V3 only support Intrawave scheduler
     static constexpr ck_tile::index_t M_Tile = 16;
     static constexpr ck_tile::index_t N_Tile = 64;
-    static constexpr ck_tile::index_t K_Tile = 256 / sizeof(PrecType);
+    static constexpr ck_tile::index_t K_Tile = 16;// / sizeof(PrecType);
 
     static constexpr ck_tile::index_t M_Warp = 1;
     static constexpr ck_tile::index_t N_Warp = 4;
@@ -128,7 +128,7 @@ struct GemmConfigComputeV3 : public GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;//get_k_warp_tile<PrecType, M_Warp_Tile>();
 
     static constexpr bool DoubleSmemBuffer     = false;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
