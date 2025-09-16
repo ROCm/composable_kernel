@@ -109,7 +109,7 @@ struct SrcPkfp4Dst
                 // ex: fp32_t -> fp4 -> bf16_t
                 dst[i] = toDST(toPF4(src[i]));
                 // ex: fp32x2_t -> pk_fp4 -> unpack<0> -> bf16_t
-                dst[i + 1] = toDST(toPF4(toPF4(input2).unpack(number<1>{})));
+                dst[i + 1] = toDST(toPF4(input2).unpack(number<1>{}));
             }
             else
             {
