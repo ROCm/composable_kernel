@@ -638,7 +638,7 @@ struct DeviceOperationInstanceFactory<DeviceGemmMultipleDSplitK<ALayout,
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
 #ifdef CK_USE_XDL
-#ifdef CK_ENABLE_FP8
+#if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || CK_USE_OCP_FP8 || defined(CK_USE_GFX94)
 #ifdef CK_ENABLE_BF16
         if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, f8_t> &&
                      is_same_v<CDataType, bhalf_t>)

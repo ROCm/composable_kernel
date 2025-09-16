@@ -10,8 +10,7 @@ function(add_tile_topk_softmax_test SUFFIX)
     target_compile_options(${TEST_NAME} PRIVATE ${TEST_TOPK_SOFTMAX_COMPILE_OPTIONS})
 endfunction()
 
-# Currently ck_tile is only built on gfx9
-if(GPU_TARGETS MATCHES "gfx9")
+if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
     add_tile_topk_softmax_test(fp16)
     add_tile_topk_softmax_test(bf16)
 else()
