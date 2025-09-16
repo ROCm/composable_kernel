@@ -164,11 +164,6 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         uint64_t drop_offset,
                         bool drop_prefs,
                         std::string mask_str,
-                        float range_q,
-                        float range_k,
-                        float range_v,
-                        float range_p,
-                        float range_o,
                         bool squant,
                         bool is_rotary_interleaved,
                         ck_tile::index_t num_splits,
@@ -1138,7 +1133,9 @@ fwd_result fmha_fwd_run(mode_enum mode,
         lse_buf.FromDevice(lse_host.data());
         randval_buf.FromDevice(randval_host.data());
 
-        constexpr bool supports_squant = std::is_same_v<DataTypeConfig, FmhaFwdFp8>;
+        constexpr bool supports_squant = std::is_same_v<DataTypeConfig, FmhaFwdFp8> ||
+                                         std::is_same_v<DataTypeConfig, FmhaFwdFp8Bf16> ||
+                                         std::is_same_v<DataTypeConfig, FmhaFwdFp8Fp32>;
 
         auto p_compute_element_func = [&]() {
             if constexpr(supports_squant)
@@ -1148,10 +1145,10 @@ fwd_result fmha_fwd_run(mode_enum mode,
         }();
 
         auto oacc_element_func = [&]() {
-            if constexpr(supports_squant)
+            if constexpr(std::is_same_v<ODataType, ck_tile::fp8_t> && supports_squant)
                 return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{},
                                          ck_tile::scales{scale_o});
-            else if constexpr(std::is_same_v<QDataType, ck_tile::fp8_t>)
+            else if constexpr(supports_squant)
                 return ck_tile::scales{scale_o};
             else
                 return ck_tile::identity{};

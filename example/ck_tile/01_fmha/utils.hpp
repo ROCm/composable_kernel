@@ -107,9 +107,8 @@ std::vector<int32_t> generate_seqlens(mode_enum mode,
 
 // return random integer generated uniformly in range [low, high]
 template <typename Int = int, typename RandomEngine>
-auto randint(Int low,
-             Int high,
-             RandomEngine& random_engine) -> std::enable_if_t<std::is_integral_v<Int>, Int>
+auto randint(Int low, Int high, RandomEngine& random_engine)
+    -> std::enable_if_t<std::is_integral_v<Int>, Int>
 {
     std::uniform_int_distribution<Int> dist(low, high);
     return dist(random_engine);
@@ -117,11 +116,9 @@ auto randint(Int low,
 
 // return random integers generated uniformly in range [low, high]
 template <typename Int, typename ForwardIterator, typename RandomEngine>
-auto randints(ForwardIterator first,
-              ForwardIterator last,
-              Int low,
-              Int high,
-              RandomEngine& random_engine) -> std::enable_if_t<std::is_integral_v<Int>>
+auto randints(
+    ForwardIterator first, ForwardIterator last, Int low, Int high, RandomEngine& random_engine)
+    -> std::enable_if_t<std::is_integral_v<Int>>
 {
     std::uniform_int_distribution<Int> dist(low, high);
 
