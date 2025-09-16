@@ -45,18 +45,7 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
                 "permute input\n"
                 "if true, will be b*h*s*d, else b*s*h*d")
         .insert("operm", "0", "permute output")
-        .insert("mask",
-                "0",
-                "0: no mask, 1: top-left(same as 't'), 2:bottom-right(same as 'b')\n"
-                "'t', top-left causal mask, 'b', bottom-r causal mask\n"
-                "'t:l,r', top-left sliding window attn(swa) with FA style left right size\n"
-                "'b:l,r', bottom-r sliding window attn(swa) with FA style left right size\n"
-                "'xt:window_size', xformer style masking from top-left, window_size negative is "
-                "causal, positive is swa\n"
-                "'xb:window_size', xformer style masking from bottom-r, window_size negative is "
-                "causal, positive is swa\n"
-                "'g:y,x', generic attention mask coordinate with y/x size (only debug purpose for "
-                "now)")
+        .insert("causal", "0", "0: no mask, 1: causal mask")
         .insert("v", "1", "0:no verify, 1:verify")
         .insert("seed",
                 "11939",
@@ -109,7 +98,16 @@ struct Problem
         softmax_scale = args.get_float("scale_s");
         if(softmax_scale == .0f)
             softmax_scale = 1.0 / ck_tile::sqrt(static_cast<float>(hdim));
-        mask = mask_info::decode(args.get_str("mask"), seqlen_q, seqlen_k);
+
+        const auto is_causal = args.get_bool("causal");
+        if(is_causal)
+        {
+            mask = mask_info::decode("b:-1,0", seqlen_q, seqlen_k);
+        }
+        else
+        {
+            mask = mask_info::decode("0", seqlen_q, seqlen_k);
+        }
 
         input_layout  = args.get_int("iperm") == 1 ? TensorLayout::bhsd : TensorLayout::bshd;
         output_layout = args.get_int("operm") == 1 ? TensorLayout::bhsd : TensorLayout::bshd;

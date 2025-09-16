@@ -1868,7 +1868,7 @@ struct FmhaFwdKernel
                 const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                     data, // will update this pointer if using paged-kvcache
                     make_tuple(length, kargs.hdim_v),
-                    make_tuple(kargs.hdim_v, 1),
+                    make_tuple(kargs.stride_v, 1),
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
 
