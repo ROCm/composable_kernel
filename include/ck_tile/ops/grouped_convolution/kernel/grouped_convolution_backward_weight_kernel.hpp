@@ -355,11 +355,11 @@ struct GroupedConvolutionBackwardWeightKernel
 
     static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
 
-    using InDataType  = remove_cvref_t<typename GemmPipeline::ADataType>;
-    using WeiDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
+    using OutDataType = remove_cvref_t<typename GemmPipeline::ADataType>;
+    using InDataType  = remove_cvref_t<typename GemmPipeline::BDataType>;
     using DsDataType  = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
     // Below type is actually accumulation data type - the output of block GEMM.
-    using OutDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
+    using WeiDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
     using GroupedConvBwdWeightKernelArgsSpecialized =
         GroupedConvBwdWeightKernelArgs<GroupedConvTraitsType_>;
@@ -596,9 +596,12 @@ struct GroupedConvolutionBackwardWeightKernel
         }();
 
         const auto& c_tensor_view = [&]() {
-            return make_tensor_view<address_space_enum::global, DstInMemOp>(
+            return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
                 c_ptr,
-                kargs.c_grid_desc_m_n); // B: in
+                make_tuple(kargs.GemmM, kargs.GemmN),
+                make_tuple(kargs.GemmN, 1),
+                number<EpiloguePipeline::GetVectorSizeC()>{},
+                number<1>{});
         }();
 
         const auto& ds_tensor_view = generate_tuple(

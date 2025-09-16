@@ -4,6 +4,7 @@
 
 template <ck_tile::index_t NDimSpatial,
           typename GemmWarpConfig,
+          typename Invoker,
           typename InDataType,
           typename WeiDataType,
           typename AccDataType,
@@ -16,37 +17,32 @@ float invoke_grouped_conv_bwd_weight(ck_tile::GroupedConvBwdWeightHostArgs& args
                                      int n_repeat)
 {
     float ave_time = Invoker::template grouped_conv_bwd_weight<NDimSpatial,
-                                             GemmWarpConfig,
-                                             InDataType,
-                                             WeiDataType,
-                                             AccDataType,
-                                             OutDataType,
-                                             InLayout,
-                                             WeiLayout,
-                                             OutLayout>(
+                                                               GemmWarpConfig,
+                                                               InDataType,
+                                                               WeiDataType,
+                                                               AccDataType,
+                                                               OutDataType,
+                                                               InLayout,
+                                                               WeiLayout,
+                                                               OutLayout>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
-
-    std::size_t flop     = args.GetFlops();
-    std::size_t num_byte = args.GetByte<InDataType, WeiDataType, OutDataType>();
-    float tflops         = static_cast<float>(flop) / 1.E9 / ave_time;
-    float gb_per_sec     = num_byte / 1.E6 / ave_time;
-
-    std::cout << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << std::endl;
 
     return ave_time;
 }
 
 template <ck_tile::index_t NDimSpatial,
           typename GemmWarpConfig,
+          typename Invoker,
           typename InDataType,
           typename WeiDataType = InDataType,
           typename OutDataType = InDataType,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout>
-int run_grouped_conv_bwd_weight_example_with_layouts(
-    ck_tile::ArgParser& arg_parser, const InLayout, const WeiLayout, const OutLayout)
+int run_grouped_conv_bwd_weight_example_with_layouts(ck_tile::ArgParser& arg_parser,
+                                                     const InLayout,
+                                                     const WeiLayout,
+                                                     const OutLayout)
 {
     using AccDataType = float;
 
@@ -135,14 +131,15 @@ int run_grouped_conv_bwd_weight_example_with_layouts(
     std::cout << "output: " << output.mDesc << std::endl;
 
     float ave_time = invoke_grouped_conv_bwd_weight<NDimSpatial,
-                                   GemmWarpConfig,
-                                   InDataType,
-                                   WeiDataType,
-                                   AccDataType,
-                                   OutDataType,
-                                   InLayout,
-                                   WeiLayout,
-                                   OutLayout>(args, n_warmup, n_repeat);
+                                                    GemmWarpConfig,
+                                                    Invoker,
+                                                    InDataType,
+                                                    WeiDataType,
+                                                    AccDataType,
+                                                    OutDataType,
+                                                    InLayout,
+                                                    WeiLayout,
+                                                    OutLayout>(args, n_warmup, n_repeat);
 
     weight_dev_buf.FromDevice(weight.data());
 
@@ -200,8 +197,10 @@ template <typename Invoker,
           typename InPrecType,
           typename WeiPrecType = InPrecType,
           typename OutPrecType = InPrecType>
-int run_grouped_conv_bwd_weight_example_prec_type(
-    std::string in_layout, std::string wei_layout, std::string out_layout, ck_tile::ArgParser& arg_parser)
+int run_grouped_conv_bwd_weight_example_prec_type(std::string in_layout,
+                                                  std::string wei_layout,
+                                                  std::string out_layout,
+                                                  ck_tile::ArgParser& arg_parser)
 {
     using NWGC   = ck_tile::tensor_layout::convolution::NWGC;
     using NHWGC  = ck_tile::tensor_layout::convolution::NHWGC;
@@ -219,28 +218,31 @@ int run_grouped_conv_bwd_weight_example_prec_type(
     {
         return run_grouped_conv_bwd_weight_example_with_layouts<ck_tile::number<1>{},
                                                                 GemmWarpConfig,
+                                                                Invoker,
                                                                 InPrecType,
                                                                 WeiPrecType,
                                                                 OutPrecType>(
-            argc, argv, NWGC{}, GKXC{}, NWGK{});
+            arg_parser, NWGC{}, GKXC{}, NWGK{});
     }
     else if(in_layout == "NHWGC" && wei_layout == "GKYXC" && out_layout == "NHWGK")
     {
         return run_grouped_conv_bwd_weight_example_with_layouts<ck_tile::number<2>{},
                                                                 GemmWarpConfig,
+                                                                Invoker,
                                                                 InPrecType,
                                                                 WeiPrecType,
                                                                 OutPrecType>(
-            argc, argv, NHWGC{}, GKYXC{}, NHWGK{});
+            arg_parser, NHWGC{}, GKYXC{}, NHWGK{});
     }
     else if(in_layout == "NDHWGC" && wei_layout == "GKZYXC" && out_layout == "NDHWGK")
     {
         return run_grouped_conv_bwd_weight_example_with_layouts<ck_tile::number<3>{},
                                                                 GemmWarpConfig,
+                                                                Invoker,
                                                                 InPrecType,
                                                                 WeiPrecType,
                                                                 OutPrecType>(
-            argc, argv, NDHWGC{}, GKZYXC{}, NDHWGK{});
+            arg_parser, NDHWGC{}, GKZYXC{}, NDHWGK{});
     }
     else
     {

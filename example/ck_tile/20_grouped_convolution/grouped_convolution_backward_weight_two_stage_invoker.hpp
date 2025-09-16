@@ -4,7 +4,7 @@
 
 #include "grouped_convolution_utils.hpp"
 
-struct GroupedConvolutionBackwardWeightInvoker
+struct GroupedConvolutionBackwardWeightTwoStageInvoker
 {
     template <ck_tile::index_t NDimSpatial,
               typename GemmWarpConfig,
@@ -21,6 +21,8 @@ struct GroupedConvolutionBackwardWeightInvoker
     static float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
                                          const ck_tile::stream_config& s)
     {
+        using WorkspaceDataType = ck_tile::half_t; // float;
+
         constexpr int kBlockPerCu = 1;
 
         constexpr ck_tile::index_t M_Tile = 64;
@@ -50,8 +52,8 @@ struct GroupedConvolutionBackwardWeightInvoker
         using GroupedConvTraitsType = ck_tile::
             GroupedConvTraits<NDimSpatial, ConvSpec, InLayout, WeiLayout, DsLayout, OutLayout>;
         using CodegenPipelineProblem = ck_tile::GemmPipelineProblem<
-            InDataType,
-            WeiDataType,
+            OutDataType, // A: Out
+            InDataType,  // B: In
             AccDataType,
             CodegenShape,
             typename GroupedConvTraitsType::GroupedConvImplicitGemmTraits,
@@ -65,11 +67,11 @@ struct GroupedConvolutionBackwardWeightInvoker
             constexpr auto memory_operation = memory_operation_.value;
 
             using ConvEpilogue = ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<
-                InDataType,
-                WeiDataType,
+                OutDataType, // A: Out
+                InDataType,  // B: In
                 DsDataType,
                 AccDataType,
-                OutDataType,
+                WorkspaceDataType, // C: Workspace  normally Out
                 typename GroupedConvTraitsType::ImplicitGemmDsLayout,
                 ck_tile::tensor_layout::gemm::RowMajor,
                 CDEElementWise,
@@ -90,7 +92,19 @@ struct GroupedConvolutionBackwardWeightInvoker
                                                                            TilePartitioner,
                                                                            CodegenPipeline,
                                                                            ConvEpilogue>;
-            auto kargs   = Kernel::MakeKernelArgs(args);
+
+            const ck_tile::index_t spatial_lengths_accum =
+                std::accumulate(args.filter_spatial_lengths_.begin(),
+                                args.filter_spatial_lengths_.end(),
+                                1,
+                                std::multiplies<ck_tile::index_t>());
+            ck_tile::DeviceMem ws_m_n_dev_buf(args.G_ * args.K_ * args.C_ * spatial_lengths_accum *
+                                              sizeof(WorkspaceDataType));
+            ck_tile::GroupedConvBwdWeightHostArgs ws_args =
+                ck_tile::GroupedConvBwdWeightHostArgs(args);
+            auto c_ptr      = ws_args.wei_ptr;
+            ws_args.wei_ptr = ws_m_n_dev_buf.GetDeviceBuffer();
+            auto kargs      = Kernel::MakeKernelArgs(ws_args);
 
             const dim3 grids  = Kernel::GridSize(kargs);
             const dim3 blocks = Kernel::BlockSize();
@@ -98,6 +112,46 @@ struct GroupedConvolutionBackwardWeightInvoker
             if(!Kernel::IsSupportedArgument(kargs))
             {
                 throw std::runtime_error("Wrong! Arguments not supported! Skipping conv!\n");
+            }
+
+            using XElementwiseOperation = ck_tile::element_wise::UnaryConvert;
+            using BlockTile             = ck_tile::sequence<2048>;
+            using BlockWarps            = ck_tile::sequence<8>;
+            using WarpTile              = ck_tile::sequence<64>;
+
+            using ElementwiseShape =
+                ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, WorkspaceDataType>;
+            using Problem = ck_tile::ElementWisePipelineProblem<WorkspaceDataType,
+                                                                WorkspaceDataType,
+                                                                WeiDataType,
+                                                                ElementwiseShape,
+                                                                XElementwiseOperation>;
+            using ElementwiseKernel =
+                ck_tile::ElementWiseKernel<Problem, ck_tile::ElementWiseDefaultPolicy>;
+
+            ck_tile::index_t total_elements     = 1;
+            std::vector<ck_tile::index_t> shape = {
+                static_cast<ck_tile::index_t>(args.G_ * args.K_),
+                static_cast<ck_tile::index_t>(args.C_ * spatial_lengths_accum)};
+
+            for(auto d : shape)
+                total_elements *= d;
+
+            const ck_tile::index_t kBlockSize = ElementwiseKernel::BlockSize();
+
+            constexpr ck_tile::index_t elements_per_block = BlockTile::at(ck_tile::number<0>{});
+            ck_tile::index_t kGridSize =
+                (total_elements + elements_per_block - 1) / elements_per_block;
+
+            auto input_tensors =
+                ck_tile::make_tuple(static_cast<WorkspaceDataType*>(ws_args.wei_ptr));
+            auto input_size = ck_tile::make_tuple(shape[0], shape[1]);
+
+            // Check if the kernel configuration is supported
+            if(!ElementwiseKernel::IsSupportedArgument(input_size))
+            {
+                throw std::runtime_error(
+                    "Wrong! Elementwise arguments not supported! Skipping gemm!\n");
             }
 
             if(s.log_level_ > 0)
@@ -114,12 +168,28 @@ struct GroupedConvolutionBackwardWeightInvoker
                           << ", Vector size C: " << ConvEpilogue::GetVectorSizeC() << std::endl;
             }
 
-            float ave_time = ck_tile::launch_kernel_time_mask(
-                s,
-                Kernel::Preprocess(kargs, s),
-                ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+            auto preprocess = [&]() {
+                if(args.k_batch > 1)
+                    hipGetErrorString(
+                        hipMemsetAsync(ws_args.wei_ptr,
+                                       0,
+                                       shape[0] * shape[1] * sizeof(WorkspaceDataType),
+                                       s.stream_id_));
+            };
 
-            return ave_time;
+            return ck_tile::launch_kernel_time_mask(
+                s,
+                preprocess,
+                ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs),
+                ck_tile::make_kernel<kBlockPerCu>(ElementwiseKernel{},
+                                                  kGridSize,
+                                                  kBlockSize,
+                                                  0,
+                                                  input_size,
+                                                  ck_tile::make_tuple(shape[1], 1), // Input Stride
+                                                  ck_tile::make_tuple(shape[1], 1), // Output Stride
+                                                  input_tensors,
+                                                  static_cast<WeiDataType*>(c_ptr)));
         };
 
         if(args.k_batch == 1)

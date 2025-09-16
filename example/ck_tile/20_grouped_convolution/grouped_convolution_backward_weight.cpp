@@ -26,12 +26,16 @@ int run_grouped_conv_bwd_weight_example(ck_tile::ArgParser& arg_parser)
 
     if(data_type == "fp16")
     {
-        return run_grouped_conv_bwd_weight_example_prec_type<Invoker, GemmWarpConfig, ck_tile::half_t>(
+        return run_grouped_conv_bwd_weight_example_prec_type<Invoker,
+                                                             GemmWarpConfig,
+                                                             ck_tile::half_t>(
             in_layout, wei_layout, out_layout, arg_parser);
     }
     else if(data_type == "bf16")
     {
-        return run_grouped_conv_bwd_weight_example_prec_type<Invoker, GemmWarpConfig, ck_tile::bf16_t>(
+        return run_grouped_conv_bwd_weight_example_prec_type<Invoker,
+                                                             GemmWarpConfig,
+                                                             ck_tile::bf16_t>(
             in_layout, wei_layout, out_layout, arg_parser);
     }
     else
@@ -49,16 +53,15 @@ int main(int argc, char* argv[])
 
     try
     {
-    #if CK_TILE_USE_WMMA
+#if CK_TILE_USE_WMMA
         return !run_grouped_conv_bwd_weight_example<GemmWarpConfig_Wmma>(arg_parser);
-    #else
+#else
         return !run_grouped_conv_bwd_weight_example<GemmWarpConfig_Mfma>(arg_parser);
-    #endif
+#endif
     }
     catch(const std::runtime_error& e)
     {
         std::cerr << "Runtime error: " << e.what() << '\n';
         return EXIT_FAILURE;
     }
-
 }
