@@ -13,7 +13,10 @@
 namespace ck_tile {
 
 template <typename T>
-concept HasDataType = requires { typename T::DataType; };
+concept HasDataType = requires
+{
+    typename T::DataType;
+};
 
 template <typename T>
 struct GetDataType
@@ -22,7 +25,7 @@ struct GetDataType
 };
 
 template <typename T>
-    requires HasDataType<T>
+requires HasDataType<T>
 struct GetDataType<T>
 {
     using type = typename T::DataType; // Use T::ScaleN::DataType
@@ -52,23 +55,23 @@ template <typename ADataType_,
           bool TiledMMAPermuteN_  = false>
 struct CShuffleEpilogueProblem
 {
-    using ADataType                                        = remove_cvref_t<ADataType_>;
-    using BDataType                                        = remove_cvref_t<BDataType_>;
-    using AccDataType                                      = remove_cvref_t<AccDataType_>;
-    using ODataType                                        = remove_cvref_t<ODataType_>;
-    using DsDataType                                       = remove_cvref_t<DsDataType_>;
-    using DsLayout                                         = remove_cvref_t<DsLayout_>;
-    using ELayout                                          = remove_cvref_t<ELayout_>;
-    using CDElementwise                                    = remove_cvref_t<CDElementwise_>;
-    static constexpr index_t kBlockSize                    = MWave_ * NWave_ * KWave_ * get_warp_size();
-    static constexpr index_t kMPerBlock                    = kM_;
-    static constexpr index_t kNPerBlock                    = kN_;
-    static constexpr index_t MWave                         = MWave_;
-    static constexpr index_t NWave                         = NWave_;
-    static constexpr index_t MPerXdl                       = MPerXdl_;
-    static constexpr index_t NPerXdl                       = NPerXdl_;
-    static constexpr index_t KPerXdl                       = KPerXdl_;
-    static constexpr index_t isCTransposed                 = isCTransposed_;
+    using ADataType                        = remove_cvref_t<ADataType_>;
+    using BDataType                        = remove_cvref_t<BDataType_>;
+    using AccDataType                      = remove_cvref_t<AccDataType_>;
+    using ODataType                        = remove_cvref_t<ODataType_>;
+    using DsDataType                       = remove_cvref_t<DsDataType_>;
+    using DsLayout                         = remove_cvref_t<DsLayout_>;
+    using ELayout                          = remove_cvref_t<ELayout_>;
+    using CDElementwise                    = remove_cvref_t<CDElementwise_>;
+    static constexpr index_t kBlockSize    = MWave_ * NWave_ * KWave_ * get_warp_size();
+    static constexpr index_t kMPerBlock    = kM_;
+    static constexpr index_t kNPerBlock    = kN_;
+    static constexpr index_t MWave         = MWave_;
+    static constexpr index_t NWave         = NWave_;
+    static constexpr index_t MPerXdl       = MPerXdl_;
+    static constexpr index_t NPerXdl       = NPerXdl_;
+    static constexpr index_t KPerXdl       = KPerXdl_;
+    static constexpr index_t isCTransposed = isCTransposed_;
     static constexpr memory_operation_enum MemoryOperation = MemoryOperation_;
     static constexpr bool FixedVectorSize                  = FixedVectorSize_;
     static constexpr index_t VectorSizeC                   = VectorSizeC_;
@@ -239,8 +242,8 @@ struct CShuffleEpilogue
     using CWarpTensor       = typename WG::CWarpTensor;
     using CWarpDstrEncoding = typename WG::CWarpDstrEncoding;
     using SFC               = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
-                                                  sequence<0, 1>,
-                                                  sequence<MPerIterationShuffle, NPerIterationShuffle>>;
+                                    sequence<0, 1>,
+                                    sequence<MPerIterationShuffle, NPerIterationShuffle>>;
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsBlockDescriptor()
@@ -344,8 +347,8 @@ struct CShuffleEpilogue
 
         const auto c_ds_tiles = concat_tuple_of_reference(
             tie(c_out_tensor, c_out_tensor),
-            generate_tie([&](auto idx) -> const auto& { return ds_tensor[idx]; },
-                         number<NumDTensor>{}));
+            generate_tie(
+                [&](auto idx) -> const auto& { return ds_tensor[idx]; }, number<NumDTensor>{}));
 
         tile_elementwise_inout_unpack(typename Problem::CDElementwise{}, c_ds_tiles);
     }
