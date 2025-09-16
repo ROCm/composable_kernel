@@ -40,6 +40,7 @@ template <typename ADataType_,
           index_t kN_,
           index_t MWave_,
           index_t NWave_,
+          index_t KWave_,
           index_t MPerXdl_,
           index_t NPerXdl_,
           index_t KPerXdl_,
@@ -59,7 +60,7 @@ struct CShuffleEpilogueProblem
     using DsLayout                                         = remove_cvref_t<DsLayout_>;
     using ELayout                                          = remove_cvref_t<ELayout_>;
     using CDElementwise                                    = remove_cvref_t<CDElementwise_>;
-    static constexpr index_t kBlockSize                    = MWave_ * NWave_ * get_warp_size();
+    static constexpr index_t kBlockSize                    = MWave_ * NWave_ * KWave_ * get_warp_size();
     static constexpr index_t kMPerBlock                    = kM_;
     static constexpr index_t kNPerBlock                    = kN_;
     static constexpr index_t MWave                         = MWave_;

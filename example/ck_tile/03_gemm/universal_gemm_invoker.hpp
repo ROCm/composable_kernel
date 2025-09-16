@@ -102,6 +102,7 @@ struct UniversalInvoker
                                                  TilePartitioner::NPerBlock,
                                                  GemmConfig::M_Warp,
                                                  GemmConfig::N_Warp,
+                                                 GemmConfig::K_Warp,
                                                  GemmConfig::M_Warp_Tile,
                                                  GemmConfig::N_Warp_Tile,
                                                  GemmConfig::K_Warp_Tile,

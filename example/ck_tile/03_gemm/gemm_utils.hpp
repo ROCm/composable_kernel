@@ -252,7 +252,7 @@ struct GemmConfigComputeV5 : public GemmConfigBase
 
     static constexpr bool DoubleSmemBuffer               = false;
     static constexpr ck_tile::index_t Pipeline           = CK_TILE_PIPELINE_COMPUTE_V5;
-    static constexpr ck_tile::index_t NumWaNumWaveGroups = 2;
+    static constexpr ck_tile::index_t NumWaveGroups = 2;
 };
 
 template <typename PrecType>
