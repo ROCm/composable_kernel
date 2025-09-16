@@ -147,8 +147,7 @@ struct GroupedConvFwdKernelArgs
 
         k_batch = args.k_batch;
 
-        // Note: GemmM will be updated after Split-N calculation
-        GemmM     = args.N_ * args.output_spatial_lengths_[0] * args.output_spatial_lengths_[1];
+        // Note: GemmM will be set after Split-N calculation
         GemmN     = args.K_;
         GemmK     = args.C_ * args.filter_spatial_lengths_[0] * args.filter_spatial_lengths_[1];
         GemmBatch = args.G_;
@@ -247,8 +246,7 @@ struct GroupedConvFwdKernelArgs
 
         k_batch = args.k_batch;
 
-        GemmM = args.N_ * args.output_spatial_lengths_[0] * args.output_spatial_lengths_[1] *
-                args.output_spatial_lengths_[2];
+        // Note: GemmM will be set after Split-N calculation
         GemmN = args.K_;
         GemmK = args.C_ * args.filter_spatial_lengths_[0] * args.filter_spatial_lengths_[1] *
                 args.filter_spatial_lengths_[2];
@@ -839,10 +837,11 @@ struct GroupedConvolutionForwardKernel
         const index_t batch_offset = __builtin_amdgcn_readfirstlane(blockIdZ * kargs.n_per_split);
 
         // Calculate memory offsets for this split
-        const index_t input_batch_offset =
-            __builtin_amdgcn_readfirstlane(batch_offset * kargs.input_batch_stride);
-        const index_t output_batch_offset =
-            __builtin_amdgcn_readfirstlane(batch_offset * kargs.output_batch_stride);
+        const long_index_t input_batch_offset = static_cast<long_index_t>(batch_offset) *
+                                                static_cast<long_index_t>(kargs.input_batch_stride);
+        const long_index_t output_batch_offset =
+            static_cast<long_index_t>(batch_offset) *
+            static_cast<long_index_t>(kargs.output_batch_stride);
 
         // Adjust pointers: combine group offset and batch offset
         const InDataType* a_ptr =
