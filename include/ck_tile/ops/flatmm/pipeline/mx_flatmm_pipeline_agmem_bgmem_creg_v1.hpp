@@ -38,11 +38,12 @@ struct MXFlatmmPipelineProblem : FlatmmPipelineProblem<ADataType_,
 
     static constexpr int ScaleGranularityK = 32;
 
-    // static constexpr int ContinuousKPerThread      = 32; // it's fixed for fp4
-    static constexpr int MXdlPack         = 2; // it's fixed for fp4
-    static constexpr int NXdlPack         = 2; // it's fixed for fp4
-    static constexpr int KXdlPack         = 2;
-    static constexpr index_t flatKPerWarp = BlockGemmShape::flatKPerWarp * KXdlPack;
+    static constexpr int ContinuousKPerThread = 32; // it's fixed for fp4
+    static constexpr int MXdlPack             = 2;  // it's fixed for fp4
+    static constexpr int NXdlPack             = 2;  // it's fixed for fp4
+    static constexpr int KXdlPack             = 2;
+    // static constexpr index_t flatKPerWarp = BlockGemmShape::flatKPerWarp * KXdlPack;
+    static constexpr index_t flatKPerWarp = 64 * ContinuousKPerThread;
 };
 
 template <typename Problem, typename PipelinePolicy = MXF4FlatmmPipelineAgBgCrPolicy>
@@ -577,24 +578,6 @@ struct MXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Probl
             MIterPerWarp>
             a_warp_windows_pong;
 
-        // auto A_Lds_Stride = 8;
-        // static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-        //     static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
-        //         a_warp_windows_ping(mIter)(kIter) = a_warp_window_ping_tmp;
-        //         a_warp_windows_pong(mIter)(kIter) = a_warp_window_pong_tmp;
-
-        //         auto weight_k_idx  = kIter / number<XDL_PerWeightK>{};
-        //         auto weight_k_rank = kIter % number<XDL_PerWeightK>{};
-        //         move_tile_window(
-        //             a_warp_windows_ping(mIter)(kIter),
-        //             {mIter * MPerBlockPerIter,
-        //              weight_k_rank * A_Lds_Stride + weight_k_idx * XDL_PerWeightK * WG::kK});
-        //         move_tile_window(
-        //             a_warp_windows_pong(mIter)(kIter),
-        //             {mIter * MPerBlockPerIter,
-        //              weight_k_rank * A_Lds_Stride + weight_k_idx * XDL_PerWeightK * WG::kK});
-        //     });
-        // });
         static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 a_warp_windows_ping(mIter)(kIter) = a_warp_window_ping_tmp;
@@ -603,14 +586,12 @@ struct MXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Probl
                 auto packed_m_idx  = mIter / number<MXdlPack>{};
                 auto packed_m_rank = mIter % number<MXdlPack>{};
 
-                move_tile_window(
-                    a_warp_windows_ping(mIter)(kIter),
-                    {packed_m_idx * MXdlPack * MPerBlockPerIter + packed_m_rank * WG::kM,
-                     kIter * KPerBlockPerIter});
-                move_tile_window(
-                    a_warp_windows_pong(mIter)(kIter),
-                    {packed_m_idx * MXdlPack * MPerBlockPerIter + packed_m_rank * WG::kM,
-                     kIter * KPerBlockPerIter});
+                move_tile_window(a_warp_windows_ping(mIter)(kIter),
+                                 {packed_m_idx * MXdlPack * MPerBlockPerIter + packed_m_rank,
+                                  kIter * KPerBlockPerIter});
+                move_tile_window(a_warp_windows_pong(mIter)(kIter),
+                                 {packed_m_idx * MXdlPack * MPerBlockPerIter + packed_m_rank,
+                                  kIter * KPerBlockPerIter});
             });
         });
 
@@ -769,16 +750,6 @@ struct MXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Probl
                 load_tile(a_warp_windows_ping(number<mIter>{})(number<kIter>{}));
         });
         __builtin_amdgcn_sched_barrier(0);
-
-#if 1
-        if(blockIdx.x == 0)
-        {
-            printf("tid: %u, scale_a_tile_tensor_ping(0)(0)[0]: 0x%08x\n",
-                   threadIdx.x,
-                   *(reinterpret_cast<uint32_t*>(
-                       &scale_a_tile_tensor_ping(I0)(I0).get_thread_buffer()[0])));
-        }
-#endif
 
         // MAIN LOOP
         index_t iCounter = (num_loop - 1) / 2;

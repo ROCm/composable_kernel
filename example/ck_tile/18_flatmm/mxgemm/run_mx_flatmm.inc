@@ -107,8 +107,26 @@ int run_mx_flatmm_with_layouts(int argc,
         ck_tile::FillUniformDistribution<ScaleDataType>{-2.f, 2.f}(scale_a);
         ck_tile::FillUniformDistribution<ScaleDataType>{-2.f, 2.f}(scale_b);
     }
+    else if(init_method == 4)
+    {
+        ck_tile::FillUniformDistribution<ADataType>{0.0f, 1.0f}(a_host);
+        ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_origin_host);
+        ck_tile::FillUniformDistribution<ScaleDataType>{1.f, 1.f}(scale_a);
+        ck_tile::FillUniformDistribution<ScaleDataType>{1.f, 1.f}(scale_b);
+    }
+    else if(init_method == 5)
+    {
+        ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_host);
+        ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_origin_host);
+        ck_tile::FillUniformDistribution<ScaleDataType>{1.f, 1.f}(scale_a);
+        ck_tile::FillUniformDistribution<ScaleDataType>{1.f, 1.f}(scale_b);
+    }
+    else
+    {
+        throw std::runtime_error("wrong! only support init_method 0/1/2/3/4");
+    }
 
-#if 1
+#if 0
 #if 0
     printf("printf a_host: \n");
     for(int m = 0; m < M; m++)
@@ -178,7 +196,7 @@ int run_mx_flatmm_with_layouts(int argc,
         for(int k = 0; k < K;)
         {
             printf("0x%08x ", *(reinterpret_cast<uint32_t*>(&a_host(m, k))));
-            k += 2;
+            k += 8;
         }
         printf("\n");
     }
@@ -278,6 +296,19 @@ int run_mx_flatmm_with_layouts(int argc,
                                           n_repeat);
 
     c_dev_buf.FromDevice(c_rslt_host.data());
+
+#if 1
+    printf("printf c_rslt_host: \n");
+    for(int m = 0; m < M; m++)
+    {
+        for(int n = 0; n < N; n++)
+        {
+            printf("%.1f ", ck_tile::type_convert<float>(c_rslt_host(m, n)));
+        }
+        printf("\n");
+    }
+    printf("\n");
+#endif
 
     bool pass = true;
     if(arg_parser.get_int("v") == 1)

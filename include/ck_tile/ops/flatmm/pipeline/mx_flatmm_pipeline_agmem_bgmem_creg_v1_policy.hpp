@@ -155,9 +155,8 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 
         return make_static_tile_distribution(
             tile_distribution_encoding<
-                sequence<WaveRepeat>,                  // ?
-                tuple<sequence<NWavePerBlk, NXdlPack>, // second  >>>>>>>>>need to double confirm
-                                                       // direction
+                sequence<WaveRepeat>,
+                tuple<sequence<NWavePerBlk, NXdlPack>,
                       sequence<KWavePerBlk, KThdPerWave, KBPerLoad>>, // first  direction
                 // wave in blk,     // thd in wave
                 // <M, K>           // <M, K>
