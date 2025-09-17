@@ -59,4 +59,14 @@ concept ValidConvSignature = requires {
     requires ConvDataType<Sig.data_type>;
 };
 
+template <auto Sig>
+concept ConvDirectionIsForward = (Sig.direction == ConvDirection::FORWARD);
+
+template <auto Sig>
+concept ConvDirectionIsBackwardData = (Sig.direction == ConvDirection::BACKWARD_DATA);
+
+template <auto Sig>
+concept ConvDirectionIsBackwardWeight = (Sig.direction == ConvDirection::BACKWARD_WEIGHT);
+
+
 } // namespace ck_tile::builder
