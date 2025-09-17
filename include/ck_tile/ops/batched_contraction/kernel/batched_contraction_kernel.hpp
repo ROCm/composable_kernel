@@ -161,13 +161,7 @@ struct BatchedContractionKernel
                                                             kargs.stride_E,
                                                             kargs.k_batch};
 
-        ck_tile::index_t total_G = 1;
-        for(ck_tile::index_t i = 0; i < NumDimG; ++i)
-        {
-            total_G *= kargs.G_dims[i];
-        }
-
-        return UniversalGemmKernel::IsSupportedArgument(gemm_kargs) && total_G > 0;
+        return UniversalGemmKernel::IsSupportedArgument(gemm_kargs) && kargs.G_total > 0;
     }
 
     CK_TILE_HOST static constexpr ck_tile::index_t GetSmemSize()
@@ -191,12 +185,15 @@ struct BatchedContractionKernel
     Make_A_GridDescriptor_M_K(const std::vector<ck_tile::index_t>& A_dims,
                               const std::vector<ck_tile::index_t>& A_strides)
     {
+        const auto to_tuple = [&](auto& vec, auto start, auto end) {
+            return generate_tuple([&](auto i) { return vec[start + i]; }, number<end - start>{});
+        };
 
         // Remove G Dimensions
-        const auto A_dims_M_K = make_tuple_from_vector(
-            A_dims, number<NumDimG>{}, number<NumDimG + NumDimM + NumDimK>{});
-        const auto A_strides_M_K = make_tuple_from_vector(
-            A_strides, number<NumDimG>{}, number<NumDimG + NumDimM + NumDimK>{});
+        const auto A_dims_M_K =
+            to_tuple(A_dims, number<NumDimG>{}, number<NumDimG + NumDimM + NumDimK>{});
+        const auto A_strides_M_K =
+            to_tuple(A_strides, number<NumDimG>{}, number<NumDimG + NumDimM + NumDimK>{});
 
         // dimension Ids for M and K
         constexpr auto A_dims_M_ids = typename arithmetic_sequence_gen<0, NumDimM, 1>::type{};
@@ -227,12 +224,15 @@ struct BatchedContractionKernel
     Make_B_GridDescriptor_N_K(const std::vector<ck_tile::index_t>& B_dims,
                               const std::vector<ck_tile::index_t>& B_strides)
     {
+        const auto to_tuple = [&](auto& vec, auto start, auto end) {
+            return generate_tuple([&](auto i) { return vec[start + i]; }, number<end - start>{});
+        };
 
         // Remove G Dimensions
-        const auto B_dims_N_K = make_tuple_from_vector(
-            B_dims, number<NumDimG>{}, number<NumDimG + NumDimN + NumDimK>{});
-        const auto B_strides_N_K = make_tuple_from_vector(
-            B_strides, number<NumDimG>{}, number<NumDimG + NumDimN + NumDimK>{});
+        const auto B_dims_N_K =
+            to_tuple(B_dims, number<NumDimG>{}, number<NumDimG + NumDimN + NumDimK>{});
+        const auto B_strides_N_K =
+            to_tuple(B_strides, number<NumDimG>{}, number<NumDimG + NumDimN + NumDimK>{});
 
         // dimension Ids for N and K
         constexpr auto B_dims_N_ids = typename arithmetic_sequence_gen<0, NumDimN, 1>::type{};
@@ -263,12 +263,15 @@ struct BatchedContractionKernel
     Make_E_GridDescriptor_M_N(const std::vector<ck_tile::index_t>& E_dims,
                               const std::vector<ck_tile::index_t>& E_strides)
     {
+        const auto to_tuple = [&](auto& vec, auto start, auto end) {
+            return generate_tuple([&](auto i) { return vec[start + i]; }, number<end - start>{});
+        };
 
         // Remove G dimensions
-        const auto E_dims_M_N = make_tuple_from_vector(
-            E_dims, number<NumDimG>{}, number<NumDimG + NumDimM + NumDimN>{});
-        const auto E_strides_M_N = make_tuple_from_vector(
-            E_strides, number<NumDimG>{}, number<NumDimG + NumDimM + NumDimN>{});
+        const auto E_dims_M_N =
+            to_tuple(E_dims, number<NumDimG>{}, number<NumDimG + NumDimM + NumDimN>{});
+        const auto E_strides_M_N =
+            to_tuple(E_strides, number<NumDimG>{}, number<NumDimG + NumDimM + NumDimN>{});
 
         // dimension Ids for M and N
         constexpr auto E_dims_M_ids = typename arithmetic_sequence_gen<0, NumDimM, 1>::type{};
@@ -293,6 +296,10 @@ struct BatchedContractionKernel
 
         return E_grid_desc_Mflat_Nflat;
     }
+
+    using A_Grid_Desc_M_K = decltype(Make_A_GridDescriptor_M_K({}, {}));
+    using B_Grid_Desc_N_K = decltype(Make_B_GridDescriptor_N_K({}, {}));
+    using E_Grid_Desc_M_N = decltype(Make_E_GridDescriptor_M_N({}, {}));
 
     CK_TILE_HOST static constexpr KernelArgs
     MakeKernelArgs(const BatchedContractionHostArgs<NumDTensor>& host_args)
