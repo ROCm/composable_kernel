@@ -19,6 +19,7 @@ struct BatchedContractionTypeConfig
     using BDataType   = DataType;
     using AccDataType = float;
     using EDataType   = DataType;
+    using DsDataType  = DataType;
 };
 
 using ContractionTypes = BatchedContractionTypeConfig<ck_tile::half_t>;
@@ -27,6 +28,7 @@ using ADataType   = ContractionTypes::ADataType;
 using BDataType   = ContractionTypes::BDataType;
 using AccDataType = ContractionTypes::AccDataType;
 using EDataType   = ContractionTypes::EDataType;
+using DsDataType  = ContractionTypes::DsDataType;
 
 auto create_args(int argc, char* argv[])
 {
@@ -36,6 +38,7 @@ auto create_args(int argc, char* argv[])
         .insert("k_dims", "2048", "K dimensions separated by comma (e.g., '64,32' for 2D K)")
         .insert(
             "g_dims", "8", "G dimensions separated by comma (e.g., '4,2' for 2D, '2,3,4' for 3D)")
+        .insert("num_d", "1", "Number of D tensors (NumDTensor)")
         .insert("stride_a", "0", "Custom A tensor leading dimension stride (0 = auto)")
         .insert("stride_b", "0", "Custom B tensor leading dimension stride (0 = auto)")
         .insert("stride_e", "0", "Custom E tensor leading dimension stride (0 = auto)")

@@ -451,32 +451,6 @@ struct BatchedContractionKernel
                 static_cast<const void*>(static_cast<const char*>(kargs.ds_ptr[i]) + offsets.ds[i]);
         });
 
-        // const auto g_indices = DecomposeGIndex<NumDimG>(i_batch_flat, kargs.G_dims);
-
-        // const auto G_offset_A =
-        //     __builtin_amdgcn_readfirstlane(CalculateGOffset<NumDimG>(g_indices,
-        //     kargs.G_strides_A));
-
-        // const auto G_offset_B =
-        //     __builtin_amdgcn_readfirstlane(CalculateGOffset<NumDimG>(g_indices,
-        //     kargs.G_strides_B));
-
-        // const auto G_offset_E =
-        //     __builtin_amdgcn_readfirstlane(CalculateGOffset<NumDimG>(g_indices,
-        //     kargs.G_strides_E));
-
-        // const ADataType* a_ptr = static_cast<const ADataType*>(kargs.a_ptr) + G_offset_A;
-        // const BDataType* b_ptr = static_cast<const BDataType*>(kargs.b_ptr) + G_offset_B;
-        // EDataType* e_ptr       = static_cast<EDataType*>(kargs.e_ptr) + G_offset_E;
-
-        // std::array<const void*, NumDTensor> ds_batch_ptr;
-        // static_for<0, NumDTensor, 1>{}([&](auto i) {
-        //     const auto G_offset_D = __builtin_amdgcn_readfirstlane(
-        //         CalculateGOffset<NumDimG>(g_indices, kargs.G_strides_Ds[i]));
-        //     ds_batch_ptr[i] =
-        //         static_cast<const void*>(static_cast<const char*>(kargs.ds_ptr[i]) + G_offset_D);
-        // });
-
         typename UniversalGemmKernel::KernelArgs gemm_kargs{{a_ptr},
                                                             {b_ptr},
                                                             ds_batch_ptr,

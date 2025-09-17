@@ -234,16 +234,18 @@ float invoke_batched_contraction_kernel(
     return ave_time;
 }
 
-template <typename ALayout, typename BLayout, typename ELayout>
+template <typename ALayout, typename BLayout, typename DsLayout, typename ELayout>
 int run_batched_contraction_example_with_layouts(
     int argc,
     char* argv[],
     const ALayout a_layout                  = ALayout{},
     const BLayout b_layout                  = BLayout{},
+    const DsLayout ds_layout                = DsLayout{},
     [[maybe_unused]] const ELayout e_layout = ELayout{})
 {
     (void)a_layout;
     (void)b_layout;
+    (void)ds_layout;
     auto [result, arg_parser] = create_args(argc, argv);
     if(!result)
         return -1;
@@ -252,6 +254,7 @@ int run_batched_contraction_example_with_layouts(
     std::vector<ck_tile::index_t> M_dims = parse_dimensions(arg_parser.get_str("m_dims"));
     std::vector<ck_tile::index_t> N_dims = parse_dimensions(arg_parser.get_str("n_dims"));
     std::vector<ck_tile::index_t> K_dims = parse_dimensions(arg_parser.get_str("k_dims"));
+    ck_tile::index_t NumDTensor          = arg_parser.get_int("num_d");
 
     ck_tile::index_t G_total = calculate_total_elements(G_dims);
     ck_tile::index_t M_total = calculate_total_elements(M_dims);
@@ -264,10 +267,12 @@ int run_batched_contraction_example_with_layouts(
         get_tensor_dims({G_dims, N_dims, K_dims}); // [G0,G1,..,N0,N1,..,K0,K1,..]
     std::vector<ck_tile::index_t> E_dims =
         get_tensor_dims({G_dims, M_dims, N_dims}); // [G0,G1,..,M0,M1,..,N0,N1,..]
+    std::vector<std::vector<ck_tile::index_t>> Ds_dims(NumDTensor, E_dims);
 
     std::vector<ck_tile::index_t> A_strides = get_tensor_strides(A_dims);
     std::vector<ck_tile::index_t> B_strides = get_tensor_strides(B_dims);
     std::vector<ck_tile::index_t> E_strides = get_tensor_strides(E_dims);
+    std::vector<std::vector<ck_tile::index_t>> Ds_strides(NumDTensor, E_strides);
 
     ck_tile::index_t kbatch = arg_parser.get_int("split_k");
     (void)kbatch;
@@ -281,47 +286,70 @@ int run_batched_contraction_example_with_layouts(
     print_dims("N_dims", N_dims, N_total);
     print_dims("K_dims", K_dims, K_total);
 
+    std::cout << "NumDTensor: " << NumDTensor << std::endl;
     std::cout << "\n=== Tensor Shapes for Kernel ===" << std::endl;
     print_dims("A_dims", A_dims, 0);
     print_dims("B_dims", B_dims, 0);
     print_dims("E_dims", E_dims, 0);
+    for(ck_tile::index_t d = 0; d < NumDTensor; ++d)
+    {
+        print_dims("Ds[" + std::to_string(d) + "]_dims", Ds_dims[d], 0);
+    }
 
     std::cout << "\n=== Tensor Strides ===" << std::endl;
     print_dims("A_strides", A_strides, 0);
     print_dims("B_strides", B_strides, 0);
     print_dims("E_strides", E_strides, 0);
+    for(ck_tile::index_t d = 0; d < NumDTensor; ++d)
+    {
+        print_dims("Ds[" + std::to_string(d) + "]_strides", Ds_strides[d], 0);
+    }
+
     std::cout << "===============================================\n" << std::endl;
 
-    ck_tile::HostTensor<::ADataType> a_full_dims(ck_tile::HostTensorDescriptor(A_dims, A_strides));
-    ck_tile::HostTensor<::BDataType> b_full_dims(ck_tile::HostTensorDescriptor(B_dims, B_strides));
-    ck_tile::HostTensor<::EDataType> e_full_dims_dev(
+    ck_tile::HostTensor<::ADataType> a_full_dims_host(
+        ck_tile::HostTensorDescriptor(A_dims, A_strides));
+    ck_tile::HostTensor<::BDataType> b_full_dims_host(
+        ck_tile::HostTensorDescriptor(B_dims, B_strides));
+    ck_tile::HostTensor<::EDataType> e_full_dims_host(
         ck_tile::HostTensorDescriptor(E_dims, E_strides));
 
-    ck_tile::FillUniformDistribution<::ADataType>{-5.f, 5.f}(a_full_dims);
-    ck_tile::FillUniformDistribution<::BDataType>{-5.f, 5.f}(b_full_dims);
+    ck_tile::FillUniformDistribution<::ADataType>{-5.f, 5.f}(a_full_dims_host);
+    ck_tile::FillUniformDistribution<::BDataType>{-5.f, 5.f}(b_full_dims_host);
 
-    ck_tile::DeviceMem a_full_dims_dev_buf(a_full_dims.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem b_full_dims_dev_buf(b_full_dims.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem e_full_dims_dev_buf(e_full_dims_dev.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem a_full_dims_dev_buf(a_full_dims_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem b_full_dims_dev_buf(b_full_dims_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem e_full_dims_dev_buf(e_full_dims_host.get_element_space_size_in_bytes());
 
-    a_full_dims_dev_buf.ToDevice(a_full_dims.data());
-    b_full_dims_dev_buf.ToDevice(b_full_dims.data());
+    a_full_dims_dev_buf.ToDevice(a_full_dims_host.data());
+    b_full_dims_dev_buf.ToDevice(b_full_dims_host.data());
+
+    // std::vector<ck_tile::HostTensor<::DsDataType>> ds_full_dims_host;
+    // std::vector<ck_tile::DeviceMem> ds_full_dims_dev_buf;
+    // std::vector<const void*> ds_ptr;
+    // for (ck_tile::index_t d = 0; d < NumDTensor; ++d)
+    // {
+    //     ds_full_dims_host.emplace_back(ck_tile::HostTensor<::DsDataType>(
+    //         ck_tile::HostTensorDescriptor(Ds_dims[d], Ds_strides[d])));
+    //     ck_tile::FillUniformDistribution<::DsDataType>{-5.f, 5.f}(ds_full_dims_host[d]);
+    //     ds_full_dims_dev_buf.emplace_back(ds_full_dims_host[d].get_element_space_size_in_bytes());
+    //     ds_full_dims_dev_buf[d].ToDevice(ds_full_dims_host[d].data());
+    //     ds_ptr.push_back(ds_full_dims_dev_buf[d].GetDeviceBuffer());
+    // }
+
     e_full_dims_dev_buf.SetZero();
-    e_full_dims_dev.SetZero();
+    e_full_dims_host.SetZero();
 
     std::cout << "\n=== Running GPU Kernel ===" << std::endl;
 
-    using DsDataType = ck_tile::tuple<>;
-    using DsLayout   = ck_tile::tuple<>;
-
     float ave_time = invoke_batched_contraction_kernel<::ADataType,
                                                        ::BDataType,
-                                                       DsDataType,
+                                                       ck_tile::tuple<>, //::DsDataType,
                                                        ::AccDataType,
                                                        ::EDataType,
                                                        ALayout,
                                                        BLayout,
-                                                       DsLayout,
+                                                       ck_tile::tuple<>, // DsLayout,
                                                        ELayout>(a_full_dims_dev_buf,
                                                                 b_full_dims_dev_buf,
                                                                 e_full_dims_dev_buf,
@@ -383,7 +411,7 @@ int run_batched_contraction_example_with_layouts(
 
     std::cout << "===============================================" << std::endl;
 
-    e_full_dims_dev_buf.FromDevice(e_full_dims_dev.data());
+    e_full_dims_dev_buf.FromDevice(e_full_dims_host.data());
     std::cout << "GPU results retrieved from device." << std::endl;
 
     bool pass = true;
@@ -398,8 +426,13 @@ int run_batched_contraction_example_with_layouts(
 
         auto start_time = std::chrono::high_resolution_clock::now();
 
-        calculate_reference_flat_indexing(
-            a_full_dims, b_full_dims, e_full_dims_host_ref, G_total, M_total, N_total, K_total);
+        calculate_reference_flat_indexing(a_full_dims_host,
+                                          b_full_dims_host,
+                                          e_full_dims_host_ref,
+                                          G_total,
+                                          M_total,
+                                          N_total,
+                                          K_total);
 
         // ck_tile::HostTensor<::EDataType> e_full_dims_host_ref1(
         //     ck_tile::HostTensorDescriptor(E_dims, E_strides));
@@ -447,7 +480,7 @@ int run_batched_contraction_example_with_layouts(
             calculate_rtol_atol<::ADataType, ::BDataType, ::EDataType, ::AccDataType>(
                 K_total, kbatch, max_accumulated_value);
 
-        pass = ck_tile::check_err(e_full_dims_dev,
+        pass = ck_tile::check_err(e_full_dims_host,
                                   e_full_dims_host_ref,
                                   "Error: Incorrect results!",
                                   rtol_atol.at(ck_tile::number<0>{}),
@@ -479,7 +512,7 @@ int run_batched_contraction_example_with_layouts(
         {
             std::cout << "Index " << idx << ": "
                       << "ref=" << static_cast<float>(e_full_dims_host_ref.mData[idx]) << ", "
-                      << "GPU=" << static_cast<float>(e_full_dims_dev.mData[idx]) << std::endl;
+                      << "GPU=" << static_cast<float>(e_full_dims_host.mData[idx]) << std::endl;
         }
 
         std::cout << "===============================================" << std::endl;
@@ -502,7 +535,7 @@ int run_batched_contraction_example(int argc, char* argv[])
 
     if(a_layout == "R" && b_layout == "C")
     {
-        return run_batched_contraction_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
+        return run_batched_contraction_example_with_layouts(argc, argv, Row{}, Col{}, Row{}, Row{});
     }
     else
     {
