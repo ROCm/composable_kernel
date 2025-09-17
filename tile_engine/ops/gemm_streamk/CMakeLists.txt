@@ -205,7 +205,7 @@ function(build_individual_gemm_targets datatype layout)
 endfunction()
 
 # Main build logic - Only individual builds supported
-message(STATUS "=== Starting Tile Engine GEMM Configuration ===")
+message(STATUS "=== Starting Tile Engine StreamK GEMM Configuration ===")
 message(STATUS "GEMM_DATATYPE: ${GEMM_DATATYPE}")
 message(STATUS "GEMM_LAYOUT: ${GEMM_LAYOUT}")
 message(STATUS "SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
