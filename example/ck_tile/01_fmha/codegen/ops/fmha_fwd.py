@@ -251,7 +251,7 @@ class FmhaFwdApiTrait:
     
     @property
     def seqtune(self) -> str:
-        if self.bm0 == 128: return 'true/*fall back to largest tile*/'                  # group mode only generate spad/skpad == true
+        if self.bm0 == 64: return 'true/*fall back to largest tile*/'                  # group mode only generate spad/skpad == true
         else: 
             return f'a.seqlen_q <= {self.bm0}'
 
@@ -541,10 +541,12 @@ class KernelComponentFactory:
                              FmhaFwdTileSize(32, 32,  64, 64,  32,  64,   1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
                              FmhaFwdTileSize(128, 64,  32, 64,  32,  64,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
                 (96, 128) : [FmhaFwdTileSize(128, 128, 32, 128, 32,  96,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
-                (128,128) : [FmhaFwdTileSize(16, 32, 64, 128, 32,  128,  1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
-                             FmhaFwdTileSize(32, 32, 128, 128, 32,  128,  1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-                             FmhaFwdTileSize(128, 64, 32, 128, 16,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-                             FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
+                (128,128) : [
+                            #  FmhaFwdTileSize(16, 32, 64, 128, 32,  128,  1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
+                            #  FmhaFwdTileSize(32, 32, 128, 128, 32,  128,  1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+                             FmhaFwdTileSize(64, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  2)],
+                            #  FmhaFwdTileSize(128, 64, 32, 128, 16,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+                            #  FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
                 # (160,160) : [FmhaFwdTileSize(128, 128, 32, 160, 32,  160,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,   1)],
                 (192,128) : [FmhaFwdTileSize(128, 128, 32, 128, 32,  192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
                 (192,192) : [FmhaFwdTileSize(128, 128, 32, 192, 32,  192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,   1)],
@@ -634,8 +636,8 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
                     # non qr_async_trload only support km0=128 tile size when hdim is not 128
                     # non qr_async only support kn0=128 tile size when hdim is 128
                     continue
-                if pipeline.tag == 'qr_async_trload' and (((hdim, hdim_v) == (128, 128) and tile.F_bn0 == 128) or ((hdim, hdim_v) not in [(64, 64), (128, 128)])):
-                    continue
+                # if pipeline.tag == 'qr_async_trload' and (((hdim, hdim_v) == (128, 128) and tile.F_bn0 == 128) or ((hdim, hdim_v) not in [(64, 64), (128, 128)])):
+                #     continue
                 # logits_soft_cap is only allowed if no bias
                 if not ((pipeline.F_logits == 't' and pipeline.F_bias == 'no') or pipeline.F_logits == 'f'):
                     continue

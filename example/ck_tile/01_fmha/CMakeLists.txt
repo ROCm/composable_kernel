@@ -7,7 +7,7 @@ if(NOT INST_TARGETS)
 endif()
 
 # validate user-specified fmha_fwd API list
-set(FMHA_FWD_KNOWN_APIS "fwd;fwd_splitkv;fwd_appendkv;pagedkv_prefill")
+set(FMHA_FWD_KNOWN_APIS "fwd")
 set(FMHA_FWD_ENABLE_APIS "fwd" CACHE STRING
   "semicolon-separated list of APIs to generate (${FMHA_FWD_KNOWN_APIS}) & link, or \"all\".")
 if(BUILD_TESTING)
@@ -40,8 +40,8 @@ string(REPLACE ";" "," FMHA_FWD_APIS "${FMHA_FWD_ENABLE_APIS}")
 set(FMHA_FWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
   --api ${FMHA_FWD_APIS}
-  --optdim 32,64,128,256
-  # --filter fmha_fwd...
+  --optdim 128
+  --filter fmha_fwd_d128_bf16_batch_b64x128x32x128x32x128_r4x1x1_r4x1x1_w16x16x32_w16x16x32_o2_qr_async_trload_vr_npad_nlogits_nbias_mask_nlse_ndropout_nskip_nsquant_trload
 )
 set(FMHA_BWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
@@ -57,7 +57,7 @@ set(FMHA_BWD_CODE_GEN_COMMON_ARGS
 # there is no corresponding instance for parameters).
 if(BUILD_TESTING)
   # Filters are in the order of FMHA_FWD_KNOWN_APIS: fwd,fwd_splitkv_combine@fwd_splitkv,fwd_appendkv,pagedkv_prefill
-  list(APPEND FMHA_FWD_CODE_GEN_COMMON_ARGS --filter *_nlogits*_nskip*,*@*_nlogits*_nbias*,*,*_nlogits*_nskip*_pagedkv)
+  # list(APPEND FMHA_FWD_CODE_GEN_COMMON_ARGS --filter *_nlogits*_nskip*,*@*_nlogits*_nbias*,*,*_nlogits*_nskip*_pagedkv)
 endif()
 
 # generate a list of kernels, but not actually emit files at config sta
@@ -128,6 +128,10 @@ list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -Wno-undefined-func-template)
 # Allow comparing floating points directly in order to check sentinel values
 list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -Wno-float-equal)
 list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -Wno-float-equal)
+
+# dump assembly for inspection
+list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS --save-temps)
+# list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS --save-temps)
 
 # NOTE: this is dangerous since will change the whole kernel to flush denormals
 #       WIP with compiler team for an exp2 intrinsic..., then remove this
