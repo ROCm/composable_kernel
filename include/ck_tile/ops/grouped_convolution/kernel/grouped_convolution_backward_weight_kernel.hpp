@@ -98,6 +98,12 @@ struct GroupedConvBwdWeightKernelArgs
         GemmN     = b_grid_desc_n_k.get_length(number<0>{});
         GemmK     = a_grid_desc_m_k.get_length(number<1>{});
         GemmBatch = std::max(static_cast<long>(1), args.G_ / numGroupsPerBatch);
+
+        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+        {
+            std::cout << "GemmM: " << GemmM << ", GemmN: " << GemmN << ", GemmK: " << GemmK
+                      << ", GemmBatch: " << GemmBatch << std::endl;
+        }
     }
 
     template <
@@ -176,6 +182,12 @@ struct GroupedConvBwdWeightKernelArgs
         GemmN     = b_grid_desc_n_k.get_length(number<0>{});
         GemmK     = a_grid_desc_m_k.get_length(number<1>{});
         GemmBatch = std::max(static_cast<long>(1), args.G_ / numGroupsPerBatch);
+
+        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+        {
+            std::cout << "GemmM: " << GemmM << ", GemmN: " << GemmN << ", GemmK: " << GemmK
+                      << ", GemmBatch: " << GemmBatch << std::endl;
+        }
     }
 
     template <
@@ -261,6 +273,12 @@ struct GroupedConvBwdWeightKernelArgs
         GemmN     = b_grid_desc_n_k.get_length(number<0>{});
         GemmK     = a_grid_desc_m_k.get_length(number<1>{});
         GemmBatch = std::max(static_cast<long>(1), args.G_ / numGroupsPerBatch);
+
+        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+        {
+            std::cout << "GemmM: " << GemmM << ", GemmN: " << GemmN << ", GemmK: " << GemmK
+                      << ", GemmBatch: " << GemmBatch << std::endl;
+        }
     }
 
     using ABCGridDescs = remove_cvref_t<
@@ -405,6 +423,12 @@ struct GroupedConvolutionBackwardWeightKernel
     CK_TILE_HOST static constexpr GroupedConvBwdWeightKernelArgsSpecialized
     MakeKernelArgs(const GroupedConvBwdWeightHostArgs& hostArgs)
     {
+        if (ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+        {
+            std::cout << "MPerBlock: " << number<TilePartitioner::MPerBlock>{} << std::endl;
+            std::cout << "NPerBlock: " << number<TilePartitioner::NPerBlock>{} << std::endl;
+            std::cout << "KPerBlock: " << number<TilePartitioner::KPerBlock>{} << std::endl;
+        }
         return GroupedConvBwdWeightKernelArgsSpecialized(hostArgs);
     }
 
@@ -804,11 +828,12 @@ struct GroupedConvolutionBackwardWeightKernel
         //         c_block_window, c_block_tile, d_block_window, smem_ptr_0);
         // }
 
-        if (threadIdx.x == 0)
-        {
-            const auto c_block_tile_distribution = c_block_tile.get_tile_distribution();
-            print(c_block_tile_distribution);
-        }
+        // For debugging - results in very slow compilation.
+        // if (blockIdx.x == 0 && threadIdx.x == 0)
+        // {
+        //     const auto c_block_tile_distribution = c_block_tile.get_tile_distribution();
+        //     print(c_block_tile_distribution);
+        // }
 
         EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
             c_block_window, c_block_tile, d_block_window, smem_ptr_0);
