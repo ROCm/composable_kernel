@@ -708,7 +708,9 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
             MXdlPerWave,
             NXdlPerWave,
             KPack,
-            LoopSched>();
+            LoopSched,
+            AComputeDataType,
+            BComputeDataType>();
 
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();
 
