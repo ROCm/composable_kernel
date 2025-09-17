@@ -294,7 +294,7 @@ float invoke_mx_flatmm(ck_tile::DeviceMem& a_dev_buf,
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_byte / 1.E6 / ave_time;
 
-    std::cout << "Run A16W4_Flatmm kernel "
+    std::cout << "Run MXFP4_Flatmm kernel "
               << " M =" << M << " N =" << N << " K =" << K << " StrideA =" << stride_A
               << " StrideB =" << stride_B << " StrideC =" << stride_C << " : " << ave_time
               << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;

@@ -586,12 +586,14 @@ struct MXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Probl
                 auto packed_m_idx  = mIter / number<MXdlPack>{};
                 auto packed_m_rank = mIter % number<MXdlPack>{};
 
-                move_tile_window(a_warp_windows_ping(mIter)(kIter),
-                                 {packed_m_idx * MXdlPack * MPerBlockPerIter + packed_m_rank,
-                                  kIter * KPerBlockPerIter});
-                move_tile_window(a_warp_windows_pong(mIter)(kIter),
-                                 {packed_m_idx * MXdlPack * MPerBlockPerIter + packed_m_rank,
-                                  kIter * KPerBlockPerIter});
+                move_tile_window(
+                    a_warp_windows_ping(mIter)(kIter),
+                    {packed_m_idx * MXdlPack * MPerBlockPerIter + packed_m_rank * WG::kM,
+                     kIter * KPerBlockPerIter});
+                move_tile_window(
+                    a_warp_windows_pong(mIter)(kIter),
+                    {packed_m_idx * MXdlPack * MPerBlockPerIter + packed_m_rank * WG::kM,
+                     kIter * KPerBlockPerIter});
             });
         });
 
@@ -708,6 +710,7 @@ struct MXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Probl
                     load_tile(scale_a_dram_windows(mIter_pack)(kIter_pack));
             });
         });
+        // move Scale A window to next K
         move_tile_window(scale_a_dram_window, {0, kKPerBlock / (32 * KXdlPack)});
 
         static_for<0, NIterPerWarp / NXdlPack, 1>{}([&](auto nIter_pack) {
@@ -720,6 +723,7 @@ struct MXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Probl
                     load_tile(scale_b_dram_windows(nIter_pack)(kIter_pack));
             });
         });
+        // move Scale B window to next K
         move_tile_window(scale_b_dram_window, {0, kKPerBlock / (32 * KXdlPack)});
 
         // A_Lds_TileDist may differ with ADramTileDistribution
@@ -767,7 +771,7 @@ struct MXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Probl
                         {packed_n_idx * NXdlPack * NFlatPerBlockPerIter + packed_n_rank,
                          kIter * KFlatPerBlockPerIter});
 
-                    b_warp_tensor_ping(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+                    b_warp_tensor_pong(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
                 });
             });
 
@@ -1012,6 +1016,8 @@ struct MXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Probl
                     load_tile(a_warp_windows_ping(number<mIter>{})(number<kIter>{}));
             });
             HotLoopScheduler();
+
+            iCounter--;
         }
 
         // TAIL
@@ -1030,7 +1036,7 @@ struct MXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Probl
                         {packed_n_idx * NXdlPack * NFlatPerBlockPerIter + packed_n_rank,
                          kIter * KFlatPerBlockPerIter});
 
-                    b_warp_tensor_ping(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+                    b_warp_tensor_pong(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
                 });
             });
 

@@ -46,21 +46,11 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
             number<KPack>{},
             number<1>{});
 
-        // constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
-        //     a_lds_block_desc,
-        //     make_tuple(make_xor_transform(make_tuple(number<MPerBlock>{},
-        //                                              number<KPerBlock / KPack>{})), // xor on M
-        //                make_pass_through_transform(number<KPack>{})),
-        //     make_tuple(sequence<1, 0>{}, sequence<2>{}),
-        //     make_tuple(sequence<1, 0>{}, sequence<2>{}));
-
-        constexpr int ContiguousThreadsCntInDS_READ_16B = 4;
-
         constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
             a_lds_block_desc_0,
-            make_tuple(make_xor_transform(make_tuple(number<MPerBlock>{},
-                                                     number<ContiguousThreadsCntInDS_READ_16B>{})),
-                       make_pass_through_transform(number<KPack>{})),
+            make_tuple(
+                make_xor_transform(make_tuple(number<MPerBlock>{}, number<KPerBlock / KPack>{})),
+                make_pass_through_transform(number<KPack>{})),
             make_tuple(sequence<1, 0>{}, sequence<2>{}),
             make_tuple(sequence<1, 0>{}, sequence<2>{}));
 
@@ -118,21 +108,22 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         static_assert(TileShape::WarpTile::at(I1) == 16, "requires XDL_N == 16");
         static_assert(TileShape::BlockWarps::at(I0) == 1, "requires Wave_M == 1");
 
-        constexpr int NWaves = TileShape::BlockWarps::at(number<1>{});
-        constexpr int M0     = TileShape::WarpTile::at(I0);
+        constexpr int M_warps = TileShape::BlockWarps::at(number<0>{});
+        constexpr int N_warps = TileShape::BlockWarps::at(number<1>{});
+        constexpr int M_Lane  = TileShape::WarpTile::at(I0);
 
-        constexpr int K_Lane = 64 / TileShape::WarpTile::at(I1); // 4
+        constexpr int K_Lane = 64 / TileShape::WarpTile::at(I0); // 4
 
-        constexpr int K1 = TileShape::WarpTile::at(I2) / K_Lane; // 8
-        constexpr int K0 = K_Lane;                               // 4
+        constexpr int K1 = TileShape::WarpTile::at(I2) / K_Lane; // 32
 
         return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<NWaves>,
-                                       tuple<sequence<M0, MXdlPack>, sequence<K0, K1>>,
-                                       tuple<sequence<0>, sequence<2, 1>>,
-                                       tuple<sequence<0>, sequence<0, 0>>,
-                                       sequence<2>,
-                                       sequence<1>>{});
+            tile_distribution_encoding<
+                sequence<N_warps>,
+                tuple<sequence<M_warps, MXdlPack, M_Lane>, sequence<K_Lane, K1>>,
+                tuple<sequence<1, 0>, sequence<2, 1>>,
+                tuple<sequence<0, 0>, sequence<0, 2>>,
+                sequence<2>,
+                sequence<1>>{});
     }
 
     template <typename Problem>
@@ -166,38 +157,6 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
                 sequence<2>,
                 sequence<2>>{});
     }
-
-    // template <typename Problem>
-    // CK_TILE_HOST_DEVICE static constexpr auto MakeFp4ScaleBFlatDramTileDistribution()
-    // {
-    //     using TileShape = typename Problem::BlockGemmShape; // ck_tile::TileFlatmmShape
-
-    //     constexpr index_t BlockSize = Problem::kBlockSize;
-    //     constexpr index_t WaveSize  = get_warp_size();
-    //     constexpr index_t WaveNum   = BlockSize / WaveSize;
-
-    //     constexpr index_t N_Warp = TileShape::BlockWarps::at(number<1>{});
-
-    //     constexpr index_t XDLPerBlock = TileShape::kK / TileShape::WarpTile::at(I2);
-    //     constexpr index_t K_Lane      = 64 / TileShape::WarpTile::at(I1);
-    //     constexpr index_t N_Lane      = TileShape::WarpTile::at(I1);
-
-    //     constexpr index_t NWavePerBlk = N_Warp;
-
-    //     return make_static_tile_distribution(
-    //         tile_distribution_encoding<
-    //             sequence<>,                                       // ?
-    //             tuple<sequence<NWavePerBlk>,                      // second direction
-    //                   sequence<K_Lane, N_Lane, N_Pack * K_Pack>>, // first
-    //                                                               // direction
-    //             // wave in blk,     // thd in wave
-    //             // <M, K>           // <M, K>
-    //             tuple<sequence<1>, sequence<2, 2>>, // which direction
-    //             tuple<sequence<0>, sequence<0, 1>>, // which index
-    //             // <repeat, vec_load>
-    //             sequence<2>,
-    //             sequence<2>>{});
-    // }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeMXFP4_ScaleA_DramTileDistribution()
