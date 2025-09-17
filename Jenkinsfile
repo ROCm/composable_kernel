@@ -1396,6 +1396,8 @@ pipeline {
                                            ninja -j64 benchmark_gemm_preshuffle_all && \
                                            python3 ../tile_engine/ops/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" \
                                            --warmup 5 --repeat 5 --verbose --json results.json && \
+                                           ninja -j64 benchmark_streamk_gemm_fp16 && \
+                                           ./bin/benchmark_streamk_gemm_fp16_rcr_compv3_cshuffle_intrawave_False_False_False_False_256x256x32_1x4x1_16x16x16 && \
                                            ninja -j64 benchmark_gemm_multi_d_fp16_rrrr && \
                                            ./bin/benchmark_gemm_multi_d_fp16_rrrr && \
                                            ninja -j64 benchmark_gemm_multi_d_fp16_ccrr && \
@@ -1436,6 +1438,8 @@ pipeline {
                                            ninja -j64 benchmark_gemm_preshuffle_all && \
                                            python3 ../tile_engine/ops/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" \
                                            --warmup 5 --repeat 5 --verbose --json results.json && \
+                                           ninja -j64 benchmark_streamk_gemm_fp16 && \
+                                           ./bin/benchmark_streamk_gemm_fp16_rcr_compv3_cshuffle_intrawave_False_False_False_False_256x256x32_1x4x1_16x16x16 && \
                                            ninja -j64 benchmark_gemm_multi_d_fp16_rrrr && \
                                            ./bin/benchmark_gemm_multi_d_fp16_rrrr && \
                                            ninja -j64 benchmark_gemm_multi_d_fp16_ccrr && \
