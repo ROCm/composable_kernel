@@ -93,7 +93,10 @@ struct GemmPipelineAGmemBGmemCRegV1
     template <typename AsDramBlockWindowTmp,
               typename BsDramBlockWindowTmp,
               typename AElementFunction,
-              typename BElementFunction>
+              typename BElementFunction,
+              typename std::enable_if_t<is_detected<is_tuple, AsDramBlockWindowTmp>::value &&
+                                            is_detected<is_tuple, BsDramBlockWindowTmp>::value,
+                                        bool>* = nullptr>
     CK_TILE_HOST_DEVICE auto operator()(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
                                         const AElementFunction& a_element_func,
                                         const BsDramBlockWindowTmp& b_dram_block_window_tmp,
@@ -309,7 +312,11 @@ struct GemmPipelineAGmemBGmemCRegV1
         return c_block_tile;
     }
 
-    template <typename AsDramBlockWindowTmp, typename BsDramBlockWindowTmp>
+    template <typename AsDramBlockWindowTmp,
+              typename BsDramBlockWindowTmp,
+              typename std::enable_if_t<is_detected<is_tuple, AsDramBlockWindowTmp>::value &&
+                                            is_detected<is_tuple, BsDramBlockWindowTmp>::value,
+                                        bool>* = nullptr>
     CK_TILE_DEVICE auto operator()(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BsDramBlockWindowTmp& b_dram_block_window_tmp,
                                    index_t num_loop,
@@ -322,6 +329,22 @@ struct GemmPipelineAGmemBGmemCRegV1
             [](auto& e, const BDataType & b) { e = b; },
             num_loop,
             p_smem);
+    }
+
+    template <typename ADramBlockWindowTmp,
+              typename BDramBlockWindowTmp,
+              typename std::enable_if_t<!is_detected<is_tuple, ADramBlockWindowTmp>::value &&
+                                            !is_detected<is_tuple, BDramBlockWindowTmp>::value,
+                                        bool>* = nullptr>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                   index_t num_loop,
+                                   void* p_smem) const
+    {
+        return operator()(ck_tile::make_tuple(a_dram_block_window_tmp),
+                          ck_tile::make_tuple(b_dram_block_window_tmp),
+                          num_loop,
+                          p_smem);
     }
 };
 
