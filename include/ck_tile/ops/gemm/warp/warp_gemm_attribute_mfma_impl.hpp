@@ -1538,7 +1538,7 @@ struct WarpGemmAttributeMfmaScaleImpl_f32_16x16x128_fp4
         c_vec      = __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
             int32x8_t{arg_a[0], arg_a[1], arg_a[2], arg_a[3], 0, 0, 0, 0},
             int32x8_t{arg_b[0], arg_b[1], arg_b[2], arg_b[3], 0, 0, 0, 0},
-            CVecType{0.f},
+            c_vec,
             4,
             4,
             opselA,
