@@ -47,8 +47,8 @@ set(FMHA_BWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
   --api bwd
   --receipt 3
-  --optdim 32,64,128,256
-  # --filter fmha_bwd_dot...@fmha_bwd_convert...@fmha_bwd...
+  --optdim 128
+  --filter *@*@fmha_bwd_d128_bf16_batch_b16x128x128x16x128x16x32x128x128_r1x4x1_r4x1x1_r1x4x1_w16x16x32_w16x16x16_o1_maxq0_npad_nbias_ndbias_nmask_dropout_wg16_storerandval_ndeterministic_ntrload
 )
 
 # Reduce building time by disabling instances that are not currently used in the gtests
@@ -168,6 +168,10 @@ if(CK_USE_OCP_FP8)
   list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)
   list(APPEND FMHA_FWD_INTERFACE_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)
 endif()
+
+# use RTN_ASM on float to bfloat16 conversion by default, align with FA upstream
+list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_FLOAT_TO_BFLOAT16_DEFAULT=3)
+list(APPEND FMHA_BWD_INTERFACE_COMPILE_OPTIONS -DCK_TILE_FLOAT_TO_BFLOAT16_DEFAULT=3)
 
 target_compile_options(${FMHA_FWD_INSTANCES}
   PRIVATE ${FMHA_FWD_PRIVATE_COMPILE_OPTIONS}
