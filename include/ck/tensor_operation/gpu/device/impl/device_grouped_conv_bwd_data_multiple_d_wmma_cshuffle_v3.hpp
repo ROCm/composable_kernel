@@ -412,13 +412,6 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         std::conditional_t<CTranspose,
                            GridwiseGemm_wmma_cshuffle_v3<GridwiseGemmCTransposeTemplateParameters>,
                            GridwiseGemm>;
-    template <typename EGridDesc_M_N>
-    static auto
-    MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(const EGridDesc_M_N e_grid_desc_m_n)
-    {
-        return GridwiseGemmCTranspose::MakeDEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-            e_grid_desc_m_n);
-    }
 
     template <typename Desc_K0_M_K1>
     static auto transform_k0_m_k1_to_m_k(const Desc_K0_M_K1& desc_k0_m_k1)
@@ -839,16 +832,34 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                         ds_grid_desc_m_n_container_.push_back(ds_grid_desc_m_n);
                         e_grid_desc_m_n_container_.push_back(e_grid_desc_m_n);
 
-                        const index_t grid_size_grp = (
-                            e_grid_desc_m_n.GetLength(I0), e_grid_desc_m_n.GetLength(I1));
+                        const index_t grid_size_grp = std::get<0>(GridwiseGemmCTranspose::CalculateGridSize(
+                            e_grid_desc_m_n.GetLength(I0), e_grid_desc_m_n.GetLength(I1), 1
+                        ));
                         const index_t BlockStart = grid_size;
                         const index_t BlockEnd   = grid_size + grid_size_grp;
 
+                        std::cout << "a_grid_desc_m_k: " << a_grid_desc_m_k.GetLength(I0) << " " << a_grid_desc_m_k.GetLength(I1) << std::endl;
+                        std::cout << "b_grid_desc_n_k: " << b_grid_desc_n_k.GetLength(I0) << " " << b_grid_desc_n_k.GetLength(I1) << std::endl;
+                        std::cout << "e_grid_desc_m_n: " << e_grid_desc_m_n.GetLength(I0) << " " << e_grid_desc_m_n.GetLength(I1) << std::endl;
+                        std::cout << "grid_size_grp: " << grid_size_grp << std::endl;
+
                         grid_size += grid_size_grp;
 
-                       // const auto GemmK = a_grid_desc_m_k.GetLength(I1);
+                       const index_t GemmM = a_grid_desc_m_k.GetLength(I0);
+                       const index_t GemmN = b_grid_desc_n_k.GetLength(I0);
+                       const index_t GemmK = a_grid_desc_m_k.GetLength(I1);
+
+                        const auto MBlock = GridwiseGemmCTranspose::CalculateMBlock(GemmM);
+                        const auto NBlock = GridwiseGemmCTranspose::CalculateNBlock(GemmN);
+
+                        std::cout << "GemmM: " << GemmM << std::endl;
+                        std::cout << "GemmN: " << GemmN << std::endl;
+                        std::cout << "GemmK: " << GemmK << std::endl;
+                        std::cout << "MBlock: " << MBlock << std::endl;
+                        std::cout << "NBlock: " << NBlock << std::endl;
+
                         const bool HasMainKBlockLoop =
-                            GridwiseGemmCTranspose::CalculateHasMainKBlockLoop(k_batch_);
+                            GridwiseGemmCTranspose::CalculateHasMainKBlockLoop(GemmK);
 
                         gemm_kernel_args_[gemms_count_ /
                                           MaxGroupedGemmGroupsNum][gemms_count_ %
@@ -857,9 +868,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                                      b_grid_desc_bk0_n_bk1,
                                      GridwiseGemmCTranspose::
                                          MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                             ds_grid_desc_m_n ,1 ,1),
+                                             ds_grid_desc_m_n, MBlock, NBlock),
                                    GridwiseGemmCTranspose:: MakeDEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                         e_grid_desc_m_n,1,1),
+                                         e_grid_desc_m_n, MBlock, NBlock),
                                                                        BlockStart,
                                      BlockEnd,
                                      HasMainKBlockLoop};
@@ -1068,6 +1079,16 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             const index_t gdy = arg.num_group_;
             const index_t gdz = arg.num_workgroups_per_Conv_N_ * arg.k_batch_;
 
+            std::cout << "arg.num_group_ " << arg.num_group_ << std::endl;
+            std::cout << "arg.num_workgroups_per_Conv_N_ " << arg.num_workgroups_per_Conv_N_ << std::endl;
+            std::cout << "arg.k_batch_ " << arg.k_batch_ << std::endl;
+
+            // const index_t block_args_id = __builtin_amdgcn_readfirstlane(blockIdx.x);
+            // const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
+            // const index_t n_idx = __builtin_amdgcn_readfirstlane(blockIdx.z / karg.KBatch);
+            // const index_t k_idx =
+            //     __builtin_amdgcn_readfirstlane((blockIdx.z - n_idx * karg.KBatch) * num_k_per_block);
+
             const ADataType* p_a_grid = arg.p_a_grid_;
             const BDataType* p_b_grid = arg.p_b_grid_;
             EDataType* p_e_grid       = arg.p_e_grid_;
@@ -1101,10 +1122,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             for(std::size_t gemm_set_id = 0; gemm_set_id < arg.gemm_kernel_args_.size();
                 gemm_set_id++)
             {
-                const index_t GemmM = arg.a_grid_desc_m_k_container_[gemm_set_id].GetLength(I1);
-                const index_t GemmN = arg.b_grid_desc_n_k_container_[gemm_set_id].GetLength(I1);
-                const index_t GemmK = arg.a_grid_desc_m_k_container_[gemm_set_id].GetLength(I1) ;
-                                     
+                const index_t GemmM = arg.a_grid_desc_m_k_container_[gemm_set_id].GetLength(I0);
+                const index_t GemmN = arg.b_grid_desc_n_k_container_[gemm_set_id].GetLength(I0);
+                const index_t GemmK = arg.a_grid_desc_m_k_container_[gemm_set_id].GetLength(I1);
 
                 typename GridwiseGemmCTranspose::Argument gemm_arg{
                     CTranspose ? std::array<const void*, 1>{p_b_grid}
@@ -1143,14 +1163,13 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                             p_e_grid, 0, arg.e_space_size_bytes, stream_config.stream_id_));
                     }
                 };
-                              const index_t split_k=1;
                 const bool has_main_k_block_loop =
-                    GridwiseGemmCTranspose::CalculateHasMainKBlockLoop(split_k);
+                    GridwiseGemmCTranspose::CalculateHasMainKBlockLoop(GemmK);
 
-               //  const index_t KBatch=0;
-                //  const auto num_k_per_block =
-                   // KBatch ;
-              
+                    std::cout << "gdx " << gdx << std::endl;
+                    std::cout << "gdy " << gdy << std::endl;
+                    std::cout << "gdz " << gdz << std::endl;
+
                     auto launch_kernel = [&](auto has_main_k_block_loop_) {
                     constexpr bool has_main_loop = has_main_k_block_loop_.value;
                     const auto kernel            = kernel_grouped_conv_bwd_data_wmma_cshuffle_v3<
@@ -1288,14 +1307,18 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             {
                 if constexpr(IsSplitKSupported)
                 {
+                    std::cout << "InMemoryDataOperationEnum::AtomicAdd" << std::endl;
                     ave_time +=
                         RunMultiDGemm<InMemoryDataOperationEnum::AtomicAdd>(arg, stream_config);
                 }
             }
             else
             {
+                std::cout << "InMemoryDataOperationEnum::Set" << std::endl;
                 ave_time += RunMultiDGemm<InMemoryDataOperationEnum::Set>(arg, stream_config);
             }
+
+            arg.Print();
 
             // Transpose from NHWGC to NGCHW
             if constexpr(NeedTransposeKernel)

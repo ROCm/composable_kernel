@@ -460,6 +460,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
                 // D pointer
                 p_ds_grid(i) = static_cast<const DDataType*>(p_ds_grid_[i]);
             });
+            Problem::Print();
         }
 
         __host__ __device__ inline bool IsReduceAdd() const
