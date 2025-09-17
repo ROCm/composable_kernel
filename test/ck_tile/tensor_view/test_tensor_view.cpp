@@ -584,94 +584,40 @@ __global__ void test_4x4_matrix_get_2x2_blocks_kernel(int* input, int* output)
     auto output_global_view = make_naive_tensor_view_packed<address_space_enum::global>(
             output, make_tuple(4, 2));
 
-    auto get_block_number = [&]() -> index_t
+    auto get_block_number = [&]() -> ck_tile::tuple<index_t, index_t>
     {
+      constexpr index_t m_size = 2;
+      constexpr index_t n_size = 2;
       const auto x_space_coord = distribution.calculate_index();
-      if (x_space_coord[0] == 0 && x_space_coord[1] == 0)
-      {
-        return 0;
-      }
-      else if (x_space_coord[0] == 0 && x_space_coord[1] == 2)
-      {
-        return 1;
-      }
-      else if (x_space_coord[0] == 2 && x_space_coord[1] == 0)
-      {
-        return 2;
-      }
-      else if (x_space_coord[0] == 2 && x_space_coord[1] == 2)
-      {
-        return 3;
-      }
-      return -1;
+      const index_t m_block = x_space_coord[0] / m_size;
+      const index_t n_block = x_space_coord[1] / n_size;
+      return make_tuple(m_block, n_block);      
     };
 
     auto mask = [&]() -> bool 
     {
-        // Only blocks 0 and 3 are diagonal
+        // Return true only for the diagonal blocks.
         const auto blockId = get_block_number();
-        return (blockId == 0 || blockId == 3);
+        return blockId[number<0>{}] == blockId[number<1>{}];
     };
 
     auto get_output_row_offset = [&](auto row) -> index_t 
     {
         const auto blockId = get_block_number();
-        if (blockId == 0) 
-        {
-            return row;
-        } 
-        else if (blockId == 3) 
-        {
-            return -row;
-        } 
-        else 
-        {
-            return -1000; // Invalid for other threads
-        }
+        const auto block_id_row = blockId[number<0>{}];
+        return row - block_id_row;
     };
 
     // Because we copy one row at the time, we need to loop over the 2 rows of the 2x2 blocks.
-    // We mask out the threads that do contribute to the diagonal blocks.
     static_for<0, 2, 1>{}([&](auto row) 
     {
+        // We mask out the threads that do not contribute to the diagonal blocks.
         if (mask()) 
         {
-          //const auto row_offset = input_row_offset<row>(get_block_number());
-          const auto block_id = get_block_number();
-          if (block_id == 0)
-          {
-            output_distributed_tensor.get_thread_buffer() = distributed_tensor.get_y_sliced_thread_data(
+          output_distributed_tensor.get_thread_buffer() = distributed_tensor.get_y_sliced_thread_data(
               sequence<0, 0, row, 0>{},
               sequence<1, 1, 1, 2>{}); // copy one row of a 2x2 block
-          }
-          else if (block_id == 3)
-          {
-            output_distributed_tensor.get_thread_buffer() = distributed_tensor.get_y_sliced_thread_data(
-              sequence<0, 0, 1 - row, 0>{}, //row 0 -> row 1, row 1 -> row 0
-              sequence<1, 1, 1, 2>{}); // copy one row of a 2x2 block
-          }
-        }
-        
-        if constexpr (DebugOutput)
-        {
-          block_sync_lds();
-          static_for<0, 4, 1>{}([&](auto thread_id) {
-            if(threadIdx.x == thread_id)
-            {
-              printf("\n- Output Distributed Tensor Data (thread %d):\n", static_cast<int>(thread_id));
-              sweep_tile(output_distributed_tensor, [&](auto idx) {
-                printf("  output_distributed_tensor");
-                print_distributed_index(idx[number<0>{}]);
-                print_distributed_index(idx[number<1>{}]);
-                printf(" = %d\n", output_distributed_tensor(idx));
-              });
-              __syncthreads();
-            }
-          });
-        }
 
-        if (mask())
-        {
           const auto row_offset = get_output_row_offset(row);
           auto output_tile_window = make_tile_window(output_global_view,
                                               make_tuple(4, 2),
