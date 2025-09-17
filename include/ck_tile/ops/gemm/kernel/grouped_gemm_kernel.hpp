@@ -292,34 +292,8 @@ struct GroupedGemmKernel
         {
 
             __shared__ char smem_ptr_1[GetSmemSize()];
-            if constexpr(UsePersistentKernel || GemmPipeline::Preshuffle)
-            {
-
-                RunGemmWithPipelineSelection2LDS(a_ptr,
-                                                 b_ptr,
-                                                 c_ptr,
-                                                 smem_ptr_0,
-                                                 smem_ptr_1,
-                                                 kargs,
-                                                 splitk_batch_offset,
-                                                 i_m,
-                                                 i_n);
-                return;
-            }
-            else
-            {
-
-                Base::RunGemm2LDS({a_ptr},
-                                  {b_ptr},
-                                  {/*ds_ptr*/},
-                                  c_ptr,
-                                  smem_ptr_0,
-                                  smem_ptr_1,
-                                  kargs,
-                                  splitk_batch_offset,
-                                  i_m,
-                                  i_n);
-            }
+            RunGemmWithPipelineSelection2LDS(
+                a_ptr, b_ptr, c_ptr, smem_ptr_0, smem_ptr_1, kargs, splitk_batch_offset, i_m, i_n);
         }
         else // SingleSmemBuffer
         {
