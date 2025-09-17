@@ -75,7 +75,7 @@ inline auto create_args(int argc, char* argv[])
     return std::make_tuple(result, arg_parser);
 }
 
-void benchmark_gemm_preshuffle_single(const ck_tile::ArgParser& arg_parser)
+void benchmark_single(const ck_tile::ArgParser& arg_parser)
 {
     // Use DataTypeTraits to get the actual type names from the generated header
     // The generated header defines ADataType, BDataType, AccDataType, CDataType
@@ -153,7 +153,7 @@ int main(int argc, char* argv[])
         if(!result)
             return EXIT_FAILURE;
 
-        benchmark_gemm_preshuffle_single(parser);
+        benchmark_single(parser);
         return 0;
     }
     catch(const std::exception& e)

@@ -728,7 +728,9 @@ def main():
         "--num_workers", type=int, help="Number of parallel workers (default: auto)"
     )
     parser.add_argument(
-        "--gen_individual", action="store_true", help="Generate individual kernel files"
+        "--gen_all_individual",
+        action="store_true",
+        help="Generate individual kernel files",
     )
     parser.add_argument(
         "--gen_single", action="store_true", help="Generate a single kernel file"
@@ -828,13 +830,13 @@ def main():
 
         print(f"Generated {header_file}")
 
-    elif args.gen_individual:
+    elif args.gen_all_individual:
         # Generate all individual kernel files
         builder.run(args.num_workers)
         pass
     else:
         parser.error(
-            "Must specify one of: --list_kernels, --gen_individual, or --gen_single"
+            "Must specify one of: --list_kernels, --gen_all_individual, or --gen_single"
         )
 
 

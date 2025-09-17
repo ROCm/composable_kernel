@@ -2,7 +2,7 @@
 
 #include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "benchmark_gemm_preshuffle.hpp"
+#include "gemm_preshuffle_benchmark.hpp"
 
 class GemmProfiler
 {

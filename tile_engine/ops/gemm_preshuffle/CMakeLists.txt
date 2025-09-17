@@ -63,7 +63,7 @@ function(create_individual_gemm_preshuffle_target datatype layout trait tile_con
     
     # Create the executable
     add_executable(${target_name} 
-        ${GEMM_PRESHUFFLE_SOURCE_DIR}/benchmark_gemm_preshuffle_single.cpp
+        ${GEMM_PRESHUFFLE_SOURCE_DIR}/gemm_preshuffle_benchmark_single.cpp
         ${instance_header}
     )
     
