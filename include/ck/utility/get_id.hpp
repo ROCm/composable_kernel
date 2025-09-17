@@ -7,7 +7,6 @@
 
 namespace ck {
 
-#if defined(CK_ENABLE_DYNAMIC_WARP_SIZE)
 __device__ constexpr index_t get_warp_size()
 {
 #if defined(__HIP_DEVICE_COMPILE__)
@@ -38,16 +37,6 @@ inline __host__ index_t get_warp_size()
 #endif
     return 64;
 }
-#else
-__host__ __device__ constexpr index_t get_warp_size()
-{
-#if defined(__GFX9__) || !defined(__HIP_DEVICE_COMPILE__)
-    return 64;
-#else
-    return 32;
-#endif
-}
-#endif
 
 __device__ index_t get_thread_local_1d_id() { return threadIdx.x; }
 

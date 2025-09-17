@@ -579,7 +579,7 @@ struct UniversalGemmKernel
                         const std::array<const void*, NumDTensor>& ds_ptr,
                         EDataType* e_ptr,
                         const KernelArgs& kargs,
-                        const SplitKBatchOffset& splitk_batch_offset)
+                        const index_t k_size)
     {
         static_assert(!TilePartitioner::BlockGemmShape::PermuteA, "Not implemented!");
 
@@ -591,7 +591,7 @@ struct UniversalGemmKernel
                 {
                     return make_naive_tensor_view<address_space_enum::global>(
                         static_cast<const AiDataType*>(as_ptr[i]),
-                        make_tuple(kargs.M, splitk_batch_offset.splitted_k),
+                        make_tuple(kargs.M, k_size),
                         make_tuple(kargs.stride_As[i], 1),
                         number<GemmPipeline::GetVectorSizeA()>{},
                         number<1>{});
@@ -600,7 +600,7 @@ struct UniversalGemmKernel
                 {
                     return make_naive_tensor_view<address_space_enum::global>(
                         static_cast<const AiDataType*>(as_ptr[i]),
-                        make_tuple(splitk_batch_offset.splitted_k, kargs.M),
+                        make_tuple(k_size, kargs.M),
                         make_tuple(kargs.stride_As[i], 1),
                         number<GemmPipeline::GetVectorSizeA()>{},
                         number<1>{});
@@ -617,7 +617,7 @@ struct UniversalGemmKernel
                     if constexpr(TilePartitioner::BlockGemmShape::PermuteB)
                     {
                         constexpr index_t K1 = GemmPipeline::GetSmemPackB();
-                        const index_t K0     = splitk_batch_offset.splitted_k / K1;
+                        const index_t K0     = k_size / K1;
                         constexpr index_t VectorSizeB =
                             std::min(K1, GemmPipeline::GetVectorSizeB());
                         const auto b_k0_n_k1_desc =
@@ -638,7 +638,7 @@ struct UniversalGemmKernel
                     {
                         return make_naive_tensor_view<address_space_enum::global>(
                             bs_ptr[i],
-                            make_tuple(splitk_batch_offset.splitted_k, kargs.N),
+                            make_tuple(k_size, kargs.N),
                             make_tuple(kargs.stride_Bs[i], 1),
                             number<GemmPipeline::GetVectorSizeB()>{},
                             number<1>{});
@@ -649,7 +649,7 @@ struct UniversalGemmKernel
                     if constexpr(TilePartitioner::BlockGemmShape::PermuteB)
                     {
                         constexpr index_t K1 = GemmPipeline::GetSmemPackB();
-                        const index_t K0     = splitk_batch_offset.splitted_k / K1;
+                        const index_t K0     = k_size / K1;
                         constexpr index_t VectorSizeB =
                             std::min(K1, GemmPipeline::GetVectorSizeB());
                         const auto b_k0_n_k1_desc =
@@ -672,7 +672,7 @@ struct UniversalGemmKernel
                         {
                             index_t kFlatK =
                                 GemmPipeline::BlockGemmShape::flatKPerWarp *
-                                (splitk_batch_offset.splitted_k /
+                                (k_size /
                                  TilePartitioner::BlockGemmShape::WarpTile::at(number<2>{}));
                             index_t kFlatN = kargs.N * kargs.K / kFlatK;
 
@@ -687,7 +687,7 @@ struct UniversalGemmKernel
                         {
                             return make_naive_tensor_view<address_space_enum::global>(
                                 bs_ptr[i],
-                                make_tuple(kargs.N, splitk_batch_offset.splitted_k),
+                                make_tuple(kargs.N, k_size),
                                 make_tuple(kargs.stride_Bs[i], 1),
                                 number<GemmPipeline::GetVectorSizeB()>{},
                                 number<1>{});
@@ -962,7 +962,7 @@ struct UniversalGemmKernel
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
             MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-                as_ptr, bs_ptr, ds_ptr, e_ptr, kargs, splitk_batch_offset);
+                as_ptr, bs_ptr, ds_ptr, e_ptr, kargs, splitk_batch_offset.splitted_k);
 
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
@@ -1018,7 +1018,7 @@ struct UniversalGemmKernel
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
             MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-                as_ptr, bs_ptr, ds_ptr, e_ptr, kargs, splitk_batch_offset);
+                as_ptr, bs_ptr, ds_ptr, e_ptr, kargs, splitk_batch_offset.splitted_k);
 
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);

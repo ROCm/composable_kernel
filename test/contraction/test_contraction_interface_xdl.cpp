@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <stdexcept>
 #include <vector>
@@ -180,4 +180,15 @@ TEST(TestContractionSupportedArgs, DEMemoryAccess)
     EXPECT_FALSE(
         wrapper.isSupported(Dims, Dims, Dims, Dims, Strides, Strides, Strides, InvalidStrides));
     EXPECT_TRUE(wrapper.isSupported(Dims, Dims, Dims, Dims, Strides, Strides, Strides, Strides));
+}
+
+int main(int argc, char** argv)
+{
+    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+    {
+        std::cout << "FP32/64 are not supported on gfx11 and gfx12." << std::endl;
+        return 0;
+    }
+    testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }
