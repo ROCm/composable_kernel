@@ -7,3 +7,4 @@
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/common/utils.hpp"
 #include "ck_tile/ops/common/streamk_common.hpp"
+#include "ck_tile/ops/common/pingpong_dim_parallel.hpp"

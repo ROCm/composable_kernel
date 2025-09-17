@@ -55,7 +55,8 @@ struct UniversalInvoker
                                              GemmConfig::UseStructuredSparsity,
                                              Persistent,
                                              GemmConfig::NumWaveGroups,
-                                             GemmConfig::Preshuffle>;
+                                             GemmConfig::Preshuffle,
+                                             GemmConfig::PingPongDim>;
         using GemmPipelineProblem =
             ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
@@ -102,6 +103,7 @@ struct UniversalInvoker
                                                  TilePartitioner::NPerBlock,
                                                  GemmConfig::M_Warp,
                                                  GemmConfig::N_Warp,
+                                                 GemmConfig::K_Warp,
                                                  GemmConfig::M_Warp_Tile,
                                                  GemmConfig::N_Warp_Tile,
                                                  GemmConfig::K_Warp_Tile,
@@ -112,8 +114,22 @@ struct UniversalInvoker
             using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
 
-            const dim3 grids  = Persistent ? Kernel::MaxOccupancyGridSize(s)
-                                           : Kernel::GridSize(args.M, args.N, args.k_batch);
+            dim3 grids;
+            if constexpr(Persistent)
+            {
+                grids = Kernel::MaxOccupancyGridSize(s);
+            }
+            else if constexpr(GemmConfig::PingPongDim ==
+                              ck_tile::warp_parallelism_type::M_DIMENSION_PARALLELISM)
+            {
+                grids =
+                    Kernel::GridSize(args.M, args.N, args.k_batch, args.K, GemmConfig::PingPongDim);
+            }
+            else
+            {
+                grids = Kernel::GridSize(args.M, args.N, args.k_batch);
+            }
+
             const dim3 blocks = Kernel::BlockSize();
 
             if(!Kernel::IsSupportedArgument(kargs))
@@ -183,7 +199,17 @@ struct UniversalInvoker
         const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
             if(args.k_batch == 1)
             {
-                Run(has_hot_loop_, tail_number_, MemoryOpSet{});
+                if(GemmConfig::PingPongDim ==
+                   ck_tile::warp_parallelism_type::M_DIMENSION_PARALLELISM)
+                {
+                    Run(has_hot_loop_, tail_number_, MemoryOpAtomicAdd{});
+                }
+                else
+                {
+                    // ck_tile::warp_parallelism_type::NO_WARP_PARALLELISM
+                    // ck_tile::warp_parallelism_type::K_DIMENSION_PARALLELISM
+                    Run(has_hot_loop_, tail_number_, MemoryOpSet{});
+                }
             }
             else
             {

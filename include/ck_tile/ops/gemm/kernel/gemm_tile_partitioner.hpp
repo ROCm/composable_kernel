@@ -38,11 +38,26 @@ struct GemmTile2DPartitioner
      * @return dim3 Structure holding grid's X,Y and Z dimensions.
      */
     CK_TILE_HOST static auto
-    GridSize(index_t M, index_t N) noexcept(noexcept(MPerBlock != 0 && NPerBlock != 0)) -> dim3
+    GridSize(index_t M,
+             index_t N,
+             index_t K = 0,
+             warp_parallelism_type PingPongDim =
+                 warp_parallelism_type::NO_WARP_PARALLELISM) noexcept(noexcept(MPerBlock != 0 &&
+                                                                               NPerBlock != 0))
+        -> dim3
     {
-        const index_t GridDimX = (M + MPerBlock - 1) / MPerBlock;
-        const index_t GridDimY = (N + NPerBlock - 1) / NPerBlock;
-        return dim3(GridDimX, GridDimY, 1);
+        if(PingPongDim == warp_parallelism_type::M_DIMENSION_PARALLELISM)
+        {
+            const index_t GridDimX = (N + NPerBlock - 1) / NPerBlock;
+            const index_t GridDimY = (K + KPerBlock - 1) / KPerBlock;
+            return dim3(GridDimX, GridDimY, 1);
+        }
+        else
+        {
+            const index_t GridDimX = (M + MPerBlock - 1) / MPerBlock;
+            const index_t GridDimY = (N + NPerBlock - 1) / NPerBlock;
+            return dim3(GridDimX, GridDimY, 1);
+        }
     }
 
     /**
@@ -70,8 +85,8 @@ struct GemmTile2DPartitioner
      * @param blockIdy      WGP's Y index.
      * @return const tuple<index_t, index_t>    Tuple containing 2D output C-tile index.
      */
-    CK_TILE_DEVICE static auto
-    GetOutputTileIndex(index_t blockIdx, index_t blockIdy) noexcept -> const tuple<index_t, index_t>
+    CK_TILE_DEVICE static auto GetOutputTileIndex(index_t blockIdx, index_t blockIdy) noexcept
+        -> const tuple<index_t, index_t>
     {
         const index_t iM = __builtin_amdgcn_readfirstlane(blockIdx);
         const index_t iN = __builtin_amdgcn_readfirstlane(blockIdy);
@@ -138,8 +153,8 @@ struct GemmTile1DPartitioner
      * @param blockIdx      WGP's index.
      * @return const tuple<index_t, index_t>    Tuple containing 2D output C-tile index.
      */
-    CK_TILE_DEVICE static auto
-    GetOutputTileIndex(index_t blockIdx) noexcept -> const tuple<index_t, index_t>
+    CK_TILE_DEVICE static auto GetOutputTileIndex(index_t blockIdx) noexcept
+        -> const tuple<index_t, index_t>
     {
         const index_t NBlocks = integer_divide_ceil(N_, NPerBlock);
 
@@ -189,8 +204,9 @@ struct OffsettedTile1DPartitioner
      * @param [in] N           Gemm's N dimension.
      * @return Returns a `tuple` [Im, In] with shifted index.
      */
-    [[nodiscard]] CK_TILE_DEVICE static auto GetOffsetedTileIndex(
-        index_t block_start, index_t M, index_t N) noexcept -> const tuple<index_t, index_t>
+    [[nodiscard]] CK_TILE_DEVICE static auto
+    GetOffsetedTileIndex(index_t block_start, index_t M, index_t N) noexcept
+        -> const tuple<index_t, index_t>
     {
         const auto [iM, iN] = TilePartitioner{M, N}.GetOutputTileIndex(blockIdx.x - block_start);
         return make_tuple(iM, iN);
@@ -254,6 +270,19 @@ struct GemmSpatiallyLocalTilePartitioner
         return GridDimX * GridDimY;
     }
 
+    CK_TILE_HOST_DEVICE static auto
+    PingPongGridSize(index_t N, index_t K) noexcept(noexcept(NPerBlock != 0 && KPerBlock != 0))
+        -> index_t
+    {
+        const index_t GridDimX = integer_divide_ceil(N, NPerBlock);
+        const index_t GridDimY = integer_divide_ceil(K, KPerBlock);
+
+        std::cout << "PingPong Grid size : {" << GridDimX << ", " << GridDimY << "}" << std::endl;
+        std::cout << "Arguments: { " << N << ", " << K << " }" << std::endl;
+        std::cout << "Block size : {" << NPerBlock << ", " << KPerBlock << "}" << std::endl;
+        return GridDimX * GridDimY;
+    }
+
     /**
      * @brief Calculate number of loop iterations over GEMM's K dimension.
      *
@@ -271,8 +300,8 @@ struct GemmSpatiallyLocalTilePartitioner
      * @param [in] block_1d_id      WGP's index.
      * @return const tuple<index_t, index_t>    Tuple containing 2D output C-tile index.
      */
-    CK_TILE_DEVICE auto
-    GetOutputTileIndex(index_t block_1d_id) noexcept -> const tuple<index_t, index_t>
+    CK_TILE_DEVICE auto GetOutputTileIndex(index_t block_1d_id) noexcept
+        -> const tuple<index_t, index_t>
     {
         const auto M0 = integer_divide_ceil(M, MPerBlock);
         const auto N0 = integer_divide_ceil(N, NPerBlock);
@@ -568,8 +597,8 @@ struct StreamKTilePartitioner
     /**
      * @brief Get output tile index for standard 2D mapping (compatibility)
      */
-    CK_TILE_DEVICE auto
-    GetOutputTileIndex(uint32_t tile_idx) const noexcept -> tuple<uint32_t, uint32_t>
+    CK_TILE_DEVICE auto GetOutputTileIndex(uint32_t tile_idx) const noexcept
+        -> tuple<uint32_t, uint32_t>
     {
         uint32_t m_tile_idx, n_tile_idx;
         n_tiles.divmod(tile_idx, num_tile_n_, m_tile_idx, n_tile_idx);

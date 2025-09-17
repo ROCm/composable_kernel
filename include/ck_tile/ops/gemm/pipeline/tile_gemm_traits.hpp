@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/common.hpp"
 
 namespace ck_tile {
 
@@ -39,11 +40,12 @@ template <bool kPadM_,
           typename ALayout_,
           typename BLayout_,
           typename CLayout_,
-          bool TransposeC_            = false,
-          bool UseStructuredSparsity_ = false,
-          bool UsePersistentKernel_   = false,
-          index_t NumWaveGroups_      = 1,
-          bool Preshuffle_            = false>
+          bool TransposeC_                   = false,
+          bool UseStructuredSparsity_        = false,
+          bool UsePersistentKernel_          = false,
+          index_t NumWaveGroups_             = 1,
+          bool Preshuffle_                   = false,
+          warp_parallelism_type PingPongDim_ = warp_parallelism_type::NO_WARP_PARALLELISM>
 struct TileGemmUniversalTraits
 {
     static constexpr bool kPadM            = kPadM_;
@@ -56,11 +58,12 @@ struct TileGemmUniversalTraits
     using BLayout = BLayout_;
     using CLayout = CLayout_;
 
-    static constexpr bool TransposeC            = TransposeC_;
-    static constexpr bool UseStructuredSparsity = UseStructuredSparsity_;
-    static constexpr bool UsePersistentKernel   = UsePersistentKernel_;
-    static constexpr index_t NumWaveGroups      = NumWaveGroups_;
-    static constexpr bool Preshuffle            = Preshuffle_;
+    static constexpr bool TransposeC                   = TransposeC_;
+    static constexpr bool UseStructuredSparsity        = UseStructuredSparsity_;
+    static constexpr bool UsePersistentKernel          = UsePersistentKernel_;
+    static constexpr index_t NumWaveGroups             = NumWaveGroups_;
+    static constexpr bool Preshuffle                   = Preshuffle_;
+    static constexpr warp_parallelism_type PingPongDim = PingPongDim_;
 };
 
 template <bool kPadM_,

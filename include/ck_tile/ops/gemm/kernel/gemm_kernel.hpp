@@ -72,6 +72,7 @@ struct GemmHostArgs
     };
 
     index_t k_batch;
+    index_t ping_pong_dim;
 };
 
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
@@ -120,9 +121,14 @@ struct GemmKernel
         return UniversalGemmKernel::GetName();
     }
 
-    CK_TILE_HOST static constexpr auto GridSize(index_t M, index_t N, index_t KBatch) -> dim3
+    CK_TILE_HOST static constexpr auto
+    GridSize(index_t M,
+             index_t N,
+             index_t KBatch,
+             index_t K                         = 0,
+             warp_parallelism_type PingPongDim = warp_parallelism_type::NO_WARP_PARALLELISM) -> dim3
     {
-        return UniversalGemmKernel::GridSize(M, N, KBatch);
+        return UniversalGemmKernel::GridSize(M, N, KBatch, K, PingPongDim);
     }
 
     CK_TILE_HOST static auto MaxOccupancyGridSize(const stream_config& s) -> dim3

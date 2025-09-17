@@ -24,6 +24,7 @@ template <typename ADataType_,
           index_t kN_,
           index_t MWave_,
           index_t NWave_,
+          index_t KWave_,
           index_t MPerXdl_,
           index_t NPerXdl_,
           index_t KPerXdl_,
@@ -35,15 +36,16 @@ template <typename ADataType_,
           bool TiledMMAPermuteN_  = false>
 struct CShuffleEpilogueProblem
 {
-    using ADataType                                        = remove_cvref_t<ADataType_>;
-    using BDataType                                        = remove_cvref_t<BDataType_>;
-    using AccDataType                                      = remove_cvref_t<AccDataType_>;
-    using ODataType                                        = remove_cvref_t<ODataType_>;
-    using DsDataType                                       = remove_cvref_t<DsDataType_>;
-    using DsLayout                                         = remove_cvref_t<DsLayout_>;
-    using ELayout                                          = remove_cvref_t<ELayout_>;
-    using CDElementwise                                    = remove_cvref_t<CDElementwise_>;
-    static constexpr index_t kBlockSize                    = MWave_ * NWave_ * get_warp_size();
+    using ADataType     = remove_cvref_t<ADataType_>;
+    using BDataType     = remove_cvref_t<BDataType_>;
+    using AccDataType   = remove_cvref_t<AccDataType_>;
+    using ODataType     = remove_cvref_t<ODataType_>;
+    using DsDataType    = remove_cvref_t<DsDataType_>;
+    using DsLayout      = remove_cvref_t<DsLayout_>;
+    using ELayout       = remove_cvref_t<ELayout_>;
+    using CDElementwise = remove_cvref_t<CDElementwise_>;
+    static constexpr index_t kBlockSize =
+        MWave_ * NWave_ * (kNumWaveGroups_ > 1 ? KWave_ : 1) * get_warp_size();
     static constexpr index_t kMPerBlock                    = kM_;
     static constexpr index_t kNPerBlock                    = kN_;
     static constexpr index_t MWave                         = MWave_;
@@ -222,8 +224,8 @@ struct CShuffleEpilogue
     using CWarpTensor       = typename WG::CWarpTensor;
     using CWarpDstrEncoding = typename WG::CWarpDstrEncoding;
     using SFC               = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
-                                                  sequence<0, 1>,
-                                                  sequence<MPerIterationShuffle, NPerIterationShuffle>>;
+                                    sequence<0, 1>,
+                                    sequence<MPerIterationShuffle, NPerIterationShuffle>>;
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsBlockDescriptor()
@@ -250,14 +252,13 @@ struct CShuffleEpilogue
 
     CK_TILE_DEVICE static constexpr auto MakeLdsDistributionEncode()
     {
-        constexpr auto block_outer_dstr_encoding =
-            tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
-                                             sequence<NumNXdlPerWavePerShuffle, NWave>>,
-                                       tuple<sequence<1, 2>>,
-                                       tuple<sequence<1, 1>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 0>>{};
+        constexpr auto block_outer_dstr_encoding = tile_distribution_encoding<
+            sequence<>,
+            tuple<sequence<NumMXdlPerWavePerShuffle>, sequence<NumNXdlPerWavePerShuffle>>,
+            tuple<>,
+            tuple<>,
+            sequence<1, 2>,
+            sequence<0, 0>>{};
         constexpr auto block_dstr_encoding = detail::make_embed_tile_distribution_encoding(
             block_outer_dstr_encoding, typename CWarpDstr::DstrEncode{});
 
@@ -327,8 +328,8 @@ struct CShuffleEpilogue
 
         const auto c_ds_tiles = concat_tuple_of_reference(
             tie(c_out_tensor, c_out_tensor),
-            generate_tie([&](auto idx) -> const auto& { return ds_tensor[idx]; },
-                         number<NumDTensor>{}));
+            generate_tie(
+                [&](auto idx) -> const auto& { return ds_tensor[idx]; }, number<NumDTensor>{}));
 
         tile_elementwise_inout_unpack(typename Problem::CDElementwise{}, c_ds_tiles);
     }
@@ -522,8 +523,9 @@ struct CShuffleEpilogue
                                    const OAccTile& o_acc_tile,
                                    const DsDramWindows& ds_dram_windows,
                                    void* p_smem,
-                                   const ScaleM& scale_m = {},
-                                   const ScaleN& scale_n = {})
+                                   const ScaleM& scale_m       = {},
+                                   const ScaleN& scale_n       = {},
+                                   const bool execute_epilogue = true)
     {
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
 
@@ -590,21 +592,33 @@ struct CShuffleEpilogue
 
         static_for<0, num_access, 1>{}([&](auto iAccess) {
             block_sync_lds();
-            slice_acc_tile<iAccess>(o_acc_tile, lds_tile);
 
-            if constexpr(has_scales)
+            if(execute_epilogue)
             {
-                scale_tile<iAccess>(lds_tile, scale_m_window, scale_n_window);
+                slice_acc_tile<iAccess>(o_acc_tile, lds_tile);
+
+                if constexpr(has_scales)
+                {
+                    scale_tile<iAccess>(lds_tile, scale_m_window, scale_n_window);
+                }
+
+                cast_lds_tile(lds_tile, in_lds_window);
             }
 
-            cast_lds_tile(lds_tile, in_lds_window);
             block_sync_lds();
 
-            auto c_out_tensor = load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
+            if(execute_epilogue)
+            {
+                auto c_out_tensor =
+                    load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
+                apply_d_tensors(d_dram_windows, c_out_tensor);
+                store_to_dram(out_dram_window, c_out_tensor);
+            }
 
-            apply_d_tensors(d_dram_windows, c_out_tensor);
-            store_to_dram(out_dram_window, c_out_tensor);
-            move_windows<iAccess>(out_dram_window, d_dram_windows);
+            buffer_store_fence();
+            {
+                move_windows<iAccess>(out_dram_window, d_dram_windows);
+            }
         });
     }
 };
