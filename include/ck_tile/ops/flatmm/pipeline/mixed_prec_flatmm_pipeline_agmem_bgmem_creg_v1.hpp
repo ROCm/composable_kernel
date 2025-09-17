@@ -170,6 +170,7 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
     static constexpr index_t ScaleBload_num =
         kNPerBlock * kKPerBlock / NWarp / 32 / ScaleBload_K1 /
         WaveSize; // BlockN * BlockK / NWarp / ScalePerK / ScaleB_K1 / wavesize
+    static constexpr index_t Bload_total_num = Bload_num_perK * KIterPerWarp + ScaleBload_num + 0X3f0;
     static constexpr index_t KPerScaleLoad = KIterPerWarp / ScaleBload_num;
     static constexpr index_t HalfMIter     = (MIterPerWarp + 1) / 2;
     static constexpr index_t Bload_rep     = (Bload_num_perK + HalfMIter - 1) / HalfMIter;
@@ -347,7 +348,6 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
         //  0   M7N2:   63      -       -           8       -
         //  0   M7N3:   64      4       -           -       -
 
-#if !CKTILE_FLATMM_USE_BUFFER_LOAD_LDS
         _Pragma("unroll") for(int kIter = 0; kIter < KIterPerWarp; kIter++)
         {
             _Pragma("unroll") for(int mIter = 0; mIter < MIterPerWarp; mIter++)
@@ -358,32 +358,6 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
 
                 // Calculate ds_read number per M
                 dsread_perM = dsread_per_wg;
-
-                // Calculate ds_write number per M
-                if(mIter == 0)
-                {
-                    dswrite_perM =
-                        (dswrite_num_perK - (MIterPerWarp - DsWritePreIssue) * dswrite_rep) > 0
-                            ? dswrite_num_perK - (MIterPerWarp - DsWritePreIssue) * dswrite_rep
-                            : 0;
-                }
-                else if(mIter >= MIterPerWarp - DsWritePreIssue + 1)
-                {
-                    dswrite_perM = 0;
-                }
-                else
-                {
-                    dswrite_perM = (dswrite_num_perK -
-                                    (MIterPerWarp - DsWritePreIssue - mIter) * dswrite_rep) > 0
-                                       ? dswrite_rep
-                                       : 0;
-                }
-                // Add ds write when ds write data > needed
-                if(dswrite_num_perK == 0 && kIter == (KIterPerWarp - 1 - dswrite_kIter))
-                {
-                    if(mIter == MIterPerWarp - 1 - dswrite_mIter)
-                        dswrite_perM = 1;
-                }
 
                 // Calculate buffer_load number per M
                 if(mIter < HalfMIter)
@@ -411,12 +385,10 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
         if(Aload_num_perK == 0)
             __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
         __builtin_amdgcn_sched_barrier(0);
-#endif
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto Last2ndHotLoopScheduler()
     {
-#if !CKTILE_FLATMM_USE_BUFFER_LOAD_LDS
         _Pragma("unroll") for(int kIter = 0; kIter < KIterPerWarp; kIter++)
         {
             _Pragma("unroll") for(int mIter = 0; mIter < MIterPerWarp; mIter++)
@@ -427,32 +399,6 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
 
                 // Calculate ds_read number per M
                 dsread_perM = dsread_per_wg;
-
-                // Calculate ds_write number per M
-                if(mIter == 0)
-                {
-                    dswrite_perM =
-                        (dswrite_num_perK - (MIterPerWarp - DsWritePreIssue) * dswrite_rep) > 0
-                            ? dswrite_num_perK - (MIterPerWarp - DsWritePreIssue) * dswrite_rep
-                            : 0;
-                }
-                else if(mIter >= MIterPerWarp - DsWritePreIssue + 1)
-                {
-                    dswrite_perM = 0;
-                }
-                else
-                {
-                    dswrite_perM = (dswrite_num_perK -
-                                    (MIterPerWarp - DsWritePreIssue - mIter) * dswrite_rep) > 0
-                                       ? dswrite_rep
-                                       : 0;
-                }
-                // Add ds write when ds write data > needed
-                if(dswrite_num_perK == 0 && kIter == (KIterPerWarp - 1 - dswrite_kIter))
-                {
-                    if(mIter == MIterPerWarp - 1 - dswrite_mIter)
-                        dswrite_perM = 1;
-                }
 
                 // Calculate buffer_load number per M
                 if(mIter < HalfMIter)
@@ -465,12 +411,10 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
             }
         }
         __builtin_amdgcn_sched_barrier(0);
-#endif
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto LastHotLoopScheduler()
     {
-#if !CKTILE_FLATMM_USE_BUFFER_LOAD_LDS
         _Pragma("unroll") for(int kIter = 0; kIter < KIterPerWarp; kIter++)
         {
             _Pragma("unroll") for(int mIter = 0; mIter < MIterPerWarp; mIter++)
@@ -487,7 +431,6 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
             }
         }
         // __builtin_amdgcn_sched_barrier(0);
-#endif
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto GetADramTileDistribution()
@@ -677,7 +620,8 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
                 async_load_tile(lds_tile_a, dram_tile_a);
         };
         auto prefill_lds_a_stage2 = [&](auto lds_tile_a) {
-            async_load_fence();
+            // async_load_fence();
+            // __builtin_amdgcn_s_waitcnt(0x03fc);
             // data has been stored in lds, no need more operation.
             static_assert(std::is_same_v<AElementFunction, identity>,
                           "buffer_load_lds don't support element func fot A before mfma");
@@ -747,6 +691,7 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
         // initialize C
         tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
+        __builtin_amdgcn_s_waitcnt(Bload_total_num);
         block_sync_lds();
 
         // preload A00,A10... from lds
@@ -921,6 +866,7 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
                     // barrier
                     if constexpr((kIter == KIterPerWarp - 1) && (mIter == MIter_2nd_last))
                     {
+                        __builtin_amdgcn_s_waitcnt(Bload_total_num);
                         block_sync_lds();
                     }
                 });
@@ -1027,6 +973,7 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
                     // barrier
                     if constexpr((kIter == KIterPerWarp - 1) && (mIter == MIter_2nd_last))
                     {
+                        __builtin_amdgcn_s_waitcnt(Bload_total_num);
                         block_sync_lds();
                     }
                 });
@@ -1142,6 +1089,7 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
                     // barrier
                     if constexpr((kIter == KIterPerWarp - 1) && (mIter == MIter_2nd_last))
                     {
+                        __builtin_amdgcn_s_waitcnt(Bload_total_num);
                         block_sync_lds();
                     }
                 });
@@ -1252,6 +1200,7 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
                     // barrier
                     if constexpr((kIter == KIterPerWarp - 1) && (mIter == MIter_2nd_last))
                     {
+                        __builtin_amdgcn_s_waitcnt(Bload_total_num);
                         block_sync_lds();
                     }
                 });
