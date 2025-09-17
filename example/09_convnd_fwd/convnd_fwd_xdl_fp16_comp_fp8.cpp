@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "convnd_fwd_common.hpp"
 
@@ -52,10 +52,10 @@ using DeviceGroupedConvNDFwdInstance =
         32,          // KPerBlock
         8,           // AK1
         8,           // BK1
-        32,          // MPerXdl
-        32,          // NPerXdl
-        2,           // MXdlPerWave
-        4,           // NXdlPerWave
+        16,          // MPerXdl
+        16,          // NPerXdl
+        4,           // MXdlPerWave
+        8,           // NXdlPerWave
         S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
         S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
@@ -73,9 +73,17 @@ using DeviceGroupedConvNDFwdInstance =
         1,
         1,
         S<1, 32, 1, 8>,
-        8,
+        4,
         ComputeType>;
 
 #include "run_convnd_fwd_example.inc"
 
-int main(int argc, char* argv[]) { return run_convnd_fwd_example(argc, argv) ? 0 : 1; }
+int main(int argc, char* argv[])
+{
+    // fp8 are not supported on gfx11
+    if(ck::is_gfx11_supported())
+    {
+        return 0;
+    }
+    return run_convnd_fwd_example(argc, argv) ? 0 : 1;
+}
