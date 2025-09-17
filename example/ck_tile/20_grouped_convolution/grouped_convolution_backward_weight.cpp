@@ -91,7 +91,8 @@ float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
                                              K_Warp_Tile,
                                              CodegenPipelineProblem::TransposeC,
                                              memory_operation,
-                                             1,
+                                             NumGroupsToMerge,
+                                             1, // NumWaveGroups
                                              true,
                                              VectorSizeC>>;
 
@@ -202,33 +203,38 @@ int run(const std::string& in_layout,
         int argc,
         char* argv[])
 {
-    if (num_groups_to_merge == 1)
-    {
-        return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 1>(in_layout, wei_layout, out_layout, argc, argv);
-    }
-    else if (num_groups_to_merge == 2)
-    {
-        return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 2>(in_layout, wei_layout, out_layout, argc, argv);
-    }
-    else if (num_groups_to_merge == 4)
-    {
-        return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 4>(in_layout, wei_layout, out_layout, argc, argv);
-    }
-    else if (num_groups_to_merge == 8)
+    // if (num_groups_to_merge == 1)
+    // {
+    //     return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 1>(in_layout, wei_layout, out_layout, argc, argv);
+    // }
+    // else if (num_groups_to_merge == 2)
+    // {
+    //     return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 2>(in_layout, wei_layout, out_layout, argc, argv);
+    // }
+    // else if (num_groups_to_merge == 4)
+    // {
+    //     return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 4>(in_layout, wei_layout, out_layout, argc, argv);
+    // }
+    // else if (num_groups_to_merge == 8)
+    // {
+    //     return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8>(in_layout, wei_layout, out_layout, argc, argv);
+    // }
+    // else if (num_groups_to_merge == 16)
+    // {
+    //     return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 16>(in_layout, wei_layout, out_layout, argc, argv);
+    // }
+    // else if (num_groups_to_merge == 32)
+    // {
+    //     return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 32>(in_layout, wei_layout, out_layout, argc, argv);
+    // }
+    // else if (num_groups_to_merge == 64)
+    // {
+    //     return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 64>(in_layout, wei_layout, out_layout, argc, argv);
+    // }
+
+    if (num_groups_to_merge == 8)
     {
         return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8>(in_layout, wei_layout, out_layout, argc, argv);
-    }
-    else if (num_groups_to_merge == 16)
-    {
-        return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 16>(in_layout, wei_layout, out_layout, argc, argv);
-    }
-    else if (num_groups_to_merge == 32)
-    {
-        return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 32>(in_layout, wei_layout, out_layout, argc, argv);
-    }
-    else if (num_groups_to_merge == 64)
-    {
-        return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 64>(in_layout, wei_layout, out_layout, argc, argv);
     }
     else
     {

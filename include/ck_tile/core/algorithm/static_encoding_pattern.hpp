@@ -146,24 +146,36 @@ struct tile_distribution_encoding_pattern_2d<BlockSize,
 {
 
     // TODO: make pattern where below condition does not need to hold - GGemmMultiDSplitk!
+    static_assert(YPerTile > 0, "YPerTile must be greater than 0!");
+    static_assert(XPerTile > 0, "XPerTile must be greater than 0!");
+
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
     static constexpr index_t warp_size  = get_warp_size();
     static constexpr index_t num_warps  = BlockSize / get_warp_size();
-    static constexpr index_t LargestVec = (XPerTile * YPerTile) / (num_warps * warp_size);
+    static_assert(num_warps > 0, "num_warps must be greater than 0!");
+    static_assert(warp_size > 0, "warp_size must be greater than 0!");
+
+    static constexpr index_t LargestVec = max(1, (XPerTile * YPerTile) / (num_warps * warp_size));
     static constexpr index_t X1         = VecSize > LargestVec ? LargestVec : VecSize;
+
+    static_assert(X1 > 0, "X1 must be greater than 0!");
     static constexpr index_t X0         = XPerTile / X1; // # of threads in X dim
+    static_assert(X0 > 0, "X0 must be greater than 0!");
 
     // # of rows in Y dim accessed by single wavefront in one iteration
-    static constexpr index_t Y1 = warp_size / X0;
+    static constexpr index_t Y1 = max(1, warp_size / X0);
     static_assert(X0 * Y1 == warp_size, "X0 * Y1 must cover whole wavefront!");
 
-    static constexpr index_t Y0 = num_warps / NumWaveGroups;
+    static constexpr index_t Y0 = max(1, num_warps / NumWaveGroups);
     //  YPerWarp = YPerTile / Y0;
     //  Y2 = YPerWarp / Y1;
-    static constexpr index_t Y2 = YPerTile / (Y1 * Y0); // # of iters within wavefront
+    static_assert(Y0 > 0, "Y0 must be greater than 0!");
+    static_assert(Y1 > 0, "Y1 must be greater than 0!");
+    static constexpr index_t Y2 = max(1, YPerTile / (Y1 * Y0)); // # of iters within wavefront
 
     static_assert(X0 * Y1 * Y0 * NumWaveGroups == BlockSize,
                   "X0 * warp_ys * Y0 must cover whole workgroup!");
+
     static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover whole YPerTile");
 
     CK_TILE_HOST_DEVICE static constexpr auto make_2d_static_tile_distribution()
@@ -229,21 +241,27 @@ struct tile_distribution_encoding_pattern_2d<BlockSize,
                                              NumWaveGroups>
     : public tile_distribution_encoding_pattern
 {
+    static_assert(YPerTile > 0, "YPerTile must be greater than 0!");
+    static_assert(XPerTile > 0, "XPerTile must be greater than 0!");
 
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
     static constexpr index_t warp_size  = get_warp_size();
+    static_assert(warp_size > 0, "warp_size must be greater than 0!");
     static constexpr index_t num_warps  = BlockSize / get_warp_size();
-    static constexpr index_t LargestVec = (XPerTile * YPerTile) / (num_warps * warp_size);
+    static_assert(num_warps > 0, "num_warps must be greater than 0!");
+    static constexpr index_t LargestVec = max(1, (XPerTile * YPerTile) / (num_warps * warp_size));
     static constexpr index_t X1         = VecSize > LargestVec ? LargestVec : VecSize;
+    static_assert(X1 > 0, "X1 must be greater than 0!");
     static constexpr index_t X0         = XPerTile / X1; // # of threads in X dim
 
     static constexpr index_t Y2 = warp_size / X0; // # of rows in Y dim to cover whole wavefront
+    static_assert(Y2 > 0, "Y2 must be greater than 0!");
     static_assert(X0 * Y2 == warp_size, "X0 * Y2 must cover whole wavefront!");
 
     static constexpr index_t Y0 = num_warps;
     static_assert(X0 * Y2 * Y0 == BlockSize, "X0 * Y2 * Y1 must cover whole workgroup!");
 
-    static constexpr index_t Y1 = YPerTile / (Y2 * Y0); // # of iters within wavefront
+    static constexpr index_t Y1 = max(1, YPerTile / (Y2 * Y0)); // # of iters within wavefront
     static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover whole YPerTile");
 
     CK_TILE_HOST_DEVICE static constexpr auto make_2d_static_tile_distribution()

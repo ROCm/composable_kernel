@@ -26,6 +26,7 @@ template <typename ADataType_,
           index_t KPerXdl_,
           bool isCTransposed_,
           memory_operation_enum MemoryOperation_,
+          index_t NumGroupsToMerge_ = 1,
           index_t kNumWaveGroups_ = 1,
           bool FixedVectorSize_   = false,
           index_t VectorSizeC_    = 1>
@@ -53,6 +54,7 @@ struct CShuffleEpilogueProblem
     static constexpr index_t VectorSizeC                   = VectorSizeC_;
     static constexpr index_t kNumWaveGroups                = kNumWaveGroups_;
     static constexpr index_t NumDTensor                    = DsDataType::size();
+    static constexpr index_t NumGroupsToMerge              = NumGroupsToMerge_;
 
     static_assert(NumDTensor == DsLayout::size(),
                   "The size of DsDataType and DsLayout should be the same");
@@ -90,6 +92,7 @@ struct CShuffleEpilogue
     static constexpr index_t MPerIteration                 = MPerXdl * MWave;
     static constexpr index_t NPerIteration                 = NPerXdl * NWave;
     static constexpr index_t NumDTensor                    = Problem::NumDTensor;
+    static constexpr index_t NumGroupsToMerge              = Problem::NumGroupsToMerge;
 
     static_assert(NumDTensor == DsLayout::size(),
                   "The size of DsDataType and DsLayout should be the same");
@@ -192,12 +195,23 @@ struct CShuffleEpilogue
     static constexpr index_t NumNXdlPerWavePerShuffle = std::get<1>(shuffle_tile_tuple);
 
     static constexpr auto MNPerIterationShuffle = [] {
-        constexpr index_t m_val = MPerXdl * MWave * NumMXdlPerWavePerShuffle;
-        constexpr index_t n_val = NPerXdl * NWave * NumNXdlPerWavePerShuffle;
-        if constexpr(kMPerBlock % m_val != 0 || kNPerBlock % n_val != 0)
-            return std::make_tuple(MPerXdl * MWave, NPerXdl * NWave);
+        if constexpr (NumGroupsToMerge == 1)
+        { 
+            constexpr index_t m_val = MPerXdl * MWave * NumMXdlPerWavePerShuffle;
+            constexpr index_t n_val = NPerXdl * NWave * NumNXdlPerWavePerShuffle;
+            if constexpr(kMPerBlock % m_val != 0 || kNPerBlock % n_val != 0)
+                return std::make_tuple(MPerXdl * MWave, NPerXdl * NWave);
+            else
+                return std::make_tuple(m_val, n_val);
+        }
         else
-            return std::make_tuple(m_val, n_val);
+        {
+            // When NumGroupsToMerge > 1, we want to write out only the diagonal blocks.
+            // Hence, we configure the shuffle such that it iterates one merge group block at a time.
+            constexpr index_t MPerGroupBlock = kMPerBlock / NumGroupsToMerge;
+            constexpr index_t NPerGroupBlock = kNPerBlock / NumGroupsToMerge;
+            return std::make_tuple(MPerGroupBlock, NPerGroupBlock);
+        }
     }();
     static constexpr index_t MPerIterationShuffle = std::get<0>(MNPerIterationShuffle);
     static constexpr index_t NPerIterationShuffle = std::get<1>(MNPerIterationShuffle);
@@ -236,7 +250,7 @@ struct CShuffleEpilogue
         }
     }
 
-    CK_TILE_DEVICE static constexpr auto MakeLdsDistributionEncode()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeLdsDistributionEncode()
     {
         constexpr auto block_outer_dstr_encoding =
             tile_distribution_encoding<sequence<>,
@@ -265,11 +279,49 @@ struct CShuffleEpilogue
     {
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
 
+        // We need to figure out if the current thread corresponds to one of the diagonal blocks.
+        // We execute the shuffle operation only for the diagonal blocks.
+        // const auto x_space_coord = LdsTileDistr.calculate_index();
+        // const index_t conv_group_m_block = x_space_coord[0] / NumGroupsToMerge;
+        // const index_t conv_group_n_block = x_space_coord[1] / NumGroupsToMerge;
+        // const bool is_diagonal_conv_group_block = (conv_group_m_block == conv_group_n_block);
+
+        // if (is_diagonal_conv_group_block)
+        // {}
+
+
         auto lds_tile = make_static_distributed_tensor<AccDataType>(LdsTileDistr);
 
         constexpr auto lds_block_desc = MakeLdsBlockDescriptor<Problem>();
         auto o_lds_block              = make_tensor_view<address_space_enum::lds>(
             static_cast<ODataType*>(p_smem), lds_block_desc);
+
+        if constexpr (NumGroupsToMerge > 1)
+        {
+            // The full tile size is (kMPerBlock, kNPerBlock).
+            // We access the tile in MPerIterationShuffle x NPerIterationShuffle chunks
+            // using the serpentine order.
+            // The serpentine access order should be better than row-major order when 
+            // the number of merged groups is even (we typically have powers of 2 for the number of merged groups).
+            // When the NumGroupsToMerge > 1, we want to write out only the diagonal blocks.
+            // Hence, we configure the SFC such that it iterates one merge group block at a time.
+            constexpr index_t MPerGroupBlock = kMPerBlock / NumGroupsToMerge;
+            constexpr index_t NPerGroupBlock = kNPerBlock / NumGroupsToMerge;
+
+            // TODO: Remove these debug asserts that are specific to a given case.
+            static_assert(kMPerBlock == 8, "kMPerBlock must be 8");
+            static_assert(kNPerBlock == 128, "kNPerBlock must be 128");
+            static_assert(MPerIterationShuffle == 1, "MPerIterationShuffle must be 1");
+            static_assert(NPerIterationShuffle == 16, "NPerIterationShuffle must be 16");
+
+            static_assert(MPerIterationShuffle == MPerGroupBlock,
+                          "MPerIterationShuffle should be equal to MPerGroupBlock");
+            static_assert(NPerIterationShuffle == NPerGroupBlock,
+                          "NPerIterationShuffle should be equal to NPerGroupBlock");
+
+            static_assert(MPerIterationShuffle > 0 && NPerIterationShuffle > 0,
+                          "MPerIterationShuffle and NPerIterationShuffle should be greater than 0");
+        }
 
         auto in_lds_window = make_tile_window(
             o_lds_block,
@@ -282,21 +334,21 @@ struct CShuffleEpilogue
             make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
             {0, 0});
 
-        using SFC                    = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
-                                                           sequence<0, 1>,
-                                                           sequence<MPerIterationShuffle, NPerIterationShuffle>>;
+        using SFC = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
+                                    sequence<0, 1>,
+                                    sequence<MPerIterationShuffle, NPerIterationShuffle>>;
+
         constexpr index_t num_access = SFC::get_num_of_access();
 
         static_assert(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
-                      "Currently, the CShuffle Epilogue only supports the Row Major Output layout");
+                    "Currently, the CShuffle Epilogue only supports the Row Major Output layout");
 
-        using TileEncodingPattern =
-            tile_distribution_encoding_pattern_2d<kBlockSize,
-                                                  MPerIterationShuffle,
-                                                  NPerIterationShuffle,
-                                                  GetVectorSizeC(),
-                                                  tile_distribution_pattern::thread_raked,
-                                                  Problem::kNumWaveGroups>;
+        using TileEncodingPattern = tile_distribution_encoding_pattern_2d<kBlockSize,
+                                                    MPerIterationShuffle,
+                                                    NPerIterationShuffle,
+                                                    GetVectorSizeC(),
+                                                    tile_distribution_pattern::thread_raked,
+                                                    Problem::kNumWaveGroups>;
         constexpr auto dram_tile_distribution =
             TileEncodingPattern::make_2d_static_tile_distribution();
 
@@ -317,48 +369,53 @@ struct CShuffleEpilogue
             constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (MPerIterationShuffle)>{};
             constexpr auto nIter = number<idx_y_start.at(number<1>{}) / (NPerIterationShuffle)>{};
 
-            lds_tile.get_thread_buffer() = o_acc_tile.get_y_sliced_thread_data(
+            // Store only the diagonal blocks when NumGroupsToMerge > 1
+            if constexpr (NumGroupsToMerge == 1 || (mIter == nIter))
+            {
+                lds_tile.get_thread_buffer() = o_acc_tile.get_y_sliced_thread_data(
                 merge_sequences(
                     sequence<mIter * NumMXdlPerWavePerShuffle, nIter * NumNXdlPerWavePerShuffle>{},
                     c_warp_y_index_zeros),
                 merge_sequences(sequence<NumMXdlPerWavePerShuffle, NumNXdlPerWavePerShuffle>{},
                                 c_warp_y_lengths));
 
-            const auto c_warptile_in_tensor_casted = cast_tile<ODataType>(lds_tile);
+                const auto c_warptile_in_tensor_casted = cast_tile<ODataType>(lds_tile);
 
-            store_tile(in_lds_window, c_warptile_in_tensor_casted);
-            block_sync_lds();
+                store_tile(in_lds_window, c_warptile_in_tensor_casted);
+                block_sync_lds();
 
-            auto c_out_tensor = load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
+                auto c_out_tensor = load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
 
-            const auto ds_tensor = generate_tuple(
-                [&](auto idx) { return load_tile(d_dram_windows[idx]); }, number<NumDTensor>{});
+                const auto ds_tensor = generate_tuple(
+                    [&](auto idx) { return load_tile(d_dram_windows[idx]); }, number<NumDTensor>{});
 
-            const auto c_ds_tiles = concat_tuple_of_reference(
-                tie(c_out_tensor, c_out_tensor),
-                generate_tie([&](auto idx) -> const auto& { return ds_tensor[idx]; },
-                             number<NumDTensor>{}));
+                const auto c_ds_tiles = concat_tuple_of_reference(
+                    tie(c_out_tensor, c_out_tensor),
+                    generate_tie([&](auto idx) -> const auto& { return ds_tensor[idx]; },
+                                number<NumDTensor>{}));
 
-            tile_elementwise_inout_unpack(typename Problem::CDElementwise{}, c_ds_tiles);
+                tile_elementwise_inout_unpack(typename Problem::CDElementwise{}, c_ds_tiles);
 
-            if constexpr(MemoryOperation == memory_operation_enum::set)
-            {
-                store_tile(out_dram_window, c_out_tensor);
-            }
-            else
-            {
-                update_tile(out_dram_window, c_out_tensor);
-            }
-            if constexpr(iAccess != num_access - 1)
-            {
-                constexpr auto step = SFC::get_forward_step(iAccess);
+                if constexpr(MemoryOperation == memory_operation_enum::set)
+                {
+                    store_tile(out_dram_window, c_out_tensor);
+                }
+                else
+                {
+                    update_tile(out_dram_window, c_out_tensor);
+                }
 
-                move_tile_window(out_dram_window, {step.at(number<0>{}), step.at(number<1>{})});
+                if constexpr(iAccess != num_access - 1)
+                {
+                    constexpr auto step = SFC::get_forward_step(iAccess);
 
-                static_for<0, NumDTensor, 1>{}([&](auto idx) {
-                    move_tile_window(d_dram_windows[idx],
-                                     {step.at(number<0>{}), step.at(number<1>{})});
-                });
+                    move_tile_window(out_dram_window, {step.at(number<0>{}), step.at(number<1>{})});
+
+                    static_for<0, NumDTensor, 1>{}([&](auto idx) {
+                        move_tile_window(d_dram_windows[idx],
+                                        {step.at(number<0>{}), step.at(number<1>{})});
+                    });
+                }
             }
         });
     }
