@@ -812,14 +812,21 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         const auto k_dram = [&]() {
             const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 k_ptr,
-                make_tuple(kargs.num_total_pages * kargs.page_block_size, kargs.hdim_q),
-                make_tuple(kargs.stride_k, 1),
+                make_tuple(kargs.num_total_pages, kargs.page_block_size, kargs.hdim_q),
+                make_tuple(kargs.batch_stride_k, kargs.stride_k, 1),
                 number<FmhaPipeline::kAlignmentK>{},
                 number<1>{});
 
+            auto k_dram_2d = transform_tensor_view(
+                k_dram_naive,
+                make_tuple(make_merge_transform(make_tuple(kargs.num_total_pages, kargs.page_block_size)),
+                           make_pass_through_transform(kargs.hdim_q)),
+                make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
+
             constexpr bool kPadSeqLenK_ = kUseAsyncCopy ? kPadSeqLenK : true;
             return pad_tensor_view(
-                k_dram_naive,
+                k_dram_2d,
                 make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
                 sequence<kPadSeqLenK_, kPadHeadDimQ>{});
         }();
@@ -828,13 +835,21 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
             {
                 const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                     v_ptr,
-                    make_tuple(kargs.num_total_pages * kargs.page_block_size, kargs.hdim_v),
-                    make_tuple(kargs.stride_v, 1),
+                    make_tuple(kargs.num_total_pages, kargs.page_block_size, kargs.hdim_v),
+                    make_tuple(kargs.batch_stride_v, kargs.stride_v, 1),
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
 
-                const auto v_dram_transposed = transform_tensor_view(
+                auto v_dram_2d = transform_tensor_view(
                     v_dram_naive,
+                    make_tuple(make_merge_transform(
+                                   make_tuple(kargs.num_total_pages, kargs.page_block_size)),
+                               make_pass_through_transform(kargs.hdim_v)),
+                    make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+
+                const auto v_dram_transposed = transform_tensor_view(
+                    v_dram_2d,
                     make_tuple(
                         make_pass_through_transform(kargs.hdim_v),
                         make_pass_through_transform(kargs.num_total_pages * kargs.page_block_size)),
@@ -1074,6 +1089,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                                   kargs.kv_page_indices,
                                   kargs.stride_k,
                                   kargs.stride_v,
+                                  kargs.batch_stride_k,
+                                  kargs.batch_stride_v,
                                   dropout);
         }();
 

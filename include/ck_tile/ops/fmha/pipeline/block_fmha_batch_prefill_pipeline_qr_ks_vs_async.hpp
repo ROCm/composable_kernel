@@ -24,6 +24,7 @@ template <typename OffsetVecType,
           bool kIsKcache>
 CK_TILE_HOST_DEVICE void kv_offset_array_transform(const index_t* page_vec,
                                                    const index_t& stride_kv,
+                                                   const index_t& page_stride_kv,
                                                    const CoordVecType& coord_vec,
                                                    OffsetVecType& kv_offset_vec)
 {
@@ -46,7 +47,7 @@ CK_TILE_HOST_DEVICE void kv_offset_array_transform(const index_t* page_vec,
                 const index_t page_offset =
                     (thread_coord_start + kLoopStride * k0.value) & kPageMask;
                 kv_offset_vec[k0] =
-                    ((page_vec[kPageId] << kPageShiftSize) + page_offset) * stride_kv;
+                    page_vec[kPageId] * page_stride_kv + page_offset * stride_kv;
             });
         }
         else
@@ -54,11 +55,11 @@ CK_TILE_HOST_DEVICE void kv_offset_array_transform(const index_t* page_vec,
             // for v_offset_vec
             const index_t lane0_start   = __builtin_amdgcn_readfirstlane(thread_coord_start);
             const index_t lane0_page_id = (lane0_start + kLoopStart) >> kPageShiftSize;
-            const index_t page_loc      = page_vec[lane0_page_id] << kPageShiftSize;
+            const index_t page_loc      = page_vec[lane0_page_id] * page_stride_kv;
             static_for<0, kLoopCount, 1>{}([&](auto k0) {
                 const index_t page_offset =
                     (thread_coord_start + kLoopStart + k0.value) & kPageMask;
-                kv_offset_vec[k0] = (page_loc + page_offset) * stride_kv;
+                kv_offset_vec[k0] = page_loc + page_offset * stride_kv;
             });
         }
     }
@@ -250,6 +251,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                const index_t* page_idx,
                const index_t stride_k,
                const index_t stride_v,
+               const index_t page_stride_k,
+               const index_t page_stride_v,
                DropoutType& dropout) const
     {
         static_assert(
@@ -388,7 +391,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                   NRepeat,
                                   kN0 / NRepeat,
                                   kIsSglangLayout,
-                                  true>(page_idx, stride_k, k_coord, k_offsets);
+                                  true>(page_idx, stride_k, page_stride_k, k_coord, k_offsets);
 
         auto k_dram_window = make_tile_scatter_gather(k_dram_block_window.get_bottom_tensor_view(),
                                                       k_dram_block_window.get_window_lengths(),
@@ -431,7 +434,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                   V_KRepeat,
                                   1,
                                   kIsSglangLayout,
-                                  false>(page_idx, stride_v, v_coord, v_offsets);
+                                  false>(page_idx, stride_v, page_stride_v, v_coord, v_offsets);
 
         auto v_dram_window =
             make_tile_scatter_gather(v_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -504,7 +507,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                       V_KRepeat,
                                       1,
                                       kIsSglangLayout,
-                                      false>(page_idx, stride_v, v_coord, v_offsets);
+                                      false>(page_idx, stride_v, page_stride_v, v_coord, v_offsets);
             v_dram_window.update_page_idx(v_offsets);
 
             __builtin_amdgcn_sched_barrier(0);
@@ -680,7 +683,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                           V_KRepeat,
                                           1,
                                           kIsSglangLayout,
-                                          false>(page_idx, stride_v, v_coord, v_offsets);
+                                          false>(page_idx, stride_v, page_stride_v, v_coord, v_offsets);
                 v_dram_window.update_page_idx(v_offsets);
             }
             __builtin_amdgcn_sched_barrier(0);
@@ -817,7 +820,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                                   V_KRepeat,
                                                   1,
                                                   kIsSglangLayout,
-                                                  false>(page_idx, stride_v, v_coord, v_offsets);
+                                                  false>(page_idx, stride_v, page_stride_v, v_coord, v_offsets);
                         v_dram_window.update_page_idx(v_offsets);
                     }
                     block_sync_lds();
@@ -879,7 +882,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                           NRepeat,
                                           kN0 / NRepeat,
                                           kIsSglangLayout,
-                                          true>(page_idx, stride_k, k_coord, k_offsets);
+                                          true>(page_idx, stride_k, page_stride_k, k_coord, k_offsets);
                 k_dram_window.update_page_idx(k_offsets);
                 if constexpr(k1_loops >= 2 &&
                              LdsSeq.at(number<0>{}) == LdsSeq.at(number<k0_loops + k1_loops - 2>{}))
@@ -987,6 +990,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                const index_t* page_idx,
                const index_t stride_k,
                const index_t stride_v,
+               const index_t page_stride_k,
+               const index_t page_stride_v,
                DropoutType& dropout) const
     {
         return operator()(q_dram_block_window_tmp,
@@ -1013,6 +1018,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                           page_idx,
                           stride_k,
                           stride_v,
+                          page_stride_k,
+                          page_stride_v,
                           dropout);
     }
 };
