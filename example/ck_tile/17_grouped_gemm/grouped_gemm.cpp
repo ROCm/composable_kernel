@@ -356,6 +356,8 @@ int main(int argc, char* argv[])
 #if CK_TILE_USE_WMMA
     return !run_grouped_gemm_example<GemmConfigComputeV4_Wmma>(argc, argv);
 #else
-    return !run_grouped_gemm_example<GemmConfigComputeV4>(argc, argv);
+    return !run_grouped_gemm_example<GemmConfigComputeV4>(argc, argv) ||
+           !run_grouped_gemm_example<GemmConfigComputeV3_2>(argc, argv) ||
+           !run_grouped_gemm_example<GemmConfigComputeV4_V2>(argc, argv);
 #endif
 }
