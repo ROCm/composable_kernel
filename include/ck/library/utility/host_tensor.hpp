@@ -122,7 +122,7 @@ struct HostTensorDescriptor
     {
         // To support legacy use cases, when layout is not passed in
         const auto new_layout = HandleDefaultLayout(layout);
-        if(dbg) 
+        if(dbg)
         {
             std::cout << "Original Lens: [";
             LogRange(std::cout, mLens, ", ") << "] and Strides: [";
@@ -372,7 +372,8 @@ struct HostTensorDescriptor
     HostTensorDescriptor(const std::initializer_list<X>& lens, const Layout& layout = Layout{})
         : HostTensorDescriptor(std::vector<std::size_t>(lens.begin(), lens.end()), {}, layout)
     {
-        if(dbg) std::cout << "HostTensorDescriptor ctor (" << __LINE__ << ")" << std::endl;
+        if(dbg)
+            std::cout << "HostTensorDescriptor ctor (" << __LINE__ << ")" << std::endl;
     }
 
     template <typename Layout = DefaultLayout,
@@ -381,7 +382,8 @@ struct HostTensorDescriptor
                          const Layout& layout = Layout{})
         : HostTensorDescriptor(std::vector<std::size_t>(lens.begin(), lens.end()), {}, layout)
     {
-        if(dbg) std::cout << "HostTensorDescriptor ctor (" << __LINE__ << ")" << std::endl;
+        if(dbg)
+            std::cout << "HostTensorDescriptor ctor (" << __LINE__ << ")" << std::endl;
     }
 
     template <typename Lengths,
@@ -393,7 +395,8 @@ struct HostTensorDescriptor
     HostTensorDescriptor(const Lengths& lens, const Layout& layout = Layout{})
         : HostTensorDescriptor(std::vector<std::size_t>(lens.begin(), lens.end()), {}, layout)
     {
-        if(dbg) std::cout << "HostTensorDescriptor ctor (" << __LINE__ << ")" << std::endl;
+        if(dbg)
+            std::cout << "HostTensorDescriptor ctor (" << __LINE__ << ")" << std::endl;
     }
 
     template <typename X,
@@ -408,7 +411,8 @@ struct HostTensorDescriptor
                                std::vector<std::size_t>(strides.begin(), strides.end()),
                                layout)
     {
-        if(dbg) std::cout << "HostTensorDescriptor ctor (" << __LINE__ << ")" << std::endl;
+        if(dbg)
+            std::cout << "HostTensorDescriptor ctor (" << __LINE__ << ")" << std::endl;
     }
 
     // HostTensorDescriptor({row, col}, {row_stride, col_stride})
@@ -420,7 +424,8 @@ struct HostTensorDescriptor
                                std::vector<std::size_t>(strides.begin(), strides.end()),
                                layout)
     {
-        if(dbg) std::cout << "HostTensorDescriptor ctor (" << __LINE__ << ")" << std::endl;
+        if(dbg)
+            std::cout << "HostTensorDescriptor ctor (" << __LINE__ << ")" << std::endl;
     }
 
     // HostTensorDescriptor({row, col}, strides)
@@ -432,7 +437,8 @@ struct HostTensorDescriptor
                                std::vector<std::size_t>(strides.begin(), strides.end()),
                                layout)
     {
-        if(dbg) std::cout << "HostTensorDescriptor ctor (" << __LINE__ << ")" << std::endl;
+        if(dbg)
+            std::cout << "HostTensorDescriptor ctor (" << __LINE__ << ")" << std::endl;
     }
 
     template <typename Lengths,
@@ -451,7 +457,8 @@ struct HostTensorDescriptor
                                std::vector<std::size_t>(strides.begin(), strides.end()),
                                layout)
     {
-        if(dbg) std::cout << "HostTensorDescriptor ctor (" << __LINE__ << ")" << std::endl;
+        if(dbg)
+            std::cout << "HostTensorDescriptor ctor (" << __LINE__ << ")" << std::endl;
     }
 
     std::size_t GetNumOfDimension() const;

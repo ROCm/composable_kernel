@@ -42,12 +42,13 @@ HostTensorDescriptor f_host_tensor_descriptor(std::size_t N_,
 
     if constexpr(ck::is_same<decltype(layout), ck::tensor_layout::convolution::NCDHW>::value)
     {
-        return HostTensorDescriptor({N_, C_, D, H, W}, {C_ * D * H * W, D * H * W, H * W, W, 1_uz}, layout);
+        return HostTensorDescriptor(
+            {N_, C_, D, H, W}, {C_ * D * H * W, D * H * W, H * W, W, 1_uz}, layout);
     }
     else if constexpr(ck::is_same<decltype(layout), ck::tensor_layout::convolution::NDHWC>::value)
     {
-        return HostTensorDescriptor({N_, C_, D, H, W},
-                                    {D * C_ * H * W, 1_uz, C_ * H * W, W * C_, C_}, layout);
+        return HostTensorDescriptor(
+            {N_, C_, D, H, W}, {D * C_ * H * W, 1_uz, C_ * H * W, W * C_, C_}, layout);
     }
     throw std::runtime_error("Avgpool3d_bwd: problem with layout. ");
     return HostTensorDescriptor({0, 0, 0, 0, 0}, {0, 0, 0, 0, 0}, layout);

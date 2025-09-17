@@ -7,7 +7,8 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
 #endif
     using namespace ck::literals;
 
-    ProblemSize ps = problem_size; // make mutable copy because default stride values of 0 need to be updated
+    ProblemSize ps =
+        problem_size; // make mutable copy because default stride values of 0 need to be updated
     auto& [M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideE] = ps;
 
     auto f_host_tensor_descriptor =
@@ -55,12 +56,17 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
         }
     };
 
-    if(StrideA <= 0)  StrideA  = fetch_leading_stride(a_m_k, ALayout{});
-    if(StrideB <= 0)  StrideB  = fetch_leading_stride(b_k_n, BLayout{});
-    if(StrideD0 <= 0) StrideD0 = fetch_leading_stride(d0_m_n, D0Layout{});
-    if(StrideD1 <= 0) StrideD1 = fetch_leading_stride(d1_m_n, D1Layout{});
-    if(StrideE <= 0)  StrideE  = fetch_leading_stride(e_m_n_host_result, ELayout{});
-    
+    if(StrideA <= 0)
+        StrideA = fetch_leading_stride(a_m_k, ALayout{});
+    if(StrideB <= 0)
+        StrideB = fetch_leading_stride(b_k_n, BLayout{});
+    if(StrideD0 <= 0)
+        StrideD0 = fetch_leading_stride(d0_m_n, D0Layout{});
+    if(StrideD1 <= 0)
+        StrideD1 = fetch_leading_stride(d1_m_n, D1Layout{});
+    if(StrideE <= 0)
+        StrideE = fetch_leading_stride(e_m_n_host_result, ELayout{});
+
     switch(config.init_method)
     {
     case 0: break;

@@ -63,6 +63,26 @@ bool profile_gemm_fastgelu_impl(int do_verification,
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
     std::cout << "e_m_n: " << e_m_n_device_result.mDesc << std::endl;
 
+    // If any user-provided leading stride <= 0, replace it with the one determined by the
+    // created tensor descriptor. For RowMajor the leading stride is index 0, for ColMajor index 1.
+    auto fetch_leading_stride = [](const auto& tensor, auto layout_tag) -> int {
+        if constexpr(std::is_same_v<decltype(layout_tag), ck::tensor_layout::gemm::RowMajor>)
+        {
+            return static_cast<int>(tensor.GetStrides()[0]);
+        }
+        else
+        {
+            return static_cast<int>(tensor.GetStrides()[1]);
+        }
+    };
+
+    if(StrideA <= 0)
+        StrideA = fetch_leading_stride(a_m_k, ALayout{});
+    if(StrideB <= 0)
+        StrideB = fetch_leading_stride(b_k_n, BLayout{});
+    if(StrideE <= 0)
+        StrideE = fetch_leading_stride(e_m_n_host_result, ELayout{});
+
     switch(init_method)
     {
     case 0: break;

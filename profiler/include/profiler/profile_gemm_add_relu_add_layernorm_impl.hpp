@@ -159,6 +159,30 @@ bool profile_gemm_add_relu_add_layernorm_impl(int do_verification,
     Tensor<HDataType> h_m_n(f_host_tensor_descriptor2d(M, N, StrideH, HLayout{}));
     Tensor<HDataType> h_m_n_host(f_host_tensor_descriptor2d(M, N, StrideH, HLayout{}));
 
+    // If any user-provided leading stride <= 0, replace it with the one determined by the
+    // created tensor descriptor. For RowMajor the leading stride is index 0, for ColMajor index 1.
+    auto fetch_leading_stride = [](const auto& tensor, auto layout_tag) -> int {
+        if constexpr(std::is_same_v<decltype(layout_tag), ck::tensor_layout::gemm::RowMajor>)
+        {
+            return static_cast<int>(tensor.GetStrides()[0]);
+        }
+        else
+        {
+            return static_cast<int>(tensor.GetStrides()[1]);
+        }
+    };
+
+    if(StrideA <= 0)
+        StrideA = fetch_leading_stride(a_m_k, ALayout{});
+    if(StrideB <= 0)
+        StrideB = fetch_leading_stride(b_k_n, BLayout{});
+    if(StrideD0 <= 0)
+        StrideD0 = fetch_leading_stride(d0_m_n, D0Layout{});
+    if(StrideD1 <= 0)
+        StrideD1 = fetch_leading_stride(d1_m_n, D1Layout{});
+    if(StrideH <= 0)
+        StrideH = fetch_leading_stride(h_m_n_host, HLayout{});
+
     switch(init_method)
     {
     case 0: break;
