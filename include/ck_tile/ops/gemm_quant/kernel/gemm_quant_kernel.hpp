@@ -18,73 +18,64 @@ namespace ck_tile {
 
 namespace detail {
 // Helper templates for safe type extraction
-template <typename T, typename Default>
+template <typename, typename Default, typename = void>
 struct get_aq_layout_or
 {
     using type = Default;
 };
 
 template <typename T, typename Default>
-    requires requires { typename T::AQLayout; }
-struct get_aq_layout_or<T, Default>
+struct get_aq_layout_or<T, Default, std::void_t<typename T::AQLayout>>
 {
     using type = typename T::AQLayout;
 };
 
-template <typename T, typename Default>
+template <typename, typename Default, typename = void>
 struct get_bq_layout_or
 {
     using type = Default;
 };
 
 template <typename T, typename Default>
-    requires requires { typename T::BQLayout; }
-struct get_bq_layout_or<T, Default>
+struct get_bq_layout_or<T, Default, std::void_t<typename T::BQLayout>>
 {
     using type = typename T::BQLayout;
 };
 
-template <typename T, typename Default>
+template <typename, typename Default, typename = void>
 struct get_aq_data_type_or
 {
     using type = Default;
 };
 
 template <typename T, typename Default>
-    requires requires { typename T::AQDataType; }
-struct get_aq_data_type_or<T, Default>
+struct get_aq_data_type_or<T, Default, std::void_t<typename T::AQDataType>>
 {
     using type = typename T::AQDataType;
 };
 
-template <typename T, typename Default>
+template <typename, typename Default, typename = void>
 struct get_bq_data_type_or
 {
     using type = Default;
 };
 
 template <typename T, typename Default>
-    requires requires { typename T::BQDataType; }
-struct get_bq_data_type_or<T, Default>
+struct get_bq_data_type_or<T, Default, std::void_t<typename T::BQDataType>>
 {
     using type = typename T::BQDataType;
 };
 
-template <typename T>
-concept HasStaticPreshuffleQuant = requires {
-    { T::PreshuffleQuant } -> std::convertible_to<decltype(T::PreshuffleQuant)>;
-};
-
-template <typename T>
+template <typename, typename = void>
 struct is_quantpreshuffle_enabled
 {
     static constexpr bool value = false;
 };
 
-template <HasStaticPreshuffleQuant T>
-struct is_quantpreshuffle_enabled<T>
+template <typename T>
+struct is_quantpreshuffle_enabled<T, decltype(T::PreshuffleQuant)>
 {
-    static constexpr auto value = T::PreshuffleQuant;
+    static constexpr bool value = T::PreshuffleQuant;
 };
 } // namespace detail
 

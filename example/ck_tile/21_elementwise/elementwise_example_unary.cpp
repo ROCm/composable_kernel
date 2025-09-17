@@ -193,7 +193,9 @@ auto string_to_op(const std::string& op)
 
 int main(int argc, char* argv[])
 {
-    auto [result, arg_parser] = create_args(argc, argv);
+    bool result = true;
+    ck_tile::ArgParser arg_parser;
+    std::tie(result, arg_parser) = create_args(argc, argv);
     if(!result)
         return -1;
 
