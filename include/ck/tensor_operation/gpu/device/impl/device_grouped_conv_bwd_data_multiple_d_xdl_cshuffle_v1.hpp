@@ -1844,7 +1844,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         return std::make_unique<Invoker>(Invoker{});
     }
 
-    std::string GetTypeString() const override
+    static std::string TypeString()
     {
         auto str = std::stringstream();
 
@@ -1878,6 +1878,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             str << ">";
 
         return str.str();
+    }
+
+    std::string GetTypeString() const override {
+	return TypeString();
     }
 
     size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override
