@@ -47,8 +47,8 @@ set(FMHA_BWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
   --api bwd
   --receipt 3
-  --optdim 128
-  --filter *@*@fmha_bwd_d128_bf16_batch_b16x128x128x16x128x16x32x128x128_r1x4x1_r4x1x1_r1x4x1_w16x16x32_w16x16x16_o1_maxq0_npad_nbias_ndbias_nmask_dropout_wg16_storerandval_ndeterministic_ntrload
+  --optdim 32,64,128,256
+  # --filter fmha_bwd_dot...@fmha_bwd_convert...@fmha_bwd...
 )
 
 # Reduce building time by disabling instances that are not currently used in the gtests
