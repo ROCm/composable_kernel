@@ -182,8 +182,8 @@ struct BatchedContractionKernel
 
     // A[G0, G1, ..., M0, M1, M2, ..., K0, K1, K2, ...]
     CK_TILE_HOST static constexpr auto
-    Make_A_GridDescriptor_M_K(const std::vector<ck_tile::index_t>& A_dims,
-                              const std::vector<ck_tile::index_t>& A_strides)
+    Make_A_GridDescriptor_M_K(const std::vector<ck_tile::index_t>& A_dims    = {},
+                              const std::vector<ck_tile::index_t>& A_strides = {})
     {
         const auto to_tuple = [&](auto& vec, auto start, auto end) {
             return generate_tuple([&](auto i) { return vec[start + i]; }, number<end - start>{});
@@ -221,8 +221,8 @@ struct BatchedContractionKernel
 
     // B[G0, G1, ..., N0, N1, N2, ..., K0, K1, K2, ...]
     CK_TILE_HOST static constexpr auto
-    Make_B_GridDescriptor_N_K(const std::vector<ck_tile::index_t>& B_dims,
-                              const std::vector<ck_tile::index_t>& B_strides)
+    Make_B_GridDescriptor_N_K(const std::vector<ck_tile::index_t>& B_dims    = {},
+                              const std::vector<ck_tile::index_t>& B_strides = {})
     {
         const auto to_tuple = [&](auto& vec, auto start, auto end) {
             return generate_tuple([&](auto i) { return vec[start + i]; }, number<end - start>{});
@@ -260,8 +260,8 @@ struct BatchedContractionKernel
 
     // E[G0, G1, ..., M0, M1, M2, ..., N0, N1, N2, ...]
     CK_TILE_HOST static constexpr auto
-    Make_E_GridDescriptor_M_N(const std::vector<ck_tile::index_t>& E_dims,
-                              const std::vector<ck_tile::index_t>& E_strides)
+    Make_E_GridDescriptor_M_N(const std::vector<ck_tile::index_t>& E_dims    = {},
+                              const std::vector<ck_tile::index_t>& E_strides = {})
     {
         const auto to_tuple = [&](auto& vec, auto start, auto end) {
             return generate_tuple([&](auto i) { return vec[start + i]; }, number<end - start>{});
@@ -296,10 +296,6 @@ struct BatchedContractionKernel
 
         return E_grid_desc_Mflat_Nflat;
     }
-
-    using A_Grid_Desc_M_K = decltype(Make_A_GridDescriptor_M_K({}, {}));
-    using B_Grid_Desc_N_K = decltype(Make_B_GridDescriptor_N_K({}, {}));
-    using E_Grid_Desc_M_N = decltype(Make_E_GridDescriptor_M_N({}, {}));
 
     CK_TILE_HOST static constexpr KernelArgs
     MakeKernelArgs(const BatchedContractionHostArgs<NumDTensor>& host_args)
@@ -392,6 +388,44 @@ struct BatchedContractionKernel
 
         return kargs;
     }
+    struct BatchOffsets
+    {
+        ck_tile::index_t a;
+        ck_tile::index_t b;
+        ck_tile::index_t e;
+        std::array<ck_tile::index_t, NumDTensor> ds;
+    };
+
+    CK_TILE_DEVICE constexpr auto
+    CalculateOffsetFromFlatIndex(ck_tile::index_t flat_g_idx,
+                                 const ck_tile::index_t* G_dims,
+                                 const ck_tile::index_t* G_strides) const
+    {
+        ck_tile::index_t offset    = 0;
+        ck_tile::index_t remaining = flat_g_idx;
+        // Iterate from last to first dimension
+        for(int i = NumDimG - 1; i >= 0; --i)
+        {
+            const ck_tile::index_t idx = remaining % G_dims[i];
+            offset += idx * G_strides[i];
+            remaining /= G_dims[i];
+        }
+        return offset;
+    }
+
+    CK_TILE_DEVICE constexpr auto CalculateAllBatchOffsets(ck_tile::index_t flat_g_index,
+                                                           const KernelArgs& kargs) const
+    {
+        BatchOffsets offsets;
+        offsets.a = CalculateOffsetFromFlatIndex(flat_g_index, kargs.G_dims, kargs.G_strides_A);
+        offsets.b = CalculateOffsetFromFlatIndex(flat_g_index, kargs.G_dims, kargs.G_strides_B);
+        offsets.e = CalculateOffsetFromFlatIndex(flat_g_index, kargs.G_dims, kargs.G_strides_E);
+        static_for<0, NumDTensor, 1>{}([&](auto i) {
+            offsets.ds[i] = CalculateGOffsetFromFlatIndex(
+                flat_g_index, kargs.G_dims, kargs.G_strides_Ds[i].data());
+        });
+        return offsets;
+    }
 
     CK_TILE_DEVICE void operator()(const KernelArgs& kargs) const
     {
@@ -405,28 +439,43 @@ struct BatchedContractionKernel
         const auto i_batch_flat = __builtin_amdgcn_readfirstlane(blockIdx.y);
         const auto i_splitk     = __builtin_amdgcn_readfirstlane(blockIdx.z);
 
-        const auto g_indices = DecomposeGIndex<NumDimG>(i_batch_flat, kargs.G_dims);
+        const auto offsets = CalculateAllBatchOffsets(i_batch_flat, kargs);
 
-        const auto G_offset_A =
-            __builtin_amdgcn_readfirstlane(CalculateGOffset<NumDimG>(g_indices, kargs.G_strides_A));
-
-        const auto G_offset_B =
-            __builtin_amdgcn_readfirstlane(CalculateGOffset<NumDimG>(g_indices, kargs.G_strides_B));
-
-        const auto G_offset_E =
-            __builtin_amdgcn_readfirstlane(CalculateGOffset<NumDimG>(g_indices, kargs.G_strides_E));
-
-        const ADataType* a_ptr = static_cast<const ADataType*>(kargs.a_ptr) + G_offset_A;
-        const BDataType* b_ptr = static_cast<const BDataType*>(kargs.b_ptr) + G_offset_B;
-        EDataType* e_ptr       = static_cast<EDataType*>(kargs.e_ptr) + G_offset_E;
+        const ADataType* a_ptr = static_cast<const ADataType*>(kargs.a_ptr) + offsets.a;
+        const BDataType* b_ptr = static_cast<const BDataType*>(kargs.b_ptr) + offsets.b;
+        EDataType* e_ptr       = static_cast<EDataType*>(kargs.e_ptr) + offsets.e;
 
         std::array<const void*, NumDTensor> ds_batch_ptr;
         static_for<0, NumDTensor, 1>{}([&](auto i) {
-            const auto G_offset_D = __builtin_amdgcn_readfirstlane(
-                CalculateGOffset<NumDimG>(g_indices, kargs.G_strides_Ds[i]));
             ds_batch_ptr[i] =
-                static_cast<const void*>(static_cast<const char*>(kargs.ds_ptr[i]) + G_offset_D);
+                static_cast<const void*>(static_cast<const char*>(kargs.ds_ptr[i]) + offsets.ds[i]);
         });
+
+        // const auto g_indices = DecomposeGIndex<NumDimG>(i_batch_flat, kargs.G_dims);
+
+        // const auto G_offset_A =
+        //     __builtin_amdgcn_readfirstlane(CalculateGOffset<NumDimG>(g_indices,
+        //     kargs.G_strides_A));
+
+        // const auto G_offset_B =
+        //     __builtin_amdgcn_readfirstlane(CalculateGOffset<NumDimG>(g_indices,
+        //     kargs.G_strides_B));
+
+        // const auto G_offset_E =
+        //     __builtin_amdgcn_readfirstlane(CalculateGOffset<NumDimG>(g_indices,
+        //     kargs.G_strides_E));
+
+        // const ADataType* a_ptr = static_cast<const ADataType*>(kargs.a_ptr) + G_offset_A;
+        // const BDataType* b_ptr = static_cast<const BDataType*>(kargs.b_ptr) + G_offset_B;
+        // EDataType* e_ptr       = static_cast<EDataType*>(kargs.e_ptr) + G_offset_E;
+
+        // std::array<const void*, NumDTensor> ds_batch_ptr;
+        // static_for<0, NumDTensor, 1>{}([&](auto i) {
+        //     const auto G_offset_D = __builtin_amdgcn_readfirstlane(
+        //         CalculateGOffset<NumDimG>(g_indices, kargs.G_strides_Ds[i]));
+        //     ds_batch_ptr[i] =
+        //         static_cast<const void*>(static_cast<const char*>(kargs.ds_ptr[i]) + G_offset_D);
+        // });
 
         typename UniversalGemmKernel::KernelArgs gemm_kargs{{a_ptr},
                                                             {b_ptr},
