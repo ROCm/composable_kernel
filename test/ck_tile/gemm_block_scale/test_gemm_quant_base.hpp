@@ -26,21 +26,20 @@ template <typename Tuple, typename Derived>
 class TestCkTileGemmQuantBase : public ::testing::Test
 {
     protected:
-    using ALayout                      = std::tuple_element_t<0, Tuple>;
-    using BLayout                      = std::tuple_element_t<1, Tuple>;
-    using CLayout                      = std::tuple_element_t<2, Tuple>;
-    using ADataType                    = std::tuple_element_t<3, Tuple>;
-    using BDataType                    = std::tuple_element_t<4, Tuple>;
-    using AccDataType                  = std::tuple_element_t<5, Tuple>;
-    using CDataType                    = std::tuple_element_t<6, Tuple>;
-    static constexpr auto QuantType    = std::tuple_element_t<7, Tuple>::value;
-    using GemmConfig   = std::tuple_element_t<8, Tuple>;
+    using ALayout                            = std::tuple_element_t<0, Tuple>;
+    using BLayout                            = std::tuple_element_t<1, Tuple>;
+    using CLayout                            = std::tuple_element_t<2, Tuple>;
+    using ADataType                          = std::tuple_element_t<3, Tuple>;
+    using BDataType                          = std::tuple_element_t<4, Tuple>;
+    using QDataType                          = std::tuple_element_t<5, Tuple>;
+    using CDataType                          = std::tuple_element_t<6, Tuple>;
+    static constexpr auto QuantType          = std::tuple_element_t<7, Tuple>::value;
+    using GemmConfig                         = std::tuple_element_t<8, Tuple>;
     static constexpr uint32_t QuantGroupSize = std::tuple_element_t<9, Tuple>::value;
+    using AccDataType                        = float; // accumulate always in float
 
     // Get the quant-type specific data types from traits
-    using QuantTraits = QuantTypeTraits<QuantType>;
-    using AQDataType  = typename QuantTraits::template AQDataType<ADataType, BDataType>;
-    using BQDataType  = typename QuantTraits::template BQDataType<ADataType, BDataType>;
+    using QuantTraits     = QuantTypeTraits<QuantType>;
     using ComputeDataType = typename QuantTraits::template ComputeDataType<ADataType, BDataType>;
 
     static constexpr ck_tile::index_t M_Tile = GemmConfig::M_Tile;
@@ -56,15 +55,9 @@ class TestCkTileGemmQuantBase : public ::testing::Test
     static constexpr ck_tile::index_t K_Warp_Tile = GemmConfig::K_Warp_Tile;
 
     public:
-    void SetUp() override
-    {
-        static_cast<Derived*>(this)->SetUpQuantTypeSpecific();
-    }
+    void SetUp() override { static_cast<Derived*>(this)->SetUpQuantTypeSpecific(); }
 
-    void TearDown() override
-    {
-        static_cast<Derived*>(this)->TearDownQuantTypeSpecific();
-    }
+    void TearDown() override { static_cast<Derived*>(this)->TearDownQuantTypeSpecific(); }
 
     // Common test execution logic
     void invoke_quant_gemm(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s)
@@ -91,9 +84,9 @@ class TestCkTileGemmQuantBase : public ::testing::Test
                                                                QuantType>;
 
         // Let the derived class create the appropriate pipeline and epilogue
-        static_cast<Derived*>(this)->template run_quant_gemm_impl<CodegenGemmShape, 
-                                                                   TilePartitioner,
-                                                                   CodegenGemmTraits>(args, s);
+        static_cast<Derived*>(this)
+            ->template run_quant_gemm_impl<CodegenGemmShape, TilePartitioner, CodegenGemmTraits>(
+                args, s);
     }
 
     void RunTest(ck_tile::index_t M, ck_tile::index_t N, ck_tile::index_t K)
@@ -102,11 +95,12 @@ class TestCkTileGemmQuantBase : public ::testing::Test
         static_cast<Derived*>(this)->run_test_with_validation(M, N, K);
     }
 
-    // Helper function to check layout 
-    template<typename Layout>
+    // Helper function to check layout
+    template <typename Layout>
     static constexpr auto is_row_major(Layout)
     {
-        return ck_tile::bool_constant<std::is_same_v<ck_tile::remove_cvref_t<decltype(Layout{})>, ck_tile::tensor_layout::gemm::RowMajor>>{};
+        return ck_tile::bool_constant<std::is_same_v<ck_tile::remove_cvref_t<decltype(Layout{})>,
+                                                     ck_tile::tensor_layout::gemm::RowMajor>>{};
     }
 
     // Tolerance calculation function for validation
@@ -125,8 +119,9 @@ class TestCkTileGemmQuantBase : public ::testing::Test
         // Calculate error due to split_k accumulation
         const auto rtol_split_k =
             ck_tile::get_relative_threshold<CDataType_, CDataType_, CDataType_>(kbatch);
-        const auto atol_split_k = ck_tile::get_absolute_threshold<CDataType_, CDataType_, CDataType_>(
-            max_accumulated_value, kbatch);
+        const auto atol_split_k =
+            ck_tile::get_absolute_threshold<CDataType_, CDataType_, CDataType_>(
+                max_accumulated_value, kbatch);
         // Use higher threshold
         return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
     }
@@ -137,9 +132,9 @@ template <ck_tile::QuantType QT>
 struct QuantTypeTraits
 {
     static_assert(QT == ck_tile::QuantType::AQuantGrouped ||
-                  QT == ck_tile::QuantType::BQuantGrouped ||
-                  QT == ck_tile::QuantType::RowColQuant ||
-                  QT == ck_tile::QuantType::TensorQuant,
+                      QT == ck_tile::QuantType::BQuantGrouped ||
+                      QT == ck_tile::QuantType::RowColQuant ||
+                      QT == ck_tile::QuantType::TensorQuant,
                   "Unsupported quantization type");
 };
 
@@ -147,12 +142,6 @@ struct QuantTypeTraits
 template <>
 struct QuantTypeTraits<ck_tile::QuantType::AQuantGrouped>
 {
-    template <typename ADataType, typename BDataType>
-    using AQDataType = float; // Scale type for A quantization
-    
-    template <typename ADataType, typename BDataType>
-    using BQDataType = void; // No B quantization for AQuant
-    
     template <typename ADataType, typename BDataType>
     using ComputeDataType = BDataType; // For AQuant, compute type is BDataType
 
@@ -164,12 +153,6 @@ template <>
 struct QuantTypeTraits<ck_tile::QuantType::BQuantGrouped>
 {
     template <typename ADataType, typename BDataType>
-    using AQDataType = void; // No A quantization for BQuant
-    
-    template <typename ADataType, typename BDataType>
-    using BQDataType = float; // Scale type for B quantization
-    
-    template <typename ADataType, typename BDataType>
     using ComputeDataType = ADataType; // For BQuant, compute type is ADataType
 
     static constexpr const char* name = "bquant";
@@ -180,12 +163,6 @@ template <>
 struct QuantTypeTraits<ck_tile::QuantType::RowColQuant>
 {
     template <typename ADataType, typename BDataType>
-    using AQDataType = float; // Scale type for A row/col quantization
-    
-    template <typename ADataType, typename BDataType>
-    using BQDataType = float; // Scale type for B row/col quantization
-    
-    template <typename ADataType, typename BDataType>
     using ComputeDataType = ADataType; // For RowColQuant, compute type is ADataType
 
     static constexpr const char* name = "rowcol";
@@ -195,12 +172,6 @@ struct QuantTypeTraits<ck_tile::QuantType::RowColQuant>
 template <>
 struct QuantTypeTraits<ck_tile::QuantType::TensorQuant>
 {
-    template <typename ADataType, typename BDataType>
-    using AQDataType = float; // Scale type for A tensor quantization
-    
-    template <typename ADataType, typename BDataType>
-    using BQDataType = float; // Scale type for B tensor quantization
-    
     template <typename ADataType, typename BDataType>
     using ComputeDataType = ADataType; // For TensorQuant, compute type is ADataType
 
