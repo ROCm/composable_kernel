@@ -426,6 +426,8 @@ struct SelectedKernel {{
     static constexpr bool Preshuffle = true;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
 
+    static constexpr bool PermuteN     = true; // [TODO] Add permuteN support
+
     // Tile shape
     using TileShape = ck_tile::TileGemmShape<
         ck_tile::sequence<TileM, TileN, TileK>,
@@ -503,7 +505,12 @@ struct SelectedKernel {{
                 WarpTileK,                   // KPerXdl_
                 TransposeC,                  // isCTransposed_
                 memory_operation,            // MemoryOperation_
-                NumWaveGroups>;              // kNumWaveGroups_
+                NumWaveGroups>;
+                
+                /*,               // kNumWaveGroups_
+                false,                       // FixedVectorSize_
+                1,                           // VectorSizeC_
+                PermuteN>;                   // isPermuteN_*/
             
             using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;
 """

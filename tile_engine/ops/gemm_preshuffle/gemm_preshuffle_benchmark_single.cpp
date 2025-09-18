@@ -126,6 +126,14 @@ void benchmark_single(const ck_tile::ArgParser& arg_parser)
         // Create a lambda that wraps the kernel launch
         std::tuple<int, int, int> warp_tile_dims = std::make_tuple(
             SelectedKernel::WarpTileM, SelectedKernel::WarpTileN, SelectedKernel::WarpTileK);
+        std::tuple<int, int, int> tile_dims =
+            std::make_tuple(SelectedKernel::TileM, SelectedKernel::TileN, SelectedKernel::TileK);
+        std::tuple<int, int, int> warp_dims = std::make_tuple(SelectedKernel::WarpPerBlock_M,
+                                                              SelectedKernel::WarpPerBlock_N,
+                                                              SelectedKernel::WarpPerBlock_K);
+        bool permuteN                       = SelectedKernel::PermuteN;
+
+        KernelConfig config{tile_dims, warp_dims, warp_tile_dims, permuteN};
 
         auto kernel_func = [](const ck_tile::GemmHostArgs& args,
                               const ck_tile::stream_config& stream) {
@@ -133,7 +141,7 @@ void benchmark_single(const ck_tile::ArgParser& arg_parser)
         };
 
         // Benchmark the kernel
-        profiler.benchmark(gemm_problem, kernel_func, warp_tile_dims);
+        profiler.benchmark(gemm_problem, kernel_func, config);
 
         // Select best instance based on metric
         profiler.select_best_instance(static_cast<Metric>(arg_parser.get_int("metric")));
