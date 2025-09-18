@@ -149,7 +149,7 @@ void add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f32_tf32_mem_intra_inst
                                                                 PassThrough,
                                                                 PassThrough,
                                                                 TF32,
-                                                                TF32>>>& instances)
+                                                                TF32>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_BF16

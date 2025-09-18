@@ -198,9 +198,9 @@ struct BlockwiseGemmXdlops_pipeline_v3_b_scale<BlockGemmPipelineScheduler::Intra
         // stage 1
         // Separate this part?
         // constexpr auto num_mfma_per_ds_read = sizeof(ComputeDataTypeBuf) / sizeof(ADataType) >
-        //                                               sizeof(ComputeDataTypeBuf) / sizeof(BDataType)
-        //                                           ? sizeof(ComputeDataTypeBuf) / sizeof(ADataType)
-        //                                           : sizeof(ComputeDataTypeBuf) / sizeof(BDataType);
+        //                                           sizeof(ComputeDataTypeBuf) / sizeof(BDataType)
+        //                                       ? sizeof(ComputeDataTypeBuf) / sizeof(ADataType)
+        //                                       : sizeof(ComputeDataTypeBuf) / sizeof(BDataType);
         constexpr auto num_mfma_stage1 = num_mfma_inst - (num_dsread_a_mfma + num_dsread_b_mfma);
         constexpr auto num_mfma_per_issue =
             num_mfma_stage1 / (num_buffer_load_inst_a + num_buffer_load_inst_b);

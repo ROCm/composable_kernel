@@ -127,7 +127,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                          is_same_v<OutDataType, float>)
             {
-                if constexpr(is_same_v<AComputeType, TF32> && is_same_v<BComputeType, TF32>)
+                if constexpr(is_same_v<AComputeType, BComputeType> && is_same_v<AComputeType, TF32>)
                 {
                     add_device_grouped_conv2d_fwd_clamp_xdl_nhwgc_gkyxc_nhwgk_f32_tf32_instances(
                         op_ptrs);
@@ -214,7 +214,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                          is_same_v<OutDataType, float>)
             {
-                if constexpr(is_same_v<AComputeType, TF32> && is_same_v<BComputeType, TF32>)
+                if constexpr(is_same_v<AComputeType, BComputeType> && is_same_v<AComputeType, TF32>)
                 {
                     add_device_grouped_conv3d_fwd_clamp_xdl_ndhwgc_gkzyxc_ndhwgk_f32_tf32_instances(
                         op_ptrs);
