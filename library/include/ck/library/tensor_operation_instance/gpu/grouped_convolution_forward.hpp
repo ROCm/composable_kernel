@@ -221,6 +221,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f32_tf32_instances(op_ptrs);
                     add_device_grouped_conv2d_fwd_xdl_merged_groups_nhwgc_gkyxc_nhwgk_f32_tf32_instances(
                         op_ptrs);
+                    add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f32_tf32_comp_instances(
+                        op_ptrs);
                 }
                 else
                 {
@@ -315,6 +317,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkcyx_ngkhw_f32_tf32_instances(
                         op_ptrs);
                     add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f32_tf32_instances(op_ptrs);
+                    add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f32_tf32_comp_instances(
+                        op_ptrs);
                 }
                 else
                 {
@@ -474,6 +478,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                         op_ptrs);
                     add_device_grouped_conv3d_fwd_xdl_merged_groups_ndhwgc_gkzyxc_ndhwgk_f32_tf32_instances(
                         op_ptrs);
+                    add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_tf32_comp_instances(
+                        op_ptrs);
                 }
                 else
                 {
@@ -595,6 +601,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                 if constexpr(is_same_v<AComputeType, BComputeType> && is_same_v<AComputeType, TF32>)
                 {
                     add_device_grouped_conv3d_fwd_xdl_merged_groups_ngcdhw_gkczyx_ngkdhw_f32_tf32_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_tf32_comp_instances(
                         op_ptrs);
                 }
                 else
