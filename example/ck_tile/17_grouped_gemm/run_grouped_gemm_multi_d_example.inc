@@ -293,34 +293,35 @@ int run_grouped_gemm_multi_d_example_with_layouts(int argc,
     }
 
     bool pass{true};
-    // if(validate)
-    // {
-    //     for(int i = 0; i < group_count; ++i)
-    //     {
-    //         ck_tile::HostTensor<CDataType> c_m_n_host_ref(ck_tile::host_tensor_descriptor(
-    //             Ms[i], Ns[i], stride_Cs[i], is_row_major(CLayout{})));
-    //         c_m_n_host_ref.SetZero();
-    //         ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
-    //             a_m_k_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
-    //         const float max_accumulated_value =
-    //             *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
-    //         const auto rtol_atol =
-    //             calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
-    //                 Ks[i], kbatch, max_accumulated_value);
-    //         pass &=
-    //             ck_tile::check_err(c_m_n_tensors[i],
-    //                                c_m_n_host_ref,
-    //                                "Error: Incorrect results! in group [" + std::to_string(i) +
-    //                                "]", rtol_atol.at(ck_tile::number<0>{}),
-    //                                rtol_atol.at(ck_tile::number<1>{}));
-    //         std::cout << "gemm[" << i
-    //                   << "] Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
-    //                   << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
-    //                   << std::endl;
-    //     }
-    //     std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") <<
-    //     std::endl;
-    // }
+    if(validate)
+    {
+        //     for(int i = 0; i < group_count; ++i)
+        //     {
+        //         ck_tile::HostTensor<CDataType> c_m_n_host_ref(ck_tile::host_tensor_descriptor(
+        //             Ms[i], Ns[i], stride_Cs[i], is_row_major(CLayout{})));
+        //         c_m_n_host_ref.SetZero();
+        //         ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
+        //             a_m_k_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
+        //         const float max_accumulated_value =
+        //             *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
+        //         const auto rtol_atol =
+        //             calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+        //                 Ks[i], kbatch, max_accumulated_value);
+        //         pass &=
+        //             ck_tile::check_err(c_m_n_tensors[i],
+        //                                c_m_n_host_ref,
+        //                                "Error: Incorrect results! in group [" + std::to_string(i)
+        //                                +
+        //                                "]", rtol_atol.at(ck_tile::number<0>{}),
+        //                                rtol_atol.at(ck_tile::number<1>{}));
+        //         std::cout << "gemm[" << i
+        //                   << "] Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
+        //                   << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
+        //                   << std::endl;
+        //     }
+        //     std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") <<
+        //     std::endl;
+    }
 
     if(arg_parser.get_int("json") == 1)
     {

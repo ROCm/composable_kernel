@@ -325,7 +325,7 @@ std::pair<bool, ck_tile::ArgParser> create_args(int argc, char* argv[])
 
 inline std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gemm_descs)
 {
-    return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg);
+    return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArgDefault);
 }
 
 template <typename GemmConfig, typename T>

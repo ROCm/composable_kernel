@@ -115,75 +115,75 @@ float grouped_gemm_multi_d(const std::vector<grouped_gemm_multi_d_kargs>& gemm_d
             (void)sizeof(GemmPipeline);
             (void)sizeof(GemmEpilogue);
             using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-            auto kargs   = Kernel::MakeKargs(gemm_descs);
-            // if(!Kernel::IsSupportedArgument(kargs))
-            //{
-            //     throw std::runtime_error("Kernel arguments not supported!");
-            // }
-            //
-            // const dim3 blocks = Kernel::BlockSize();
-            // const dim3 grids  = Kernel::GridSize(gemm_descs);
-            //
-            // HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
-            //                                    kargs.data(),
-            //                                    get_workspace_size(gemm_descs),
-            //                                    hipMemcpyHostToDevice,
-            //                                    s.stream_id_));
-            //
-            // if(s.log_level_ > 0)
-            //{
-            //    std::cout << "Launching kernel: " << Kernel::GetName() << " with args:" << " grid:
-            //    {"
-            //              << grids.x << ", " << grids.y << ", " << grids.z << "}" << ", blocks: {"
-            //              << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << std::endl;
-            //}
-            //
-            // ave_time =
-            //    ck_tile::launch_kernel(s,
-            //                           ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
-            //                               Kernel{},
-            //                               grids,
-            //                               blocks,
-            //                               0,
-            //                               ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
-            //                               gemm_descs.size()));
-            //
+            auto kargs   = Kernel::template MakeKargs<DsDataType::size()>(gemm_descs);
+            if(!Kernel::IsSupportedArgument(kargs))
+            {
+                throw std::runtime_error("Kernel arguments not supported!");
+            }
+
+            const dim3 blocks = Kernel::BlockSize();
+            const dim3 grids  = Kernel::GridSize(gemm_descs);
+
+            HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
+                                                kargs.data(),
+                                                get_workspace_size(gemm_descs),
+                                                hipMemcpyHostToDevice,
+                                                s.stream_id_));
+
+            if(s.log_level_ > 0)
+            {
+                std::cout << "Launching kernel: " << Kernel::GetName() << " with args:" << " grid: { "
+                        << grids.x << ", " << grids.y << ", " << grids.z << "}" << ", blocks: {"
+                        << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << std::endl;
+            }
+
+                // ave_time =
+                //    ck_tile::launch_kernel(s,
+                //                           ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
+                //                               Kernel{},
+                //                               grids,
+                //                               blocks,
+                //                               0,
+                //                               ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
+                //                               gemm_descs.size()));
+                //
+                return ave_time;
+            };
+
+            const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
+                if(gemm_descs[0].k_batch == 1)
+                {
+                    Run(has_hot_loop_,
+                        tail_number_,
+                        ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                                   ck_tile::memory_operation_enum::set>{});
+                }
+                else
+                {
+                    Run(has_hot_loop_,
+                        tail_number_,
+                        ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                                   ck_tile::memory_operation_enum::atomic_add>{});
+                }
+            };
+
+            BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
+
             return ave_time;
-        };
-
-    const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
-        if(gemm_descs[0].k_batch == 1)
-        {
-            Run(has_hot_loop_,
-                tail_number_,
-                ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::set>{});
         }
-        else
-        {
-            Run(has_hot_loop_,
-                tail_number_,
-                ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::atomic_add>{});
-        }
-    };
-
-    BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
-
-    return ave_time;
-}
 
 #include "run_grouped_gemm_multi_d_example.inc"
 
-int main(int argc, char* argv[])
-{
-    std::cout << "main" << std::endl;
+    int
+    main(int argc, char* argv[])
+    {
+        std::cout << "main" << std::endl;
 #if CK_TILE_USE_WMMA
-    return !run_grouped_gemm_multi_d_example<GemmConfigV3_Wmma>(argc, argv);
+        return !run_grouped_gemm_multi_d_example<GemmConfigV3_Wmma>(argc, argv);
 #else
-    return !run_grouped_gemm_multi_d_example<GemmConfigV3>(
-        argc, argv) /* || !run_grouped_gemm_multi_d_example<GemmConfigV4>(argc, argv)
-|| !run_grouped_gemm_multi_d_example<GemmConfigMemory>(argc, argv) */
-        ;
+        return !run_grouped_gemm_multi_d_example<GemmConfigV3>(
+            argc, argv) /* || !run_grouped_gemm_multi_d_example<GemmConfigV4>(argc, argv)
+    || !run_grouped_gemm_multi_d_example<GemmConfigMemory>(argc, argv) */
+            ;
 #endif
-}
+    }
