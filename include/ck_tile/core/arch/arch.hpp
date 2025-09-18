@@ -162,8 +162,7 @@ struct waitcnt_arg
     template <index_t cnt>
     CK_TILE_DEVICE static constexpr index_t from_lgkmcnt()
     {
-        // static_assert(cnt >= 0 && !(cnt >> 4), "valid range is [0..15]");
-        constexpr int cnt_ = cnt > 15? 15 : cnt;
+        constexpr int cnt_ = cnt > 15 ? 15 : cnt;
         return MAX & (cnt_ << 8);
     }
 };

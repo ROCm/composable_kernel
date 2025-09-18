@@ -32,6 +32,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
     using ODataType             = remove_cvref_t<typename Problem::ODataType>;
     using AttentionVariant      = remove_cvref_t<typename Problem::AttentionVariant>;
     using FmhaMask              = remove_cvref_t<typename Problem::FmhaMask>;
+    using HotLoopScheduler      = typename Policy::template HotLoopScheduler<Problem>;
 
     using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
@@ -67,7 +68,6 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
     static constexpr bool kHasDropout       = Problem::kHasDropout;
     static constexpr auto BiasEnum          = Problem::BiasEnum;
     static constexpr bool kStoreLSE         = Problem::kStoreLSE;
-    static constexpr bool kHasUnevenSplits  = true;
 
     static_assert((CK_TILE_FMHA_FWD_FAST_EXP2 &&
                    (kHasLogitsSoftCap && Problem::BiasEnum == BlockAttentionBiasEnum::NO_BIAS ||
@@ -76,17 +76,10 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
-    static constexpr index_t kAlignmentQ = Policy::template GetAlignmentQ<Problem>();
-    static constexpr index_t kAlignmentK = Policy::template GetAlignmentK<Problem>();
-    static constexpr index_t kAlignmentV = []() {
-        if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-            return Policy::template GetAlignmentV<Problem>();
-        else
-            return kPadSeqLenK ? 1 : Policy::template GetAlignmentV<Problem>();
-    }();
-
+    static constexpr index_t kAlignmentQ    = Policy::template GetAlignmentQ<Problem>();
+    static constexpr index_t kAlignmentK    = Policy::template GetAlignmentK<Problem>();
+    static constexpr index_t kAlignmentV    = Policy::template GetAlignmentV<Problem>();
     static constexpr index_t kAlignmentOacc = Policy::template GetAlignmentO<Problem>();
-
     static constexpr index_t kAlignmentBias =
         kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
 
@@ -197,7 +190,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
             mask.GetTileRangeAlongX(q_origin.at(I0), number<kM0>{}, number<kN0>{});
 
         // check early exit if no work to do
-        if constexpr(FmhaMask::IsMasking || kPadSeqLenK || kHasUnevenSplits)
+        if constexpr(FmhaMask::IsMasking || kPadSeqLenK)
         {
             const index_t logical_num_total_loop =
                 integer_divide_ceil(logical_seqlen_k_end - logical_seqlen_k_start, kN0);
@@ -387,25 +380,6 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
                                   sequence<0, (k0_loops - 1) * kK0>{},
                                   sequence<kM0, k0_loops * kK0>{}),
                    k_tile);
-
-            if constexpr(kHasUnevenSplits)
-            {
-                if(i_total_loops == (num_total_loop - 1))
-                {
-                    const auto k_origin = make_tuple(kN0 * i_total_loops, 0);
-                    set_tile_if(s_acc,
-                                -numeric<SMPLComputeDataType>::infinity(),
-                                [&,
-                                 physical_seqlen_k_start_ = physical_seqlen_k_start,
-                                 physical_seqlen_k_end_   = physical_seqlen_k_end](auto tile_idx) {
-                                    const auto col = k_origin.at(I0) + tile_idx.at(I1);
-
-                                    {
-                                        return physical_seqlen_k_end_ <= col;
-                                    }
-                                });
-                }
-            }
 
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
@@ -703,7 +677,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
             mask.GetTileRangeAlongX(q_origin.at(I0), number<kM0>{}, number<kN0>{});
 
         // check early exit if no work to do
-        if constexpr(FmhaMask::IsMasking || kPadSeqLenK || kHasUnevenSplits)
+        if constexpr(FmhaMask::IsMasking || kPadSeqLenK)
         {
             const index_t logical_num_total_loop =
                 integer_divide_ceil(logical_seqlen_k_end - logical_seqlen_k_start, kN0);
@@ -896,25 +870,6 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
             v_lds_read_window.set_bottom_tensor_view_data_ptr(v_lds_read_ptr);
             auto v_tile = load_tile_transpose(v_lds_read_window);
 
-            if constexpr(kHasUnevenSplits)
-            {
-                if(i_total_loops == (num_total_loop - 1))
-                {
-                    const auto k_origin = make_tuple(kN0 * i_total_loops, 0);
-                    set_tile_if(s_acc,
-                                -numeric<SMPLComputeDataType>::infinity(),
-                                [&,
-                                 physical_seqlen_k_start_ = physical_seqlen_k_start,
-                                 physical_seqlen_k_end_   = physical_seqlen_k_end](auto tile_idx) {
-                                    const auto col = k_origin.at(I0) + tile_idx.at(I1);
-
-                                    {
-                                        return physical_seqlen_k_end_ <= col;
-                                    }
-                                });
-                }
-            }
-
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
                 const auto k_origin = make_tuple(kN0 * i_total_loops, 0);
@@ -955,18 +910,6 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
                 -numeric<SMPLComputeDataType>::infinity()); // m_local = rowmax(S{j})
             block_tile_reduce_sync(
                 m_local, f_max, bool_constant<false>{} /*, bool_constant<false>{}*/);
-
-            static_for<0, 24, 1>{}([&](auto i) {
-                ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS_READ
-            });
-
-            static_for<0, 8, 1>{}([&](auto i) {
-                ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 2, 0); // DS_READ
-            });
 
             const auto m_old = m; // m{j-1}
             tile_elementwise_inout(
@@ -1091,17 +1034,8 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
             k_lds_read_window.set_bottom_tensor_view_data_ptr(k_lds_read_ptr);
             k_tile = load_tile(k_lds_read_window);
 
-            static_for<0, 24, 1>{}([&](auto i) {
-                ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 2, 0); // DS_READ
-            });
-
-            static_for<0, 8, 1>{}([&](auto i) {
-                ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS_READ
-            });
+            HotLoopScheduler::SchedulerGemm0();
+            HotLoopScheduler::SchedulerGemm1();
         }; // mainloop
 
         do

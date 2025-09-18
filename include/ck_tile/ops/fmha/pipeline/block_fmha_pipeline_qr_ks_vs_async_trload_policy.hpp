@@ -815,6 +815,82 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
         return max(GetSmemSizeQ<Problem>(),
                    GetSmemSizeK<Problem>() + GetSmemSizeS<Problem>() + GetSmemSizeV<Problem>());
     }
+
+    template <typename Problem>
+    class HotLoopScheduler
+    {
+        static constexpr index_t kBlockSize = Problem::kBlockSize;
+        static constexpr index_t kM0        = Problem::BlockFmhaShape::kM0;
+        static constexpr index_t kN0        = Problem::BlockFmhaShape::kN0;
+        static constexpr index_t kQKHeaddim = Problem::BlockFmhaShape::kQKHeaddim;
+        static constexpr index_t kN1        = Problem::BlockFmhaShape::kN1;
+        static constexpr index_t kK0        = Problem::BlockFmhaShape::kK0;
+        static constexpr index_t kK1        = Problem::BlockFmhaShape::kK1;
+
+        static constexpr index_t WarpGemmM =
+            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{});
+        static constexpr index_t WarpGemmN =
+            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{});
+        static constexpr index_t WarpGemmK =
+            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{});
+
+        static constexpr index_t blockWarps = kBlockSize / get_warp_size();
+        using VDataType                     = typename Problem::VDataType;
+
+        // Compute
+        static constexpr index_t Gemm0MFMA =
+            kM0 * kN0 * kQKHeaddim / (blockWarps * WarpGemmM * WarpGemmN * WarpGemmK);
+        static constexpr index_t Gemm1MFMA =
+            kM0 * kN1 * kN0 / (blockWarps * WarpGemmM * WarpGemmN * WarpGemmK);
+
+        // VMEM
+
+        // LDS Read
+        static constexpr index_t K_LDS_READ_FULL =
+            kN0 * kQKHeaddim / get_warp_size() / GetAlignmentK<Problem>();
+        static constexpr index_t K_LDS_READ_PARTIAL =
+            kN0 * kK0 / get_warp_size() / GetAlignmentK<Problem>();
+
+        static constexpr index_t V_LDS_READ_FULL =
+            kN1 * kN0 / get_warp_size() / (8 / sizeof(VDataType));
+        static constexpr index_t V_LDS_READ_PARTIAL =
+            kN1 * kK1 / get_warp_size() / (8 / sizeof(VDataType));
+
+        public:
+        CK_TILE_DEVICE static constexpr void SchedulerGemm0()
+        {
+            // Mem: K Lds load Full - Partial, V Lds Load Partial
+            // Comp: Q x K
+            constexpr index_t MFMA_INST = Gemm0MFMA;
+            constexpr index_t LDS_READ_INST =
+                K_LDS_READ_FULL - K_LDS_READ_PARTIAL + V_LDS_READ_PARTIAL;
+
+            constexpr index_t lcm_inst = lcm(MFMA_INST, LDS_READ_INST);
+            static_for<0, lcm_inst, 1>{}([&](auto i) {
+                if constexpr(i % (lcm_inst / MFMA_INST) == 0)
+                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                if constexpr(i % (lcm_inst / LDS_READ_INST) == 0)
+                    __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+            });
+        }
+
+        CK_TILE_DEVICE static constexpr void SchedulerGemm1()
+        {
+            // Mem: K Lds load Full - Partial, V Lds Load Partial
+            // Comp: Q x K
+            constexpr index_t MFMA_INST = Gemm1MFMA;
+            constexpr index_t LDS_READ_INST =
+                V_LDS_READ_FULL - V_LDS_READ_PARTIAL + K_LDS_READ_PARTIAL;
+
+            constexpr index_t lcm_inst = lcm(MFMA_INST, LDS_READ_INST);
+            static_for<0, lcm_inst, 1>{}([&](auto i) {
+                if constexpr(i % (lcm_inst / MFMA_INST) == 0)
+                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                if constexpr(i % (lcm_inst / LDS_READ_INST) == 0)
+                    __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+            });
+        }
+    };
 };
 
 } // namespace ck_tile
