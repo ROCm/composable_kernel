@@ -94,6 +94,16 @@ generate_sharded_instantiations(
   SRC_LIST GROUPED_conv3d_FWD_BIAS_BNORM_CLAMP
   OUTPUT_DIR ${GENERATED_DIR}/xdl/large_tensor
 )
+
+set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+generate_sharded_instantiations(
+  INSTANCES_NAME device_grouped_conv3d_fwd_bias_bn_clamp_xdl_large_tensor_ndhwgc_gkzyxc_ndhwgk_f32_tf32_instances
+  TEMPLATE_FILE xdl/large_tensor/device_grouped_conv3d_fwd_bias_bn_clamp_xdl_large_tensor_ndhwgc_gkzyxc_ndhwgk_f32_tf32_instance.in
+  NUM_SHARDS 2
+  SRC_LIST GROUPED_conv3d_FWD_BIAS_BNORM_CLAMP
+  OUTPUT_DIR ${GENERATED_DIR}/xdl/large_tensor
+)
+
    # merged groups
    # NDHWGC, GKZYXC, NDHWGK
 
