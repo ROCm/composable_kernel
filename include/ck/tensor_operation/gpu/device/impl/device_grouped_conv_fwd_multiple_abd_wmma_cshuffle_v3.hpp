@@ -390,15 +390,20 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
     using GemmBsDataType = std::conditional_t<!isMultiB, Tuple<BDataType>, BDataType>;
 
     // Use appropriate gridwise gemm
-    // Note: After the convolution has been converted to gemm, the 2D tensor descriptors will in
-    // general not be RowMajor or ColumnMajor but have a more complex layout. For now we just pass
-    // RowMajor to the gridwise struct. As long as we use the correct gridwise functionality this
-    // layout should not be used for anything.
+    // Note / TODO: After the convolution has been converted to gemm, the 2D tensor descriptors will
+    // in general not be RowMajor or ColumnMajor but have a more complex layout. For now we just
+    // pass RCR (or CRC for CTranspose) to the gridwise gemm. This is currently only used to
+    // determine the LDS block descriptors, *IF* we are not using extraM and extraN. It seems like
+    // we are able to freely set these anyway without affecting results, but RCR (or CRC for
+    // CTranspose) is supposedly the most accurate (and perhaps performant). The 2D layouts are also
+    // used in the gridwise CheckValidity() function, where it determines some vector access checks
+    // and MNPerBlock if we are not using padding. We may not actually needs these checks but keep
+    // them for now.
     using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3<
-        tensor_layout::gemm::RowMajor, // Dummy, see Note above
-        tensor_layout::gemm::RowMajor, // Dummy, see Note above
+        tensor_layout::gemm::RowMajor,    // See Note above
+        tensor_layout::gemm::ColumnMajor, // See Note above
         DsLayout,
-        tensor_layout::gemm::RowMajor, // Dummy, see Note above
+        tensor_layout::gemm::RowMajor, // See Note above
         GemmAsDataType,
         GemmBsDataType,
         AccDataType,
@@ -451,11 +456,11 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
     // In case of CTranspose we swap the following template parameters:
     // DataType, ElementWiseOp, PerBlock, K1, PerWmma, Repeat, All block transfer params.
     using GridwiseGemmSwappedParams = GridwiseGemm_wmma_cshuffle_v3<
-        tensor_layout::gemm::RowMajor, // Dummy, see Note above
-        tensor_layout::gemm::RowMajor, // Dummy, see Note above
+        tensor_layout::gemm::ColumnMajor, // See Note above
+        tensor_layout::gemm::RowMajor,    // See Note above
 
         DsLayout,
-        tensor_layout::gemm::RowMajor, // Dummy, see Note above
+        tensor_layout::gemm::ColumnMajor, // See Note above
 
         GemmBsDataType,
         GemmAsDataType,
@@ -1024,7 +1029,10 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
 
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-                printf("\033[035mCTranspose %d\033[0m\n", CTranspose);
+                printf("\033[035mCTranspose %d extraM %d extraN %d\033[0m\n",
+                       CTranspose,
+                       ABlockLdsExtraM,
+                       BBlockLdsExtraN);
             }
 
             float ave_time = 0;
@@ -1992,8 +2000,7 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                                                                arg.cde_element_op_};
             // TODO: No is_reduce argument, defaults to false.
 
-            // Special CheckValidity function does not rely on 2D tensor layouts.
-            return GridwiseGemmCTranspose::CheckValidityConvolution(gemm_arg);
+            return GridwiseGemmCTranspose::CheckValidity(gemm_arg);
         }
         else
         {
@@ -2014,8 +2021,7 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                                                                arg.cde_element_op_};
             // TODO: No is_reduce argument, defaults to false.
 
-            // Special CheckValidity function does not rely on 2D tensor layouts.
-            return GridwiseGemmCTranspose::CheckValidityConvolution(gemm_arg);
+            return GridwiseGemmCTranspose::CheckValidity(gemm_arg);
         }
     }
 
