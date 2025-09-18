@@ -2,17 +2,22 @@
 # TODO: run this script from CK root or build directory
 set -euo pipefail
 
+SCRIPT_DIR=$(cd $(dirname "${BASH_SOURCE[0]}") && pwd)
 EXE_NAME=tile_example_fmha_fwd
 EXE="$(find . -name $EXE_NAME -type f | head -n 1)"
 KNAME=1
+GPU_arch=$GPU_arch
+if [ -z "$GPU_arch" ] ; then
+    GPU_arch=$(rocminfo | grep -E 'Name:\s+gfx' | head -n1 | awk '{print $2}')
+fi
 
 export CK_WARMUP=0
 export CK_REPEAT=1
 
-CURR_FAILLS_FILE=${CURR_FAILLS_FILE:-"fmha_fwd_fails.txt"}
+CURR_FAILLS_FILE=${CURR_FAILLS_FILE:-"fmha_fwd_fails_$GPU_arch.txt"}
 rm -f $CURR_FAILLS_FILE
 touch $CURR_FAILLS_FILE
-KNOWN_FAILS_FILE=${KNOWN_FAILS_FILE:-"fmha_fwd_known_fails.txt"}
+KNOWN_FAILS_FILE=${KNOWN_FAILS_FILE:-"$SCRIPT_DIR/fmha_fwd_known_fails_$GPU_arch.txt"}
 
 COMMON_ARGS='-v=1 -warmup=0 -repeat=1'
 # mode=0
