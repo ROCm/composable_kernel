@@ -945,7 +945,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
-    template <typename Argument>
+    // When ConvolutionMode is true we do not rely on 2D Tensor layouts.
+    template <typename Argument, bool ConvolutionMode = false>
     __host__ static constexpr bool CheckValidity(const Argument& karg)
     {
         static_assert((MPerBlock % (MPerWmma * MRepeat) == 0) &&
@@ -956,7 +957,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding) &&
-                     !(is_same<tensor_layout::gemm::RowMajor, ALayout>::value))
+                     !(is_same<tensor_layout::gemm::RowMajor, ALayout>::value || ConvolutionMode))
         {
             if(!(karg.M % MPerBlock == 0))
             {
@@ -974,7 +975,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding) &&
-                     (is_same<tensor_layout::gemm::RowMajor, BLayout>::value))
+                     (is_same<tensor_layout::gemm::RowMajor, BLayout>::value || ConvolutionMode))
         {
             if(!(karg.N % NPerBlock == 0))
             {
@@ -1017,92 +1018,99 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             }
         }
 
-        if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
+        if constexpr(!ConvolutionMode)
         {
-            if(karg.K % ABlockTransferSrcScalarPerVector != 0)
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
             {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                if(karg.K % ABlockTransferSrcScalarPerVector != 0)
                 {
-                    std::cout << "Arg K (" << karg.K
-                              << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
-                              << ABlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
-                              << __LINE__ << ", in function: " << __func__ << std::endl;
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout
+                            << "Arg K (" << karg.K
+                            << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
+                            << ABlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
+                            << __LINE__ << ", in function: " << __func__ << std::endl;
+                    }
+                    return false;
                 }
-                return false;
             }
-        }
-        else
-        {
-            if(karg.M % ABlockTransferSrcScalarPerVector != 0)
+            else
             {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                if(karg.M % ABlockTransferSrcScalarPerVector != 0)
                 {
-                    std::cout << "Arg M (" << karg.M
-                              << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
-                              << ABlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
-                              << __LINE__ << ", in function: " << __func__ << std::endl;
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout
+                            << "Arg M (" << karg.M
+                            << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
+                            << ABlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
+                            << __LINE__ << ", in function: " << __func__ << std::endl;
+                    }
+                    return false;
                 }
-                return false;
             }
-        }
 
-        if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
-        {
-            if(karg.N % BBlockTransferSrcScalarPerVector != 0)
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
             {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                if(karg.N % BBlockTransferSrcScalarPerVector != 0)
                 {
-                    std::cout << "Arg N (" << karg.N
-                              << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
-                              << BBlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
-                              << __LINE__ << ", in function: " << __func__ << std::endl;
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout
+                            << "Arg N (" << karg.N
+                            << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
+                            << BBlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
+                            << __LINE__ << ", in function: " << __func__ << std::endl;
+                    }
+                    return false;
                 }
-                return false;
             }
-        }
-        else
-        {
-            if(karg.K % BBlockTransferSrcScalarPerVector != 0)
+            else
             {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                if(karg.K % BBlockTransferSrcScalarPerVector != 0)
                 {
-                    std::cout << "Arg K (" << karg.K
-                              << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
-                              << BBlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
-                              << __LINE__ << ", in function: " << __func__ << std::endl;
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout
+                            << "Arg K (" << karg.K
+                            << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
+                            << BBlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
+                            << __LINE__ << ", in function: " << __func__ << std::endl;
+                    }
+                    return false;
                 }
-                return false;
             }
-        }
 
-        if constexpr(is_same<tensor_layout::gemm::RowMajor, ELayout>::value)
-        {
-            if(karg.N % EShuffleBlockTransferScalarPerVector != 0)
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, ELayout>::value)
             {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                if(karg.N % EShuffleBlockTransferScalarPerVector != 0)
                 {
-                    std::cout << "Arg N (" << karg.N
-                              << ") value is not a multiple of "
-                                 "EShuffleBlockTransferScalarPerVector ("
-                              << EShuffleBlockTransferScalarPerVector << " )! " << __FILE__ << ":"
-                              << __LINE__ << ", in function: " << __func__ << std::endl;
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout << "Arg N (" << karg.N
+                                  << ") value is not a multiple of "
+                                     "EShuffleBlockTransferScalarPerVector ("
+                                  << EShuffleBlockTransferScalarPerVector << " )! " << __FILE__
+                                  << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
+                    }
+                    return false;
                 }
-                return false;
             }
-        }
-        else
-        {
-            if(karg.M % EShuffleBlockTransferScalarPerVector != 0)
+            else
             {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                if(karg.M % EShuffleBlockTransferScalarPerVector != 0)
                 {
-                    std::cout << "Arg M (" << karg.M
-                              << ") value is not a multiple of "
-                                 "EShuffleBlockTransferScalarPerVector ("
-                              << EShuffleBlockTransferScalarPerVector << " )! " << __FILE__ << ":"
-                              << __LINE__ << ", in function: " << __func__ << std::endl;
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout << "Arg M (" << karg.M
+                                  << ") value is not a multiple of "
+                                     "EShuffleBlockTransferScalarPerVector ("
+                                  << EShuffleBlockTransferScalarPerVector << " )! " << __FILE__
+                                  << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
+                    }
+                    return false;
                 }
-                return false;
             }
         }
 
@@ -1136,6 +1144,13 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
         return true;
+    }
+
+    // Wrapper for CheckValidity in the case of convolution.
+    template <typename Argument>
+    __host__ static constexpr bool CheckValidityConvolution(const Argument& karg)
+    {
+        return CheckValidity<Argument, true>(karg);
     }
 
     __host__ static constexpr bool CalculateHasMainKBlockLoop(index_t K)

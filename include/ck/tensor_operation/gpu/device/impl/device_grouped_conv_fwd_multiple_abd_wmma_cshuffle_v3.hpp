@@ -390,11 +390,15 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
     using GemmBsDataType = std::conditional_t<!isMultiB, Tuple<BDataType>, BDataType>;
 
     // Use appropriate gridwise gemm
+    // Note: After the convolution has been converted to gemm, the 2D tensor descriptors will in
+    // general not be RowMajor or ColumnMajor but have a more complex layout. For now we just pass
+    // RowMajor to the gridwise struct. As long as we use the correct gridwise functionality this
+    // layout should not be used for anything.
     using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3<
-        tensor_layout::gemm::RowMajor,
-        tensor_layout::gemm::ColumnMajor,
+        tensor_layout::gemm::RowMajor, // Dummy, see Note above
+        tensor_layout::gemm::RowMajor, // Dummy, see Note above
         DsLayout,
-        tensor_layout::gemm::RowMajor,
+        tensor_layout::gemm::RowMajor, // Dummy, see Note above
         GemmAsDataType,
         GemmBsDataType,
         AccDataType,
@@ -447,11 +451,11 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
     // In case of CTranspose we swap the following template parameters:
     // DataType, ElementWiseOp, PerBlock, K1, PerWmma, Repeat, All block transfer params.
     using GridwiseGemmSwappedParams = GridwiseGemm_wmma_cshuffle_v3<
-        tensor_layout::gemm::RowMajor,
-        tensor_layout::gemm::ColumnMajor,
+        tensor_layout::gemm::RowMajor, // Dummy, see Note above
+        tensor_layout::gemm::RowMajor, // Dummy, see Note above
 
         DsLayout,
-        tensor_layout::gemm::RowMajor,
+        tensor_layout::gemm::RowMajor, // Dummy, see Note above
 
         GemmBsDataType,
         GemmAsDataType,
@@ -511,8 +515,8 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
         AComputeDataType, // TODO: Swapped these but will probably never get verified because the
                           // only mixed precision instances are not NCHW.
 
-        false,  // PermuteA
-        false>; // PermuteB
+        false,  // PermuteB
+        false>; // PermuteA
 
     using GridwiseGemmCTranspose =
         std::conditional_t<CTranspose, GridwiseGemmSwappedParams, GridwiseGemm>;
@@ -1988,7 +1992,8 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                                                                arg.cde_element_op_};
             // TODO: No is_reduce argument, defaults to false.
 
-            return GridwiseGemmCTranspose::CheckValidity(gemm_arg);
+            // Special CheckValidity function does not rely on 2D tensor layouts.
+            return GridwiseGemmCTranspose::CheckValidityConvolution(gemm_arg);
         }
         else
         {
@@ -2009,7 +2014,8 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                                                                arg.cde_element_op_};
             // TODO: No is_reduce argument, defaults to false.
 
-            return GridwiseGemmCTranspose::CheckValidity(gemm_arg);
+            // Special CheckValidity function does not rely on 2D tensor layouts.
+            return GridwiseGemmCTranspose::CheckValidityConvolution(gemm_arg);
         }
     }
 
