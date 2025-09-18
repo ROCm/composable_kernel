@@ -392,6 +392,23 @@ struct PassThrough
     }
 };
 
+struct AddScale
+{
+    template <typename E, typename... As>
+    CK_TILE_HOST_DEVICE constexpr void operator()(E& a, const As&... as) const
+    {
+        // Start with the base value c
+        float result = ck_tile::type_convert<float>(0.0f);
+
+        // Add by each D parameter using fold expression
+        ((result += ck_tile::type_convert<float>(as)), ...);
+
+        a = ck_tile::type_convert<E>(scale * result);
+    }
+
+    float scale = 1.0;
+};
+
 struct MultiDMultiply
 {
     template <typename E, typename C, typename... Ds>
