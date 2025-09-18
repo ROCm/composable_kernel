@@ -21,36 +21,76 @@ std::pair<bool, float> fmha_fwd_v3(const fmha_fwd_v3_args& args, const stream_co
 {
     if(args.data_type == fmha_fwd_v3_args::data_type_enum::fp16)
     {
-        if(args.mask_type == static_cast<int>(mask_enum::no_mask))
+        if(args.seqstart_q_ptr != nullptr)
         {
-            using kernel_traits =
-                fmha_fwd_v3_kernel_traits<fmha_fwd_v3_args::data_type_enum::fp16, false, false>;
+            if(args.mask_type == static_cast<int>(mask_enum::no_mask))
+            {
+                using kernel_traits =
+                    fmha_fwd_v3_kernel_traits<fmha_fwd_v3_args::data_type_enum::fp16, true, false>;
 
-            return fmha_fwd_v3_kernel_dispatch<kernel_traits>(args, config);
+                return fmha_fwd_v3_kernel_dispatch<kernel_traits>(args, config);
+            }
+            else
+            {
+                using kernel_traits =
+                    fmha_fwd_v3_kernel_traits<fmha_fwd_v3_args::data_type_enum::fp16, true, true>;
+
+                return fmha_fwd_v3_kernel_dispatch<kernel_traits>(args, config);
+            }
         }
         else
         {
-            using kernel_traits =
-                fmha_fwd_v3_kernel_traits<fmha_fwd_v3_args::data_type_enum::fp16, false, true>;
+            if(args.mask_type == static_cast<int>(mask_enum::no_mask))
+            {
+                using kernel_traits =
+                    fmha_fwd_v3_kernel_traits<fmha_fwd_v3_args::data_type_enum::fp16, false, false>;
 
-            return fmha_fwd_v3_kernel_dispatch<kernel_traits>(args, config);
+                return fmha_fwd_v3_kernel_dispatch<kernel_traits>(args, config);
+            }
+            else
+            {
+                using kernel_traits =
+                    fmha_fwd_v3_kernel_traits<fmha_fwd_v3_args::data_type_enum::fp16, false, true>;
+
+                return fmha_fwd_v3_kernel_dispatch<kernel_traits>(args, config);
+            }
         }
     }
     else if(args.data_type == fmha_fwd_v3_args::data_type_enum::bf16)
     {
-        if(args.mask_type == static_cast<int>(mask_enum::no_mask))
+        if(args.seqstart_q_ptr != nullptr)
         {
-            using kernel_traits =
-                fmha_fwd_v3_kernel_traits<fmha_fwd_v3_args::data_type_enum::bf16, false, false>;
+            if(args.mask_type == static_cast<int>(mask_enum::no_mask))
+            {
+                using kernel_traits =
+                    fmha_fwd_v3_kernel_traits<fmha_fwd_v3_args::data_type_enum::bf16, true, false>;
 
-            return fmha_fwd_v3_kernel_dispatch<kernel_traits>(args, config);
+                return fmha_fwd_v3_kernel_dispatch<kernel_traits>(args, config);
+            }
+            else
+            {
+                using kernel_traits =
+                    fmha_fwd_v3_kernel_traits<fmha_fwd_v3_args::data_type_enum::bf16, true, true>;
+
+                return fmha_fwd_v3_kernel_dispatch<kernel_traits>(args, config);
+            }
         }
         else
         {
-            using kernel_traits =
-                fmha_fwd_v3_kernel_traits<fmha_fwd_v3_args::data_type_enum::bf16, false, true>;
+            if(args.mask_type == static_cast<int>(mask_enum::no_mask))
+            {
+                using kernel_traits =
+                    fmha_fwd_v3_kernel_traits<fmha_fwd_v3_args::data_type_enum::bf16, false, false>;
 
-            return fmha_fwd_v3_kernel_dispatch<kernel_traits>(args, config);
+                return fmha_fwd_v3_kernel_dispatch<kernel_traits>(args, config);
+            }
+            else
+            {
+                using kernel_traits =
+                    fmha_fwd_v3_kernel_traits<fmha_fwd_v3_args::data_type_enum::bf16, false, true>;
+
+                return fmha_fwd_v3_kernel_dispatch<kernel_traits>(args, config);
+            }
         }
     }
 

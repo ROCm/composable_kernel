@@ -265,13 +265,12 @@ struct FmhaFwdV3Kernel
                                                 ck_tile::index_t seqlen_q_,
                                                 ck_tile::index_t hdim_v_)
     {
-        // TODO: this may need tuning
-        if constexpr(kHasMask)
+        if constexpr(kIsGroupMode)
         {
             return dim3(nhead_,
+                        batch_size_,
                         ck_tile::integer_divide_ceil(seqlen_q_, FmhaPipeline::kM0) *
-                            ck_tile::integer_divide_ceil(hdim_v_, FmhaPipeline::kN1),
-                        batch_size_);
+                            ck_tile::integer_divide_ceil(hdim_v_, FmhaPipeline::kN1));
         }
         else
         {
@@ -325,14 +324,21 @@ struct FmhaFwdV3Kernel
         // const index_t num_tile_n1 = ck_tile::integer_divide_ceil(kargs.hdim_v,
         // FmhaPipeline::kN1);
 
-        // assume that num_tile_n1 is always 1
-        if constexpr(kHasMask)
+        if constexpr(kIsGroupMode)
         {
             const index_t i_nhead = blockIdx.x;
-            const index_t i_block = blockIdx.y;
-            const index_t i_batch = blockIdx.z;
+            const index_t i_batch = blockIdx.y;
+            const index_t i_block = blockIdx.z;
 
-            return ck_tile::make_tuple(gridDim.y - 1 - i_block, 0, i_nhead, i_batch);
+            if constexpr(kHasMask)
+            {
+                // assume that num_tile_n1 is always 1
+                return ck_tile::make_tuple(gridDim.z - 1 - i_block, 0, i_nhead, i_batch);
+            }
+            else
+            {
+                return ck_tile::make_tuple(i_block, 0, i_nhead, i_batch);
+            }
         }
         else
         {
@@ -340,7 +346,16 @@ struct FmhaFwdV3Kernel
             const index_t i_block = blockIdx.y;
             const index_t i_batch = blockIdx.z;
 
-            return ck_tile::make_tuple(i_block, 0, i_nhead, i_batch);
+            if constexpr(kHasMask)
+            {
+                // assume that num_tile_n1 is always 1
+                return ck_tile::make_tuple(gridDim.y - 1 - i_block, 0, i_nhead, i_batch);
+            }
+            else
+            {
+                // assume that num_tile_n1 is always 1
+                return ck_tile::make_tuple(i_block, 0, i_nhead, i_batch);
+            }
         }
     }
 
@@ -387,8 +402,7 @@ struct FmhaFwdV3Kernel
             batch_offset_o = query_start * kargs.stride_o;
 
             // get real # queries & # keys under group mode
-            const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
-            kargs.seqlen_q = adjusted_seqstart_q_ptr[1] - adjusted_seqstart_q_ptr[0];
+            kargs.seqlen_q = kargs.seqstart_q_ptr[i_batch + 1] - query_start;
 
             // # of required blocks is different in each groups, terminate unnecessary blocks
             // earlier
@@ -403,8 +417,7 @@ struct FmhaFwdV3Kernel
             }
             else
             {
-                const auto adjusted_seqstart_k_ptr = kargs.seqstart_k_ptr + i_batch;
-                kargs.seqlen_k = adjusted_seqstart_k_ptr[1] - adjusted_seqstart_k_ptr[0];
+                kargs.seqlen_k = kargs.seqstart_k_ptr[i_batch + 1] - key_start;
             }
         }
         else

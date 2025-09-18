@@ -23,12 +23,18 @@ struct fmha_fwd_v3_args
     // bool is_varlen;
 
     index_t batch;
+    index_t max_seqlen_q;
     index_t seqlen_q;
     index_t seqlen_k;
     index_t nhead_q;
     index_t nhead_kv;
     index_t hdim_qk;
     index_t hdim_v;
+
+    const void* seqstart_q_ptr;
+    const void* seqstart_k_ptr;
+    // only used if both 'seqstart_q_ptr' & 'seqstart_k_ptr' are not nullptr
+    const void* seqlen_k_ptr;
 
     float softmax_scale;
 

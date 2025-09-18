@@ -331,6 +331,7 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
 
     args.data_type     = problem.data_type;
     args.batch         = problem.batch;
+    args.max_seqlen_q  = problem.seqlen_q;
     args.seqlen_q      = problem.seqlen_q;
     args.seqlen_k      = problem.seqlen_k;
     args.nhead_q       = problem.nhead_q;
@@ -338,6 +339,10 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     args.hdim_qk       = problem.hdim;
     args.hdim_v        = problem.hdim;
     args.softmax_scale = problem.softmax_scale;
+
+    args.seqstart_q_ptr = nullptr;
+    args.seqstart_k_ptr = nullptr;
+    args.seqlen_k_ptr   = nullptr;
 
     args.window_size_left  = problem.mask.left;
     args.window_size_right = problem.mask.right;
