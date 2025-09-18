@@ -202,29 +202,7 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
                                     printf("  [%d] = %f\n", i, float_value);
                                 }
                             }
-                            constexpr auto tbuf_offset =
-                                number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
-                                        merge_sequences(sequence<mIter, nIter>{},
-                                                        c_warp_y_index_zeros)) /
-                                    CBlockTensor::PackedSize>{};
-
-                            constexpr index_t reg_offset =
-                                    nIter * KPerBlockBQ + kQScale; //((kIter * WG::kK) / kQuantGroupSize);
-
-                            auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
-                            float scale_reg_f = cvt_scale_to_fp32(scale_reg);
-                            static_for<0, WG::kM * WG::kN / warp_size, 1>{}(
-                                [&](auto c_row) {
-                                    if(get_block_id() == 0 && get_warp_id() == 0 && get_thread_id() == 0){
-                                        auto thread_buffer = c_warp_tensor.get_thread_buffer();
-                                        printf("c_row data[%d] is: %f\n", static_cast<int>(c_row), type_convert<float>(thread_buffer[c_row]));
-                                        printf("tbuf_offset is: %d\n", static_cast<int>(tbuf_offset));
-                                        printf("scale_reg_f[%d] is: %f\n", reg_offset, scale_reg_f);
-                                    }
-                                    c_block_tensor.get_thread_buffer()[tbuf_offset + c_row] +=
-                                        (c_warp_tensor.get_thread_buffer()[c_row] *
-                                            scale_reg_f);
-                            });
+                            
                             // constexpr index_t reg_offset =
                             //         nIter * KPerBlockBQ + kQScale; //((kIter * WG::kK) / kQuantGroupSize);
 
@@ -256,6 +234,30 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
                             {
                                 block_sync_lds();
                             }
+                        });
+                        constexpr auto tbuf_offset =
+                            number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
+                                    merge_sequences(sequence<mIter, nIter>{},
+                                                    c_warp_y_index_zeros)) /
+                                CBlockTensor::PackedSize>{};
+
+                        constexpr index_t reg_offset =
+                                nIter * KPerBlockBQ + kQScale; //((kIter * WG::kK) / kQuantGroupSize);
+
+                        auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
+                        float scale_reg_f = cvt_scale_to_fp32(scale_reg);
+                        
+                        static_for<0, WG::kM * WG::kN / warp_size, 1>{}(
+                            [&](auto c_row) {
+                                if(get_block_id() == 0 && get_warp_id() == 0 && get_thread_id() == 0){
+                                    auto thread_buffer = c_warp_tensor.get_thread_buffer();
+                                    printf("c_row data[%d] is: %f\n", static_cast<int>(c_row), type_convert<float>(thread_buffer[c_row]));
+                                    printf("tbuf_offset is: %d\n", static_cast<int>(tbuf_offset));
+                                    printf("scale_reg_f[%d] is: %f\n", reg_offset, scale_reg_f);
+                                }
+                                c_block_tensor.get_thread_buffer()[tbuf_offset + c_row] +=
+                                    (c_warp_tensor.get_thread_buffer()[c_row] *
+                                        scale_reg_f);
                         });
                         if(get_block_id() == 0 && get_warp_id() == 0 && get_thread_id() == 0){
                             printf("end of inner loop\n");
