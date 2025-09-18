@@ -14,9 +14,9 @@ fi
 export CK_WARMUP=0
 export CK_REPEAT=1
 
-CURR_FAILLS_FILE=${CURR_FAILLS_FILE:-"fmha_fwd_fails_$GPU_arch.txt"}
-rm -f $CURR_FAILLS_FILE
-touch $CURR_FAILLS_FILE
+CURR_FAILS_FILE=${CURR_FAILS_FILE:-"fmha_fwd_fails_$GPU_arch.txt"}
+rm -f $CURR_FAILS_FILE
+touch $CURR_FAILS_FILE
 KNOWN_FAILS_FILE=${KNOWN_FAILS_FILE:-"$SCRIPT_DIR/fmha_fwd_known_fails_$GPU_arch.txt"}
 
 COMMON_ARGS='-v=1 -warmup=0 -repeat=1'
@@ -46,7 +46,7 @@ run_exe() {
     $EXE $@
     local ret=$?
     if [ $ret -ne 0 ] ; then
-        echo "$EXE_NAME $*" >> $CURR_FAILLS_FILE
+        echo "$EXE_NAME $*" >> $CURR_FAILS_FILE
     fi
     set -ex
 }
@@ -126,21 +126,22 @@ fi
 set +x
 
 new_fails_count=0
+known_fails_count=0
 if [ -f $KNOWN_FAILS_FILE ] ; then
-    echo "Comparing current fails ($CURR_FAILLS_FILE) against known fails ($KNOWN_FAILS_FILE):"
+    echo "Comparing current fails ($CURR_FAILS_FILE) against known fails ($KNOWN_FAILS_FILE):"
     while IFS= read -r line; do
         if grep -Fxq "$line" $KNOWN_FAILS_FILE; then
             echo "Known fail: $line"
+            known_fails_count=$(($known_fails_count + 1))
         else
             echo "New fail: $line"
             new_fails_count=$(($new_fails_count + 1))
         fi
-    done < $CURR_FAILLS_FILE
+    done < $CURR_FAILS_FILE
 else
-    new_fails_count=$(wc -l < $CURR_FAILLS_FILE)
+    new_fails_count=$(wc -l < $CURR_FAILS_FILE)
     echo "No known fails file, all fails ($new_fails_count) are new:"
-    cat $CURR_FAILLS_FILE
+    cat $CURR_FAILS_FILE
 fi
-echo "New fails count: $new_fails_count"
-# TODO
-# exit $(($new_fails_count != 0))
+echo "New fails count: $new_fails_count; Known fails count: $known_fails_count"
+exit $(($new_fails_count != 0))
