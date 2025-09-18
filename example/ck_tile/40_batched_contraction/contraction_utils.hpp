@@ -19,7 +19,7 @@ struct BatchedContractionTypeConfig
     using BDataType   = DataType;
     using AccDataType = float;
     using EDataType   = DataType;
-    using DsDataType  = DataType;
+    using DDataType   = DataType;
 };
 
 using ContractionTypes = BatchedContractionTypeConfig<ck_tile::half_t>;
@@ -28,7 +28,7 @@ using ADataType   = ContractionTypes::ADataType;
 using BDataType   = ContractionTypes::BDataType;
 using AccDataType = ContractionTypes::AccDataType;
 using EDataType   = ContractionTypes::EDataType;
-using DsDataType  = ContractionTypes::DsDataType;
+using DDataType   = ContractionTypes::DDataType;
 
 auto create_args(int argc, char* argv[])
 {

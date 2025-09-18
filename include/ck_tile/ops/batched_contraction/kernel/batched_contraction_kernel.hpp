@@ -150,7 +150,7 @@ struct BatchedContractionKernel
     {
         typename UniversalGemmKernel::KernelArgs gemm_kargs{{kargs.a_ptr},
                                                             {kargs.b_ptr},
-                                                            kargs.ds_ptr,
+                                                            {kargs.ds_ptr},
                                                             kargs.e_ptr,
                                                             kargs.M_total,
                                                             kargs.N_total,
