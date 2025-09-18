@@ -157,16 +157,25 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
         static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
             static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                 CWarpTensor c_warp_tensor;
-                
+
+                c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
+                                merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                                merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+
                 static_for<0, QScalesPerBlockRow, 1>{}([&](auto kQScale) {
                         static_for<0, KIterPerQScale, 1>{}([&](auto kIterInQScale) {
                             constexpr auto kIter = kQScale * KIterPerQScale + kIterInQScale;
-                    
+                            
                             constexpr auto AwarpIter = (kIter * MIterPerWarp + mIter) % m_preload;
+                            if(get_block_id() == 0 && get_warp_id() == 0 && get_thread_id() == 0){
+                                printf("kQScale=%d, kIterInQScale=%d\n", static_cast<int>(kQScale), static_cast<int>(kIterInQScale));
+                                printf("previous A from lds: kIter=%d, mIter=%d, m_preload=%d, AwarpIter=%d\n", 
+                                    static_cast<int>(kIter), static_cast<int>(mIter), m_preload, static_cast<int>(AwarpIter));
+
+                            }
                     
-                            c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
-                                merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
-                                merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+                            
+                            
                             if(get_block_id() == 0 && get_warp_id() == 0 && get_thread_id() == 0){
                                 auto thread_buffer = c_warp_tensor.get_thread_buffer();
                                 printf("Before WG, c_warp_tensor thread buffer size is: %d\n", thread_buffer.size());
@@ -178,8 +187,10 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
                                     printf("  [%d] = %f\n", i, float_value);
                                 }
                             }
+                            
                             //warp GEMM
                             WG{}(c_warp_tensor, a_warp_tensor(number<AwarpIter>{}), b_warp_tensor(nIter)(number<kIter>{})); 
+                                                        
                             if(get_block_id() == 0 && get_warp_id() == 0 && get_thread_id() == 0){
                                 auto thread_buffer = c_warp_tensor.get_thread_buffer();
                                 printf("After WG, c_warp_tensor thread buffer size is: %d\n", thread_buffer.size());
@@ -191,14 +202,46 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
                                     printf("  [%d] = %f\n", i, float_value);
                                 }
                             }
+                            constexpr auto tbuf_offset =
+                                number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
+                                        merge_sequences(sequence<mIter, nIter>{},
+                                                        c_warp_y_index_zeros)) /
+                                    CBlockTensor::PackedSize>{};
 
+                            constexpr index_t reg_offset =
+                                    nIter * KPerBlockBQ + kQScale; //((kIter * WG::kK) / kQuantGroupSize);
+
+                            auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
+                            float scale_reg_f = cvt_scale_to_fp32(scale_reg);
+                            static_for<0, WG::kM * WG::kN / warp_size, 1>{}(
+                                [&](auto c_row) {
+                                    if(get_block_id() == 0 && get_warp_id() == 0 && get_thread_id() == 0){
+                                        auto thread_buffer = c_warp_tensor.get_thread_buffer();
+                                        printf("c_row data[%d] is: %f\n", static_cast<int>(c_row), type_convert<float>(thread_buffer[c_row]));
+                                        printf("tbuf_offset is: %d\n", static_cast<int>(tbuf_offset));
+                                        printf("scale_reg_f[%d] is: %f\n", reg_offset, scale_reg_f);
+                                    }
+                                    c_block_tensor.get_thread_buffer()[tbuf_offset + c_row] +=
+                                        (c_warp_tensor.get_thread_buffer()[c_row] *
+                                            scale_reg_f);
+                            });
+                            // constexpr index_t reg_offset =
+                            //         nIter * KPerBlockBQ + kQScale; //((kIter * WG::kK) / kQuantGroupSize);
+
+                            // auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
+                            // scale_reg = 0;
+                            // //write C warp tensor into C block tensor
+                            // // Notes: if want to check the Gemm result uncomment lines: 189-192 and 216-218 then comment out 221-241
+                            // c_block_tensor.set_y_sliced_thread_data(
+                            //     merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                            //     merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
+                            //     c_warp_tensor.get_thread_buffer());
+
+                            __builtin_amdgcn_sched_barrier(0x7F6);
                             // preload next A from lds
                             if constexpr((kIter * MIterPerWarp + mIter) <
                                         (KIterPerWarp * MIterPerWarp - m_preload))
                             {
-                                if(get_block_id() == 0 && get_warp_id() == 0 && get_thread_id() == 0){
-                                    printf("previous A from lds: kIter=%d, mIter=%d\n", static_cast<int>(kIter), static_cast<int>(mIter));
-                                }
                                 constexpr auto AmIter = (mIter + m_preload) % MIterPerWarp;
                                 constexpr auto AkIter = (kIter + (mIter + m_preload) / MIterPerWarp);
                                 if(get_block_id() == 0 && get_warp_id() == 0 && get_thread_id() == 0){
@@ -217,78 +260,9 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
                         if(get_block_id() == 0 && get_warp_id() == 0 && get_thread_id() == 0){
                             printf("end of inner loop\n");
                         }
-                    
-                    // // Notes: To print the values of c_warp_tensor as 256/512
-                    // if(get_block_id() == 0 && get_warp_id() == 0 && get_thread_id() == 0){
-                    //     auto thread_buffer = c_warp_tensor.get_thread_buffer();
-                    //     printf("After WG, c_warp_tensor thread buffer size is: %d\n", thread_buffer.size());
-                    //     for(index_t i = 0; i < thread_buffer.size(); ++i)
-                    //     {
-                    //         auto value = thread_buffer.get(i);
-                    //         // Convert fp8_t to float
-                    //         auto float_value = type_convert<float>(value);
-                    //         printf("  [%d] = %f\n", i, float_value);
-                    //     }
-                    // }
-                        constexpr auto tbuf_offset =
-                                number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
-                                        merge_sequences(sequence<mIter, nIter>{},
-                                                        c_warp_y_index_zeros)) /
-                                    CBlockTensor::PackedSize>{};
-
-                        constexpr index_t reg_offset =
-                                    nIter * KPerBlockBQ + kQScale; //((kIter * WG::kK) / kQuantGroupSize);
-
-                        auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
-                        float scale_reg_f = cvt_scale_to_fp32(scale_reg);
-                        static_for<0, WG::kM * WG::kN / warp_size, 1>{}(
-                            [&](auto c_row) {
-                                c_block_tensor.get_thread_buffer()[tbuf_offset + c_row] +=
-                                    (c_warp_tensor.get_thread_buffer()[c_row] *
-                                        scale_reg_f);
-                        });
-                        //scale_reg = 0;
-                        // write C warp tensor into C block tensor
-                        // // Notes: if want to check the Gemm result uncomment lines: 189-192 and 216-218 then comment out 221-241
-                        // c_block_tensor.set_y_sliced_thread_data(
-                        //     merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
-                        //     merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
-                        //     c_warp_tensor.get_thread_buffer());
-
-                        __builtin_amdgcn_sched_barrier(0x7F6);
-                    
-                    
                 });
             });
-        });
-            
-            // // Notes: if want to see the gemm operation result uncomment the lines 216-218 and comment out 221-241
-            // // constexpr index_t reg_offset = kQScale;
-            // // auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
-            // // scale_reg = 0;
-
-            // //Notes: if want to check the Gemm result, please comment lines 221-241
-            // constexpr index_t reg_offset = kQScale;
-            // constexpr auto tbuf_offset   = number<
-            //                           typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
-            //                             merge_sequences(sequence<number<0>{}, number<0>{}>{},
-            //                                             c_warp_y_index_zeros)) /
-            //                           CBlockTensor::PackedSize>{};
-
-            // auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
-            // float scale_reg_f = cvt_scale_to_fp32(scale_reg);
-            
-            // static_for<0, WG::kM * WG::kN / warp_size, 1>{}([&](auto c_row) {
-            //         // if(threadIdx.x == 0 && blockIdx.x == 0){
-            //         //     auto thread_buffer = c_warp_tensor.get_thread_buffer();
-            //         //     printf("c_row data[%d] is: %f\n", static_cast<int>(c_row), type_convert<float>(thread_buffer[c_row]));
-            //         //     printf("scale_reg_f[%d] is: %f\n", reg_offset, scale_reg_f);
-            //         // }
-            //         c_block_tensor.get_thread_buffer()[tbuf_offset + c_row] +=
-            //             (c_warp_tensor.get_thread_buffer()[c_row] *
-            //                 scale_reg_f);
-        //     });
-        // });    
+        });    
     }
 };
 
@@ -297,4 +271,3 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
     // if(threadIdx.x == 0 && blockIdx.x == 0){
     //     printf("After scaling, c_block_tensor thread buffer data[%d] is: %f\n", static_cast<int>(tbuf_offset), type_convert<float>(c_block_tensor.get_thread_buffer()[tbuf_offset]));
     // }  
-
