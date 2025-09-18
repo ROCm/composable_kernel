@@ -171,7 +171,7 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V4>
     using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV4<PipelineProblem>;
 };
 
-using grouped_gemm_multi_d_kargs = ck_tile::GemmMultiDHostArgs<DsDataType::size()>;
+using grouped_gemm_multi_d_kargs = ck_tile::GroupedGemmHostArgs<DsDataType::size()>;
 
 std::pair<bool, ck_tile::ArgParser> create_args(int argc, char* argv[])
 {

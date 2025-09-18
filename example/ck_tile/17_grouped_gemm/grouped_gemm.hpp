@@ -296,7 +296,7 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_PRESHUFFLE_V2>
         ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<PipelineProblem>;
 };
 
-using grouped_gemm_kargs = ck_tile::GroupedGemmHostArgs;
+using grouped_gemm_kargs = ck_tile::GroupedGemmHostArgs<>;
 
 std::pair<bool, ck_tile::ArgParser> create_args(int argc, char* argv[])
 {
@@ -325,7 +325,7 @@ std::pair<bool, ck_tile::ArgParser> create_args(int argc, char* argv[])
 
 inline std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gemm_descs)
 {
-    return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArgDefault);
+    return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg<>);
 }
 
 template <typename GemmConfig, typename T>
