@@ -223,7 +223,7 @@ struct TestingIndices
 // This creates a separate test for each entry in the TEST_CASES array, allowing
 // GTest to run and report on them individually.
 template <typename T>
-class ConvBuilderInstancesTest : public ::testing::Test
+class ConvBuilderFwdInstancesTest : public ::testing::Test
 {
     protected:
     static constexpr int N                                 = T::index;
@@ -243,7 +243,7 @@ struct TestNameGenerator
     }
 };
 
-TYPED_TEST_SUITE(ConvBuilderInstancesTest,
+TYPED_TEST_SUITE(ConvBuilderFwdInstancesTest,
                  TestingIndices<NUM_TEST_CASES>::Types,
                  TestNameGenerator);
 
@@ -251,13 +251,13 @@ TYPED_TEST_SUITE(ConvBuilderInstancesTest,
 // It verifies that the ConvBuilder, when configured with a specific algorithm,
 // generates the correct kernel type string and correctly configures the
 // underlying factory parameters.
-TYPED_TEST(ConvBuilderInstancesTest, KernelParamsConfigured)
+TYPED_TEST(ConvBuilderFwdInstancesTest, KernelParamsConfigured)
 {
     static constexpr const FwdConvAlgorithm& ALGORITHM =
-        ConvBuilderInstancesTest<TypeParam>::ALGORITHM;
+        ConvBuilderFwdInstancesTest<TypeParam>::ALGORITHM;
     static constexpr const ConvSignature SIGNATURE;
     using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
-    EXPECT_EQ(Builder::Instance::TypeString(), ConvBuilderInstancesTest<TypeParam>::EXPECTED_TYPE);
+    EXPECT_EQ(Builder::Instance::TypeString(), ConvBuilderFwdInstancesTest<TypeParam>::EXPECTED_TYPE);
     const auto& tp = ALGORITHM.tuning_params;
     EXPECT_EQ(Builder::Factory::TUNING.ak1, tp.ak1);
     EXPECT_EQ(Builder::Factory::TUNING.bk1, tp.bk1);
@@ -279,7 +279,7 @@ TYPED_TEST(ConvBuilderInstancesTest, KernelParamsConfigured)
 // A standard GTest to ensure that all `expected_type` strings in the
 // TEST_CASES array are unique. This helps prevent copy-paste errors and
 // ensures that each test case is meaningful.
-TEST(ConvBuilderInstancesTest, TypeStringsAreUnique)
+TEST(ConvBuilderFwdInstancesTest, TypeStringsAreUnique)
 {
     std::set<std::string> strings;
     for(int i = 0; i < NUM_TEST_CASES; ++i)
