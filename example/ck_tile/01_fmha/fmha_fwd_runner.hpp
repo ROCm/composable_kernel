@@ -52,8 +52,11 @@ auto get_elimit<FmhaFwdBf16>(std::string /*init_method*/)
 template <>
 auto get_elimit<FmhaFwdFp8>(std::string /*init_method*/)
 {
-    double rtol = 0;
-    double atol = 16;
+    using TypeConfig  = FmhaFwdTypeConfig<FmhaFwdFp8>;
+    using ODataType   = typename TypeConfig::ODataType;
+    float o_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<ODataType>::max());
+    double rtol       = 0;
+    double atol       = 16 * o_dtype_max > 240 ? 2 : 1;
     return ck_tile::make_tuple(rtol, atol);
 }
 
@@ -518,7 +521,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
     ck_tile::HostTensor<int32_t> cache_batch_idx_host(use_cache_batch_idx
                                                           ? std::array<ck_tile::index_t, 1>{batch}
                                                           : std::array<ck_tile::index_t, 1>{1});
-    float max_o = 3.0;
+    float max_o = 5.0;
     if(init_method == "ui" || init_method == "0")
     {
         ck_tile::FillUniformDistributionIntegerValue<QDataType>{-3.f, 3.f, next_seed()}(q_host);
@@ -679,8 +682,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
         if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8>)
         {
             float o_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<ODataType>::max());
-            std::cout << "o_dtype_max: " << o_dtype_max << std::endl;
-            scale_o = scale_o * o_dtype_max / max_o;
+            scale_o           = scale_o * o_dtype_max / max_o;
         }
     }
 
