@@ -99,6 +99,71 @@ auto construct_f_unpack_args(F, T args)
     return construct_f_unpack_args_impl<F>(args, std::make_index_sequence<N>{});
 }
 
+/**
+ * @brief A descriptor class for host tensors that manages tensor dimensions, strides, and layout.
+ *
+ * The HostTensorDescriptor provides a comprehensive interface for describing multi-dimensional
+ * tensors with configurable layouts and automatic stride calculation capabilities.
+ *
+ * @section stride_handling Stride Handling
+ *
+ * The descriptor supports multiple stride specification modes:
+ *
+ * 1. **Explicit Strides**: When strides are provided explicitly, they are validated against
+ *    the specified layout to ensure memory access patterns are correct.
+ *
+ * 2. **Auto-calculated Strides**: When strides are empty or all-zero, they are automatically
+ *    calculated based on the tensor layout:
+ *    - For RowMajor layout: rightmost dimension has stride 1, others calculated as cumulative
+ * products
+ *    - For ColumnMajor layout: similar to RowMajor but with swapped stride positions for last two
+ * dimensions
+ *
+ * 3. **Partial Stride Specification**: For GEMM layouts, unknown strides (represented as 0 or
+ * negative values) in the last two dimensions can be auto-calculated while preserving higher
+ * dimension strides.
+ * 
+ * For more details see `CalculateStrides` method.
+ *
+ * @section layout_support Layout Support
+ *
+ * - **GEMM Layouts**: Supports RowMajor and ColumnMajor layouts with full validation
+ * - **Convolution Layouts**: Recognized but validation is not yet implemented
+ * - **Abstract Layouts**: BaseTensorLayout will attempt automatic layout detection for 2D tensors
+ *
+ * @section limitations Limitations
+ *
+ * 1. **Layout Detection**: Automatic layout detection only works reliably for 2D tensors.
+ *    This is done mostly for legacy GEMM cases to avoid modifying many existing GEMM tests to pass
+ *    RowMajor/ColumnMajor explicitly. Higher-dimensional tensors with BaseTensorLayout will throw
+ *    validation errors. For more details see `HandleDefaultLayout` method.
+ *
+ * 2. **Stride Validation**: Only GEMM layouts (RowMajor/ColumnMajor) have full stride validation.
+ *    Convolution layouts are accepted but not validated. For more details see `ValidateStrides`.
+ *
+ * 3. **GEMM Assumptions**: For tensors with more than 2 dimensions, GEMM layout validation
+ *    assumes the last two dimensions represent the height-width pattern (e.g., BHW or BWH for
+ * batched GEMM).
+ *
+ * 4. **Negative Stride Handling**: Negative stride values are interpreted as "unknown" and
+ *    converted to auto-calculated values only for supported layouts.
+ *
+ * @section thread_safety Thread Safety
+ * This class is not thread-safe. External synchronization is required for concurrent access.
+ *
+ * @section examples Usage Examples
+ *
+ * ```cpp
+ * // Auto-calculate strides for RowMajor layout
+ * HostTensorDescriptor desc1({4, 3}, ck::tensor_layout::gemm::RowMajor{});
+ *
+ * // Explicit strides with validation
+ * HostTensorDescriptor desc2({4, 3}, {3, 1}, ck::tensor_layout::gemm::RowMajor{});
+ *
+ * // Partial stride specification (auto-calculate unknown dimension)
+ * HostTensorDescriptor desc3({4, 3}, {0, 1}, ck::tensor_layout::gemm::RowMajor{});
+ * ```
+ */
 struct HostTensorDescriptor
 {
     using BaseTensorLayout = ck::tensor_layout::BaseTensorLayout;
@@ -173,7 +238,7 @@ struct HostTensorDescriptor
 
             if(rank > 2)
             {
-                // Keep as Base (legacy / abstract) - validation will warn/throw later
+                // Keep as-is - validation will warn/throw later
                 return ChosenLayout::Original;
             }
 
@@ -204,7 +269,7 @@ struct HostTensorDescriptor
                 }
             }
 
-            // Fallback: leave as abstract
+            // Fallback: leave as-is
             return ChosenLayout::Original;
         }
     }
@@ -337,6 +402,20 @@ struct HostTensorDescriptor
                     std::ostringstream oss;
                     oss << "Invalid strides for " << layout << ": " << *this;
                     throw std::runtime_error(oss.str());
+                }
+
+                if(n_dims > 2)
+                {
+                    // For higher dimensions, validate strides assuming RowMajor
+                    for(std::size_t i = 1; i < n_dims - 2; ++i)
+                    {
+                        if(mStrides[i - 1] < mStrides[i] * mLens[i])
+                        {
+                            std::ostringstream oss;
+                            oss << "Invalid strides for higher dimensions in " << layout << ": " << *this;
+                            throw std::runtime_error(oss.str());
+                        }
+                    }
                 }
             }
             else
