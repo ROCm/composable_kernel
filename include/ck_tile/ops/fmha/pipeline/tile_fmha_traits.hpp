@@ -19,7 +19,7 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kStoreLSE_,
           bool kHasDropout_,
           bool kDoFp8StaticQuant_,
-          index_t kBlockPerCu_  = -1, /* overwrite occupancy if not -1 */
+          index_t kBlockPerCu_  = -1,    /* overwrite occupancy if not -1 */
           bool kSkipMinSeqlenQ_ = false, /* skip min seqlen q while chunked prefill */
           bool kIsSglangLayout_ = false>
 struct TileFmhaTraits
