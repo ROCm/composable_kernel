@@ -33,10 +33,12 @@ set(GROUPED_CONV3D_FWD
    xdl/mem/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_mem_inter_instance.cpp
    xdl/mem/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_mem_inter_instance.cpp
    xdl/mem/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_mem_inter_instance.cpp
+   xdl/mem/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_tf32_mem_inter_instance.cpp
 
    xdl/mem/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_mem_intra_instance.cpp
    xdl/mem/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_mem_intra_instance.cpp
    xdl/mem/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_mem_intra_instance.cpp
+   xdl/mem/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_tf32_mem_intra_instance.cpp
 
    xdl/comp/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_comp_instance.cpp
    xdl/comp/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_tf32_comp_instance.cpp
@@ -106,6 +108,13 @@ generate_sharded_instantiations(
   SRC_LIST GROUPED_CONV3D_FWD
   OUTPUT_DIR ${GENERATED_DIR}/xdl/mem
 )
+generate_sharded_instantiations(
+  INSTANCES_NAME device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_tf32_mem_inter_instances
+  TEMPLATE_FILE xdl/mem/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_tf32_mem_inter_instance.in
+  NUM_SHARDS 10
+  SRC_LIST GROUPED_CONV3D_FWD
+  OUTPUT_DIR ${GENERATED_DIR}/xdl/mem
+)
 
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_mem_intra_instances
@@ -124,6 +133,13 @@ generate_sharded_instantiations(
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_mem_intra_instances
   TEMPLATE_FILE xdl/mem/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_mem_intra_instance.in
+  NUM_SHARDS 10
+  SRC_LIST GROUPED_CONV3D_FWD
+  OUTPUT_DIR ${GENERATED_DIR}/xdl/mem
+)
+generate_sharded_instantiations(
+  INSTANCES_NAME device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_tf32_mem_intra_instances
+  TEMPLATE_FILE xdl/mem/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_tf32_mem_intra_instance.in
   NUM_SHARDS 10
   SRC_LIST GROUPED_CONV3D_FWD
   OUTPUT_DIR ${GENERATED_DIR}/xdl/mem
