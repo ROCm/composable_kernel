@@ -35,20 +35,31 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
 
 enum struct GemmPipelineType
 {
-    WeightPreshuffle
+    WeightPreshuffleV1,
+    WeightPreshuffleV2
 };
 
 template <GemmPipelineType PT, typename Problem>
 struct GemmPipelineTypeSelector;
 
 template <typename Problem>
-struct GemmPipelineTypeSelector<GemmPipelineType::WeightPreshuffle, Problem>
+struct GemmPipelineTypeSelector<GemmPipelineType::WeightPreshuffleV1, Problem>
 {
     using base_pipeline = ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV1<Problem>;
     using pipeline      = ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV1<Problem>;
 
-    static constexpr auto GetName() { return "GemmPipelineAgBgCrWeightPreshuffle"; }
+    static constexpr auto GetName() { return "GemmPipelineAgBgCrWeightPreshuffleV1"; }
 };
+
+template <typename Problem>
+struct GemmPipelineTypeSelector<GemmPipelineType::WeightPreshuffleV2, Problem>
+{
+    using base_pipeline = ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<Problem>;
+    using pipeline      = ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2<Problem>;
+
+    static constexpr auto GetName() { return "GemmPipelineAgBgCrWeightPreshuffleV2"; }
+};
+
 template <typename Datatype>
 struct config
 {
@@ -123,7 +134,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
         constexpr bool kPadK      = PadK;
         constexpr bool preshuffle = Preshuffle;
 
-        constexpr bool DoubleSmemBuffer = false;
+        constexpr bool DoubleSmemBuffer =
+            (PipelineType == GemmPipelineType::WeightPreshuffleV2) ? true : false;
 
         // TODO: For now - but this should also be a test parameter
         constexpr bool TransposeC = false;

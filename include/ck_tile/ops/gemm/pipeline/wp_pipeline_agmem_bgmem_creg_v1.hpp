@@ -217,8 +217,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
         constexpr auto config =
             BlockWeightPreshuffle::BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
 
-        using Loader = remove_cvref_t<InterleavedPKTypeLoader<ADataType, UnaryOpSize_>>;
-        using WG     = remove_cvref_t<decltype(config.template at<0>())>;
+        using WG = remove_cvref_t<decltype(config.template at<0>())>;
 
         constexpr index_t MWarp = config.template at<1>();
         constexpr index_t NWarp = config.template at<2>();
@@ -318,15 +317,8 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
                 move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                  {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
 
-                if constexpr(std::is_same_v<BDataType, pk_int4_t>)
-                {
-                    Loader::load_interleaved_pk_type(b_warp_tensor(nIter)(kIter),
-                                                     b_flat_dram_windows(nIter)(kIter));
-                }
-                else
-                {
-                    b_warp_tensor(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
-                }
+                load_int4_tile<BDataType, ADataType, UnaryOpSize_>(
+                    b_warp_tensor(nIter)(kIter), b_flat_dram_windows(nIter)(kIter));
             });
         });
 
@@ -374,16 +366,8 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
                     move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                      {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
 
-                    if constexpr(std::is_same_v<BDataType, pk_int4_t>)
-                    {
-                        Loader::load_interleaved_pk_type(b_warp_tensor_2(nIter)(kIter),
-                                                         b_flat_dram_windows(nIter)(kIter));
-                    }
-                    else
-                    {
-                        b_warp_tensor_2(nIter)(kIter) =
-                            load_tile(b_flat_dram_windows(nIter)(kIter));
-                    }
+                    load_int4_tile<BDataType, ADataType, UnaryOpSize_>(
+                        b_warp_tensor_2(nIter)(kIter), b_flat_dram_windows(nIter)(kIter));
                 });
             });
 
@@ -416,15 +400,8 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
                     move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                      {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
 
-                    if constexpr(std::is_same_v<BDataType, pk_int4_t>)
-                    {
-                        Loader::load_interleaved_pk_type(b_warp_tensor(nIter)(kIter),
-                                                         b_flat_dram_windows(nIter)(kIter));
-                    }
-                    else
-                    {
-                        b_warp_tensor(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
-                    }
+                    load_int4_tile<BDataType, ADataType, UnaryOpSize_>(
+                        b_warp_tensor(nIter)(kIter), b_flat_dram_windows(nIter)(kIter));
                 });
             });
 
@@ -461,16 +438,8 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
                     move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                      {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
 
-                    if constexpr(std::is_same_v<BDataType, pk_int4_t>)
-                    {
-                        Loader::load_interleaved_pk_type(b_warp_tensor_2(nIter)(kIter),
-                                                         b_flat_dram_windows(nIter)(kIter));
-                    }
-                    else
-                    {
-                        b_warp_tensor_2(nIter)(kIter) =
-                            load_tile(b_flat_dram_windows(nIter)(kIter));
-                    }
+                    load_int4_tile<BDataType, ADataType, UnaryOpSize_>(
+                        b_warp_tensor_2(nIter)(kIter), b_flat_dram_windows(nIter)(kIter));
                 });
             });
 
