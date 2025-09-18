@@ -53,7 +53,7 @@ def getBaseDockerImageName(){
     }
     else{
         def ROCM_numeric = parseVersion("${params.ROCMVERSION}")
-        if ( ROCM_numeric.major <= 6 && ROCM_numeric.minor < 5 ){
+        if ( ROCM_numeric.major <= 7 && ROCM_numeric.minor < 1 ){
             img = "${env.CK_DOCKERHUB}:ck_ub24.04_rocm${params.ROCMVERSION}"
             }
         else{
@@ -1038,8 +1038,8 @@ pipeline {
             description: "Build CK and run tests on gfx942 (default: ON)")
         booleanParam(
             name: "BUILD_GFX950",
-            defaultValue: false,
-            description: "Build CK and run tests on gfx950 (default: OFF)")
+            defaultValue: true,
+            description: "Build CK and run tests on gfx950 (default: ON)")
         booleanParam(
             name: "BUILD_GFX10",
             defaultValue: true,
