@@ -124,7 +124,6 @@ void benchmark_single(const ck_tile::ArgParser& arg_parser)
     try
     {
         // Create a lambda that wraps the kernel launch
-
         std::tuple<int, int, int> warp_tile_dims = std::make_tuple(
             SelectedKernel::WarpTileM, SelectedKernel::WarpTileN, SelectedKernel::WarpTileK);
 

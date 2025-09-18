@@ -172,7 +172,7 @@ function(build_individual_gemm_preshuffle_targets datatype layout)
         OUTPUT_VARIABLE list_output
         ERROR_VARIABLE list_error
     )
-    
+
     if(NOT ret EQUAL 0)
         message(FATAL_ERROR "Failed to list kernels for ${datatype} ${layout}: ${list_error}")
     endif()
@@ -269,7 +269,7 @@ else()
     endforeach()
 
     # Create trait-based collection targets
-    # These are common trait components used across all GEMM kernels
+    # These are common trait components used across all GEMM Preshuffle kernels
     set(GEMM_PRESHUFFLE_PIPELINES "preshufflev1;preshufflev2")
     set(GEMM_PRESHUFFLE_EPILOGUES "default;cshuffle")
     set(GEMM_PRESHUFFLE_SCHEDULERS "intrawave;interwave;default") 
@@ -287,7 +287,6 @@ else()
     endforeach()
 
     # Build individual targets for each datatype/layout combination
-    
     foreach(dt IN LISTS GEMM_PRESHUFFLE_DATATYPE)
         foreach(l IN LISTS GEMM_PRESHUFFLE_LAYOUT)
             build_individual_gemm_preshuffle_targets(${dt} ${l})

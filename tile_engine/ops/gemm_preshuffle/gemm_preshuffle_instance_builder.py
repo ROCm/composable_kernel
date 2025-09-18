@@ -94,67 +94,87 @@ class GemmPreshuffleKernelBuilder:
 
     def _get_tile_configs(self, fast_mode=False):
         """Get tile configurations for the current datatype and layout"""
-        if "tile_configs" in self.config:
-            # Old format
-            return (
-                self.config["tile_configs"].get(self.datatype, {}).get(self.layout, [])
+
+        tile_config = self.config["tile_config"]
+
+        # Generate values in the config if default range is given
+        if tile_config.get("tile_m").get("values") is None:
+            tile_config.get("tile_m")["values"] = self._generate_values(
+                tile_config.get("tile_m").get("min"),
+                tile_config.get("tile_m").get("max"),
+                tile_config.get("tile_m").get("step"),
             )
-        elif "tile_config" in self.config:
-            # New format - generate combinations from individual parameter values
-            tile_config = self.config["tile_config"]
+        if tile_config.get("tile_n").get("values") is None:
+            tile_config.get("tile_n")["values"] = self._generate_values(
+                tile_config.get("tile_n").get("min"),
+                tile_config.get("tile_n").get("max"),
+                tile_config.get("tile_n").get("step"),
+            )
+        if tile_config.get("tile_k").get("values") is None:
+            tile_config.get("tile_k")["values"] = self._generate_values(
+                tile_config.get("tile_k").get("min"),
+                tile_config.get("tile_k").get("max"),
+                tile_config.get("tile_k").get("step"),
+            )
 
-            # Get all possible values for each parameter
-            tile_m_values = tile_config.get("tile_m", {}).get("values", [256])
-            tile_n_values = tile_config.get("tile_n", {}).get("values", [256])
-            tile_k_values = tile_config.get("tile_k", {}).get("values", [32])
-            warp_m_values = tile_config.get("warp_m", {}).get("values", [2])
-            warp_n_values = tile_config.get("warp_n", {}).get("values", [2])
-            warp_k_values = tile_config.get("warp_k", {}).get("values", [1])
-            warp_tile_m_values = tile_config.get("warp_tile_m", {}).get("values", [32])
-            warp_tile_n_values = tile_config.get("warp_tile_n", {}).get("values", [32])
-            warp_tile_k_values = tile_config.get("warp_tile_k", {}).get("values", [32])
+        # Get all possible values for each parameter
+        tile_m_values = tile_config.get("tile_m").get("values")
+        tile_n_values = tile_config.get("tile_n").get("values")
+        tile_k_values = tile_config.get("tile_k").get("values")
+        warp_m_values = tile_config.get("warp_m").get("values")
+        warp_n_values = tile_config.get("warp_n").get("values")
+        warp_k_values = tile_config.get("warp_k").get("values")
+        warp_tile_m_values = tile_config.get("warp_tile_m").get("values")
+        warp_tile_n_values = tile_config.get("warp_tile_n").get("values")
+        warp_tile_k_values = tile_config.get("warp_tile_k").get("values")
 
-            # Generate all combinations
-            configs = []
-            for tile_m in tile_m_values:
-                for tile_n in tile_n_values:
-                    for tile_k in tile_k_values:
-                        for warp_m in warp_m_values:
-                            for warp_n in warp_n_values:
-                                for warp_k in warp_k_values:
-                                    for warp_tile_m in warp_tile_m_values:
-                                        for warp_tile_n in warp_tile_n_values:
-                                            for warp_tile_k in warp_tile_k_values:
-                                                # Validate configuration
-                                                if self._validate_tile_config(
-                                                    tile_m,
-                                                    tile_n,
-                                                    tile_k,
-                                                    warp_m,
-                                                    warp_n,
-                                                    warp_k,
-                                                    warp_tile_m,
-                                                    warp_tile_n,
-                                                    warp_tile_k,
-                                                    fast_mode=fast_mode,
-                                                ):
-                                                    configs.append(
-                                                        {
-                                                            "tile_m": tile_m,
-                                                            "tile_n": tile_n,
-                                                            "tile_k": tile_k,
-                                                            "warp_m": warp_m,
-                                                            "warp_n": warp_n,
-                                                            "warp_k": warp_k,
-                                                            "warp_tile_m": warp_tile_m,
-                                                            "warp_tile_n": warp_tile_n,
-                                                            "warp_tile_k": warp_tile_k,
-                                                        }
-                                                    )
-            return configs
-        else:
-            # Fallback to default
-            return []
+        # Generate all combinations
+        configs = []
+        for tile_m in tile_m_values:
+            for tile_n in tile_n_values:
+                for tile_k in tile_k_values:
+                    for warp_m in warp_m_values:
+                        for warp_n in warp_n_values:
+                            for warp_k in warp_k_values:
+                                for warp_tile_m in warp_tile_m_values:
+                                    for warp_tile_n in warp_tile_n_values:
+                                        for warp_tile_k in warp_tile_k_values:
+                                            # Validate configuration
+                                            if self._validate_tile_config(
+                                                tile_m,
+                                                tile_n,
+                                                tile_k,
+                                                warp_m,
+                                                warp_n,
+                                                warp_k,
+                                                warp_tile_m,
+                                                warp_tile_n,
+                                                warp_tile_k,
+                                                fast_mode=fast_mode,
+                                            ):
+                                                configs.append(
+                                                    {
+                                                        "tile_m": tile_m,
+                                                        "tile_n": tile_n,
+                                                        "tile_k": tile_k,
+                                                        "warp_m": warp_m,
+                                                        "warp_n": warp_n,
+                                                        "warp_k": warp_k,
+                                                        "warp_tile_m": warp_tile_m,
+                                                        "warp_tile_n": warp_tile_n,
+                                                        "warp_tile_k": warp_tile_k,
+                                                    }
+                                                )
+        return configs
+
+    def _generate_values(self, min_val, max_val, step):
+        """Generate a list of values from min to max with the given step"""
+        values = []
+        val = min_val
+        while val <= max_val:
+            values.append(val)
+            val += step
+        return values
 
     def _generate_trait_combinations(self):
         """Generate all combinations of traits"""
