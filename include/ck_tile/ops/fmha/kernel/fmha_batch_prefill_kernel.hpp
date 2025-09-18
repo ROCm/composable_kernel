@@ -819,8 +819,9 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
 
             auto k_dram_2d = transform_tensor_view(
                 k_dram_naive,
-                make_tuple(make_merge_transform(make_tuple(kargs.num_total_pages, kargs.page_block_size)),
-                           make_pass_through_transform(kargs.hdim_q)),
+                make_tuple(
+                    make_merge_transform(make_tuple(kargs.num_total_pages, kargs.page_block_size)),
+                    make_pass_through_transform(kargs.hdim_q)),
                 make_tuple(sequence<0, 1>{}, sequence<2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
 

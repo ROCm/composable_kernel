@@ -46,8 +46,7 @@ CK_TILE_HOST_DEVICE void kv_offset_array_transform(const index_t* page_vec,
                 constexpr index_t kPageId = kLoopStride * k0.value >> kPageShiftSize;
                 const index_t page_offset =
                     (thread_coord_start + kLoopStride * k0.value) & kPageMask;
-                kv_offset_vec[k0] =
-                    page_vec[kPageId] * page_stride_kv + page_offset * stride_kv;
+                kv_offset_vec[k0] = page_vec[kPageId] * page_stride_kv + page_offset * stride_kv;
             });
         }
         else
@@ -683,7 +682,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                           V_KRepeat,
                                           1,
                                           kIsSglangLayout,
-                                          false>(page_idx, stride_v, page_stride_v, v_coord, v_offsets);
+                                          false>(
+                    page_idx, stride_v, page_stride_v, v_coord, v_offsets);
                 v_dram_window.update_page_idx(v_offsets);
             }
             __builtin_amdgcn_sched_barrier(0);
@@ -820,7 +820,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                                   V_KRepeat,
                                                   1,
                                                   kIsSglangLayout,
-                                                  false>(page_idx, stride_v, page_stride_v, v_coord, v_offsets);
+                                                  false>(
+                            page_idx, stride_v, page_stride_v, v_coord, v_offsets);
                         v_dram_window.update_page_idx(v_offsets);
                     }
                     block_sync_lds();
@@ -882,7 +883,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                           NRepeat,
                                           kN0 / NRepeat,
                                           kIsSglangLayout,
-                                          true>(page_idx, stride_k, page_stride_k, k_coord, k_offsets);
+                                          true>(
+                    page_idx, stride_k, page_stride_k, k_coord, k_offsets);
                 k_dram_window.update_page_idx(k_offsets);
                 if constexpr(k1_loops >= 2 &&
                              LdsSeq.at(number<0>{}) == LdsSeq.at(number<k0_loops + k1_loops - 2>{}))
