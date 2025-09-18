@@ -220,7 +220,7 @@ rocm_check_target_ids(SUPPORTED_GPU_TARGETS
 
 message(STATUS "Building CK for the following targets: ${SUPPORTED_GPU_TARGETS}")
 
-if (SUPPORTED_GPU_TARGETS MATCHES "gfx9")
+if (SUPPORTED_GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
     message(STATUS "Enabling XDL instances")
     add_definitions(-DCK_USE_XDL)
     set(CK_USE_XDL "ON")
