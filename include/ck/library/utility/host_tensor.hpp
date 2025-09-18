@@ -173,7 +173,7 @@ struct HostTensorDescriptor
 
             if(rank > 2)
             {
-                // Keep as Base (legacy / abstract) – validation will warn/throw later
+                // Keep as Base (legacy / abstract) - validation will warn/throw later
                 return ChosenLayout::Original;
             }
 
