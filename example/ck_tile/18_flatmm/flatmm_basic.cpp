@@ -50,35 +50,41 @@ template <typename FlatmmConfig, typename T>
 auto shuffle_b(const ck_tile::HostTensor<T>& t)
 {
     assert(t.get_lengths().size() == 2);
-    int n_                = t.get_lengths()[1];
-    int k_                = t.get_lengths()[0];
-    constexpr int divisor = FlatmmConfig::N_Warp_Tile == 32 ? 2 : 4;
+    int n_ = t.get_lengths()[1];
+    int k_ = t.get_lengths()[0];
+
+    constexpr int MaxVecSize     = 16 / sizeof(T);
+    constexpr int KLane          = ck_tile::get_warp_size() / FlatmmConfig::N_Warp_Tile;
+    constexpr int ItemsPerAccess = std::min(MaxVecSize, FlatmmConfig::K_Warp_Tile / KLane);
+
     ck_tile::HostTensor<T> t_view({n_ / FlatmmConfig::N_Warp_Tile,
                                    FlatmmConfig::N_Warp_Tile,
-                                   k_ / FlatmmConfig::K_Warp_Tile,
-                                   divisor,
-                                   FlatmmConfig::K_Warp_Tile / divisor});
+                                   k_ / ItemsPerAccess,
+                                   ItemsPerAccess});
     std::copy(t.begin(), t.end(), t_view.begin());
-    return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
+    return ck_tile::reference_permute(t_view, {0, 2, 1, 3});
 }
 
 template <typename FlatmmConfig, typename T>
 auto shuffle_b_v1(const ck_tile::HostTensor<T>& t)
 {
     assert(t.get_lengths().size() == 2);
-    int n_                = t.get_lengths()[1];
-    int k_                = t.get_lengths()[0];
-    constexpr int divisor = FlatmmConfig::N_Warp_Tile == 32 ? 2 : 4;
+    int n_ = t.get_lengths()[1];
+    int k_ = t.get_lengths()[0];
+
+    constexpr int MaxVecSize     = 16 / sizeof(T);
+    constexpr int KLane          = ck_tile::get_warp_size() / FlatmmConfig::N_Warp_Tile;
+    constexpr int ItemsPerAccess = std::min(MaxVecSize, FlatmmConfig::K_Warp_Tile / KLane);
     constexpr int NRepeat = FlatmmConfig::N_Tile / FlatmmConfig::N_Warp_Tile / FlatmmConfig::N_Warp;
+
     ck_tile::HostTensor<T> t_view({n_ / FlatmmConfig::N_Tile,
                                    FlatmmConfig::N_Warp,
                                    FlatmmConfig::N_Warp_Tile,
                                    NRepeat,
-                                   k_ / FlatmmConfig::K_Warp_Tile,
-                                   divisor,
-                                   FlatmmConfig::K_Warp_Tile / divisor});
+                                   k_ / ItemsPerAccess,
+                                   ItemsPerAccess});
     std::copy(t.begin(), t.end(), t_view.begin());
-    return ck_tile::reference_permute(t_view, {0, 3, 1, 4, 5, 2, 6});
+    return ck_tile::reference_permute(t_view, {0, 3, 1, 4, 2, 5});
 }
 
 template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
