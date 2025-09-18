@@ -5,7 +5,6 @@ add_subdirectory(convscale_relu)
 add_subdirectory(convscale_add)
 add_subdirectory(convscale_reduce)
 add_subdirectory(multi_AB)
-add_subdirectory(multi_AB_wmma_cshufflev3)
 add_subdirectory(unary)
 add_subdirectory(dynamic_unary)
 

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "convnd_fwd_wmma_cshufflev3_activ_multi_ab_common.hpp"
+#define EXAMPLE_USE_WMMA
+#include "convnd_fwd_activ_multi_ab_common.hpp"
 
-using DataType    = int8_t;
-using AccDataType = int32_t;
+using DataType    = ck::half_t;
+using AccDataType = float;
 using InDataType  = DataType;
 using WeiDataType = DataType;
 using OutDataType = DataType;
