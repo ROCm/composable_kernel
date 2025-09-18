@@ -24,7 +24,7 @@ if(WIN32)
     set(gtest_force_shared_crt ON CACHE_INTERNAL "")
 endif()
 
-set(BUILD_GMOCK OFF CACHE INTERNAL "")
+set(BUILD_GMOCK ON CACHE INTERNAL "")
 set(INSTALL_GTEST OFF CACHE INTERNAL "")
 
 # Store the current value of BUILD_SHARED_LIBS
@@ -38,7 +38,7 @@ set(ROCM_DISABLE_CHECKS FALSE)
 # Restore the old value of BUILD_SHARED_LIBS
 set(BUILD_SHARED_LIBS ${__build_shared_libs} CACHE BOOL "Type of libraries to build" FORCE)
 
-set(BUILD_GMOCK OFF CACHE INTERNAL "")
+set(BUILD_GMOCK ON CACHE INTERNAL "")
 set(INSTALL_GTEST OFF CACHE INTERNAL "")
 
 set(GTEST_CXX_FLAGS
