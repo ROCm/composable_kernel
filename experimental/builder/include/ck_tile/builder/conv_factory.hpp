@@ -1,9 +1,37 @@
 #pragma once
 
-// #include
-// "ck/library/tensor_operation_instance/gpu/grouped_conv_fwd/device_grouped_conv_fwd_xdl_comp_instance.hpp"
+// A factory for instantiating CK convolution kernels.
+//
+// This file translates a semantic description of a convolution operation
+// (`ConvSignatureDescriptor` and `ConvAlgorithmDescriptor`) into specific, 
+// low-level template arguments required by the underlying CK device-level 
+// kernel implementations. This abstraction also enables more complex build
+// time logic and simplifies the kernel specificatoin.
+//
+// Key Components:
+//
+// Template Metaprogram:
+//  - ConvFactory: The main factory, with specializations for different
+//                 convolution directions.
+//
+// Template Metaprogram Helpers:
+//  - ConvTensorLayouts: Maps layout enums to CK layout types.
+//  - ConvTensorTypes:   Maps data type enums to C++ types used by CK.
+//  - ConvPassThroughOps: Hard-coded pass-through element-wise operations.
+//
+// `constexpr` Helper Functions:
+//  - SetThreadBlockInfo:      Determines thread block dimensions from the algorithm
+//                             descriptor or provides defaults.
+//  - SetConvTuningInfo:       Sets low-level tuning parameters.
+//  - Set*BlockTransfer:       Configures tensor data movement parameters for
+//                             tensors A, B, and C.
+//  - SetBlockGemmPipelineVersion: Selects the GEMM pipeline version.
+//
+// The primary entry point is the `ConvFactory` struct, which is specialized
+// for forward and backward-data convolutions.
+
 #include <ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp>
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_data_multiple_d_xdl_cshuffle_v1.hpp"
+#include <ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_data_multiple_d_xdl_cshuffle_v1.hpp>
 #include <ck_tile/builder/conv_signature.hpp>
 #include <ck_tile/builder/conv_algorithm.hpp>
 #include <ck_tile/builder/builder_utils.hpp>
@@ -26,7 +54,6 @@ struct ConvTensorLayouts
 template <>
 struct ConvTensorLayouts<GroupConvLayout::CHANNELS_FIRST, 2, ConvDirection::FORWARD>
 {
-    // Channels first convolution layout.
     using ALayout  = ck::tensor_layout::convolution::NHWGC;
     using BLayout  = ck::tensor_layout::convolution::GKCYX;
     using DsLayout = ck::Tuple<>;
@@ -36,7 +63,6 @@ struct ConvTensorLayouts<GroupConvLayout::CHANNELS_FIRST, 2, ConvDirection::FORW
 template <>
 struct ConvTensorLayouts<GroupConvLayout::CHANNELS_LAST, 2, ConvDirection::BACKWARD_DATA>
 {
-    // Channels last convolution layout.
     using ALayout  = ck::tensor_layout::convolution::NGKHW;
     using BLayout  = ck::tensor_layout::convolution::GKYXC;
     using DsLayout = ck::Tuple<>;
@@ -46,7 +72,6 @@ struct ConvTensorLayouts<GroupConvLayout::CHANNELS_LAST, 2, ConvDirection::BACKW
 template <>
 struct ConvTensorLayouts<GroupConvLayout::CHANNELS_LAST, 2, ConvDirection::FORWARD>
 {
-    // Channels last convolution layout.
     using ALayout  = ck::tensor_layout::convolution::NHWGC;
     using BLayout  = ck::tensor_layout::convolution::GKYXC;
     using DsLayout = ck::Tuple<>;
@@ -56,7 +81,6 @@ struct ConvTensorLayouts<GroupConvLayout::CHANNELS_LAST, 2, ConvDirection::FORWA
 template <>
 struct ConvTensorLayouts<GroupConvLayout::CHANNELS_LAST, 3, ConvDirection::FORWARD>
 {
-    // Channels last convolution layout.
     using ALayout  = ck::tensor_layout::convolution::NDHWGC;
     using BLayout  = ck::tensor_layout::convolution::GKZYXC;
     using DsLayout = ck::Tuple<>;
@@ -107,6 +131,7 @@ struct ConvTensorTypes<DataType::FP32>
 };
 
 // Hard-coded pass-through ops.
+// TODO: Generalize this for more fused operations.
 struct ConvPassThroughOps
 {
     using AElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
@@ -126,7 +151,7 @@ struct ConvSpec
     ck::tensor_operation::device::GemmSpecialization gemm_spec;
 };
 
-// Deduction guide for ConvSpec simplifies brace initialization.
+// Deduction guide for ConvSpec to simplify brace initialization.
 template <typename CONV_ENUM, typename GEMM_ENUM>
 ConvSpec(CONV_ENUM, GEMM_ENUM) -> ConvSpec<CONV_ENUM>;
 
@@ -226,23 +251,10 @@ struct CBlockTransfer
     int scaler_per_vector                 = 8;
 };
 
-template <ConvSignatureDescriptor auto SIGNATURE, ConvAlgorithmDescriptor auto ALGORITHM>
-constexpr BlockTransfer SetABlockTransfer()
+template <ConvAlgorithmDescriptor auto ALGORITHM>
+constexpr BlockTransfer SetFwdConvABlockTransfer()
 {
     using AlgorithmType = decltype(ALGORITHM);
-    if constexpr(ConvDirectionIsBackwardData<SIGNATURE>)
-    {
-        // Different default values for backward data.
-        return BlockTransfer{
-            .thread_cluster_dims       = {4, 16, 1},
-            .thread_cluster_order      = {1, 0, 2},
-            .src_access_order          = {1, 0, 2},
-            .src_vector_dim            = 2,
-            .src_scaler_per_vector     = 8,
-            .dest_scaler_per_vector_k1 = 8,
-            .add_extra                 = 1,
-        };
-    }
     BlockTransfer block_transfer{
         .thread_cluster_dims       = {4, 64, 1},
         .thread_cluster_order      = {1, 0, 2},
@@ -261,23 +273,24 @@ constexpr BlockTransfer SetABlockTransfer()
     return block_transfer;
 }
 
-template <ConvSignatureDescriptor auto SIGNATURE, ConvAlgorithmDescriptor auto ALGORITHM>
-constexpr BlockTransfer SetBBlockTransfer()
+template <ConvAlgorithmDescriptor auto ALGORITHM>
+constexpr BlockTransfer SetBwdDataConvABlockTransfer()
+{
+    return BlockTransfer{
+        .thread_cluster_dims       = {4, 16, 1},
+        .thread_cluster_order      = {1, 0, 2},
+        .src_access_order          = {1, 0, 2},
+        .src_vector_dim            = 2,
+        .src_scaler_per_vector     = 8,
+        .dest_scaler_per_vector_k1 = 8,
+        .add_extra                 = 1,
+    };
+}
+
+template <ConvAlgorithmDescriptor auto ALGORITHM>
+constexpr BlockTransfer SetFwdConvBBlockTransfer()
 {
     using AlgorithmType = decltype(ALGORITHM);
-    if constexpr(ConvDirectionIsBackwardData<SIGNATURE>)
-    {
-        // Different default values for backward data.
-        return BlockTransfer{
-            .thread_cluster_dims       = {4, 8, 1},
-            .thread_cluster_order      = {0, 2, 1},
-            .src_access_order          = {0, 2, 1},
-            .src_vector_dim            = 1,
-            .src_scaler_per_vector     = 8,
-            .dest_scaler_per_vector_k1 = 8,
-            .add_extra                 = 1,
-        };
-    }
     BlockTransfer block_transfer{
         .thread_cluster_dims       = {4, 64, 1},
         .thread_cluster_order      = {1, 0, 2},
@@ -292,8 +305,22 @@ constexpr BlockTransfer SetBBlockTransfer()
         constexpr auto& TCL                = ALGORITHM.block_transfer.thread_cluster_dims_b;
         block_transfer.thread_cluster_dims = {TCL.k0, TCL.n, TCL.k1};
     }
-    // Default.
     return block_transfer;
+}
+
+template <ConvAlgorithmDescriptor auto ALGORITHM>
+constexpr BlockTransfer SetBwdDataConvBBlockTransfer()
+{
+    // Different default values for backward data.
+    return BlockTransfer{
+        .thread_cluster_dims       = {4, 8, 1},
+        .thread_cluster_order      = {0, 2, 1},
+        .src_access_order          = {0, 2, 1},
+        .src_vector_dim            = 1,
+        .src_scaler_per_vector     = 8,
+        .dest_scaler_per_vector_k1 = 8,
+        .add_extra                 = 1,
+    };
 }
 
 template <ConvSignatureDescriptor auto SIGNATURE, ConvAlgorithmDescriptor auto ALGORITHM>
@@ -353,11 +380,11 @@ template <ConvSignatureDescriptor auto SIGNATURE,
           auto VERSION>
 struct ConvFactory;
 
-// Factory builds an instance of a grouped forward convolution kernel.
+// Factory specialization for an instance of a grouped forward convolution kernel.
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
-          auto VERSION>
-    requires SupportedVersion<VERSION> && ConvDirectionIsForward<SIGNATURE>
+          StringLiteral VERSION>
+    requires ConvDirectionIsForward<SIGNATURE>
 struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 {
     static constexpr int SPATIAL_DIM = SIGNATURE.spatial_dim;
@@ -370,12 +397,12 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
     };
     static constexpr ConvBlock BLOCK                 = SetThreadBlockInfo<ALGORITHM>();
     static constexpr ConvTuning TUNING               = SetConvTuningInfo<SIGNATURE, ALGORITHM>();
-    static constexpr BlockTransfer A_BLOCK_TRANSFER  = SetABlockTransfer<SIGNATURE, ALGORITHM>();
-    static constexpr BlockTransfer B_BLOCK_TRANSFER  = SetBBlockTransfer<SIGNATURE, ALGORITHM>();
+    static constexpr BlockTransfer A_BLOCK_TRANSFER  = SetFwdConvABlockTransfer<ALGORITHM>();
+    static constexpr BlockTransfer B_BLOCK_TRANSFER  = SetFwdConvBBlockTransfer<ALGORITHM>();
     static constexpr CBlockTransfer C_BLOCK_TRANSFER = SetCBlockTransfer<SIGNATURE, ALGORITHM>();
     static constexpr auto PIPELINE_SCHEDULER         = ck::BlockGemmPipelineScheduler::Intrawave;
     static constexpr auto PIPELINE_VERSION           = SetBlockGemmPipelineVersion<ALGORITHM>();
-    // The convlution kernel class instance.
+    // The forward convolution kernel class instance.
     using Instance =
         ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3< //
             SPATIAL_DIM,
@@ -426,16 +453,7 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
             PIPELINE_VERSION>;
 };
 
-// clang-format off
-    // ##############################################|       NDim| ALayout| BLayout|    DsLayout| ELayout| AData| BData| AccData| CShuffle|      DsData| EData| AElementwise| BElementwise| CDEElementwise| ConvolutionBackward| DoPad| DoPad|      NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer|    MXdl|    NXdl|    ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|    BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CShuffleMXdl| CShuffleNXdl|   CDEBlockTransfer| CDEBlockTransfer|
-    // ##############################################|    Spatial|        |        |            |        |  Type|  Type|    Type| DataType|        Type|  Type|    Operation|    Operation|      Operation|  DataSpecialization| GemmM| GemmN| PrefetchStage|  Size| Block| Block| Block|    |    |  XDL|  XDL| PerWave| PerWave|     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN|      PerWave|      PerWave|  _MBlock_MPerBlock|  ScalarPerVector|
-    // ##############################################|           |        |        |            |        |      |      |        |         |            |      |             |             |               |                    |      |      |              |      |      |      |      |    |    |     |     |        |        | Lengths_AK0_M_AK1|   ArrangeOrder|               |               |      PerVector|  PerVector_AK1|          | Lengths_BK0_N_BK1|   ArrangeOrder|               |               |      PerVector|  PerVector_BK1|          |   PerShuffle|   PerShuffle|  _NBlock_NPerBlock|       _NPerBlock|
-    // ##############################################|           |        |        |            |        |      |      |        |         |            |      |             |             |               |                    |      |      |              |      |      |      |      |    |    |     |     |        |        |                  |               |               |               |               |               |          |                  |               |               |               |               |               |          |             |             |                   |                 |
-    // generic instance
-    // DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1<NDimSpatial, ALayout, BLayout,    DsLayout, ELayout,   F16,   F16,     F32,      F16, Empty_Tuple,   F16,  PassThrough,  PassThrough,    PassThrough,            ConvSpec,  true,  true,             1,    64,    64,    64,    32,   8,   8,   32,   32,       2,       2,       S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              8,         1,        S<4, 8, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,         1,            1,            1,     S<1, 16, 1, 4>,                1>
-// clang-format on
-
-// Factory builds an instance of a grouped backward-data convolution kernel.
+// Factory specialization for an instance of a grouped backward-data convolution kernel.
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           auto VERSION>
@@ -452,12 +470,12 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
     };
     static constexpr ConvBlock BLOCK                 = SetThreadBlockInfo<ALGORITHM>();
     static constexpr ConvTuning TUNING               = SetConvTuningInfo<SIGNATURE, ALGORITHM>();
-    static constexpr BlockTransfer A_BLOCK_TRANSFER  = SetABlockTransfer<SIGNATURE, ALGORITHM>();
-    static constexpr BlockTransfer B_BLOCK_TRANSFER  = SetBBlockTransfer<SIGNATURE, ALGORITHM>();
+    static constexpr BlockTransfer A_BLOCK_TRANSFER  = SetBwdDataConvABlockTransfer<ALGORITHM>();
+    static constexpr BlockTransfer B_BLOCK_TRANSFER  = SetBwdDataConvBBlockTransfer<ALGORITHM>();
     static constexpr CBlockTransfer C_BLOCK_TRANSFER = SetCBlockTransfer<SIGNATURE, ALGORITHM>();
     static constexpr auto PIPELINE_SCHEDULER         = ck::BlockGemmPipelineScheduler::Intrawave;
     static constexpr auto PIPELINE_VERSION           = SetBlockGemmPipelineVersion<ALGORITHM>();
-
+    // The backward-data convolution kernel class instance.
     using Instance =
         ck::tensor_operation::device::DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1<
             SPATIAL_DIM,
