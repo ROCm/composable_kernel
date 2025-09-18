@@ -203,10 +203,10 @@ int run(const std::string& in_layout,
         int argc,
         char* argv[])
 {
-    // if (num_groups_to_merge == 1)
-    // {
-    //     return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 1>(in_layout, wei_layout, out_layout, argc, argv);
-    // }
+    if (num_groups_to_merge == 1)
+    {
+        return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 1>(in_layout, wei_layout, out_layout, argc, argv);
+    }
     // else if (num_groups_to_merge == 2)
     // {
     //     return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 2>(in_layout, wei_layout, out_layout, argc, argv);
@@ -232,7 +232,7 @@ int run(const std::string& in_layout,
     //     return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 64>(in_layout, wei_layout, out_layout, argc, argv);
     // }
 
-    if (num_groups_to_merge == 8)
+    else if (num_groups_to_merge == 8)
     {
         return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8>(in_layout, wei_layout, out_layout, argc, argv);
     }

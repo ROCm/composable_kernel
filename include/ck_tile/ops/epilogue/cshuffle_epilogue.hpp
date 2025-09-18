@@ -338,6 +338,10 @@ struct CShuffleEpilogue
                                     sequence<0, 1>,
                                     sequence<MPerIterationShuffle, NPerIterationShuffle>>;
 
+        using SFC_dram = space_filling_curve<sequence<kMPerBlock, kNPerBlock / NumGroupsToMerge>,
+                                            sequence<0, 1>,
+                                            sequence<MPerIterationShuffle, NPerIterationShuffle>>;
+
         constexpr index_t num_access = SFC::get_num_of_access();
 
         static_assert(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
@@ -347,7 +351,7 @@ struct CShuffleEpilogue
                                                     MPerIterationShuffle,
                                                     NPerIterationShuffle,
                                                     GetVectorSizeC(),
-                                                    tile_distribution_pattern::thread_raked,
+                                                    tile_distribution_pattern::sparse_row,
                                                     Problem::kNumWaveGroups>;
         constexpr auto dram_tile_distribution =
             TileEncodingPattern::make_2d_static_tile_distribution();
@@ -362,22 +366,86 @@ struct CShuffleEpilogue
             to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
 
-        static_for<0, num_access, 1>{}([&](auto iAccess) {
-            block_sync_lds();
-            constexpr auto idx_y_start = SFC::get_index(iAccess);
+        // Ensure that we have the expected number of accesses.
+        if constexpr (NumGroupsToMerge > 1)
+        {
+            static_assert(num_access == NumGroupsToMerge * NumGroupsToMerge, 
+                "Number of accesses must be equal to NumGroupsToMerge squared.");
 
-            constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (MPerIterationShuffle)>{};
-            constexpr auto nIter = number<idx_y_start.at(number<1>{}) / (NPerIterationShuffle)>{};
+            static_for<0, NumGroupsToMerge, 1>{}
+            (
+                [&](auto group)
+                {
+                    block_sync_lds();
+                    constexpr auto iAccess = number<group * NumGroupsToMerge + group>{};
+                    constexpr auto idx_y_start = SFC::get_index(iAccess);
 
-            // Store only the diagonal blocks when NumGroupsToMerge > 1
-            if constexpr (NumGroupsToMerge == 1 || (mIter == nIter))
-            {
+                    constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (MPerIterationShuffle)>{};
+                    constexpr auto nIter = number<idx_y_start.at(number<1>{}) / (NPerIterationShuffle)>{};
+
+                    lds_tile.get_thread_buffer() = o_acc_tile.get_y_sliced_thread_data(
+                        merge_sequences(
+                            sequence<mIter * NumMXdlPerWavePerShuffle, nIter * NumNXdlPerWavePerShuffle>{},
+                            c_warp_y_index_zeros),
+                        merge_sequences(sequence<NumMXdlPerWavePerShuffle, NumNXdlPerWavePerShuffle>{},
+                                        c_warp_y_lengths));
+
+                    const auto c_warptile_in_tensor_casted = cast_tile<ODataType>(lds_tile);
+
+                    store_tile(in_lds_window, c_warptile_in_tensor_casted);
+                    block_sync_lds();
+
+                    auto c_out_tensor = load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
+
+                    const auto ds_tensor = generate_tuple(
+                        [&](auto idx) { return load_tile(d_dram_windows[idx]); }, number<NumDTensor>{});
+
+                    const auto c_ds_tiles = concat_tuple_of_reference(
+                        tie(c_out_tensor, c_out_tensor),
+                        generate_tie([&](auto idx) -> const auto& { return ds_tensor[idx]; },
+                                    number<NumDTensor>{}));
+
+                    tile_elementwise_inout_unpack(typename Problem::CDElementwise{}, c_ds_tiles);
+
+                    if constexpr(MemoryOperation == memory_operation_enum::set)
+                    {
+                        store_tile(out_dram_window, c_out_tensor);
+                    }
+                    else
+                    {
+                        update_tile(out_dram_window, c_out_tensor);
+                    }
+
+                    // TODO: This probably doesn't work correctly.
+                    if constexpr(group != NumGroupsToMerge - 1)
+                    {
+                        constexpr auto step = SFC_dram::get_forward_step(group);
+
+                        move_tile_window(out_dram_window, {step.at(number<0>{}), step.at(number<1>{})});
+
+                        static_for<0, NumDTensor, 1>{}([&](auto idx) {
+                            move_tile_window(d_dram_windows[idx],
+                                            {step.at(number<0>{}), step.at(number<1>{})});
+                        });
+                    }        
+                }
+            );
+        }
+        else 
+        {
+            static_for<0, num_access, 1>{}([&](auto iAccess) {
+                block_sync_lds();
+                constexpr auto idx_y_start = SFC::get_index(iAccess);
+
+                constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (MPerIterationShuffle)>{};
+                constexpr auto nIter = number<idx_y_start.at(number<1>{}) / (NPerIterationShuffle)>{};
+
                 lds_tile.get_thread_buffer() = o_acc_tile.get_y_sliced_thread_data(
-                merge_sequences(
-                    sequence<mIter * NumMXdlPerWavePerShuffle, nIter * NumNXdlPerWavePerShuffle>{},
-                    c_warp_y_index_zeros),
-                merge_sequences(sequence<NumMXdlPerWavePerShuffle, NumNXdlPerWavePerShuffle>{},
-                                c_warp_y_lengths));
+                    merge_sequences(
+                        sequence<mIter * NumMXdlPerWavePerShuffle, nIter * NumNXdlPerWavePerShuffle>{},
+                        c_warp_y_index_zeros),
+                    merge_sequences(sequence<NumMXdlPerWavePerShuffle, NumNXdlPerWavePerShuffle>{},
+                                    c_warp_y_lengths));
 
                 const auto c_warptile_in_tensor_casted = cast_tile<ODataType>(lds_tile);
 
@@ -405,6 +473,7 @@ struct CShuffleEpilogue
                     update_tile(out_dram_window, c_out_tensor);
                 }
 
+                // TODO: This probably doesn't work correctly.
                 if constexpr(iAccess != num_access - 1)
                 {
                     constexpr auto step = SFC::get_forward_step(iAccess);
@@ -416,8 +485,8 @@ struct CShuffleEpilogue
                                         {step.at(number<0>{}), step.at(number<1>{})});
                     });
                 }
-            }
-        });
+            });
+        }
     }
 };
 } // namespace ck_tile

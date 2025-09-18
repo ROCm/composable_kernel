@@ -788,46 +788,6 @@ struct GroupedConvolutionBackwardWeightKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I3);
 
-        // In case we have multiple conv groups per GEMM batch, we need to store only the diagonal elements
-        // of the c_block_tile.
-        // constexpr index_t Gm = GroupedConvTraitsType_::NumGroupsToMerge;
-        // auto c_block_window_per_g = make_tile_window(
-        //     c_block_window,
-        //     c_block_window.get_window_origin()
-        // );
-        // if constexpr(Gm > 1)
-        // {
-        //     const index_t conv_group_size = kargs.group_stride_c / Gm;
-        //     static_for<0, Gm, 1>{}([&](auto g) 
-        //     {
-        //         // TODO: This is pseudocode, need to implement a proper way to slice the tile window
-        //         // to get the submatrix corresponding to the g-th conv group.
-        //         // constexpr auto& c_block_window_per_g = c_block_window.Slice(
-        //         //     make_tuple(number<g.value * TilePartitioner::MPerBlock / Gm>{},
-        //         //                number<0>{}),
-        //         //     make_tuple(number<(g.value + 1) * TilePartitioner::MPerBlock / Gm>{},
-        //         //                number<TilePartitioner::NPerBlock>{}));
-        //         // constexpr auto& c_block_tile_per_g = c_block_tile.Slice(
-        //         //     make_tuple(number<g.value * TilePartitioner::MPerBlock / Gm>{},
-        //         //                number<0>{}),
-        //         //     make_tuple(number<(g.value + 1) * TilePartitioner::MPerBlock / Gm>{},
-        //         //                number<TilePartitioner::NPerBlock>{}));
-        //         // constexpr auto & d_block_window_per_g = d_block_window.Slice(
-        //         //     make_tuple(number<g.value * TilePartitioner::MPerBlock / Gm>{},
-        //         //                number<0>{}),
-        //         //     make_tuple(number<(g.value + 1) * TilePartitioner::MPerBlock / Gm>{},
-        //         //                number<TilePartitioner::NPerBlock>{}));
-
-        //         EpiloguePipeline{}.template operator()<decltype(c_block_window_per_g), decltype(c_block_tile_per_g)>(
-        //             c_block_window_per_g, c_block_tile_per_g, d_block_window_per_g, smem_ptr_0);
-        //     });
-        // }
-        // else 
-        // {
-        //     EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
-        //         c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-        // }
-
         // For debugging - results in very slow compilation.
         // if (blockIdx.x == 0 && threadIdx.x == 0)
         // {

@@ -25,7 +25,7 @@
  * (3) number of iterations to cover the entire Y axis.
 
  * The raked here represents how data is partitioned across different processing granularity.
- * It represents howe we are going to access the data in thread, warp, or blocked in contiguous
+ * It represents how we are going to access the data in thread, warp, or blocked in contiguous
  region.
  * From below, the qualifier for 'raked' is the part of warp/thread hierarchy
  * in the split of Y tile dimension where the iteration happens,
@@ -102,6 +102,11 @@ enum struct tile_distribution_pattern
      *
      */
     block_raked,
+    /**
+     * @brief Sparse rows pattern - when we have very few rows, but potentially many columns.
+     *
+     */
+    sparse_row
 };
 
 struct tile_distribution_encoding_pattern
@@ -130,6 +135,88 @@ struct tile_distribution_encoding_pattern_2d : public tile_distribution_encoding
 {
 };
 
+// Sparse rows
+template <index_t BlockSize,
+          index_t YPerTile,
+          index_t XPerTile,
+          index_t VecSize,
+          index_t NumWaveGroups>
+struct tile_distribution_encoding_pattern_2d<BlockSize,
+                                             YPerTile,
+                                             XPerTile,
+                                             VecSize,
+                                             tile_distribution_pattern::sparse_row,
+                                             NumWaveGroups>
+    : public tile_distribution_encoding_pattern
+{
+    static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
+    static_assert(NumWaveGroups == 1, "NumWaveGroups must be 1 for sparse row pattern!");
+    
+    static constexpr index_t warp_size = get_warp_size();
+    static constexpr index_t num_warps = BlockSize / warp_size;
+    
+    // Calculate optimal vector size
+    static constexpr index_t LargestVec = max(1, (XPerTile * YPerTile) / (num_warps * warp_size));
+    static constexpr index_t X1 = VecSize > LargestVec ? LargestVec : VecSize;
+    static constexpr index_t X0 = XPerTile / X1;
+    
+    // When YPerTile is small, prioritize X dimension distribution
+    // and handle Y dimension with minimal thread usage.
+    
+    // Calculate threads needed for one row.
+    static constexpr index_t threads_per_row = X0;
+    
+    // Calculate how many rows we can process in parallel with available threads
+    static constexpr index_t max_parallel_rows = min(YPerTile, warp_size / threads_per_row);
+    
+    // Y2: Number of rows each warp handles in one iteration
+    static constexpr index_t Y2 = max_parallel_rows;
+    
+    // Y0: Number of warps to use (may be less than total available)
+    static constexpr index_t warps_needed = (YPerTile + Y2 - 1) / Y2;
+    static constexpr index_t Y0 = min(warps_needed, num_warps);
+    
+    // Y1: Number of iterations needed to cover all rows
+    static constexpr index_t Y1 = (YPerTile + (Y0 * Y2) - 1) / (Y0 * Y2);
+    
+    // Validation
+    static_assert(Y0 > 0, "Y0 must be greater than 0!");
+    static_assert(Y1 > 0, "Y1 must be greater than 0!");
+    static_assert(Y2 > 0, "Y2 must be greater than 0!");
+    static_assert(X0 > 0, "X0 must be greater than 0!");
+    static_assert(X1 > 0, "X1 must be greater than 0!");
+    
+    // Ensure we don't exceed available threads per warp
+    static_assert(threads_per_row * Y2 <= warp_size, 
+                  "Threads per row * rows per warp must not exceed warp size!");
+    
+    // Ensure we cover all elements (may over-cover due to ceiling, but that's OK)
+    static_assert(Y0 * Y1 * Y2 >= YPerTile, 
+                  "Y0 * Y1 * Y2 must cover at least YPerTile rows");
+
+    CK_TILE_HOST_DEVICE static constexpr auto make_2d_static_tile_distribution()
+    {
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1>>,
+                                       tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<0>, sequence<2, 0>>, // -> <Y0>, <Y2, X0>
+                                       sequence<1, 2>,
+                                       sequence<1, 1>>{}); // -> <Y1, X1>
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr auto make_shuffled_2d_static_tile_distribution()
+    {
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<X0, X1>, sequence<Y0, Y1, Y2>>,
+                                       tuple<sequence<2>, sequence<2, 1>>,
+                                       tuple<sequence<0>, sequence<2, 0>>, // -> <Y0>, <Y2, X0>
+                                       sequence<1, 2>,
+                                       sequence<1, 1>>{}); // -> <X1, Y1>
+    }
+};
+
 // Thread raked
 template <index_t BlockSize,
           index_t YPerTile,
@@ -144,34 +231,22 @@ struct tile_distribution_encoding_pattern_2d<BlockSize,
                                              NumWaveGroups>
     : public tile_distribution_encoding_pattern
 {
-
     // TODO: make pattern where below condition does not need to hold - GGemmMultiDSplitk!
-    static_assert(YPerTile > 0, "YPerTile must be greater than 0!");
-    static_assert(XPerTile > 0, "XPerTile must be greater than 0!");
-
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
     static constexpr index_t warp_size  = get_warp_size();
     static constexpr index_t num_warps  = BlockSize / get_warp_size();
-    static_assert(num_warps > 0, "num_warps must be greater than 0!");
-    static_assert(warp_size > 0, "warp_size must be greater than 0!");
-
-    static constexpr index_t LargestVec = max(1, (XPerTile * YPerTile) / (num_warps * warp_size));
+    static constexpr index_t LargestVec = (XPerTile * YPerTile) / (num_warps * warp_size);
     static constexpr index_t X1         = VecSize > LargestVec ? LargestVec : VecSize;
-
-    static_assert(X1 > 0, "X1 must be greater than 0!");
     static constexpr index_t X0         = XPerTile / X1; // # of threads in X dim
-    static_assert(X0 > 0, "X0 must be greater than 0!");
 
     // # of rows in Y dim accessed by single wavefront in one iteration
-    static constexpr index_t Y1 = max(1, warp_size / X0);
+    static constexpr index_t Y1 = warp_size / X0;
     static_assert(X0 * Y1 == warp_size, "X0 * Y1 must cover whole wavefront!");
 
-    static constexpr index_t Y0 = max(1, num_warps / NumWaveGroups);
+    static constexpr index_t Y0 = num_warps / NumWaveGroups;
     //  YPerWarp = YPerTile / Y0;
     //  Y2 = YPerWarp / Y1;
-    static_assert(Y0 > 0, "Y0 must be greater than 0!");
-    static_assert(Y1 > 0, "Y1 must be greater than 0!");
-    static constexpr index_t Y2 = max(1, YPerTile / (Y1 * Y0)); // # of iters within wavefront
+    static constexpr index_t Y2 = YPerTile / (Y1 * Y0); // # of iters within wavefront
 
     static_assert(X0 * Y1 * Y0 * NumWaveGroups == BlockSize,
                   "X0 * warp_ys * Y0 must cover whole workgroup!");
@@ -241,27 +316,20 @@ struct tile_distribution_encoding_pattern_2d<BlockSize,
                                              NumWaveGroups>
     : public tile_distribution_encoding_pattern
 {
-    static_assert(YPerTile > 0, "YPerTile must be greater than 0!");
-    static_assert(XPerTile > 0, "XPerTile must be greater than 0!");
-
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
     static constexpr index_t warp_size  = get_warp_size();
-    static_assert(warp_size > 0, "warp_size must be greater than 0!");
     static constexpr index_t num_warps  = BlockSize / get_warp_size();
-    static_assert(num_warps > 0, "num_warps must be greater than 0!");
-    static constexpr index_t LargestVec = max(1, (XPerTile * YPerTile) / (num_warps * warp_size));
+    static constexpr index_t LargestVec = (XPerTile * YPerTile) / (num_warps * warp_size);
     static constexpr index_t X1         = VecSize > LargestVec ? LargestVec : VecSize;
-    static_assert(X1 > 0, "X1 must be greater than 0!");
     static constexpr index_t X0         = XPerTile / X1; // # of threads in X dim
 
     static constexpr index_t Y2 = warp_size / X0; // # of rows in Y dim to cover whole wavefront
-    static_assert(Y2 > 0, "Y2 must be greater than 0!");
     static_assert(X0 * Y2 == warp_size, "X0 * Y2 must cover whole wavefront!");
 
     static constexpr index_t Y0 = num_warps;
     static_assert(X0 * Y2 * Y0 == BlockSize, "X0 * Y2 * Y1 must cover whole workgroup!");
 
-    static constexpr index_t Y1 = max(1, YPerTile / (Y2 * Y0)); // # of iters within wavefront
+    static constexpr index_t Y1 = YPerTile / (Y2 * Y0); // # of iters within wavefront
     static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover whole YPerTile");
 
     CK_TILE_HOST_DEVICE static constexpr auto make_2d_static_tile_distribution()
@@ -306,7 +374,7 @@ struct tile_distribution_encoding_pattern_2d<BlockSize,
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
     static constexpr index_t warp_size  = get_warp_size();
     static constexpr index_t num_warps  = BlockSize / get_warp_size();
-    static constexpr index_t LargestVec = (XPerTile * YPerTile) / (num_warps * warp_size);
+    static constexpr index_t LargestVec = max(1, (XPerTile * YPerTile) / (num_warps * warp_size));
     static constexpr index_t X1         = VecSize > LargestVec ? LargestVec : VecSize;
     static constexpr index_t X0         = XPerTile / X1; // # of threads in X dim
     static constexpr index_t Y2 = warp_size / X0; // # of rows in Y dim to cover whole wavefront
@@ -347,6 +415,7 @@ constexpr const char* tile_distribution_pattern_to_string(tile_distribution_patt
     case tile_distribution_pattern::thread_raked: return "thread_raked";
     case tile_distribution_pattern::warp_raked: return "warp_raked";
     case tile_distribution_pattern::block_raked: return "block_raked";
+    case tile_distribution_pattern::sparse_row: return "sparse_row";
     default: return "unknown";
     }
 }
