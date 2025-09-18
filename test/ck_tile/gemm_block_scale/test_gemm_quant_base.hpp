@@ -11,6 +11,8 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
+#include "ck_tile/host/check_err.hpp"
+#include "ck_tile/host/reference/reference_gemm.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/gemm_quant.hpp"
@@ -65,15 +67,12 @@ class TestCkTileGemmQuantBase : public ::testing::Test
     }
 
     // Common test execution logic
-    template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
     void invoke_quant_gemm(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s)
     {
-        constexpr bool kPadM      = PadM;
-        constexpr bool kPadN      = PadN;
-        constexpr bool kPadK      = PadK;
-        constexpr bool preshuffle = Preshuffle;
-
-        constexpr int kOccupancy [[maybe_unused]] = 1;
+        constexpr bool kPadM       = false;
+        constexpr bool kPadN       = false;
+        constexpr bool kPadK       = false;
+        constexpr bool kPreshuffle = false;
 
         using CodegenGemmShape =
             ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
@@ -85,7 +84,7 @@ class TestCkTileGemmQuantBase : public ::testing::Test
         using CodegenGemmTraits = ck_tile::TileGemmQuantTraits<kPadM,
                                                                kPadN,
                                                                kPadK,
-                                                               preshuffle,
+                                                               kPreshuffle,
                                                                ALayout,
                                                                BLayout,
                                                                CLayout,
@@ -99,11 +98,8 @@ class TestCkTileGemmQuantBase : public ::testing::Test
 
     void RunTest(ck_tile::index_t M, ck_tile::index_t N, ck_tile::index_t K)
     {
-        auto args = static_cast<Derived*>(this)->generate_test_data(M, N, K);
-        ck_tile::stream_config stream_config{};
-        
-        // Test different combinations of padding and preshuffle
-        invoke_quant_gemm<false, false, false, false>(args, stream_config);
+        // Generate test data and run the kernel
+        static_cast<Derived*>(this)->run_test_with_validation(M, N, K);
     }
 
     // Helper function to check layout 
@@ -111,6 +107,28 @@ class TestCkTileGemmQuantBase : public ::testing::Test
     static constexpr auto is_row_major(Layout)
     {
         return ck_tile::bool_constant<std::is_same_v<ck_tile::remove_cvref_t<decltype(Layout{})>, ck_tile::tensor_layout::gemm::RowMajor>>{};
+    }
+
+    // Tolerance calculation function for validation
+    template <typename ADataType_, typename BDataType_, typename AccDataType_, typename CDataType_>
+    auto calculate_rtol_atol(const ck_tile::index_t K,
+                             const ck_tile::index_t kbatch,
+                             const float max_accumulated_value)
+    {
+        using ComputeType =
+            std::conditional_t<sizeof(ADataType_) < sizeof(BDataType_), ADataType_, BDataType_>;
+        // Calculate thresholds
+        const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType_, AccDataType_>(
+            ck_tile::integer_divide_ceil(K, kbatch));
+        const auto atol = ck_tile::get_absolute_threshold<ComputeType, CDataType_, AccDataType_>(
+            max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
+        // Calculate error due to split_k accumulation
+        const auto rtol_split_k =
+            ck_tile::get_relative_threshold<CDataType_, CDataType_, CDataType_>(kbatch);
+        const auto atol_split_k = ck_tile::get_absolute_threshold<CDataType_, CDataType_, CDataType_>(
+            max_accumulated_value, kbatch);
+        // Use higher threshold
+        return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
     }
 };
 
@@ -133,7 +151,7 @@ struct QuantTypeTraits<ck_tile::QuantType::AQuantGrouped>
     using AQDataType = float; // Scale type for A quantization
     
     template <typename ADataType, typename BDataType>
-    using BQDataType = BDataType; // No B quantization for AQuant
+    using BQDataType = void; // No B quantization for AQuant
     
     template <typename ADataType, typename BDataType>
     using ComputeDataType = BDataType; // For AQuant, compute type is BDataType
@@ -146,7 +164,7 @@ template <>
 struct QuantTypeTraits<ck_tile::QuantType::BQuantGrouped>
 {
     template <typename ADataType, typename BDataType>
-    using AQDataType = ADataType; // No A quantization for BQuant
+    using AQDataType = void; // No A quantization for BQuant
     
     template <typename ADataType, typename BDataType>
     using BQDataType = float; // Scale type for B quantization
@@ -168,7 +186,7 @@ struct QuantTypeTraits<ck_tile::QuantType::RowColQuant>
     using BQDataType = float; // Scale type for B row/col quantization
     
     template <typename ADataType, typename BDataType>
-    using ComputeDataType = BDataType; // For RowColQuant, compute type is BDataType
+    using ComputeDataType = ADataType; // For RowColQuant, compute type is ADataType
 
     static constexpr const char* name = "rowcol";
 };

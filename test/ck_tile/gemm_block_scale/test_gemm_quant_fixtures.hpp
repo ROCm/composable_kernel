@@ -53,9 +53,9 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     void TearDownQuantTypeSpecific() {}
 
     // AQuant-specific data generation
-    ck_tile::QuantGemmHostArgs generate_test_data(ck_tile::index_t M, ck_tile::index_t N, ck_tile::index_t K)
+    void run_test_with_validation(ck_tile::index_t M, ck_tile::index_t N, ck_tile::index_t K)
     {
-        const ck_tile::index_t stride_A = M;
+        const ck_tile::index_t stride_A = K;
         const ck_tile::index_t stride_B = K;  
         const ck_tile::index_t stride_C = M;
 
@@ -70,26 +70,25 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
             ck_tile::host_tensor_descriptor(M, AQK, stride_AQ, this->is_row_major(ALayout{})));
         ck_tile::HostTensor<BDataType> b_k_n(
             ck_tile::host_tensor_descriptor(K, N, stride_B, this->is_row_major(BLayout{})));
-        ck_tile::HostTensor<CDataType> c_m_n_dev_result(
-            ck_tile::host_tensor_descriptor(M, N, stride_C, this->is_row_major(CLayout{})));
 
         // Initialize data with random values
-        ck_tile::FillUniformDistribution<ADataType>{0.f, 1.f}(a_m_k);
-        ck_tile::FillUniformDistribution<BDataType>{-0.5f, 0.5f}(b_k_n);
-        ck_tile::FillUniformDistribution<AQDataType>{0.001f, 0.01f}(aq_m_aqk); // Small scale values
+        ck_tile::FillUniformDistribution<ADataType>{-2.0f, 3.0f}(a_m_k);
+        ck_tile::FillUniformDistribution<BDataType>{-5.0f, 5.0f}(b_k_n);
+        ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f}(aq_m_aqk);
 
         // Allocate device memory
         ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size() * sizeof(ADataType));
         ck_tile::DeviceMem aq_m_aqk_dev_buf(aq_m_aqk.get_element_space_size() * sizeof(AQDataType));
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size() * sizeof(BDataType));
-        ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size() * sizeof(CDataType));
+        ck_tile::DeviceMem c_m_n_dev_buf(M * N * sizeof(CDataType));
 
         // Copy to device
         a_m_k_dev_buf.ToDevice(a_m_k.data());
         aq_m_aqk_dev_buf.ToDevice(aq_m_aqk.data());
         b_k_n_dev_buf.ToDevice(b_k_n.data());
 
-        return ck_tile::QuantGemmHostArgs{
+        // Create args for kernel execution
+        ck_tile::QuantGemmHostArgs args{
             a_m_k_dev_buf.GetDeviceBuffer(),     // a_ptr
             b_k_n_dev_buf.GetDeviceBuffer(),     // b_ptr  
             c_m_n_dev_buf.GetDeviceBuffer(),     // c_ptr
@@ -101,8 +100,53 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
             0,                                  // QK_B (not used for AQuant)
             stride_A, stride_B, stride_C, stride_AQ, 0 // strides
         };
+
+        // Run the kernel
+        ck_tile::stream_config stream_config{};
+        this->invoke_quant_gemm(args, stream_config);
+
+        // Validation using reference implementation
+        ck_tile::HostTensor<CDataType> c_m_n_host_ref(
+            ck_tile::host_tensor_descriptor(M, N, stride_C, this->is_row_major(CLayout{})));
+        c_m_n_host_ref.SetZero();
+
+        // Run reference AQuant implementation
+        ck_tile::reference_gemm_quant<ADataType,
+                                      AQDataType,
+                                      BDataType,
+                                      AccDataType,
+                                      CDataType,
+                                      QuantGroupSize,
+                                      true>(a_m_k, aq_m_aqk, b_k_n, c_m_n_host_ref);
+
+        // Get device result
+        ck_tile::HostTensor<CDataType> c_m_n_dev_result(
+            ck_tile::host_tensor_descriptor(M, N, stride_C, this->is_row_major(CLayout{})));
+        c_m_n_dev_buf.FromDevice(c_m_n_dev_result.mData.data());
+
+        // Calculate error tolerances
+        const float max_accumulated_value = 
+            *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
+        const auto rtol_atol = this->template calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+            K, 1, max_accumulated_value);
+
+        // Validate results
+        bool pass = ck_tile::check_err(c_m_n_dev_result,
+                                      c_m_n_host_ref,
+                                      "Error: Incorrect results!",
+                                      rtol_atol.at(ck_tile::number<0>{}),
+                                      rtol_atol.at(ck_tile::number<1>{}));
+
+        EXPECT_TRUE(pass) << "AQuantGrouped validation failed with M=" << M << ", N=" << N << ", K=" << K;
+        
+        if(!pass) {
+            std::cout << "AQuantGrouped - Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
+                      << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
+                      << std::endl;
+        }
     }
 
+private:
     // AQuant-specific pipeline implementation
     template <typename CodegenGemmShape, typename TilePartitioner, typename CodegenGemmTraits>
     void run_quant_gemm_impl(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s)
@@ -206,10 +250,9 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     void SetUpQuantTypeSpecific() {}
     void TearDownQuantTypeSpecific() {}
 
-    // BQuant-specific data generation
-    ck_tile::QuantGemmHostArgs generate_test_data(ck_tile::index_t M, ck_tile::index_t N, ck_tile::index_t K)
+    void run_test_with_validation(ck_tile::index_t M, ck_tile::index_t N, ck_tile::index_t K)
     {
-        const ck_tile::index_t stride_A = M;
+        const ck_tile::index_t stride_A = K;
         const ck_tile::index_t stride_B = K;  
         const ck_tile::index_t stride_C = M;
 
@@ -224,8 +267,6 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
             ck_tile::host_tensor_descriptor(K, N, stride_B, this->is_row_major(BLayout{})));
         ck_tile::HostTensor<BQDataType> bq_bqk_n(
             ck_tile::host_tensor_descriptor(BQK, N, stride_BQ, this->is_row_major(BLayout{})));
-        ck_tile::HostTensor<CDataType> c_m_n_dev_result(
-            ck_tile::host_tensor_descriptor(M, N, stride_C, this->is_row_major(CLayout{})));
 
         // Initialize data with random values
         ck_tile::FillUniformDistribution<ADataType>{-0.5f, 0.5f}(a_m_k);
@@ -236,19 +277,15 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size() * sizeof(ADataType));
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size() * sizeof(BDataType));
         ck_tile::DeviceMem bq_bqk_n_dev_buf(bq_bqk_n.get_element_space_size() * sizeof(BQDataType));
-        ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size() * sizeof(CDataType));
+        ck_tile::DeviceMem c_m_n_dev_buf(M * N * sizeof(CDataType));
 
         // Copy to device
         a_m_k_dev_buf.ToDevice(a_m_k.data());
         b_k_n_dev_buf.ToDevice(b_k_n.data());
         bq_bqk_n_dev_buf.ToDevice(bq_bqk_n.data());
 
-        // Copy to device
-        a_m_k_dev_buf.ToDevice(a_m_k.data());
-        b_k_n_dev_buf.ToDevice(b_k_n.data());
-        bq_bqk_n_dev_buf.ToDevice(bq_bqk_n.data());
-
-        return ck_tile::QuantGemmHostArgs{
+        // Create args for kernel execution
+        ck_tile::QuantGemmHostArgs args{
             a_m_k_dev_buf.GetDeviceBuffer(),     // a_ptr
             b_k_n_dev_buf.GetDeviceBuffer(),     // b_ptr  
             c_m_n_dev_buf.GetDeviceBuffer(),     // c_ptr
@@ -260,8 +297,53 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
             BQK,                                // QK_B  
             stride_A, stride_B, stride_C, 0, stride_BQ // strides
         };
+
+        // Run the kernel
+        ck_tile::stream_config stream_config{};
+        this->invoke_quant_gemm(args, stream_config);
+
+        // Validation using reference implementation
+        ck_tile::HostTensor<CDataType> c_m_n_host_ref(
+            ck_tile::host_tensor_descriptor(M, N, stride_C, this->is_row_major(CLayout{})));
+        c_m_n_host_ref.SetZero();
+
+        // Run reference BQuant implementation
+        ck_tile::reference_gemm_quant<ADataType,
+                                      BQDataType,
+                                      BDataType,
+                                      AccDataType,
+                                      CDataType,
+                                      QuantGroupSize,
+                                      false>(a_m_k, bq_bqk_n, b_k_n, c_m_n_host_ref);
+
+        // Get device result
+        ck_tile::HostTensor<CDataType> c_m_n_dev_result(
+            ck_tile::host_tensor_descriptor(M, N, stride_C, this->is_row_major(CLayout{})));
+        c_m_n_dev_buf.FromDevice(c_m_n_dev_result.mData.data());
+
+        // Calculate error tolerances
+        const float max_accumulated_value = 
+            *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
+        const auto rtol_atol = this->template calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+            K, 1, max_accumulated_value);
+
+        // Validate results
+        bool pass = ck_tile::check_err(c_m_n_dev_result,
+                                      c_m_n_host_ref,
+                                      "Error: Incorrect results!",
+                                      rtol_atol.at(ck_tile::number<0>{}),
+                                      rtol_atol.at(ck_tile::number<1>{}));
+
+        EXPECT_TRUE(pass) << "BQuantGrouped validation failed with M=" << M << ", N=" << N << ", K=" << K;
+        
+        if(!pass) {
+            std::cout << "BQuantGrouped - Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
+                      << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
+                      << std::endl;
+        }
     }
 
+private:
     // BQuant-specific pipeline implementation
     template <typename CodegenGemmShape, typename TilePartitioner, typename CodegenGemmTraits>
     void run_quant_gemm_impl(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s)
@@ -364,10 +446,9 @@ class TestCkTileGemmRowColQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTi
     void SetUpQuantTypeSpecific() {}
     void TearDownQuantTypeSpecific() {}
 
-    // RowColQuant-specific data generation
-    ck_tile::QuantGemmHostArgs generate_test_data(ck_tile::index_t M, ck_tile::index_t N, ck_tile::index_t K)
+    void run_test_with_validation(ck_tile::index_t M, ck_tile::index_t N, ck_tile::index_t K)
     {
-        const ck_tile::index_t stride_A = M;
+        const ck_tile::index_t stride_A = K;
         const ck_tile::index_t stride_B = K;  
         const ck_tile::index_t stride_C = M;
 
@@ -384,8 +465,6 @@ class TestCkTileGemmRowColQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTi
             ck_tile::host_tensor_descriptor(M, 1, stride_row_scales, ck_tile::bool_constant<true>{}));
         ck_tile::HostTensor<BQDataType> col_scales_n(
             ck_tile::host_tensor_descriptor(N, 1, stride_col_scales, ck_tile::bool_constant<true>{}));
-        ck_tile::HostTensor<CDataType> c_m_n_dev_result(
-            ck_tile::host_tensor_descriptor(M, N, stride_C, this->is_row_major(CLayout{})));
 
         // Initialize data with random values
         ck_tile::FillUniformDistribution<ADataType>{-0.5f, 0.5f}(a_m_k);
@@ -398,7 +477,7 @@ class TestCkTileGemmRowColQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTi
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size() * sizeof(BDataType));
         ck_tile::DeviceMem row_scales_dev_buf(row_scales_m.get_element_space_size() * sizeof(AQDataType));
         ck_tile::DeviceMem col_scales_dev_buf(col_scales_n.get_element_space_size() * sizeof(BQDataType));
-        ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size() * sizeof(CDataType));
+        ck_tile::DeviceMem c_m_n_dev_buf(M * N * sizeof(CDataType));
 
         // Copy to device
         a_m_k_dev_buf.ToDevice(a_m_k.data());
@@ -406,9 +485,8 @@ class TestCkTileGemmRowColQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTi
         row_scales_dev_buf.ToDevice(row_scales_m.data());
         col_scales_dev_buf.ToDevice(col_scales_n.data());
 
-
-
-        return ck_tile::QuantGemmHostArgs{
+        // Create args for kernel execution
+        ck_tile::QuantGemmHostArgs args{
             a_m_k_dev_buf.GetDeviceBuffer(),     // a_ptr
             b_k_n_dev_buf.GetDeviceBuffer(),     // b_ptr  
             c_m_n_dev_buf.GetDeviceBuffer(),     // c_ptr
@@ -420,8 +498,53 @@ class TestCkTileGemmRowColQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTi
             1,                                  // QK_B (col scales)
             stride_A, stride_B, stride_C, stride_row_scales, stride_col_scales // strides
         };
+
+        // Run the kernel
+        ck_tile::stream_config stream_config{};
+        this->invoke_quant_gemm(args, stream_config);
+
+        // Validation using reference implementation
+        ck_tile::HostTensor<CDataType> c_m_n_host_ref(
+            ck_tile::host_tensor_descriptor(M, N, stride_C, this->is_row_major(CLayout{})));
+        c_m_n_host_ref.SetZero();
+
+        // Run reference RowColQuant implementation
+        ck_tile::reference_gemm_rowcol_quant<ADataType,
+                                             AQDataType,
+                                             BDataType,
+                                             BQDataType,
+                                             AccDataType,
+                                             CDataType>(
+            a_m_k, row_scales_m, b_k_n, col_scales_n, c_m_n_host_ref);
+
+        // Get device result
+        ck_tile::HostTensor<CDataType> c_m_n_dev_result(
+            ck_tile::host_tensor_descriptor(M, N, stride_C, this->is_row_major(CLayout{})));
+        c_m_n_dev_buf.FromDevice(c_m_n_dev_result.mData.data());
+
+        // Calculate error tolerances
+        const float max_accumulated_value = 
+            *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
+        const auto rtol_atol = this->template calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+            K, 1, max_accumulated_value);
+
+        // Validate results
+        bool pass = ck_tile::check_err(c_m_n_dev_result,
+                                      c_m_n_host_ref,
+                                      "Error: Incorrect results!",
+                                      rtol_atol.at(ck_tile::number<0>{}),
+                                      rtol_atol.at(ck_tile::number<1>{}));
+
+        EXPECT_TRUE(pass) << "RowColQuant validation failed with M=" << M << ", N=" << N << ", K=" << K;
+        
+        if(!pass) {
+            std::cout << "RowColQuant - Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
+                      << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
+                      << std::endl;
+        }
     }
 
+private:
     // RowColQuant-specific pipeline implementation
     template <typename CodegenGemmShape, typename TilePartitioner, typename CodegenGemmTraits>
     void run_quant_gemm_impl(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s)
@@ -525,10 +648,9 @@ class TestCkTileGemmTensorQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTi
     void SetUpQuantTypeSpecific() {}
     void TearDownQuantTypeSpecific() {}
 
-    // TensorQuant-specific data generation  
-    ck_tile::QuantGemmHostArgs generate_test_data(ck_tile::index_t M, ck_tile::index_t N, ck_tile::index_t K)
+    void run_test_with_validation(ck_tile::index_t M, ck_tile::index_t N, ck_tile::index_t K)
     {
-        const ck_tile::index_t stride_A = M;
+        const ck_tile::index_t stride_A = K;
         const ck_tile::index_t stride_B = K;  
         const ck_tile::index_t stride_C = M;
 
@@ -545,8 +667,6 @@ class TestCkTileGemmTensorQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTi
             ck_tile::host_tensor_descriptor(1, 1, stride_scale_a, ck_tile::bool_constant<true>{}));
         ck_tile::HostTensor<BQDataType> scale_b(
             ck_tile::host_tensor_descriptor(1, 1, stride_scale_b, ck_tile::bool_constant<true>{}));
-        ck_tile::HostTensor<CDataType> c_m_n_dev_result(
-            ck_tile::host_tensor_descriptor(M, N, stride_C, this->is_row_major(CLayout{})));
 
         // Initialize data with random values
         ck_tile::FillUniformDistribution<ADataType>{-0.5f, 0.5f}(a_m_k);
@@ -559,7 +679,7 @@ class TestCkTileGemmTensorQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTi
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size() * sizeof(BDataType));
         ck_tile::DeviceMem scale_a_dev_buf(scale_a.get_element_space_size() * sizeof(AQDataType));
         ck_tile::DeviceMem scale_b_dev_buf(scale_b.get_element_space_size() * sizeof(BQDataType));
-        ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size() * sizeof(CDataType));
+        ck_tile::DeviceMem c_m_n_dev_buf(M * N * sizeof(CDataType));
 
         // Copy to device
         a_m_k_dev_buf.ToDevice(a_m_k.data());
@@ -567,9 +687,8 @@ class TestCkTileGemmTensorQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTi
         scale_a_dev_buf.ToDevice(scale_a.data());
         scale_b_dev_buf.ToDevice(scale_b.data());
 
-
-
-        return ck_tile::QuantGemmHostArgs{
+        // Create args for kernel execution
+        ck_tile::QuantGemmHostArgs args{
             a_m_k_dev_buf.GetDeviceBuffer(),     // a_ptr
             b_k_n_dev_buf.GetDeviceBuffer(),     // b_ptr  
             c_m_n_dev_buf.GetDeviceBuffer(),     // c_ptr
@@ -581,8 +700,53 @@ class TestCkTileGemmTensorQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTi
             1,                                  // QK_B (tensor scale)
             stride_A, stride_B, stride_C, stride_scale_a, stride_scale_b // strides
         };
+
+        // Run the kernel
+        ck_tile::stream_config stream_config{};
+        this->invoke_quant_gemm(args, stream_config);
+
+        // Validation using reference implementation
+        ck_tile::HostTensor<CDataType> c_m_n_host_ref(
+            ck_tile::host_tensor_descriptor(M, N, stride_C, this->is_row_major(CLayout{})));
+        c_m_n_host_ref.SetZero();
+
+        // Run reference TensorQuant implementation
+        ck_tile::reference_gemm_tensor_quant<ADataType,
+                                             AQDataType,
+                                             BDataType,
+                                             BQDataType,
+                                             AccDataType,
+                                             CDataType>(
+            a_m_k, scale_a, b_k_n, scale_b, c_m_n_host_ref);
+
+        // Get device result
+        ck_tile::HostTensor<CDataType> c_m_n_dev_result(
+            ck_tile::host_tensor_descriptor(M, N, stride_C, this->is_row_major(CLayout{})));
+        c_m_n_dev_buf.FromDevice(c_m_n_dev_result.mData.data());
+
+        // Calculate error tolerances
+        const float max_accumulated_value = 
+            *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
+        const auto rtol_atol = this->template calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+            K, 1, max_accumulated_value);
+
+        // Validate results
+        bool pass = ck_tile::check_err(c_m_n_dev_result,
+                                      c_m_n_host_ref,
+                                      "Error: Incorrect results!",
+                                      rtol_atol.at(ck_tile::number<0>{}),
+                                      rtol_atol.at(ck_tile::number<1>{}));
+
+        EXPECT_TRUE(pass) << "TensorQuant validation failed with M=" << M << ", N=" << N << ", K=" << K;
+        
+        if(!pass) {
+            std::cout << "TensorQuant - Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
+                      << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
+                      << std::endl;
+        }
     }
 
+private:
     // TensorQuant-specific pipeline implementation
     template <typename CodegenGemmShape, typename TilePartitioner, typename CodegenGemmTraits>
     void run_quant_gemm_impl(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s)

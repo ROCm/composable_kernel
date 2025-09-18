@@ -15,17 +15,17 @@ using namespace ck_tile;
 
 // Simple GemmConfig for testing
 struct SimpleGemmConfig {
-    static constexpr ck_tile::index_t M_Tile = 128;
-    static constexpr ck_tile::index_t N_Tile = 128;
-    static constexpr ck_tile::index_t K_Tile = 128;
+    static constexpr ck_tile::index_t M_Tile = 16;
+    static constexpr ck_tile::index_t N_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 256;
 
-    static constexpr ck_tile::index_t M_Warp = 2;
-    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
     static constexpr ck_tile::index_t K_Warp = 1;
-    
-    static constexpr ck_tile::index_t M_Warp_Tile = 32;
-    static constexpr ck_tile::index_t N_Warp_Tile = 32;
-    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 32;
 };
 
 // Test fixtures for each quantization type
@@ -83,20 +83,20 @@ using TensorQuantTestFixture = TestCkTileGemmTensorQuant<std::tuple<
 
 // Test AQuant quantization
 TEST_F(AQuantTestFixture, BasicTest) {
-    EXPECT_NO_THROW(RunTest(128, 128, 128)) << "AQuant test failed";
+    EXPECT_NO_THROW(RunTest(1024, 1024, 1024)) << "AQuant test failed";
 }
 
 // Test BQuant quantization  
 TEST_F(BQuantTestFixture, BasicTest) {
-    EXPECT_NO_THROW(RunTest(128, 128, 128)) << "BQuant test failed";
+    EXPECT_NO_THROW(RunTest(1024, 1024, 1024)) << "BQuant test failed";
 }
 
 // Test RowColQuant quantization
 TEST_F(RowColQuantTestFixture, BasicTest) {
-    EXPECT_NO_THROW(RunTest(128, 128, 128)) << "RowColQuant test failed";
+    EXPECT_NO_THROW(RunTest(1024, 1024, 1024)) << "RowColQuant test failed";
 }
 
 // Test TensorQuant quantization
 TEST_F(TensorQuantTestFixture, BasicTest) {
-    EXPECT_NO_THROW(RunTest(128, 128, 128)) << "TensorQuant test failed";
+    EXPECT_NO_THROW(RunTest(1024, 1024, 1024)) << "TensorQuant test failed";
 }
