@@ -105,6 +105,16 @@ foreach(gpu IN LISTS GPU_TARGETS)
     endif()
 endforeach()
 
+list(APPEND gpu_list_tf32 gfx942)
+set(target 0)
+foreach(gpu IN LISTS GPU_TARGETS)
+    if(gpu IN_LIST gpu_list_tf32 AND target EQUAL 0)
+        add_example_executable(example_gemm_xdl_lds_direct_load_fp32_tf32 gemm_xdl_lds_direct_load_fp32_tf32.cpp)
+        add_example_dependencies(example_gemm_xdl example_gemm_xdl_lds_direct_load_fp32_tf32)
+        set(target 1)
+    endif()
+endforeach()
+
 add_example_executable(example_gemm_xdl_fp8 gemm_xdl_fp8.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp8)
 
