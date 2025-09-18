@@ -49,6 +49,9 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                                            ELayout,
                                            GemmConfig::NumWaveGroups>;
 
+    //static_assert(GemmShape::NumWarps == 2, "NumWarps must be 2");
+    static_assert(GemmConfig::NumWaveGroups == 2, "NumWaveGroups must be 2");
+
     using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
                                                                  GemmConfig::kPadN,
                                                                  GemmConfig::kPadK,
@@ -95,24 +98,46 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
         using GemmPipeline = typename PipelineTypeTraits<
             GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
 
-            /*
-            using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
-                ck_tile::DefaultGemm2DEpilogueProblem<
-                                                    ADataType, 
-                                                    BDataType,
-                                                    AccDataType, 
-                                                    CDataType, 
-                                                    CLayout, 
-                                                    GemmConfig::kPadM,
-                                                    GemmConfig::kPadN, 
-                                                    GemmConfig::M_Warp_Tile, 
-                                                    GemmConfig::N_Warp_Tile, 
-                                                    GemmConfig::K_Warp_Tile, 
-                                                    UniversalGemmProblem::TransposeC, 
-                                                    false,
-                                                    memory_operation>>;
-            */
-
+        /*
+        using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
+            ck_tile::DefaultGemm2DEpilogueProblem<
+                                                ADataType, 
+                                                BDataType,
+                                                AccDataType, 
+                                                CDataType, 
+                                                ELayout, 
+                                                GemmConfig::kPadM,
+                                                GemmConfig::kPadN, 
+                                                GemmConfig::M_Warp_Tile, 
+                                                GemmConfig::N_Warp_Tile, 
+                                                GemmConfig::K_Warp_Tile, 
+                                                UniversalGemmProblem::TransposeC, 
+                                                false,
+                                                memory_operation>>;
+        
+        using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
+            ck_tile::DefaultGemm2DEpilogueProblem<
+                                                ADataType, 
+                                                BDataType,
+                                                AccDataType, 
+                                                CDataType, 
+                                                ELayout, 
+                                                GemmConfig::kPadM,
+                                                GemmConfig::kPadN,
+                                                TilePartitioner::MPerBlock, 
+                                                TilePartitioner::NPerBlock, 
+                                                GemmConfig::M_Warp,
+                                                GemmConfig::N_Warp,
+                                                GemmConfig::M_Warp_Tile, 
+                                                GemmConfig::N_Warp_Tile, 
+                                                GemmConfig::K_Warp_Tile, 
+                                                UniversalGemmProblem::TransposeC, 
+                                                false,
+                                                memory_operation, 
+                                                GemmConfig::NumWaveGroups>>;
+        */
+        
+        
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
                                              BDataType,
@@ -130,26 +155,35 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                                              GemmConfig::N_Warp_Tile,
                                              GemmConfig::K_Warp_Tile,
                                              UniversalGemmProblem::TransposeC,
-                                             memory_operation,
+                                             memory_operation, 
                                              GemmConfig::NumWaveGroups>>;
-
+        
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
         auto kargs   = Kernel::MakeKernelArgs(args);
+
+        std::cout << "Batch size : " << args.k_batch << std::endl;
 
         dim3 grids;
         if constexpr(Persistent)
         {
+            std::cout << "Persistent.... " << std::endl;
             grids = Kernel::MaxOccupancyGridSize(s);
         }
         else
         {
+            std::cout << "Ping pong.... " << std::endl;
                 if constexpr(GemmConfig::PingPongDim == 0)
                 {
+                    std::cout << "Ping pong....OFF " << std::endl;
                     grids = Kernel::GridSize(args.M, args.N, args.k_batch);
                 }
                 else
                 {
+                    std::cout << "Ping pong....ON " << std::endl;
                     grids = Kernel::PingPongGridSize(args.M, args.N, args.K, args.k_batch);
+                    std::cout << "Arguments: { " << args.M << ", " << args.N << ", " << args.K << ", " << args.k_batch << " }" << std::endl;
+                    std::cout << "Grid size : {" << grids.x << ", " << grids.y << ", " << grids.z
+                              << "}" << std::endl;
                 }
         }
         dim3 blocks = Kernel::BlockSize();
@@ -222,6 +256,8 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
             }
             else
             {
+                //TODO: set this to atomic_add, for the correct code. 
+                // Testing this with set to test for logic.
                 Run(has_hot_loop_, 
                     tail_number_, 
                     ck_tile::integral_constant<ck_tile::memory_operation_enum, 
@@ -230,7 +266,8 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
         }
         else
         {
-            Run(has_hot_loop_, tail_number_, MemoryOpAtomicAdd{});
+            //Run(has_hot_loop_, tail_number_, MemoryOpAtomicAdd{});
+            Run(has_hot_loop_, tail_number_, ck_tile::integral_constant<ck_tile::memory_operation_enum, ck_tile::memory_operation_enum::atomic_add>{});
         }
     };
 
@@ -248,7 +285,7 @@ int run_gemm_example_prec_type(std::string a_layout,
 {
     using Row       = ck_tile::tensor_layout::gemm::RowMajor;
     using Col       = ck_tile::tensor_layout::gemm::ColumnMajor;
-    bool preshuffle = GemmConfig::Preshuffle;
+    //bool preshuffle = GemmConfig::Preshuffle;
 
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
@@ -256,8 +293,8 @@ int run_gemm_example_prec_type(std::string a_layout,
 
     if(a_layout == "R" && b_layout == "C")
     {
-        return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-            argc, argv, Row{}, Col{}, Row{});
+        return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
+            arg_parser, Row{}, Col{}, Row{});
     }
     else
     {
@@ -272,9 +309,9 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
 
-    if(data_type == "bf16")
+    if(data_type == "fp16")
     {
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::bf16_t>(
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::fp16_t>, ck_tile::fp16_t>(
             a_layout, b_layout, arg_parser);
     }
     else
@@ -291,11 +328,8 @@ int main(int argc, char* argv[])
 
     try
     {
-#if CK_TILE_USE_WMMA
-        return !run_gemm_example<GemmConfigComputeV3_WMMA>(arg_parser);
-#else
-        return !run_gemm_example<GemmConfigComputeV3>(arg_parser);
-#endif
+
+        return !run_gemm_example<GemmConfigComputeV5>(arg_parser);
     }
     catch(const std::runtime_error& e)
     {

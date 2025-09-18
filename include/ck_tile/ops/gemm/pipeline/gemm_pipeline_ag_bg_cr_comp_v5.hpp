@@ -49,7 +49,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
     using CLayout = remove_cvref_t<typename Problem::CLayout>;
 
     static constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
-    static constexpr index_t PingPongDim = Problem::PingPongDim;
+    static constexpr index_t PingPongDim   = Problem::PingPongDim;
 
     using BlockGemm = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
     using I0        = number<0>;
@@ -61,6 +61,9 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
+
+    static constexpr index_t MWarp = BlockGemmShape::BlockWarps::at(number<0>{});
+    static constexpr index_t NWarp = BlockGemmShape::BlockWarps::at(number<1>{});
 
     template <bool IsWave32Host = false>
     static constexpr index_t GetVectorSizeA()
@@ -86,8 +89,11 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
     static constexpr auto Scheduler  = Problem::Scheduler;
 
     static constexpr index_t NumWarps  = BlockGemmShape::NumWarps;
-    static constexpr index_t WaveStep   = NumWarps * MPerBlock;
+    static constexpr index_t WaveStep  = NumWarps * MPerBlock;
+
     static constexpr index_t KTileSize = BlockGemmShape::WarpTile::at(I2{});
+    static constexpr index_t MTileSize = BlockGemmShape::WarpTile::at(I0{});
+    static constexpr index_t NTileSize = BlockGemmShape::WarpTile::at(I1{});
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
@@ -118,33 +124,39 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
     {
         using Base = PipelineImplBase;
 
-        template <bool HasHotLoop, 
-                  TailNumber TailNum, 
-                  index_t PingPongDim, 
+        template <bool HasHotLoop,
+                  TailNumber TailNum,
+                  index_t PingPongDim,
                   typename ADramBlockWindowTmp,
                   typename AElementFunction,
                   typename BDramBlockWindowTmp,
-                  typename BElementFunction, 
-                  typename CDramBlockWindowTmp, 
+                  typename BElementFunction,
+                  typename DDramBlockWindowTmp,
+                  typename CDramBlockWindowTmp,
                   typename EpilogueFunction>
-        CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
-                                       const AElementFunction& a_element_func,
-                                       const BDramBlockWindowTmp& b_dram_block_window_tmp,
-                                       const BElementFunction& b_element_func,
-                                       [[maybe_unused]] CDramBlockWindowTmp& c_dram_block_window_tmp,
-                                       index_t num_loop,
-                                       void* __restrict__ p_smem_0, 
-                                       [[maybe_unused]] const EpilogueFunction& epilogue_func) const
+        CK_TILE_DEVICE auto
+        operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                   const AElementFunction& a_element_func,
+                   const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                   const BElementFunction& b_element_func,
+                   [[maybe_unused]] const DDramBlockWindowTmp& d_dram_block_window_tmp,
+                   [[maybe_unused]] CDramBlockWindowTmp& c_dram_block_window_tmp,
+                   [[maybe_unused]] index_t num_loop,
+                   void* __restrict__ p_smem_0,
+                   [[maybe_unused]] const EpilogueFunction& epilogue_func
+                   ) const
         {
-            //static_assert((MPerBlock * num_loop * NumWarps) ==  Problem::kM, 
-            //                "Ping Pong Warps, Tile size and Block size for M dimension does not match.");
+            // static_assert((MPerBlock * num_loop * NumWarps) ==  Problem::kM,
+            //                "Ping Pong Warps, Tile size and Block size for M dimension does not
+            //                match.");
 
             constexpr bool is_a_col_major =
                 std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
             constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
+            //constexpr bool is_c_col_major = std::is_same_v<CLayout, tensor_layout::gemm::ColumnMajor>;
 
             index_t warp_id = get_warp_id();
-            index_t operation_id =
+            index_t operation_id = //(warp_id + 1) % NumWaveGroups;
                 __builtin_amdgcn_readfirstlane(get_warp_id()); // 0 - Memory read, 1 - block-gemm
 
             auto a_offset = (warp_id == 0) ? make_array(0, 0) : make_array(MPerBlock, 0);
@@ -166,33 +178,35 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             auto& a_copy_lds_window  = a_windows.get(number<1>{});
             auto& a_lds_window       = a_windows.get(number<2>{});
 
-            auto b_windows = Base::GetBWindows(
-                b_dram_block_window_tmp, b_lds_block, b_lds_load_tile_distr);
+            auto b_windows =
+                Base::GetBWindows(b_dram_block_window_tmp, b_lds_block, b_lds_load_tile_distr);
             auto& b_copy_dram_window = b_windows.get(number<0>{});
             auto& b_copy_lds_window  = b_windows.get(number<1>{});
             auto& b_lds_window       = b_windows.get(number<2>{});
 
-            auto epilogue_dram_window = make_tile_window(c_dram_block_window_tmp.get_bottom_tensor_view(), 
-                                                        make_tuple(MPerBlock, NPerBlock), 
-                                                        c_dram_block_window_tmp.get_window_origin() + c_offset);
+            auto epilogue_dram_window =
+                make_tile_window(c_dram_block_window_tmp.get_bottom_tensor_view(),
+                                 make_tuple(MPerBlock, NPerBlock),
+                                 c_dram_block_window_tmp.get_window_origin() + c_offset);
 
             // Add the offset which is warp specific so that subsequently we can increase it
             // with a fixed step size, which is also independent of the warp id.
-            //c_dram_block_window_tmp += c_offset;
-            //move_tile_window(c_dram_block_window_tmp, c_offset);
+            // c_dram_block_window_tmp += c_offset;
+            // move_tile_window(c_dram_block_window_tmp, c_offset);
 
             // DRAM window steps.
             using ADramTileWindowStep = typename ADramBlockWindowTmp::BottomTensorIndex;
             constexpr ADramTileWindowStep a_dram_tile_window_step =
-                is_a_col_major ? make_array(MPerBlock * NumWarps, 0)
-                               : make_array(0, MPerBlock * NumWarps);
+                is_a_col_major ? make_array(0, MPerBlock * NumWarps)
+                               : make_array(MPerBlock * NumWarps, 0);
 
-            using BDramTileWindowStep = typename BDramBlockWindowTmp::BottomTensorIndex;                               
+            using BDramTileWindowStep = typename BDramBlockWindowTmp::BottomTensorIndex;
             constexpr BDramTileWindowStep b_dram_tile_window_step = make_array(0, 0);
 
-            using CDramTileWindowStep = typename CDramBlockWindowTmp::BottomTensorIndex;
-            constexpr CDramTileWindowStep c_dram_tile_window_step =
-                is_a_col_major ? make_array(KPerBlock * NumWarps, 0) :  make_array(0, KPerBlock * NumWarps);           
+            //using CDramTileWindowStep = typename CDramBlockWindowTmp::BottomTensorIndex;
+            //constexpr CDramTileWindowStep c_dram_tile_window_step =
+            //    is_c_col_major ? make_array(MPerBlock * NumWarps, 0)
+            //                   : make_array(0, MPerBlock * NumWarps);
 
             constexpr auto AGemmTileDistr = decltype(make_static_tile_distribution(
                 BlockGemm::MakeABlockDistributionEncode())){};
@@ -217,13 +231,13 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             // Block GEMM
             auto block_gemm     = BlockGemm();
             auto c_block_tile_0 = block_gemm.MakeCBlockTile();
-            auto c_block_tile_1 = block_gemm.MakeCBlockTile();
+            //auto c_block_tile_1 = block_gemm.MakeCBlockTile();
 
             // initialize C
-            tile_elementwise_inout([](auto& c) { c = 1; }, c_block_tile_0);
-            tile_elementwise_inout([](auto& c) { c = 2; }, c_block_tile_1);
+            tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile_0);
+            //tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile_1);
 
-            auto BReadOps = [&](){
+            auto BReadOps = [&]() {
                 Base::GlobalPrefetch(
                     b_global_load_tile, b_copy_dram_window, b_dram_tile_window_step);
 
@@ -240,7 +254,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                 }
                 Base::LocalPrefetch(b_tile, b_lds_window);
             };
-            
+
             // define ping, pong steps here as lambda functions.
             auto MemoryOpsStep = [&](auto idx) {
                 // Memory read half here.
@@ -268,23 +282,24 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                     Base::LocalPrefetch(a_tile_1, a_lds_window);
                 }
             };
-            
+
             auto ComputeStep = [&](auto idx) {
                 if(idx == 0)
                 {
-                    tile_elementwise_inout([](auto& c) { c = 1; }, c_block_tile_0);
-                    //block_gemm(c_block_tile_0, a_tile_0, b_tile);
-
-                    epilogue_func(epilogue_dram_window, c_block_tile_0);
+                    c_block_tile_0 = block_gemm(a_tile_0, b_tile);
+                    //tile_elementwise_inout([](auto& c) { c =  blockIdx.x; }, c_block_tile_1);
+                    //epilogue_func(epilogue_dram_window, c_block_tile_0, d_dram_block_window_tmp);
+                    //epilogue_func(epilogue_dram_window, c_block_tile_0);
                 }
                 else
                 {
-                    tile_elementwise_inout([](auto& c) { c = 1; }, c_block_tile_1);
-                    //block_gemm(c_block_tile_1, a_tile_1, b_tile);
+                    c_block_tile_0 = block_gemm(a_tile_1, b_tile);
+                    //tile_elementwise_inout([](auto& c) { c =  blockIdx.x; }, c_block_tile_0);
+                    //epilogue_func(epilogue_dram_window, c_block_tile_1, d_dram_block_window_tmp);
+                    //epilogue_func(epilogue_dram_window, c_block_tile_1);
 
-                    epilogue_func(epilogue_dram_window, c_block_tile_1);
                 }
-            };            
+            };
 
             // Read B block tile
             BReadOps();
@@ -295,48 +310,54 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             }
 
             index_t num_compute_steps = __builtin_amdgcn_readfirstlane(num_loop);
-            while(num_compute_steps > 100)
+            while(num_compute_steps > 1)
             {
-                block_sync_lds();
+                __syncthreads();
                 operation_id = (operation_id + 1) % NumWaveGroups;
 
                 if(operation_id == 0)
                 {
                     MemoryOpsStep(warp_id);
-                    //move_tile_window(c_dram_block_window_tmp, {WaveStep, 0});
-                    epilogue_dram_window = make_tile_window(epilogue_dram_window.get_bottom_tensor_view(), 
-                                                            make_tuple(MPerBlock, NPerBlock), 
-                                                            epilogue_dram_window.get_window_origin() + c_dram_tile_window_step);
                 }
                 else
                 {
-                    ComputeStep(warp_id);
+                    ComputeStep(warp_id);  
                 }
-
+                __syncthreads();
                 num_compute_steps -= 1;
-            }
-            block_sync_lds();
 
+                epilogue_func(epilogue_dram_window, c_block_tile_0, d_dram_block_window_tmp, (operation_id == 1));
+                if (operation_id == 1)
+                {
+                    move_tile_window(epilogue_dram_window, a_dram_tile_window_step); 
+                }
+            }
             
+            __syncthreads();
+
             if(operation_id == 0)
             {
                 ComputeStep(warp_id);
             }
-            
-        }            
+            __syncthreads();    
+            epilogue_func(epilogue_dram_window, c_block_tile_0, d_dram_block_window_tmp, (operation_id == 0));
+        }
 
         template <bool HasHotLoop,
                   TailNumber TailNum,
                   typename ADramBlockWindowTmp,
                   typename AElementFunction,
                   typename BDramBlockWindowTmp,
-                  typename BElementFunction>
-        CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
-                                       const AElementFunction& a_element_func,
-                                       const BDramBlockWindowTmp& b_dram_block_window_tmp,
-                                       const BElementFunction& b_element_func,
-                                       index_t num_loop,
-                                       void* __restrict__ p_smem_0) const
+                  typename BElementFunction,
+                  typename DDramBlockWindowTmp>
+        CK_TILE_DEVICE auto
+        operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                   const AElementFunction& a_element_func,
+                   const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                   const BElementFunction& b_element_func,
+                   [[maybe_unused]] const DDramBlockWindowTmp& d_dram_block_window_tmp,
+                   index_t num_loop,
+                   void* __restrict__ p_smem_0) const
         {
             static_assert(
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
@@ -559,49 +580,59 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
 
     template <typename ADramBlockWindowTmp,
               typename BDramBlockWindowTmp,
+              typename DDramBlockWindowTmp,
               typename CDramBlockWindowTmp,
               typename AElementFunction,
-              typename BElementFunction, 
+              typename BElementFunction,
               typename EpilogueFunction>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const AElementFunction& a_element_func,
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                    const BElementFunction& b_element_func,
+                                   const DDramBlockWindowTmp& d_dram_block_window_tmp,
                                    const CDramBlockWindowTmp& c_dram_block_window_tmp,
                                    index_t num_loop,
-                                   void* p_smem_0, 
+                                   void* p_smem_0,
                                    const EpilogueFunction& epilogue_func) const
     {
-        return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum, Problem::PingPongDim>(
-            a_dram_block_window_tmp,
-            a_element_func,
-            b_dram_block_window_tmp,
-            b_element_func,
-            c_dram_block_window_tmp,
-            num_loop,
-            p_smem_0, 
-            epilogue_func);
+        return PipelineImpl<Scheduler>{}
+            .template operator()<HasHotLoop, TailNum, Problem::PingPongDim>(a_dram_block_window_tmp,
+                                                                            a_element_func,
+                                                                            b_dram_block_window_tmp,
+                                                                            b_element_func,
+                                                                            d_dram_block_window_tmp,
+                                                                            c_dram_block_window_tmp,
+                                                                            num_loop,
+                                                                            p_smem_0,
+                                                                            epilogue_func);
     }
 
     public:
-    template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp, typename CDramBlockWindowTmp, typename EpilogueFunction>
+    template <typename ADramBlockWindowTmp,
+              typename BDramBlockWindowTmp,
+              typename DDramBlockWindowTmp,
+              typename CDramBlockWindowTmp,
+              typename EpilogueFunction>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                   const DDramBlockWindowTmp& d_dram_block_window_tmp,
                                    const CDramBlockWindowTmp& c_dram_block_window_tmp,
                                    const index_t num_loop,
-                                   void* __restrict__ p_smem_0, 
+                                   void* __restrict__ p_smem_0,
                                    const EpilogueFunction& epilogue_func) const
     {
-        return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum, Problem::PingPongDim>(
-            a_dram_block_window_tmp,
-            [](const ADataType& a) { return a; },
-            b_dram_block_window_tmp,
-            [](const BDataType& b) { return b; },
-            c_dram_block_window_tmp,
-            num_loop,
-            p_smem_0, 
-            epilogue_func);
-    }    
+        return PipelineImpl<Scheduler>{}
+            .template operator()<HasHotLoop, TailNum, Problem::PingPongDim>(
+                a_dram_block_window_tmp,
+                [](const ADataType& a) { return a; },
+                b_dram_block_window_tmp,
+                [](const BDataType& b) { return b; },
+                d_dram_block_window_tmp,
+                c_dram_block_window_tmp,
+                num_loop,
+                p_smem_0,
+                epilogue_func);
+    }
 };
 
 } // namespace ck_tile

@@ -202,6 +202,9 @@ struct CShuffleEpilogue
     static constexpr index_t MPerIterationShuffle = std::get<0>(MNPerIterationShuffle);
     static constexpr index_t NPerIterationShuffle = std::get<1>(MNPerIterationShuffle);
 
+    //static_assert(MPerIterationShuffle == -1);
+    //static_assert(NPerIterationShuffle == -1);
+
     using WG = WarpGemmDispatcher<ATypeToUse,
                                   BTypeToUse,
                                   AccDataType,
@@ -240,10 +243,10 @@ struct CShuffleEpilogue
     {
         constexpr auto block_outer_dstr_encoding =
             tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
-                                             sequence<NumNXdlPerWavePerShuffle, NWave>>,
-                                       tuple<sequence<1, 2>>,
-                                       tuple<sequence<1, 1>>,
+                                       tuple<sequence<NumMXdlPerWavePerShuffle>, //MWave
+                                             sequence<NumNXdlPerWavePerShuffle>>, //NWave
+                                       tuple<>,
+                                       tuple<>,
                                        sequence<1, 2>,
                                        sequence<0, 0>>{};
         constexpr auto block_dstr_encoding = detail::make_embed_tile_distribution_encoding(
@@ -261,7 +264,8 @@ struct CShuffleEpilogue
     CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window,
                                    const OAccTile& o_acc_tile,
                                    const DsDramWindows& ds_dram_windows,
-                                   void* p_smem)
+                                   void* p_smem, 
+                                   const bool execute_epilogue = true)
     {
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
 
@@ -291,7 +295,7 @@ struct CShuffleEpilogue
                       "Currently, the CShuffle Epilogue only supports the Row Major Output layout");
 
         using TileEncodingPattern =
-            TileDistributionEncodingPattern2D<kBlockSize,
+            TileDistributionEncodingPattern2D<kBlockSize * Problem::kNumWaveGroups,
                                               MPerIterationShuffle,
                                               NPerIterationShuffle,
                                               GetVectorSizeC(),
@@ -311,43 +315,50 @@ struct CShuffleEpilogue
 
         static_for<0, num_access, 1>{}([&](auto iAccess) {
             block_sync_lds();
-            constexpr auto idx_y_start = SFC::get_index(iAccess);
+            if (execute_epilogue)
+            {
+                constexpr auto idx_y_start = SFC::get_index(iAccess);
 
-            constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (MPerIterationShuffle)>{};
-            constexpr auto nIter = number<idx_y_start.at(number<1>{}) / (NPerIterationShuffle)>{};
+                constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (MPerIterationShuffle)>{};
+                constexpr auto nIter = number<idx_y_start.at(number<1>{}) / (NPerIterationShuffle)>{};
 
-            lds_tile.get_thread_buffer() = o_acc_tile.get_y_sliced_thread_data(
-                merge_sequences(
-                    sequence<mIter * NumMXdlPerWavePerShuffle, nIter * NumNXdlPerWavePerShuffle>{},
-                    c_warp_y_index_zeros),
-                merge_sequences(sequence<NumMXdlPerWavePerShuffle, NumNXdlPerWavePerShuffle>{},
-                                c_warp_y_lengths));
+                lds_tile.get_thread_buffer() = o_acc_tile.get_y_sliced_thread_data(
+                    merge_sequences(
+                        sequence<mIter * NumMXdlPerWavePerShuffle, nIter * NumNXdlPerWavePerShuffle>{},
+                        c_warp_y_index_zeros),
+                    merge_sequences(sequence<NumMXdlPerWavePerShuffle, NumNXdlPerWavePerShuffle>{},
+                                    c_warp_y_lengths));
 
-            const auto c_warptile_in_tensor_casted = cast_tile<ODataType>(lds_tile);
+                const auto c_warptile_in_tensor_casted = cast_tile<ODataType>(lds_tile);
 
-            store_tile(in_lds_window, c_warptile_in_tensor_casted);
+                store_tile(in_lds_window, c_warptile_in_tensor_casted);
+            }
             block_sync_lds();
 
-            auto c_out_tensor = load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
-
-            const auto ds_tensor = generate_tuple(
-                [&](auto idx) { return load_tile(d_dram_windows[idx]); }, number<NumDTensor>{});
-
-            const auto c_ds_tiles = concat_tuple_of_reference(
-                tie(c_out_tensor, c_out_tensor),
-                generate_tie([&](auto idx) -> const auto& { return ds_tensor[idx]; },
-                             number<NumDTensor>{}));
-
-            tile_elementwise_inout_unpack(typename Problem::CDElementwise{}, c_ds_tiles);
-
-            if constexpr(MemoryOperation == memory_operation_enum::set)
+            if (execute_epilogue)
             {
-                store_tile(out_dram_window, c_out_tensor);
+                auto c_out_tensor = load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
+
+                const auto ds_tensor = generate_tuple(
+                    [&](auto idx) { return load_tile(d_dram_windows[idx]); }, number<NumDTensor>{});
+
+                const auto c_ds_tiles = concat_tuple_of_reference(
+                    tie(c_out_tensor, c_out_tensor),
+                    generate_tie([&](auto idx) -> const auto& { return ds_tensor[idx]; },
+                                number<NumDTensor>{}));
+
+                tile_elementwise_inout_unpack(typename Problem::CDElementwise{}, c_ds_tiles);
+
+                if constexpr(MemoryOperation == memory_operation_enum::set)
+                {
+                    store_tile(out_dram_window, c_out_tensor);
+                }
+                else
+                {
+                    update_tile(out_dram_window, c_out_tensor);
+                }
             }
-            else
-            {
-                update_tile(out_dram_window, c_out_tensor);
-            }
+            buffer_store_fence();
             if constexpr(iAccess != num_access - 1)
             {
                 constexpr auto step = SFC::get_forward_step(iAccess);

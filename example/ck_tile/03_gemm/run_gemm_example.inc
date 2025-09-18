@@ -232,8 +232,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                         false,
                         CDEElementWise>(
             args,
-            ck_tile::stream_config{
-                nullptr, true, 1, n_warmup, n_repeat, true, flush_cache, rotating_count});
+            ck_tile::stream_config{nullptr});        
+            //ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, flush_cache, rotating_count});        
     }
 
     std::size_t flop = std::size_t(2) * M * N * K;
@@ -443,6 +443,28 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass = true;
+
+
+    std::cout<< " Size: " << c_m_n_dev_result.size() << std::endl;
+    /*
+    ck_tile::index_t count = 0;
+    for (; count < 10; count++)
+    {
+        std::cout << std::setw(12) << std::setprecision(7) << ck_tile::type_convert<float>() << " ";
+    }
+    */
+    /*
+    // print the results here. 
+    for (int x = 0; x < 64; x++)
+    {
+        for (int y = 0; y < 32; y++)
+        {
+            // std::cout << static_cast<float>(c_m_n_dev_result(x, y)) << " ";
+            std::cout << std::setw(12) << std::setprecision(7) << ck_tile::type_convert<float>(*std::next(std::begin(c_m_n_dev_result), (x*64 + y))) << " ";
+        }
+        std::cout << std::endl;
+    }
+    */
 
     // memory on host to store gpu reference result
     ck_tile::HostTensor<CDataType> c_m_n_ref(

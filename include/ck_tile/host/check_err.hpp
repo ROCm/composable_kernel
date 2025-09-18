@@ -287,6 +287,8 @@ check_err(const Range& out,
             }
             res = false;
         }
+        //std::cerr << std::setw(12) << std::setprecision(7) << " ouf[" << i << "]: " << o << std::endl;
+
     }
     if(!res)
     {
@@ -344,17 +346,22 @@ check_err(const Range& out,
         const double o = type_convert<float>(*std::next(std::begin(out), i));
         const double r = type_convert<float>(*std::next(std::begin(ref), i));
         err            = std::abs(o - r);
-        if(err > atol + rtol * std::abs(r) || is_infinity_error(o, r))
+        if((err > (atol + rtol * std::abs(r))) || is_infinity_error(o, r))
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            //if(err_count < 5)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
             }
             res = false;
         }
+        else
+        {
+            std::cerr << std::setw(12) << std::setprecision(7) << " oubf[" << i << "]: " << o << " == " << r << " error = " << err <<" atol + rtol * std::abs(r): " << (atol + rtol * std::abs(r)) << std::endl;
+            }
+
     }
     if(!res)
     {
@@ -423,6 +430,8 @@ check_err(const Range& out,
             }
             res = false;
         }
+        //std::cerr << std::setw(12) << std::setprecision(7) << " half[" << i << "]: " << o << std::endl;
+
     }
     if(!res)
     {
@@ -485,6 +494,8 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
             }
             res = false;
         }
+        //std::cerr << std::setw(12) << std::setprecision(7) << " int[" << i << "]: " << o << std::endl;
+
     }
     if(!res)
     {
@@ -571,6 +582,8 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
             }
             res = false;
         }
+        //std::cerr << std::setw(12) << std::setprecision(7) << " fp64[" << i << "]: " << o_fp64 << std::endl;
+
     }
     if(!res)
     {
@@ -637,6 +650,8 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
             }
             res = false;
         }
+        //std::cerr << std::setw(12) << std::setprecision(7) << " bf8[" << i << "]: " << o << std::endl;
+
     }
     if(!res)
     {

@@ -152,6 +152,13 @@ struct TileDistributionEncodingPattern2D<BlockSize,
     static constexpr index_t X1         = VecSize > LargestVec ? LargestVec : VecSize;
     static constexpr index_t X0         = XPerTile / X1; // # of threads in X dim
 
+
+    //static_assert(get_warp_size() == 64, "Warp size must be 64!");
+    //static_assert(num_warps == 2, "Ping pong scheduler");
+    //static_assert(X1 == 1, "X1 must be 1");
+    //static_assert(X0 == 2, "X0 must be 2");
+    //static_assert(NumWaveGroups == 2, "NumWaveGroups must be 2");
+
     // # of rows in Y dim accessed by single wavefront in one iteration
     static constexpr index_t Y1 = warp_size / X0;
     static_assert(X0 * Y1 == warp_size, "X0 * Y1 must cover whole wavefront!");
@@ -160,6 +167,12 @@ struct TileDistributionEncodingPattern2D<BlockSize,
     //  YPerWarp = YPerTile / Y0;
     //  Y2 = YPerWarp / Y1;
     static constexpr index_t Y2 = YPerTile / (Y1 * Y0); // # of iters within wavefront
+
+    //static_assert(Y2 == 2, "Y2 must be 2");
+    //static_assert(BlockSize == 128, "BlockSize must be 128");
+
+    // X0 == 2, X1 = 4
+    // Y0 = 2, Y1 = 4, Y2 = 2
 
     static_assert(X0 * Y1 * Y0 * NumWaveGroups == BlockSize,
                   "X0 * warp_ys * Y0 must cover whole workgroup!");

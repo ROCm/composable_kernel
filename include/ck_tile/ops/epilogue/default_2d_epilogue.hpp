@@ -34,12 +34,17 @@ template <typename ADataType_,
           typename CLayout_,
           bool kPadM_,
           bool kPadN_,
+          index_t kM_, 
+          index_t kN_, 
+          index_t MWave_, 
+          index_t NWave_,
           index_t kMPerXdl_,
           index_t kNPerXdl_,
           index_t kKPerXdl_,
           bool isCTransposed_,
           bool UseRawStore_                      = true,
-          memory_operation_enum MemoryOperation_ = memory_operation_enum::set>
+          memory_operation_enum MemoryOperation_ = memory_operation_enum::set, 
+          index_t kNumWaveGroups_ = 1>
 struct DefaultGemm2DEpilogueProblem : public Default2DEpilogueProblem<AccDataType_,
                                                                       ODataType_,
                                                                       kPadM_,
@@ -54,6 +59,16 @@ struct DefaultGemm2DEpilogueProblem : public Default2DEpilogueProblem<AccDataTyp
     static constexpr index_t kNPerXdl      = kNPerXdl_;
     static constexpr index_t kKPerXdl      = kKPerXdl_;
     static constexpr index_t isCTransposed = isCTransposed_;
+
+    static constexpr index_t kNumWaveGroups = kNumWaveGroups_;
+
+    static constexpr index_t MWave          = MWave_;
+    static constexpr index_t NWave          = NWave_;
+    static constexpr index_t kMPerBlock     = kM_;
+    static constexpr index_t kNPerBlock     = kN_;
+    static constexpr index_t kBlockSize     = MWave_ * NWave_ * get_warp_size();
+
+    using ODataType                        = remove_cvref_t<ODataType_>;
 };
 
 template <typename Problem_, typename Policy_ = void>
@@ -67,15 +82,49 @@ struct Default2DEpilogue
     static constexpr bool UseRawStore = Problem::UseRawStore;
     static constexpr memory_operation_enum MemoryOperation = Problem::MemoryOperation;
 
+
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() { return 0; }
 
     // TODO: this function assume store out vector size is the same as OAccTile last dimension size
     //       how do we fix this ?
     template <typename ODramWindowTmp, typename OAccTile>
     CK_TILE_DEVICE auto
-    operator()(ODramWindowTmp& o_dram_window_tmp, const OAccTile& o_acc_tile, void* = nullptr) const
+    operator()([[maybe_unused]]ODramWindowTmp& o_dram_window_tmp, [[maybe_unused]]const OAccTile& o_acc_tile, void* = nullptr) const
     {
-        // TODO: this is ugly
+
+        //o_acc_tile --> static distributed tensor
+        // o_dram_window_tmp --> tile window, tensor, padded_tensor, tensor_view.
+
+        // Create tensor view, and then use make_tile_window to create a tile window
+        // that matches the distribution of o_acc_tile.
+        // Then load from the tile window and store to o_dram_window_tmp
+        /*
+        auto casted_tile = cast_tile<ODataType>(o_acc_tile);
+        using TileEncodingPattern = 
+            TileDistributionEncodingPattern2D<Problem::kBlockSize * Problem::kNumWaveGroups, 
+                                              Problem::kMPerBlock, 
+                                              Problem::kNPerBlock, 
+                                              4, 
+                                              tile_distribution_pattern::thread_raked, 
+                                              Problem::kNumWaveGroups>;
+        constexpr auto dram_tile_distribution = TileEncodingPattern::Make2DStaticTileDistribution();
+
+        auto tensor_descriptor = make_naive_tensor_descriptor(make_tuple(number<Problem::kMPerBlock>{}, number<Problem::kNPerBlock>{}), 
+                                                                make_tuple(number<Problem::kNPerBlock>{}, number<1>{}));
+
+        auto tile_view = make_tensor_view(
+                                            static_cast<ODataType*>(casted_tile.get_thread_buffer().get()), 
+                                            tensor_descriptor);
+        auto in_window = make_tile_window(tile_view, 
+                                          make_tuple(number<Problem::kMPerBlock>{}, number<Problem::kNPerBlock>{}), 
+                                          {0, 0}, 
+                                        dram_tile_distribution);
+
+        auto c_out_tensor = load_tile(in_window);
+        update_tile(o_dram_window_tmp, c_out_tensor);
+        */
+        //update_tile(o_dram_window_tmp, cast_tile<ODataType>(o_acc_tile));
+
         if constexpr(UseRawStore && (kPadM || kPadN))
         {
             if constexpr(MemoryOperation == memory_operation_enum::set)
@@ -98,7 +147,7 @@ struct Default2DEpilogue
             {
                 update_tile(o_dram_window_tmp, cast_tile<ODataType>(o_acc_tile));
             }
-        }
+        }        
     }
 
     template <typename ODramWindowTmp, typename OAccTile, typename DsDramWindows>

@@ -286,7 +286,7 @@ struct UniversalGemmKernel
 
     CK_TILE_HOST static auto PingPongGridSize(index_t, index_t N, index_t K, index_t KBatch) -> dim3
     {
-        return dim3(TilePartitioner::GridSize(N, K), 1, KBatch);
+        return dim3(TilePartitioner::PingPongGridSize(N, K), 1, KBatch);
     }        
 
     CK_TILE_HOST static auto BlockSize()
@@ -857,26 +857,26 @@ struct UniversalGemmKernel
             [&](auto i) {
             const auto& a_tensor_view = views.at(I0);
             using AiLayout = remove_cvref_t<std::tuple_element_t<i.value, AsLayout>>;
-            if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
+            if constexpr(std::is_same_v<AiLayout, tensor_layout::gemm::RowMajor>)
             {
-                return pad_tensor_view(a_tensor_view,
+                return pad_tensor_view(a_tensor_view[i],
                                        make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::KPerBlock>{}),
                                        sequence<false, GemmPipeline::kPadK>{});
             }
             else
             {
-                return pad_tensor_view(a_tensor_view,
+                return pad_tensor_view(a_tensor_view[i],
                                        make_tuple(number<TilePartitioner::KPerBlock>{}, number<TilePartitioner::MPerBlock>{}),
                                        sequence<false, GemmPipeline::kPadM>{});
             }
         }, 
-        number<NumATensor>{});
+        number<NumATensor>{});  
         
         const auto& b_pad_view = generate_tuple(
             [&](auto i) {
             const auto& b_tensor_view = views.at(I1);
             using BiLayout = remove_cvref_t<std::tuple_element_t<i.value, BsLayout>>;
-            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
+            if constexpr(std::is_same_v<BiLayout, tensor_layout::gemm::ColumnMajor>)
             {
                 return pad_tensor_view(b_tensor_view[i],
                                        make_tuple(number<TilePartitioner::NPerBlock>{}, number<TilePartitioner::KPerBlock>{}),
@@ -889,7 +889,7 @@ struct UniversalGemmKernel
                                        sequence<false, GemmPipeline::kPadN>{});
             }
         }, 
-        number<NumBTensor{});
+        number<NumBTensor>{});
 
         const auto& d_pad_view = generate_tuple(
             [&](auto i) {
@@ -914,7 +914,7 @@ struct UniversalGemmKernel
 
         // TODO vector write in for C in ColMajor
         const auto& e_pad_view = [&]() {
-            const auto& e_tensor_view = views.at(I2);
+            const auto& e_tensor_view = views.at(I3);
             if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
             {
                 return pad_tensor_view(
@@ -929,7 +929,7 @@ struct UniversalGemmKernel
                     make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
                     sequence<GemmPipeline::kPadM, false>{});
             }
-        }();
+        }();     
 
         return make_tuple(a_pad_view, b_pad_view, d_pad_view, e_pad_view);
     }        
@@ -1061,7 +1061,7 @@ struct UniversalGemmKernel
                 else
                 {
                     return make_tile_window(
-                        b_pad_view[i],
+                        bs_pad_view[i],
                         make_tuple(number<TilePartitioner::KPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
                         {i_k, i_n});
                 }
@@ -1071,19 +1071,19 @@ struct UniversalGemmKernel
         const auto& ds_block_window = generate_tuple(
             [&](auto i) {
                 using DiLayout = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
-                if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor)
+                if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
                 {
                     return make_tile_window(
                         ds_pad_view[i], 
                         make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}), 
-                        {i_m, i_n});
+                        {i_n, i_k});
                 }
                 else
                 {
                     return make_tile_window(
                         ds_pad_view[i], 
                         make_tuple(number<TilePartitioner::NPerBlock>{}, number<TilePartitioner::MPerBlock>{}), 
-                        {i_n, i_m});
+                        {i_k, i_n});
                 }
             }, 
             number<NumDTensor>{});
@@ -1149,24 +1149,39 @@ struct UniversalGemmKernel
         }
     }
 
-    CK_TILE_DEVICE static void PingPongGemm(const ADataType* a_ptr,
-                                            const BDataType* b_ptr,
-                                            CDataType* c_ptr,
+    CK_TILE_DEVICE static void PingPongGemm(const std::array<const ADataType*, NumATensor>& a_ptr,
+                                            const std::array<const BDataType*, NumBTensor>& b_ptr,
+                                            const std::array<const void*, NumDTensor>& d_ptr,
+                                            EDataType* e_ptr,
                                             void* smem_ptr_0,
-                                            const GemmKernelArgs& kargs,
+                                            const KernelArgs& kargs,
                                             const SplitKBatchOffset& splitk_batch_offset,
-                                            const index_t block_idx_n,
-                                            const index_t block_idx_k)
+                                            [[maybe_unused]] const index_t block_idx_n,
+                                            [[maybe_unused]] const index_t block_idx_k)
     {
+        const auto blockId  = __builtin_amdgcn_readfirstlane(blockIdx.x);
+        const auto kBlocks = __builtin_amdgcn_readfirstlane(integer_divide_ceil(
+            kargs.K, TilePartitioner::KPerBlock));
+        auto idx_n = __builtin_amdgcn_readfirstlane(blockId / kBlocks);
+        auto idx_k = __builtin_amdgcn_readfirstlane(blockId % kBlocks);
+        auto n_offset = __builtin_amdgcn_readfirstlane(idx_n * TilePartitioner::NPerBlock);
+        auto k_offset = __builtin_amdgcn_readfirstlane(idx_k * TilePartitioner::KPerBlock);
+
+        //auto idx_k = __builtin_amdgcn_readfirstlane(blockId / kargs.N);
+        //auto idx_n = __builtin_amdgcn_readfirstlane(blockId % TilePartitioner::NPerBlock);
+
+        //auto n_offset = __builtin_amdgcn_readfirstlane(idx_n * TilePartitioner::NPerBlock);
+        //auto k_offset = __builtin_amdgcn_readfirstlane(idx_k * TilePartitioner::KPerBlock);
+
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
             MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-                a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
+                a_ptr, b_ptr, d_ptr, e_ptr, kargs, splitk_batch_offset);
 
         const auto& gemm_pad_views =
             MakePingPongGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows =
-            MakePingPongGemmTileWindows(gemm_pad_views, block_idx_n, block_idx_k, kargs.M, kargs.N, kargs.K);
+            MakePingPongGemmTileWindows(gemm_pad_views, n_offset, k_offset, kargs.M, kargs.N, kargs.K);
 
         const index_t num_loop = __builtin_amdgcn_readfirstlane(integer_divide_ceil(
             //kargs.M, TilePartitioner::MPerBlock * GemmPipeline::BlockGemmShape::NumWarps));
@@ -1175,15 +1190,23 @@ struct UniversalGemmKernel
         // Run GEMM cooperatively by whole workgroup.
         const auto& a_block_window = gemm_tile_windows.at(I0);
         const auto& b_block_window = gemm_tile_windows.at(I1);
+        const auto& d_block_window = gemm_tile_windows.at(I2);
         auto& e_block_window       = gemm_tile_windows.at(I3);
 
-        const auto EpilogueFunc = [&](auto &window, auto& tile) {
-            EpiloguePipeline{}.template operator()<decltype(window), decltype(tile)>(
-                window, tile, smem_ptr_0);
+        
+        const auto EpilogueFunc = [&](auto &out_window, auto& tile, auto &ds_window, auto execute_epilogue) {
+            EpiloguePipeline{}.template operator()<decltype(out_window), decltype(tile), decltype(ds_window)>(
+                out_window, tile, ds_window, smem_ptr_0, execute_epilogue);
         };
-
+        
+        /*
+        const auto EpilogueFunc = [&](auto &out_window, auto& tile) {
+            EpiloguePipeline{}.template operator()<decltype(out_window), decltype(tile)>(
+                out_window, tile);
+        };   
+        */
         GemmPipeline{}.template operator()(
-            a_block_window, b_block_window, e_block_window, num_loop, smem_ptr_0, EpilogueFunc);
+            a_block_window[I0], b_block_window[I0], d_block_window, e_block_window, num_loop, smem_ptr_0, EpilogueFunc);
     }    
 
     /**
@@ -1264,18 +1287,18 @@ struct UniversalGemmKernel
         });
 
         // Calculate output offset from tile partitioner and apply to output pointer
-        EDataType* e_ptr = static_cast<EDataType*>(kargs.e_ptr);
+        EDataType* es_ptr = static_cast<EDataType*>(kargs.e_ptr);
         if constexpr(has_tile_partitioner_output_offset)
         {
             const index_t output_offset = TilePartitioner::GetOutputOffset(kargs, blockIdx.z);
-            e_ptr += output_offset;
+            es_ptr += output_offset;
         }
 
         // allocate LDS
         __shared__ char smem_ptr_0[GetSmemSize()];
 
       PingPongGemm(
-            a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_n, i_k);
+            as_ptr, bs_ptr, kargs.ds_ptr, es_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_n, i_k);
     }
 
     // Persistent kernel entry point

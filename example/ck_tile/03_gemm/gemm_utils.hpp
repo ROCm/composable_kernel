@@ -68,7 +68,6 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t TileParitionerM01      = 4;
     static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
     static constexpr ck_tile::index_t Pipeline      = CK_TILE_PIPELINE_COMPUTE_V3;
-    static constexpr ck_tile::index_t NumWaveGroups = 1;
     static constexpr bool Preshuffle                = false;
 };
 
@@ -91,6 +90,9 @@ struct GemmConfigMemoryInterwave : public GemmConfigBase
     static constexpr bool DoubleSmemBuffer     = false;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_MEMORY;
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Interwave;
+
+    static constexpr ck_tile::index_t NumWaveGroups = 1;
+
 };
 
 template <typename PrecType>
@@ -110,6 +112,9 @@ struct GemmConfigMemoryIntrawave : public GemmConfigBase
 
     static constexpr bool DoubleSmemBuffer     = false;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_MEMORY;
+
+    static constexpr ck_tile::index_t NumWaveGroups = 1;
+
 };
 
 template <typename PrecType>
@@ -130,6 +135,9 @@ struct GemmConfigComputeV3 : public GemmConfigBase
 
     static constexpr bool DoubleSmemBuffer     = false;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
+
+    static constexpr ck_tile::index_t NumWaveGroups = 1;
+
 };
 
 template <typename PrecType>
@@ -149,6 +157,9 @@ struct GemmConfigComputeV3_1 : public GemmConfigBase
 
     static constexpr bool DoubleSmemBuffer     = false;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
+
+    static constexpr ck_tile::index_t NumWaveGroups = 1;
+
 };
 
 template <typename PrecType>
@@ -170,6 +181,9 @@ struct GemmConfigComputeV3_2 : public GemmConfigBase
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
 
     static constexpr int kBlockPerCu = 2;
+
+    static constexpr ck_tile::index_t NumWaveGroups = 1;
+
 };
 
 #if CK_TILE_USE_WMMA
@@ -192,6 +206,9 @@ struct GemmConfigComputeV3_WMMA : public GemmConfigBase
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
 
     static constexpr int kBlockPerCu = 2;
+
+    static constexpr ck_tile::index_t NumWaveGroups = 1;
+
 };
 #endif
 
@@ -214,6 +231,9 @@ struct GemmConfigComputeV4 : public GemmConfigBase
 
     static constexpr bool DoubleSmemBuffer     = true;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V4;
+
+    static constexpr ck_tile::index_t NumWaveGroups = 1;
+
 };
 
 template <typename PrecType>
@@ -233,28 +253,40 @@ struct GemmConfigComputeV4_1 : public GemmConfigBase
 
     static constexpr bool DoubleSmemBuffer     = true;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V4;
+
+    static constexpr ck_tile::index_t NumWaveGroups = 1;
+
 };
 
 template <typename PrecType>
 struct GemmConfigComputeV5 : public GemmConfigBase
 {
-    static constexpr ck_tile::index_t M_Tile = 64;
+    static constexpr ck_tile::index_t M_Tile = 32;
     static constexpr ck_tile::index_t N_Tile = 32;
-    static constexpr ck_tile::index_t K_Tile = 8; //64 / sizeof(PrecType);
+    static constexpr ck_tile::index_t K_Tile = 8;// / sizeof(PrecType);
 
     static constexpr ck_tile::index_t M_Warp = 1;
     static constexpr ck_tile::index_t N_Warp = 1;
     static constexpr ck_tile::index_t K_Warp = 2;
 
+    // <32, 32, 8>
+    // <32, 32, 16>
+    // <16, 16, 16>
+    // <16, 16, 32>
     static constexpr ck_tile::index_t M_Warp_Tile = 32;
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
-    static constexpr ck_tile::index_t K_Warp_Tile = 8; //get_k_warp_tile<PrecType, M_Warp_Tile>();
+    static constexpr ck_tile::index_t K_Warp_Tile = 8;//get_k_warp_tile<PrecType, M_Warp_Tile>();
 
     static constexpr bool DoubleSmemBuffer               = false;
     static constexpr ck_tile::index_t Pipeline           = CK_TILE_PIPELINE_COMPUTE_V5;
-    static constexpr ck_tile::index_t NumWaNumWaveGroups = 2;
+    static constexpr ck_tile::index_t NumWaveGroups = 2;
 
     static constexpr ck_tile::index_t PingPongDim = 1; // 0 - Off, 1 - M, 2 - N and 3 - K
+
+    static constexpr bool Preshuffle           = false;
+    static constexpr bool UseStructuredSparsity = false;
+    static constexpr bool PermuteA = false;
+    static constexpr bool PermuteB = false;    
 };
 
 template <typename PrecType>
@@ -277,6 +309,9 @@ struct GemmConfigPreshuffleDecode : public GemmConfigBase
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V2;
     static constexpr bool Preshuffle           = true;
     static constexpr bool DoubleSmemBuffer     = true;
+
+    static constexpr ck_tile::index_t NumWaveGroups = 1;
+
 };
 
 template <typename PrecType>
@@ -299,6 +334,9 @@ struct GemmConfigPreshufflePrefill : public GemmConfigBase
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V2;
     static constexpr bool Preshuffle           = true;
     static constexpr bool DoubleSmemBuffer     = true;
+
+    static constexpr ck_tile::index_t NumWaveGroups = 1;
+
 };
 
 template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>

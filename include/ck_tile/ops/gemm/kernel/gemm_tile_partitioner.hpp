@@ -253,6 +253,18 @@ struct GemmSpatiallyLocalTilePartitioner
         return GridDimX * GridDimY;
     }
 
+    CK_TILE_HOST_DEVICE static auto
+    PingPongGridSize(index_t N, index_t K) noexcept(noexcept(NPerBlock != 0 && KPerBlock != 0)) -> index_t
+    {
+        const index_t GridDimX = integer_divide_ceil(N, NPerBlock);
+        const index_t GridDimY = integer_divide_ceil(K, KPerBlock);
+
+        std::cout << "PingPong Grid size : {" << GridDimX << ", " << GridDimY << "}" << std::endl;
+        std::cout << "Arguments: { " << N << ", " << K << " }" << std::endl;
+        std::cout << "Block size : {" << NPerBlock << ", " << KPerBlock << "}" << std::endl;
+        return GridDimX * GridDimY;
+    }
+
     /**
      * @brief Calculate number of loop iterations over GEMM's K dimension.
      *

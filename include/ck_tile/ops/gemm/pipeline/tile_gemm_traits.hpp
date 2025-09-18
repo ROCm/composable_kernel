@@ -44,7 +44,7 @@ template <bool kPadM_,
           bool UsePersistentKernel_   = false,
           index_t NumWaveGroups_      = 1,
           bool Preshuffle_            = 0, 
-          index_t PingPongDim         = 0>
+          index_t PingPongDim_         = 0>
 struct TileGemmUniversalTraits
 {
     static constexpr bool kPadM            = kPadM_;

@@ -132,7 +132,7 @@ struct GemmKernel
 
     CK_TILE_HOST static auto PingPongGridSize(index_t, index_t N, index_t K, index_t KBatch) -> dim3
     {
-        return dim3(TilePartitioner::GridSize(N, K), 1, KBatch);
+        return dim3(TilePartitioner::PingPongGridSize(N, K), 1, KBatch);
     }    
 
     CK_TILE_HOST static constexpr auto BlockSize() -> dim3
