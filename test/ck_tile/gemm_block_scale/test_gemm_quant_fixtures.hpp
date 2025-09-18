@@ -6,9 +6,27 @@
 #include "test_gemm_quant_base.hpp"
 #include "ck_tile/host/permute_pk_int4.hpp"
 
-// is_row_major is defined in the base class
+struct GemmConfigBase
+{
+    static constexpr bool kPadM = false;
+    static constexpr bool kPadN = false;
+    static constexpr bool kPadK = false;
 
-// AQuant-specific test fixture
+    static constexpr bool PermuteA = false;
+    static constexpr bool PermuteB = false;
+
+    static constexpr bool TransposeC            = false;
+    static constexpr bool UseStructuredSparsity = false;
+
+    static constexpr int kBlockPerCu                         = 1;
+    static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
+    static constexpr ck_tile::index_t TileParitionerM01      = 4;
+    static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
+    static constexpr ck_tile::index_t NumWaveGroups = 1;
+    static constexpr bool PreshuffleQuant           = false;
+    static constexpr bool DoubleSmemBuffer          = true;
+};
+
 template <typename Tuple>
 class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGemmAQuant<Tuple>>
 {

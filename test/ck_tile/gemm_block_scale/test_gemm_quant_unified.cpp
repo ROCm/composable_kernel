@@ -28,8 +28,8 @@ struct SimpleGemmConfig {
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 };
 
-// Wrapper class for AQuant testing
-class AQuantTestWrapper : public TestCkTileGemmAQuant<std::tuple<
+// Test fixtures for each quantization type
+using AQuantTestFixture = TestCkTileGemmAQuant<std::tuple<
     ck_tile::tensor_layout::gemm::RowMajor,       // ALayout
     ck_tile::tensor_layout::gemm::ColumnMajor,    // BLayout  
     ck_tile::tensor_layout::gemm::RowMajor,       // CLayout
@@ -40,22 +40,9 @@ class AQuantTestWrapper : public TestCkTileGemmAQuant<std::tuple<
     std::integral_constant<ck_tile::QuantType, ck_tile::QuantType::AQuantGrouped>, // QuantType
     SimpleGemmConfig,                             // GemmConfig
     std::integral_constant<uint32_t, 128>         // QuantGroupSize
->> {
-public:
-    void TestBody() override {
-        // Implementation of the required pure virtual function
-        RunTest(128, 128, 128);
-    }
-};
+>>;
 
-// Test AQuant quantization
-TEST(GemmQuantUnifiedTest, AQuantBasicTest) {
-    AQuantTestWrapper test_wrapper;
-    EXPECT_NO_THROW(test_wrapper.RunTest(128, 128, 128)) << "AQuant test failed";
-}
-
-// Wrapper class for BQuant testing
-class BQuantTestWrapper : public TestCkTileGemmBQuant<std::tuple<
+using BQuantTestFixture = TestCkTileGemmBQuant<std::tuple<
     ck_tile::tensor_layout::gemm::RowMajor,       // ALayout
     ck_tile::tensor_layout::gemm::ColumnMajor,    // BLayout  
     ck_tile::tensor_layout::gemm::RowMajor,       // CLayout
@@ -66,21 +53,9 @@ class BQuantTestWrapper : public TestCkTileGemmBQuant<std::tuple<
     std::integral_constant<ck_tile::QuantType, ck_tile::QuantType::BQuantGrouped>, // QuantType
     SimpleGemmConfig,                             // GemmConfig
     std::integral_constant<uint32_t, 128>         // QuantGroupSize
->> {
-public:
-    void TestBody() override {
-        RunTest(128, 128, 128);
-    }
-};
+>>;
 
-// Test BQuant quantization
-TEST(GemmQuantUnifiedTest, BQuantBasicTest) {
-    BQuantTestWrapper test_wrapper;
-    EXPECT_NO_THROW(test_wrapper.RunTest(128, 128, 128)) << "BQuant test failed";
-}
-
-// Wrapper class for RowColQuant testing
-class RowColQuantTestWrapper : public TestCkTileGemmRowColQuant<std::tuple<
+using RowColQuantTestFixture = TestCkTileGemmRowColQuant<std::tuple<
     ck_tile::tensor_layout::gemm::RowMajor,       // ALayout
     ck_tile::tensor_layout::gemm::ColumnMajor,    // BLayout  
     ck_tile::tensor_layout::gemm::RowMajor,       // CLayout
@@ -91,21 +66,9 @@ class RowColQuantTestWrapper : public TestCkTileGemmRowColQuant<std::tuple<
     std::integral_constant<ck_tile::QuantType, ck_tile::QuantType::RowColQuant>, // QuantType
     SimpleGemmConfig,                             // GemmConfig
     std::integral_constant<uint32_t, 128>         // QuantGroupSize
->> {
-public:
-    void TestBody() override {
-        RunTest(128, 128, 128);
-    }
-};
+>>;
 
-// Test RowColQuant quantization
-TEST(GemmQuantUnifiedTest, RowColQuantBasicTest) {
-    RowColQuantTestWrapper test_wrapper;
-    EXPECT_NO_THROW(test_wrapper.RunTest(128, 128, 128)) << "RowColQuant test failed";
-}
-
-// Wrapper class for TensorQuant testing
-class TensorQuantTestWrapper : public TestCkTileGemmTensorQuant<std::tuple<
+using TensorQuantTestFixture = TestCkTileGemmTensorQuant<std::tuple<
     ck_tile::tensor_layout::gemm::RowMajor,       // ALayout
     ck_tile::tensor_layout::gemm::ColumnMajor,    // BLayout  
     ck_tile::tensor_layout::gemm::RowMajor,       // CLayout
@@ -116,15 +79,24 @@ class TensorQuantTestWrapper : public TestCkTileGemmTensorQuant<std::tuple<
     std::integral_constant<ck_tile::QuantType, ck_tile::QuantType::TensorQuant>, // QuantType
     SimpleGemmConfig,                             // GemmConfig
     std::integral_constant<uint32_t, 128>         // QuantGroupSize
->> {
-public:
-    void TestBody() override {
-        RunTest(128, 128, 128);
-    }
-};
+>>;
+
+// Test AQuant quantization
+TEST_F(AQuantTestFixture, BasicTest) {
+    EXPECT_NO_THROW(RunTest(128, 128, 128)) << "AQuant test failed";
+}
+
+// Test BQuant quantization  
+TEST_F(BQuantTestFixture, BasicTest) {
+    EXPECT_NO_THROW(RunTest(128, 128, 128)) << "BQuant test failed";
+}
+
+// Test RowColQuant quantization
+TEST_F(RowColQuantTestFixture, BasicTest) {
+    EXPECT_NO_THROW(RunTest(128, 128, 128)) << "RowColQuant test failed";
+}
 
 // Test TensorQuant quantization
-TEST(GemmQuantUnifiedTest, TensorQuantBasicTest) {
-    TensorQuantTestWrapper test_wrapper;
-    EXPECT_NO_THROW(test_wrapper.RunTest(128, 128, 128)) << "TensorQuant test failed";
+TEST_F(TensorQuantTestFixture, BasicTest) {
+    EXPECT_NO_THROW(RunTest(128, 128, 128)) << "TensorQuant test failed";
 }

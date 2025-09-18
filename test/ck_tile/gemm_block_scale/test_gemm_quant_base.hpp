@@ -14,7 +14,6 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/gemm_quant.hpp"
-#include "test_gemm_aquant_utils.hpp"
 
 // Forward declarations for quant type-specific implementations
 template <ck_tile::QuantType QT>
