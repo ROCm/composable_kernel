@@ -539,6 +539,36 @@ fwd_result fmha_fwd_run(mode_enum mode,
         ck_tile::FillUniformDistributionIntegerValue<BiasDataType>{-3.f, 3.f, next_seed()}(
             bias_host);
     }
+    else if(init_method == "q1")
+    {
+        ck_tile::FillUniformDistributionIntegerValue<QDataType>{1.f, 1.f, next_seed()}(q_host);
+        ck_tile::FillUniformDistributionIntegerValue<KDataType>{-3.f, 3.f, next_seed()}(k_host);
+        ck_tile::FillUniformDistributionIntegerValue<KDataType>{-3.f, 3.f, next_seed()}(knew_host);
+        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-3.f, 3.f, next_seed()}(v_host);
+        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-3.f, 3.f, next_seed()}(vnew_host);
+        ck_tile::FillUniformDistributionIntegerValue<BiasDataType>{-3.f, 3.f, next_seed()}(
+            bias_host);
+    }
+    else if(init_method == "randq")
+    {
+        ck_tile::FillUniformDistributionIntegerValue<QDataType>{-3.f, 3.f, next_seed()}(q_host);
+        ck_tile::FillUniformDistributionIntegerValue<KDataType>{1.f, 1.f, next_seed()}(k_host);
+        ck_tile::FillUniformDistributionIntegerValue<KDataType>{1.f, 1.f, next_seed()}(knew_host);
+        ck_tile::FillUniformDistributionIntegerValue<VDataType>{1.f, 1.f, next_seed()}(v_host);
+        ck_tile::FillUniformDistributionIntegerValue<VDataType>{1.f, 1.f, next_seed()}(vnew_host);
+        ck_tile::FillUniformDistributionIntegerValue<BiasDataType>{1.f, 1.f, next_seed()}(
+            bias_host);
+    }
+    else if(init_method == "all1")
+    {
+        ck_tile::FillUniformDistributionIntegerValue<QDataType>{1.f, 1.f, next_seed()}(q_host);
+        ck_tile::FillUniformDistributionIntegerValue<KDataType>{1.f, 1.f, next_seed()}(k_host);
+        ck_tile::FillUniformDistributionIntegerValue<KDataType>{1.f, 1.f, next_seed()}(knew_host);
+        ck_tile::FillUniformDistributionIntegerValue<VDataType>{1.f, 1.f, next_seed()}(v_host);
+        ck_tile::FillUniformDistributionIntegerValue<VDataType>{1.f, 1.f, next_seed()}(vnew_host);
+        ck_tile::FillUniformDistributionIntegerValue<BiasDataType>{1.f, 1.f, next_seed()}(
+            bias_host);
+    }
     else if(init_method == "ni")
     {
         ck_tile::FillNormalDistributionIntegerValue<QDataType>{-3.f, 3.f, next_seed()}(q_host);
@@ -620,6 +650,18 @@ fwd_result fmha_fwd_run(mode_enum mode,
             }
         }
     }
+
+    // get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, hdim_q));
+    // for (int i = 0; i < shape_seqlen_q; i++)
+    // {
+    //     for (int j = 0; j < hdim_q; j++)
+    //     {
+    //         printf("%8.3f ", ck_tile::type_convert<float>(q_host(0, i, 0, j)));
+    //         if(j % 8 == 7) printf("|");
+    //     }
+    //     printf("\n");
+    // }
+    
     iota_shuffle(block_table_host.begin(), block_table_host.end(), 0, random_engine);
     iota_shuffle(cache_batch_idx_host.begin(), cache_batch_idx_host.end(), 0, random_engine);
 
@@ -1460,6 +1502,17 @@ fwd_result fmha_fwd_run(mode_enum mode,
                 {
                     break;
                 }
+            }
+
+            //nhead, real_seqlen_q, real_seqlen_k
+            for (int i = 0; i < real_seqlen_q; i++)
+            {
+                for (int j = 0; j < real_seqlen_k; j++)
+                {
+                    printf("%8.3f ", ck_tile::type_convert<float>(p_host_ref(0, i, j)));
+                    if(j % 8 == 7) printf("|");
+                }
+                printf("\n");
             }
 
             ck_tile::reference_batched_gemm<PDataType, VDataType, OaccDataType, ODataType>(

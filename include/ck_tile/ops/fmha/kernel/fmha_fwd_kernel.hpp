@@ -1533,6 +1533,7 @@ struct FmhaFwdKernel
             long_index_t batch_offset_k    = 0; // unused for paged-kvcache
             long_index_t batch_offset_v    = 0; // unused for paged-kvcache
             long_index_t batch_offset_bias = 0;
+            [[maybe_unused]] long_index_t batch_offset_randval = 0;
             long_index_t batch_offset_lse  = 0;
             long_index_t batch_offset_o    = 0;
             // index_t kv_l2p_offset =
@@ -1559,12 +1560,27 @@ struct FmhaFwdKernel
                 {
                     batch_offset_bias = query_start * kargs.stride_bias;
                 }
-
-                batch_offset_lse = query_start;
-                batch_offset_o   = query_start * kargs.stride_o;
+                if constexpr(kStoreLSE)
+                {
+                    batch_offset_lse = query_start;
+                }
+                if constexpr(kHasDropout)
+                {
+                    batch_offset_randval = query_start * kargs.stride_randval;
+                }
+                batch_offset_o = query_start * kargs.stride_o;
 
                 // get real # queries & # keys under group mode
-                kargs.seqlen_q = kargs.seqstart_q_ptr[i_batch + 1] - kargs.seqstart_q_ptr[i_batch];
+                const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
+                kargs.seqlen_q = adjusted_seqstart_q_ptr[1] - adjusted_seqstart_q_ptr[0];
+
+                if constexpr(kSkipMinSeqlenQ)
+                {
+                    if(kargs.seqlen_q <= kargs.min_seqlen_q)
+                    {
+                        return;
+                    }
+                }
 
                 // # of required blocks is different in each groups, terminate unnecessary blocks
                 // earlier
@@ -1579,8 +1595,8 @@ struct FmhaFwdKernel
                 }
                 else
                 {
-                    kargs.seqlen_k =
-                        kargs.seqstart_k_ptr[i_batch + 1] - kargs.seqstart_k_ptr[i_batch];
+                    const auto adjusted_seqstart_k_ptr = kargs.seqstart_k_ptr + i_batch;
+                    kargs.seqlen_k = adjusted_seqstart_k_ptr[1] - adjusted_seqstart_k_ptr[0];
                 }
             }
             else
