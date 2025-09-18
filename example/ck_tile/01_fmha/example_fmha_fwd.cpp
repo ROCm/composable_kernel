@@ -83,7 +83,7 @@ auto create_args(int argc, char* argv[])
                 "uf",
                 "init method:\n  ui or 0 - uniform random int\n  ni - normalized random int"
                 "\n  uf or 1 - uniform random float\n  nf - normalized random float"
-                "\n  tf or 2 - trig float\n  uf:q or ufq or 3 - fp8 quantization")
+                "\n  tf or 2 - trig float\n")
         .insert("seed",
                 "11939",
                 "random seed used for initializing input tensors. 0 for "
