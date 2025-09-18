@@ -21,7 +21,7 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
     static float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
                                          const ck_tile::stream_config& s)
     {
-        using WorkspaceDataType = ck_tile::half_t; // float;
+        using WorkspaceDataType = float;
 
         constexpr int kBlockPerCu = 1;
 
@@ -37,9 +37,9 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
         constexpr ck_tile::index_t N_Warp_Tile = GemmWarpConfig::N_Warp_Tile;
         constexpr ck_tile::index_t K_Warp_Tile = GemmWarpConfig::K_Warp_Tile;
 
-        constexpr ck_tile::index_t VectorSizeA = 8;
-        constexpr ck_tile::index_t VectorSizeB = 8;
-        constexpr ck_tile::index_t VectorSizeC = 8;
+        constexpr ck_tile::index_t VectorSizeA = 1;
+        constexpr ck_tile::index_t VectorSizeB = 1;
+        constexpr ck_tile::index_t VectorSizeC = 1;
 
         // Implicit GEMM Traits
         using CodegenShape =
