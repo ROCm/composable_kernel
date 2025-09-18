@@ -317,7 +317,7 @@ class GemmPreshuffleKernelBuilder:
             )
 
     def _generate_kernel_instance(
-        self, tile_config, trait_combo, k_block_per_cu, is_header=True
+        self, tile_config, trait_combo, k_block_per_cu, permute_n, is_header=True
     ):
         """Generate a single kernel instance"""
         (
@@ -426,7 +426,7 @@ struct SelectedKernel {{
     static constexpr bool Preshuffle = true;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
 
-    static constexpr bool PermuteN     = true; // [TODO] Add permuteN support
+    static constexpr bool PermuteN     = {"true" if permute_n else "false"};
 
     // Tile shape
     using TileShape = ck_tile::TileGemmShape<
@@ -505,12 +505,10 @@ struct SelectedKernel {{
                 WarpTileK,                   // KPerXdl_
                 TransposeC,                  // isCTransposed_
                 memory_operation,            // MemoryOperation_
-                NumWaveGroups>;
-                
-                /*,               // kNumWaveGroups_
+                NumWaveGroups,               // kNumWaveGroups_
                 false,                       // FixedVectorSize_
                 1,                           // VectorSizeC_
-                PermuteN>;                   // isPermuteN_*/
+                PermuteN>;                   // isPermuteN_
             
             using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;
 """
@@ -605,6 +603,7 @@ struct SelectedKernel {{
         tile_configs = self._get_tile_configs()
         trait_combos = self._generate_trait_combinations()
         k_block_per_cu = self.config.get("k_block_per_cu")
+        permute_n = self.config.get("permute_n")
 
         # Prepare work items for parallel processing
         work_items = []
@@ -615,6 +614,7 @@ struct SelectedKernel {{
                         tile_config,
                         trait_combo,
                         k_block_per_cu,
+                        permute_n,
                         self.working_path,
                         self.datatype,
                         self.layout,
@@ -706,14 +706,22 @@ struct SelectedKernel {{
 
 def _generate_single_kernel_individual(work_item):
     """Worker function to generate a single individual kernel file"""
-    tile_config, trait_combo, k_block_per_cu, working_path, datatype, layout = work_item
+    (
+        tile_config,
+        trait_combo,
+        k_block_per_cu,
+        permute_n,
+        working_path,
+        datatype,
+        layout,
+    ) = work_item
 
     # Create a temporary builder instance for this worker
     builder = GemmPreshuffleKernelBuilder(working_path, datatype, layout)
 
     try:
         kernel_name, instance_code = builder._generate_kernel_instance(
-            tile_config, trait_combo, k_block_per_cu
+            tile_config, trait_combo, k_block_per_cu, permute_n
         )
 
         # Create simplified filename without the "gemm_preshuffle_" prefix
@@ -838,10 +846,11 @@ def main():
         )
 
         k_block_per_cu = builder.config.get("k_block_per_cu")
+        permute_n = builder.config.get("permute_n")
 
         # Generate the kernel
         kernel_name, instance_code = builder._generate_kernel_instance(
-            tile_config, trait_combo, k_block_per_cu
+            tile_config, trait_combo, k_block_per_cu, permute_n
         )
 
         # Write the file

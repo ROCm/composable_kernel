@@ -118,12 +118,10 @@ class GemmProfiler
             ck_tile::HostTensor<BDataType> b_shuffle_host = [&]() {
                 if(config.permuteN)
                 {
-                    std::cout << "Run with PermuteN" << std::endl;
                     return shuffle_b_permuteN(b_k_n, N_Warp_Tile, K_Warp_Tile, N_Tile, N_Warp);
                 }
                 else
                 {
-                    std::cout << "Run without PermuteN" << std::endl;
                     return shuffle_b(b_k_n, N_Warp_Tile, K_Warp_Tile);
                 }
             }();
