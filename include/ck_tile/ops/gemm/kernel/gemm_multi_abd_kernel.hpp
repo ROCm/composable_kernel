@@ -17,47 +17,49 @@
 
 namespace ck_tile {
 
-/// @brief The MultiD GEMM kernel host arguments.
+/// @brief The MultiABD GEMM kernel host arguments.
 ///
 /// @par Overview
-///      This structure is passed to @ref GemmKernelMultiD "GemmKernelMultiD" when creating kernel
-///      arguments object. It contain all necessary information required to build proper kernel
-///      argument and launch kernel on GPU. This structure defines the GEMM problem configuration by
-///      stating all required information like M,N,K sizes and respective strides. NumDTensor
-///      describes the number of D tensors.
-template <index_t NumDTensor = 1>
-struct GemmMultiDHostArgs
+///      This structure is passed to @ref GemmKernelMultiABD "GemmKernelMultiABD" when creating
+///      kernel arguments object. It contain all necessary information required to build proper
+///      kernel argument and launch kernel on GPU. This structure defines the GEMM problem
+///      configuration by stating all required information like M,N,K sizes and respective strides.
+///      NumATensor describes the number of A tensors. The minimum number of tensors is 1(required).
+///      NumBTensor describes the number of B tensors. The minimum number of tensors is 1(required).
+///      NumDTensor describes the number of D tensors. The minimum number of tensors is 0(not
+///      required).
+template <index_t NumATensor, index_t NumBTensor, index_t NumDTensor>
+struct GemmMultiABDHostArgs
 {
-    CK_TILE_HOST GemmMultiDHostArgs() = default;
-    CK_TILE_HOST GemmMultiDHostArgs(const void* a_ptr_,
-                                    const void* b_ptr_,
-                                    const std::array<const void*, NumDTensor>& ds_ptr_,
-                                    void* e_ptr_,
-                                    index_t k_batch_,
-                                    index_t M_,
-                                    index_t N_,
-                                    index_t K_,
-                                    index_t stride_A_,
-                                    index_t stride_B_,
-                                    const std::array<index_t, NumDTensor>& stride_Ds_,
-                                    index_t stride_E_)
-        : a_ptr(a_ptr_),
-          b_ptr(b_ptr_),
+    CK_TILE_HOST GemmMultiABDHostArgs(const std::array<const void*, NumATensor>& as_ptr_,
+                                      const std::array<const void*, NumBTensor>& bs_ptr_,
+                                      const std::array<const void*, NumDTensor>& ds_ptr_,
+                                      void* e_ptr_,
+                                      index_t k_batch_,
+                                      index_t M_,
+                                      index_t N_,
+                                      index_t K_,
+                                      const std::array<index_t, NumATensor>& stride_As_,
+                                      const std::array<index_t, NumBTensor>& stride_Bs_,
+                                      const std::array<index_t, NumDTensor>& stride_Ds_,
+                                      index_t stride_E_)
+        : as_ptr(as_ptr_),
+          bs_ptr(bs_ptr_),
           ds_ptr(ds_ptr_),
           e_ptr(e_ptr_),
           M(M_),
           N(N_),
           K(K_),
-          stride_A(stride_A_),
-          stride_B(stride_B_),
+          stride_As(stride_As_),
+          stride_Bs(stride_Bs_),
           stride_Ds(stride_Ds_),
           stride_E(stride_E_),
           k_batch(k_batch_)
     {
     }
 
-    const void* a_ptr;
-    const void* b_ptr;
+    const std::array<const void*, NumATensor> as_ptr;
+    const std::array<const void*, NumBTensor> bs_ptr;
     const std::array<const void*, NumDTensor> ds_ptr;
     union
     {
@@ -67,8 +69,8 @@ struct GemmMultiDHostArgs
     index_t M;
     index_t N;
     index_t K;
-    index_t stride_A;
-    index_t stride_B;
+    const std::array<index_t, NumATensor> stride_As;
+    const std::array<index_t, NumBTensor> stride_Bs;
     const std::array<index_t, NumDTensor> stride_Ds;
     union
     {
@@ -80,7 +82,7 @@ struct GemmMultiDHostArgs
 };
 
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
-struct GemmKernelMultiD
+struct GemmKernelMultiABD
 {
     /// @brief Inject the UniversalGemmKernel base class to support execution of all necessary
     /// functions.
@@ -93,31 +95,31 @@ struct GemmKernelMultiD
     using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
 
     /// @brief  Specify the layout configurations for A, B, E and D
-    using ALayout  = remove_cvref_t<typename GemmPipeline::ALayout>;
-    using BLayout  = remove_cvref_t<typename GemmPipeline::BLayout>;
+    using AsLayout = remove_cvref_t<typename GemmPipeline::AsLayout>;
+    using BsLayout = remove_cvref_t<typename GemmPipeline::BsLayout>;
     using CLayout  = remove_cvref_t<typename GemmPipeline::CLayout>;
     using DsLayout = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
 
     /// @brief  Specify the data type configurations for A, B, E and D
-    using ADataType  = remove_cvref_t<typename GemmPipeline::ADataType>;
-    using BDataType  = remove_cvref_t<typename GemmPipeline::BDataType>;
+    using AsDataType = remove_cvref_t<typename GemmPipeline::AsDataType>;
+    using BsDataType = remove_cvref_t<typename GemmPipeline::BsDataType>;
     using EDataType  = remove_cvref_t<typename EpiloguePipeline::ODataType>;
     using DsDataType = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
 
-    /// @brief  ALayout and ADataType are expected to be scalars, not a tuple.
-    static_assert(!is_detected<is_tuple, ALayout>::value &&
-                      !is_detected<is_tuple, ADataType>::value,
-                  "ALayout and ADataType must be scalars.");
+    /// @brief  ALayout and ADataType are expected to be a tuple, not a scalar.
+    static_assert(is_detected<is_tuple, AsLayout>::value &&
+                      is_detected<is_tuple, AsDataType>::value,
+                  "ALayout and ADataType must be a tuple.");
 
-    /// @brief  BLayout and BDataType are expected to be scalars, not a tuple.
-    static_assert(!is_detected<is_tuple, BLayout>::value &&
-                      !is_detected<is_tuple, BDataType>::value,
-                  "BLayout and BDataType must be scalars.");
+    /// @brief  BLayout and BDataType are expected to be a tuple, not a scalar.
+    static_assert(is_detected<is_tuple, BsLayout>::value &&
+                      is_detected<is_tuple, BsDataType>::value,
+                  "BLayout and BDataType must be a tuple.");
 
     /// @brief  CLayout and EDataType are expected to be scalars, not a tuple.
     static_assert(!is_detected<is_tuple, CLayout>::value &&
                       !is_detected<is_tuple, EDataType>::value,
-                  "CLayout and EDataType must be scalars.");
+                  "CLayout and EDataType must be a scalar.");
 
     /// @brief  DsLayout and DsDataType are expected to be tuple, not a scalar.
     static_assert(is_detected<is_tuple, DsLayout>::value &&
@@ -125,10 +127,9 @@ struct GemmKernelMultiD
                       DsLayout::size() == DsDataType::size() && DsLayout::size() > 0,
                   "DsLayout and DsDataType must be tuples and must have the same size.");
 
-    /// @brief The sizes of NumATensor and NumBTensor have always been 1; the size of D is set by
-    /// the user."
-    static constexpr index_t NumATensor = 1;
-    static constexpr index_t NumBTensor = 1;
+    /// @brief The sizes of NumATensor, NumBTensor and NumDTensor is set by the user."
+    static constexpr index_t NumATensor = AsDataType::size();
+    static constexpr index_t NumBTensor = BsDataType::size();
     static constexpr index_t NumDTensor = DsDataType::size();
 
     CK_TILE_HOST static auto GetName() -> const std::string
@@ -152,22 +153,22 @@ struct GemmKernelMultiD
     }
 
     CK_TILE_HOST static constexpr auto
-    MakeKernelArgs(const GemmMultiDHostArgs<NumDTensor>& hostArgs) ->
+    MakeKernelArgs(const GemmMultiABDHostArgs<NumATensor, NumBTensor, NumDTensor>& hostArgs) ->
         typename UniversalGemmKernel::KernelArgs
     {
         /// @brief  Universal GEMM requires array objects and corresponding stride information for
         /// matrices A, B, and D.
         return UniversalGemmKernel::MakeKernelArgs(
-            UniversalGemmHostArgs<NumATensor, NumBTensor, NumDTensor>({hostArgs.a_ptr},
-                                                                      {hostArgs.b_ptr},
+            UniversalGemmHostArgs<NumATensor, NumBTensor, NumDTensor>(hostArgs.as_ptr,
+                                                                      hostArgs.bs_ptr,
                                                                       hostArgs.ds_ptr,
                                                                       hostArgs.e_ptr,
                                                                       hostArgs.k_batch,
                                                                       hostArgs.M,
                                                                       hostArgs.N,
                                                                       hostArgs.K,
-                                                                      {hostArgs.stride_A},
-                                                                      {hostArgs.stride_B},
+                                                                      hostArgs.stride_As,
+                                                                      hostArgs.stride_Bs,
                                                                       hostArgs.stride_Ds,
                                                                       hostArgs.stride_E));
     }
@@ -175,7 +176,7 @@ struct GemmKernelMultiD
     CK_TILE_HOST static auto
     IsSupportedArgument(const typename UniversalGemmKernel::KernelArgs& kargs) -> bool
     {
-        // Currently MultiD kernel doesn't support k_batch > 1
+        // Currently MultiABD kernel doesn't support k_batch > 1
         if(kargs.k_batch > 1)
         {
             return false;
