@@ -44,6 +44,10 @@ struct TileGemmQuantTraits
     using AQLayout = AQLayout_;
     using BQLayout = BQLayout_;
 
+    // TODO: It should be replaced to single value
+    using AsLayout = ALayout_;
+    using BsLayout = BLayout_;
+
     static constexpr bool TransposeC            = false;
     static constexpr bool UseStructuredSparsity = false;
     static constexpr index_t NumWaveGroups      = 1;

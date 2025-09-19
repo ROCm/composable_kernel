@@ -95,7 +95,7 @@ struct GemmKernelMultiD
     /// @brief  Specify the layout configurations for A, B, E and D
     using ALayout  = remove_cvref_t<typename GemmPipeline::ALayout>;
     using BLayout  = remove_cvref_t<typename GemmPipeline::BLayout>;
-    using ELayout  = remove_cvref_t<typename GemmPipeline::CLayout>;
+    using CLayout  = remove_cvref_t<typename GemmPipeline::CLayout>;
     using DsLayout = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
 
     /// @brief  Specify the data type configurations for A, B, E and D
@@ -114,10 +114,10 @@ struct GemmKernelMultiD
                       !is_detected<is_tuple, BDataType>::value,
                   "BLayout and BDataType must be scalars.");
 
-    /// @brief  ELayout and EDataType are expected to be scalars, not a tuple.
-    static_assert(!is_detected<is_tuple, ELayout>::value &&
+    /// @brief  CLayout and EDataType are expected to be scalars, not a tuple.
+    static_assert(!is_detected<is_tuple, CLayout>::value &&
                       !is_detected<is_tuple, EDataType>::value,
-                  "ELayout and EDataType must be scalars.");
+                  "CLayout and EDataType must be scalars.");
 
     /// @brief  DsLayout and DsDataType are expected to be tuple, not a scalar.
     static_assert(is_detected<is_tuple, DsLayout>::value &&
