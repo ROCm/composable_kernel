@@ -56,7 +56,7 @@ auto get_elimit<FmhaFwdFp8>(std::string /*init_method*/)
     using ODataType   = typename TypeConfig::ODataType;
     float o_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<ODataType>::max());
     double rtol       = 0;
-    double atol       = 16 * o_dtype_max > 240 ? 2 : 1;
+    double atol       = 16 * (o_dtype_max > 240 ? 2 : 1);
     return ck_tile::make_tuple(rtol, atol);
 }
 
