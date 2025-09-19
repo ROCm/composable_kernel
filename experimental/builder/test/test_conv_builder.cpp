@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <ck_tile/builder/conv_builder.hpp>
+#include "testing_utils.hpp"
 
 namespace {
 
@@ -28,10 +29,11 @@ TEST(ConvBuilderTest, TestDefaultInstance)
     static constexpr const ConvSignature SIGNATURE;
     static constexpr const DefaultAlgorithm ALGORITHM;
     using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
-    EXPECT_EQ(
-        Builder::Instance::TypeString(),
+    std::string expected =
         "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 256, 256, 32, Default, 32, 32, 4, 4, "
-        "8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v4>");
+        "8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v4>";
+    EXPECT_EQ(Builder::Instance::TypeString(), expected)
+        << ck_tile::test::formatInlineDiff(Builder::Instance::TypeString(), expected);
 }
 
 } // namespace
