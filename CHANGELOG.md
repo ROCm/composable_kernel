@@ -5,6 +5,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 ## Composable Kernel 1.2.0 for ROCm 7.0.0
 
 ### Added
+* Added support for B Tensor type pk_int4_t in the CK TILE weight preshuffle GEMM.
 * Added the new api to load different memory sizes to SGPR.
 * Added support for B Tensor Preshuffle in CK TILE Grouped GEMM.
 * Added a basic copy kernel example and supporting documentation for new CK Tile developers.
