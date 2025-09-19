@@ -2585,9 +2585,8 @@ CK_TILE_DEVICE void amd_direct_load_global_to_lds(const T* global_base_ptr,
     const index_t global_offset_bytes = is_valid ? global_offset * sizeof(T) : 0x80000000;
 
 #if CK_TILE_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM
-    T* lds_ptr = lds_base_ptr + lds_offset;
-    auto const lds_ptr_sgpr =
-        __builtin_amdgcn_readfirstlane((reinterpret_cast<uintptr_t>(lds_ptr)));
+    T* lds_ptr              = lds_base_ptr + lds_offset;
+    auto const lds_ptr_sgpr = amd_wave_read_first_lane((reinterpret_cast<uintptr_t>(lds_ptr)));
     asm volatile("s_mov_b32 m0, %0; \n\t"
                  "buffer_load_dword %1, %2, 0 offen lds;\n\t" ::"s"(lds_ptr_sgpr),
                  "v"(global_offset_bytes),
@@ -2660,12 +2659,15 @@ __device__ auto amd_transpose_load_to_vgpr(const T* __restrict__ in_ptr)
 }
 #endif
 
-// amd_wave_read_first_lane is the SGPR function from AMD GPU device to load 1 or a series of the memory to the SGPR registers.
-__device__ inline uint32_t amd_wave_read_first_lane(uint16_t v) {
+// amd_wave_read_first_lane is the SGPR function from AMD GPU device to load 1 or a series of the
+// memory to the SGPR registers.
+__device__ inline uint32_t amd_wave_read_first_lane(uint16_t v)
+{
     return __builtin_amdgcn_readfirstlane(static_cast<uint32_t>(v));
 }
 
-__device__ inline uint32_t amd_wave_read_first_lane(uint8_t v) {
+__device__ inline uint32_t amd_wave_read_first_lane(uint8_t v)
+{
     return __builtin_amdgcn_readfirstlane(static_cast<uint32_t>(v));
 }
 
@@ -2679,26 +2681,26 @@ __device__ inline int32_t amd_wave_read_first_lane(int32_t value)
     return __builtin_amdgcn_readfirstlane(value);
 }
 
-template <typename Object,
-          std::enable_if_t<std::is_trivially_copyable_v<T>, int> = 0>
+template <typename Object, std::enable_if_t<std::is_trivially_copyable_v<T>, int> = 0>
 __device__ inline auto amd_wave_read_first_lane(const Object& obj)
 {
     constexpr size_t ObjectSize = sizeof(Object);
-    constexpr size_t SGPR_size = 4;
+    constexpr size_t SGPR_size  = 4;
 
     const unsigned char* src = reinterpret_cast<const unsigned char*>(&obj);
     alignas(Object) unsigned char dst[ObjectSize];
 
-
-    for (size_t offset = 0; offset + SGPR_size <= ObjectSize; offset += SGPR_size) {
+    for(size_t offset = 0; offset + SGPR_size <= ObjectSize; offset += SGPR_size)
+    {
         uint32_t read_src;
         __builtin_memcpy(&read_src, src + offset, SGPR_size);
         read_src = __builtin_amdgcn_readfirstlane(read_src);
         __builtin_memcpy(dst + off, &read_src, SGPR_size);
     }
-    if constexpr (ObjectSize % SGPR_size) {
+    if constexpr(ObjectSize % SGPR_size)
+    {
         uint32_t tail = 0;
-        __builtin_memcpy(&tail, src + offset, ObjectSize%SGPR_size);
+        __builtin_memcpy(&tail, src + offset, ObjectSize % SGPR_size);
         tail = __builtin_amdgcn_readfirstlane(tail);
         __builtin_memcpy(dst + offset, &tail, ObjectSize % SGPR_size);
     }
