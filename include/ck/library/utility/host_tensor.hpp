@@ -122,7 +122,7 @@ auto construct_f_unpack_args(F, T args)
  * 3. **Partial Stride Specification**: For GEMM layouts, unknown strides (represented as 0 or
  * negative values) in the last two dimensions can be auto-calculated while preserving higher
  * dimension strides.
- * 
+ *
  * For more details see `CalculateStrides` method.
  *
  * @section layout_support Layout Support
@@ -412,7 +412,8 @@ struct HostTensorDescriptor
                         if(mStrides[i - 1] < mStrides[i] * mLens[i])
                         {
                             std::ostringstream oss;
-                            oss << "Invalid strides for higher dimensions in " << layout << ": " << *this;
+                            oss << "Invalid strides for higher dimensions in " << layout << ": "
+                                << *this;
                             throw std::runtime_error(oss.str());
                         }
                     }

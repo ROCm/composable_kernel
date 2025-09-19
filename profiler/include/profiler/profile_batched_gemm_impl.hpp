@@ -61,11 +61,15 @@ bool profile_batched_gemm_impl(int do_verification,
 
         if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
         {
-            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, stride, 1_uz}, ck::tensor_layout::gemm::RowMajor{});
+            return HostTensorDescriptor({batch_count, row, col},
+                                        {batch_stride, stride, 1_uz},
+                                        ck::tensor_layout::gemm::RowMajor{});
         }
         else
         {
-            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, 1_uz, stride}, ck::tensor_layout::gemm::ColumnMajor{});
+            return HostTensorDescriptor({batch_count, row, col},
+                                        {batch_stride, 1_uz, stride},
+                                        ck::tensor_layout::gemm::ColumnMajor{});
         }
     };
 

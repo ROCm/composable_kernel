@@ -22,8 +22,8 @@ using F32 = float;
 using ADataType = F16;
 using BDataType = F16;
 
-using NchwLayout  = ck::tensor_layout::convolution::NCHW;
-using NhwcLayout  = ck::tensor_layout::convolution::NHWC;
+using NchwLayout                       = ck::tensor_layout::convolution::NCHW;
+using NhwcLayout                       = ck::tensor_layout::convolution::NHWC;
 using PassThrough                      = ck::tensor_operation::element_wise::PassThrough;
 using DeviceElementwisePermuteInstance = ck::tensor_operation::device::DeviceElementwiseImpl<
     ck::Tuple<ADataType>, // InDataTypeTuple
