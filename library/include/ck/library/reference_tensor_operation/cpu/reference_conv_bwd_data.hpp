@@ -28,7 +28,6 @@ template <ck::index_t NDimSpatial,
           ck::index_t NumAElementwiseTensor                                         = 0,
           ck::index_t NumBElementwiseTensor                                         = 0,
           ck::index_t NumDElementwiseTensor                                         = 0,
-          typename ComputeDataType                                                  = OutDataType,
           typename std::enable_if<NDimSpatial >= 1 && NDimSpatial <= 3, bool>::type = false>
 struct ReferenceConvBwdData : public device::BaseOperator
 {
@@ -143,10 +142,8 @@ struct ReferenceConvBwdData : public device::BaseOperator
                                                          c,
                                                          x);
 
-                                    v_acc += ck::type_convert<float>(
-                                                 ck::type_convert<ComputeDataType>(v_out)) *
-                                             ck::type_convert<float>(
-                                                 ck::type_convert<ComputeDataType>(v_wei));
+                                    v_acc += ck::type_convert<float>(v_out) *
+                                             ck::type_convert<float>(v_wei);
                                 }
                             }
                         }
@@ -238,11 +235,8 @@ struct ReferenceConvBwdData : public device::BaseOperator
                                                     y,
                                                     x);
 
-                                                v_acc +=
-                                                    ck::type_convert<float>(
-                                                        ck::type_convert<ComputeDataType>(v_out)) *
-                                                    ck::type_convert<float>(
-                                                        ck::type_convert<ComputeDataType>(v_wei));
+                                                v_acc += ck::type_convert<float>(v_out) *
+                                                         ck::type_convert<float>(v_wei);
                                             }
                                         }
                                     }
@@ -360,12 +354,8 @@ struct ReferenceConvBwdData : public device::BaseOperator
                                                                 x);
 
                                                             v_acc +=
-                                                                ck::type_convert<float>(
-                                                                    ck::type_convert<
-                                                                        ComputeDataType>(v_out)) *
-                                                                ck::type_convert<float>(
-                                                                    ck::type_convert<
-                                                                        ComputeDataType>(v_wei));
+                                                                ck::type_convert<float>(v_out) *
+                                                                ck::type_convert<float>(v_wei);
                                                         }
                                                     }
                                                 }

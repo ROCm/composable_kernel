@@ -33,8 +33,7 @@ template <ck::index_t NDimSpatial,
           typename InElementOp,
           typename WeiElementOp,
           typename OutElementOp,
-          typename DeviceConvNdBwdDataInstance,
-          typename ComputeDataType = OutDataType>
+          typename DeviceConvNdBwdDataInstance>
 int run_conv_bwd_data(bool do_verification,
                       int init_method,
                       bool time_kernel,
@@ -151,11 +150,7 @@ int run_conv_bwd_data(bool do_verification,
                                                                          OutDataType,
                                                                          InElementOp,
                                                                          WeiElementOp,
-                                                                         OutElementOp,
-                                                                         0,
-                                                                         0,
-                                                                         0,
-                                                                         ComputeDataType>();
+                                                                         OutElementOp>();
 
         auto ref_invoker = ref_conv.MakeInvoker();
 
