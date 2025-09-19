@@ -20,7 +20,8 @@ template <ck::index_t NumDimSpatial,
           typename OutDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
-          typename OutElementwiseOperation>
+          typename OutElementwiseOperation,
+          typename ComputeDataType = InDataType>
 struct DeviceConvFwd : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>

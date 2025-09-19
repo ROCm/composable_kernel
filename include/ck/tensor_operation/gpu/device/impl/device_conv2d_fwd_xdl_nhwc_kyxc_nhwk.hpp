@@ -54,7 +54,8 @@ template <typename InDataType,
           ck::index_t BBlockTransferDstScalarPerVector_K1,
           bool BBlockLdsAddExtraN,
           ck::index_t CThreadTransferSrcDstVectorDim,
-          ck::index_t CThreadTransferDstScalarPerVector>
+          ck::index_t CThreadTransferDstScalarPerVector,
+          typename ComputeDataType = InDataType>
 struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
     : public DeviceConvFwd<2,
                            ck::tensor_layout::convolution::NHWC,
@@ -65,7 +66,8 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                            OutDataType,
                            InElementwiseOperation,
                            WeiElementwiseOperation,
-                           OutElementwiseOperation>
+                           OutElementwiseOperation,
+                           ComputeDataType>
 {
     using DeviceOp = DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K;
 
@@ -78,7 +80,8 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
     using CDataType = OutDataType;
 
     // TODO make A/B datatype different
-    using ABDataType = InDataType;
+    using ABDataTypeElementwise = ADataType;       // for load/store and elementwise operation
+    using ABDataTypeGemm        = ComputeDataType; // only for gemm computation
 
     static constexpr index_t NDimSpatial = 2;
 
@@ -331,7 +334,7 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
     template <index_t NXdlPerWave_>
     using GridwiseGemmBase = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3<
         BlockSize,
-        ABDataType, // TODO: distinguish A/B datatype
+        ABDataTypeGemm, // TODO: distinguish A/B datatype
         AccDataType,
         CDataType,
         InMemoryDataOperationEnum::Set,
@@ -472,7 +475,7 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             {
                 const auto kernel =
                     kernel_gemm_xdlops_v2r3<GridwiseGemm,
-                                            ADataType, // TODO: distiguish A/B datatype
+                                            ABDataTypeElementwise, // TODO: distiguish A/B datatype
                                             CDataType,
                                             DeviceOp::AGridDesc_K0_M_K1,
                                             DeviceOp::BGridDesc_K0_N_K1,
@@ -495,7 +498,7 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             {
                 const auto kernel =
                     kernel_gemm_xdlops_v2r3<GridwiseGemm,
-                                            ADataType, // TODO: distiguish A/B datatype
+                                            ABDataTypeElementwise, // TODO: distiguish A/B datatype
                                             CDataType,
                                             DeviceOp::AGridDesc_K0_M_K1,
                                             DeviceOp::BGridDesc_K0_N_K1,
@@ -535,7 +538,7 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        if(!ck::is_xdl_wmma_supported<ABDataTypeGemm, ABDataTypeGemm, MPerXDL, NPerXDL>())
         {
             return false;
         }
