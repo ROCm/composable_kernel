@@ -34,8 +34,6 @@ struct HstuAttentionFwdKernel
     static constexpr ck_tile::index_t kBlockSize  = HstuAttentionPipeline::kBlockSize;
     static constexpr ck_tile::index_t kBlockPerCu = HstuAttentionPipeline::kBlockPerCu;
     static_assert(kBlockPerCu > 0);
-    static constexpr ck_tile::index_t kBlockPerCuInput =
-        HstuAttentionPipeline::Problem::kBlockPerCu;
 
     using QKVDataType  = ck_tile::remove_cvref_t<typename HstuAttentionPipeline::QKVDataType>;
     using BiasDataType = ck_tile::remove_cvref_t<typename HstuAttentionPipeline::BiasDataType>;
