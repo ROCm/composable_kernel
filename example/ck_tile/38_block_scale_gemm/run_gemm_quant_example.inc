@@ -333,7 +333,8 @@ int run_gemm_example_with_layouts(int argc,
             ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x40)}(a_m_k);
             ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x40)}(b_k_n);
             ck_tile::FillConstant<BQDataType>{static_cast<BQDataType>(1.0f)}(*bq_tensor_ptr);
-            // ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x40)}(a_m_k); //for initializing with 1
+            // ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x40)}(a_m_k); //for
+            // initializing with 1
             // ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x40)}(b_k_n);
             // ck_tile::FillConstant<BQDataType>{static_cast<BQDataType>(1.0f)}(*bq_tensor_ptr);
         }

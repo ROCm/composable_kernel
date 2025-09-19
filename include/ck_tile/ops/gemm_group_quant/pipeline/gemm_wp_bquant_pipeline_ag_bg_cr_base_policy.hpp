@@ -32,7 +32,7 @@ struct GemmWPQuantPipelineAgBgCrPolicy : public UniversalWeightPreshufflePipelin
     {
         using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
-        
+
         using WarpGemm = WarpGemmDispatcher<typename Problem::ComputeDataType,
                                             typename Problem::ComputeDataType,
                                             typename Problem::CDataType,

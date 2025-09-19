@@ -23,7 +23,7 @@ struct BaseWPQuantBPipelineAgBgCrV2 : public BaseWeightPreshufflePipelineAGmemBG
 template <typename Problem, typename PipelinePolicy = GemmWPQuantPipelineAgBgCrPolicy>
 struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
 {
-    using Base = BaseWPQuantBPipelineAgBgCrV2<Problem>;
+    using Base            = BaseWPQuantBPipelineAgBgCrV2<Problem>;
     using ADataType       = remove_cvref_t<typename Problem::ADataType>;
     using BDataType       = remove_cvref_t<typename Problem::BDataType>;
     using BQDataType      = remove_cvref_t<typename Problem::BQDataType>;
@@ -39,7 +39,7 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
     using BlockWeightPreshuffle = remove_cvref_t<
         decltype(PipelinePolicy::template GetBlockWeightPreshuffleBQuant<Problem>())>;
 
-     static constexpr auto config =
+    static constexpr auto config =
         BlockWeightPreshuffle::BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
 
     using WG = remove_cvref_t<decltype(config.template at<0>())>;
@@ -50,12 +50,12 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
     static constexpr index_t BlockSize = Problem::kBlockSize;
     static constexpr index_t WaveSize  = get_warp_size();
 
-    static constexpr index_t kMPerBlock     = BlockGemmShape::kM;
-    static constexpr index_t kNPerBlock     = BlockGemmShape::kN;
-    static constexpr index_t kKPerBlock     = BlockGemmShape::kK;
+    static constexpr index_t kMPerBlock = BlockGemmShape::kM;
+    static constexpr index_t kNPerBlock = BlockGemmShape::kN;
+    static constexpr index_t kKPerBlock = BlockGemmShape::kK;
 
     static constexpr index_t kQuantGroupSize = Problem::kQuantGroupSize;
-    static constexpr index_t KPerBlockBQ    = BlockGemmShape::kK / kQuantGroupSize;
+    static constexpr index_t KPerBlockBQ     = BlockGemmShape::kK / kQuantGroupSize;
     static constexpr index_t QScalesPerBlockRow =
         (kKPerBlock + kQuantGroupSize - 1) / kQuantGroupSize;
 
@@ -101,11 +101,11 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
     static constexpr index_t MPerBlockPerIter = kMPerBlock / MIterPerWarp;
     static constexpr index_t KPerBlockPerIter = kKPerBlock / KIterPerWarp;
 
-    static constexpr index_t K1        = Problem::VectorLoadSize / sizeof(ADataType);
-    static constexpr index_t m_preload = (MIterPerWarp * KIterPerWarp >= DsReadPreload)
-                                             ? DsReadPreload
-                                             : MIterPerWarp * KIterPerWarp;
-    static constexpr auto TailNum      = Problem::TailNum;
+    static constexpr index_t K1             = Problem::VectorLoadSize / sizeof(ADataType);
+    static constexpr index_t m_preload      = (MIterPerWarp * KIterPerWarp >= DsReadPreload)
+                                                  ? DsReadPreload
+                                                  : MIterPerWarp * KIterPerWarp;
+    static constexpr auto TailNum           = Problem::TailNum;
     static constexpr index_t KIterPerQScale = KIterPerWarp / QScalesPerBlockRow;
 
 #ifdef __gfx942__
@@ -150,7 +150,7 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
 
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
     static constexpr bool PreshuffleB      = Problem::PreshuffleB;
-    
+
     CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
@@ -158,7 +158,6 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
         return PipelinePolicy::template GetSmemSize<Problem>();
     }
 
-    
     // dsread_perM: how many LDS reads want to issue in this M-iter
     // dswrite_perM: how many LDS writes you want to do this M-iter
     // load_perM: how many global loads VMEM want to do in this M-iter
@@ -483,11 +482,11 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
                                    void* p_smem_pong) const
     {
         static_assert(
-        std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
-            std::is_same_v<BDataType, remove_cvref_t<typename BFlatBlockWindowTmp::DataType>> &&
-            std::is_same_v<BQDataType, remove_cvref_t<typename BQDramBlockWindowTmp::DataType>>,
-        "A/B/BQ Dram block window should have the same data type as appropriate "
-        "([A|B|BQ]DataType) defined in Problem definition!");
+            std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
+                std::is_same_v<BDataType, remove_cvref_t<typename BFlatBlockWindowTmp::DataType>> &&
+                std::is_same_v<BQDataType, remove_cvref_t<typename BQDramBlockWindowTmp::DataType>>,
+            "A/B/BQ Dram block window should have the same data type as appropriate "
+            "([A|B|BQ]DataType) defined in Problem definition!");
 
         constexpr bool is_a_col_major = std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
         static_assert(!is_a_col_major, "A must be row major (col major not supported yet)");
@@ -498,9 +497,10 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
         constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
         static_assert(!is_b_row_major, "B must be col major (row major not supported yet)");
 
-        //constexpr auto MIter_2nd_last = (MIterPerWarp >= 2) ? MIterPerWarp - 2 : MIterPerWarp - 1;
-        const index_t iMWarp          = get_warp_id() / NWarp;
-        
+        // constexpr auto MIter_2nd_last = (MIterPerWarp >= 2) ? MIterPerWarp - 2 : MIterPerWarp -
+        // 1;
+        const index_t iMWarp = get_warp_id() / NWarp;
+
         // using CWarpDstr   = typename WG::CWarpDstr;
         // using CWarpTensor = typename WG::CWarpTensor;
 
@@ -514,7 +514,7 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
         ADataType* p_a_lds_ping = static_cast<ADataType*>(p_smem_ping);
         ADataType* p_a_lds_pong = static_cast<ADataType*>(p_smem_pong);
 
-         constexpr auto a_lds_block_desc =
+        constexpr auto a_lds_block_desc =
             PipelinePolicy::template MakeALdsBlockDescriptor<Problem>();
 
         auto a_lds_block_ping =
@@ -597,31 +597,34 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
                 b_flat_dram_block_window_tmp.get_window_origin(),
                 b_flat_distribution);
 
-        // using BBlockTile = decltype(make_static_distributed_tensor<ComputeDataType>(b_flat_distribution));                             
-        // BBlockTile b_block_tile; 
+        // using BBlockTile =
+        // decltype(make_static_distributed_tensor<ComputeDataType>(b_flat_distribution));
+        // BBlockTile b_block_tile;
 
         // if constexpr(std::is_same_v<BDataType, pk_int4_t>)
         // {
         //     static_assert(std::is_same_v<ComputeDataType, fp8_t> ||
         //                     std::is_same_v<ComputeDataType, bf8_t>);
-        //     block_weight_preshuffle.load_interleaved_pk_type(b_block_tile, b_flat_dram_window); 
+        //     block_weight_preshuffle.load_interleaved_pk_type(b_block_tile, b_flat_dram_window);
         //     //__builtin_amdgcn_sched_barrier(0);
         // }else{
         //     b_block_tile = load_tile(b_flat_dram_window);
         // }
-         // pingpong buffer for B
+        // pingpong buffer for B
         statically_indexed_array<
             statically_indexed_array<decltype(b_flat_dram_window), KIterPerWarp>,
             NIterPerWarp>
             b_flat_dram_windows;
 
         statically_indexed_array<
-            statically_indexed_array<decltype(/*b_block_tile*/ load_tile(b_flat_dram_window)), KIterPerWarp>,
+            statically_indexed_array<decltype(/*b_block_tile*/ load_tile(b_flat_dram_window)),
+                                     KIterPerWarp>,
             NIterPerWarp>
             b_warp_tensor_ping;
 
         statically_indexed_array<
-            statically_indexed_array<decltype(/*b_block_tile*/load_tile(b_flat_dram_window)), KIterPerWarp>,
+            statically_indexed_array<decltype(/*b_block_tile*/ load_tile(b_flat_dram_window)),
+                                     KIterPerWarp>,
             NIterPerWarp>
             b_warp_tensor_pong;
 
@@ -632,12 +635,12 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
                              bq_dram_block_window_tmp.get_window_origin(),
                              PipelinePolicy::template MakeBQDramTileDistribution<Problem>());
 
-         // Prefetch A0
+        // Prefetch A0
         auto a_block_tile = load_tile(a_copy_dram_window);
         // move A window to next k
         move_tile_window(a_copy_dram_window, {0, kKPerBlock});
 
-         // prefetch B
+        // prefetch B
         static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 b_flat_dram_windows(nIter)(kIter) = b_flat_dram_window;
@@ -646,15 +649,17 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
                                  {nIter * flatNPerWarp, kIter * flatKPerWarp});
 
                 // if constexpr(std::is_same_v<BDataType, pk_int4_t>){
-                //      block_weight_preshuffle.load_interleaved_pk_type(b_warp_tensor_ping(nIter)(kIter), b_flat_dram_windows(nIter)(kIter)); 
+                //      block_weight_preshuffle.load_interleaved_pk_type(b_warp_tensor_ping(nIter)(kIter),
+                //      b_flat_dram_windows(nIter)(kIter));
                 //      //__builtin_amdgcn_sched_barrier(0);
                 // }else{
-                //     b_warp_tensor_ping(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
-                // } 
+                //     b_warp_tensor_ping(nIter)(kIter) =
+                //     load_tile(b_flat_dram_windows(nIter)(kIter));
+                // }
                 b_warp_tensor_ping(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
             });
         });
-         // move B window to next flat K
+        // move B window to next flat K
         move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
 
         // Strictly not needed given type deduction, but helps with readability
@@ -709,11 +714,13 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
                     move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                      {nIter * flatNPerWarp, kIter * flatKPerWarp});
                     // if constexpr(std::is_same_v<BDataType, pk_int4_t>){
-                    //     block_weight_preshuffle.load_interleaved_pk_type(b_warp_tensor_pong(nIter)(kIter), b_flat_dram_windows(nIter)(kIter)); 
+                    //     block_weight_preshuffle.load_interleaved_pk_type(b_warp_tensor_pong(nIter)(kIter),
+                    //     b_flat_dram_windows(nIter)(kIter));
                     //     //__builtin_amdgcn_sched_barrier(0);
                     // }else{
-                    //     b_warp_tensor_pong(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
-                    // } 
+                    //     b_warp_tensor_pong(nIter)(kIter) =
+                    //     load_tile(b_flat_dram_windows(nIter)(kIter));
+                    // }
                     b_warp_tensor_pong(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
                 });
             });
@@ -732,7 +739,11 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
             move_tile_window(a_copy_dram_window, {0, kKPerBlock});
 
             // GEMM 2i
-            block_weight_preshuffle(c_block_tile, a_warp_tensor, b_warp_tensor_ping, bq_block_tile, a_warp_windows_ping);
+            block_weight_preshuffle(c_block_tile,
+                                    a_warp_tensor,
+                                    b_warp_tensor_ping,
+                                    bq_block_tile,
+                                    a_warp_windows_ping);
 
             static_for<0, m_preload, 1>{}([&](auto loadIter) {
                 constexpr auto mIter = loadIter % MIterPerWarp;
@@ -752,11 +763,13 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
                     move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                      {nIter * flatNPerWarp, kIter * flatKPerWarp});
                     // if constexpr(std::is_same_v<BDataType, pk_int4_t>){
-                    //     block_weight_preshuffle.load_interleaved_pk_type(b_warp_tensor_ping(nIter)(kIter), b_flat_dram_windows(nIter)(kIter)); 
+                    //     block_weight_preshuffle.load_interleaved_pk_type(b_warp_tensor_ping(nIter)(kIter),
+                    //     b_flat_dram_windows(nIter)(kIter));
                     //     //__builtin_amdgcn_sched_barrier(0);
                     // }else{
-                    //     b_warp_tensor_ping(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
-                    // }  
+                    //     b_warp_tensor_ping(nIter)(kIter) =
+                    //     load_tile(b_flat_dram_windows(nIter)(kIter));
+                    // }
                     b_warp_tensor_ping(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
                 });
             });
@@ -775,8 +788,12 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
             move_tile_window(a_copy_dram_window, {0, kKPerBlock});
 
             // GEMM 2i+1
-            block_weight_preshuffle(c_block_tile, a_warp_tensor, b_warp_tensor_pong, bq_block_tile_2, a_warp_windows_pong);
-            
+            block_weight_preshuffle(c_block_tile,
+                                    a_warp_tensor,
+                                    b_warp_tensor_pong,
+                                    bq_block_tile_2,
+                                    a_warp_windows_pong);
+
             static_for<0, m_preload, 1>{}([&](auto loadIter) {
                 constexpr auto mIter = loadIter % MIterPerWarp;
                 constexpr auto kIter = loadIter / MIterPerWarp;
@@ -800,11 +817,13 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
                     move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                      {nIter * flatNPerWarp, kIter * flatKPerWarp});
                     // if constexpr(std::is_same_v<BDataType, pk_int4_t>){
-                    //     block_weight_preshuffle.load_interleaved_pk_type(b_warp_tensor_pong(nIter)(kIter), b_flat_dram_windows(nIter)(kIter)); 
+                    //     block_weight_preshuffle.load_interleaved_pk_type(b_warp_tensor_pong(nIter)(kIter),
+                    //     b_flat_dram_windows(nIter)(kIter));
                     //     //__builtin_amdgcn_sched_barrier(0);
                     // }else{
-                    //     b_warp_tensor_pong(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
-                    // }  
+                    //     b_warp_tensor_pong(nIter)(kIter) =
+                    //     load_tile(b_flat_dram_windows(nIter)(kIter));
+                    // }
                     b_warp_tensor_pong(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
                 });
             });
@@ -815,7 +834,11 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
             store_tile(a_copy_lds_window_pong, a_block_tile_tmp);
 
             // GEMM loopK-1
-            block_weight_preshuffle(c_block_tile, a_warp_tensor, b_warp_tensor_ping, bq_block_tile, a_warp_windows_ping);
+            block_weight_preshuffle(c_block_tile,
+                                    a_warp_tensor,
+                                    b_warp_tensor_ping,
+                                    bq_block_tile,
+                                    a_warp_windows_ping);
 
             static_for<0, m_preload, 1>{}([&](auto loadIter) {
                 constexpr auto mIter = loadIter % MIterPerWarp;
@@ -827,21 +850,30 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
             Last2ndHotLoopScheduler();
 
             // GEMM loopK
-            block_weight_preshuffle(c_block_tile, a_warp_tensor, b_warp_tensor_pong, bq_block_tile_2, a_warp_windows_pong);
+            block_weight_preshuffle(c_block_tile,
+                                    a_warp_tensor,
+                                    b_warp_tensor_pong,
+                                    bq_block_tile_2,
+                                    a_warp_windows_pong);
             LastHotLoopScheduler();
         }
         else if constexpr(TailNum == TailNumber::Odd)
         {
             // GEMM loopK
-            block_weight_preshuffle(c_block_tile, a_warp_tensor, b_warp_tensor_ping, bq_block_tile, a_warp_windows_ping);
+            block_weight_preshuffle(c_block_tile,
+                                    a_warp_tensor,
+                                    b_warp_tensor_ping,
+                                    bq_block_tile,
+                                    a_warp_windows_ping);
             LastHotLoopScheduler();
         }
 
         return c_block_tile;
     }
 
-    
-    template <typename ADramBlockWindowTmp, typename BFlatBlockWindowTmp, typename BQDramBlockWindowTmp>
+    template <typename ADramBlockWindowTmp,
+              typename BFlatBlockWindowTmp,
+              typename BQDramBlockWindowTmp>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                    const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
@@ -859,4 +891,4 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
             p_smem_pong);
     }
 };
-}
+} // namespace ck_tile

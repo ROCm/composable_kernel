@@ -222,9 +222,7 @@ struct QuantGemmKernel
     static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
     static constexpr bool PreshuffleQuant =
         detail::is_quantpreshuffle_enabled<GemmPipeline_>::value;
-    static constexpr bool PreshuffleB =
-        detail::is_preshuffle_enabled<GemmPipeline_>::value;
-    
+    static constexpr bool PreshuffleB = detail::is_preshuffle_enabled<GemmPipeline_>::value;
 
     using ADataType   = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType   = remove_cvref_t<typename GemmPipeline::BDataType>;
@@ -675,7 +673,8 @@ struct QuantGemmKernel
                             number<GemmPipeline::GetVectorSizeB()>{},
                             number<1>{});
                     }
-                    else{
+                    else
+                    {
                         return make_naive_tensor_view<address_space_enum::global>(
                             b_ptr,
                             make_tuple(kargs.N, splitk_batch_offset.splitted_k),
@@ -806,7 +805,7 @@ struct QuantGemmKernel
         }();
         if constexpr(PreshuffleB)
         {
-            return make_tuple(a_pad_view,aq_pad_view, b_flat_pad_view, bq_pad_view, c_pad_view);
+            return make_tuple(a_pad_view, aq_pad_view, b_flat_pad_view, bq_pad_view, c_pad_view);
         }
         else
         {
@@ -881,26 +880,28 @@ struct QuantGemmKernel
         }();
 
         const auto& b_block_window = [&]() {
-            if constexpr(PreshuffleB){
-                 return make_tile_window(
+            if constexpr(PreshuffleB)
+            {
+                return make_tile_window(
                     b_pad_view,
                     make_tuple(number<GemmPipeline::flatNPerWarp>{},
                                number<GemmPipeline::flatKPerWarp>{}),
                     {static_cast<int>(i_n / TilePartitioner::BlockGemmShape::WarpTile::at(I1)), 0});
             }
-            else{
+            else
+            {
                 if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
                 {
                     return make_tile_window(b_pad_view,
                                             make_tuple(number<TilePartitioner::NPerBlock>{},
-                                                    number<TilePartitioner::KPerBlock>{}),
+                                                       number<TilePartitioner::KPerBlock>{}),
                                             {i_n, 0});
                 }
                 else
                 {
                     return make_tile_window(b_pad_view,
                                             make_tuple(number<TilePartitioner::KPerBlock>{},
-                                                    number<TilePartitioner::NPerBlock>{}),
+                                                       number<TilePartitioner::NPerBlock>{}),
                                             {0, i_n});
                 }
             }
@@ -919,8 +920,9 @@ struct QuantGemmKernel
                 static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
                 return make_tile_window(
                     bq_pad_view,
-                    make_tuple(number<TilePartitioner::NPerBlock>{},
-                               number<TilePartitioner::KPerBlock / GemmPipeline::kQuantGroupSize>{}),
+                    make_tuple(
+                        number<TilePartitioner::NPerBlock>{},
+                        number<TilePartitioner::KPerBlock / GemmPipeline::kQuantGroupSize>{}),
                     {i_n, 0});
             }
             else
@@ -1036,16 +1038,16 @@ struct QuantGemmKernel
      */
     template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
     CK_TILE_DEVICE static void RunGemm2LDS(const ADataType* a_ptr,
-                                       const BDataType* b_ptr,
-                                       const AQDataType* aq_ptr,
-                                       const BQDataType* bq_ptr,
-                                       CDataType* c_ptr,
-                                       void* smem_ptr_0,
-                                       void* smem_ptr_1,
-                                       const QuantGemmKernelArgs& kargs,
-                                       const SplitKBatchOffset& splitk_batch_offset,
-                                       const index_t block_idx_m,
-                                       const index_t block_idx_n)
+                                           const BDataType* b_ptr,
+                                           const AQDataType* aq_ptr,
+                                           const BQDataType* bq_ptr,
+                                           CDataType* c_ptr,
+                                           void* smem_ptr_0,
+                                           void* smem_ptr_1,
+                                           const QuantGemmKernelArgs& kargs,
+                                           const SplitKBatchOffset& splitk_batch_offset,
+                                           const index_t block_idx_m,
+                                           const index_t block_idx_n)
     {
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple = MakeGemmTensorViews<DstInMemOp>(
@@ -1065,13 +1067,19 @@ struct QuantGemmKernel
             if constexpr(kQuantType == QuantType::BQuantGrouped)
             {
                 const auto& bq_block_window = gemm_tile_windows.at(I3);
-                return GemmPipeline{}.template operator()(
-                    a_block_window, b_block_window, bq_block_window, num_loop, smem_ptr_0, smem_ptr_1);
+                return GemmPipeline{}.template operator()(a_block_window,
+                                                          b_block_window,
+                                                          bq_block_window,
+                                                          num_loop,
+                                                          smem_ptr_0,
+                                                          smem_ptr_1);
             }
-            else{
+            else
+            {
                 return nullptr;
-                //throw std::runtime_error("DoubleSmemBuffer Not implemented for AQuantGrouped or RowColQuant");
-                //static_assert(kQuantType == QuantType::BQuantGrouped, "DoubleSmemBuffer Not implemented");
+                // throw std::runtime_error("DoubleSmemBuffer Not implemented for AQuantGrouped or
+                // RowColQuant"); static_assert(kQuantType == QuantType::BQuantGrouped,
+                // "DoubleSmemBuffer Not implemented");
             }
         }();
 
@@ -1082,11 +1090,12 @@ struct QuantGemmKernel
         {
             EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
         }
-        else 
+        else
         {
             return;
-            //throw std::runtime_error("DoubleSmemBuffer Not implemented for AQuantGrouped or RowColQuant");
-            //static_assert(kQuantType == QuantType::BQuantGrouped, "DoubleSmemBuffer Not implemented");
+            // throw std::runtime_error("DoubleSmemBuffer Not implemented for AQuantGrouped or
+            // RowColQuant"); static_assert(kQuantType == QuantType::BQuantGrouped,
+            // "DoubleSmemBuffer Not implemented");
         }
     }
 
@@ -1112,18 +1121,31 @@ struct QuantGemmKernel
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
             __shared__ char smem_ptr_1[GetSmemSize()];
-           
-            RunGemm2LDS(a_ptr, b_ptr, aq_ptr, bq_ptr, c_ptr,
-                            smem_ptr_0,
-                            smem_ptr_1,
-                            kargs,
-                            splitk_batch_offset,
-                            i_m,
-                            i_n);
-            
-        }else{
-            RunGemm(
-                a_ptr, b_ptr, aq_ptr, bq_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
+
+            RunGemm2LDS(a_ptr,
+                        b_ptr,
+                        aq_ptr,
+                        bq_ptr,
+                        c_ptr,
+                        smem_ptr_0,
+                        smem_ptr_1,
+                        kargs,
+                        splitk_batch_offset,
+                        i_m,
+                        i_n);
+        }
+        else
+        {
+            RunGemm(a_ptr,
+                    b_ptr,
+                    aq_ptr,
+                    bq_ptr,
+                    c_ptr,
+                    smem_ptr_0,
+                    kargs,
+                    splitk_batch_offset,
+                    i_m,
+                    i_n);
         }
     }
 };
