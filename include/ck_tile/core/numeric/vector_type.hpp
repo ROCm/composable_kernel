@@ -213,21 +213,21 @@ using bf8x64_t = bf8_raw_t __attribute__((ext_vector_type(64)));
 #else
 // f8
 // using fp8_t
-using fp8x2_t  = fp8_t __attribute__((ext_vector_type(2)));
-using fp8x4_t  = fp8_t __attribute__((ext_vector_type(4)));
-using fp8x8_t  = fp8_t __attribute__((ext_vector_type(8)));
-using fp8x16_t = fp8_t __attribute__((ext_vector_type(16)));
-using fp8x32_t = fp8_t __attribute__((ext_vector_type(32)));
-using fp8x64_t = fp8_t __attribute__((ext_vector_type(64)));
+using fp8x2_t  = _BitInt(8) __attribute__((ext_vector_type(2)));
+using fp8x4_t  = _BitInt(8) __attribute__((ext_vector_type(4)));
+using fp8x8_t  = _BitInt(8) __attribute__((ext_vector_type(8)));
+using fp8x16_t = _BitInt(8) __attribute__((ext_vector_type(16)));
+using fp8x32_t = _BitInt(8) __attribute__((ext_vector_type(32)));
+using fp8x64_t = _BitInt(8) __attribute__((ext_vector_type(64)));
 
 // bf8
 // using bf8_t
-using bf8x2_t  = bf8_t __attribute__((ext_vector_type(2)));
-using bf8x4_t  = bf8_t __attribute__((ext_vector_type(4)));
-using bf8x8_t  = bf8_t __attribute__((ext_vector_type(8)));
-using bf8x16_t = bf8_t __attribute__((ext_vector_type(16)));
-using bf8x32_t = bf8_t __attribute__((ext_vector_type(32)));
-using bf8x64_t = bf8_t __attribute__((ext_vector_type(64)));
+using bf8x2_t  = unsigned _BitInt(8) __attribute__((ext_vector_type(2)));
+using bf8x4_t  = unsigned _BitInt(8) __attribute__((ext_vector_type(4)));
+using bf8x8_t  = unsigned _BitInt(8) __attribute__((ext_vector_type(8)));
+using bf8x16_t = unsigned _BitInt(8) __attribute__((ext_vector_type(16)));
+using bf8x32_t = unsigned _BitInt(8) __attribute__((ext_vector_type(32)));
+using bf8x64_t = unsigned _BitInt(8) __attribute__((ext_vector_type(64)));
 #endif
 
 // pk_int4_t

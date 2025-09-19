@@ -414,7 +414,7 @@ struct HostTensor
         if constexpr(std::is_same_v<T, e8m0_t>)
             std::fill(mData.begin(), mData.end(), e8m0_t{1.f});
         else
-            std::fill(mData.begin(), mData.end(), 0);
+            std::fill(mData.begin(), mData.end(), T(0));
     }
 
     template <typename F>

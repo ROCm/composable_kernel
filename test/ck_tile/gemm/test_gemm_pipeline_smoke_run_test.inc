@@ -240,11 +240,11 @@ bool run_gemm_test_with_layouts(ck_tile::ArgParser& arg_parser,
         ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k);
         ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n);
     }
-    else if(init_method == 1)
-    {
-        ck_tile::FillMonotonicSeq<ADataType>{}(a_m_k);
-        ck_tile::FillMonotonicSeq<BDataType>{}(b_k_n);
-    }
+    // else if(init_method == 1)
+    // {
+    //     ck_tile::FillMonotonicSeq<ADataType>{}(a_m_k);
+    //     ck_tile::FillMonotonicSeq<BDataType>{}(b_k_n);
+    // }
     else if(init_method == 2)
     {
         ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_m_k);

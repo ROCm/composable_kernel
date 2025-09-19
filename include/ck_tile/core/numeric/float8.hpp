@@ -201,7 +201,21 @@ struct native_t<bf8_t>
 
 #else
 
-using fp8_t     = _BitInt(8);
+// struct fp8_t { 
+//     using data_type = _BitInt(8);
+//     data_type m_data;
+//     CK_TILE_HOST_DEVICE explicit constexpr operator float() const { return fp8_to_float_raw(m_data); }
+// };
+
+enum class fp8_t : uint8_t {};
+template <typename>
+struct native_t;
+
+template <>
+struct native_t<fp8_t>
+{
+    using type = _BitInt(8);
+};
 using fp8_raw_t = uint8_t;
 using bf8_t     = unsigned _BitInt(8);
 using bf8_raw_t = uint8_t;
@@ -299,7 +313,7 @@ CK_TILE_HOST_DEVICE DstT run_cast_to_f8(SrcT src, unsigned int rng = 0)
         { // e5m2
             signed_inf = (sign << (DstT_exp + DstT_mant)) + (clip ? 0x7b : 0x7c);
         }
-        nan = (sign << (DstT_exp + DstT_mant)) + 0x7f;
+        nan = (sign << (DstT_exp + DstT_mant)) + 0x7f; 
     }
     // Max values
     unsigned int ifmax = 0;
@@ -343,12 +357,12 @@ CK_TILE_HOST_DEVICE DstT run_cast_to_f8(SrcT src, unsigned int rng = 0)
     // Deal with inf and NaNs
     if((src_bitwise & fInf) == fInf)
     {
-        return mantissa != 0 ? nan : signed_inf;
+        return DstT(uint8_t(mantissa != 0 ? nan : signed_inf));
     }
 
     if((src_bitwise & abs_mask) > ifmax)
     {
-        return signed_inf;
+        return DstT(uint8_t(signed_inf));
     }
 
     // First need to check if it is normal or denorm as there is a difference of
@@ -403,7 +417,7 @@ CK_TILE_HOST_DEVICE DstT run_cast_to_f8(SrcT src, unsigned int rng = 0)
     // an undefined behavior of bit shifts >= type width).
     if(exponent_diff > DstT_mant + 1)
     {
-        return is_fnuz ? 0 : (sign << (DstT_exp + DstT_mant));
+        return DstT(uint8_t(is_fnuz ? 0 : (sign << (DstT_exp + DstT_mant))));
     }
     bool midpoint = (mantissa & ((1u << (SrcT_mant - DstT_mant + exponent_diff)) - 1)) ==
                     (1u << (SrcT_mant - DstT_mant + exponent_diff - 1));
@@ -462,14 +476,14 @@ CK_TILE_HOST_DEVICE DstT run_cast_to_f8(SrcT src, unsigned int rng = 0)
         }
         else
         {
-            return signed_inf;
+            return DstT(uint8_t(signed_inf));
         }
     }
 
     if(f8_exponent == 0 && mantissa == 0)
-        return is_fnuz ? 0 : (sign << (DstT_exp + DstT_mant));
+        return DstT(uint8_t(is_fnuz ? 0 : (sign << (DstT_exp + DstT_mant))));
     mantissa &= (1 << DstT_mant) - 1;
-    return (sign << (DstT_exp + DstT_mant)) | (f8_exponent << DstT_mant) | mantissa;
+    return DstT(uint8_t((sign << (DstT_exp + DstT_mant)) | (f8_exponent << DstT_mant) | mantissa));
 }
 
 template <typename SrcT, typename DstT, bool clip = true>
@@ -510,17 +524,17 @@ CK_TILE_HOST_DEVICE DstT run_cast_from_f8(SrcT x)
         fmin = bit_cast<DstT>(static_cast<typename numeric_traits<DstT>::bitwise_type>(0xC7600000));
     }
 
-    if(x == 0)
+    if(uint8_t(x) == 0)
     {
         return 0;
     }
 
-    unsigned int sign     = x >> (SrcT_exp + SrcT_mant);
-    unsigned int mantissa = x & ((1 << SrcT_mant) - 1);
-    int exponent          = (x & SrcT_abs_mask) >> SrcT_mant;
+    unsigned int sign     = uint8_t(x) >> (SrcT_exp + SrcT_mant);
+    unsigned int mantissa = uint8_t(x) & ((1 << SrcT_mant) - 1);
+    int exponent          = (uint8_t(x) & SrcT_abs_mask) >> SrcT_mant;
     if constexpr(is_fnuz)
     {
-        if((x & 0xff) == 0x80)
+        if((uint8_t(x) & 0xff) == 0x80)
         {
             return fNaN;
         }
@@ -538,9 +552,9 @@ CK_TILE_HOST_DEVICE DstT run_cast_from_f8(SrcT x)
                 return fNaN;
             }
         }
-        else if((x & 0x7C) == 0x7C)
+        else if((uint8_t(x) & 0x7C) == 0x7C)
         { // e5m2
-            if((x & 0x3) == 0)
+            if((uint8_t(x) & 0x3) == 0)
             {
                 if constexpr(clip)
                 {

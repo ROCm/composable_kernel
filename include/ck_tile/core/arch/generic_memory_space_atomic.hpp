@@ -47,24 +47,20 @@ CK_TILE_HOST_DEVICE fp16x2_t add_f16x2_t(const fp16x2_t& a, const fp16x2_t& b)
 CK_TILE_HOST_DEVICE fp8x4_t add_fp8x4_t(const fp8x4_t& a, const fp8x4_t& b)
 {
     fp8x4_t rtn;
-    rtn[0] = add<fp8_t, float>(a[0], b[0]);
-    rtn[1] = add<fp8_t, float>(a[1], b[1]);
-    rtn[2] = add<fp8_t, float>(a[2], b[2]);
-    rtn[3] = add<fp8_t, float>(a[3], b[3]);
+    using fp8_ve_t = _BitInt(8);
+    static_for<0, 4, 1>{}([&](auto I) {
+        rtn[I.value] = fp8_ve_t(add<fp8_t, float>(fp8_t(a[I.value]), fp8_t(b[I.value])));
+    });
     return rtn;
 }
 
 CK_TILE_HOST_DEVICE fp8x8_t add_fp8x8_t(const fp8x8_t& a, const fp8x8_t& b)
 {
     fp8x8_t rtn;
-    rtn[0] = add<fp8_t, float>(a[0], b[0]);
-    rtn[1] = add<fp8_t, float>(a[1], b[1]);
-    rtn[2] = add<fp8_t, float>(a[2], b[2]);
-    rtn[3] = add<fp8_t, float>(a[3], b[3]);
-    rtn[4] = add<fp8_t, float>(a[4], b[4]);
-    rtn[5] = add<fp8_t, float>(a[5], b[5]);
-    rtn[6] = add<fp8_t, float>(a[6], b[6]);
-    rtn[7] = add<fp8_t, float>(a[7], b[7]);
+    using fp8_ve_t = _BitInt(8);
+    static_for<0, 8, 1>{}([&](auto I) {
+        rtn[I.value] = fp8_ve_t(add<fp8_t, float>(fp8_t(a[I.value]), fp8_t(b[I.value])));
+    });
     return rtn;
 }
 
