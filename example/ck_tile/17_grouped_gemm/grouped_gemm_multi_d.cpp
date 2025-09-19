@@ -32,9 +32,6 @@ float grouped_gemm_multi_d(const std::vector<grouped_gemm_multi_d_kargs>& gemm_d
                            void* kargs_ptr)
 {
     std::cout << "grouped_gemm_multi_d" << std::endl;
-    (void)kargs_ptr;
-    (void)s;
-    (void)gemm_descs;
 
     using GemmShape = ck_tile::TileGemmShape<
         ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,

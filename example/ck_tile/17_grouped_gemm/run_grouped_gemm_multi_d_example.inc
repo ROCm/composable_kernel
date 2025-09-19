@@ -19,23 +19,29 @@ static constexpr inline auto is_row_major(Layout layout_)
                                                  ck_tile::tensor_layout::gemm::RowMajor>>{};
 }
 
-template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
 auto calculate_rtol_atol(const ck_tile::index_t K,
                          const ck_tile::index_t kbatch,
                          const float max_accumulated_value)
 {
-    using ComputeType =
+    using ComputeTypeAB =
         std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
+
+    using ComputeType =
+        std::conditional_t<sizeof(ComputeTypeAB) < sizeof(D0DataType), ComputeTypeAB, D0DataType>;
     // Calculate thresholds
-    const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType, AccDataType>(
+    const auto rtol = ck_tile::get_relative_threshold<ComputeType, EDataType, AccDataType>(
         ck_tile::integer_divide_ceil(K, kbatch));
-    const auto atol = ck_tile::get_absolute_threshold<ComputeType, CDataType, AccDataType>(
+
+    const auto atol = ck_tile::get_absolute_threshold<ComputeType, EDataType, AccDataType>(
         max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
+
     // Calculate error due to split_k accumulation
     const auto rtol_split_k =
-        ck_tile::get_relative_threshold<CDataType, CDataType, CDataType>(kbatch);
-    const auto atol_split_k = ck_tile::get_absolute_threshold<CDataType, CDataType, CDataType>(
+        ck_tile::get_relative_threshold<EDataType, EDataType, EDataType>(kbatch);
+
+    const auto atol_split_k = ck_tile::get_absolute_threshold<EDataType, EDataType, EDataType>(
         max_accumulated_value, kbatch);
+
     // Use higher threshold
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
@@ -217,11 +223,11 @@ int run_grouped_gemm_multi_d_example_with_layouts(int argc,
                   << " d1_m_n: " << d1_m_n_tensors[i].mDesc << " e_m_n: " << e_m_n_tensors[i].mDesc
                   << std::endl;
 
-        ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k_tensors[i]);
-        ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensors[i]);
-        ck_tile::FillUniformDistribution<D0DataType>{-1.f, 1.f}(d0_m_n_tensors[i]);
-        ck_tile::FillUniformDistribution<D1DataType>{-1.f, 1.f}(d1_m_n_tensors[i]);
-        ck_tile::FillUniformDistribution<EDataType>{-1.f, 1.f}(e_m_n_tensors[i]);
+        ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_m_k_tensors[i]);
+        ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_k_n_tensors[i]);
+        ck_tile::FillUniformDistribution<D0DataType>{1.f, 1.f}(d0_m_n_tensors[i]);
+        ck_tile::FillUniformDistribution<D1DataType>{1.f, 1.f}(d1_m_n_tensors[i]);
+        ck_tile::FillUniformDistribution<EDataType>{1.f, 1.f}(e_m_n_tensors[i]);
 
         a_m_k_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(a_m_k_tensors[i]));
 
@@ -287,6 +293,10 @@ int run_grouped_gemm_multi_d_example_with_layouts(int argc,
     std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops << " TFlops, "
               << gb_per_sec << " GB/s, " << op_name << std::endl;
 
+    std::vector<ck_tile::HostTensor<EDataType>> e_m_n_host_refs;
+    e_m_n_host_refs.reserve(group_count);
+
+    // copy e_m_n_tensors result from device to host and initialize host tensors to zero
     for(int i = 0; i < group_count; i++)
     {
         e_m_n_dev_buf[i]->FromDevice(e_m_n_tensors[i].data());
@@ -295,32 +305,41 @@ int run_grouped_gemm_multi_d_example_with_layouts(int argc,
     bool pass{true};
     if(validate)
     {
-        //     for(int i = 0; i < group_count; ++i)
-        //     {
-        //         ck_tile::HostTensor<CDataType> c_m_n_host_ref(ck_tile::host_tensor_descriptor(
-        //             Ms[i], Ns[i], stride_Cs[i], is_row_major(CLayout{})));
-        //         c_m_n_host_ref.SetZero();
-        //         ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
-        //             a_m_k_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
-        //         const float max_accumulated_value =
-        //             *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
-        //         const auto rtol_atol =
-        //             calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
-        //                 Ks[i], kbatch, max_accumulated_value);
-        //         pass &=
-        //             ck_tile::check_err(c_m_n_tensors[i],
-        //                                c_m_n_host_ref,
-        //                                "Error: Incorrect results! in group [" + std::to_string(i)
-        //                                +
-        //                                "]", rtol_atol.at(ck_tile::number<0>{}),
-        //                                rtol_atol.at(ck_tile::number<1>{}));
-        //         std::cout << "gemm[" << i
-        //                   << "] Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
-        //                   << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
-        //                   << std::endl;
-        //     }
-        //     std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") <<
-        //     std::endl;
+        for(int i = 0; i < group_count; ++i)
+        {
+            e_m_n_host_refs.push_back(ck_tile::HostTensor<EDataType>(
+                host_tensor_descriptor(Ms[i], Ns[i], stride_Es[i], is_row_major(e_layout))));
+
+            e_m_n_host_refs[i].SetZero();
+
+            ck_tile::reference_gemm_multiple_d<ADataType,
+                                               BDataType,
+                                               DsDataType,
+                                               AccDataType,
+                                               EDataType,
+                                               CDElementWise>(
+                a_m_k_tensors[i],
+                b_k_n_tensors[i],
+                {d0_m_n_tensors[i], d1_m_n_tensors[i]},
+                e_m_n_host_refs[i]);
+            const float max_accumulated_value =
+                *std::max_element(e_m_n_host_refs[i].mData.begin(), e_m_n_host_refs[i].mData.end());
+
+            const auto rtol_atol = calculate_rtol_atol(Ks[i], 1, max_accumulated_value);
+
+            pass &= ck_tile::check_err(e_m_n_tensors[i],
+                                       e_m_n_host_refs[i],
+                                       "Error: Incorrect results!",
+                                       rtol_atol.at(ck_tile::number<0>{}),
+                                       rtol_atol.at(ck_tile::number<1>{}));
+
+            std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
+                      << std::endl;
+            std::cout << "Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
+                      << std::endl;
+            std::cout << "The CPU veification result is: " << (pass ? "correct" : "fail")
+                      << std::endl;
+        }
     }
 
     if(arg_parser.get_int("json") == 1)

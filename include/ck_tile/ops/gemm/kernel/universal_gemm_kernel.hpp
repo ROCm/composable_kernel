@@ -318,6 +318,8 @@ struct UniversalGemmKernel
         return max(GemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
     }
 
+    // using KernelArgs = UniversalGemmKernelArgs<AsLayout::size(), BsLayout::size(),
+    // DsLayout::size()>;
     struct SplitKBatchOffset
     {
         __device__ SplitKBatchOffset(const KernelArgs& kargs, const std::size_t k_id = blockIdx.z)
@@ -958,44 +960,6 @@ struct UniversalGemmKernel
                                        const SplitKBatchOffset& splitk_batch_offset,
                                        const index_t block_idx_m,
                                        const index_t block_idx_n)
-    {
-        // Create Gemm tensor views, pad views and tile windows
-        const auto& gemm_tensor_views_tuple =
-            MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-                as_ptr, bs_ptr, ds_ptr, e_ptr, kargs, splitk_batch_offset.splitted_k);
-
-        const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
-        auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
-
-        const index_t num_loop = __builtin_amdgcn_readfirstlane(
-            TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
-
-        // Run GEMM cooperatively by whole workgroup.
-        const auto& as_block_window = gemm_tile_windows.at(I0);
-        const auto& bs_block_window = gemm_tile_windows.at(I1);
-        const auto& ds_block_window = gemm_tile_windows.at(I2);
-
-        const auto& c_block_tile =
-            GemmPipeline{}(as_block_window[I0], bs_block_window[I0], num_loop, smem_ptr_0);
-
-        if(UseDefaultScheduler || (get_warp_id() == 0))
-        {
-            // Run Epilogue Pipeline
-            auto& c_block_window = gemm_tile_windows.at(I3);
-
-            EpiloguePipeline{}(c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
-        }
-    }
-    template <bool UseDefaultScheduler = true>
-    CK_TILE_DEVICE static void RunGemm2(const std::array<const ADataType*, NumATensor>& as_ptr,
-                                        const std::array<const BDataType*, NumBTensor>& bs_ptr,
-                                        const std::array<const void*, NumDTensor>& ds_ptr,
-                                        EDataType* e_ptr,
-                                        void* smem_ptr_0,
-                                        const UniversalGemmKernelArgs<1, 1, 2>& kargs,
-                                        const SplitKBatchOffset& splitk_batch_offset,
-                                        const index_t block_idx_m,
-                                        const index_t block_idx_n)
     {
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
