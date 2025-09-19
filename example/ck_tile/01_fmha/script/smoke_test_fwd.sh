@@ -94,7 +94,30 @@ run_fp8_tests() {
     for b in 1 2 ; do
     for hdim in 64 128 256 ; do
     
-    run_exe -prec=fp8 -init=3 -b=$b -h=1 -d=128 -s=128 -bias=$bias -iperm=$perm -operm=$perm -vlayout=c -squant=1 -kname=$KNAME $COMMON_ARGS
+    $EXE -prec=fp8 -init=0 -b=$b -h=1 -d=128 -s=128 -bias=$bias -iperm=$perm -operm=$perm -vlayout=r -squant=1 -kname=$KNAME $COMMON_ARGS
+
+    done ; done ; done ; done
+}
+
+run_fp8bf16_tests() {
+    for perm in 0 1 ; do
+    for bias in "n" "e" "a" ; do
+    for b in 1 2 ; do
+    for hdim in 64 128 256 ; do
+
+    $EXE -prec=fp8bf16 -init=0 -b=$b -h=1 -d=128 -s=128 -bias=$bias -iperm=$perm -operm=$perm -vlayout=r -squant=1 -kname=$KNAME $COMMON_ARGS
+
+    done ; done ; done ; done
+}
+
+run_fp8fp32_tests() {
+    for perm in 0 1 ; do
+    for bias in "n" "e" "a" ; do
+    for b in 1 2 ; do
+    for hdim in 64 128 256 ; do
+
+    $EXE -prec=fp8fp32 -init=0 -b=$b -h=1 -d=128 -s=128 -bias=$bias -iperm=$perm -operm=$perm -vlayout=r -squant=1 -kname=$KNAME $COMMON_ARGS
+
     done ; done ; done ; done
 }
 
@@ -114,10 +137,121 @@ run_fp16_appendkv_tests() {
     done ; done ; done
 }
 
+run_padding_smoke_tests() {
+    # Padding-only smoke tests for batch/group mode using COMMON_ARGS
+    local prec="fp16"
+
+    # Batch mode: padding via effective lengths (exclude PAD)
+    # Use lse=1 to select a non-trload kernel and avoid overly strict tolerance mismatches
+    local base_batch="-prec=$prec -mode=0 -b=4 -h=16 -h_k=16 -d=128 -s=1024 -bias=n -mask=0 -lse=1 -iperm=0 -operm=0 -vlayout=r -kname=$KNAME $COMMON_ARGS"
+    # low pad (≈90–95% effective)
+    $EXE $base_batch -q_eff_lens=1024,960,992,896 -kv_eff_lens=1024,960,992,896
+    # medium pad (≈60–75% effective)
+    $EXE $base_batch -q_eff_lens=896,768,512,640 -kv_eff_lens=896,768,512,640
+    # high pad (≈30–40% effective)
+    $EXE $base_batch -q_eff_lens=512,384,256,320 -kv_eff_lens=512,384,256,320
+
+    # Group mode: padding via physical stride along seqlen
+    local seqlens_q="1024,768,512,256"
+    local seqlens_k="1024,768,512,256"
+    local base_group="-prec=$prec -mode=1 -b=4 -h=16 -h_k=16 -d=128 -s=$seqlens_q -s_k=$seqlens_k -bias=n -mask=0 -lse=0 -iperm=0 -operm=0 -vlayout=r -kname=$KNAME $COMMON_ARGS"
+    # low physical pad
+    $EXE $base_group -s_qpad=1152,896,576,320 -s_kpad=1152,896,576,320
+    # medium physical pad
+    $EXE $base_group -s_qpad=1536,1152,768,384 -s_kpad=1536,1152,768,384
+    # high physical pad
+    $EXE $base_group -s_qpad=2048,1536,1024,512 -s_kpad=2048,1536,1024,512
+}
+
+run_padding_basic_boundary_tests() {
+    # Basic padding and boundary tests (reference: smoke_test_fwd_pad.sh)
+    local prec
+    local perm
+
+    # Group mode: Q&K padded with per-batch different strides
+    for prec in fp16 bf16 ; do
+      for perm in 0 1 ; do
+        $EXE -prec=$prec -mode=1 -b=2 -h=2 -h_k=1 -d=16 -d_v=32 \
+             -s=55 -s_k=256 -s_qpad=64,60 -s_kpad=272,260 \
+             -bias=n -p_drop=0.0 -lse=0 -iperm=$perm -operm=$perm \
+             -num_splits=1 -page_block_size=0 -cache_batch_idx=0 -kname=$KNAME $COMMON_ARGS
+      done
+    done
+
+    # slightly larger, uneven padding strides
+    for prec in fp16 bf16 ; do
+      for perm in 0 1 ; do
+        $EXE -prec=$prec -mode=1 -b=3 -h=2 -h_k=1 -d=64 -d_v=64 \
+             -s=50,60,40 -s_k=128,256,192 -s_qpad=64,64,64 -s_kpad=160,288,224 \
+             -bias=n -p_drop=0.0 -lse=1 -iperm=$perm -operm=$perm \
+             -num_splits=1 -page_block_size=0 -cache_batch_idx=0 -kname=$KNAME $COMMON_ARGS
+      done
+    done
+
+    # only K padded; Q unpadded
+    for prec in fp16 bf16 ; do
+      for perm in 0 1 ; do
+        $EXE -prec=$prec -mode=1 -b=2 -h=2 -h_k=1 -d=32 -d_v=64 \
+             -s=55 -s_k=256 -s_kpad=272,260 \
+             -bias=n -p_drop=0.0 -lse=1 -iperm=$perm -operm=$perm \
+             -num_splits=1 -page_block_size=0 -cache_batch_idx=0 -kname=$KNAME $COMMON_ARGS
+      done
+    done
+
+    # use cu_seqlen overrides to skip tail PAD
+    for prec in fp16 bf16 ; do
+      for perm in 0 1 ; do
+        $EXE -prec=$prec -mode=0 -b=4 -h=8 -h_k=8 -d=128 -s=3 -s_k=3 \
+             -q_eff_lens=1,2,1,2 -kv_eff_lens=1,2,1,2 \
+             -bias=n -p_drop=0.0 -lse=1 -iperm=$perm -operm=$perm \
+             -num_splits=1 -page_block_size=0 -cache_batch_idx=0 -kname=$KNAME $COMMON_ARGS
+
+        $EXE -prec=$prec -mode=0 -b=2 -h=2 -h_k=1 -d=32 -d_v=64 -s=64 -s_k=256 \
+             -q_eff_lens=55,60 -kv_eff_lens=200,256 \
+             -bias=n -p_drop=0.0 -lse=0 -iperm=$perm -operm=$perm \
+             -num_splits=1 -page_block_size=0 -cache_batch_idx=0 -kname=$KNAME $COMMON_ARGS
+      done
+    done
+
+    # no padding (equal), mixed Q/KV, all len=1
+    for prec in fp16 bf16 ; do
+      $EXE -prec=$prec -mode=0 -b=4 -h=8 -d=64 -s=128 -s_k=128 \
+           -q_eff_lens=128,128,128,128 -kv_eff_lens=128,128,128,128 \
+           -bias=n -p_drop=0.0 -lse=1 -kname=$KNAME $COMMON_ARGS
+
+      $EXE -prec=$prec -mode=0 -b=4 -h=8 -d=64 -s=128 -s_k=128 \
+           -q_eff_lens=10,20,30,40 -kv_eff_lens=40,30,20,10 \
+           -bias=n -p_drop=0.0 -lse=1 -kname=$KNAME $COMMON_ARGS
+
+      $EXE -prec=$prec -mode=0 -b=4 -h=8 -d=64 -s=128 -s_k=128 \
+           -q_eff_lens=1,1,1,1 -kv_eff_lens=1,1,1,1 \
+           -bias=n -p_drop=0.0 -lse=1 -kname=$KNAME $COMMON_ARGS
+    done
+
+    # highly variable logical lengths
+    for prec in fp16 bf16 ; do
+      $EXE -prec=$prec -mode=1 -b=4 -h=4 -d=32 \
+           -s=1,127,3,65 -s_k=1,127,3,65 -s_kpad=128 \
+           -bias=n -p_drop=0.0 -lse=1 -kname=$KNAME $COMMON_ARGS
+    done
+
+    # GQA + Alibi + Causal mask (keep vlayout row-major for fp16/bf16
+    for prec in fp16 bf16 ; do
+      $EXE -prec=$prec -mode=1 -b=2 -h=16 -h_k=4 -d=128 \
+           -s=256,129 -s_k=256,129 -s_kpad=256 \
+           -bias=a -mask=t -lse=1 -iperm=0 -operm=0 -vlayout=r \
+           -kname=$KNAME $COMMON_ARGS
+    done
+}
+
 set -x
 
 run_fp16_bf16_tests
-# run_fp8_tests
+run_padding_smoke_tests
+run_padding_basic_boundary_tests
+run_fp8_tests
+run_fp8bf16_tests
+run_fp8fp32_tests
 
 if [ $TEST_APPENDKV -eq 1 ] ; then
     run_fp16_appendkv_tests
