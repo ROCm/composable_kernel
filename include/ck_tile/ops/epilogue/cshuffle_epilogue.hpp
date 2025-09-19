@@ -304,22 +304,41 @@ struct CShuffleEpilogue
     CK_TILE_DEVICE void
     scale_tile(LdsTile& lds_tile, ScaleM& scale_m_window, ScaleN& scale_n_window)
     {
-        // Load tiles
-        const auto scale_m_tile = load_tile(scale_m_window);
-        const auto scale_n_tile = load_tile(scale_n_window);
-
-        // Compute element-wise product in-place i.e. lds_tile = lds_tile * scale_m * scale_n
-        tile_elementwise_inout(
-            element_wise::MultiDMultiply{}, lds_tile, lds_tile, scale_m_tile, scale_n_tile);
-
-        // Move scale windows
-        constexpr index_t num_access = SFC::get_num_of_access();
-        if constexpr(iAccess != num_access - 1)
+        // Check if scales are EmptyScale first (no scaling needed)
+        if constexpr(std::is_same_v<ScaleM, EmptyScale> && std::is_same_v<ScaleN, EmptyScale>)
         {
-            constexpr auto step = SFC::get_forward_step(iAccess);
+            // No scaling needed - this is a no-op
+        }
+        // Check if scales are scalar AccDataType
+        else if constexpr(std::is_same_v<ScaleM, AccDataType> &&
+                          std::is_same_v<ScaleN, AccDataType>)
+        {
+            // Handle scalar scales
+            const AccDataType scale_m = scale_m_window;
+            const AccDataType scale_n = scale_n_window;
+            tile_elementwise_inout([&](auto& element) { element = element * scale_m * scale_n; },
+                                   lds_tile);
+        }
+        // Otherwise, assume they are tile windows that can be loaded
+        else
+        {
+            // Load tiles
+            const auto scale_m_tile = load_tile(scale_m_window);
+            const auto scale_n_tile = load_tile(scale_n_window);
 
-            move_tile_window(scale_m_window, {step.at(number<0>{}), step.at(number<1>{})});
-            move_tile_window(scale_n_window, {step.at(number<0>{}), step.at(number<1>{})});
+            // Compute element-wise product in-place i.e. lds_tile = lds_tile * scale_m * scale_n
+            tile_elementwise_inout(
+                element_wise::MultiDMultiply{}, lds_tile, lds_tile, scale_m_tile, scale_n_tile);
+
+            // Move scale windows
+            constexpr index_t num_access = SFC::get_num_of_access();
+            if constexpr(iAccess != num_access - 1)
+            {
+                constexpr auto step = SFC::get_forward_step(iAccess);
+
+                move_tile_window(scale_m_window, {step.at(number<0>{}), step.at(number<1>{})});
+                move_tile_window(scale_n_window, {step.at(number<0>{}), step.at(number<1>{})});
+            }
         }
     }
 
@@ -452,6 +471,8 @@ struct CShuffleEpilogue
         // Optional scales (must share the same distribution to match per-thread indexing)
         constexpr bool has_scales =
             !std::is_same<ScaleM, EmptyScale>::value && !std::is_same<ScaleN, EmptyScale>::value;
+        constexpr bool has_scalar_scales =
+            std::is_same_v<ScaleM, AccDataType> && std::is_same_v<ScaleN, AccDataType>;
 
         // Tiles to hold row/col scales when present
         using SMType = typename GetDataType<remove_cvref_t<ScaleM>>::type;
@@ -462,8 +483,11 @@ struct CShuffleEpilogue
 
         // Build windows only if scales are provided
         auto scale_m_window = [&]() {
-            if constexpr(has_scales)
+            if constexpr(has_scales && !has_scalar_scales)
             {
+                static_assert(
+                    IsLoadableTile<decltype(make_tile_window(scale_m, dram_tile_distribution))>,
+                    "ScaleM must be a loadable tile");
                 return make_tile_window(scale_m, dram_tile_distribution);
             }
             else
@@ -472,8 +496,11 @@ struct CShuffleEpilogue
             }
         }();
         auto scale_n_window = [&]() {
-            if constexpr(has_scales)
+            if constexpr(has_scales && !has_scalar_scales)
             {
+                static_assert(
+                    IsLoadableTile<decltype(make_tile_window(scale_n, dram_tile_distribution))>,
+                    "ScaleN must be a loadable tile");
                 return make_tile_window(scale_n, dram_tile_distribution);
             }
             else
@@ -489,7 +516,7 @@ struct CShuffleEpilogue
                 merge_sequences(sequence<1, NRepeat>{}, c_warp_y_lengths));
 
             // If scales provided, load them with identical distribution
-            if constexpr(has_scales)
+            if constexpr(has_scales && IsLoadableTile<ScaleM> && IsLoadableTile<ScaleN>)
             {
                 sm_tile = load_tile(scale_m_window); // row scales in permuted layout
                 sn_tile = load_tile(scale_n_window); // col scales in permuted layout
@@ -504,7 +531,11 @@ struct CShuffleEpilogue
                 auto emit = [&](index_t out_idx, index_t src_row) {
                     AccDataType v = shuffle_acc.get_thread_buffer()[base + src_row];
 
-                    if constexpr(has_scales)
+                    if constexpr(has_scalar_scales)
+                    {
+                        v = static_cast<AccDataType>(v * scale_m * scale_n);
+                    }
+                    else if constexpr(has_scales)
                     {
                         // same linear index mapping on the permuted distribution
                         const auto s_m = static_cast<float>(sm_tile.get_thread_buffer()[out_idx]);
@@ -595,10 +626,19 @@ struct CShuffleEpilogue
             number<NumDTensor>{});
 
         constexpr bool has_scales =
-            !std::is_same<ScaleM, EmptyScale>::value && !std::is_same<ScaleN, EmptyScale>::value;
+            !std::is_same_v<ScaleM, EmptyScale> && !std::is_same_v<ScaleN, EmptyScale>;
+        constexpr bool has_scalar_scales =
+            std::is_same_v<ScaleM, AccDataType> && std::is_same_v<ScaleN, AccDataType>;
         auto scale_m_window = [&]() {
-            if constexpr(has_scales)
+            if constexpr(has_scalar_scales)
             {
+                return scale_m;
+            }
+            else if constexpr(has_scales)
+            {
+                static_assert(
+                    IsLoadableTile<decltype(make_tile_window(scale_m, dram_tile_distribution))>,
+                    "ScaleM must be a loadable tile");
                 return make_tile_window(scale_m, lds_tile.get_tile_distribution());
             }
             else
@@ -607,8 +647,15 @@ struct CShuffleEpilogue
             }
         }();
         auto scale_n_window = [&]() {
-            if constexpr(has_scales)
+            if constexpr(has_scalar_scales)
             {
+                return scale_n;
+            }
+            else if constexpr(has_scales)
+            {
+                static_assert(
+                    IsLoadableTile<decltype(make_tile_window(scale_n, dram_tile_distribution))>,
+                    "ScaleN must be a loadable tile");
                 return make_tile_window(scale_n, lds_tile.get_tile_distribution());
             }
             else

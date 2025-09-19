@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -157,5 +157,8 @@ template <typename T, typename WindowLengths>
 CK_TILE_DEVICE auto load_tile_raw(T& /*null_tile*/, const null_tile_window<WindowLengths>&)
 {
 }
+
+template <typename Tile>
+concept IsLoadableTile = requires { load_tile(std::declval<Tile>()); };
 
 } // namespace ck_tile
