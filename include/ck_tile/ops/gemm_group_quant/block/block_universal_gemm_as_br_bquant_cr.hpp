@@ -152,16 +152,11 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
         using CWarpTensor = typename WG::CWarpTensor;
 
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
-        // constexpr auto c_warp_y_lengths =
-        //      to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
 
         static_for<0, QScalesPerBlockRow, 1>{}([&](auto kQScale) {
             CWarpTensor c_warp_tensor;
             static_for<0, KIterPerQScale, 1>{}([&](auto kIterInQScale) {
-                // c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
-                //                 merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
-                //                 merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
-
+                
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
                     static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                         constexpr auto kIter = kQScale * KIterPerQScale + kIterInQScale;
@@ -176,19 +171,6 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
                             WG{}(c_warp_tensor,
                                  a_warp_tensor(number<AwarpIter>{}),
                                  b_warp_tensor(nIter)(number<kIter>{}));
-
-                        // constexpr index_t reg_offset =
-                        //         nIter * KPerBlockBQ + kQScale; //((kIter * WG::kK) /
-                        //         kQuantGroupSize);
-
-                        // auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
-                        // scale_reg = 0;
-                        // //write C warp tensor into C block tensor
-                        // // Notes: if want to check the Gemm result uncomment lines: 189-192 and
-                        // 216-218 then comment out 221-241 c_block_tensor.set_y_sliced_thread_data(
-                        //     merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
-                        //     merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
-                        //     c_warp_tensor.get_thread_buffer());
 
                         __builtin_amdgcn_sched_barrier(0x7F6);
                         // preload next A from lds
