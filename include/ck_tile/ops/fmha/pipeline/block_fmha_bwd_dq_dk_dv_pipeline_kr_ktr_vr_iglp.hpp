@@ -559,6 +559,9 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                 auto shuffled_bias_tile = make_static_distributed_tensor<BiasDataType>(
                     Policy::template MakeShuffledBiasTileDistribution<Problem>());
                 shuffle_tile(shuffled_bias_tile, bias_tile);
+                // SGrad and Bias use the same address in LDS, finish loading ds on the previous
+                // iteration to reuse LDS.
+                block_sync_lds();
                 store_tile(bias_lds_write_window, shuffled_bias_tile);
                 block_sync_lds();
                 auto bias_s_tile = load_tile(bias_s_lds_read_window);
@@ -814,6 +817,9 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             auto shuffled_bias_tile = make_static_distributed_tensor<BiasDataType>(
                 Policy::template MakeShuffledBiasTileDistribution<Problem>());
             shuffle_tile(shuffled_bias_tile, bias_tile);
+            // SGrad and Bias use the same address in LDS, finish loading ds in the hot loop to
+            // reuse LDS.
+            block_sync_lds();
             store_tile(bias_lds_write_window, shuffled_bias_tile);
             block_sync_lds();
             auto bias_s_tile = load_tile(bias_s_lds_read_window);
@@ -956,6 +962,8 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                     return cast_tile<BiasGradDataType>(ds);
                 }
             }();
+            // Finish loading bias_s to reuse LDS.
+            block_sync_lds();
             store_tile(bias_lds_write_window, dbias);
             block_sync_lds();
             auto shuffled_dbias_tile = load_tile(dbias_lds_read_window);
@@ -975,11 +983,9 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
 
         gemm_3(dk_acc, dst_reg_tensor, qt_reg_tensor);
 
-        if constexpr(kHasBiasGrad)
-        {
-            // SGrad and BiasGrad use the same address in LDS.
-            block_sync_lds();
-        }
+        // SGrad and Bias/BiasGrad use the same address in LDS, finish loading bias/dbias or, when
+        // bias is not used, loading ds in the hot loop to reuse LDS.
+        block_sync_lds();
         store_tile(ds_lds_window, ds_gemm);
 
         block_sync_lds();
