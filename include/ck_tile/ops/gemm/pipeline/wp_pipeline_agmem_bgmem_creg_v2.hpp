@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/common/load_interleaved_pk_type.hpp"
 #include "ck_tile/host/concat.hpp"
 #include "ck_tile/ops/gemm/pipeline/wp_pipeline_agmem_bgmem_creg_base_policy.hpp"
 
@@ -514,7 +515,8 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
               typename AElementFunction,
               typename std::enable_if_t<!is_detected<is_tuple, ADramBlockWindowTmp>::value &&
                                             !is_detected<is_tuple, BFlatBlockWindowTmp>::value,
-                                        bool>* = nullptr>
+                                        bool>* = nullptr,
+              index_t UnaryOpSize_             = 8>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const AElementFunction& a_element_func,
                                    const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
@@ -631,19 +633,19 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                 b_flat_distribution);
 
         // pingpong buffer for B
+        using BTypeToUse =
+            std::conditional_t<std::is_same_v<BDataType, pk_int4_t>, ADataType, BDataType>;
+        using BTileType = decltype(make_static_distributed_tensor<BTypeToUse>(b_flat_distribution));
+
         statically_indexed_array<
             statically_indexed_array<decltype(b_flat_dram_window), KIterPerWarp>,
             NIterPerWarp>
             b_flat_dram_windows;
 
-        statically_indexed_array<
-            statically_indexed_array<decltype(load_tile(b_flat_dram_window)), KIterPerWarp>,
-            NIterPerWarp>
+        statically_indexed_array<statically_indexed_array<BTileType, KIterPerWarp>, NIterPerWarp>
             b_warp_tensor_ping;
 
-        statically_indexed_array<
-            statically_indexed_array<decltype(load_tile(b_flat_dram_window)), KIterPerWarp>,
-            NIterPerWarp>
+        statically_indexed_array<statically_indexed_array<BTileType, KIterPerWarp>, NIterPerWarp>
             b_warp_tensor_pong;
 
         // Prefetch A0
@@ -659,7 +661,8 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                 move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                  {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
 
-                b_warp_tensor_ping(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+                load_int4_tile<BDataType, ADataType, UnaryOpSize_>(
+                    b_warp_tensor_ping(nIter)(kIter), b_flat_dram_windows(nIter)(kIter));
             });
         });
         // move B window to next flat K
@@ -706,7 +709,8 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                     move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                      {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
 
-                    b_warp_tensor_pong(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+                    load_int4_tile<BDataType, ADataType, UnaryOpSize_>(
+                        b_warp_tensor_pong(nIter)(kIter), b_flat_dram_windows(nIter)(kIter));
                 });
             });
 
@@ -782,7 +786,8 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                     move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                      {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
 
-                    b_warp_tensor_ping(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+                    load_int4_tile<BDataType, ADataType, UnaryOpSize_>(
+                        b_warp_tensor_ping(nIter)(kIter), b_flat_dram_windows(nIter)(kIter));
                 });
             });
 
@@ -862,7 +867,8 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                     move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                      {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
 
-                    b_warp_tensor_pong(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+                    load_int4_tile<BDataType, ADataType, UnaryOpSize_>(
+                        b_warp_tensor_pong(nIter)(kIter), b_flat_dram_windows(nIter)(kIter));
                 });
             });
 
