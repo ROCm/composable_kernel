@@ -2856,24 +2856,27 @@ __device__ inline auto amd_wave_read_first_lane(const Object& obj)
 {
     constexpr size_t ObjectSize = sizeof(Object);
     constexpr size_t SGPR_size  = 4;
+    constexpr size_t NumFull    = ObjectSize / SGPR_size;
+    constexpr size_t Tail       = ObjectSize % SGPR_size;
 
     const unsigned char* src = reinterpret_cast<const unsigned char*>(&obj);
     alignas(Object) unsigned char dst[ObjectSize];
 
-    size_t offset = 0;
-    for(; offset + SGPR_size <= ObjectSize; offset += SGPR_size)
-    {
+    static_for<0, NumFull, 1>{}([&](auto Ic) {
+        constexpr size_t offset = Ic * SGPR_size;
         uint32_t read_src;
         __builtin_memcpy(&read_src, src + offset, SGPR_size);
         read_src = __builtin_amdgcn_readfirstlane(read_src);
         __builtin_memcpy(dst + offset, &read_src, SGPR_size);
-    }
-    if constexpr(ObjectSize % SGPR_size)
+    });
+
+    if constexpr(Tail != 0)
     {
-        uint32_t tail = 0;
-        __builtin_memcpy(&tail, src + offset, ObjectSize % SGPR_size);
-        tail = __builtin_amdgcn_readfirstlane(tail);
-        __builtin_memcpy(dst + offset, &tail, ObjectSize % SGPR_size);
+        constexpr size_t offset = NumFull * SGPR_size;
+        uint32_t tail_loc       = 0;
+        __builtin_memcpy(&tail_loc, src + offset, Tail);
+        tail_loc = __builtin_amdgcn_readfirstlane(tail_loc);
+        __builtin_memcpy(dst + offset, &tail_loc, Tail);
     }
     Object out;
     __builtin_memcpy(&out, dst, ObjectSize);
