@@ -31,7 +31,7 @@ float grouped_gemm_multi_d(const std::vector<grouped_gemm_multi_d_kargs>& gemm_d
                            const ck_tile::stream_config& s,
                            void* kargs_ptr)
 {
-    std::cout << "grouped_gemm_multi_d" << std::endl;
+    
 
     using GemmShape = ck_tile::TileGemmShape<
         ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
@@ -109,18 +109,17 @@ float grouped_gemm_multi_d(const std::vector<grouped_gemm_multi_d_kargs>& gemm_d
                                              UniversalGemmProblem::TransposeC,
                                              memory_operation>>;
 
-        // Suppress unused variable warnings
-        (void)sizeof(GemmPipeline);
-        (void)sizeof(GemmEpilogue);
+        
+
         using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-        auto kargs   = Kernel::template MakeKargs<DsDataType::size()>(gemm_descs);
-        if(!Kernel::template IsSupportedArgument<DsDataType::size()>(kargs))
+        auto kargs   = Kernel::MakeKargs(gemm_descs);
+        if(!Kernel::IsSupportedArgument(kargs))
         {
             throw std::runtime_error("Kernel arguments not supported!");
         }
 
         const dim3 blocks = Kernel::BlockSize();
-        const dim3 grids  = Kernel::template GridSize<DsDataType::size()>(gemm_descs);
+        const dim3 grids  = Kernel::GridSize(gemm_descs);
 
         HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
                                             kargs.data(),

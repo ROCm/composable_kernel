@@ -138,13 +138,12 @@ struct GroupedGemmKernel
                   "C/ELayout and C/EDataType must be scalars.");
 
     /// @brief  DsLayout and DsDataType are expected to be tuple, not a scalar.
-    static_assert(is_detected<is_tuple, DsLayout>::value &&
-                      is_detected<is_tuple, DsDataType>::value &&
-                      DsLayout::size() == DsDataType::size() && DsLayout::size() > 0,
-                  "DsLayout and DsDataType must be tuples and must have the same size.");
+    // static_assert(is_detected<is_tuple, DsLayout>::value &&
+    //                   is_detected<is_tuple, DsDataType>::value &&
+    //                   DsLayout::size() == DsDataType::size() && DsLayout::size() > 0,
+    //               "DsLayout and DsDataType must be tuples and must have the same size.");
 
     static constexpr index_t NumDTensor_ = DsDataType::size();
-    static_assert(NumDTensor_ == 2, "NumDTensor must be 2");
 
     using OffsetTile1DPartitioner = OffsettedTile1DPartitioner<TilePartitioner>;
     using Kernel = GroupedGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline>;
@@ -161,21 +160,22 @@ struct GroupedGemmKernel
                       concat('x', P_::MPerBlock, P_::NPerBlock, P_::KPerBlock),
                       concat('x', P_::GetVectorSizeA(), P_::GetVectorSizeB(), P_::GetVectorSizeC()),
                       concat('x', P_::kPadM, P_::kPadN, P_::kPadK),
-                      (UsePersistentKernel ? "Persistent" : "NonPersistent"));
+                      (UsePersistentKernel ? "Persistent" : "NonPersistent"),
+                      (NumDTensor_ == 2 ? "MultiD" : "SingleD"));
         // clang-format on
     }
 
-    template <index_t NumDTensor>
+    
     CK_TILE_HOST static auto
-    GetWorkSpaceSize(const std::vector<GroupedGemmHostArgs<NumDTensor>>& gemm_descs) -> std::size_t
+    GetWorkSpaceSize(const std::vector<GroupedGemmHostArgs<NumDTensor_>>& gemm_descs) -> std::size_t
     {
-        return gemm_descs.size() * sizeof(GemmTransKernelArg<1, 1, NumDTensor>);
+        return gemm_descs.size() * sizeof(GemmTransKernelArg<1, 1, NumDTensor_>);
     }
 
-    template <index_t NumDTensor>
+    
     CK_TILE_HOST static auto GetWorkSpaceSize(index_t group_count) -> std::size_t
     {
-        return group_count * sizeof(GemmTransKernelArg<1, 1, NumDTensor>);
+        return group_count * sizeof(GemmTransKernelArg<1, 1, NumDTensor_>);
     }
 
     CK_TILE_HOST static auto BlockSize() -> dim3
@@ -207,9 +207,9 @@ struct GroupedGemmKernel
         return dim3(grid_size, 1, 1);
     }
 
-    template <index_t NumDTensor>
+
     CK_TILE_HOST static auto
-    GridSize(const std::vector<GroupedGemmHostArgs<NumDTensor>>& gemm_descs)
+    GridSize(const std::vector<GroupedGemmHostArgs<NumDTensor_>>& gemm_descs)
     {
         index_t grid_size = 0;
         for(const auto& it_desc : gemm_descs)
@@ -220,13 +220,13 @@ struct GroupedGemmKernel
         return dim3(grid_size, 1, 1);
     }
 
-    template <index_t NumDTensor>
+    
     CK_TILE_HOST static auto
-    MakeKargs(const std::vector<GroupedGemmHostArgs<NumDTensor>>& gemm_descs)
-        -> std::vector<GemmTransKernelArg<1, 1, NumDTensor>>
+    MakeKargs(const std::vector<GroupedGemmHostArgs<NumDTensor_>>& gemm_descs)
+        -> std::vector<GemmTransKernelArg<1, 1, NumDTensor_>>
     {
-        static_assert(NumDTensor == 2, "NumDTensor must be 2");
-        std::vector<GemmTransKernelArg<1, 1, NumDTensor>> gemm_kernel_args_;
+        //static_assert(NumDTensor == 2, "NumDTensor must be 2");
+        std::vector<GemmTransKernelArg<1, 1, NumDTensor_>> gemm_kernel_args_;
         index_t group_count = ck_tile::type_convert<ck_tile::index_t>(gemm_descs.size());
         index_t grid_size   = 0;
         gemm_kernel_args_.reserve(group_count);
@@ -254,7 +254,7 @@ struct GroupedGemmKernel
 
             grid_size += grid_size_grp;
 
-            auto karg = UniversalGemmKernelArgs<1, 1, NumDTensor>{
+            auto karg = UniversalGemmKernelArgs<1, 1, NumDTensor_>{
                 {type_convert<const ADataType*>(gemm_descs[i].a_ptr)},
                 {type_convert<const BDataType*>(gemm_descs[i].b_ptr)},
                 gemm_descs[i].ds_ptr,
@@ -274,9 +274,9 @@ struct GroupedGemmKernel
         return gemm_kernel_args_;
     }
 
-    template <index_t NumDTensor = 0>
+    
     CK_TILE_HOST static bool
-    IsSupportedArgument(const std::vector<GemmTransKernelArg<1, 1, NumDTensor>>& kargs)
+    IsSupportedArgument(const std::vector<GemmTransKernelArg<1, 1, NumDTensor_>>& kargs)
     {
         for(const auto& karg : kargs)
         {
@@ -300,6 +300,10 @@ struct GroupedGemmKernel
 
         static_assert(GemmPipeline::DoubleSmemBuffer || !GemmPipeline::Preshuffle,
                       "SingleSmemBuffer and Preshuffle cannot both be enabled simultaneously!");
+        
+                      //static assert that if NumDTensor_2 then it must not be DoubleSmemBuffer
+        static_assert(NumDTensor_ != 2 || GemmPipeline::DoubleSmemBuffer == false,
+                      "If NumDTensor_ is 2, then DoubleSmemBuffer must be false");
 
         const auto [iM, iN] = block_idx_2d;
 
@@ -314,44 +318,38 @@ struct GroupedGemmKernel
                                  splitk_batch_offset.bs_k_split_offset[0];
         CDataType* c_ptr = static_cast<CDataType*>(kargs.e_ptr);
 
-        (void)a_ptr;
-        (void)b_ptr;
-        (void)c_ptr;
-        (void)i_m;
-        (void)i_n;
-
         // allocate LDS
         __shared__ char smem_ptr_0[GetSmemSize()];
         (void)smem_ptr_0; // Suppress unused variable warning
 
         // TO DO:
         // Can we simplify this branching logic?
-        // if constexpr(GemmPipeline::DoubleSmemBuffer == true)
-        // {
-
-        //    __shared__ char smem_ptr_1[GetSmemSize()];
-        //    RunGemmWithPipelineSelection2LDS(
-        //        a_ptr, b_ptr, c_ptr, smem_ptr_0, smem_ptr_1, kargs, splitk_batch_offset, i_m,
-        //        i_n);
-        // }
-        // else // SingleSmemBuffer
+        if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
-            // if constexpr(UsePersistentKernel)
-            // {
-            //     RunGemmWithPipelineSelection(
-            //         a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
-            // }
-            // else // Non-persistent kernel
+
+           __shared__ char smem_ptr_1[GetSmemSize()];
+           RunGemmWithPipelineSelection2LDS(
+               a_ptr, b_ptr, c_ptr, smem_ptr_0, smem_ptr_1, kargs, splitk_batch_offset, i_m,
+               i_n);
+        }
+        else // SingleSmemBuffer
+        {
+            if constexpr(UsePersistentKernel)
             {
-                // Base::RunGemm({a_ptr},
-                //               {b_ptr},
-                //               kargs.ds_ptr,
-                //               c_ptr,
-                //               smem_ptr_0,
-                //               kargs,
-                //               splitk_batch_offset,
-                //               i_m,
-                //               i_n);
+                RunGemmWithPipelineSelection(
+                    a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
+            }
+            else // Non-persistent kernel
+            {
+                Base::RunGemm({a_ptr},
+                              {b_ptr},
+                              kargs.ds_ptr,
+                              c_ptr,
+                              smem_ptr_0,
+                              kargs,
+                              splitk_batch_offset,
+                              i_m,
+                              i_n);
             }
         }
     }
@@ -375,13 +373,13 @@ struct GroupedGemmKernel
      *
      */
 
-    template <index_t NumDTensor = 0>
+    
     CK_TILE_DEVICE static void
     RunGemmWithPipelineSelection(const ADataType* a_ptr,
                                  const BDataType* b_ptr,
                                  CDataType* c_ptr,
                                  void* smem_ptr_0,
-                                 const UniversalGemmKernelArgs<1, 1, NumDTensor>& kargs,
+                                 const UniversalGemmKernelArgs<1, 1, NumDTensor_>& kargs,
                                  const typename Base::SplitKBatchOffset& splitk_batch_offset,
                                  const index_t block_idx_m,
                                  const index_t block_idx_n)
@@ -498,8 +496,8 @@ struct GroupedGemmKernel
             c_block_window, c_block_tile, d_block_window, smem_ptr_0);
     }
 
-    template <index_t NumDTensor = 0>
-    CK_TILE_DEVICE index_t FindGroupId(const GemmTransKernelArg<1, 1, NumDTensor>* gemm_desc_ptr,
+    
+    CK_TILE_DEVICE index_t FindGroupId(const GemmTransKernelArg<1, 1, NumDTensor_>* gemm_desc_ptr,
                                        index_t block_id,
                                        index_t group_count) const
     {
@@ -530,9 +528,6 @@ struct GroupedGemmKernel
     CK_TILE_DEVICE void operator()(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
                                    index_t group_count) const
     {
-        // static assert NumDTensor == 2
-        // static_assert(NumDTensor == 2, "NumDTensor must be 2");
-
         const index_t block_id   = ck_tile::get_block_1d_id();
         const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg<1, 1, NumDTensor_>*>(
             cast_pointer_to_generic_address_space(gemm_descs_const));

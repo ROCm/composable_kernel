@@ -223,7 +223,7 @@ int run_grouped_gemm_multi_d_example_with_layouts(int argc,
                   << " d1_m_n: " << d1_m_n_tensors[i].mDesc << " e_m_n: " << e_m_n_tensors[i].mDesc
                   << std::endl;
 
-        ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_m_k_tensors[i]);
+        ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k_tensors[i]);
         ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_k_n_tensors[i]);
         ck_tile::FillUniformDistribution<D0DataType>{1.f, 1.f}(d0_m_n_tensors[i]);
         ck_tile::FillUniformDistribution<D1DataType>{1.f, 1.f}(d1_m_n_tensors[i]);
@@ -302,6 +302,7 @@ int run_grouped_gemm_multi_d_example_with_layouts(int argc,
         e_m_n_dev_buf[i]->FromDevice(e_m_n_tensors[i].data());
     }
 
+
     bool pass{true};
     if(validate)
     {
@@ -339,6 +340,18 @@ int run_grouped_gemm_multi_d_example_with_layouts(int argc,
                       << std::endl;
             std::cout << "The CPU veification result is: " << (pass ? "correct" : "fail")
                       << std::endl;
+
+                          // print first 5 values of output tensors and reference tensors
+
+        std::cout << "e_m_n_tensors[" << i << "]: " << static_cast<float>(e_m_n_tensors[i].mData[0]) << " "
+                  << static_cast<float>(e_m_n_tensors[i].mData[1]) << " " << static_cast<float>(e_m_n_tensors[i].mData[2]) << " "
+                  << static_cast<float>(e_m_n_tensors[i].mData[3]) << " " << static_cast<float>(e_m_n_tensors[i].mData[4]) << std::endl;
+
+
+        std::cout << "e_m_n_host_refs[" << i << "]: " << static_cast<float>(e_m_n_host_refs[i].mData[0]) << " "
+                  << static_cast<float>(e_m_n_host_refs[i].mData[1]) << " " << static_cast<float>(e_m_n_host_refs[i].mData[2]) << " "
+                  << static_cast<float>(e_m_n_host_refs[i].mData[3]) << " " << static_cast<float>(e_m_n_host_refs[i].mData[4]) << std::endl;
+    
         }
     }
 
