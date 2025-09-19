@@ -98,7 +98,10 @@ TEST_P(AllLong, Test)
                                                hdim_q,
                                                hdim_v,
                                                0,             // seqlen_knew
+                                               {-1},          // seqlen_qpads
                                                {seqlen_kpad}, // seqlen_kpads
+                                               {},            // q_eff_lens_per_batch
+                                               {},            // kv_eff_lens_per_batch
                                                0,             // rotary_dim
                                                perm,          // i_perm
                                                perm,          // o_perm
@@ -160,7 +163,10 @@ TEST_P(HDimPadding, Test)
                                                hdim_q,
                                                hdim_v,
                                                0,             // seqlen_knew
+                                               {-1},          // seqlen_qpads
                                                {seqlen_kpad}, // seqlen_kpads
+                                               {},            // q_eff_lens_per_batch
+                                               {},            // kv_eff_lens_per_batch
                                                0,             // rotary_dim
                                                perm,          // i_perm
                                                perm,          // o_perm
@@ -217,7 +223,10 @@ TEST_P(ElementwiseBias, Test)
                                                hdim_q,
                                                hdim_v,
                                                0,                 // seqlen_knew
+                                               {-1},              // seqlen_qpads
                                                {-1},              // seqlen_kpads
+                                               {},                // q_eff_lens_per_batch
+                                               {},                // kv_eff_lens_per_batch
                                                0,                 // rotary_dim
                                                i_perm,            // i_perm
                                                false,             // o_perm
@@ -273,7 +282,10 @@ TEST_P(Alibi, Test)
                                                hdim_q,
                                                hdim_v,
                                                0,                 // seqlen_knew
+                                               {-1},              // seqlen_qpads
                                                {-1},              // seqlen_kpads
+                                               {},                // q_eff_lens_per_batch
+                                               {},                // kv_eff_lens_per_batch
                                                0,                 // rotary_dim
                                                true,              // i_perm
                                                true,              // o_perm
@@ -331,7 +343,10 @@ TEST_P(Dropout, Test)
                                                hdim_q,
                                                hdim_v,
                                                0,                 // seqlen_knew
+                                               {-1},              // seqlen_qpads
                                                {-1},              // seqlen_kpads
+                                               {},                // q_eff_lens_per_batch
+                                               {},                // kv_eff_lens_per_batch
                                                0,                 // rotary_dim
                                                false,             // i_perm
                                                false,             // o_perm
@@ -391,7 +406,10 @@ TEST_P(PagedKV, Test)
                                                hdim_q,
                                                hdim_v,
                                                0,               // seqlen_knew
+                                               {-1},            // seqlen_qpads
                                                {-1},            // seqlen_kpads
+                                               {},              // q_eff_lens_per_batch
+                                               {},              // kv_eff_lens_per_batch
                                                0,               // rotary_dim
                                                i_perm,          // i_perm
                                                false,           // o_perm
@@ -457,7 +475,10 @@ TEST_P(SplitKV, Test)
                                                hdim_q,
                                                hdim_v,
                                                0,                   // seqlen_knew
+                                               {-1},                // seqlen_qpads
                                                {-1},                // seqlen_kpads
+                                               {},                  // q_eff_lens_per_batch
+                                               {},                  // kv_eff_lens_per_batch
                                                0,                   // rotary_dim
                                                i_perm,              // i_perm
                                                false,               // o_perm
@@ -529,7 +550,10 @@ TEST_P(AppendKV, Test)
                                                hdim_q,
                                                hdim_v,
                                                seqlen_knew,         // seqlen_knew
+                                               {-1},                // seqlen_qpads
                                                {-1},                // seqlen_kpads
+                                               {},                  // q_eff_lens_per_batch
+                                               {},                  // kv_eff_lens_per_batch
                                                0,                   // rotary_dim
                                                i_perm,              // i_perm
                                                true,                // o_perm
@@ -599,7 +623,10 @@ TEST_P(AppendKVRoPE, Test)
                                                hdim_q,
                                                hdim_v,
                                                seqlen_knew,   // seqlen_knew
+                                               {-1},          // seqlen_qpads
                                                {-1},          // seqlen_kpads
+                                               {},            // q_eff_lens_per_batch
+                                               {},            // kv_eff_lens_per_batch
                                                rotary_dim,    // rotary_dim
                                                i_perm,        // i_perm
                                                true,          // o_perm
@@ -623,3 +650,117 @@ TEST_P(AppendKVRoPE, Test)
 }
 
 #endif // CK_TILE_FMHA_FWD_APPENDKV_API
+
+// ---------------------------------------------------------------
+// Additional padding tests (q/kv physical padding & effective len)
+// ---------------------------------------------------------------
+
+// Simple batch-mode test with per-batch Q/KV padding strides and effective lengths
+TEST(TestCkTileFmhaFwd, BatchModeQKvPadding)
+{
+    if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8>)
+    {
+        GTEST_SKIP() << "Skip for fp8";
+    }
+    const mode_enum mode  = mode_enum::batch;
+    const int batch       = 3;
+    const int nhead       = 2;
+    const int nhead_k     = -1;
+    const int seqlen_q    = 128;
+    const int seqlen_k    = 128;
+    const int hdim_q      = 64;
+    const int hdim_v      = 64;
+    const int seqlen_knew = 0;
+    const std::vector<int> seqlen_qpads{};
+    const std::vector<int> seqlen_kpads{};
+    const std::vector<int> q_eff_lens{120, 128, 100};
+    const std::vector<int> kv_eff_lens{110, 128, 90};
+
+    auto result = fmha_fwd_run<DataTypeConfig>(mode,
+                                               batch,
+                                               nhead,
+                                               nhead_k,
+                                               {adjust_seqlen(seqlen_q)},
+                                               {adjust_seqlen(seqlen_k)},
+                                               hdim_q,
+                                               hdim_v,
+                                               seqlen_knew,  // seqlen_knew
+                                               seqlen_qpads, // seqlen_qpads
+                                               seqlen_kpads, // seqlen_kpads
+                                               q_eff_lens,   // q_eff_lens_per_batch
+                                               kv_eff_lens,  // kv_eff_lens_per_batch
+                                               0,            // rotary_dim
+                                               true,         // i_perm
+                                               true,         // o_perm
+                                               0,            // scale_s
+                                               0,            // logits_soft_cap
+                                               def_is_v_rowmajor,
+                                               def_lse, // lse
+                                               0,       // page_block_size
+                                               false,   // use_cache_batch_idx
+                                               "n",     // bias_str
+                                               0.0f,    // p_drop
+                                               0,       // drop_seed
+                                               0,       // drop_offset
+                                               false,   // drop_prefs
+                                               "0",     // mask_str
+                                               QUANT_ARGS,
+                                               true, // is_rotary_interleaved
+                                               1,    // num_splits
+                                               COMMON_ARGS);
+    CHECK_RESULT(result);
+}
+
+// Simple group-mode test with uniform seqlen but per-batch padding & effective lengths
+TEST(TestCkTileFmhaFwd, GroupModeQKvPadding)
+{
+    if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8>)
+    {
+        GTEST_SKIP() << "Skip for fp8";
+    }
+    const mode_enum mode = mode_enum::group;
+    const int batch      = 2;
+    const int nhead      = 2;
+    const int nhead_k    = -1;
+    const std::vector<int> seqlen_q{96, 128}; // unpadded
+    const std::vector<int> seqlen_k{96, 128}; // unpadded
+    const int hdim_q      = 64;
+    const int hdim_v      = 64;
+    const int seqlen_knew = 0;
+    const std::vector<int> seqlen_qpads{128, 160};
+    const std::vector<int> seqlen_kpads{128, 160};
+
+    auto result = fmha_fwd_run<DataTypeConfig>(mode,
+                                               batch,
+                                               nhead,
+                                               nhead_k,
+                                               seqlen_q,
+                                               seqlen_k,
+                                               hdim_q,
+                                               hdim_v,
+                                               seqlen_knew,  // seqlen_knew
+                                               seqlen_qpads, // seqlen_qpads
+                                               seqlen_kpads, // seqlen_kpads
+                                               {},           // q_eff_lens_per_batch
+                                               {},           // kv_eff_lens_per_batch
+                                               0,            // rotary_dim
+                                               true,         // i_perm
+                                               true,         // o_perm
+                                               0,            // scale_s
+                                               0,            // logits_soft_cap
+                                               def_is_v_rowmajor,
+                                               def_lse, // lse
+                                               0,       // page_block_size
+                                               false,   // use_cache_batch_idx
+                                               "n",     // bias_str
+                                               0.0f,    // p_drop
+                                               0,       // drop_seed
+                                               0,       // drop_offset
+                                               false,   // drop_prefs
+                                               "0",     // mask_str
+                                               QUANT_ARGS,
+                                               true, // is_rotary_interleaved
+                                               1,    // num_splits
+                                               COMMON_ARGS);
+    CHECK_RESULT(result);
+}
