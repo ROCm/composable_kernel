@@ -8,6 +8,8 @@
 #include "ck_tile/core/tensor/tensor_coordinate.hpp"
 #include "ck_tile/core/tensor/tile_window.hpp"
 #include "ck_tile/host/hip_check_error.hpp"
+#include "ck_tile/core/tensor/store_tile.hpp"
+#include "ck_tile/core/algorithm/static_encoding_pattern.hpp"
 
 using namespace ck_tile;
 
@@ -42,32 +44,6 @@ __global__ void test_tensor_view_kernel(TensorView tw, MultiIndex idx_top, int* 
         }
     }
 }
-
-// template <typename TensorView, typename WindowLengths, typename MultiIndex>
-// __global__ void test_tile_window_kernel(
-//     TensorView tw, WindowLengths window_lengths, MultiIndex origin, int* output, bool debug)
-// {
-//     auto tile_window = make_tile_window(tw, window_lengths, origin);
-//     const index_t n_rows = window_lengths[number<0>{}];
-//     const index_t n_cols = window_lengths[number<1>{}];
-
-//     const auto tile_data = tile_window.load();
-
-//     for (auto i = 0; i < n_rows; ++i)
-//     {
-//       for (auto j = 0; j < n_cols; ++j)
-//       {
-//         const index_t idx = i * n_cols + j;
-//         const int element = tile_data.at(number<idx>{});
-//         output[idx] = element;
-//         if (debug)
-//         {
-//           printf("tile_window(%d,%d) = %d\n", i, j, element);
-//         }
-//       }
-//     }
-
-// }
 
 template <typename TensorDesc, typename MultiIndex>
 auto run_tensor_view_test(const TensorDesc& tensor_desc, 
@@ -108,25 +84,6 @@ auto run_tensor_view_test(const TensorDesc& tensor_desc,
     return tw;
 }
 
-// template <typename TensorView, typename WindowLengths, typename MultiIndex>
-// auto run_tile_window_test(
-//               const TensorView tensor_view, 
-//               const WindowLengths window_lengths,
-//               const MultiIndex& origin,
-//               const std::vector<int>& expected_output_host,
-//               bool debug = true)
-// {
-//     std::vector<int> output_host(expected_output_host.size(), 0);
-//     int* output_device;
-//     hip_check_error(hipMalloc(&output_device, expected_output_host.size() * sizeof(int)));
-//     hip_check_error(hipMemset(output_device, 0, expected_output_host.size() * sizeof(int)));
-
-//     test_tile_window_kernel<<<1, 1>>>(tensor_view, window_lengths, origin, output_device, debug);
-//     hip_check_error(hipMemcpy(
-//       output_host.data(), output_device, output_host.size() * sizeof(int), hipMemcpyDeviceToHost));
-
-//     EXPECT_EQ(output_host, expected_output_host);
-// }
 
 TEST_F(TestTensorView, BasicAccess1)
 {
@@ -273,49 +230,6 @@ TEST_F(TestTensorView, BasicAccess3)
     
     run_tensor_view_test(tensor_desc, base_addr, data_host, expected_output_host);
 }
-
-// TEST_F(TestTensorView, CreateTileWindow)
-// {
-//     // clang format-off
-//     std::vector<int> data_host = 
-//       {
-//         11, 12, 13, 14, 15,
-//         21, 22, 23, 24, 25,
-//         31, 32, 33, 34, 35,
-//         41, 42, 43, 44, 45,
-//         51, 52, 53, 54, 55,
-//         61, 62, 63, 64, 65,
-//         71, 72, 73, 74, 75,
-//         81, 82, 83, 84, 85
-//       };
-//     // clang format-on
-
-//     /*
-//     Create a view to to the full data
-//     */
-//     constexpr auto base_addr = make_multi_index(number<0>{}, number<0>{});
-//     constexpr auto tensor_desc = make_naive_tensor_descriptor(
-//       make_tuple(number<8>{}, number<5>{}),
-//       make_tuple(number<5>{}, number<1>{})  
-//     );
-    
-//     const auto& tw_full = run_tensor_view_test(tensor_desc, base_addr, data_host, data_host);
-
-//     const std::vector<int> expected_output_host = 
-//       {
-//         51, 52, 53, 54, 55,
-//         61, 62, 63, 64, 65,
-//         71, 72, 73, 74, 75,
-//         81, 82, 83, 84, 85
-//       };
-    
-//     run_tile_window_test(
-//       tw_full,          // tensor view to the original data
-//       // Create a tile_window to the bottom half of the tensor_view. 
-//       make_tuple(5, 4),                 // window lengths
-//       make_multi_index(4, 0),           // origin in the tensor view
-//       expected_output_host);   
-// }
 
 __global__ void test_static_distributed_tensor_kernel(int* output)
 {
@@ -502,7 +416,6 @@ TEST_F(TestTensorView, StaticDistributedTensor4x4Matrix2x2Blocks_modify_input)
     hip_check_error(hipFree(input_device));
 }
 
-template <bool DebugOutput = false>
 __global__ void test_4x4_matrix_get_2x2_blocks_kernel(int* input, int* output)
 {
     constexpr index_t global_shape_0 = 4;
@@ -657,6 +570,258 @@ TEST_F(TestTensorView, StaticDistributedTensor4x4Matrix2x2Blocks_get_sub_blocks)
     const dim3 grid_dim(1);
 
     test_4x4_matrix_get_2x2_blocks_kernel<<<grid_dim, block_dim>>>(
+        input_device, output_device);
+    hip_check_error(hipDeviceSynchronize());
+    
+    // Copy results back
+    hip_check_error(hipMemcpy(
+        output_host.data(), output_device, total_elements * sizeof(int), hipMemcpyDeviceToHost));
+    
+    // Verify the 4x4 matrix is correctly organized as 2x2 blocks
+    // Expected matrix:
+    //  1  2 
+    //  5  6 
+    //  11 12
+    //  15 16
+
+    std::vector<int> expected_output = {
+        1, 2,
+        5, 6,
+        11, 12,
+        15, 16
+    };
+    
+    EXPECT_EQ(output_host, expected_output);
+    
+    hip_check_error(hipFree(output_device));
+    hip_check_error(hipFree(input_device));
+}
+
+__global__ void test_4x4_matrix_get_2x2_blocks_with_sfc_and_lds_kernel(int* input, int* output)
+{
+    constexpr index_t MPerBlock = 4;
+    constexpr index_t NPerBlock = 4;
+
+    // Tile distribution encoding for 4x4 matrix as 2x2 blocks
+    constexpr auto encoding = tile_distribution_encoding<
+        sequence<>,                                                      // No reduction dims
+        tuple<
+            // [H1_0, H1_1, H1_2, H1_3]
+            sequence<1, 1, 2, 2>,  // M-dim: 1 rep, 1 warp, 2 threads, 2 elements per thread
+            // [H2_0, H2_1, H2_2, H2_3]
+            sequence<1, 1, 2, 2>>, // N-dim: 1 rep, 1 warp, 2 threads, 2 elements per thread
+        // P minor and major combined:
+        // P1 -> (H1_1, H2_1) and P2 -> (H1_2, H2_2)
+        tuple<sequence<1, 2>, sequence<1,2>>,                                    // P major(Warp) -> H mapping
+        tuple<sequence<1, 1>, sequence<2,2>>,                                    // P minor(Thread) -> H mapping
+        // Combined mapping
+        // First row: Y -> {H1,H2} mapping
+        // Second row: which in H dim (0,1,2,3) we map Y to
+        // Y0 -> H1_0, Y1 -> H1_3, Y2 -> H2_0, Y3 -> H2_3 
+        sequence<1, 1, 2, 2>,                                                    // Trivial since we have only warp
+        sequence<0, 3, 0, 3>>{};                                                 // Map thread id to number of elements per thread (Hi_3)
+
+    auto distribution = make_static_tile_distribution(encoding);
+
+    auto global_view = make_naive_tensor_view_packed<address_space_enum::global>(
+            input, make_tuple(MPerBlock, NPerBlock));
+
+    const auto window_lengths = make_tuple(MPerBlock, NPerBlock);
+    auto input_tile_window = make_tile_window(global_view,
+                                            window_lengths,
+                                            {0, 0}, // Window origin as initializer list
+                                            distribution);
+    auto input_tensor = input_tile_window.load();
+
+    // Up to this point, we have set-up the distributed tensor for the 4x4 matrix
+    // similar to the output of the MFMA when 2 conv groups are merged.
+    // We want to copy only the diagonal 2x2 blocks to the output, similar to the epilogue
+    // part of batched iGEMM for 2 conv groups.
+
+    constexpr index_t MPerIterationShuffle = 2;
+    constexpr index_t NPerIterationShuffle = 2;
+    constexpr index_t NumGroupsToMerge = 2; // Number of merged groups
+
+    // Create tensor descriptor for the output 4x2 matrix (2 diagonal blocks stacked vertically)
+    auto output_view = make_naive_tensor_view_packed<address_space_enum::global>(
+            output, make_tuple(MPerBlock, NPerBlock / NumGroupsToMerge));
+
+    auto output_window = make_tile_window(
+            output_view,
+            make_tuple(number<MPerBlock>{}, 
+                       number<NPerBlock/NumGroupsToMerge>{}),
+            {0, 0}); // We have only threadblock
+
+    // Allocate and prepare LDS
+    __shared__ char p_smem[MPerBlock * NPerBlock * sizeof(int)];
+
+    constexpr index_t MPerThread = 2;
+    constexpr index_t NPerThread = 2;
+
+    constexpr auto lds_tile_encoding = tile_distribution_encoding<
+        sequence<>,
+        tuple<
+            sequence<1, 1, 2, MPerThread>, 
+            sequence<1, 1, 2, NPerThread>>,
+        tuple<sequence<1, 2>, sequence<1,2>>, 
+        tuple<sequence<1, 1>, sequence<2,2>>, 
+        sequence<1, 1, 2, 2>,
+        sequence<0, 3, 0, 3>>{}; 
+
+    auto lds_tile_distribution = make_static_tile_distribution(lds_tile_encoding);
+
+    auto lds_tile = make_static_distributed_tensor<int>(lds_tile_distribution);
+  
+    constexpr auto lds_block_desc = make_naive_tensor_descriptor(
+                make_tuple(number<MPerBlock>{}, number<NPerBlock>{}),
+                make_tuple(number<NPerBlock>{}, number<1>{}));
+    
+    auto o_lds_block = make_tensor_view<address_space_enum::lds>(
+            reinterpret_cast<int*>(p_smem), lds_block_desc);
+
+    auto in_lds_window = make_tile_window(
+            o_lds_block,
+            make_tuple(number<MPerThread>{}, number<NPerThread>{}),
+            {0, 0},
+            lds_tile_distribution);
+
+    auto out_lds_window = make_tile_window(
+        o_lds_block,
+        make_tuple(number<MPerThread>{}, number<NPerThread>{}),
+        {0, 0});
+    
+    // Set-up traversing the 2x2 blocks
+    using SFC = space_filling_curve<sequence<MPerBlock, NPerBlock>,
+                                    sequence<0, 1>,
+                                    sequence<MPerIterationShuffle, NPerIterationShuffle>,
+                                    false>;
+
+    using SFC_dram = space_filling_curve<sequence<MPerBlock, NPerBlock / NumGroupsToMerge>,
+                                        sequence<0, 1>,
+                                        sequence<MPerIterationShuffle, NPerIterationShuffle>,
+                                        false>;
+
+    using TileEncodingPattern = tile_distribution_encoding_pattern_2d<
+                                                    4, // Block size
+                                                    MPerThread,
+                                                    NPerThread,
+                                                    2, // Vector size
+                                                    tile_distribution_pattern::sparse_row,
+                                                    1>; // Number of wave groups
+
+    constexpr auto output_tile_distribution =
+            TileEncodingPattern::make_2d_static_tile_distribution();
+
+    // Copy the diagonal 2x2 block from register to global memrory via LDS.
+    static_for<0, NumGroupsToMerge, 1>{}
+    (
+        [&](auto group)
+        {
+          constexpr auto iAccess = number<group * NumGroupsToMerge + group>{};
+          if constexpr(group == 0)
+          {
+            block_sync_lds();
+            constexpr auto idx_y_start = SFC::get_index(iAccess);
+
+            static_assert(idx_y_start.size() == 2, "wrong!");
+
+            printf("Thread id: %u, Group %d, idx_y_start: (%d, %d)\n", 
+              threadIdx.x, group.value, idx_y_start.at(number<0>{}).value, idx_y_start.at(number<1>{}).value);
+
+            constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (MPerIterationShuffle)>{};
+            constexpr auto nIter = number<idx_y_start.at(number<1>{}) / (NPerIterationShuffle)>{};
+
+            printf("Thread id: %u, Group %d, mIter %d, nIter %d\n", threadIdx.x, group.value, mIter.value, nIter.value);
+
+            __syncthreads();
+            
+            lds_tile.get_thread_buffer() = input_tensor.get_y_sliced_thread_data(
+              sequence<0, 0, 
+                mIter * MPerIterationShuffle, 
+                nIter * NPerIterationShuffle>{},
+              sequence<1, 1, MPerThread, NPerThread>{}); 
+
+            store_tile(in_lds_window, lds_tile);
+            block_sync_lds();
+          }
+
+          // Print the contents of LDS
+          if (threadIdx.x == 0 && blockIdx.x == 0)
+          {
+            printf("LDS contents after loading group %d:\n", group.value);
+            int* lds_data = reinterpret_cast<int*>(p_smem);
+            for (index_t i = 0; i < 4; i++)
+            {
+              for (index_t j = 0; j < 4; j++)
+              {
+              printf("%3d ", lds_data[i * 4 + j]);
+              }
+              printf("\n");
+            }
+          }
+
+          auto out_tensor = load_tile(make_tile_window(out_lds_window, output_tile_distribution));
+
+          store_tile(output_window, out_tensor);
+
+          // Print the output tensor contents.
+          __syncthreads();
+          if (threadIdx.x == 0 && blockIdx.x == 0)
+          {
+
+            for (index_t i = 0; i < 4; i++)
+            {
+                for (index_t j = 0; j < 2; j++)
+                {
+                    printf("Output(%d, %d) = %d\n", i, j, output[i * 2 + j]);
+                }
+            }
+          }
+          __syncthreads();
+
+          // Moving output window works correctly.
+          if constexpr(group != NumGroupsToMerge - 1)
+          {
+              constexpr auto step = SFC_dram::get_forward_step(group);
+              move_tile_window(output_window, {step.at(number<0>{}), step.at(number<1>{})});
+
+              // TODO: This should not be needed.
+              constexpr auto next_iAccess = number<(group+1) * NumGroupsToMerge + (group+1)>{};
+              constexpr auto step_lds = SFC::get_step_between(iAccess, next_iAccess);
+              move_tile_window(out_lds_window, {step_lds.at(number<0>{}), step_lds.at(number<1>{})});
+          }        
+        }
+    );
+}
+
+TEST_F(TestTensorView, StaticDistributedTensor4x4Matrix2x2Blocks_get_sub_blocks_SFC)
+{
+    // clang format-off
+    std::vector<int> data_host = 
+      {
+        1, 2, 3 ,4,
+        5, 6, 7, 8, 
+        9, 10, 11, 12,
+        13, 14, 15, 16
+      };
+    // clang format-on
+
+    constexpr int total_elements = 8; // 2 times 2 x 2 matrix = 8 elements
+    std::vector<int> output_host(total_elements, 0);
+    int* output_device;
+    
+    int* input_device;
+    hip_check_error(hipMalloc(&input_device, data_host.size() * sizeof(int)));
+    hip_check_error(hipMemcpy(input_device, data_host.data(), data_host.size() * sizeof(int), hipMemcpyHostToDevice));
+
+    hip_check_error(hipMalloc(&output_device, total_elements * sizeof(int)));
+    hip_check_error(hipMemset(output_device, 0, total_elements * sizeof(int)));
+    
+    // Run kernel with debug output
+    const dim3 block_dim(4); // 4 threads to cover 4 blocks
+    const dim3 grid_dim(1);
+
+    test_4x4_matrix_get_2x2_blocks_with_sfc_and_lds_kernel<<<grid_dim, block_dim>>>(
         input_device, output_device);
     hip_check_error(hipDeviceSynchronize());
     

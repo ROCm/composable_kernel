@@ -153,7 +153,7 @@ struct tile_distribution_encoding_pattern_2d<BlockSize,
     static_assert(NumWaveGroups == 1, "NumWaveGroups must be 1 for sparse row pattern!");
     
     static constexpr index_t warp_size = get_warp_size();
-    static constexpr index_t num_warps = BlockSize / warp_size;
+    static constexpr index_t num_warps = max(1, BlockSize / warp_size);
     
     // Calculate optimal vector size
     static constexpr index_t LargestVec = max(1, (XPerTile * YPerTile) / (num_warps * warp_size));

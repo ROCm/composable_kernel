@@ -301,6 +301,8 @@ struct CShuffleEpilogue
             static_assert(kNPerBlock == 128, "kNPerBlock must be 128");
             static_assert(MPerIterationShuffle == 1, "MPerIterationShuffle must be 1");
             static_assert(NPerIterationShuffle == 16, "NPerIterationShuffle must be 16");
+            static_assert(NumMXdlPerWavePerShuffle == 1, "NumMXdlPerWavePerShuffle must be 1");
+            static_assert(NumNXdlPerWavePerShuffle == 1, "NumNXdlPerWavePerShuffle must be 1");
 
             static_assert(MPerIterationShuffle == MPerGroupBlock,
                           "MPerIterationShuffle should be equal to MPerGroupBlock");
@@ -401,7 +403,6 @@ struct CShuffleEpilogue
                         update_tile(out_dram_window, c_out_tensor);
                     }
 
-                    // TODO: This probably doesn't work correctly.
                     if constexpr(group != NumGroupsToMerge - 1)
                     {
                         constexpr auto step = SFC_dram::get_forward_step(group);
