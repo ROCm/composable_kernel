@@ -37,8 +37,7 @@ struct BaseFlatmmPipelineAGmemBGmemCRegV1
             return run_func(bool_constant<true>{},
                             integral_constant<TailNumber, TailNumber::Odd>{});
         }
-        // return run_func(bool_constant<true>{}, integral_constant<TailNumber,
-        // TailNumber::Empty>{});
+        return run_func(bool_constant<true>{}, integral_constant<TailNumber, TailNumber::Empty>{});
     }
 };
 
@@ -999,7 +998,7 @@ defined(USING_MFMA_32x32x64) && defined(ENABLE_FP4) // mi350 fp4 32c 1*K1
     {
         return operator()(
             a_dram_block_window_tmp,
-            [](const ADataType & a) { return a; },
+            [](const ADataType& a) { return a; },
             b_flat_dram_block_window_tmp,
             num_loop,
             p_smem_ping,
