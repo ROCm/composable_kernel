@@ -205,7 +205,7 @@ inline constexpr bool is_native_type()
     return is_same<T, double>::value || is_same<T, float>::value || is_same<T, half_t>::value ||
            is_same<T, bhalf_t>::value || is_same<T, int32_t>::value ||
            is_same<T, uint32_t>::value || is_same<T, int8_t>::value || is_same<T, uint8_t>::value ||
-           is_same<T, f8_fnuz_t>::value || is_same<T, bf8_fnuz_t>::value || is_same<T, bool>::value;
+           is_same_v<T, _BitInt(8)> || is_same_v<T, unsigned _BitInt(8)> || is_same<T, bool>::value;
 }
 
 // scalar_type
@@ -300,14 +300,14 @@ struct scalar_type<pk_i4_t>
 template <>
 struct scalar_type<f8_fnuz_t>
 {
-    using type                           = f8_fnuz_t;
+    using type                           = f8_fnuz_t::data_type;
     static constexpr index_t vector_size = 1;
 };
 
 template <>
 struct scalar_type<bf8_fnuz_t>
 {
-    using type                           = bf8_fnuz_t;
+    using type                           = bf8_fnuz_t::data_type;
     static constexpr index_t vector_size = 1;
 };
 
