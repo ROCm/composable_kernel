@@ -22,6 +22,7 @@ using F32 = float;
 using ADataType = F16;
 using BDataType = F16;
 
+
 using NchwLayout  = ck::tensor_layout::convolution::NCHW;
 using NhwcLayout  = ck::tensor_layout::convolution::NHWC;
 
