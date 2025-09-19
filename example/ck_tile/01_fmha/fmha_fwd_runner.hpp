@@ -50,20 +50,30 @@ auto get_elimit<FmhaFwdBf16>(std::string /*init_method*/)
 }
 
 template <>
-auto get_elimit<FmhaFwdFp8>(std::string init_method)
+auto get_elimit<FmhaFwdFp8>(std::string /*init_method*/)
 {
-    if(init_method == "ui" || init_method == "ni")
-    {
-        unsigned max_rounding_point_distance = 0;
-        double atol                          = 2e-3;
-        return ck_tile::make_tuple(max_rounding_point_distance, atol);
-    }
-    else
-    {
-        unsigned max_rounding_point_distance = 1;
-        double atol                          = 0.0625;
-        return ck_tile::make_tuple(max_rounding_point_distance, atol);
-    }
+    using TypeConfig  = FmhaFwdTypeConfig<FmhaFwdFp8>;
+    using ODataType   = typename TypeConfig::ODataType;
+    float o_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<ODataType>::max());
+    double rtol       = 0;
+    double atol       = 16 * (o_dtype_max > 240 ? 2 : 1);
+    return ck_tile::make_tuple(rtol, atol);
+}
+
+template <>
+auto get_elimit<FmhaFwdFp8Bf16>(std::string /*init_method*/)
+{
+    double rtol = 1e-2;
+    double atol = 1.8e-1;
+    return ck_tile::make_tuple(rtol, atol);
+}
+
+template <>
+auto get_elimit<FmhaFwdFp8Fp32>(std::string /*init_method*/)
+{
+    double rtol = 1e-2;
+    double atol = 1.8e-1;
+    return ck_tile::make_tuple(rtol, atol);
 }
 
 int num_splits_heuristic(int batch_nhead_mblocks, int num_SMs, int max_splits)
@@ -157,11 +167,6 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         uint64_t drop_offset,
                         bool drop_prefs,
                         std::string mask_str,
-                        float range_q,
-                        float range_k,
-                        float range_v,
-                        float range_p,
-                        float range_o,
                         bool squant,
                         bool is_rotary_interleaved,
                         ck_tile::index_t num_splits,
@@ -180,6 +185,10 @@ fwd_result fmha_fwd_run(mode_enum mode,
             return "fp8";
         else if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdBf8>)
             return "bf8";
+        else if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8Bf16>)
+            return "fp8bf16";
+        else if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8Fp32>)
+            return "fp8fp32";
         else
             static_assert(false);
     }();
@@ -367,22 +376,6 @@ fwd_result fmha_fwd_run(mode_enum mode,
     using OaccDataType          = typename TypeConfig::OaccDataType;
     using ODataType             = typename TypeConfig::ODataType;
 
-    float q_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<QDataType>::max());
-    float k_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<KDataType>::max());
-    float v_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<VDataType>::max());
-    float p_dtype_max = v_dtype_max; // assume p and v is the same type
-    float o_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<ODataType>::max());
-
-    float scale_p = 1.f;
-    float scale_o = 1.f;
-
-    if(squant)
-    {
-        scale_s = scale_s * (range_q / q_dtype_max) * (range_k / k_dtype_max);
-        scale_p = p_dtype_max / range_p;
-        scale_o = (o_dtype_max / range_o) * (range_p / p_dtype_max) * (range_v / v_dtype_max);
-    }
-
     // accumulation numbers for performance evaluation
     std::size_t flop = 0, num_byte = 0;
     auto max_seqlen_q =
@@ -528,7 +521,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
     ck_tile::HostTensor<int32_t> cache_batch_idx_host(use_cache_batch_idx
                                                           ? std::array<ck_tile::index_t, 1>{batch}
                                                           : std::array<ck_tile::index_t, 1>{1});
-
+    float max_o = 5.0;
     if(init_method == "ui" || init_method == "0")
     {
         ck_tile::FillUniformDistributionIntegerValue<QDataType>{-3.f, 3.f, next_seed()}(q_host);
@@ -576,32 +569,6 @@ fwd_result fmha_fwd_run(mode_enum mode,
         ck_tile::FillTrigValue<VDataType>{}(vnew_host);
         ck_tile::FillTrigValue<BiasDataType>{}(bias_host);
     }
-    else if(init_method == "ufq" || init_method == "uf:q" || init_method == "3")
-    {
-        // suitable for fp8 quantization
-        if(!squant)
-        {
-            std::cerr << "init method " << init_method << " can not be used without quantization"
-                      << std::endl;
-            return fwd_result::invalid_args;
-        }
-        ck_tile::FillUniformDistribution<QDataType>{0.f, q_dtype_max, next_seed()}(q_host);
-        ck_tile::FillUniformDistribution<KDataType>{0.f, k_dtype_max, next_seed()}(k_host);
-        ck_tile::FillUniformDistribution<KDataType>{0.f, k_dtype_max, next_seed()}(knew_host);
-        ck_tile::FillUniformDistribution<VDataType>{0.f, v_dtype_max, next_seed()}(v_host);
-        ck_tile::FillUniformDistribution<VDataType>{0.f, v_dtype_max, next_seed()}(vnew_host);
-
-        // bias_fp8 = qscale_bias * bias_fp32
-        float qscale_bias = (q_dtype_max / range_q) * (k_dtype_max / range_k);
-        // Assume bias is in [0.f, 1.f] in original fp32
-        ck_tile::FillUniformDistribution<BiasDataType>{0.f, qscale_bias, next_seed()}(bias_host);
-    }
-    else
-    {
-        std::cerr << "Unknown value for init argument: " << init_method << std::endl;
-        return fwd_result::invalid_args;
-    }
-
     if(bias.type == bias_enum::alibi)
     {
         auto slopes = ck_tile::get_alibi_slopes<SaccDataType>(nhead);
@@ -625,8 +592,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
     ck_tile::DeviceMem q_buf(q_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem k_buf(k_host.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem knew_buf(knew_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem v_buf(v_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem knew_buf(knew_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem vnew_buf(vnew_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem bias_buf(bias_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem lse_acc_buf(lse_acc_host.get_element_space_size_in_bytes());
@@ -650,10 +617,79 @@ fwd_result fmha_fwd_run(mode_enum mode,
     ck_tile::DeviceMem block_table_buf(block_table_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem cache_batch_idx_buf(cache_batch_idx_host.get_element_space_size_in_bytes());
 
+    float scale_p = 1.f;
+    float scale_o = 1.f;
+    if(squant)
+    {
+        float q_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<QDataType>::max());
+        float k_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<KDataType>::max());
+        float v_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<VDataType>::max());
+        float p_dtype_max = v_dtype_max; // assume p and v is the same type
+        // Q tensor
+        {
+            float max_value = ck_tile::type_convert<float>(ck_tile::numeric<QDataType>::min());
+            q_host.ForEach([&](auto& self, auto idx) {
+                float val = ck_tile::type_convert<float>(self(idx));
+                if(val > max_value)
+                    max_value = val;
+            });
+
+            float scale = q_dtype_max / max_value;
+
+            q_host.ForEach([&](auto& self, auto idx) {
+                float val = ck_tile::type_convert<float>(self(idx));
+                self(idx) = ck_tile::type_convert<QDataType>(val * scale);
+            });
+            scale_s = scale_s / scale;
+        }
+
+        // K tensor
+        {
+            float max_value = ck_tile::type_convert<float>(ck_tile::numeric<KDataType>::min());
+            k_host.ForEach([&](auto& self, auto idx) {
+                float val = ck_tile::type_convert<float>(self(idx));
+                if(val > max_value)
+                    max_value = val;
+            });
+            float scale = k_dtype_max / max_value;
+            k_host.ForEach([&](auto& self, auto idx) {
+                float val = ck_tile::type_convert<float>(self(idx));
+                self(idx) = ck_tile::type_convert<KDataType>(val * scale);
+            });
+            scale_s = scale_s / scale;
+        }
+
+        // V tensor
+        {
+            float max_value = ck_tile::type_convert<float>(ck_tile::numeric<VDataType>::min());
+            v_host.ForEach([&](auto& self, auto idx) {
+                float val = ck_tile::type_convert<float>(self(idx));
+                if(val > max_value)
+                    max_value = val;
+            });
+
+            float scale = k_dtype_max / max_value;
+            v_host.ForEach([&](auto& self, auto idx) {
+                float val = ck_tile::type_convert<float>(self(idx));
+                self(idx) = ck_tile::type_convert<VDataType>(val * scale);
+            });
+
+            scale_o = (1.0 / p_dtype_max) / scale;
+        }
+
+        scale_p = p_dtype_max;
+
+        if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8>)
+        {
+            float o_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<ODataType>::max());
+            scale_o           = scale_o * o_dtype_max / max_o;
+        }
+    }
+
     q_buf.ToDevice(q_host.data());
     k_buf.ToDevice(k_host.data());
-    knew_buf.ToDevice(knew_host.data());
     v_buf.ToDevice(v_host.data());
+    knew_buf.ToDevice(knew_host.data());
     vnew_buf.ToDevice(vnew_host.data());
     bias_buf.ToDevice(bias_host.data());
     seqstart_q.ToDevice(seqstart_q_host.data());
@@ -1103,7 +1139,9 @@ fwd_result fmha_fwd_run(mode_enum mode,
         lse_buf.FromDevice(lse_host.data());
         randval_buf.FromDevice(randval_host.data());
 
-        constexpr bool supports_squant = std::is_same_v<DataTypeConfig, FmhaFwdFp8>;
+        constexpr bool supports_squant = std::is_same_v<DataTypeConfig, FmhaFwdFp8> ||
+                                         std::is_same_v<DataTypeConfig, FmhaFwdFp8Bf16> ||
+                                         std::is_same_v<DataTypeConfig, FmhaFwdFp8Fp32>;
 
         auto p_compute_element_func = [&]() {
             if constexpr(supports_squant)
@@ -1113,9 +1151,11 @@ fwd_result fmha_fwd_run(mode_enum mode,
         }();
 
         auto oacc_element_func = [&]() {
-            if constexpr(supports_squant)
+            if constexpr(std::is_same_v<ODataType, ck_tile::fp8_t> && supports_squant)
                 return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{},
                                          ck_tile::scales{scale_o});
+            else if constexpr(supports_squant)
+                return ck_tile::scales{scale_o};
             else
                 return ck_tile::identity{};
         }();
