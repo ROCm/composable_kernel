@@ -489,7 +489,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
                 move_tile_window(k_dram_window, {kN0, 0});
                 async_load_tile(v_lds_write_window, v_dram_window);
                 move_tile_window(v_dram_window, {kN0, 0});
-                // __builtin_amdgcn_s_waitcnt(0);
+                __builtin_amdgcn_s_waitcnt(3952);
                 k_reg_tensor  = load_tile(k_lds_read_window);
                 v_reg_tensor  = load_tile(v_lds_read_window);
                 kt_reg_tensor = load_tile_transpose(kt_lds_read_window);
