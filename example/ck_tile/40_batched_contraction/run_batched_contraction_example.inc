@@ -160,12 +160,11 @@ template <typename ADataType,
           typename BLayout,
           typename DsLayout,
           typename ELayout,
-          typename CDEElementWise     = ck_tile::element_wise::PassThrough,
-          ck_tile::index_t NumDTensor = 0>
+          typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float invoke_batched_contraction_kernel(
     ck_tile::DeviceMem& a_full_dims_dev_buf,
     ck_tile::DeviceMem& b_full_dims_dev_buf,
-    const std::array<const void*, NumDTensor>& ds_ptr,
+    const std::array<const void*, DsDataType::size()>& ds_ptr,
     ck_tile::DeviceMem& e_full_dims_dev_buf,
     const std::vector<ck_tile::index_t>& G_dims,
     const std::vector<ck_tile::index_t>& M_dims,
@@ -173,12 +172,12 @@ float invoke_batched_contraction_kernel(
     const std::vector<ck_tile::index_t>& K_dims,
     const std::vector<ck_tile::index_t>& A_dims, // [G0,G1,..,M0,M1,..,K0,K1,..]
     const std::vector<ck_tile::index_t>& B_dims, // [G0,G1,..,N0,N1,..,K0,K1,..]
-    const std::array<std::vector<ck_tile::index_t>, NumDTensor>&
+    const std::array<std::vector<ck_tile::index_t>, DsDataType::size()>&
         Ds_dims, // [G0, G1, ..., M0, M1, ... , N0, N1, ...][NumDTensor]
     const std::vector<ck_tile::index_t>& E_dims,    // [G0,G1,..,M0,M1,..,N0,N1,..]
     const std::vector<ck_tile::index_t>& A_strides, // [G0,G1,..,M0,M1,..,K0,K1,..]
     const std::vector<ck_tile::index_t>& B_strides, // [G0,G1,..,N0,N1,..,K0,K1,..]
-    const std::array<std::vector<ck_tile::index_t>, NumDTensor>& Ds_strides,
+    const std::array<std::vector<ck_tile::index_t>, DsDataType::size()>& Ds_strides,
     const std::vector<ck_tile::index_t>& E_strides, // [G0,G1,..,M0,M1,..,N0,N1,..]
     ck_tile::index_t G_total,
     ck_tile::index_t M_total,
@@ -193,7 +192,7 @@ float invoke_batched_contraction_kernel(
     // std::array<std::vector<ck_tile::index_t>, NumDTensor> empty_ds_dims{};
     // std::array<std::vector<ck_tile::index_t>, NumDTensor> empty_ds_strides{};
 
-    ck_tile::BatchedContractionHostArgs<NumDTensor> args(
+    ck_tile::BatchedContractionHostArgs<DsDataType::size()> args(
         a_full_dims_dev_buf.GetDeviceBuffer(), // a_ptr
         b_full_dims_dev_buf.GetDeviceBuffer(), // b_ptr
         ds_ptr,                                // ds_ptr
@@ -251,11 +250,13 @@ int run_batched_contraction_example_with_layouts(
     if(!result)
         return -1;
 
-    std::vector<ck_tile::index_t> G_dims  = parse_dimensions(arg_parser.get_str("g_dims"));
-    std::vector<ck_tile::index_t> M_dims  = parse_dimensions(arg_parser.get_str("m_dims"));
-    std::vector<ck_tile::index_t> N_dims  = parse_dimensions(arg_parser.get_str("n_dims"));
-    std::vector<ck_tile::index_t> K_dims  = parse_dimensions(arg_parser.get_str("k_dims"));
-    constexpr ck_tile::index_t NumDTensor = 0;
+    std::vector<ck_tile::index_t> G_dims = parse_dimensions(arg_parser.get_str("g_dims"));
+    std::vector<ck_tile::index_t> M_dims = parse_dimensions(arg_parser.get_str("m_dims"));
+    std::vector<ck_tile::index_t> N_dims = parse_dimensions(arg_parser.get_str("n_dims"));
+    std::vector<ck_tile::index_t> K_dims = parse_dimensions(arg_parser.get_str("k_dims"));
+
+    constexpr ck_tile::index_t NumDTensor = 2;
+    // static constexpr ck_tile::index_t NumDTensor = DsDataType::size();
 
     ck_tile::index_t G_total = calculate_total_elements(G_dims);
     ck_tile::index_t M_total = calculate_total_elements(M_dims);
@@ -322,8 +323,8 @@ int run_batched_contraction_example_with_layouts(
     ck_tile::HostTensor<::EDataType> e_full_dims_host(
         ck_tile::HostTensorDescriptor(E_dims, E_strides));
 
-    ck_tile::FillUniformDistribution<::ADataType>{-5.f, 5.f}(a_full_dims_host);
-    ck_tile::FillUniformDistribution<::BDataType>{-5.f, 5.f}(b_full_dims_host);
+    ck_tile::FillUniformDistribution<::ADataType>{-5.f, 5.f, std::nullopt}(a_full_dims_host);
+    ck_tile::FillUniformDistribution<::BDataType>{-5.f, 5.f, std::nullopt}(b_full_dims_host);
 
     ck_tile::DeviceMem a_full_dims_dev_buf(a_full_dims_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_full_dims_dev_buf(b_full_dims_host.get_element_space_size_in_bytes());
@@ -332,64 +333,85 @@ int run_batched_contraction_example_with_layouts(
     a_full_dims_dev_buf.ToDevice(a_full_dims_host.data());
     b_full_dims_dev_buf.ToDevice(b_full_dims_host.data());
 
-    std::vector<ck_tile::HostTensor<::DDataType>> ds_full_dims_host;
-    std::vector<std::unique_ptr<ck_tile::DeviceMem>> ds_full_dims_dev_buf;
-    std::vector<const void*> ds_ptr;
+    ck_tile::HostTensor<::DDataType> d0_full_dims_host(
+        ck_tile::HostTensorDescriptor(Ds_dims[0], Ds_strides[0]));
+    ck_tile::HostTensor<::DDataType> d1_full_dims_host(
+        ck_tile::HostTensorDescriptor(Ds_dims[1], Ds_strides[1]));
 
-    for(ck_tile::index_t d = 0; d < NumDTensor; ++d)
-    {
-        ds_full_dims_host.emplace_back(ck_tile::HostTensor<::DDataType>(
-            ck_tile::HostTensorDescriptor(Ds_dims[d], Ds_strides[d])));
-        ck_tile::FillUniformDistribution<::DDataType>{-5.f, 5.f}(ds_full_dims_host[d]);
-        ds_full_dims_dev_buf.emplace_back(std::make_unique<ck_tile::DeviceMem>(
-            ds_full_dims_host[d].get_element_space_size_in_bytes()));
-        ds_full_dims_dev_buf[d]->ToDevice(ds_full_dims_host[d].data());
-        ds_ptr.push_back(ds_full_dims_dev_buf[d]->GetDeviceBuffer());
-    }
-    std::array<const void*, NumDTensor> ds_ptr_arr{};
-    for(ck_tile::index_t d = 0; d < NumDTensor; ++d)
-    {
-        ds_ptr_arr[d] = ds_ptr[d];
-    }
+    ck_tile::FillUniformDistribution<::DDataType>{2.f, 2.f}(d0_full_dims_host);
+    ck_tile::FillUniformDistribution<::DDataType>{2.f, 2.f}(d1_full_dims_host);
+
+    ck_tile::DeviceMem d0_full_dims_dev_buf(d0_full_dims_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem d1_full_dims_dev_buf(d1_full_dims_host.get_element_space_size_in_bytes());
+    d0_full_dims_dev_buf.ToDevice(d0_full_dims_host.data());
+    d1_full_dims_dev_buf.ToDevice(d1_full_dims_host.data());
+
+    std::array<const void*, NumDTensor> ds_ptr = {d0_full_dims_dev_buf.GetDeviceBuffer(),
+                                                  d1_full_dims_dev_buf.GetDeviceBuffer()};
+
+    // std::vector<ck_tile::HostTensor<::DDataType>> ds_full_dims_host;
+    // std::vector<std::unique_ptr<ck_tile::DeviceMem>> ds_full_dims_dev_buf;
+    // std::vector<const void*> ds_ptr;
+
+    // for(ck_tile::index_t d = 0; d < NumDTensor; ++d)
+    // {
+    //     ds_full_dims_host.emplace_back(ck_tile::HostTensor<::DDataType>(
+    //         ck_tile::HostTensorDescriptor(Ds_dims[d], Ds_strides[d])));
+    //     ck_tile::FillUniformDistribution<::DDataType>{-5.f, 5.f,
+    //     std::nullopt}(ds_full_dims_host[d]);
+    //     ds_full_dims_dev_buf.emplace_back(std::make_unique<ck_tile::DeviceMem>(
+    //         ds_full_dims_host[d].get_element_space_size_in_bytes()));
+    //     ds_full_dims_dev_buf[d]->ToDevice(ds_full_dims_host[d].data());
+    //     ds_ptr.push_back(ds_full_dims_dev_buf[d]->GetDeviceBuffer());
+    // }
+
+    // std::array<const void*, NumDTensor> ds_ptr_arr{};
+    // for(ck_tile::index_t d = 0; d < NumDTensor; ++d)
+    // {
+    //     ds_ptr_arr[d] = ds_ptr[d];
+    // }
 
     e_full_dims_dev_buf.SetZero();
     e_full_dims_host.SetZero();
 
     std::cout << "\n=== Running GPU Kernel ===" << std::endl;
 
-    float ave_time = invoke_batched_contraction_kernel<::ADataType,
-                                                       ::BDataType,
-                                                       ck_tile::tuple<>, //::DsDataType,
-                                                       ::AccDataType,
-                                                       ::EDataType,
-                                                       ALayout,
-                                                       BLayout,
-                                                       ck_tile::tuple<>, // DsLayout,
-                                                       ELayout,
-                                                       ck_tile::element_wise::PassThrough,
-                                                       NumDTensor>(a_full_dims_dev_buf,
-                                                                   b_full_dims_dev_buf,
-                                                                   ds_ptr_arr,
-                                                                   e_full_dims_dev_buf,
-                                                                   G_dims,
-                                                                   M_dims,
-                                                                   N_dims,
-                                                                   K_dims,
-                                                                   A_dims,
-                                                                   B_dims,
-                                                                   Ds_dims,
-                                                                   E_dims,
-                                                                   A_strides,
-                                                                   B_strides,
-                                                                   Ds_strides,
-                                                                   E_strides,
-                                                                   G_total,
-                                                                   M_total,
-                                                                   N_total,
-                                                                   K_total,
-                                                                   kbatch,
-                                                                   n_warmup,
-                                                                   n_repeat);
+    using DsDataType = ck_tile::tuple_array<::DDataType, NumDTensor>;
+    using DsLayout   = ck_tile::tuple_array<DLayout, NumDTensor>;
+
+    float ave_time =
+        invoke_batched_contraction_kernel<::ADataType,
+                                          ::BDataType,
+                                          DsDataType,
+                                          ::AccDataType,
+                                          ::EDataType,
+                                          ALayout,
+                                          BLayout,
+                                          DsLayout,
+                                          ELayout,
+                                          ck_tile::element_wise::PassThrough>(a_full_dims_dev_buf,
+                                                                              b_full_dims_dev_buf,
+                                                                              ds_ptr,
+                                                                              e_full_dims_dev_buf,
+                                                                              G_dims,
+                                                                              M_dims,
+                                                                              N_dims,
+                                                                              K_dims,
+                                                                              A_dims,
+                                                                              B_dims,
+                                                                              Ds_dims,
+                                                                              E_dims,
+                                                                              A_strides,
+                                                                              B_strides,
+                                                                              Ds_strides,
+                                                                              E_strides,
+                                                                              G_total,
+                                                                              M_total,
+                                                                              N_total,
+                                                                              K_total,
+                                                                              kbatch,
+                                                                              n_warmup,
+                                                                              n_repeat);
 
     std::string op_name{
         "Multi-Dimensional Batched Contraction : G: " + std::to_string(G_dims.size()) +

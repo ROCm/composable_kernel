@@ -209,7 +209,7 @@ float batched_contraction(const ck_tile::BatchedContractionHostArgs<NumDTensor>&
                           ck_tile::index_t num_k_dims)
 {
     std::cout << "Dimensions: G=" << num_g_dims << ", M=" << num_m_dims << ", N=" << num_n_dims
-              << ", K=" << num_k_dims << std::endl;
+              << ", K=" << num_k_dims << ", NumDTensor=" << NumDTensor << std::endl;
 
     HANDLE_CASE(1, 1, 1, 1);
     HANDLE_CASE(2, 1, 1, 1);
