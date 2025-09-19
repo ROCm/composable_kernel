@@ -15,13 +15,13 @@
 #include "ck/library/utility/numeric.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_contraction.hpp"
 
+using Row = ck::tensor_layout::gemm::RowMajor;
+
 int run_contraction_bilinear_example(int argc, char* argv[])
 {
     bool do_verification = true;
     int init_method      = 1;
     bool time_kernel     = false;
-
-    using DefaultLayout = ck::tensor_layout::gemm::RowMajor;
 
     // A[M0, M1, K0, K1]
     std::vector<ck::index_t> a_ms_ks_lengths{30, 128, 32, 64};
@@ -97,11 +97,11 @@ int run_contraction_bilinear_example(int argc, char* argv[])
         exit(0);
     }
 
-    Tensor<ADataType> a_ms_ks(a_ms_ks_lengths, a_ms_ks_strides, DefaultLayout{});
-    Tensor<BDataType> b_ns_ks(b_ns_ks_lengths, b_ns_ks_strides, DefaultLayout{});
-    Tensor<EDataType> d_ms_ns(d_ms_ns_lengths, d_ms_ns_strides, DefaultLayout{});
-    Tensor<EDataType> e_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides, DefaultLayout{});
-    Tensor<EDataType> e_ms_ns_device_result(e_ms_ns_lengths, e_ms_ns_strides, DefaultLayout{});
+    Tensor<ADataType> a_ms_ks(a_ms_ks_lengths, a_ms_ks_strides, Row{});
+    Tensor<BDataType> b_ns_ks(b_ns_ks_lengths, b_ns_ks_strides, Row{});
+    Tensor<EDataType> d_ms_ns(d_ms_ns_lengths, d_ms_ns_strides, Row{});
+    Tensor<EDataType> e_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides, Row{});
+    Tensor<EDataType> e_ms_ns_device_result(e_ms_ns_lengths, e_ms_ns_strides, Row{});
 
     std::cout << "a_ms_ks: " << a_ms_ks.mDesc << std::endl;
     std::cout << "b_ns_ks: " << b_ns_ks.mDesc << std::endl;
@@ -191,8 +191,7 @@ int run_contraction_bilinear_example(int argc, char* argv[])
 
     if(do_verification)
     {
-        Tensor<CShuffleDataType> c_ms_ns_host_result(
-            e_ms_ns_lengths, e_ms_ns_strides, DefaultLayout{});
+        Tensor<CShuffleDataType> c_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides, Row{});
 
         using ReferenceOpInstance =
             ck::tensor_operation::host::ReferenceContraction_M2_N2_K2<NumDimM,
