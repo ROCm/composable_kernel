@@ -84,11 +84,12 @@ int run_contraction_scale_example(int argc, char* argv[])
         printf("arg22: scale\n");
         exit(0);
     }
+    using DefaultLayout = ck::tensor_layout::gemm::RowMajor;
 
-    Tensor<ADataType> a_ms_ks(a_ms_ks_lengths, a_ms_ks_strides);
-    Tensor<BDataType> b_ns_ks(b_ns_ks_lengths, b_ns_ks_strides);
-    Tensor<EDataType> e_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides);
-    Tensor<EDataType> e_ms_ns_device_result(e_ms_ns_lengths, e_ms_ns_strides);
+    Tensor<ADataType> a_ms_ks(a_ms_ks_lengths, a_ms_ks_strides, DefaultLayout{});
+    Tensor<BDataType> b_ns_ks(b_ns_ks_lengths, b_ns_ks_strides, DefaultLayout{});
+    Tensor<EDataType> e_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides, DefaultLayout{});
+    Tensor<EDataType> e_ms_ns_device_result(e_ms_ns_lengths, e_ms_ns_strides, DefaultLayout{});
 
     std::cout << "a_ms_ks: " << a_ms_ks.mDesc << std::endl;
     std::cout << "b_ns_ks: " << b_ns_ks.mDesc << std::endl;
@@ -173,7 +174,8 @@ int run_contraction_scale_example(int argc, char* argv[])
 
     if(do_verification)
     {
-        Tensor<CShuffleDataType> c_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides);
+        Tensor<CShuffleDataType> c_ms_ns_host_result(
+            e_ms_ns_lengths, e_ms_ns_strides, DefaultLayout{});
 
         using ReferenceOpInstance =
             ck::tensor_operation::host::ReferenceContraction_M2_N2_K2<NumDimM,
