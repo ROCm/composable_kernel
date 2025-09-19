@@ -704,7 +704,7 @@ TEST(TestCkTileFmhaFwd, BatchModeQKvPadding)
                                                0,       // drop_offset
                                                false,   // drop_prefs
                                                "0",     // mask_str
-                                               QUANT_ARGS,
+                                               squant,
                                                true, // is_rotary_interleaved
                                                1,    // num_splits
                                                COMMON_ARGS);
@@ -758,7 +758,7 @@ TEST(TestCkTileFmhaFwd, GroupModeQKvPadding)
                                                0,       // drop_offset
                                                false,   // drop_prefs
                                                "0",     // mask_str
-                                               QUANT_ARGS,
+                                               squant,
                                                true, // is_rotary_interleaved
                                                1,    // num_splits
                                                COMMON_ARGS);
